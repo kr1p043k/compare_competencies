@@ -13,9 +13,13 @@ for dir_path in [DATA_RAW_DIR, DATA_PROCESSED_DIR, DATA_AREAS_DIR, LOG_DIR]:
 
 # Настройки API hh.ru
 HH_USER_AGENT = "CompetencyAnalyzer/1.0 (opik@sfedu.ru)" 
-REQUEST_DELAY = 0.2
+REQUEST_DELAY = 0.5  # Увеличено для надёжности
+MAX_RETRIES = 3      # Количество повторных попыток при ошибке
+RETRY_DELAY = 2      # Задержка между попытками
 
 # Параметры поиска
-DEFAULT_AREA = 76            # 76 = Ростовская область (исправлено!)
+DEFAULT_AREA = 76                     # Ростовская область
 DEFAULT_PERIOD_DAYS = 30
 DEFAULT_MAX_PAGES = 20
+DEFAULT_PER_PAGE = 100                 # Максимум элементов на странице
+
