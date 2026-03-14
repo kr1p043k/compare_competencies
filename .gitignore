@@ -1,6 +1,3 @@
-requests
-pandas
-pydantic
-matplotlib
-jupyter
-python-dotenv
+logs
+areas
+__pycache__
