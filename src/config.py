@@ -8,18 +8,20 @@ DATA_AREAS_DIR = BASE_DIR / "data" / "areas"
 LOG_DIR = BASE_DIR / "logs"
 LOG_FILE = LOG_DIR / "app.log"
 
+# Новый путь к файлу с IT-навыками
+IT_SKILLS_FILE = BASE_DIR / "data" / "it_skills.json"
+
 for dir_path in [DATA_RAW_DIR, DATA_PROCESSED_DIR, DATA_AREAS_DIR, LOG_DIR]:
     dir_path.mkdir(parents=True, exist_ok=True)
 
 # Настройки API hh.ru
-HH_USER_AGENT = "CompetencyAnalyzer/1.0 (opik@sfedu.ru)" 
-REQUEST_DELAY = 0.5  # Увеличено для надёжности
-MAX_RETRIES = 3      # Количество повторных попыток при ошибке
-RETRY_DELAY = 2      # Задержка между попытками
+HH_USER_AGENT = "CompetencyAnalyzer/1.0 (opik@sfedu.ru)"
+REQUEST_DELAY = 0.5
+MAX_RETRIES = 3
+RETRY_DELAY = 2
 
 # Параметры поиска
-DEFAULT_AREA = 76                     # Ростовская область
+DEFAULT_AREA = 76
 DEFAULT_PERIOD_DAYS = 30
 DEFAULT_MAX_PAGES = 20
-DEFAULT_PER_PAGE = 100                 # Максимум элементов на странице
-
+DEFAULT_PER_PAGE = 100

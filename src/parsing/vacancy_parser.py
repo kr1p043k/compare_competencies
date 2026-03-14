@@ -6,7 +6,7 @@ import pandas as pd
 import re
 from pathlib import Path
 from src import config
-
+from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
 logger = logging.getLogger(__name__)
 
 class VacancyParser:
@@ -157,6 +157,22 @@ class VacancyParser:
 
         logger.info(f"Из текста извлечено {len(all_skills)} сырых навыков")
         return all_skills
+    def save_processed_frequencies(self, frequencies: Dict[str, int], filename: str = "competency_frequency.json", apply_filter: bool = True):
+        """
+        Сохраняет частоты навыков в JSON.
+        Если apply_filter=True, применяет фильтрацию по белому списку IT-навыков.
+        """
+        if apply_filter:
+            whitelist = load_it_skills()
+            if whitelist:
+                frequencies = filter_skills_by_whitelist(frequencies, whitelist)
+            else:
+                logger.warning("Белый список не загружен, фильтрация пропущена.")
+
+        filepath = config.DATA_PROCESSED_DIR / filename
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(frequencies, f, ensure_ascii=False, indent=2)
+        logger.info(f"Частоты навыков сохранены в {filepath} (навыков: {len(frequencies)})")
 
     # ===== ВЫВОД В КОНСОЛЬ =====
     @staticmethod
