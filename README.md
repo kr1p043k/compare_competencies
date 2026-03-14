@@ -78,5 +78,5 @@
     │
     ├── 📄 main.py # Точка входа: запуск полного пайплайна (парсинг -> сравнение -> рекомендации)
     ├── 📄 README.md # Описание проекта, установка, примеры использования
-    └── 📄 requirements.txt # Список зависимостей Python (requests, pandas, pydantic, matplotlib и т.д.)
-```
+    └── 📄 requirements.txt # Список зависимостей Python (requests, pandas, pydantic, matplotlib и т.д.) Z
+``` 
