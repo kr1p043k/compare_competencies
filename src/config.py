@@ -6,7 +6,6 @@ BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / "data"                     
 DATA_RAW_DIR = DATA_DIR / "raw"
 DATA_PROCESSED_DIR = DATA_DIR / "processed"
-DATA_AREAS_DIR = DATA_DIR / "areas"
 STUDENTS_DIR = DATA_DIR / "students"              
 LAST_UPLOADED_DIR = DATA_DIR / "last_uploaded"    
 
@@ -17,7 +16,7 @@ LOG_FILE = LOG_DIR / "app.log"
 # Файл с IT-навыками
 IT_SKILLS_FILE = DATA_DIR / "it_skills.json"
 
-for dir_path in [DATA_RAW_DIR, DATA_PROCESSED_DIR, DATA_AREAS_DIR, STUDENTS_DIR, LAST_UPLOADED_DIR, LOG_DIR]:
+for dir_path in [DATA_RAW_DIR, DATA_PROCESSED_DIR, STUDENTS_DIR, LAST_UPLOADED_DIR, LOG_DIR]:
     dir_path.mkdir(parents=True, exist_ok=True)
 
 # Настройки API hh.ru
