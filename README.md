@@ -8,6 +8,7 @@
     │   │   └── 📄 competency_matrix.csv #Последний загруженный вариант компетенций
     │   ├── 📁 processed # Обработанные и нормализованные данные с hh.ru
     │   │   ├── 📄 competency_frequency.json # Словарь {навык: частота} для быстрого доступа
+    │   │   ├── 📄 competency_mapping.json # Словарь {компетенция: ключевые слова}
     │   │   └── 📄 market_competencies.csv # Таблица с частотами навыков и категориями (для Pandas)
     │   ├── 📁 raw # Сырые данные, полученные с hh.ru (ответы API)
     │   │   ├── 📄 competency_matrix.csv #Отсюда идет подгруз в .../src/loaders_student/student_load.py
