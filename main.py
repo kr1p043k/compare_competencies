@@ -5,7 +5,9 @@ import argparse
 import logging
 import sys
 import time
+import json
 from pathlib import Path
+from collections import Counter
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -13,14 +15,13 @@ from src.parsing.hh_api import HeadHunterAPI
 from src.parsing.vacancy_parser import VacancyParser
 from src.parsing.utils import setup_logging
 from src import config
-# Импортируем функцию для обновления профилей учеников
 from src.loaders_student.student_loader import generate_profiles_from_csv
-from src.config import DATA_RAW_DIR, STUDENTS_DIR, LAST_UPLOADED_DIR
+from src.utils import load_competency_mapping
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Сбор и анализ вакансий с hh.ru по региону")
-    parser.add_argument('--query', '-q', type=str, default="аналитик данных",
-                        help="Поисковый запрос (например, 'аналитик данных')")
+    parser.add_argument('--query', '-q', type=str, default="Frontend Разработчик",
+                        help="Поисковый запрос (например, 'Frontend Разработчик')")
     parser.add_argument('--area-id', '-a', type=int, default=config.DEFAULT_AREA,
                         help=f"ID региона (по умолчанию {config.DEFAULT_AREA} - Ростовская область)")
     parser.add_argument('--max-pages', '-p', type=int, default=config.DEFAULT_MAX_PAGES,
@@ -52,7 +53,6 @@ def main():
     # ------------------------------------------------------------------
     try:
         logger.info("Проверка наличия CSV-матрицы компетенций...")
-        # Используем путь по умолчанию: data/raw/competency_matrix.csv
         generate_profiles_from_csv()
         logger.info("✅ Профили учеников успешно обновлены из CSV.")
     except FileNotFoundError:
@@ -105,20 +105,16 @@ def main():
             if details:
                 detailed_vacancies.append(details)
                 success_count += 1
-                # Проверяем наличие ключевых навыков для отладки
                 if details.get('key_skills'):
                     logger.debug(f"✅ Вакансия {vac_id} содержит {len(details['key_skills'])} ключевых навыков")
             else:
                 logger.warning(f"⚠️ Не удалось загрузить детали для вакансии {vac_id}, использую базовую версию")
                 detailed_vacancies.append(vac)
 
-            # Обязательная пауза между запросами
             time.sleep(config.REQUEST_DELAY)
 
         logger.info(f"Загружена детальная информация для {success_count}/{len(basic_vacancies)} вакансий")
         vacancies_to_process = detailed_vacancies
-
-        # Сохраняем подробные данные
         parser.save_raw_vacancies(detailed_vacancies, filename="hh_vacancies_detailed.json")
 
     # ------------------------------------------------------------------
@@ -132,10 +128,8 @@ def main():
     # ------------------------------------------------------------------
     logger.info("ЭТАП 4: Извлечение и анализ навыков")
 
-    # Сначала пробуем извлечь из key_skills
     all_skills = parser.extract_skills(vacancies_to_process)
 
-    # Если не нашли, пробуем из текста
     if not all_skills:
         logger.info("key_skills не найдены, пробуем извлечь из текста вакансий...")
         all_skills = parser.extract_skills_from_text(vacancies_to_process)
@@ -152,6 +146,39 @@ def main():
         print("-" * 40)
         for i, (skill, count) in enumerate(top_skills, 1):
             print(f"{i:2}. {skill:30} {count:3} упоминаний")
+
+        # ------------------------------------------------------------------
+        # Преобразование частот навыков в частоты учебных компетенций
+        # ------------------------------------------------------------------
+        logger.info("Преобразование рыночных навыков в учебные компетенции...")
+        mapping = load_competency_mapping()
+        if mapping:
+            # Обратный индекс: навык -> список компетенций
+            skill_to_comp = {}
+            for comp, skills in mapping.items():
+                for skill in skills:
+                    skill_to_comp.setdefault(skill, []).append(comp)
+
+            comp_counter = Counter()
+            for skill, freq in skill_frequencies.items():
+                if skill in skill_to_comp:
+                    for comp in skill_to_comp[skill]:
+                        comp_counter[comp] += freq
+
+            # Сохраняем результат
+            comp_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency_mapped.json"
+            with open(comp_freq_path, 'w', encoding='utf-8') as f:
+                json.dump(dict(comp_counter.most_common()), f, ensure_ascii=False, indent=2)
+            logger.info(f"✅ Частоты компетенций сохранены в {comp_freq_path}")
+
+            # Вывод топ-20 компетенций
+            top_comps = comp_counter.most_common(20)
+            print("\n📊 Топ-20 учебных компетенций на рынке:")
+            print("-" * 50)
+            for i, (comp, freq) in enumerate(top_comps, 1):
+                print(f"{i:2}. {comp:20} {freq:3} суммарных упоминаний")
+        else:
+            logger.warning("Маппинг не загружен, пропущено преобразование в компетенции.")
 
     # ------------------------------------------------------------------
     # ЭТАП 5: СОХРАНЕНИЕ В EXCEL (если запрошено)
