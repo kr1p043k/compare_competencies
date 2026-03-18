@@ -1,5 +1,6 @@
 import logging
-from src.config import LOG_FILE
+import json
+from src.config import *
 
 def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
     """
@@ -31,3 +32,7 @@ def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
     logger.addHandler(console_handler)
 
     return logger
+
+def load_competency_mapping():
+    with open(COMPETENCY_MAPPING_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
