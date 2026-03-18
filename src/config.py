@@ -7,7 +7,8 @@ DATA_DIR = BASE_DIR / "data"
 DATA_RAW_DIR = DATA_DIR / "raw"
 DATA_PROCESSED_DIR = DATA_DIR / "processed"
 STUDENTS_DIR = DATA_DIR / "students"              
-LAST_UPLOADED_DIR = DATA_DIR / "last_uploaded"    
+LAST_UPLOADED_DIR = DATA_DIR / "last_uploaded"
+COMPETENCY_MAPPING_FILE = DATA_PROCESSED_DIR / "competency_mapping.json"    
 
 # Логи
 LOG_DIR = BASE_DIR / "logs"
