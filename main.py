@@ -13,6 +13,9 @@ from src.parsing.hh_api import HeadHunterAPI
 from src.parsing.vacancy_parser import VacancyParser
 from src.parsing.utils import setup_logging
 from src import config
+# Импортируем функцию для обновления профилей учеников
+from src.loaders_student.student_loader import generate_profiles_from_csv
+from src.config import DATA_RAW_DIR, STUDENTS_DIR, LAST_UPLOADED_DIR
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Сбор и анализ вакансий с hh.ru по региону")
@@ -43,6 +46,19 @@ def main():
     logger.info(f"Запрос: '{args.query}'")
     logger.info(f"Регион ID: {args.area_id}, период: {args.period} дней, макс. страниц: {args.max_pages}")
     logger.info(f"Загружать детали: {not args.skip_details}")
+
+    # ------------------------------------------------------------------
+    # ЭТАП 0: ОБНОВЛЕНИЕ ПРОФИЛЕЙ УЧЕНИКОВ ИЗ CSV (если доступен)
+    # ------------------------------------------------------------------
+    try:
+        logger.info("Проверка наличия CSV-матрицы компетенций...")
+        # Используем путь по умолчанию: data/raw/competency_matrix.csv
+        generate_profiles_from_csv()
+        logger.info("✅ Профили учеников успешно обновлены из CSV.")
+    except FileNotFoundError:
+        logger.warning("⚠️ CSV-файл не найден, используются существующие профили в data/students/.")
+    except Exception as e:
+        logger.exception(f"❌ Ошибка при обновлении профилей: {e}")
 
     hh_api = HeadHunterAPI()
     parser = VacancyParser()
