@@ -1,12 +1,13 @@
 import json
+import re
 from collections import Counter
 from typing import List, Dict, Any, Optional
 import logging
 import pandas as pd
-import re
 from pathlib import Path
 from src import config
 from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
+
 logger = logging.getLogger(__name__)
 
 class VacancyParser:
@@ -14,7 +15,40 @@ class VacancyParser:
     Класс для обработки вакансий и извлечения навыков.
     """
 
-    # ===== СОХРАНЕНИЕ ДАННЫХ =====
+    # Расширенный список маркеров для поиска навыков
+    SKILL_MARKERS = [
+        "ключевые навыки", "ключевые навыки:", "ключевые компетенции", "ключевые компетенции:",
+        "требования", "требования:", "требования к кандидату", "требования к кандидату:",
+        "необходимые навыки", "необходимые навыки:", "навыки", "навыки:",
+        "мы ждем", "мы ждем:", "ожидаем от вас", "ожидаем от вас:",
+        "что нужно знать", "что нужно знать:", "что вы умеете", "что вы умеете:",
+        "профессиональные навыки", "профессиональные навыки:",
+        "опыт работы с", "опыт работы:", "знание", "знание:",
+        "уверенное владение", "владение", "понимание",
+        "должен уметь", "должен знать",
+        "stack", "технологии", "технологии:",
+        "инструменты", "инструменты:"
+    ]
+    
+    # Технические навыки для извлечения (популярные технологии)
+    TECH_SKILLS = {
+        # Языки программирования
+        "python", "java", "javascript", "typescript", "c++", "c#", "php", "ruby", "go", "golang", 
+        "rust", "swift", "kotlin", "scala", "r", "matlab", "sql", "nosql",
+        # Фреймворки и библиотеки
+        "django", "flask", "fastapi", "spring", "spring boot", "react", "angular", "vue", "vue.js",
+        "tensorflow", "pytorch", "keras", "scikit-learn", "pandas", "numpy", "matplotlib", "seaborn",
+        "spark", "hadoop", "kafka", "airflow", "docker", "kubernetes", "jenkins", "git", "github",
+        # Базы данных
+        "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "clickhouse", "oracle",
+        # Облачные технологии
+        "aws", "azure", "gcp", "yandex cloud", "cloud",
+        # Data Science / ML
+        "machine learning", "машинное обучение", "deep learning", "глубокое обучение", "nlp",
+        "computer vision", "компьютерное зрение", "data science", "анализ данных", "data analysis",
+        "big data", "большие данные", "etl", "data warehouse", "dwh"
+    }
+
     def save_raw_vacancies(self, vacancies: List[Dict[str, Any]], filename: str = "hh_vacancies.json"):
         """Сохраняет сырые данные о вакансиях в JSON-файл."""
         filepath = config.DATA_RAW_DIR / filename
@@ -22,33 +56,24 @@ class VacancyParser:
             json.dump(vacancies, f, ensure_ascii=False, indent=2)
         logger.info(f"Сырые данные сохранены в {filepath} (вакансий: {len(vacancies)})")
 
-    def save_processed_frequencies(self, frequencies: Dict[str, int], filename: str = "competency_frequency.json"):
-        """Сохраняет обработанные частоты навыков в JSON-файл."""
+    def save_processed_frequencies(self, frequencies: Dict[str, int], filename: str = "competency_frequency.json", apply_filter: bool = True):
+        """Сохраняет частоты навыков в JSON."""
+        if apply_filter:
+            whitelist = load_it_skills()
+            if whitelist:
+                frequencies = filter_skills_by_whitelist(frequencies, whitelist)
+                logger.info(f"Фильтрация применена, осталось {len(frequencies)} навыков")
+            else:
+                logger.warning("Белый список не загружен, фильтрация пропущена.")
+
         filepath = config.DATA_PROCESSED_DIR / filename
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(frequencies, f, ensure_ascii=False, indent=2)
         logger.info(f"Частоты навыков сохранены в {filepath} (навыков: {len(frequencies)})")
 
-    def save_frequencies_to_csv(self, frequencies: Dict[str, int], filename: str = "market_competencies.csv"):
-        """
-        Сохраняет частоты навыков в CSV-файл (две колонки: skill, frequency).
-        Это соответствует изначальной структуре проекта.
-        """
-        if not frequencies:
-            logger.warning("Словарь частот пуст, CSV не создан")
-            return
-        df = pd.DataFrame(list(frequencies.items()), columns=['skill', 'frequency'])
-        df = df.sort_values('frequency', ascending=False)
-        filepath = config.DATA_PROCESSED_DIR / filename
-        df.to_csv(filepath, index=False, encoding='utf-8')
-        logger.info(f"Частоты навыков сохранены в CSV: {filepath}")
-
-    # ===== ИЗВЛЕЧЕНИЕ НАВЫКОВ =====
     @staticmethod
     def extract_skills(vacancies: List[Dict[str, Any]]) -> List[str]:
-        """
-        Извлекает ключевые навыки из поля key_skills детальной информации о вакансии.
-        """
+        """Извлекает ключевые навыки из поля key_skills."""
         all_skills = []
         vacancies_with_skills = 0
 
@@ -62,16 +87,14 @@ class VacancyParser:
                         all_skills.append(skill_name)
 
         logger.info(f"Из {len(vacancies)} вакансий извлечены навыки из {vacancies_with_skills}")
-        if vacancies_with_skills > 0:
+        if all_skills:
             logger.debug(f"Пример первых 10 навыков: {all_skills[:10]}")
 
         return all_skills
 
     @staticmethod
     def normalize_skill(skill: str) -> str:
-        """
-        Приводит навык к единому виду для корректного подсчёта.
-        """
+        """Приводит навык к единому виду для корректного подсчёта."""
         normalized = skill.lower().strip()
         normalized = re.sub(r'[^\w\s-]', '', normalized)
         normalized = re.sub(r'\s+', ' ', normalized)
@@ -79,107 +102,93 @@ class VacancyParser:
 
     @staticmethod
     def count_skills(skills_list: List[str]) -> Dict[str, int]:
-        """
-        Подсчитывает частоту каждого навыка после нормализации.
-        """
+        """Подсчитывает частоту каждого навыка после нормализации."""
         normalized_skills = [VacancyParser.normalize_skill(s) for s in skills_list]
         skill_counts = Counter(normalized_skills)
+        # Фильтруем слишком короткие навыки
         filtered_counts = {k: v for k, v in skill_counts.items() if len(k) > 2}
         logger.info(f"Подсчитаны частоты навыков: {len(filtered_counts)} уникальных (было {len(skill_counts)})")
         return filtered_counts
 
     @staticmethod
     def extract_skills_from_text(vacancies: List[Dict[str, Any]]) -> List[str]:
-        """
-        Извлекает навыки из текстовых полей вакансий (snippet.requirement, snippet.responsibility,
-        а также из полного описания, если оно есть в детальной информации).
-        """
-        markers = [
-            "ключевые навыки", "ключевые навыки:",
-            "для выполнения задач потребуется",
-            "эта вакансия для вас, если вы:",
-            "мы ждем, что вы:",
-            "требования:", "требования к кандидату:",
-            "что нужно знать и уметь:",
-            "необходимые навыки:", "необходимые требования:",
-            "желательные навыки:", "будет плюсом:",
-            "ваши навыки:", "вы должны:",
-            "требуется:", "требуемый опыт и навыки:",
-            "квалификация:", "профессиональные навыки:",
-            "основные требования:", "ключевые компетенции:",
-            "мы ищем человека, который:", "идеальный кандидат:"
-        ]
-
+        """Улучшенное извлечение навыков из текстовых полей вакансий."""
         all_skills = []
-
+        
         for vacancy in vacancies:
             text_parts = []
-
+            
+            # Собираем текст из разных полей
             snippet = vacancy.get('snippet', {})
-            if snippet and isinstance(snippet, dict):
+            if snippet:
                 if snippet.get('requirement'):
                     text_parts.append(snippet['requirement'])
                 if snippet.get('responsibility'):
                     text_parts.append(snippet['responsibility'])
-
+            
             if vacancy.get('description'):
                 text_parts.append(vacancy['description'])
-
+            
             full_text = ' '.join(text_parts).lower()
-
-            for marker in markers:
+            
+            # 1. Ищем по маркерам
+            skills_found = set()
+            for marker in VacancyParser.SKILL_MARKERS:
                 if marker in full_text:
+                    # Находим текст после маркера
                     parts = full_text.split(marker, 1)
                     if len(parts) > 1:
                         after_marker = parts[1]
-
-                        # Ищем ближайший следующий маркер
-                        next_marker_pos = len(after_marker)
-                        for m in markers:
-                            pos = after_marker.find(m)
-                            if pos != -1 and pos < next_marker_pos:
-                                next_marker_pos = pos
-
-                        skill_text = after_marker[:next_marker_pos]
-
-                        lines = skill_text.split('\n')
+                        # Берем следующий абзац или до 200 символов
+                        end_pos = min(500, len(after_marker))
+                        skill_text = after_marker[:end_pos]
+                        
+                        # Разбиваем по строкам и запятым
+                        lines = re.split(r'[\n,•\-*•]+', skill_text)
                         for line in lines:
-                            clean_line = re.sub(r'^[\s•\-*•\d+\.]+', '', line).strip()
-                            if clean_line and len(clean_line) > 2:
-                                if ',' in clean_line and len(lines) == 1:
-                                    for item in clean_line.split(','):
-                                        item = item.strip()
-                                        if item and len(item) > 2:
-                                            all_skills.append(item)
-                                else:
-                                    all_skills.append(clean_line)
-                    break
-
+                            line = line.strip()
+                            if line and len(line) > 2 and len(line) < 100:
+                                # Проверяем, содержит ли строка технические навыки
+                                if any(tech in line for tech in VacancyParser.TECH_SKILLS):
+                                    skills_found.add(line)
+            
+            # 2. Ищем по словарю технических навыков
+            for tech_skill in VacancyParser.TECH_SKILLS:
+                if tech_skill in full_text:
+                    skills_found.add(tech_skill)
+            
+            # 3. Ищем паттерны типа "опыт работы с X"
+            exp_pattern = r'опыт работы с ([^,.;\n]+)'
+            matches = re.findall(exp_pattern, full_text)
+            for match in matches:
+                skill = match.strip()
+                if len(skill) > 2 and len(skill) < 50:
+                    skills_found.add(skill)
+            
+            # 4. Ищем паттерны "знание X"
+            knowledge_pattern = r'знание ([^,.;\n]+)'
+            matches = re.findall(knowledge_pattern, full_text)
+            for match in matches:
+                skill = match.strip()
+                if len(skill) > 2 and len(skill) < 50:
+                    skills_found.add(skill)
+            
+            # 5. Ищем паттерны "владение X"
+            skill_pattern = r'владение ([^,.;\n]+)'
+            matches = re.findall(skill_pattern, full_text)
+            for match in matches:
+                skill = match.strip()
+                if len(skill) > 2 and len(skill) < 50:
+                    skills_found.add(skill)
+            
+            all_skills.extend(list(skills_found))
+        
         logger.info(f"Из текста извлечено {len(all_skills)} сырых навыков")
         return all_skills
-    def save_processed_frequencies(self, frequencies: Dict[str, int], filename: str = "competency_frequency.json", apply_filter: bool = True):
-        """
-        Сохраняет частоты навыков в JSON.
-        Если apply_filter=True, применяет фильтрацию по белому списку IT-навыков.
-        """
-        if apply_filter:
-            whitelist = load_it_skills()
-            if whitelist:
-                frequencies = filter_skills_by_whitelist(frequencies, whitelist)
-            else:
-                logger.warning("Белый список не загружен, фильтрация пропущена.")
 
-        filepath = config.DATA_PROCESSED_DIR / filename
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(frequencies, f, ensure_ascii=False, indent=2)
-        logger.info(f"Частоты навыков сохранены в {filepath} (навыков: {len(frequencies)})")
-
-    # ===== ВЫВОД В КОНСОЛЬ =====
     @staticmethod
     def print_vacancies_list(vacancies: List[Dict[str, Any]], limit: int = 30):
-        """
-        Выводит список вакансий в консоль в виде таблицы.
-        """
+        """Выводит список вакансий в консоль."""
         if not vacancies:
             print("❌ Список вакансий пуст.")
             return
@@ -191,7 +200,6 @@ class VacancyParser:
 
         for idx, item in enumerate(vacancies[:limit], 1):
             vacancy_id = item.get('id', 'N/A')
-
             name = item.get('name', 'Без названия')
             if len(name) > 47:
                 name = name[:44] + "..."
@@ -229,18 +237,13 @@ class VacancyParser:
             print(f"... и ещё {len(vacancies) - limit} вакансий")
         print("=" * 140)
 
-    # ===== АГРЕГАЦИЯ В DATAFRAME =====
     def aggregate_to_dataframe(self, vacancies: List[Dict[str, Any]]) -> pd.DataFrame:
-        """
-        Преобразует список детальных вакансий в DataFrame для анализа.
-        Исправлена обработка полей, которые могут быть None.
-        """
+        """Преобразует список детальных вакансий в DataFrame."""
         if not vacancies:
             return pd.DataFrame()
 
         data = []
         for v in vacancies:
-            # Безопасное извлечение вложенных словарей
             salary = v.get('salary') if isinstance(v.get('salary'), dict) else None
             area = v.get('area') if isinstance(v.get('area'), dict) else {}
             employer = v.get('employer') if isinstance(v.get('employer'), dict) else {}
@@ -249,7 +252,6 @@ class VacancyParser:
             employment = v.get('employment') if isinstance(v.get('employment'), dict) else {}
             experience = v.get('experience') if isinstance(v.get('experience'), dict) else {}
 
-            # Зарплата
             salary_from = None
             salary_to = None
             salary_currency = None
@@ -258,7 +260,6 @@ class VacancyParser:
                 salary_to = salary.get('to')
                 salary_currency = salary.get('currency')
 
-            # Ключевые навыки
             key_skills_list = v.get('key_skills', [])
             if key_skills_list and isinstance(key_skills_list, list):
                 key_skills = ', '.join([

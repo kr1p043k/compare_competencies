@@ -6,3 +6,7 @@ jupyter
 seaborn
 ipykernel
 python-dotenv
+streamlit
+plotly
+numpy
+chardet>=5.0.0

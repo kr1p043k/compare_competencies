@@ -30,6 +30,8 @@
     │       ├── 📄 descriptiom_of_competency.txt
     │       └── 📄 top_dc_competency.json # Список навыков ученика "top_dc"
     │
+    ├── 📁frontend
+    │   ├──📄 app.py
     ├── 📁 notebooks # Jupyter ноутбуки для исследовательского анализа и прототипирования
     │   ├── 📄 01_hh_analysis.ipynb # Анализ рыночных данных с hh.ru (частоты, тренды, кластеризация)
     │   ├── 📄 02_competency_matching.ipynb # Сравнение профилей учеников с рынком, gap-анализ
