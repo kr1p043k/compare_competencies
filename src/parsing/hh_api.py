@@ -106,7 +106,8 @@ class HeadHunterAPI:
                         search_fields: Optional[List[str]] = None,
                         employment: Optional[str] = None,
                         schedule: Optional[str] = None,
-                        experience: Optional[str] = None) -> List[Dict[str, Any]]:
+                        experience: Optional[str] = None,
+                        industry: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Поиск вакансий с полным набором параметров согласно документации.
         """
@@ -132,6 +133,8 @@ class HeadHunterAPI:
             params['schedule'] = schedule
         if experience:
             params['experience'] = experience
+        if industry is not None:
+            params['industry'] = industry   # добавлено
 
         # Дополнительные полезные параметры
         params['order_by'] = 'publication_time'  # Сортировка по дате
