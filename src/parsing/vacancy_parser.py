@@ -1,5 +1,6 @@
 import json
 import re
+import sys
 from collections import Counter
 from typing import List, Dict, Any, Optional
 import logging
@@ -9,10 +10,13 @@ from src import config
 from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
 
 logger = logging.getLogger(__name__)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 class VacancyParser:
     """
     Класс для обработки вакансий и извлечения навыков.
+    Улучшенная версия: полная очистка от <highlighttext>, лучшая нормализация,
+    фильтрация мусора и более точные паттерны.
     """
 
     # Расширенный список маркеров для поиска навыков
@@ -29,18 +33,18 @@ class VacancyParser:
         "stack", "технологии", "технологии:",
         "инструменты", "инструменты:"
     ]
-    
-    # Технические навыки для извлечения (популярные технологии)
+
+    # Технические навыки для извлечения (множество для быстрого поиска)
     TECH_SKILLS = {
         # Языки программирования
-        "python", "java", "javascript", "typescript", "c++", "c#", "php", "ruby", "go", "golang", 
-        "rust", "swift", "kotlin", "scala", "r", "matlab", "sql", "nosql",
+        "python", "python3", "py", "java", "javascript", "js", "typescript", "ts", "c++", "cpp",
+        "c#", "csharp", "php", "ruby", "go", "golang", "rust", "swift", "kotlin", "scala",
+        "r", "matlab", "sql", "nosql",
         # Фреймворки и библиотеки
         "django", "flask", "fastapi", "spring", "spring boot", "react", "angular", "vue", "vue.js",
         "tensorflow", "pytorch", "keras", "scikit-learn", "pandas", "numpy", "matplotlib", "seaborn",
-        "spark", "hadoop", "kafka", "airflow", "docker", "kubernetes", "jenkins", "git", "github",
-        # Базы данных
-        "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "clickhouse", "oracle",
+        "spark", "hadoop", "kafka", "airflow", "docker", "kubernetes", "k8s", "jenkins", "git", "github",
+        "gitlab", "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "clickhouse", "oracle",
         # Облачные технологии
         "aws", "azure", "gcp", "yandex cloud", "cloud",
         # Data Science / ML
@@ -48,6 +52,29 @@ class VacancyParser:
         "computer vision", "компьютерное зрение", "data science", "анализ данных", "data analysis",
         "big data", "большие данные", "etl", "data warehouse", "dwh"
     }
+
+    # Синонимы для финальной нормализации (можно расширять)
+    SYNONYMS = {
+        "javascript": "js",
+        "typescript": "ts",
+        "golang": "go",
+        "vue.js": "vue",
+        "postgresql": "postgres",
+        "c++": "cpp",
+        "c#": "csharp",
+        "kubernetes": "k8s",
+        "machine learning": "ml",
+        "машинное обучение": "ml",
+    }
+
+    @staticmethod
+    def clean_highlighttext(text: str) -> str:
+        """Удаляет все теги <highlighttext> и </highlighttext>, которые вставляет HH.ru."""
+        if not text:
+            return ""
+        # Удаляем открывающие и закрывающие теги (с учётом возможных атрибутов)
+        text = re.sub(r'</?highlighttext[^>]*>', '', text, flags=re.IGNORECASE)
+        return text.strip()
 
     def save_raw_vacancies(self, vacancies: List[Dict[str, Any]], filename: str = "hh_vacancies.json"):
         """Сохраняет сырые данные о вакансиях в JSON-файл."""
@@ -73,7 +100,7 @@ class VacancyParser:
 
     @staticmethod
     def extract_skills(vacancies: List[Dict[str, Any]]) -> List[str]:
-        """Извлекает ключевые навыки из поля key_skills."""
+        """Извлекает ключевые навыки из поля key_skills (официальное поле HH)."""
         all_skills = []
         vacancies_with_skills = 0
 
@@ -84,111 +111,124 @@ class VacancyParser:
                 for skill_item in skills_data:
                     skill_name = skill_item.get('name', '')
                     if skill_name:
-                        all_skills.append(skill_name)
+                        # Очищаем от возможных highlight-тегов (на всякий случай)
+                        clean_name = VacancyParser.clean_highlighttext(skill_name)
+                        all_skills.append(clean_name)
 
-        logger.info(f"Из {len(vacancies)} вакансий извлечены навыки из {vacancies_with_skills}")
-        if all_skills:
-            logger.debug(f"Пример первых 10 навыков: {all_skills[:10]}")
-
+        logger.info(f"Из {len(vacancies)} вакансий извлечены навыки из {vacancies_with_skills} (key_skills)")
         return all_skills
 
     @staticmethod
     def normalize_skill(skill: str) -> str:
-        """Приводит навык к единому виду для корректного подсчёта."""
-        normalized = skill.lower().strip()
-        normalized = re.sub(r'[^\w\s-]', '', normalized)
-        normalized = re.sub(r'\s+', ' ', normalized)
+        """Приводит навык к единому виду + убирает мусор."""
+        if not skill:
+            return ""
+
+        normalized = VacancyParser.clean_highlighttext(skill).lower().strip()
+        # Оставляем только буквы, цифры, пробелы, дефис, +, /, ., #
+        normalized = re.sub(r'[^\w\s\-+/#.]', ' ', normalized)
+        normalized = re.sub(r'\s+', ' ', normalized).strip()
+
+        # Убираем типичные префиксы/суффиксы, которые не являются частью навыка
+        normalized = re.sub(r'^(опыт|знание|владение|умение|должен|требуется|работа с)\s+', '', normalized)
+        normalized = re.sub(r'\s+(опыт|знание|владение|умение|плюсом|желательно)$', '', normalized)
+
+        # Применяем синонимы
+        for orig, replacement in VacancyParser.SYNONYMS.items():
+            if normalized == orig:
+                normalized = replacement
+                break
+
         return normalized
 
     @staticmethod
     def count_skills(skills_list: List[str]) -> Dict[str, int]:
         """Подсчитывает частоту каждого навыка после нормализации."""
-        normalized_skills = [VacancyParser.normalize_skill(s) for s in skills_list]
+        normalized_skills = [VacancyParser.normalize_skill(s) for s in skills_list if s]
         skill_counts = Counter(normalized_skills)
-        # Фильтруем слишком короткие навыки
-        filtered_counts = {k: v for k, v in skill_counts.items() if len(k) > 2}
+
+        # Фильтруем слишком короткие и очевидный мусор
+        filtered_counts = {
+            k: v for k, v in skill_counts.items()
+            if len(k) > 2 and not any(bad in k for bad in [
+                "английского языка", "русского языка", "высшее образование",
+                "знание английского", "опыт работы", "умение", "желательно"
+            ])
+        }
+
         logger.info(f"Подсчитаны частоты навыков: {len(filtered_counts)} уникальных (было {len(skill_counts)})")
         return filtered_counts
 
     @staticmethod
     def extract_skills_from_text(vacancies: List[Dict[str, Any]]) -> List[str]:
-        """Улучшенное извлечение навыков из текстовых полей вакансий."""
+        """Улучшенное извлечение навыков из текстовых полей с полной очисткой highlighttext."""
         all_skills = []
-        
+
         for vacancy in vacancies:
             text_parts = []
-            
-            # Собираем текст из разных полей
+
+            # Собираем текст из разных полей + сразу чистим highlighttext
             snippet = vacancy.get('snippet', {})
             if snippet:
                 if snippet.get('requirement'):
-                    text_parts.append(snippet['requirement'])
+                    text_parts.append(VacancyParser.clean_highlighttext(snippet['requirement']))
                 if snippet.get('responsibility'):
-                    text_parts.append(snippet['responsibility'])
-            
+                    text_parts.append(VacancyParser.clean_highlighttext(snippet['responsibility']))
+
             if vacancy.get('description'):
-                text_parts.append(vacancy['description'])
-            
+                text_parts.append(VacancyParser.clean_highlighttext(vacancy['description']))
+
             full_text = ' '.join(text_parts).lower()
-            
-            # 1. Ищем по маркерам
+
             skills_found = set()
+
+            # 1. Поиск по маркерам (улучшенный)
             for marker in VacancyParser.SKILL_MARKERS:
                 if marker in full_text:
-                    # Находим текст после маркера
                     parts = full_text.split(marker, 1)
                     if len(parts) > 1:
-                        after_marker = parts[1]
-                        # Берем следующий абзац или до 200 символов
-                        end_pos = min(500, len(after_marker))
-                        skill_text = after_marker[:end_pos]
-                        
-                        # Разбиваем по строкам и запятым
-                        lines = re.split(r'[\n,•\-*•]+', skill_text)
+                        after_marker = parts[1][:600]  # чуть больше контекста
+                        lines = re.split(r'[\n,•\-*•;]+', after_marker)
                         for line in lines:
                             line = line.strip()
-                            if line and len(line) > 2 and len(line) < 100:
-                                # Проверяем, содержит ли строка технические навыки
-                                if any(tech in line for tech in VacancyParser.TECH_SKILLS):
-                                    skills_found.add(line)
-            
-            # 2. Ищем по словарю технических навыков
+                            if 3 < len(line) < 120 and any(tech in line for tech in VacancyParser.TECH_SKILLS):
+                                skills_found.add(line)
+
+            # 2. Прямой поиск по словарю технических навыков
             for tech_skill in VacancyParser.TECH_SKILLS:
                 if tech_skill in full_text:
                     skills_found.add(tech_skill)
-            
-            # 3. Ищем паттерны типа "опыт работы с X"
-            exp_pattern = r'опыт работы с ([^,.;\n]+)'
-            matches = re.findall(exp_pattern, full_text)
-            for match in matches:
-                skill = match.strip()
-                if len(skill) > 2 and len(skill) < 50:
-                    skills_found.add(skill)
-            
-            # 4. Ищем паттерны "знание X"
-            knowledge_pattern = r'знание ([^,.;\n]+)'
-            matches = re.findall(knowledge_pattern, full_text)
-            for match in matches:
-                skill = match.strip()
-                if len(skill) > 2 and len(skill) < 50:
-                    skills_found.add(skill)
-            
-            # 5. Ищем паттерны "владение X"
-            skill_pattern = r'владение ([^,.;\n]+)'
-            matches = re.findall(skill_pattern, full_text)
-            for match in matches:
-                skill = match.strip()
-                if len(skill) > 2 and len(skill) < 50:
-                    skills_found.add(skill)
-            
+
+            # 3–5. Улучшенные regex-паттерны (с отрицательным lookbehind)
+            patterns = [
+                r'(?:опыт работы с|опыт с|работа с)\s+([^,.;\n]{3,90}?)',
+                r'(?:знание|владение|умение)\s+([^,.;\n]{3,90}?)',
+                r'(?:должен (?:знать|уметь))\s+([^,.;\n]{3,90}?)'
+            ]
+
+            for pattern in patterns:
+                matches = re.findall(pattern, full_text)
+                for match in matches:
+                    skill = match.strip()
+                    if 3 < len(skill) < 90:
+                        skills_found.add(skill)
+
+            # Финальная очистка перед добавлением
+            for skill in list(skills_found):
+                norm = VacancyParser.normalize_skill(skill)
+                if len(norm) > 3 and not any(bad in norm for bad in [
+                    "английского языка", "русского языка", "высшее", "образование"
+                ]):
+                    skills_found.add(norm)   # добавляем уже нормализованный
+
             all_skills.extend(list(skills_found))
-        
-        logger.info(f"Из текста извлечено {len(all_skills)} сырых навыков")
+
+        logger.info(f"Из текста извлечено {len(all_skills)} сырых навыков (после очистки highlighttext)")
         return all_skills
 
     @staticmethod
     def print_vacancies_list(vacancies: List[Dict[str, Any]], limit: int = 30):
-        """Выводит список вакансий в консоль."""
+        """Выводит список вакансий в консоль (без изменений)."""
         if not vacancies:
             print("❌ Список вакансий пуст.")
             return
@@ -238,7 +278,7 @@ class VacancyParser:
         print("=" * 140)
 
     def aggregate_to_dataframe(self, vacancies: List[Dict[str, Any]]) -> pd.DataFrame:
-        """Преобразует список детальных вакансий в DataFrame."""
+        """Преобразует список детальных вакансий в DataFrame + очищает highlighttext."""
         if not vacancies:
             return pd.DataFrame()
 
@@ -252,22 +292,24 @@ class VacancyParser:
             employment = v.get('employment') if isinstance(v.get('employment'), dict) else {}
             experience = v.get('experience') if isinstance(v.get('experience'), dict) else {}
 
-            salary_from = None
-            salary_to = None
-            salary_currency = None
-            if salary:
-                salary_from = salary.get('from')
-                salary_to = salary.get('to')
-                salary_currency = salary.get('currency')
+            salary_from = salary.get('from') if salary else None
+            salary_to = salary.get('to') if salary else None
+            salary_currency = salary.get('currency') if salary else None
 
+            # Очищаем key_skills
             key_skills_list = v.get('key_skills', [])
             if key_skills_list and isinstance(key_skills_list, list):
                 key_skills = ', '.join([
-                    s.get('name', '') for s in key_skills_list
-                    if isinstance(s, dict) and s.get('name')
+                    VacancyParser.clean_highlighttext(s.get('name', ''))
+                    for s in key_skills_list if isinstance(s, dict) and s.get('name')
                 ])
             else:
                 key_skills = ''
+
+            # Очищаем description и snippet
+            description = VacancyParser.clean_highlighttext(v.get('description', ''))
+            requirement = VacancyParser.clean_highlighttext(snippet.get('requirement', '')) if snippet else ''
+            responsibility = VacancyParser.clean_highlighttext(snippet.get('responsibility', '')) if snippet else ''
 
             data.append({
                 'id': v.get('id'),
@@ -282,9 +324,9 @@ class VacancyParser:
                 'experience': experience.get('name') if experience else None,
                 'employment': employment.get('name') if employment else None,
                 'schedule': schedule.get('name') if schedule else None,
-                'description': v.get('description'),
-                'requirement': snippet.get('requirement') if snippet else None,
-                'responsibility': snippet.get('responsibility') if snippet else None,
+                'description': description,
+                'requirement': requirement,
+                'responsibility': responsibility,
                 'key_skills': key_skills,
                 'published_at': v.get('published_at'),
                 'created_at': v.get('created_at'),
@@ -292,7 +334,7 @@ class VacancyParser:
             })
 
         df = pd.DataFrame(data)
-        logger.info(f"Создан DataFrame с {len(df)} вакансиями и {len(df.columns)} колонками")
+        logger.info(f"Создан DataFrame с {len(df)} вакансиями и {len(df.columns)} колонками (highlighttext очищен)")
         return df
 
     def save_to_excel(self, df: pd.DataFrame, filename: str = "vacancies_result.xlsx"):
