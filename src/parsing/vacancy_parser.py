@@ -1,6 +1,5 @@
 import json
 import re
-import sys
 from collections import Counter
 from typing import List, Dict, Any, Optional
 import logging
@@ -10,7 +9,7 @@ from src import config
 from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
 
 logger = logging.getLogger(__name__)
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 
 class VacancyParser:
     """
@@ -126,8 +125,8 @@ class VacancyParser:
 
         normalized = VacancyParser.clean_highlighttext(skill).lower().strip()
         # Оставляем только буквы, цифры, пробелы, дефис, +, /, ., #
-        normalized = re.sub(r'[^\w\s\-+/#.]', ' ', normalized)
-        normalized = re.sub(r'\s+', ' ', normalized).strip()
+        normalized = re.sub(r'\s+\([^)]*\)$', '', normalized)  # удалить скобки в конце
+        normalized = re.sub(r'\s+[–-]\s+.*$', '', normalized)  # удалить часть после тире
 
         # Убираем типичные префиксы/суффиксы, которые не являются частью навыка
         normalized = re.sub(r'^(опыт|знание|владение|умение|должен|требуется|работа с)\s+', '', normalized)
@@ -152,7 +151,11 @@ class VacancyParser:
             k: v for k, v in skill_counts.items()
             if len(k) > 2 and not any(bad in k for bad in [
                 "английского языка", "русского языка", "высшее образование",
-                "знание английского", "опыт работы", "умение", "желательно"
+                "знание английского", "опыт работы", "умение", "желательно",
+                "продажи", "маркетинг", "b2b", "b2c", "wildberries", "озон",
+                "менеджмент", "управление", "коммуникация", "деловая", "переговоры",
+                "бизнес", "лидерство", "сопровождение", "консультирование",
+                "клиентоориентированность", "ориентация на результат", "навыки презентации"
             ])
         }
 
