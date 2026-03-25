@@ -29,10 +29,10 @@ RETRY_DELAY = 2
 # Параметры поиска
 DEFAULT_AREA = 76
 DEFAULT_PERIOD_DAYS = 30
-DEFAULT_MAX_PAGES = 20
+DEFAULT_MAX_PAGES = 50
 DEFAULT_PER_PAGE = 100
 
-# Номера дисциплин для каждого профиля (из вашей матрицы)
+# Номера дисциплин для каждого профиля (по данным из матрицы компетенций)
 PROFILES_DISCIPLINES = {
     "base": [1, 2, 3, 4, 5, 6, 9, 10, 13],
     "dc": [1, 2, 3, 4, 5, 6, 9, 10, 13, 14, 18, 20, 22, 24, 25],
