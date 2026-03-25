@@ -3,3 +3,4 @@ areas
 __pycache__
 .venv
 competency_frequency_mapped.json
+test/test_output
