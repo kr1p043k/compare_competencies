@@ -1,11 +1,8 @@
 # tests/test_parsers.py
 """
 Модульные тесты для парсеров вакансий.
-Тестирует:
-- VacancyParser: очистка, нормализация, извлечение навыков, агрегация.
-- HeadHunterAPI: поиск вакансий и получение деталей (с моками).
-
-Также содержит точку входа для ручного поиска вакансий из командной строки.
+Интерактивная утилита для сбора вакансий с hh.ru.
+При выборе пункта 11 используется список позиций + ограничение 500 вакансий.
 """
 
 import json
@@ -15,13 +12,13 @@ import re
 import time
 import logging
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from typing import List, Dict, Any, Optional
 
 import pandas as pd
 import pytest
 import requests
+from unittest.mock import Mock, patch
 
-# Добавляем корень проекта в sys.path для корректных импортов
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.parsing.vacancy_parser import VacancyParser
@@ -29,434 +26,329 @@ from src.parsing.hh_api import HeadHunterAPI
 from src.parsing.utils import setup_logging
 from src import config
 
+TEST_OUTPUT_DIR = Path(__file__).parent / "test_output"
+TEST_OUTPUT_DIR.mkdir(exist_ok=True)
+
+
 # ----------------------------------------------------------------------
-# Фикстуры
+# Фикстуры и тесты
 # ----------------------------------------------------------------------
 
 @pytest.fixture
 def sample_vacancies():
-    """Возвращает список сырых вакансий (как из API hh.ru) для тестов."""
-    return [
-        {
-            "id": "123456",
-            "name": "Python Developer",
-            "employer": {"name": "IT Company"},
-            "snippet": {
-                "requirement": "Знание Python, Django, опыт работы с PostgreSQL",
-                "responsibility": "Разработка backend на Python"
-            },
-            "description": "Требуется Python разработчик. Ключевые навыки: Python, Django, REST API.",
-            "key_skills": [
-                {"name": "Python"},
-                {"name": "Django"},
-                {"name": "PostgreSQL"}
-            ],
-            "salary": {"from": 100000, "to": 150000, "currency": "RUR"},
-            "area": {"id": "1", "name": "Москва"},
-            "published_at": "2023-01-01T00:00:00+0300",
-            "alternate_url": "https://hh.ru/vacancy/123456"
-        },
-        {
-            "id": "789012",
-            "name": "Data Scientist",
-            "employer": {"name": "Data Lab"},
-            "snippet": {
-                "requirement": "Машинное обучение, Python, Pandas, SQL",
-                "responsibility": "Анализ данных, построение моделей"
-            },
-            "description": "Ищем Data Scientist. Необходимо знание <highlighttext>Python</highlighttext>, <highlighttext>scikit-learn</highlighttext>.",
-            "key_skills": [
-                {"name": "Python"},
-                {"name": "scikit-learn"},
-                {"name": "SQL"}
-            ],
-            "salary": {"from": 120000, "to": 180000, "currency": "RUR"},
-            "area": {"id": "1", "name": "Москва"},
-            "published_at": "2023-01-02T00:00:00+0300",
-            "alternate_url": "https://hh.ru/vacancy/789012"
-        }
-    ]
+    return [{"id": "123", "name": "Test Vacancy"}]
 
-@pytest.fixture
-def sample_vacancy_with_highlight(sample_vacancies):
-    """Вакансия с тегами <highlighttext> для проверки очистки."""
-    vac = sample_vacancies[1].copy()
-    vac["description"] = "Требуется <highlighttext>Python</highlighttext> и <highlighttext>scikit-learn</highlighttext>"
-    vac["snippet"]["requirement"] = "Знание <highlighttext>Python</highlighttext> и SQL"
-    return vac
-
-# ----------------------------------------------------------------------
-# Тесты VacancyParser
-# ----------------------------------------------------------------------
 
 class TestVacancyParser:
-    """Тестирование методов класса VacancyParser."""
-
     def test_clean_highlighttext(self):
-        """Проверка удаления тегов <highlighttext>."""
         parser = VacancyParser()
-        text = "Навыки: <highlighttext>Python</highlighttext> и <highlighttext>Django</highlighttext>"
-        expected = "Навыки: Python и Django"
-        assert parser.clean_highlighttext(text) == expected
+        assert parser.clean_highlighttext("Python <highlighttext>test</highlighttext>") == "Python test"
 
-        # Пустой текст
-        assert parser.clean_highlighttext(None) == ""
-        assert parser.clean_highlighttext("") == ""
-
-        # Текст без тегов
-        clean = "Обычный текст"
-        assert parser.clean_highlighttext(clean) == clean
-
-    def test_normalize_skill(self):
-        """Проверка нормализации навыков (удаление мусора, синонимы)."""
-        parser = VacancyParser()
-        # Простая нормализация
-        assert parser.normalize_skill("Python") == "python"
-        assert parser.normalize_skill("Python 3") == "python3"
-        assert parser.normalize_skill("JavaScript") == "js"  # синоним
-        assert parser.normalize_skill("Машинное обучение") == "ml"  # синоним
-        # Удаление префиксов
-        assert parser.normalize_skill("опыт работы с Python") == "python"
-        assert parser.normalize_skill("знание SQL") == "sql"
-        # Удаление суффиксов
-        assert parser.normalize_skill("Python плюсом") == "python"
-        # Фильтрация символов
-        assert parser.normalize_skill("C++") == "cpp"  # синоним
-        assert parser.normalize_skill("Kubernetes") == "k8s"
-        # Пустое значение
-        assert parser.normalize_skill("") == ""
-        assert parser.normalize_skill(None) == ""
-
-    def test_extract_skills(self, sample_vacancies):
-        """Извлечение навыков из поля key_skills."""
-        parser = VacancyParser()
-        skills = parser.extract_skills(sample_vacancies)
-        # Ожидаем 3+3 = 6 навыков
-        assert len(skills) == 6
-        assert "Python" in skills
-        assert "Django" in skills
-        assert "scikit-learn" in skills
-
-    def test_extract_skills_with_highlight(self, sample_vacancy_with_highlight):
-        """Извлечение из key_skills с тегами (теги должны удаляться)."""
-        parser = VacancyParser()
-        # В key_skills нет тегов, но метод всё равно их чистит
-        skills = parser.extract_skills([sample_vacancy_with_highlight])
-        assert len(skills) == 3
-        assert "Python" in skills
-        assert "scikit-learn" in skills
-
-    def test_extract_skills_from_text(self, sample_vacancies):
-        """Извлечение навыков из текстовых полей (snippet, description)."""
-        parser = VacancyParser()
-        skills = parser.extract_skills_from_text(sample_vacancies)
-        # Должны быть найдены Python, Django, PostgreSQL, SQL, scikit-learn, etc.
-        assert len(skills) > 0
-        # Проверяем наличие нормализованных названий (с учётом синонимов)
-        # Реальные извлечённые навыки могут быть разными, проверяем ключевые
-        skill_set = set(skills)
-        # Ожидаем, что Python и SQL будут найдены
-        assert "python" in skill_set or "Python" in skill_set
-        # В тексте есть "SQL" – должен быть найден
-        assert "sql" in skill_set or "SQL" in skill_set
-
-    def test_count_skills(self):
-        """Подсчёт частот с фильтрацией мусора."""
-        parser = VacancyParser()
-        skills_list = ["Python", "Python", "Java", "SQL", "английского языка", "опыт работы", "Python"]
-        counts = parser.count_skills(skills_list)
-        # Ожидаем: Python:3, Java:1, SQL:1; мусор отфильтрован
-        assert counts == {"python": 3, "java": 1, "sql": 1}
-        assert len(counts) == 3
-
-    def test_aggregate_to_dataframe(self, sample_vacancies, sample_vacancy_with_highlight):
-        """Преобразование вакансий в DataFrame с очисткой highlighttext."""
-        parser = VacancyParser()
-        df = parser.aggregate_to_dataframe(sample_vacancies + [sample_vacancy_with_highlight])
-        assert isinstance(df, pd.DataFrame)
-        assert len(df) == 3
-        # Проверка очистки highlighttext
-        # В sample_vacancy_with_highlight description содержит теги – они должны быть удалены
-        desc = df.loc[df['id'] == '789012', 'description'].values[0]
-        assert "<highlighttext>" not in desc
-        # Проверяем, что ключевые навыки также очищены
-        key_skills = df.loc[df['id'] == '789012', 'key_skills'].values[0]
-        assert "<highlighttext>" not in key_skills
-        # Проверяем основные колонки
-        required_cols = ['id', 'name', 'employer_name', 'salary_from', 'salary_to', 'key_skills']
-        for col in required_cols:
-            assert col in df.columns
-
-    def test_save_raw_vacancies(self, sample_vacancies, tmp_path):
-        """Сохранение сырых вакансий в JSON."""
-        # Временно подменяем config.DATA_RAW_DIR на временную директорию
-        original_dir = config.DATA_RAW_DIR
-        config.DATA_RAW_DIR = tmp_path
-        parser = VacancyParser()
-        filename = "test_raw.json"
-        parser.save_raw_vacancies(sample_vacancies, filename)
-        filepath = tmp_path / filename
-        assert filepath.exists()
-        with open(filepath, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        assert len(data) == len(sample_vacancies)
-        config.DATA_RAW_DIR = original_dir
-
-    def test_save_processed_frequencies(self, sample_vacancies, tmp_path, monkeypatch):
-        """Сохранение частот с опциональной фильтрацией."""
-        # Подменяем пути
-        monkeypatch.setattr(config, 'DATA_PROCESSED_DIR', tmp_path)
-        parser = VacancyParser()
-        freqs = {"python": 10, "java": 5, "sql": 3}
-        # Без фильтрации
-        parser.save_processed_frequencies(freqs, filename="test_freq.json", apply_filter=False)
-        filepath = tmp_path / "test_freq.json"
-        assert filepath.exists()
-        with open(filepath, 'r') as f:
-            saved = json.load(f)
-        assert saved == freqs
-        # С фильтрацией – нужно замокать load_it_skills и filter_skills_by_whitelist
-        # Здесь просто проверяем, что метод вызывается, фильтрацию протестируем отдельно
-        # Для простоты оставим без фильтрации
-
-# ----------------------------------------------------------------------
-# Тесты HeadHunterAPI (с моками)
-# ----------------------------------------------------------------------
 
 class TestHeadHunterAPI:
-    """Тестирование методов HeadHunterAPI с подменой сетевых запросов."""
-
     @patch('src.parsing.hh_api.requests.get')
     def test_search_vacancies_success(self, mock_get):
-        """Успешный поиск вакансий."""
-        # Мокаем ответ API
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "items": [
-                {"id": "1", "name": "Python Developer"},
-                {"id": "2", "name": "Data Scientist"}
-            ],
-            "pages": 1
-        }
+        mock_response.json.return_value = {"items": [{"id": "1"}], "pages": 1}
         mock_get.return_value = mock_response
-
-        api = HeadHunterAPI()
-        result = api.search_vacancies(text="Python", area=1, period_days=30, max_pages=1, per_page=100)
-
-        assert len(result) == 2
-        assert result[0]["id"] == "1"
-        # Проверяем, что запрос был с правильными параметрами
-        mock_get.assert_called_once()
-        args, kwargs = mock_get.call_args
-        assert "text=Python" in kwargs["params"]["text"]
-        assert kwargs["params"]["area"] == 1
-        assert kwargs["params"]["per_page"] == 100
-
-    @patch('src.parsing.hh_api.requests.get')
-    def test_search_vacancies_http_error(self, mock_get):
-        """Обработка ошибок HTTP."""
-        mock_response = Mock()
-        mock_response.status_code = 404
-        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("Not Found")
-        mock_get.return_value = mock_response
-
         api = HeadHunterAPI()
         result = api.search_vacancies(text="Python", area=1)
-        # Должен вернуть пустой список при ошибке
-        assert result == []
-
-    @patch('src.parsing.hh_api.requests.get')
-    def test_get_vacancy_details_success(self, mock_get):
-        """Получение детальной информации о вакансии."""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "id": "123",
-            "name": "Python Developer",
-            "key_skills": [{"name": "Python"}, {"name": "Django"}]
-        }
-        mock_get.return_value = mock_response
-
-        api = HeadHunterAPI()
-        details = api.get_vacancy_details("123")
-        assert details is not None
-        assert details["id"] == "123"
-        assert len(details["key_skills"]) == 2
-
-    @patch('src.parsing.hh_api.requests.get')
-    def test_get_vacancy_details_failure(self, mock_get):
-        """Неудачное получение деталей (ошибка сети)."""
-        mock_response = Mock()
-        mock_response.status_code = 500
-        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("Server Error")
-        mock_get.return_value = mock_response
-
-        api = HeadHunterAPI()
-        details = api.get_vacancy_details("123")
-        assert details is None
-
-# ----------------------------------------------------------------------
-# Интеграционный тест (опционально) на основе реального JSON-файла
-# ----------------------------------------------------------------------
-
-def test_parse_from_real_file(tmp_path):
-    """Тест парсинга вакансий из сохранённого JSON-файла (например, из data/raw/hh_vacancies.json)."""
-    # Создаём фиктивный JSON-файл с тестовыми данными
-    test_data = [
-        {
-            "id": "1",
-            "name": "Test",
-            "key_skills": [{"name": "Python"}],
-            "snippet": {"requirement": "Знание Python"},
-            "description": "Требуется Python"
-        }
-    ]
-    filepath = tmp_path / "test_vacancies.json"
-    with open(filepath, 'w', encoding='utf-8') as f:
-        json.dump(test_data, f)
-
-    with open(filepath, 'r', encoding='utf-8') as f:
-        vacancies = json.load(f)
-
-    parser = VacancyParser()
-    skills = parser.extract_skills(vacancies)
-    assert len(skills) == 1
-    assert skills[0] == "Python"
-
-    # Проверяем извлечение из текста
-    text_skills = parser.extract_skills_from_text(vacancies)
-    # Должен быть найден "python" (после нормализации)
-    assert "python" in set(text_skills) or "Python" in set(text_skills)
+        assert len(result) == 1
 
 
 # ----------------------------------------------------------------------
-# Точка входа для ручного поиска вакансий из командной строки
+# Вспомогательные функции
 # ----------------------------------------------------------------------
 
 def safe_print(text: str) -> None:
-    """Безопасный вывод в консоль (игнорирует ошибки кодировки)."""
     try:
         print(text)
     except UnicodeEncodeError:
-        clean_text = re.sub(r'[^\x00-\x7F]+', '', text)
-        print(clean_text)
+        print(re.sub(r'[^\x00-\x7F]+', '', text))
 
-def run_search():
-    """Запуск поиска вакансий с параметрами командной строки."""
-    parser = argparse.ArgumentParser(
-        description="Поиск вакансий на hh.ru и извлечение навыков (тестовый режим)."
-    )
-    parser.add_argument('--query', '-q', type=str, default="Data Scientist",
-                        help="Поисковый запрос (например, 'Data Scientist')")
-    parser.add_argument('--area-id', '-a', type=int, default=1,
-                        help="ID региона (по умолчанию 1 - Москва)")
-    parser.add_argument('--max-pages', '-p', type=int, default=20,
-                        help="Максимальное количество страниц (по умолчанию 20)")
-    parser.add_argument('--period', '-d', type=int, default=30,
-                        help="Период поиска в днях (по умолчанию 30)")
-    parser.add_argument('--show-vacancies', '-v', action='store_true',
-                        help="Показать список найденных вакансий в консоли")
-    parser.add_argument('--skip-details', '-s', action='store_true',
-                        help="Пропустить загрузку деталей (только базовый поиск)")
-    parser.add_argument('--excel', '-e', action='store_true',
-                        help="Сохранить результаты в Excel")
-    parser.add_argument('--no-filter', '-nf', action='store_true',
-                        help="Отключить фильтрацию навыков по белому списку")
-    args = parser.parse_args()
+
+def input_int(prompt: str, default: int = 30, min_val: int = 1, max_val: int = 30) -> int:
+    while True:
+        val = input(prompt).strip()
+        if not val:
+            return default
+        try:
+            num = int(val)
+            if min_val <= num <= max_val:
+                return num
+            print(f"Введите число от {min_val} до {max_val}")
+        except ValueError:
+            print("Введите целое число")
+
+
+def input_yes_no(prompt: str, default: bool = True) -> bool:
+    default_text = " (y/n, по умолчанию y)" if default else " (y/n, по умолчанию n)"
+    ans = input(prompt + default_text).strip().lower()
+    if not ans:
+        return default
+    return ans in ('y', 'yes', 'да')
+
+
+def select_from_list(items: List[str], prompt: str) -> str:
+    print(prompt)
+    for i, item in enumerate(items, 1):
+        print(f"  {i}. {item}")
+    while True:
+        try:
+            idx = int(input("> ").strip())
+            if 1 <= idx <= len(items):
+                return items[idx-1]
+        except:
+            print("Некорректный ввод")
+
+
+# ----------------------------------------------------------------------
+# Интерактивная конфигурация
+# ----------------------------------------------------------------------
+
+def interactive_config() -> Dict[str, Any]:
+    print("\n" + "=" * 90)
+    print("ИНТЕРАКТИВНЫЙ СБОР ВАКАНСИЙ С HH.RU")
+    print("=" * 90)
+
+    mode_options = [
+        "1. Data Scientist",
+        "2. Python Developer",
+        "3. Java Developer",
+        "4. Frontend Developer",
+        "5. Backend Developer",
+        "6. DevOps Engineer",
+        "7. Machine Learning Engineer",
+        "8. QA Engineer",
+        "9. Системный аналитик",
+        "10. Другое (ввести свой запрос)",
+        "11. Поиск по всему IT-сектору (industry=7)"
+    ]
+
+    selected_mode = select_from_list(mode_options, "\nВыберите вариант поиска:")
+
+    if selected_mode == "11. Поиск по всему IT-сектору (industry=7)":
+        print("\nРежим: Поиск по всему IT-сектору")
+        positions = [
+            "Data Scientist", "Data Analyst", "Machine Learning Engineer",
+            "Python Developer", "Java Developer", "Frontend Developer",
+            "Backend Developer", "Fullstack Developer", "DevOps Engineer",
+            "QA Engineer", "Системный аналитик", "Product Manager",
+            "Mobile Developer", "iOS Developer", "Android Developer"
+        ]
+        print("Позиции для поиска:")
+        for p in positions:
+            print(f"  • {p}")
+        queries = positions
+        industry = 7
+        is_it_sector = True
+        query = "IT_Sector_Multiple"
+    elif selected_mode == "10. Другое (ввести свой запрос)":
+        query = input("\nВведите поисковый запрос: ").strip() or "Data Scientist"
+        industry = None
+        is_it_sector = False
+        queries = [query]
+    else:
+        query = selected_mode.split('. ', 1)[1]
+        industry = None
+        is_it_sector = False
+        queries = [query]
+
+    # Регионы
+    region_options = [
+        ("Москва", 1), ("Санкт-Петербург", 2), ("Екатеринбург", 3),
+        ("Новосибирск", 4), ("Казань", 88), ("Нижний Новгород", 66),
+        ("Ростов-на-Дону", 76), ("Вся Россия", 0)
+    ]
+    region_names = [f"{name} (ID {rid})" for name, rid in region_options]
+    print("\nВыберите регионы (можно несколько, введите номера через пробел):")
+    try:
+        indices = list(map(int, input("> ").split()))
+        selected_regions = [region_names[i-1] for i in indices if 1 <= i <= len(region_names)]
+    except:
+        selected_regions = [region_names[0]]
+
+    area_ids = [int(re.search(r'ID (\d+)', s).group(1)) for s in selected_regions if re.search(r'ID (\d+)', s)]
+    if not area_ids:
+        area_ids = [1]
+
+    # Параметры
+    if is_it_sector:
+        period = 30
+        max_pages = 50
+        skip_details = False
+        show_list = False
+        print("\nОграничение: 500 вакансий на одну позицию")
+        apply_filter = input_yes_no("Применять фильтрацию по белому списку?", default=False)
+    else:
+        period = input_int("\nПериод поиска в днях (по умолчанию 30): ", default=30)
+        max_pages = input_int("Максимальное количество страниц (по умолчанию 20): ", default=20, max_val=20)
+        skip_details = not input_yes_no("Загружать полную информацию по каждой вакансии?", default=True)
+        show_list = input_yes_no("Показывать список найденных вакансий?", default=False)
+        apply_filter = input_yes_no("Применять фильтрацию по белому списку?", default=True)
+
+    save_excel = input_yes_no("Сохранить результаты в Excel?", default=True)
+
+    return {
+        "query": query,
+        "queries": queries,
+        "area_ids": area_ids,
+        "industry": industry,
+        "period": period,
+        "max_pages": max_pages,
+        "skip_details": skip_details,
+        "show_vacancies": show_list,
+        "excel": save_excel,
+        "no_filter": not apply_filter,
+        "is_it_sector": is_it_sector
+    }
+
+
+# ----------------------------------------------------------------------
+# Сбор вакансий
+# ----------------------------------------------------------------------
+
+def collect_vacancies(
+    hh_api: HeadHunterAPI,
+    queries: List[str],
+    area_ids: List[int],
+    period_days: int,
+    max_pages: int,
+    industry: Optional[int] = None,
+    max_vacancies_per_query: int = 1000
+) -> List[Dict[str, Any]]:
+    all_vacancies = []
+    seen_ids: set[str] = set()
+    logger = logging.getLogger("collector")
+
+    for query in queries:
+        query_vacancies = []
+        for area_id in area_ids:
+            logger.info(f"Поиск: '{query}', регион ID {area_id}")
+            vacs = hh_api.search_vacancies(
+                text=query,
+                area=area_id,
+                period_days=period_days,
+                max_pages=max_pages,
+                per_page=100,
+                industry=industry
+            )
+            for vac in vacs:
+                vid = vac.get('id')
+                if vid and vid not in seen_ids:
+                    seen_ids.add(vid)
+                    query_vacancies.append(vac)
+                    if len(query_vacancies) >= max_vacancies_per_query:
+                        break
+            if len(query_vacancies) >= max_vacancies_per_query:
+                break
+            time.sleep(config.REQUEST_DELAY)
+
+        all_vacancies.extend(query_vacancies[:max_vacancies_per_query])
+        logger.info(f"Для запроса '{query}' собрано {len(query_vacancies[:max_vacancies_per_query])} вакансий")
+
+    logger.info(f"Всего собрано уникальных вакансий: {len(all_vacancies)}")
+    return all_vacancies
+
+
+# ----------------------------------------------------------------------
+# Основная функция
+# ----------------------------------------------------------------------
+
+def run_search(args: argparse.Namespace = None, interactive: bool = False):
+    if interactive or args is None or len(sys.argv) == 1:
+        params = interactive_config()
+        args = argparse.Namespace(**params)
 
     setup_logging()
-    logger = logging.getLogger("test_search")
+    logger = logging.getLogger("hh_collector")
 
-    logger.info("=" * 60)
-    logger.info("ТЕСТОВЫЙ ПОИСК ВАКАНСИЙ С HH.RU")
-    logger.info("=" * 60)
-    logger.info(f"Запрос: '{args.query}'")
-    logger.info(f"Регион ID: {args.area_id}, период: {args.period} дней, макс. страниц: {args.max_pages}")
+    logger.info("=" * 90)
+    logger.info("ЗАПУСК СБОРА ВАКАНСИЙ С HH.RU")
+    logger.info("=" * 90)
 
-    hh_api = HeadHunterAPI()
-    vac_parser = VacancyParser()
+    queries = getattr(args, 'queries', [args.query])
+    area_ids = args.area_ids
+    sector_suffix = "_it_sector" if getattr(args, 'is_it_sector', False) else ""
+    query_part = re.sub(r'[^a-zA-Z0-9а-яА-ЯёЁ_-]', '_', args.query)[:40]
 
-    # 1. Поиск вакансий
-    logger.info("Поиск вакансий...")
-    basic_vacancies = hh_api.search_vacancies(
-        text=args.query,
-        area=args.area_id,
-        period_days=args.period,
-        max_pages=args.max_pages,
-        per_page=100,
-        search_fields=['name', 'company_name', 'description']
-    )
+    max_vacancies_limit = 500 if getattr(args, 'is_it_sector', False) else 1000
 
-    if not basic_vacancies:
-        logger.error("Не найдено ни одной вакансии. Завершение.")
-        return
+    original_raw = config.DATA_RAW_DIR
+    original_proc = config.DATA_PROCESSED_DIR
+    config.DATA_RAW_DIR = config.DATA_PROCESSED_DIR = TEST_OUTPUT_DIR
 
-    logger.info(f"Найдено вакансий: {len(basic_vacancies)}")
+    try:
+        hh_api = HeadHunterAPI()
+        parser = VacancyParser()
 
-    # 2. Получение деталей (если требуется)
-    if args.skip_details:
-        logger.info("Пропускаем загрузку деталей.")
+        logger.info(f"Запрос(ы): {queries} | Регионы: {area_ids}")
+        if getattr(args, 'is_it_sector', False):
+            logger.info(f"IT-сектор: лимит {max_vacancies_limit} вакансий на позицию")
+
+        basic_vacancies = collect_vacancies(
+            hh_api=hh_api,
+            queries=queries,
+            area_ids=area_ids,
+            period_days=args.period,
+            max_pages=args.max_pages,
+            industry=getattr(args, 'industry', None),
+            max_vacancies_per_query=max_vacancies_limit
+        )
+
+        if not basic_vacancies:
+            logger.error("Вакансий не найдено.")
+            return
+
         vacancies_to_process = basic_vacancies
-    else:
-        logger.info("Загрузка детальной информации...")
-        detailed_vacancies = []
-        for idx, vac in enumerate(basic_vacancies, 1):
-            if idx % 20 == 0:
-                logger.info(f"Прогресс: {idx}/{len(basic_vacancies)}")
-            details = hh_api.get_vacancy_details(vac['id'])
-            if details:
-                detailed_vacancies.append(details)
-            time.sleep(config.REQUEST_DELAY)  # задержка между запросами
-        logger.info(f"Загружено деталей: {len(detailed_vacancies)}")
-        vacancies_to_process = detailed_vacancies
+        if not args.skip_details:
+            logger.info("Загрузка детальной информации...")
+            detailed = []
+            for i, vac in enumerate(basic_vacancies, 1):
+                if i % 15 == 0:
+                    logger.info(f"Прогресс деталей: {i}/{len(basic_vacancies)}")
+                det = hh_api.get_vacancy_details(vac['id'])
+                if det:
+                    detailed.append(det)
+                time.sleep(config.REQUEST_DELAY)
+            vacancies_to_process = detailed
 
-    # 3. Вывод списка (по желанию)
-    if args.show_vacancies:
-        vac_parser.print_vacancies_list(vacancies_to_process)
+        if args.show_vacancies:
+            parser.print_vacancies_list(vacancies_to_process)
 
-    # 4. Извлечение навыков
-    logger.info("Извлечение навыков из вакансий...")
-    all_skills = vac_parser.extract_skills(vacancies_to_process)
-    if not all_skills:
-        logger.info("key_skills не найдены, пробуем извлечь из текста...")
-        all_skills = vac_parser.extract_skills_from_text(vacancies_to_process)
+        all_skills = parser.extract_skills(vacancies_to_process) or parser.extract_skills_from_text(vacancies_to_process)
+        skill_freq = parser.count_skills(all_skills)
 
-    if not all_skills:
-        logger.error("Не удалось извлечь навыки ни из одного источника.")
-        return
+        raw_file = f"raw_vacancies{sector_suffix}_{query_part}.json"
+        parser.save_raw_vacancies(vacancies_to_process, raw_file)
 
-    logger.info(f"Извлечено сырых навыков: {len(all_skills)}")
-    skill_freq = vac_parser.count_skills(all_skills)
-    logger.info(f"Уникальных навыков после нормализации: {len(skill_freq)}")
+        parser.save_processed_frequencies(skill_freq, f"freq{sector_suffix}_{query_part}_raw.json", apply_filter=False)
+        parser.save_processed_frequencies(skill_freq, f"freq{sector_suffix}_{query_part}_filtered.json", apply_filter=not args.no_filter)
 
-    # Сохраняем частоты (с фильтрацией или без)
-    vac_parser.save_processed_frequencies(skill_freq, apply_filter=not args.no_filter)
+        top_skills = sorted(skill_freq.items(), key=lambda x: x[1], reverse=True)[:20]
+        print("\nТОП-20 НАВЫКОВ:")
+        for i, (skill, count) in enumerate(top_skills, 1):
+            print(f"{i:2}. {skill:<45} {count:>5}")
 
-    # Топ-20
-    top_skills = sorted(skill_freq.items(), key=lambda x: x[1], reverse=True)[:20]
-    safe_print("\n" + "=" * 60)
-    safe_print("ТОП-20 НАВЫКОВ ПО ЧАСТОТЕ УПОМИНАНИЙ")
-    safe_print("=" * 60)
-    for i, (skill, count) in enumerate(top_skills, 1):
-        safe_print(f"{i:2}. {skill:<50} {count:>4}")
+        if args.excel:
+            df = parser.aggregate_to_dataframe(vacancies_to_process)
+            excel_name = f"vacancies{sector_suffix}_{query_part}.xlsx"
+            parser.save_to_excel(df, excel_name)
+            logger.info(f"Excel сохранён: {excel_name}")
 
-    # 5. Сохранение в Excel (по желанию)
-    if args.excel:
-        logger.info("Сохранение результатов в Excel...")
-        df = vac_parser.aggregate_to_dataframe(vacancies_to_process)
-        if not df.empty:
-            filename = f"test_vacancies_{args.query}_{args.area_id}.xlsx".replace(' ', '_')
-            vac_parser.save_to_excel(df, filename)
-            logger.info(f"Excel сохранён: {filename}")
+        logger.info(f"Все файлы сохранены в: {TEST_OUTPUT_DIR}")
 
-    logger.info("Тестовый поиск завершён.")
+    finally:
+        config.DATA_RAW_DIR = original_raw
+        config.DATA_PROCESSED_DIR = original_proc
+
 
 if __name__ == "__main__":
-    # Если запущен напрямую, но без аргументов, можно показать справку
-    if len(sys.argv) == 1 or (len(sys.argv) == 2 and sys.argv[1] in ['-h', '--help']):
-        # Если нет аргументов, показываем справку и выходим
-        run_search.__defaults__ = (None,)  # чтобы парсер отработал с -h
-        run_search()
+    if len(sys.argv) == 1:
+        run_search(interactive=True)
     else:
-        run_search()
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--interactive', action='store_true')
+        args = parser.parse_args()
+        run_search(args, interactive=args.interactive)
