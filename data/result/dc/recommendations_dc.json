@@ -1,22 +1,21 @@
 {
-  "student": "base",
+  "student": "dc",
   "high_priority": [
     "deep learning",
     "data science",
     "llm",
     "pandas",
-    "big data",
     "pytorch"
   ],
   "medium_priority": [
-    "hadoop",
     "numpy",
     "английский язык",
     "аналитическое мышление",
     "linux",
     "ms excel",
-    "java",
-    "computer vision"
+    "computer vision",
+    "ci/cd",
+    "data analysis"
   ],
   "suggestion": "Высокий приоритет: освоить deep learning, data science, llm, pandas — наиболее востребованные навыки."
 }

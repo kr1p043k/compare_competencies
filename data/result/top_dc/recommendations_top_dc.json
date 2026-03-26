@@ -1,0 +1,14 @@
+{
+  "student": "top_dc",
+  "high_priority": [
+    "llm"
+  ],
+  "medium_priority": [
+    "linux",
+    "ms excel",
+    "английский язык",
+    "аналитическое мышление",
+    "data analysis"
+  ],
+  "suggestion": "Высокий приоритет: освоить llm — наиболее востребованные навыки."
+}

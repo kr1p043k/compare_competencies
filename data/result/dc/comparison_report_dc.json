@@ -1,0 +1,145 @@
+{
+  "student_name": "DC",
+  "total_competencies": 38,
+  "total_mapped_skills": 98,
+  "coverage_percent": 30.0,
+  "weighted_coverage_percent": 43.04,
+  "covered_skills": [
+    "big data",
+    "docker",
+    "hadoop",
+    "java",
+    "langchain",
+    "mysql",
+    "power bi",
+    "scikit-learn",
+    "spark",
+    "sql",
+    "tableau",
+    "визуализация данных"
+  ],
+  "high_demand_gaps": [
+    {
+      "skill": "deep learning",
+      "frequency": 9,
+      "demand_level": "high"
+    },
+    {
+      "skill": "data science",
+      "frequency": 10,
+      "demand_level": "high"
+    },
+    {
+      "skill": "llm",
+      "frequency": 12,
+      "demand_level": "high"
+    },
+    {
+      "skill": "pandas",
+      "frequency": 13,
+      "demand_level": "high"
+    },
+    {
+      "skill": "pytorch",
+      "frequency": 24,
+      "demand_level": "high"
+    }
+  ],
+  "medium_demand_gaps": [
+    {
+      "skill": "numpy",
+      "frequency": 8,
+      "demand_level": "medium"
+    },
+    {
+      "skill": "английский язык",
+      "frequency": 4,
+      "demand_level": "medium"
+    },
+    {
+      "skill": "аналитическое мышление",
+      "frequency": 4,
+      "demand_level": "medium"
+    },
+    {
+      "skill": "linux",
+      "frequency": 4,
+      "demand_level": "medium"
+    },
+    {
+      "skill": "ms excel",
+      "frequency": 5,
+      "demand_level": "medium"
+    },
+    {
+      "skill": "computer vision",
+      "frequency": 7,
+      "demand_level": "medium"
+    },
+    {
+      "skill": "ci/cd",
+      "frequency": 5,
+      "demand_level": "medium"
+    },
+    {
+      "skill": "data analysis",
+      "frequency": 8,
+      "demand_level": "medium"
+    }
+  ],
+  "low_demand_gaps": [
+    {
+      "skill": "react",
+      "frequency": 2,
+      "demand_level": "low"
+    },
+    {
+      "skill": "data mining",
+      "frequency": 1,
+      "demand_level": "low"
+    },
+    {
+      "skill": "android",
+      "frequency": 1,
+      "demand_level": "low"
+    },
+    {
+      "skill": "bpmn",
+      "frequency": 1,
+      "demand_level": "low"
+    },
+    {
+      "skill": "разработка технических заданий",
+      "frequency": 2,
+      "demand_level": "low"
+    },
+    {
+      "skill": "mlops",
+      "frequency": 2,
+      "demand_level": "low"
+    },
+    {
+      "skill": "dwh",
+      "frequency": 1,
+      "demand_level": "low"
+    },
+    {
+      "skill": "atlassian confluence",
+      "frequency": 1,
+      "demand_level": "low"
+    },
+    {
+      "skill": "постановка задач разработчикам",
+      "frequency": 2,
+      "demand_level": "low"
+    },
+    {
+      "skill": "keras",
+      "frequency": 2,
+      "demand_level": "low"
+    }
+  ],
+  "recommendations": [
+    "Высокий приоритет: освоить deep learning, data science, llm, pandas — наиболее востребованные навыки."
+  ]
+}

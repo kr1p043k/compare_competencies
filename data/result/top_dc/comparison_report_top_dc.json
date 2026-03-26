@@ -1,0 +1,110 @@
+{
+  "student_name": "TOP_DC",
+  "total_competencies": 54,
+  "total_mapped_skills": 174,
+  "coverage_percent": 67.5,
+  "weighted_coverage_percent": 80.59,
+  "covered_skills": [
+    "big data",
+    "ci/cd",
+    "computer vision",
+    "data science",
+    "deep learning",
+    "docker",
+    "fastapi",
+    "hadoop",
+    "java",
+    "keras",
+    "langchain",
+    "matplotlib",
+    "mlops",
+    "mysql",
+    "numpy",
+    "pandas",
+    "power bi",
+    "pytorch",
+    "scikit-learn",
+    "spark",
+    "sql",
+    "tableau",
+    "terraform",
+    "визуализация данных",
+    "постановка задач разработчикам",
+    "разработка технических заданий",
+    "системный анализ"
+  ],
+  "high_demand_gaps": [
+    {
+      "skill": "llm",
+      "frequency": 12,
+      "demand_level": "high"
+    }
+  ],
+  "medium_demand_gaps": [
+    {
+      "skill": "linux",
+      "frequency": 4,
+      "demand_level": "medium"
+    },
+    {
+      "skill": "ms excel",
+      "frequency": 5,
+      "demand_level": "medium"
+    },
+    {
+      "skill": "английский язык",
+      "frequency": 4,
+      "demand_level": "medium"
+    },
+    {
+      "skill": "аналитическое мышление",
+      "frequency": 4,
+      "demand_level": "medium"
+    },
+    {
+      "skill": "data analysis",
+      "frequency": 8,
+      "demand_level": "medium"
+    }
+  ],
+  "low_demand_gaps": [
+    {
+      "skill": "react",
+      "frequency": 2,
+      "demand_level": "low"
+    },
+    {
+      "skill": "dwh",
+      "frequency": 1,
+      "demand_level": "low"
+    },
+    {
+      "skill": "data mining",
+      "frequency": 1,
+      "demand_level": "low"
+    },
+    {
+      "skill": "android",
+      "frequency": 1,
+      "demand_level": "low"
+    },
+    {
+      "skill": "atlassian confluence",
+      "frequency": 1,
+      "demand_level": "low"
+    },
+    {
+      "skill": "bpmn",
+      "frequency": 1,
+      "demand_level": "low"
+    },
+    {
+      "skill": "git",
+      "frequency": 2,
+      "demand_level": "low"
+    }
+  ],
+  "recommendations": [
+    "Высокий приоритет: освоить llm — наиболее востребованные навыки."
+  ]
+}
