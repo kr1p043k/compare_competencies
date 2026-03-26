@@ -11,7 +11,7 @@ from typing import List, Optional, Dict
 
 import pandas as pd
 
-from src.models.student import Student
+from src.models.student import StudentProfile   # ← ИСПРАВЛЕНО: импортируем StudentProfile
 from src.utils import get_logger
 from src.config import STUDENTS_DIR, LAST_UPLOADED_DIR, PROFILES_DISCIPLINES, DATA_RAW_DIR
 
@@ -23,7 +23,7 @@ class StudentLoader:
     def __init__(self, students_dir: Path = STUDENTS_DIR):
         self.students_dir = students_dir
 
-    def load_student(self, profile_name: str) -> Optional[Student]:
+    def load_student(self, profile_name: str) -> Optional[StudentProfile]:
         """Загружает данные ученика по имени профиля (base, dc, top_dc)."""
         file_path = self.students_dir / f"{profile_name}_competency.json"
         if not file_path.exists():
@@ -32,9 +32,15 @@ class StudentLoader:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         skills = data.get("навыки", [])
-        return Student(id=profile_name, name=profile_name, skills=skills)
+        # Создаём объект StudentProfile с правильными полями
+        return StudentProfile(
+            student_id=profile_name,
+            name=profile_name,
+            competencies=skills,          # ← поле competencies, а не skills
+            target_role="Data Scientist"
+        )
 
-    def load_all_students(self) -> List[Student]:
+    def load_all_students(self) -> List[StudentProfile]:
         students = []
         for profile in ["base", "dc", "top_dc"]:
             student = self.load_student(profile)
@@ -134,4 +140,4 @@ if __name__ == "__main__":
         print(f"Копия CSV сохранена в: {LAST_UPLOADED_DIR / 'competency_matrix.csv'}")
     except Exception as e:
         print(f"Ошибка: {e}")
-        traceback.print_exc()  # ← теперь увидим полную цепочку вызовов
+        traceback.print_exc()
