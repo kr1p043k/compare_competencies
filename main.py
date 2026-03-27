@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 import json
 
-# Устанавливаем кодировку для вывода в консоль Windows
+# Windows UTF-8 fix
 if sys.platform == 'win32':
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -23,50 +23,56 @@ from src.parsing.utils import (
     collect_vacancies_multiple,
     load_queries_from_file,
     interactive_config,
-    safe_print,
-    extract_and_count_skills,
-    map_to_competencies,
     print_top_skills,
-    print_top_competencies
+    print_top_competencies,
+    extract_and_count_skills,
+    map_to_competencies
 )
 from src import config
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.utils import load_competency_mapping
 
+# Gap-анализ
+from src.models.student import StudentProfile
+from src.analyzers.gap_analyzer import GapAnalyzer
+
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Сбор и анализ вакансий с hh.ru")
-    # Базовые параметры
-    parser.add_argument('--query', '-q', type=str, default="Data Scientist",
-                        help="Поисковый запрос (например, 'Data Scientist')")
-    parser.add_argument('--area-id', '-a', type=int, default=1,
-                        help="ID региона (по умолчанию 1 - Москва)")
-    parser.add_argument('--max-pages', '-p', type=int, default=20,
-                        help="Максимальное количество страниц (по умолчанию 20)")
-    parser.add_argument('--period', '-d', type=int, default=30,
-                        help="Период поиска в днях (по умолчанию 30)")
-    parser.add_argument('--show-vacancies', '-v', action='store_true',
-                        help="Показать список найденных вакансий в консоли")
-    parser.add_argument('--skip-details', '-s', action='store_true',
-                        help="Пропустить загрузку деталей (только базовый поиск)")
-    parser.add_argument('--excel', '-e', action='store_true',
-                        help="Сохранить результаты в Excel")
-    parser.add_argument('--no-filter', '-nf', action='store_true',
-                        help="Отключить фильтрацию навыков по белому списку")
-    # Расширенные параметры
-    parser.add_argument('--queries-file', '-qf', type=str,
-                        help="Файл со списком запросов (по одному на строку)")
-    parser.add_argument('--regions', '-r', type=str,
-                        help="Список ID регионов через запятую (например, '1,2,3')")
-    parser.add_argument('--industry', '-i', type=int,
-                        help="Код профессиональной области (например, 7 - IT)")
-    parser.add_argument('--interactive', action='store_true',
-                        help="Запустить в интерактивном режиме (с меню)")
-    parser.add_argument('--max-vacancies-per-query', type=int, default=1000,
-                        help="Максимальное количество вакансий на один запрос (по умолчанию 1000)")
-    parser.add_argument('--it-sector', action='store_true',
-                        help="Поиск по всему IT-сектору (industry=7) с предопределённым списком позиций")
+    parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ")
+    
+    parser.add_argument('--query', '-q', type=str, default="Frontend Developer")
+    parser.add_argument('--area-id', '-a', type=int, default=76)
+    parser.add_argument('--max-pages', '-p', type=int, default=20)
+    parser.add_argument('--period', '-d', type=int, default=30)
+    parser.add_argument('--show-vacancies', '-v', action='store_true')
+    parser.add_argument('--skip-details', '-s', action='store_true')
+    parser.add_argument('--excel', '-e', action='store_true')
+    parser.add_argument('--no-filter', '-nf', action='store_true')
+    parser.add_argument('--queries-file', '-qf', type=str)
+    parser.add_argument('--regions', '-r', type=str)
+    parser.add_argument('--industry', '-i', type=int)
+    parser.add_argument('--interactive', action='store_true')
+    parser.add_argument('--max-vacancies-per-query', type=int, default=1000)
+    parser.add_argument('--it-sector', action='store_true')
+    
+    parser.add_argument('--run-gap-analysis', action='store_true', default=True,
+                        help="Выполнить gap-анализ компетенций студентов (по умолчанию True)")
+
     return parser.parse_args()
+
+
+def load_student_competencies(profile_name: str):
+    """Загружает компетенции студента"""
+    path = config.DATA_DIR / "students" / f"{profile_name}_competency.json"
+    if not path.exists():
+        path = config.DATA_DIR / "students" / f"{profile_name}.json"
+    try:
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+        return data.get("компетенции") or data.get("навыки") or data.get("codes") or []
+    except Exception as e:
+        logging.warning(f"Не удалось загрузить профиль {profile_name}: {e}")
+        return []
 
 
 def main():
@@ -74,80 +80,60 @@ def main():
     logger = logging.getLogger("main")
     args = parse_arguments()
 
-    logger.info("=" * 60)
-    logger.info("СБОР ВАКАНСИЙ С HH.RU")
-    logger.info("=" * 60)
+    logger.info("=" * 85)
+    logger.info("ПОЛНЫЙ ПАЙПЛАЙН: СБОР ВАКАНСИЙ + GAP-АНАЛИЗ")
+    logger.info("=" * 85)
 
-    # Определяем, используем ли расширенный режим
     use_multiple = (
-        args.interactive or
-        args.queries_file is not None or
-        args.regions is not None or
-        args.industry is not None or
+        args.interactive or 
+        args.queries_file is not None or 
+        args.regions is not None or 
+        args.industry is not None or 
         args.it_sector
     )
 
-    # ------------------------------------------------------------------
-    # Расширенный режим (множественные запросы/регионы/интерактив)
-    # ------------------------------------------------------------------
+    vacancies_to_process = []
+    skill_freq = {}
+
+    # ====================== 1. СБОР ВАКАНСИЙ ======================
     if use_multiple:
         if args.interactive:
             params = interactive_config()
-            # Подменяем аргументы на полученные из интерактива
-            args.query = params["query"]
-            args.queries = params["queries"]
-            args.area_ids = params["area_ids"]
-            args.industry = params["industry"]
-            args.period = params["period"]
-            args.max_pages = params["max_pages"]
-            args.skip_details = params["skip_details"]
-            args.show_vacancies = params["show_vacancies"]
-            args.excel = params["excel"]
-            args.no_filter = params["no_filter"]
-            args.max_vacancies_per_query = params["max_vacancies_per_query"]
+            args.query = params.get("query", args.query)
+            args.queries = params.get("queries", [args.query])
+            args.area_ids = params.get("area_ids", [args.area_id])
+            args.industry = params.get("industry")
+            args.period = params.get("period", args.period)
+            args.max_pages = params.get("max_pages", args.max_pages)
+            args.skip_details = params.get("skip_details", args.skip_details)
+            args.show_vacancies = params.get("show_vacancies", args.show_vacancies)
+            args.excel = params.get("excel", args.excel)
+            args.no_filter = params.get("no_filter", args.no_filter)
+            args.max_vacancies_per_query = params.get("max_vacancies_per_query", args.max_vacancies_per_query)
         else:
-            # Формируем список запросов
             if args.it_sector:
                 args.queries = [
                     "Data Scientist", "Data Analyst", "Machine Learning Engineer",
                     "Python Developer", "Java Developer", "Frontend Developer",
                     "Backend Developer", "Fullstack Developer", "DevOps Engineer",
-                    "QA Engineer", "Системный аналитик", "Product Manager",
-                    "Mobile Developer", "iOS Developer", "Android Developer"
+                    "QA Engineer", "Системный аналитик"
                 ]
                 args.industry = 7
                 args.max_vacancies_per_query = 500
-                logger.info("Режим: поиск по всему IT-сектору (предопределённые позиции)")
+                logger.info("Режим: поиск по всему IT-сектору")
             elif args.queries_file:
                 args.queries = load_queries_from_file(Path(args.queries_file))
-                if not args.queries:
-                    logger.error("Не удалось загрузить запросы из файла.")
-                    return
             else:
                 args.queries = [args.query]
 
-            # Формируем список регионов
             if args.regions:
                 args.area_ids = [int(x.strip()) for x in args.regions.split(',')]
             else:
                 args.area_ids = [args.area_id]
 
-            # Если не указан industry, но указан it-sector, он уже установлен выше
-            if args.it_sector and args.industry is None:
-                args.industry = 7
-
-        logger.info(f"Режим: расширенный поиск")
-        logger.info(f"Запросы: {args.queries}")
-        logger.info(f"Регионы: {args.area_ids}")
-        logger.info(f"Период: {args.period} дней, макс. страниц: {args.max_pages}")
-        if args.industry:
-            logger.info(f"Профобласть: {args.industry}")
-        logger.info(f"Лимит вакансий на запрос: {args.max_vacancies_per_query}")
-
         hh_api = HeadHunterAPI()
         parser = VacancyParser()
 
-        logger.info("Сбор вакансий...")
         basic_vacancies = collect_vacancies_multiple(
             hh_api=hh_api,
             queries=args.queries,
@@ -159,187 +145,152 @@ def main():
         )
 
         if not basic_vacancies:
-            logger.error("Не найдено ни одной вакансии.")
+            logger.error("Не найдено вакансий.")
             return
 
-        logger.info(f"Собрано вакансий: {len(basic_vacancies)}")
-
-        # Детальная информация
         if args.skip_details:
-            logger.info("Пропускаем загрузку деталей.")
             vacancies_to_process = basic_vacancies
         else:
             logger.info("Загрузка детальной информации...")
             detailed = []
             for i, vac in enumerate(basic_vacancies, 1):
-                if i % 15 == 0:
+                if i % 20 == 0:
                     logger.info(f"Прогресс деталей: {i}/{len(basic_vacancies)}")
-                det = hh_api.get_vacancy_details(vac['id'])
+                det = hh_api.get_vacancy_details(vac.get('id'))
                 if det:
                     detailed.append(det)
                 time.sleep(config.REQUEST_DELAY)
             vacancies_to_process = detailed
-            logger.info(f"Загружено деталей: {len(detailed)}")
 
-        # Вывод списка
         if args.show_vacancies:
             parser.print_vacancies_list(vacancies_to_process)
 
-        # Извлечение и подсчёт навыков
-        skill_freq = extract_and_count_skills(vacancies_to_process, parser)
-        if not skill_freq:
-            return
-
-        # Сохранение частот
-        parser.save_processed_frequencies(skill_freq, apply_filter=not args.no_filter)
-
-        # Вывод топ-20 навыков
-        print_top_skills(skill_freq)
-
-        # Преобразование в компетенции
-        try:
-            mapping = load_competency_mapping()
-            if mapping:
-                logger.info("Преобразование рыночных навыков в учебные компетенции...")
-                comp_counter = map_to_competencies(skill_freq, mapping)
-                if comp_counter:
-                    comp_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency_mapped.json"
-                    with open(comp_freq_path, 'w', encoding='utf-8') as f:
-                        json.dump(dict(comp_counter.most_common()), f, ensure_ascii=False, indent=2)
-                    logger.info(f"✅ Частоты компетенций сохранены в {comp_freq_path}")
-                    print_top_competencies(comp_counter)
-                else:
-                    print("\n⚠️ Нет совпадений между рыночными навыками и учебными компетенциями")
-            else:
-                logger.warning("Маппинг не загружен, пропущено преобразование в компетенции.")
-        except Exception as e:
-            logger.exception(f"Ошибка при преобразовании компетенций: {e}")
-
-        # Сохранение в Excel
-        if args.excel:
-            logger.info("Сохранение результатов в Excel...")
-            df = parser.aggregate_to_dataframe(vacancies_to_process)
-            if not df.empty:
-                if len(args.queries) == 1:
-                    query_part = args.queries[0].replace(' ', '_')
-                else:
-                    query_part = "multiple_queries"
-                if args.it_sector:
-                    query_part = "it_sector"
-                regions_part = '_'.join(map(str, args.area_ids))
-                filename = f"vacancies_{query_part}_{regions_part}.xlsx"
-                parser.save_to_excel(df, filename)
-                logger.info(f"✅ Excel файл сохранён: {filename}")
-
-    # ------------------------------------------------------------------
-    # Стандартный режим (один запрос, один регион)
-    # ------------------------------------------------------------------
     else:
-        logger.info(f"Запрос: '{args.query}'")
-        logger.info(f"Регион ID: {args.area_id}, период: {args.period} дней, макс. страниц: {args.max_pages}")
-        logger.info(f"Загружать детали: {not args.skip_details}")
-        logger.info(f"Фильтрация навыков: {'ВЫКЛЮЧЕНА' if args.no_filter else 'ВКЛЮЧЕНА'}")
-
-        # Загрузка профилей учеников (как было)
-        try:
-            logger.info("Проверка наличия CSV-матрицы компетенций...")
-            csv_path = config.DATA_RAW_DIR / "competency_matrix.csv"
-            if not csv_path.exists():
-                csv_path = config.DATA_DIR / "last_uploaded" / "competency_matrix.csv"
-            if csv_path.exists():
-                profiles = generate_profiles_from_csv(csv_path)
-                logger.info(f"✅ Профили учеников успешно обновлены из CSV: {len(profiles)} профилей")
-            else:
-                logger.warning("⚠️ CSV-файл не найден, используются существующие профили.")
-        except Exception as e:
-            logger.exception(f"❌ Ошибка при обновлении профилей: {e}")
-
+        # Стандартный режим
         hh_api = HeadHunterAPI()
         parser = VacancyParser()
 
-        logger.info("ЭТАП 1: Поиск вакансий")
-        search_fields = ['name', 'company_name', 'description']
         basic_vacancies = hh_api.search_vacancies(
             text=args.query,
             area=args.area_id,
             period_days=args.period,
-            max_pages=args.max_pages,
-            per_page=100,
-            search_fields=search_fields
+            max_pages=args.max_pages
         )
-        if not basic_vacancies:
-            logger.error("Не получено ни одной вакансии. Завершение работы.")
-            return
 
-        logger.info(f"Найдено {len(basic_vacancies)} вакансий")
+        if not basic_vacancies:
+            logger.error("Не найдено вакансий.")
+            return
 
         if args.skip_details:
-            logger.info("Пропускаем загрузку деталей по запросу")
             vacancies_to_process = basic_vacancies
-            parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json")
         else:
-            logger.info(f"ЭТАП 2: Загрузка детальной информации для {len(basic_vacancies)} вакансий")
-            detailed_vacancies = []
-            success_count = 0
-            for idx, vac in enumerate(basic_vacancies, 1):
-                vac_id = vac['id']
-                if idx % 20 == 0:
-                    logger.info(f"Прогресс: {idx}/{len(basic_vacancies)} вакансий")
-                details = hh_api.get_vacancy_details(vac_id)
-                if details:
-                    detailed_vacancies.append(details)
-                    success_count += 1
-                else:
-                    logger.warning(f"⚠️ Не удалось загрузить детали для вакансии {vac_id}")
+            logger.info("Загрузка детальной информации...")
+            detailed = []
+            for i, vac in enumerate(basic_vacancies, 1):
+                if i % 20 == 0:
+                    logger.info(f"Прогресс: {i}/{len(basic_vacancies)}")
+                det = hh_api.get_vacancy_details(vac.get('id'))
+                if det:
+                    detailed.append(det)
                 time.sleep(config.REQUEST_DELAY)
-            logger.info(f"Загружена детальная информация для {success_count}/{len(basic_vacancies)} вакансий")
-            vacancies_to_process = detailed_vacancies
-            parser.save_raw_vacancies(detailed_vacancies, filename="hh_vacancies_detailed.json")
+            vacancies_to_process = detailed
 
-        if args.show_vacancies:
-            parser.print_vacancies_list(vacancies_to_process)
+    # ====================== 2. ОБРАБОТКА НАВЫКОВ ======================
+    skill_freq = extract_and_count_skills(vacancies_to_process, parser)
+    if not skill_freq:
+        logger.error("Не удалось извлечь навыки.")
+        return
 
-        # Извлечение и подсчёт навыков
-        skill_freq = extract_and_count_skills(vacancies_to_process, parser)
-        if not skill_freq:
-            return
+    parser.save_processed_frequencies(skill_freq, apply_filter=not args.no_filter)
+    print_top_skills(skill_freq)
 
-        parser.save_processed_frequencies(skill_freq, apply_filter=not args.no_filter)
+    # Преобразование навыков в компетенции
+    try:
+        mapping = load_competency_mapping()
+        if mapping:
+            comp_counter = map_to_competencies(skill_freq, mapping)
+            if comp_counter:
+                comp_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency_mapped.json"
+                with open(comp_freq_path, 'w', encoding='utf-8') as f:
+                    json.dump(dict(comp_counter.most_common()), f, ensure_ascii=False, indent=2)
+                print_top_competencies(comp_counter)
+    except Exception as e:
+        logger.exception(f"Ошибка преобразования компетенций: {e}")
 
-        print_top_skills(skill_freq)
+    if args.excel:
+        df = parser.aggregate_to_dataframe(vacancies_to_process)
+        if not df.empty:
+            filename = "vacancies_it_sector.xlsx" if getattr(args, 'it_sector', False) else f"vacancies_{args.query.replace(' ', '_')}.xlsx"
+            parser.save_to_excel(df, filename)
 
-        # Преобразование в компетенции
-        logger.info("Преобразование рыночных навыков в учебные компетенции...")
+    # ====================== 3. GAP-АНАЛИЗ ======================
+    if args.run_gap_analysis:
+        logger.info("\n" + "="*85)
+        logger.info("ЗАПУСК GAP-АНАЛИЗА КОМПЕТЕНЦИЙ СТУДЕНТОВ")
+        logger.info("="*85)
+
         try:
             mapping = load_competency_mapping()
-            if mapping:
-                comp_counter = map_to_competencies(skill_freq, mapping)
-                if comp_counter:
-                    comp_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency_mapped.json"
-                    with open(comp_freq_path, 'w', encoding='utf-8') as f:
-                        json.dump(dict(comp_counter.most_common()), f, ensure_ascii=False, indent=2)
-                    logger.info(f"✅ Частоты компетенций сохранены в {comp_freq_path}")
-                    print_top_competencies(comp_counter)
-                else:
-                    print("\n⚠️ Нет совпадений между рыночными навыками и учебными компетенциями")
+            if not mapping:
+                logger.error("Не удалось загрузить competency_mapping.json")
+            elif not skill_freq:
+                logger.error("Нет данных о рыночных навыках")
             else:
-                logger.warning("Маппинг не загружен, пропущено преобразование в компетенции.")
-                print("\n⚠️ Файл competency_mapping.json не найден или пуст")
+                gap_analyzer = GapAnalyzer(mapping)
+
+                for profile_name in ["base", "dc", "top_dc"]:
+                    comp_list = load_student_competencies(profile_name)
+                    if not comp_list:
+                        logger.warning(f"Профиль {profile_name} пуст")
+                        continue
+
+                    student = StudentProfile(
+                        student_id=profile_name,
+                        name=profile_name.upper(),
+                        competencies=comp_list
+                    )
+
+                    report = gap_analyzer.analyze(student, skill_freq)
+
+                    # === СОХРАНЕНИЕ С ТОЧНЫМИ ИМЕНАМИ ИЗ ТВОЕЙ СТРУКТУРЫ ===
+                    student_dir = config.DATA_DIR / "result" / profile_name
+                    student_dir.mkdir(parents=True, exist_ok=True)
+
+                    report_path = student_dir / f"comparison_report_{profile_name}.json"
+                    rec_path = student_dir / f"recommendations_{profile_name}.json"
+
+                    with open(report_path, "w", encoding="utf-8") as f:
+                        f.write(report.model_dump_json(indent=2))
+
+                    with open(rec_path, "w", encoding="utf-8") as f:
+                        rec = {
+                            "student": profile_name,
+                            "high_priority": [g.skill for g in report.high_demand_gaps[:10]],
+                            "suggestion": report.recommendations[0] if report.recommendations 
+                                          else "Рекомендуется развивать Deep Learning, MLOps и LLM."
+                        }
+                        json.dump(rec, f, ensure_ascii=False, indent=2)
+
+                    logger.info(f"✅ {profile_name.upper():<8} → "
+                                f"comparison_report_{profile_name}.json и recommendations_{profile_name}.json обновлены")
+
         except Exception as e:
-            logger.exception(f"Ошибка при преобразовании компетенций: {e}")
-            print(f"\n❌ Ошибка при преобразовании компетенций: {e}")
+            logger.exception(f"Ошибка при gap-анализе: {e}")
 
-        if args.excel:
-            logger.info("ЭТАП 5: Сохранение результатов в Excel")
-            df = parser.aggregate_to_dataframe(vacancies_to_process)
-            if not df.empty:
-                filename = f"vacancies_{args.query}_{args.area_id}.xlsx".replace(' ', '_')
-                parser.save_to_excel(df, filename)
-                logger.info(f"✅ Excel файл сохранен: {filename}")
+    # Обновление профилей из CSV
+    try:
+        csv_path = config.DATA_RAW_DIR / "competency_matrix.csv"
+        if not csv_path.exists():
+            csv_path = config.DATA_DIR / "last_uploaded" / "competency_matrix.csv"
+        if csv_path.exists():
+            generate_profiles_from_csv(csv_path)
+            logger.info("Профили студентов обновлены из competency_matrix.csv")
+    except Exception as e:
+        logger.warning(f"Не удалось обновить профили из CSV: {e}")
 
-    logger.info("=" * 60)
-    logger.info("ПАЙПЛАЙН УСПЕШНО ЗАВЕРШЁН")
-    logger.info("=" * 60)
+    logger.info("=" * 85)
+    logger.info("ПОЛНЫЙ ПАЙПЛАЙН УСПЕШНО ЗАВЕРШЁН")
+    logger.info("=" * 85)
 
 
 if __name__ == "__main__":
