@@ -252,7 +252,7 @@ def main():
 
                     report = gap_analyzer.analyze(student, skill_freq)
 
-                    # === СОХРАНЕНИЕ С ТОЧНЫМИ ИМЕНАМИ ИЗ ТВОЕЙ СТРУКТУРЫ ===
+                    
                     student_dir = config.DATA_DIR / "result" / profile_name
                     student_dir.mkdir(parents=True, exist_ok=True)
 
