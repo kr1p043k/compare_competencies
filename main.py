@@ -32,13 +32,14 @@ from src import config
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.utils import load_competency_mapping
 
-# Gap-анализ
+# === Gap-анализ и рекомендации ===
 from src.models.student import StudentProfile
 from src.analyzers.gap_analyzer import GapAnalyzer
+from src.predictors.recommendation_engine import RecommendationEngine
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ")
+    parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
     
     parser.add_argument('--query', '-q', type=str, default="Frontend Developer")
     parser.add_argument('--area-id', '-a', type=int, default=76)
@@ -56,7 +57,7 @@ def parse_arguments():
     parser.add_argument('--it-sector', action='store_true')
     
     parser.add_argument('--run-gap-analysis', action='store_true', default=True,
-                        help="Выполнить gap-анализ компетенций студентов (по умолчанию True)")
+                        help="Выполнить gap-анализ и генерацию рекомендаций (по умолчанию True)")
 
     return parser.parse_args()
 
@@ -81,7 +82,7 @@ def main():
     args = parse_arguments()
 
     logger.info("=" * 85)
-    logger.info("ПОЛНЫЙ ПАЙПЛАЙН: СБОР ВАКАНСИЙ + GAP-АНАЛИЗ")
+    logger.info("ПОЛНЫЙ ПАЙПЛАЙН: СБОР ВАКАНСИЙ + GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ")
     logger.info("=" * 85)
 
     use_multiple = (
@@ -121,6 +122,7 @@ def main():
                 args.industry = 7
                 args.max_vacancies_per_query = 500
                 logger.info("Режим: поиск по всему IT-сектору")
+
             elif args.queries_file:
                 args.queries = load_queries_from_file(Path(args.queries_file))
             else:
@@ -204,7 +206,7 @@ def main():
     parser.save_processed_frequencies(skill_freq, apply_filter=not args.no_filter)
     print_top_skills(skill_freq)
 
-    # Преобразование навыков в компетенции
+    # Преобразование в компетенции
     try:
         mapping = load_competency_mapping()
         if mapping:
@@ -223,20 +225,19 @@ def main():
             filename = "vacancies_it_sector.xlsx" if getattr(args, 'it_sector', False) else f"vacancies_{args.query.replace(' ', '_')}.xlsx"
             parser.save_to_excel(df, filename)
 
-    # ====================== 3. GAP-АНАЛИЗ ======================
+    # ====================== 3. GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ ======================
     if args.run_gap_analysis:
         logger.info("\n" + "="*85)
-        logger.info("ЗАПУСК GAP-АНАЛИЗА КОМПЕТЕНЦИЙ СТУДЕНТОВ")
+        logger.info("ЗАПУСК GAP-АНАЛИЗА И ГЕНЕРАЦИИ РЕКОМЕНДАЦИЙ")
         logger.info("="*85)
 
         try:
             mapping = load_competency_mapping()
-            if not mapping:
-                logger.error("Не удалось загрузить competency_mapping.json")
-            elif not skill_freq:
-                logger.error("Нет данных о рыночных навыках")
+            if not mapping or not skill_freq:
+                logger.error("Недостаточно данных для gap-анализа")
             else:
                 gap_analyzer = GapAnalyzer(mapping)
+                recommendation_engine = RecommendationEngine()   # ← Новый движок рекомендаций
 
                 for profile_name in ["base", "dc", "top_dc"]:
                     comp_list = load_student_competencies(profile_name)
@@ -251,31 +252,32 @@ def main():
                     )
 
                     report = gap_analyzer.analyze(student, skill_freq)
+                    recommendations_list = recommendation_engine.generate_recommendations(report, student)
 
-                    
+                    # Сохранение по твоей структуре
                     student_dir = config.DATA_DIR / "result" / profile_name
                     student_dir.mkdir(parents=True, exist_ok=True)
 
-                    report_path = student_dir / f"comparison_report_{profile_name}.json"
-                    rec_path = student_dir / f"recommendations_{profile_name}.json"
-
-                    with open(report_path, "w", encoding="utf-8") as f:
+                    # comparison_report_{profile}.json
+                    with open(student_dir / f"comparison_report_{profile_name}.json", "w", encoding="utf-8") as f:
                         f.write(report.model_dump_json(indent=2))
 
-                    with open(rec_path, "w", encoding="utf-8") as f:
-                        rec = {
-                            "student": profile_name,
-                            "high_priority": [g.skill for g in report.high_demand_gaps[:10]],
-                            "suggestion": report.recommendations[0] if report.recommendations 
-                                          else "Рекомендуется развивать Deep Learning, MLOps и LLM."
-                        }
-                        json.dump(rec, f, ensure_ascii=False, indent=2)
+                    # recommendations_{profile}.json
+                    rec_data = {
+                        "student": profile_name,
+                        "high_priority": [g.skill for g in report.high_demand_gaps[:10]],
+                        "recommendations": recommendations_list
+                    }
 
-                    logger.info(f"✅ {profile_name.upper():<8} → "
-                                f"comparison_report_{profile_name}.json и recommendations_{profile_name}.json обновлены")
+                    with open(student_dir / f"recommendations_{profile_name}.json", "w", encoding="utf-8") as f:
+                        json.dump(rec_data, f, ensure_ascii=False, indent=2)
+
+                    logger.info(f"✅ {profile_name.upper():<8} | "
+                                f"Покрытие: {report.coverage_percent:6.2f}% | "
+                                f"Рекомендаций сгенерировано: {len(recommendations_list)}")
 
         except Exception as e:
-            logger.exception(f"Ошибка при gap-анализе: {e}")
+            logger.exception(f"Ошибка при gap-анализе и генерации рекомендаций: {e}")
 
     # Обновление профилей из CSV
     try:
