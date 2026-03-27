@@ -10,3 +10,5 @@ streamlit
 plotly
 numpy
 chardet>=5.0.0
+pytest
+openpyxl
