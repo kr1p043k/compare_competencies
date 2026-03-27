@@ -119,48 +119,62 @@ class VacancyParser:
 
     @staticmethod
     def normalize_skill(skill: str) -> str:
-        """Приводит навык к единому виду + убирает мусор."""
+        """Радикальная нормализация: жёстко отсекаем мусор и длинные фразы."""
         if not skill:
             return ""
 
         normalized = VacancyParser.clean_highlighttext(skill).lower().strip()
-        # Оставляем только буквы, цифры, пробелы, дефис, +, /, ., #
-        normalized = re.sub(r'\s+\([^)]*\)$', '', normalized)  # удалить скобки в конце
-        normalized = re.sub(r'\s+[–-]\s+.*$', '', normalized)  # удалить часть после тире
 
-        # Убираем типичные префиксы/суффиксы, которые не являются частью навыка
-        normalized = re.sub(r'^(опыт|знание|владение|умение|должен|требуется|работа с)\s+', '', normalized)
-        normalized = re.sub(r'\s+(опыт|знание|владение|умение|плюсом|желательно)$', '', normalized)
+        # Удаляем типичные префиксы и суффиксы
+        normalized = re.sub(r'^(опыт работы с|работа с|знание|владение|умение|должен|требуется|навык|навыки|умение работать с|опыт)\s+', '', normalized)
+        normalized = re.sub(r'\s+(опыт|знание|владение|умение|плюсом|желательно|преимуществом|навык|навыки)$', '', normalized)
 
-        # Применяем синонимы
-        for orig, replacement in VacancyParser.SYNONYMS.items():
-            if normalized == orig:
-                normalized = replacement
-                break
+        # Если фраза слишком длинная (> 4 слов) — почти всегда мусор (например "развитие ключевых клиентов")
+        if len(normalized.split()) > 4:
+            return ""
 
-        return normalized
+        # Убираем одиночные подозрительные слова
+        if normalized in {"инициатива", "мотивация", "коммуникация", "клиентами", "клиентам", "харизма", "многозадачность"}:
+            return ""
+
+        return normalized.strip()
+
 
     @staticmethod
     def count_skills(skills_list: List[str]) -> Dict[str, int]:
-        """Подсчитывает частоту каждого навыка после нормализации."""
+        """Радикальная фильтрация: whitelist + большой blacklist."""
         normalized_skills = [VacancyParser.normalize_skill(s) for s in skills_list if s]
         skill_counts = Counter(normalized_skills)
 
-        # Фильтруем слишком короткие и очевидный мусор
-        filtered_counts = {
-            k: v for k, v in skill_counts.items()
-            if len(k) > 2 and not any(bad in k for bad in [
-                "английского языка", "русского языка", "высшее образование",
-                "знание английского", "опыт работы", "умение", "желательно",
-                "продажи", "маркетинг", "b2b", "b2c", "wildberries", "озон",
-                "менеджмент", "управление", "коммуникация", "деловая", "переговоры",
-                "бизнес", "лидерство", "сопровождение", "консультирование",
-                "клиентоориентированность", "ориентация на результат", "навыки презентации"
-            ])
+        # === ОЧЕНЬ СТРОГИЙ BLACKLIST ===
+        bad_terms = {
+            "оценка потребностей клиентов", "развитие ключевых клиентов", "проведение презентаций",
+            "проведение переговоров", "подготовка коммерческих предложений", "навыки межличностного общения",
+            "межличностное общение", "мотивация персонала", "стратегическое мышление", "аналитическое мышление",
+            "командная работа", "клиентоориентированность", "ориентация на результат", "продвижение бренда",
+            "развитие продаж", "традиционная розница", "собственная розница", "клиентами", "клиентам",
+            "инициатива", "харизма", "многозадачность", "бухгалтерская отчетность", "бухгалтерский учет",
+            "английского языка", "русского языка", "высшее образование", "знание английского",
+            "опыт работы", "умение", "желательно", "продажи", "маркетинг", "smm", "smm-стратегия",
+            "hr-аналитика", "управление персоналом", "административная поддержка", "ведение проектов",
+            "пластичные смазки", "автомобильные перевозки", "организация клиентских мероприятий"
         }
 
-        logger.info(f"Подсчитаны частоты навыков: {len(filtered_counts)} уникальных (было {len(skill_counts)})")
-        return filtered_counts
+        # Сначала отсеиваем по blacklist
+        filtered = {
+            k: v for k, v in skill_counts.items()
+            if len(k) > 2 
+            and k not in bad_terms 
+            and not any(bad in k for bad in bad_terms)
+        }
+
+        # Затем применяем whitelist (it_skills.json) — оставляем только подтверждённые IT-навыки
+        whitelist = load_it_skills()
+        if whitelist:
+            filtered = {k: v for k, v in filtered.items() if k in whitelist or k.lower() in whitelist}
+
+        logger.info(f"После радикальной фильтрации осталось {len(filtered)} навыков (отфильтровано {len(skill_counts) - len(filtered)} мусорных)")
+        return filtered
 
     @staticmethod
     def extract_skills_from_text(vacancies: List[Dict[str, Any]]) -> List[str]:
