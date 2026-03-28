@@ -1,156 +1,49 @@
 {
   "student_name": "BASE",
   "total_competencies": 31,
-  "total_mapped_skills": 87,
-  "coverage_percent": 20.0,
-  "weighted_coverage_percent": 32.49,
+  "total_mapped_skills": 4,
+  "coverage_percent": 8.85,
+  "weighted_coverage_percent": 8.85,
   "covered_skills": [
     "docker",
-    "langchain",
     "mysql",
-    "power bi",
-    "scikit-learn",
     "sql",
-    "tableau",
-    "визуализация данных"
+    "postgresql"
   ],
   "high_demand_gaps": [
     {
-      "skill": "deep learning",
-      "frequency": 9,
-      "demand_level": "high"
+      "skill": "golang",
+      "frequency": 9
     },
     {
-      "skill": "data science",
-      "frequency": 10,
-      "demand_level": "high"
+      "skill": "redis",
+      "frequency": 8
     },
     {
-      "skill": "llm",
-      "frequency": 12,
-      "demand_level": "high"
+      "skill": "golang sql",
+      "frequency": 8
     },
     {
-      "skill": "pandas",
-      "frequency": 13,
-      "demand_level": "high"
+      "skill": "redis linux",
+      "frequency": 5
     },
     {
-      "skill": "big data",
-      "frequency": 12,
-      "demand_level": "high"
+      "skill": "postgresql redis",
+      "frequency": 5
     },
     {
-      "skill": "pytorch",
-      "frequency": 24,
-      "demand_level": "high"
+      "skill": "java",
+      "frequency": 5
     }
   ],
   "medium_demand_gaps": [
     {
-      "skill": "hadoop",
-      "frequency": 7,
-      "demand_level": "medium"
-    },
-    {
-      "skill": "numpy",
-      "frequency": 8,
-      "demand_level": "medium"
-    },
-    {
-      "skill": "английский язык",
-      "frequency": 4,
-      "demand_level": "medium"
-    },
-    {
-      "skill": "аналитическое мышление",
-      "frequency": 4,
-      "demand_level": "medium"
-    },
-    {
-      "skill": "linux",
-      "frequency": 4,
-      "demand_level": "medium"
-    },
-    {
-      "skill": "ms excel",
-      "frequency": 5,
-      "demand_level": "medium"
-    },
-    {
-      "skill": "java",
-      "frequency": 4,
-      "demand_level": "medium"
-    },
-    {
-      "skill": "computer vision",
-      "frequency": 7,
-      "demand_level": "medium"
-    },
-    {
-      "skill": "ci/cd",
-      "frequency": 5,
-      "demand_level": "medium"
-    },
-    {
-      "skill": "data analysis",
-      "frequency": 8,
-      "demand_level": "medium"
+      "skill": "api postgresql",
+      "frequency": 4
     }
   ],
-  "low_demand_gaps": [
-    {
-      "skill": "react",
-      "frequency": 2,
-      "demand_level": "low"
-    },
-    {
-      "skill": "data mining",
-      "frequency": 1,
-      "demand_level": "low"
-    },
-    {
-      "skill": "android",
-      "frequency": 1,
-      "demand_level": "low"
-    },
-    {
-      "skill": "bpmn",
-      "frequency": 1,
-      "demand_level": "low"
-    },
-    {
-      "skill": "spark",
-      "frequency": 2,
-      "demand_level": "low"
-    },
-    {
-      "skill": "разработка технических заданий",
-      "frequency": 2,
-      "demand_level": "low"
-    },
-    {
-      "skill": "mlops",
-      "frequency": 2,
-      "demand_level": "low"
-    },
-    {
-      "skill": "dwh",
-      "frequency": 1,
-      "demand_level": "low"
-    },
-    {
-      "skill": "atlassian confluence",
-      "frequency": 1,
-      "demand_level": "low"
-    },
-    {
-      "skill": "постановка задач разработчикам",
-      "frequency": 2,
-      "demand_level": "low"
-    }
-  ],
+  "low_demand_gaps": [],
   "recommendations": [
-    "Высокий приоритет: освоить deep learning, data science, llm, pandas — наиболее востребованные навыки."
+    "Приоритет №1: освоить golang, redis, golang sql (высокий спрос на рынке)."
   ]
 }

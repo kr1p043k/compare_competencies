@@ -1,0 +1,160 @@
+{
+  "match_score": 0.3921,
+  "coverage": 0.1117,
+  "missing_skills": [
+    {
+      "skill": "golang",
+      "weight": 0.09500667538581502
+    },
+    {
+      "skill": "redis",
+      "weight": 0.0868715591428934
+    },
+    {
+      "skill": "golang sql",
+      "weight": 0.08379299146829347
+    },
+    {
+      "skill": "git",
+      "weight": 0.07499408402725147
+    },
+    {
+      "skill": "linux",
+      "weight": 0.07285683027838076
+    },
+    {
+      "skill": "frontend",
+      "weight": 0.07066206090408061
+    },
+    {
+      "skill": "api",
+      "weight": 0.0640570741461847
+    },
+    {
+      "skill": "rest",
+      "weight": 0.0640570741461847
+    },
+    {
+      "skill": "rest api",
+      "weight": 0.0640570741461847
+    },
+    {
+      "skill": "linux docker",
+      "weight": 0.05736365681933711
+    },
+    {
+      "skill": "redis linux",
+      "weight": 0.05736365681933711
+    },
+    {
+      "skill": "redis linux docker",
+      "weight": 0.05736365681933711
+    },
+    {
+      "skill": "postgresql redis",
+      "weight": 0.05259664326580568
+    },
+    {
+      "skill": "английский",
+      "weight": 0.05234583516606278
+    },
+    {
+      "skill": "английский язык",
+      "weight": 0.05234583516606278
+    },
+    {
+      "skill": "английский язык frontend",
+      "weight": 0.05234583516606278
+    },
+    {
+      "skill": "язык",
+      "weight": 0.05234583516606278
+    },
+    {
+      "skill": "язык frontend",
+      "weight": 0.05234583516606278
+    },
+    {
+      "skill": "api postgresql",
+      "weight": 0.047440933812634103
+    },
+    {
+      "skill": "rest api postgresql",
+      "weight": 0.047440933812634103
+    }
+  ],
+  "top_market_skills": [
+    "sql",
+    "golang",
+    "redis",
+    "docker",
+    "postgresql",
+    "golang sql",
+    "git",
+    "linux",
+    "frontend",
+    "api",
+    "rest",
+    "rest api",
+    "linux docker",
+    "redis linux",
+    "redis linux docker",
+    "postgresql redis",
+    "java",
+    "английский",
+    "английский язык",
+    "английский язык frontend"
+  ],
+  "recommendations": [
+    {
+      "skill": "golang",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.095)"
+    },
+    {
+      "skill": "redis",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.0869)"
+    },
+    {
+      "skill": "golang sql",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.0838)"
+    },
+    {
+      "skill": "git",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.075)"
+    },
+    {
+      "skill": "linux",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.0729)"
+    },
+    {
+      "skill": "frontend",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.0707)"
+    },
+    {
+      "skill": "api",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.0641)"
+    },
+    {
+      "skill": "rest",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.0641)"
+    },
+    {
+      "skill": "rest api",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.0641)"
+    },
+    {
+      "skill": "linux docker",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.0574)"
+    }
+  ]
+}
