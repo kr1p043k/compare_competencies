@@ -1,14 +1,9 @@
-# src/visualization/charts.py
-"""
-Модуль для визуализации данных: покрытие рынка, дефициты, тренды, радар-диаграммы.
-Также содержит утилиты для запуска ноутбуков и отображения контекстной информации.
-"""
-
 import subprocess
 import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import logging
+import json
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -86,8 +81,10 @@ def plot_radar_chart(student_skills: List[str], market_top: List[str], student_n
     """
     Лепестковая диаграмма: сравнение профиля ученика с топ-навыками рынка.
     """
+    # Создаём массив: 1, если навык есть у студента, иначе 0
     data = [1 if skill in student_skills else 0 for skill in market_top]
     angles = np.linspace(0, 2 * np.pi, len(market_top), endpoint=False).tolist()
+    # Замыкаем круг
     data += data[:1]
     angles += angles[:1]
 
@@ -140,6 +137,45 @@ def save_all_charts(results: Dict[str, Any], output_dir: Path):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Загружаем skill_weights для получения топ-навыков рынка
+    skill_weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
+    top_market_skills = []
+    if skill_weights_path.exists():
+        try:
+            with open(skill_weights_path, 'r', encoding='utf-8') as f:
+                skill_weights = json.load(f)
+
+            # Стоп-слова, которые не должны попадать в радиарную диаграмму
+            stop_skills = {
+                "язык", "английский", "английский язык", "язык frontend",
+                "frontend английский", "frontend английский язык"
+            }
+
+            def filter_top_skills(weights, top_n=20):
+                # Получаем топ-N навыков по весу, исключая стоп-слова
+                sorted_items = sorted(weights.items(), key=lambda x: x[1], reverse=True)
+                filtered_items = [(skill, w) for skill, w in sorted_items if skill not in stop_skills]
+                top_items = filtered_items[:top_n]
+                skills = [skill for skill, _ in top_items]
+
+                # Удаляем навыки, которые являются подстрокой другого навыка (оставляем более длинные)
+                result = []
+                for skill in skills:
+                    if not any(skill != other and skill in other for other in skills):
+                        result.append(skill)
+
+                # Если после фильтрации осталось слишком мало, возвращаем первые top_n без подстрок
+                if len(result) < top_n // 2:
+                    result = [skill for skill, _ in filtered_items[:top_n]]
+                return result
+
+            top_market_skills = filter_top_skills(skill_weights, top_n=20)
+            logger.info(f"Загружены топ-{len(top_market_skills)} навыков рынка для радиарной диаграммы: {top_market_skills}")
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить skill_weights.json: {e}")
+    else:
+        logger.warning("skill_weights.json не найден, радиарные диаграммы не будут построены")
+
     # Общий график покрытия
     plot_coverage_comparison(results, save_path=output_dir / "coverage_comparison.png")
 
@@ -152,13 +188,10 @@ def save_all_charts(results: Dict[str, Any], output_dir: Path):
             plot_top_deficits(rep['high_demand_gaps'], name,
                               save_path=student_dir / f"top_deficits_{name}.png")
 
-        # Радар (если есть covered_skills и топ-рыночные)
-        if 'covered_skills' in rep and 'high_demand_gaps' in rep:
-            top_market = [g['skill'] for g in rep['high_demand_gaps'][:10]]
-            if top_market:
-                plot_radar_chart(rep['covered_skills'], top_market, name,
-                                 save_path=student_dir / f"radar_{name}.png")
-
+        # Радар (если есть covered_skills и топ-рыночные навыки)
+        if 'covered_skills' in rep and top_market_skills:
+            plot_radar_chart(rep['covered_skills'], top_market_skills, name,
+                             save_path=student_dir / f"radar_{name}.png")
 
 # ----------------------------------------------------------------------
 # Утилиты для запуска ноутбуков и вывода контекстной информации
