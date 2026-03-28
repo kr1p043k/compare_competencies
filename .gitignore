@@ -4,4 +4,7 @@ __pycache__
 .venv
 competency_frequency_mapped.json
 test/test_output
-.png
+*.png
+*.jpg
+*.jpeg
+*.png
