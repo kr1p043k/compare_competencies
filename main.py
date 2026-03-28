@@ -48,7 +48,7 @@ from src.visualization.charts import (
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
     
-    parser.add_argument('--query', '-q', type=str, default="Backend Developer")
+    parser.add_argument('--query', '-q', type=str, default="Frontend Developer")
     parser.add_argument('--area-id', '-a', type=int, default=76)
     parser.add_argument('--max-pages', '-p', type=int, default=20)
     parser.add_argument('--period', '-d', type=int, default=30)
@@ -69,6 +69,7 @@ def parse_arguments():
     parser.add_argument('--run-notebooks', action='store_true',
                         help="Запустить Jupyter ноутбуки после сбора данных")
     return parser.parse_args()
+
 
 def load_student_competencies(profile_name: str):
     """Загружает компетенции студента"""
@@ -130,7 +131,6 @@ def main():
                 args.industry = 7
                 args.max_vacancies_per_query = 500
                 logger.info("Режим: поиск по всему IT-сектору")
-
             elif args.queries_file:
                 args.queries = load_queries_from_file(Path(args.queries_file))
             else:
@@ -158,6 +158,10 @@ def main():
             logger.error("Не найдено вакансий.")
             return
 
+        # Сохраняем сырые данные базовых вакансий
+        logger.info("Сохраняем базовые вакансии...")
+        parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json")
+        logger.info("Базовые вакансии сохранены.")
         if args.skip_details:
             vacancies_to_process = basic_vacancies
         else:
@@ -191,6 +195,9 @@ def main():
             logger.error("Не найдено вакансий.")
             return
 
+        logger.info("Сохраняем базовые вакансии...")
+        parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json")
+        logger.info("Базовые вакансии сохранены.")
         if args.skip_details:
             vacancies_to_process = basic_vacancies
         else:
@@ -274,7 +281,13 @@ def main():
             def get_clean_skills_for_vacancy(vacancy):
                 raw_skills = VacancyParser.extract_skills([vacancy]) + VacancyParser.extract_skills_from_text([vacancy])
                 normalized = [VacancyParser.normalize_skill(s) for s in raw_skills if s]
-                clean = {s for s in normalized if s and len(s) > 2}
+                clean = set()
+                for s in normalized:
+                    if s and len(s) > 2 and VacancyParser.is_valid_skill(s):
+                        clean.add(s)
+                # Дополнительная фильтрация стоп-слов
+                stop_words = {"английский", "английский язык", "язык", "русский", "русский язык"}
+                clean = {s for s in clean if s not in stop_words}
                 if whitelist:
                     clean = {s for s in clean if s in whitelist}
                 return list(clean)
@@ -401,7 +414,7 @@ def main():
 
         except Exception as e:
             logger.exception(f"Ошибка при TF-IDF анализе: {e}")
-            
+
     # Вывод контекстной информации
     show_context_info()
 
