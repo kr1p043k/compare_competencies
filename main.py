@@ -26,7 +26,8 @@ from src.parsing.utils import (
     print_top_skills,
     print_top_competencies,
     extract_and_count_skills,
-    map_to_competencies
+    map_to_competencies,
+    load_it_skills
 )
 from src import config
 from src.loaders_student.student_loader import generate_profiles_from_csv
@@ -37,11 +38,17 @@ from src.models.student import StudentProfile
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.predictors.recommendation_engine import RecommendationEngine
 
+from src.visualization.charts import (
+    show_context_info,
+    run_notebook,
+    save_all_charts
+)
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
     
-    parser.add_argument('--query', '-q', type=str, default="Frontend Developer")
+    parser.add_argument('--query', '-q', type=str, default="Backend Developer")
     parser.add_argument('--area-id', '-a', type=int, default=76)
     parser.add_argument('--max-pages', '-p', type=int, default=20)
     parser.add_argument('--period', '-d', type=int, default=30)
@@ -58,9 +65,10 @@ def parse_arguments():
     
     parser.add_argument('--run-gap-analysis', action='store_true', default=True,
                         help="Выполнить gap-анализ и генерацию рекомендаций (по умолчанию True)")
-
+    
+    parser.add_argument('--run-notebooks', action='store_true',
+                        help="Запустить Jupyter ноутбуки после сбора данных")
     return parser.parse_args()
-
 
 def load_student_competencies(profile_name: str):
     """Загружает компетенции студента"""
@@ -232,52 +240,176 @@ def main():
         logger.info("="*85)
 
         try:
-            mapping = load_competency_mapping()
-            if not mapping or not skill_freq:
-                logger.error("Недостаточно данных для gap-анализа")
+            if not skill_freq:
+                logger.error("Нет навыков для анализа")
+                return
+
+            # --- Загрузка маппинга компетенций ---
+            competency_mapping = load_competency_mapping()
+            if not competency_mapping:
+                logger.warning("Маппинг компетенций не загружен. Студенческие навыки не будут преобразованы.")
             else:
-                gap_analyzer = GapAnalyzer(mapping)
-                recommendation_engine = RecommendationEngine()   # ← Новый движок рекомендаций
+                logger.info(f"Загружен маппинг для {len(competency_mapping)} компетенций")
 
-                for profile_name in ["base", "dc", "top_dc"]:
-                    comp_list = load_student_competencies(profile_name)
-                    if not comp_list:
-                        logger.warning(f"Профиль {profile_name} пуст")
-                        continue
+            def map_codes_to_skills(codes):
+                if not competency_mapping:
+                    return codes
+                skills = set()
+                for code in codes:
+                    code_clean = code.strip('. ').upper()
+                    if code_clean in competency_mapping:
+                        skills.update(competency_mapping[code_clean])
+                    elif code.strip('.') in competency_mapping:
+                        skills.update(competency_mapping[code.strip('.')])
+                return list(skills)
 
-                    student = StudentProfile(
-                        student_id=profile_name,
-                        name=profile_name.upper(),
-                        competencies=comp_list
-                    )
+            # Подготовка данных для TF-IDF
+            logger.info("Подготовка данных для TF-IDF анализа...")
+            whitelist = load_it_skills() if not args.no_filter else None
+            if whitelist:
+                logger.info(f"Загружен белый список: {len(whitelist)} навыков")
+            else:
+                logger.info("Белый список не используется")
 
-                    report = gap_analyzer.analyze(student, skill_freq)
-                    recommendations_list = recommendation_engine.generate_recommendations(report, student)
+            def get_clean_skills_for_vacancy(vacancy):
+                raw_skills = VacancyParser.extract_skills([vacancy]) + VacancyParser.extract_skills_from_text([vacancy])
+                normalized = [VacancyParser.normalize_skill(s) for s in raw_skills if s]
+                clean = {s for s in normalized if s and len(s) > 2}
+                if whitelist:
+                    clean = {s for s in clean if s in whitelist}
+                return list(clean)
 
-                    # Сохранение по твоей структуре
-                    student_dir = config.DATA_DIR / "result" / profile_name
-                    student_dir.mkdir(parents=True, exist_ok=True)
+            vacancies_skills = []
+            for v in vacancies_to_process:
+                clean_skills = get_clean_skills_for_vacancy(v)
+                if clean_skills:
+                    vacancies_skills.append(clean_skills)
 
-                    # comparison_report_{profile}.json
-                    with open(student_dir / f"comparison_report_{profile_name}.json", "w", encoding="utf-8") as f:
-                        f.write(report.model_dump_json(indent=2))
+            logger.info(f"Собрано {len(vacancies_skills)} вакансий с чистыми навыками для TF-IDF")
+            if not vacancies_skills:
+                logger.error("Не удалось собрать навыки по вакансиям")
+                return
 
-                    # recommendations_{profile}.json
-                    rec_data = {
-                        "student": profile_name,
-                        "high_priority": [g.skill for g in report.high_demand_gaps[:10]],
-                        "recommendations": recommendations_list
-                    }
+            recommendation_engine = RecommendationEngine()
+            recommendation_engine.fit(vacancies_skills)
 
-                    with open(student_dir / f"recommendations_{profile_name}.json", "w", encoding="utf-8") as f:
-                        json.dump(rec_data, f, ensure_ascii=False, indent=2)
+            skill_weights = recommendation_engine.comparator.get_skill_weights()
+            weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
+            with open(weights_path, "w", encoding="utf-8") as f:
+                json.dump(skill_weights, f, ensure_ascii=False, indent=2)
+            logger.info(f"Вес навыков сохранён в {weights_path}, всего {len(skill_weights)} навыков")
 
-                    logger.info(f"✅ {profile_name.upper():<8} | "
-                                f"Покрытие: {report.coverage_percent:6.2f}% | "
-                                f"Рекомендаций сгенерировано: {len(recommendations_list)}")
+            if skill_weights:
+                logger.info(f"Примеры весов: {list(skill_weights.items())[:10]}")
+            else:
+                logger.warning("skill_weights пуст!")
+
+            results_for_charts = {}
+
+            for profile_name in ["base", "dc", "top_dc"]:
+                student_codes = load_student_competencies(profile_name)
+                if not student_codes:
+                    logger.warning(f"Профиль {profile_name} пуст")
+                    continue
+
+                student_skills = map_codes_to_skills(student_codes)
+                logger.info(f"Профиль {profile_name}: {len(student_codes)} кодов -> {len(student_skills)} навыков")
+
+                result = recommendation_engine.analyze(student_skills)
+
+                student_dir = config.DATA_DIR / "result" / profile_name
+                student_dir.mkdir(parents=True, exist_ok=True)
+                with open(student_dir / f"tfidf_analysis_{profile_name}.json", "w", encoding="utf-8") as f:
+                    json.dump(result, f, ensure_ascii=False, indent=2)
+
+                coverage_pct = result['coverage'] * 100
+                missing_skills = result['missing_skills']
+                market_skills_set = set(skill_weights.keys())
+                covered = [s for s in student_skills if s in market_skills_set]
+
+                # Функция для фильтрации навыков в дефицитах
+                def keep_skill_for_gap(skill):
+                    # Оставляем только фразы из 1-2 слов
+                    words = skill.split()
+                    if len(words) > 2:
+                        return False
+                    # Исключаем явный мусор
+                    bad_single = {"язык", "английский", "frontend", "backend", "rest", "api", "linux", "git", "docker"}
+                    if skill in bad_single:
+                        return False
+                    # Если два слова, проверяем, не оба ли они из плохого списка
+                    if len(words) == 2:
+                        if all(w in bad_single for w in words):
+                            return False
+                    return True
+
+                high_gaps = [
+                    {"skill": item["skill"], "frequency": int(item["weight"] * 100)}
+                    for item in missing_skills[:15] if keep_skill_for_gap(item["skill"])
+                ]
+                medium_gaps = [
+                    {"skill": item["skill"], "frequency": int(item["weight"] * 100)}
+                    for item in missing_skills[15:30] if keep_skill_for_gap(item["skill"])
+                ]
+
+                comparison_report = {
+                    "student_name": profile_name.upper(),
+                    "total_competencies": len(student_codes),
+                    "total_mapped_skills": len(covered),
+                    "coverage_percent": round(coverage_pct, 2),
+                    "weighted_coverage_percent": round(coverage_pct, 2),
+                    "covered_skills": covered,
+                    "high_demand_gaps": high_gaps,
+                    "medium_demand_gaps": medium_gaps,
+                    "low_demand_gaps": [],
+                    "recommendations": [
+                        f"Приоритет №1: освоить {', '.join([g['skill'] for g in high_gaps[:3]])} (высокий спрос на рынке)."
+                    ] if high_gaps else []
+                }
+
+                recommendations = {
+                    "student": profile_name,
+                    "high_priority": [g["skill"] for g in high_gaps[:10]],
+                    "medium_priority": [g["skill"] for g in medium_gaps[:8]],
+                    "suggestion": comparison_report["recommendations"][0] if comparison_report["recommendations"]
+                                else "Рекомендуется изучить востребованные навыки."
+                }
+
+                with open(student_dir / f"comparison_report_{profile_name}.json", "w", encoding="utf-8") as f:
+                    json.dump(comparison_report, f, ensure_ascii=False, indent=2)
+
+                with open(student_dir / f"recommendations_{profile_name}.json", "w", encoding="utf-8") as f:
+                    json.dump(recommendations, f, ensure_ascii=False, indent=2)
+
+                results_for_charts[profile_name] = {
+                    'coverage_percent': coverage_pct,
+                    'weighted_coverage_percent': coverage_pct,
+                    'high_demand_gaps': high_gaps,
+                    'covered_skills': covered
+                }
+
+                logger.info(
+                    f"✅ {profile_name.upper():<8} | "
+                    f"Match: {result['match_score']:.2f} | "
+                    f"Coverage: {result['coverage']:.2f} | "
+                    f"CoveredSkills: {len(covered)}"
+                )
+
+            if results_for_charts:
+                save_all_charts(results_for_charts, config.DATA_DIR / "result")
+                logger.info("Графики сохранены в data/result/")
 
         except Exception as e:
-            logger.exception(f"Ошибка при gap-анализе и генерации рекомендаций: {e}")
+            logger.exception(f"Ошибка при TF-IDF анализе: {e}")
+            
+    # Вывод контекстной информации
+    show_context_info()
+
+    # Запуск ноутбуков по запросу
+    if args.run_notebooks:
+        logger.info("Запуск Jupyter ноутбуков...")
+        run_notebook("01_hh_analysis.ipynb", output_dir=config.DATA_DIR / "notebooks")
+        run_notebook("02_competency_matching.ipynb", output_dir=config.DATA_DIR / "notebooks")
 
     # Обновление профилей из CSV
     try:
