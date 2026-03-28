@@ -1,14 +1,22 @@
 {
   "student": "dc",
   "high_priority": [
-    "golang",
-    "redis",
-    "golang sql",
-    "redis linux",
-    "postgresql redis"
+    "react",
+    "javascript",
+    "typescript",
+    "react typescript",
+    "frontend react",
+    "javascript react",
+    "redux",
+    "redux javascript",
+    "api javascript",
+    "crm"
   ],
   "medium_priority": [
-    "api postgresql"
+    "javascript node",
+    "js",
+    "js typescript",
+    "node"
   ],
-  "suggestion": "Приоритет №1: освоить golang, redis, golang sql (высокий спрос на рынке)."
+  "suggestion": "Приоритет №1: освоить react, javascript, typescript (высокий спрос на рынке)."
 }

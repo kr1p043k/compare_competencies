@@ -1,47 +1,81 @@
 {
   "student_name": "TOP_DC",
   "total_competencies": 54,
-  "total_mapped_skills": 6,
-  "coverage_percent": 11.17,
-  "weighted_coverage_percent": 11.17,
+  "total_mapped_skills": 4,
+  "coverage_percent": 4.54,
+  "weighted_coverage_percent": 4.54,
   "covered_skills": [
-    "docker",
-    "mysql",
-    "sql",
-    "fastapi",
+    "kubernetes",
     "postgresql",
-    "java"
+    "docker",
+    "sql"
   ],
   "high_demand_gaps": [
     {
-      "skill": "golang",
+      "skill": "react",
+      "frequency": 15
+    },
+    {
+      "skill": "javascript",
+      "frequency": 13
+    },
+    {
+      "skill": "typescript",
+      "frequency": 12
+    },
+    {
+      "skill": "react typescript",
       "frequency": 9
     },
     {
-      "skill": "redis",
+      "skill": "frontend react",
       "frequency": 8
     },
     {
-      "skill": "golang sql",
-      "frequency": 8
+      "skill": "javascript react",
+      "frequency": 7
     },
     {
-      "skill": "redis linux",
-      "frequency": 5
+      "skill": "redux",
+      "frequency": 7
     },
     {
-      "skill": "postgresql redis",
-      "frequency": 5
+      "skill": "redux javascript",
+      "frequency": 7
+    },
+    {
+      "skill": "api javascript",
+      "frequency": 6
+    },
+    {
+      "skill": "crm",
+      "frequency": 6
+    },
+    {
+      "skill": "javascript crm",
+      "frequency": 6
     }
   ],
   "medium_demand_gaps": [
     {
-      "skill": "api postgresql",
-      "frequency": 4
+      "skill": "javascript node",
+      "frequency": 5
+    },
+    {
+      "skill": "js",
+      "frequency": 5
+    },
+    {
+      "skill": "js typescript",
+      "frequency": 5
+    },
+    {
+      "skill": "node",
+      "frequency": 5
     }
   ],
   "low_demand_gaps": [],
   "recommendations": [
-    "Приоритет №1: освоить golang, redis, golang sql (высокий спрос на рынке)."
+    "Приоритет №1: освоить react, javascript, typescript (высокий спрос на рынке)."
   ]
 }

@@ -1,125 +1,162 @@
+"""
+Парсер вакансий с поддержкой как старых dict, так и новых типизированных моделей.
+"""
+
 import json
 import re
 from collections import Counter
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import logging
 import pandas as pd
 from pathlib import Path
+
 from src import config
 from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
-import nltk
+from src.models.vacancy import Vacancy
+from src.parsing.skill_parser import SkillParser
+from src.parsing.skill_validator import SkillValidator
+from src.parsing.skill_normalizer import SkillNormalizer
 
 logger = logging.getLogger(__name__)
 
 
 class VacancyParser:
     """
-    Класс для обработки вакансий и извлечения навыков.
-    Улучшенная версия: полная очистка от <highlighttext>, лучшая нормализация,
-    фильтрация мусора и более точные паттерны.
+    Парсер вакансий - совместим с обоими форматами (dict и Vacancy объекты).
+    Теперь использует новые парсер, валидатор и нормализатор.
     """
 
-    # Расширенный список маркеров для поиска навыков
-    SKILL_MARKERS = [
-        "ключевые навыки", "ключевые навыки:", "ключевые компетенции", "ключевые компетенции:",
-        "требования", "требования:", "требования к кандидату", "требования к кандидату:",
-        "необходимые навыки", "необходимые навыки:", "навыки", "навыки:",
-        "мы ждем", "мы ждем:", "ожидаем от вас", "ожидаем от вас:",
-        "что нужно знать", "что нужно знать:", "что вы умеете", "что вы умеете:",
-        "профессиональные навыки", "профессиональные навыки:",
-        "опыт работы с", "опыт работы:", "знание", "знание:",
-        "уверенное владение", "владение", "понимание",
-        "должен уметь", "должен знать",
-        "stack", "технологии", "технологии:",
-        "инструменты", "инструменты:"
-    ]
+    def __init__(self):
+        self.skill_parser = SkillParser()
+        self.skill_validator = SkillValidator(
+            whitelist=load_it_skills()
+        )
 
-    # Технические навыки для извлечения (множество для быстрого поиска)
-    TECH_SKILLS = {
-        # Языки программирования
-        "python", "python3", "py", "java", "javascript", "js", "typescript", "ts", "c++", "cpp",
-        "c#", "csharp", "php", "ruby", "go", "golang", "rust", "swift", "kotlin", "scala",
-        "r", "matlab", "sql", "nosql",
-        # Фреймворки и библиотеки
-        "django", "flask", "fastapi", "spring", "spring boot", "react", "angular", "vue", "vue.js",
-        "tensorflow", "pytorch", "keras", "scikit-learn", "pandas", "numpy", "matplotlib", "seaborn",
-        "spark", "hadoop", "kafka", "airflow", "docker", "kubernetes", "k8s", "jenkins", "git", "github",
-        "gitlab", "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "clickhouse", "oracle",
-        # Облачные технологии
-        "aws", "azure", "gcp", "yandex cloud", "cloud",
-        # Data Science / ML
-        "machine learning", "машинное обучение", "deep learning", "глубокое обучение", "nlp",
-        "computer vision", "компьютерное зрение", "data science", "анализ данных", "data analysis",
-        "big data", "большие данные", "etl", "data warehouse", "dwh",
-        #Прочее
-        "системный анализ"
-    }
+    # =========================================================================
+    # СОХРАНЕНИЕ
+    # =========================================================================
 
-    # Синонимы для финальной нормализации (можно расширять)
-    SYNONYMS = {
-        "javascript": "js",
-        "typescript": "ts",
-        "golang": "go",
-        "vue.js": "vue",
-        "postgresql": "postgres",
-        "c++": "cpp",
-        "c#": "csharp",
-        "kubernetes": "k8s",
-        "machine learning": "ml",
-        "машинное обучение": "ml",
-    }
-
-    # Чёрный список для фильтрации мусорных фраз (вынесен на уровень класса)
-    BAD_TERMS = {
-        "оценка потребностей клиентов", "развитие ключевых клиентов", "проведение презентаций",
-        "проведение переговоров", "подготовка коммерческих предложений", "навыки межличностного общения",
-        "межличностное общение", "мотивация персонала", "стратегическое мышление", "аналитическое мышление",
-        "командная работа", "клиентоориентированность", "ориентация на результат", "продвижение бренда",
-        "развитие продаж", "традиционная розница", "собственная розница", "клиентами", "клиентам",
-        "инициатива", "харизма", "многозадачность", "бухгалтерская отчетность", "бухгалтерский учет",
-        "английского языка", "русского языка", "высшее образование", "знание английского",
-        "опыт работы", "умение", "желательно", "продажи", "маркетинг", "smm", "smm-стратегия",
-        "hr-аналитика", "управление персоналом", "административная поддержка", "ведение проектов",
-        "пластичные смазки", "автомобильные перевозки", "организация клиентских мероприятий",
-        "аналитика маркетплейсов", "аналитика маркетплейса", "контроль и анализ ценообразования",
-        "построение воронки продаж", "мониторинг рынка", "мониторинг цен", "анализ продаж", "анализ рынка", "анализ цен", 
-        "ведение переговоров", "проведение переговоров", "подготовка коммерческих предложений", "проведение презентаций", "анализ"
-    }
-
-    @staticmethod
-    def clean_highlighttext(text: str) -> str:
-        """Удаляет все теги <highlighttext> и </highlighttext>, которые вставляет HH.ru."""
-        if not text:
-            return ""
-        # Удаляем открывающие и закрывающие теги (с учётом возможных атрибутов)
-        text = re.sub(r'</?highlighttext[^>]*>', '', text, flags=re.IGNORECASE)
-        return text.strip()
-
-    def save_raw_vacancies(self, vacancies: List[Dict[str, Any]], filename: str = "hh_vacancies.json"):
-        """Сохраняет сырые данные о вакансиях в JSON-файл."""
+    def save_raw_vacancies(
+        self,
+        vacancies: Union[List[Dict], List[Vacancy]],
+        filename: str = "hh_vacancies.json"
+    ):
+        """Сохраняет вакансии в JSON (работает с dict и Vacancy)"""
         filepath = config.DATA_RAW_DIR / filename
+        
+        data_to_save = []
+        for vac in vacancies:
+            if isinstance(vac, Vacancy):
+                data_to_save.append(vac.raw_data)
+            else:
+                data_to_save.append(vac)
+        
         with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(vacancies, f, ensure_ascii=False, indent=2)
+            json.dump(data_to_save, f, ensure_ascii=False, indent=2)
+        
         logger.info(f"Сырые данные сохранены в {filepath} (вакансий: {len(vacancies)})")
 
-    def save_processed_frequencies(self, frequencies: Dict[str, int], filename: str = "competency_frequency.json", apply_filter: bool = True):
-        """Сохраняет частоты навыков в JSON."""
+    def save_processed_frequencies(
+        self,
+        frequencies: Dict[str, int],
+        filename: str = "competency_frequency.json",
+        apply_filter: bool = True
+    ):
+        """Сохраняет частоты навыков в JSON"""
         if apply_filter:
             whitelist = load_it_skills()
             if whitelist:
                 frequencies = filter_skills_by_whitelist(frequencies, whitelist)
                 logger.info(f"Фильтрация применена, осталось {len(frequencies)} навыков")
-            else:
-                logger.warning("Белый список не загружен, фильтрация пропущена.")
 
         filepath = config.DATA_PROCESSED_DIR / filename
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(frequencies, f, ensure_ascii=False, indent=2)
+        
         logger.info(f"Частоты навыков сохранены в {filepath} (навыков: {len(frequencies)})")
+
+    # =========================================================================
+    # ИЗВЛЕЧЕНИЕ НАВЫКОВ
+    # =========================================================================
+
+    def extract_skills_from_vacancies(
+        self,
+        vacancies: Union[List[Dict], List[Vacancy]]
+    ) -> Dict[str, int]:
+        """
+        Извлекает навыки с НОРМАЛИЗАЦИЕЙ для TF-IDF анализа.
+        
+        Порядок обработки:
+        1. Парсинг (извлечение всех найденных навыков)
+        2. Нормализация (python3 -> python)
+        3. Валидация (удаление мусора)
+        4. Дедупликация (удаление дубликатов)
+        5. Подсчёт частоты
+        """
+        all_extracted_skills = []
+        
+        # Конвертируем в Vacancy если нужно
+        vacancy_objects = []
+        for vac in vacancies:
+            if isinstance(vac, dict):
+                try:
+                    vacancy_objects.append(Vacancy.from_api(vac))
+                except ValueError as e:
+                    logger.warning(f"Невалидная вакансия: {e}")
+                    continue
+            else:
+                vacancy_objects.append(vac)
+        
+        # === ШАГ 1: ПАРСИНГ ===
+        for vacancy in vacancy_objects:
+            extracted = self.skill_parser.parse_vacancy(vacancy)
+            all_extracted_skills.extend(extracted)
+        
+        logger.info(f"Парсинг завершён: {self.skill_parser.get_stats()}")
+        
+        # === ШАГ 2: НОРМАЛИЗАЦИЯ ===
+        skill_texts = [s.text for s in all_extracted_skills]
+        normalized_skills = SkillNormalizer.normalize_batch(skill_texts)
+        
+        logger.info(f"После нормализации: {len(set(normalized_skills))} уникальных навыков")
+        
+        # === ШАГ 3: ВАЛИДАЦИЯ ===
+        valid_skills, validation_results = self.skill_validator.validate_batch(normalized_skills)
+        
+        rejection_report = self.skill_validator.get_rejection_report(validation_results)
+        logger.info(f"Валидация завершена:")
+        logger.info(f"  - Всего проверено: {rejection_report['total_validated']}")
+        logger.info(f"  - Валидных: {rejection_report['valid']}")
+        logger.info(f"  - Отклонено: {rejection_report['rejected']}")
+        if rejection_report['rejection_reasons']:
+            logger.info(f"  - Причины отклонений: {rejection_report['rejection_reasons']}")
+        
+        # === ШАГ 4: ДЕДУПЛИКАЦИЯ ===
+        unique_skills = SkillNormalizer.deduplicate(valid_skills)
+        logger.info(f"После дедупликации: {len(unique_skills)} навыков")
+        
+        # === ШАГ 5: ПОДСЧЁТ ЧАСТОТЫ ===
+        skill_freq = Counter(unique_skills)
+        
+        logger.info(f"Итого: {len(skill_freq)} уникальных валидных навыков")
+        
+        return dict(skill_freq)
+
+    # =========================================================================
+    # СТАРЫЕ МЕТОДЫ (для обратной совместимости)
+    # =========================================================================
+
+    @staticmethod
+    def clean_highlighttext(text: str) -> str:
+        """Удаляет теги <highlighttext> из hh.ru"""
+        if not text:
+            return ""
+        text = re.sub(r'</?highlighttext[^>]*>', '', text, flags=re.IGNORECASE)
+        return text.strip()
 
     @staticmethod
     def extract_skills(vacancies: List[Dict[str, Any]]) -> List[str]:
-        """Извлекает ключевые навыки из поля key_skills (официальное поле HH)."""
+        """Старый метод - извлекает ключевые навыки (для совместимости)"""
         all_skills = []
         vacancies_with_skills = 0
 
@@ -130,7 +167,6 @@ class VacancyParser:
                 for skill_item in skills_data:
                     skill_name = skill_item.get('name', '')
                     if skill_name:
-                        # Очищаем от возможных highlight-тегов (на всякий случай)
                         clean_name = VacancyParser.clean_highlighttext(skill_name)
                         all_skills.append(clean_name)
 
@@ -139,21 +175,17 @@ class VacancyParser:
 
     @staticmethod
     def normalize_skill(skill: str) -> str:
-        """Радикальная нормализация: жёстко отсекаем мусор и длинные фразы."""
+        """Старый метод - нормализация (для совместимости)"""
         if not skill:
             return ""
 
         normalized = VacancyParser.clean_highlighttext(skill).lower().strip()
-
-        # Удаляем типичные префиксы и суффиксы
         normalized = re.sub(r'^(опыт работы с|работа с|знание|владение|умение|должен|требуется|навык|навыки|умение работать с|опыт)\s+', '', normalized)
         normalized = re.sub(r'\s+(опыт|знание|владение|умение|плюсом|желательно|преимуществом|навык|навыки)$', '', normalized)
 
-        # Если фраза слишком длинная (> 4 слов) — почти всегда мусор (например "развитие ключевых клиентов")
         if len(normalized.split()) > 4:
             return ""
 
-        # Убираем одиночные подозрительные слова
         if normalized in {"инициатива", "мотивация", "коммуникация", "клиентами", "клиентам", "харизма", "многозадачность"}:
             return ""
 
@@ -161,141 +193,85 @@ class VacancyParser:
 
     @staticmethod
     def is_valid_skill(skill: str) -> bool:
-        """Проверяет, что навык не является мусором."""
+        """Старый метод - проверка валидности (для совместимости)"""
         if not skill or len(skill) < 3:
-            return False
-        skill_lower = skill.lower()
-        # Проверка на вхождение любого чёрного термина
-        if any(bad in skill_lower for bad in VacancyParser.BAD_TERMS):
-            return False
-        # Дополнительно можно отсечь слишком длинные фразы (>4 слов)
-        if len(skill_lower.split()) > 4:
             return False
         return True
 
     @staticmethod
     def count_skills(skills_list: List[str]) -> Dict[str, int]:
-        """Радикальная фильтрация: whitelist + большой blacklist."""
+        """Старый метод - подсчёт скиллов (для совместимости)"""
         normalized_skills = [VacancyParser.normalize_skill(s) for s in skills_list if s]
         skill_counts = Counter(normalized_skills)
-
-        # Сначала отсеиваем по blacklist (используем BAD_TERMS)
-        filtered = {
-            k: v for k, v in skill_counts.items()
-            if len(k) > 2 
-            and k not in VacancyParser.BAD_TERMS 
-            and not any(bad in k for bad in VacancyParser.BAD_TERMS)
-        }
-
-        # Затем применяем whitelist (it_skills.json)
+        filtered = {k: v for k, v in skill_counts.items() if len(k) > 2}
+        
         whitelist = load_it_skills()
         if whitelist:
             filtered = {k: v for k, v in filtered.items() if k in whitelist or k.lower() in whitelist}
-
-        logger.info(f"После радикальной фильтрации осталось {len(filtered)} навыков (отфильтровано {len(skill_counts) - len(filtered)} мусорных)")
+        
+        logger.info(f"После фильтрации осталось {len(filtered)} навыков")
         return filtered
 
     @staticmethod
     def extract_skills_from_text(vacancies: List[Dict[str, Any]]) -> List[str]:
-        """Извлечение навыков из текстовых полей + n-grams (1–3) + улучшенная фильтрация."""
-        
-        from nltk.util import ngrams
-        
-        all_skills = []
+        """Старый метод - извлечение из текста (для совместимости)"""
+        logger.warning("extract_skills_from_text deprecated, используйте extract_skills_from_vacancies")
+        return []
 
-        def generate_ngrams(text: str):
-            tokens = re.findall(r'\b[a-zA-Zа-яА-Я0-9\+#\.]+\b', text.lower())
-            result = set()
+    # =========================================================================
+    # EXCEL
+    # =========================================================================
 
-            for n in (1, 2, 3):
-                for gram in ngrams(tokens, n):
-                    phrase = " ".join(gram)
-                    if 2 <= len(phrase) <= 50:
-                        result.add(phrase)
+    def aggregate_to_dataframe(self, vacancies: Union[List[Dict], List[Vacancy]]) -> pd.DataFrame:
+        """Агрегирует данные в DataFrame для Excel"""
+        rows = []
 
-            return result
+        for vac in vacancies:
+            if isinstance(vac, Vacancy):
+                row = {
+                    'Вакансия': vac.name,
+                    'Компания': vac.employer.name,
+                    'Регион': vac.area.name,
+                    'ID': vac.id,
+                    'Зарплата': str(vac.salary) if vac.salary else 'Не указана',
+                    'Навыков': len(vac.key_skills),
+                    'Навыки': ', '.join(vac.get_skill_names())
+                }
+            else:
+                vac_name = vac.get('name', 'Unknown')
+                employer_name = vac.get('employer', {}).get('name', 'Unknown')
+                area_name = vac.get('area', {}).get('name', 'Unknown')
+                skills = [s['name'] for s in vac.get('key_skills', [])]
 
-        for vacancy in vacancies:
-            text_parts = []
+                row = {
+                    'Вакансия': vac_name,
+                    'Компания': employer_name,
+                    'Регион': area_name,
+                    'ID': vac.get('id'),
+                    'Зарплата': 'Не указана',
+                    'Навыков': len(skills),
+                    'Навыки': ', '.join(skills)
+                }
+            
+            rows.append(row)
 
-            # === сбор текста ===
-            snippet = vacancy.get('snippet', {})
-            if snippet:
-                if snippet.get('requirement'):
-                    text_parts.append(VacancyParser.clean_highlighttext(snippet['requirement']))
-                if snippet.get('responsibility'):
-                    text_parts.append(VacancyParser.clean_highlighttext(snippet['responsibility']))
+        return pd.DataFrame(rows)
 
-            if vacancy.get('description'):
-                text_parts.append(VacancyParser.clean_highlighttext(vacancy['description']))
+    def save_to_excel(self, df: pd.DataFrame, filename: str):
+        """Сохраняет DataFrame в Excel"""
+        filepath = config.DATA_PROCESSED_DIR / filename
+        df.to_excel(filepath, index=False, engine='openpyxl')
+        logger.info(f"Excel файл сохранён в {filepath}")
 
-            full_text = ' '.join(text_parts).lower()
-
-            if not full_text:
-                continue
-
-            skills_found = set()
-
-            # === 1. n-grams (основа) ===
-            ngram_phrases = generate_ngrams(full_text)
-
-            for phrase in ngram_phrases:
-                if any(tech in phrase for tech in VacancyParser.TECH_SKILLS):
-                    skills_found.add(phrase)
-
-            # === 2. Поиск по маркерам ===
-            for marker in VacancyParser.SKILL_MARKERS:
-                if marker in full_text:
-                    parts = full_text.split(marker, 1)
-                    if len(parts) > 1:
-                        after_marker = parts[1][:600]
-                        lines = re.split(r'[\n,•\-*;]+', after_marker)
-
-                        for line in lines:
-                            line = line.strip()
-                            if 3 < len(line) < 120:
-                                if any(tech in line for tech in VacancyParser.TECH_SKILLS):
-                                    skills_found.add(line)
-
-            # === 3. Regex паттерны ===
-            patterns = [
-                r'(?:опыт работы с|опыт с|работа с)\s+([^,.;\n]{3,90})',
-                r'(?:знание|владение|умение)\s+([^,.;\n]{3,90})',
-                r'(?:должен (?:знать|уметь))\s+([^,.;\n]{3,90})'
-            ]
-
-            for pattern in patterns:
-                matches = re.findall(pattern, full_text)
-                for match in matches:
-                    skill = match.strip()
-                    if 3 < len(skill) < 90:
-                        skills_found.add(skill)
-
-            # === 4. Прямой поиск (как fallback) ===
-            for tech_skill in VacancyParser.TECH_SKILLS:
-                if re.search(rf'\b{re.escape(tech_skill)}\b', full_text):
-                    skills_found.add(tech_skill)
-
-            # === 5. Финальная нормализация ===
-            cleaned_skills = set()
-
-            for skill in skills_found:
-                norm = VacancyParser.normalize_skill(skill)
-
-                if not norm:
-                    continue
-
-                if len(norm) < 2:
-                    continue
-
-                if any(bad in norm for bad in [
-                    "английского языка", "русского языка", "высшее", "образование"
-                ]):
-                    continue
-
-                cleaned_skills.add(norm)
-
-            all_skills.extend(cleaned_skills)
-
-        logger.info(f"Из текста извлечено {len(all_skills)} навыков (с n-grams)")
-        return all_skills
+    def print_vacancies_list(self, vacancies: Union[List[Dict], List[Vacancy]]):
+        """Выводит список вакансий"""
+        for i, vac in enumerate(vacancies[:20], 1):
+            if isinstance(vac, Vacancy):
+                print(f"{i}. {vac.name} @ {vac.employer.name} ({vac.area.name})")
+                if vac.key_skills:
+                    print(f"   Навыки: {', '.join(vac.get_skill_names()[:5])}")
+            else:
+                vac_name = vac.get('name', 'Unknown')
+                employer = vac.get('employer', {}).get('name', 'Unknown')
+                area = vac.get('area', {}).get('name', 'Unknown')
+                print(f"{i}. {vac_name} @ {employer} ({area})")

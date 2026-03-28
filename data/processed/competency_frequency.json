@@ -1,15 +1,17 @@
 {
-  "javascript": 1,
-  "node.js": 1,
-  "postgresql": 2,
+  "postgresql": 1,
+  "rest api": 1,
   "java": 1,
   "redis": 1,
-  "rest api": 1,
-  "git": 3,
+  "git": 1,
+  "sql": 1,
+  "fastapi": 1,
+  "docker": 1,
+  "django": 1,
   "mysql": 1,
-  "golang": 1,
-  "linux": 2,
-  "docker": 2,
-  "asp.net core": 1,
-  "английский язык": 1
+  "linux": 1,
+  "mongodb": 1,
+  "react": 1,
+  "graphql": 1,
+  "frontend": 1
 }

@@ -1,160 +1,160 @@
 {
-  "match_score": 0.3956,
-  "coverage": 0.1029,
+  "match_score": 0.2147,
+  "coverage": 0.0454,
   "missing_skills": [
     {
-      "skill": "golang",
-      "weight": 0.09500667538581502
-    },
-    {
-      "skill": "redis",
-      "weight": 0.0868715591428934
-    },
-    {
-      "skill": "golang sql",
-      "weight": 0.08379299146829347
-    },
-    {
-      "skill": "git",
-      "weight": 0.07499408402725147
-    },
-    {
-      "skill": "linux",
-      "weight": 0.07285683027838076
-    },
-    {
       "skill": "frontend",
-      "weight": 0.07066206090408061
+      "weight": 0.22321328083813677
+    },
+    {
+      "skill": "react",
+      "weight": 0.15199682926261823
+    },
+    {
+      "skill": "javascript",
+      "weight": 0.13952299277635852
+    },
+    {
+      "skill": "typescript",
+      "weight": 0.12278924816964226
+    },
+    {
+      "skill": "react typescript",
+      "weight": 0.0996490404198627
     },
     {
       "skill": "api",
-      "weight": 0.0640570741461847
+      "weight": 0.08284055116331146
     },
     {
       "skill": "rest",
-      "weight": 0.0640570741461847
+      "weight": 0.08284055116331146
     },
     {
       "skill": "rest api",
-      "weight": 0.0640570741461847
+      "weight": 0.08284055116331146
     },
     {
-      "skill": "linux docker",
-      "weight": 0.05736365681933711
+      "skill": "frontend react",
+      "weight": 0.08146142742015598
     },
     {
-      "skill": "redis linux",
-      "weight": 0.05736365681933711
+      "skill": "javascript react",
+      "weight": 0.07368313893641135
     },
     {
-      "skill": "redis linux docker",
-      "weight": 0.05736365681933711
+      "skill": "redux",
+      "weight": 0.07368313893641135
     },
     {
-      "skill": "postgresql redis",
-      "weight": 0.05259664326580568
+      "skill": "redux javascript",
+      "weight": 0.07368313893641135
     },
     {
-      "skill": "английский",
-      "weight": 0.05234583516606278
+      "skill": "api javascript",
+      "weight": 0.06121233069924087
     },
     {
-      "skill": "английский язык",
-      "weight": 0.05234583516606278
+      "skill": "crm",
+      "weight": 0.06121233069924087
     },
     {
-      "skill": "английский язык frontend",
-      "weight": 0.05234583516606278
+      "skill": "javascript crm",
+      "weight": 0.06121233069924087
     },
     {
-      "skill": "язык",
-      "weight": 0.05234583516606278
+      "skill": "git",
+      "weight": 0.058418501772950215
     },
     {
-      "skill": "язык frontend",
-      "weight": 0.05234583516606278
+      "skill": "javascript node",
+      "weight": 0.05301052460887031
     },
     {
-      "skill": "api postgresql",
-      "weight": 0.047440933812634103
+      "skill": "js",
+      "weight": 0.05301052460887031
     },
     {
-      "skill": "rest api postgresql",
-      "weight": 0.047440933812634103
+      "skill": "js typescript",
+      "weight": 0.05301052460887031
+    },
+    {
+      "skill": "node",
+      "weight": 0.05301052460887031
     }
   ],
   "top_market_skills": [
-    "sql",
-    "golang",
-    "redis",
-    "docker",
-    "postgresql",
-    "golang sql",
-    "git",
-    "linux",
     "frontend",
+    "react",
+    "javascript",
+    "typescript",
+    "react typescript",
     "api",
     "rest",
     "rest api",
-    "linux docker",
-    "redis linux",
-    "redis linux docker",
-    "postgresql redis",
-    "java",
-    "английский",
-    "английский язык",
-    "английский язык frontend"
+    "frontend react",
+    "javascript react",
+    "redux",
+    "redux javascript",
+    "api javascript",
+    "crm",
+    "javascript crm",
+    "git",
+    "javascript node",
+    "js",
+    "js typescript",
+    "node"
   ],
   "recommendations": [
     {
-      "skill": "golang",
-      "priority": "high",
-      "reason": "Высокая важность на рынке (0.095)"
-    },
-    {
-      "skill": "redis",
-      "priority": "high",
-      "reason": "Высокая важность на рынке (0.0869)"
-    },
-    {
-      "skill": "golang sql",
-      "priority": "high",
-      "reason": "Высокая важность на рынке (0.0838)"
-    },
-    {
-      "skill": "git",
-      "priority": "high",
-      "reason": "Высокая важность на рынке (0.075)"
-    },
-    {
-      "skill": "linux",
-      "priority": "high",
-      "reason": "Высокая важность на рынке (0.0729)"
-    },
-    {
       "skill": "frontend",
       "priority": "high",
-      "reason": "Высокая важность на рынке (0.0707)"
+      "reason": "Высокая важность на рынке (0.2232)"
+    },
+    {
+      "skill": "react",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.152)"
+    },
+    {
+      "skill": "javascript",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.1395)"
+    },
+    {
+      "skill": "typescript",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.1228)"
+    },
+    {
+      "skill": "react typescript",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.0996)"
     },
     {
       "skill": "api",
       "priority": "high",
-      "reason": "Высокая важность на рынке (0.0641)"
+      "reason": "Высокая важность на рынке (0.0828)"
     },
     {
       "skill": "rest",
       "priority": "high",
-      "reason": "Высокая важность на рынке (0.0641)"
+      "reason": "Высокая важность на рынке (0.0828)"
     },
     {
       "skill": "rest api",
       "priority": "high",
-      "reason": "Высокая важность на рынке (0.0641)"
+      "reason": "Высокая важность на рынке (0.0828)"
     },
     {
-      "skill": "linux docker",
+      "skill": "frontend react",
       "priority": "high",
-      "reason": "Высокая важность на рынке (0.0574)"
+      "reason": "Высокая важность на рынке (0.0815)"
+    },
+    {
+      "skill": "javascript react",
+      "priority": "high",
+      "reason": "Высокая важность на рынке (0.0737)"
     }
   ]
 }
