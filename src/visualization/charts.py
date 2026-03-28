@@ -151,7 +151,7 @@ def save_all_charts(results: Dict[str, Any], output_dir: Path):
                 "frontend английский", "frontend английский язык"
             }
 
-            def filter_top_skills(weights, top_n=20):
+            def filter_top_skills(weights, top_n=40):
                 # Получаем топ-N навыков по весу, исключая стоп-слова
                 sorted_items = sorted(weights.items(), key=lambda x: x[1], reverse=True)
                 filtered_items = [(skill, w) for skill, w in sorted_items if skill not in stop_skills]
