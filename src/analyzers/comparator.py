@@ -14,7 +14,7 @@ class CompetencyComparator:
 
     def __init__(self):
         self.vectorizer = TfidfVectorizer(
-            ngram_range=(1, 3),
+            ngram_range=(1, 2),
             min_df=1,
             stop_words=None
         )
