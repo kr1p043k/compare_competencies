@@ -23,28 +23,28 @@ class CompetencyComparator:
     - Уверенность/confidence в скоре
     """
 
-    def __init__(self, ngram_range=(1, 1), min_df=2, max_df=0.95):
+    def __init__(self, ngram_range=(1, 2), min_df=2, max_df=0.95):
         """
         Args:
-            ngram_range: Диапазон n-gramов - ОБЯЗАТЕЛЬНО (1,1) для unigrams только!
+            ngram_range: Диапазон n-gramов (1,1) для unigrams, (1,2) для unigrams+bigrams
             min_df: Минимум документов где встречается слово
             max_df: Максимум % документов где встречается слово
         """
-        # === ЖЁСТКИЕ ПАРАМЕТРЫ - ТОЛЬКО UNIGRAMS ===
-        if ngram_range != (1, 1):
-            logger.warning(f"⚠️ ngram_range должен быть (1,1), получен {ngram_range}")
-            ngram_range = (1, 1)
+        # === РАЗРЕШАЕМ BIGRAMS (1,2) ДЛЯ "rest api" и т.д. ===
+        if ngram_range not in [(1, 1), (1, 2)]:
+            logger.warning(f"⚠️ ngram_range должен быть (1,1) или (1,2), получен {ngram_range}")
+            ngram_range = (1, 2)  # ← Разрешаем bigrams по умолчанию
         
         self.vectorizer = TfidfVectorizer(
-            ngram_range=(1, 1),         # ← ЖЁСТКИЕ ТРЕБОВАНИЯ: ТОЛЬКО UNIGRAMS!
-            min_df=max(2, int(min_df)), # Минимум в 2+ документах
-            max_df=max_df,              # Исключаем частые слова
+            ngram_range=ngram_range,         # ← ИСПОЛЬЗУЕМ ПЕРЕДАННЫЙ ПАРАМЕТР!
+            min_df=int(min_df),              # ← Убрали max(2, ...) чтобы разрешить min_df=1
+            max_df=max_df,
             lowercase=True,
             stop_words=None,
             token_pattern=r'(?u)\b\w+\b',
             norm='l2',
             sublinear_tf=True,
-            max_features=300            # ← Уменьшили до 300 для чистоты
+            max_features=300
         )
         self.matrix = None
         self.feature_names = None
@@ -52,17 +52,17 @@ class CompetencyComparator:
         self.market_vector = None
         self.vocab_size = 0
         
-        logger.info("✓ TfidfVectorizer инициализирован с ngram_range=(1,1) ТОЛЬКО!")
+        logger.info(f"✓ TfidfVectorizer инициализирован с ngram_range={ngram_range}")
 
     def fit_market(self, vacancies_skills: List[List[str]]) -> bool:
         """
-        Обучение TF-IDF на данных вакансий с МАКСИМАЛЬНОЙ очисткой.
+        Обучение TF-IDF на данных вакансий.
+        Поддерживает как unigrams (1,1), так и bigrams (1,2).
         """
         if not vacancies_skills:
             logger.warning("Нет данных для обучения TF-IDF")
             return False
 
-        # === АГРЕССИВНАЯ ОЧИСТКА ДОКУМЕНТОВ ===
         documents = []
         for skills in vacancies_skills:
             if not skills:
@@ -71,14 +71,11 @@ class CompetencyComparator:
             # 1. Удаляем дубликаты
             unique_skills = list(set(s.lower().strip() for s in skills if s))
             
-            # 2. ТОЛЬКО unigrams (одно слово)
-            unigrams_only = [s for s in unique_skills if len(s.split()) == 1]
+            # 2. Фильтруем по длине (но НЕ удаляем bigrams!)
+            filtered = [s for s in unique_skills if 2 <= len(s) <= 50]
             
-            # 3. Исключаем очень короткие и очень длинные
-            filtered = [s for s in unigrams_only if 2 <= len(s) <= 50]
-            
-            # 4. Исключаем generic слова
-            bad_terms = {"api", "core", "net", "frontend", "backend", "fullstack", "crm"}
+            # 3. Исключаем ТОЛЬКО generic слова
+            bad_terms = {"frontend", "backend", "fullstack", "crm"}
             filtered = [s for s in filtered if s not in bad_terms]
             
             if filtered:
@@ -90,14 +87,12 @@ class CompetencyComparator:
 
         logger.info(f"Обучение TF-IDF на {len(documents)} очищенных документах")
         logger.info(f"  - Параметры: ngram_range={self.vectorizer.ngram_range}")
-        logger.info(f"  - min_df=2, max_df=0.95, max_features=300")
 
         try:
             self.matrix = self.vectorizer.fit_transform(documents)
             self.feature_names = self.vectorizer.get_feature_names_out()
             self.is_fitted = True
             
-            # Кэшируем средний вектор
             self.market_vector = np.asarray(self.matrix.mean(axis=0)).reshape(1, -1)
             self.vocab_size = len(self.feature_names)
             
@@ -105,7 +100,6 @@ class CompetencyComparator:
             logger.info(f"  - Уникальных навыков: {self.vocab_size}")
             logger.info(f"  - Размер матрицы: {self.matrix.shape}")
             
-            # Логируем топ-20
             logger.info(f"\n  Топ-20 навыков по TF-IDF:")
             scores = np.asarray(self.matrix.mean(axis=0)).ravel()
             top_indices = np.argsort(scores)[-20:][::-1]
@@ -164,16 +158,25 @@ class CompetencyComparator:
             student_vec = self.vectorizer.transform([student_doc])
 
             # Вычисляем косинусное сходство
-            score = cosine_similarity(student_vec, self.market_vector)[0][0]
+            # !! ВАЖНО: cosine_similarity возвращает 2D numpy array
+            # Нужно сразу преобразовать в скаляр перед любыми операциями
+            similarity_matrix = cosine_similarity(student_vec, self.market_vector)
+            score = float(similarity_matrix[0, 0])  # ← Сразу convert в float!
             
             # Рассчитываем уверенность (основано на покрытии)
             coverage = self._calculate_coverage(student_skills)
-            confidence = min(score * coverage, 1.0)  # Умножаем на покрытие
+            
+            # Теперь score - это float, а не numpy array
+            confidence = min(score * coverage, 1.0)
+            
+            logger.debug(f"Score: {score:.4f}, Coverage: {coverage:.4f}, Confidence: {confidence:.4f}")
             
             return float(round(score, 4)), float(round(confidence, 4))
         
         except Exception as e:
             logger.error(f"Ошибка при сравнении: {e}")
+            import traceback
+            traceback.print_exc()  # ← Добавил для лучшего дебагинга
             return 0.0, 0.0
 
     def _calculate_coverage(self, student_skills: List[str]) -> float:
@@ -181,7 +184,7 @@ class CompetencyComparator:
         Вычисляет долю навыков студента, которые есть на рынке (0-1).
         Используется для определения уверенности в оценке.
         """
-        if not self.feature_names or not student_skills:
+        if self.feature_names is None or len(self.feature_names) == 0 or not student_skills:
             return 0.0
         
         student_set = set(s.lower().strip() for s in student_skills)
