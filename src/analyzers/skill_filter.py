@@ -106,77 +106,86 @@ class SkillFilter:
         return filtered
 
     def merge_with_reference(
-        self,
-        skill_weights: Dict[str, float],
-        competency_freq: Dict[str, int]
-    ) -> Dict[str, float]:
+            self,
+            skill_weights: Dict[str, float],
+            competency_freq: Dict[str, int]
+        ) -> Dict[str, float]:
         """
-        Объединяет очищенные skill_weights с competency_frequency.
-        competency_freq имеет приоритет (это самый честный источник).
+        Объединяет skill_weights (TF-IDF) с competency_frequency.
+        
+        ЛОГИКА:
+        - Если навык есть в competency_freq И в skill_weights → берём TF-IDF вес
+        - Если навык есть ТОЛЬКО в competency_freq → вес = нормализованный count
+        - Если навык есть ТОЛЬКО в skill_weights → берём TF-IDF вес
         """
         if not competency_freq:
-            # Если competency_freq нет, просто возвращаем отфильтрованные веса
             return self.filter_weights(skill_weights)
         
         merged = {}
         
         logger.info(f"\n🔗 ОБЪЕДИНЕНИЕ С COMPETENCY_FREQUENCY:")
         logger.info(f"  - competency_freq источник: {len(competency_freq)} навыков")
+        logger.info(f"  - skill_weights (TF-IDF) источник: {len(skill_weights)} навыков")
         
-        # === ШАГ 1: Добавляем ВСЁ из competency_freq (это истина) ===
+        # === ШАГ 1: Добавляем навыки из competency_freq ===
         competency_freq_added = 0
+        tfidf_weights_used = 0
+        count_weights_used = 0
+        
+        # Найдём максимальный count для нормализации
+        max_count = max(competency_freq.values()) if competency_freq.values() else 1
+        
         for skill, count in competency_freq.items():
             skill_clean = skill.lower().strip()
             
-            # Исключаем generic слова
+            # Исключаем ТОЛЬКО generic слова
             if skill_clean in self.GENERIC_WORDS:
-                logger.debug(f"  ⊘ competency_freq: исключён '{skill}' (generic)")
+                logger.debug(f"  ⊘ исключён '{skill}' (generic)")
                 continue
             
-            # Только unigrams!
-            words = skill_clean.split()
-            if len(words) > 1:
-                logger.debug(f"  ⊘ competency_freq: исключён '{skill}' (bigram)")
-                continue
+            # BIGRAMS теперь разрешены!
+            # Пытаемся использовать TF-IDF вес
+            if skill_clean in skill_weights:
+                # ✅ Используем TF-IDF вес (это честнее, чем count)
+                merged[skill_clean] = skill_weights[skill_clean]
+                tfidf_weights_used += 1
+                logger.debug(f"  ✓ '{skill}' - TF-IDF вес: {skill_weights[skill_clean]:.4f}")
+            else:
+                # Если нет в TF-IDF, нормализуем count
+                # Это может быть редкий навык, который не попал в TF-IDF модель
+                weight = float(count) / max_count if max_count > 0 else 0.5
+                merged[skill_clean] = weight
+                count_weights_used += 1
+                logger.debug(f"  ✓ '{skill}' - count вес: {weight:.4f} (count={count})")
             
-            # Добавляем с максимальным весом (это честный источник)
-            merged[skill_clean] = 1.0
             competency_freq_added += 1
         
         logger.info(f"  - Добавлено из competency_freq: {competency_freq_added}")
+        logger.info(f"    • с TF-IDF весами: {tfidf_weights_used}")
+        logger.info(f"    • с count весами: {count_weights_used}")
         
-        # === ШАГ 2: Добавляем дополнительно из skill_weights ===
-        skill_weights_added = 0
-        for skill, weight in skill_weights.items():
-            skill_lower = skill.lower().strip()
-            
-            # Пропускаем если уже есть
-            if skill_lower in merged:
-                continue
-            
-            # Пропускаем generic слова
-            if skill_lower in self.GENERIC_WORDS:
-                continue
-            
-            # Только unigrams!
-            words = skill_lower.split()
-            if len(words) > 1:
-                continue
-            
-            # Только если вес высокий (> 0.1)
-            if weight >= 0.10:
-                merged[skill_lower] = weight
-                skill_weights_added += 1
+        if not merged:
+            logger.warning("  ⚠️  competency_freq после фильтрации пуст!")
+            return {}
         
-        logger.info(f"  - Добавлено из skill_weights (вес >= 0.10): {skill_weights_added}")
-        logger.info(f"  - ✓ ИТОГО: {len(merged)} навыков в финале")
+        logger.info(f"  - ✓ ИТОГО: {len(merged)} навыков")
         
-        # === ШАГ 3: Нормализуем ===
-        if merged:
+        # === ШАГ 2: НЕ нормализуем, если уже используем TF-IDF веса ===
+        # Если все веса из TF-IDF - они уже нормализованы
+        # Если смешанные (TF-IDF + count) - нормализуем по max
+        
+        if tfidf_weights_used > 0 and count_weights_used == 0:
+            # Все веса из TF-IDF - не трогаем
+            logger.info(f"  - Веса уже нормализованы (из TF-IDF)")
+            return merged
+        else:
+            # Есть count веса - нормализуем всё
             max_weight = max(merged.values())
-            merged = {k: v / max_weight for k, v in merged.items()}
-        
-        return merged
+            if max_weight > 0:
+                merged = {k: v / max_weight for k, v in merged.items()}
+                logger.info(f"  - Веса нормализованы по max={max_weight:.4f}")
+            
+            return merged
 
     def get_clean_weights(
         self,
@@ -201,9 +210,9 @@ class SkillFilter:
         
         # Шаг 2: Объединяем с reference если есть
         if competency_freq and use_reference:
-            clean = self.merge_with_reference(filtered, competency_freq)
+            clean = self.merge_with_reference(skill_weights, competency_freq)
         else:
-            clean = filtered
+            clean = self.filter_weights(skill_weights)
         
         if not clean:
             logger.error("❌ После фильтрации навыков не осталось!")
