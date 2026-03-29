@@ -41,7 +41,7 @@ from src.analyzers.skill_filter import SkillFilter
 from src.analyzers.comparator import CompetencyComparator
 from src.analyzers.trends import TrendAnalyzer
 from src.predictors.recommendation_engine import RecommendationEngine
-
+from src.predictors.ml_recommendation_engine import MLRecommendationEngine  # ← твой новый ML
 from src.visualization.charts import (
     show_context_info,
     run_notebook,
@@ -67,35 +67,16 @@ def parse_arguments():
     parser.add_argument('--max-vacancies-per-query', type=int, default=1000)
     parser.add_argument('--it-sector', action='store_true')
     
-    parser.add_argument(
-        '--use-async',
-        action='store_true',
-        default=True,
-        help="Использовать асинхронную загрузку деталей вакансий (по умолчанию True)"
-    )
-    parser.add_argument(
-        '--async-workers',
-        type=int,
-        default=3,
-        help="Количество параллельных рабочих для асинхронной загрузки (по умолчанию 3)"
-    )
-    parser.add_argument(
-        '--async-threshold',
-        type=int,
-        default=500,
-        help="Максимальное количество вакансий для асинхронной загрузки (больше -> синхрон)"
-    )
+    parser.add_argument('--use-async', action='store_true', default=True)
+    parser.add_argument('--async-workers', type=int, default=3)
+    parser.add_argument('--async-threshold', type=int, default=500)
     
-    parser.add_argument('--run-gap-analysis', action='store_true', default=True,
-                        help="Выполнить gap-анализ и генерацию рекомендаций (по умолчанию True)")
-    
-    parser.add_argument('--run-notebooks', action='store_true',
-                        help="Запустить Jupyter ноутбуки после сбора данных")
+    parser.add_argument('--run-gap-analysis', action='store_true', default=True)
+    parser.add_argument('--run-notebooks', action='store_true')
     return parser.parse_args()
 
 
 def load_student_competencies(profile_name: str):
-    """Загружает компетенции студента"""
     path = config.DATA_DIR / "students" / f"{profile_name}_competency.json"
     if not path.exists():
         path = config.DATA_DIR / "students" / f"{profile_name}.json"
@@ -109,10 +90,8 @@ def load_student_competencies(profile_name: str):
 
 
 def calculate_expected_vacancies(args) -> int:
-    """Рассчитывает ожидаемое количество вакансий для загрузки."""
     if args.it_sector:
         return 11 * 500
-    
     num_queries = 1
     if args.queries_file:
         try:
@@ -120,38 +99,24 @@ def calculate_expected_vacancies(args) -> int:
                 num_queries = len([line for line in f if line.strip()])
         except:
             num_queries = 1
-    
     return num_queries * min(args.max_vacancies_per_query, 1000)
 
 
 def get_load_mode(total_vacancies: int, args, logger) -> tuple:
-    """Определяет режим загрузки (асинхронный или синхронный)."""
     threshold = args.async_threshold
-    
     if not args.use_async:
-        return False, 0, "Пользователь выключил асинхронность (--use-async False)"
-    
+        return False, 0, "Пользователь выключил асинхронность"
     if total_vacancies > threshold:
         logger.warning("=" * 90)
         logger.warning("⚠️  ЗАЩИТА ОТ RATE-LIMIT АКТИВИРОВАНА")
         logger.warning("=" * 90)
         logger.warning(f"Ожидаемо вакансий: {total_vacancies}")
-        logger.warning(f"Порог асинхронности: {threshold}")
-        logger.warning(f"Рекомендация: Синхронная загрузка (безопаснее для hh.ru API)")
-        logger.warning(f"Время: ~{int(total_vacancies * 0.5 / 60)} минут")
-        logger.warning("=" * 90)
-        
-        return False, 0, f"Большой объём ({total_vacancies} вак > {threshold}) -> синхронная загрузка"
-    
+        logger.warning(f"Порог: {threshold} → синхронная загрузка")
+        return False, 0, f"Большой объём → синхрон"
     logger.info("=" * 90)
     logger.info("✓ АСИНХРОННАЯ ЗАГРУЗКА АКТИВИРОВАНА")
     logger.info("=" * 90)
-    logger.info(f"Ожидаемо вакансий: {total_vacancies}")
-    logger.info(f"Рабочих процессов: {args.async_workers}")
-    logger.info(f"Ожидаемое время: ~{max(total_vacancies * 0.5 / args.async_workers / 60, 1):.1f} минут")
-    logger.info("=" * 90)
-    
-    return True, args.async_workers, f"Малый объём ({total_vacancies} вак < {threshold}) -> асинхронная загрузка"
+    return True, args.async_workers, f"Малый объём → асинхрон"
 
 
 def load_vacancies_details(
@@ -419,7 +384,7 @@ def main():
             filename = "vacancies_it_sector.xlsx" if getattr(args, 'it_sector', False) else f"vacancies_{args.query.replace(' ', '_')}.xlsx"
             parser.save_to_excel(df, filename)
 
-    # ====================== 3. GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ ======================
+# ====================== 3. GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ ======================
     if args.run_gap_analysis:
         logger.info("\n" + "="*85)
         logger.info("ЗАПУСК GAP-АНАЛИЗА И ГЕНЕРАЦИИ РЕКОМЕНДАЦИЙ")
@@ -453,114 +418,91 @@ def main():
             logger.info("ПОДГОТОВКА ДАННЫХ ДЛЯ TF-IDF АНАЛИЗА")
             logger.info("="*85)
             
-            # skill_freq уже содержит очищенные, отфильтрованные навыки!
-            logger.info(f"✓ Используем уже очищенные навыки из парсинга")
-            logger.info(f"  - Уникальных навыков: {len(skill_freq)}")
-            
-            # Преобразуем словарь частот в формат для TF-IDF
-            # Каждый навык повторяется столько раз, сколько раз встречался
-            # Проверяем есть ли уже готовые навыки в vacancies
             vacancies_skills = []
             for vacancy in vacancies_to_process:
-                # Пытаемся получить навыки из вакансии
                 skills_in_vacancy = []
-                
-                # Вариант 1: если сохранены в объекте vacancy
                 if hasattr(vacancy, 'extracted_skills') and vacancy.extracted_skills:
                     skills_in_vacancy = vacancy.extracted_skills
-                
-                # Вариант 2: если сохранены в description
-                if not skills_in_vacancy and hasattr(vacancy, 'description'):
-                    # Переиспользуем уже выделенные из skill_freq
+                elif hasattr(vacancy, 'description'):
                     for skill in skill_freq.keys():
                         if skill.lower() in vacancy.description.lower():
                             skills_in_vacancy.append(skill)
-                
                 if skills_in_vacancy:
                     vacancies_skills.append(skills_in_vacancy)
 
             logger.info(f"✓ Подготовлено {len(vacancies_skills)} вакансий для TF-IDF")
-            logger.info(f"  Среднее навыков на вакансию: {sum(len(s) for s in vacancies_skills) / len(vacancies_skills):.1f}")
-            
+
             if not vacancies_skills:
                 logger.error("❌ Не удалось подготовить данные для TF-IDF")
                 return
 
-            # === ИНИЦИАЛИЗАЦИЯ ENGINES (с оптимальными параметрами) ===
+            # === TF-IDF (твой оригинальный код) ===
             logger.info("\n" + "="*85)
             logger.info("ИНИЦИАЛИЗАЦИЯ TF-IDF С ОПТИМАЛЬНЫМИ ПАРАМЕТРАМИ")
             logger.info("="*85)
             
             recommendation_engine = RecommendationEngine()
-            
-            # === ЖЁСТКИЕ ТРЕБОВАНИЯ: ТОЛЬКО UNIGRAMS ===
             recommendation_engine.comparator = CompetencyComparator(
-                ngram_range=(1, 2),  # ← ТОЛЬКО unigrams, БЕЗ bigrams!
-                min_df=1,            # Даже одно упоминание OK (уже отфильтровано)
+                ngram_range=(1, 2),
+                min_df=1,
                 max_df=0.95
             )
-            
-            logger.info("Параметры TF-IDF:")
-            logger.info("  - ngram_range: (1, 2) - ТОЛЬКО отдельные слова")
-            logger.info("  - min_df: 1 - даже редкие навыки в порядке")
-            logger.info("  - max_df: 0.95 - исключаются частые слова")
-            logger.info("  - max_features: 300 - максимум для чистоты")
-            
             recommendation_engine.fit(vacancies_skills)
 
             skill_weights_raw = recommendation_engine.comparator.get_skill_weights()
-            
             if not skill_weights_raw:
                 logger.error("❌ Не удалось получить веса навыков")
                 return
-            
-            # === ФИЛЬТРАЦИЯ И ОЧИСТКА ===
+
+            # === ФИЛЬТРАЦИЯ ===
             logger.info("\n" + "="*85)
             logger.info("ФИЛЬТРАЦИЯ И ОЧИСТКА НАВЫКОВ")
             logger.info("="*85)
             
             filter_engine = SkillFilter()
-            
-            # Загружаем competency_frequency как reference
             competency_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency.json"
             competency_freq = {}
             if competency_freq_path.exists():
                 with open(competency_freq_path, 'r', encoding='utf-8') as f:
                     competency_freq = json.load(f)
-                logger.info(f"✓ Загружена competency_frequency: {len(competency_freq)} навыков")
-            
-            # Применяем фильтрацию
+
             skill_weights = filter_engine.get_clean_weights(
                 skill_weights_raw,
                 competency_freq=competency_freq,
                 use_reference=True
             )
-            
-            if not skill_weights:
-                logger.error("❌ После фильтрации навыков не осталось")
-                return
-            
-            # Сохраняем очищенные веса
+
             weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
             with open(weights_path, "w", encoding="utf-8") as f:
                 json.dump(skill_weights, f, ensure_ascii=False, indent=2)
-            logger.info(f"\n✓ Очищенные веса сохранены в {weights_path}")
+
+            # === НАСТОЯЩИЙ ML RECOMMENDATION ENGINE (ИСПРАВЛЕНО) ===
+            logger.info("\n" + "="*85)
+            logger.info("ЗАПУСК НАСТОЯЩЕГО MLRecommendationEngine (RandomForest)")
+            logger.info("="*85)
             
-            logger.info(f"\n✓ TF-IDF модель готова")
-            logger.info(f"✓ Получено {len(skill_weights)} чистых навыков (после фильтрации)")
+            ml_engine = MLRecommendationEngine()
+            ml_engine.comparator = recommendation_engine.comparator  # делим vectorizer
+            ml_engine.fit(vacancies_skills)   # обучаем на тех же данных
             
-            # Логируем топ-20 ЧИСТЫХ навыков
-            logger.info("\nТоп-20 навыков по спросу на рынке (ЧИСТЫЕ):")
-            top_20_skills = sorted(skill_weights.items(), key=lambda x: x[1], reverse=True)[:20]
-            for rank, (skill, weight) in enumerate(top_20_skills, 1):
-                logger.info(f"  {rank:2d}. {skill:25s} - {weight:.4f}")
-            
-            # === СТАТИСТИКА МОДЕЛИ ===
-            comparator_stats = recommendation_engine.comparator.get_stats()
-            logger.info(f"\nСтатистика TF-IDF модели:")
-            logger.info(f"  - Размер словаря (исходный): {len(skill_weights_raw)}")
-            logger.info(f"  - Размер словаря (после фильтрации): {len(skill_weights)}")
-            logger.info(f"  - Удалено: {len(skill_weights_raw) - len(skill_weights)} навыков")
+            # Подготовка вакансий с зарплатой — БЕЗОПАСНАЯ ПРОВЕРКА
+            ml_ready_vacancies = []
+            for vac in vacancies_to_process:
+                if not isinstance(vac, Vacancy):
+                    continue
+                salary = getattr(vac, 'salary', None)
+                if isinstance(salary, (int, float)) and salary > 0:
+                    # Безопасный fallback для skills
+                    if not hasattr(vac, 'skills') and hasattr(vac, 'extracted_skills'):
+                        vac.skills = vac.extracted_skills
+                    ml_ready_vacancies.append(vac)
+
+            if ml_ready_vacancies:
+                logger.info(f"Обучаем ML на {len(ml_ready_vacancies)} вакансиях с salary...")
+                ml_engine.fit(ml_ready_vacancies)
+                logger.info("✅ MLRecommendationEngine успешно обучен")
+            else:
+                logger.warning("⚠️ В этом запуске нет вакансий с salary → ML-рекомендации отключены")
 
             results_for_charts = {}
             all_profiles_results = []
@@ -581,77 +523,53 @@ def main():
                     continue
 
                 student_skills = map_codes_to_skills(student_codes)
-                logger.info(f"📚 Входные данные:")
-                logger.info(f"  - Кодов компетенций: {len(student_codes)}")
-                logger.info(f"  - Мэпированных навыков: {len(student_skills)}")
-                logger.info(f"  - Уникальных навыков: {len(set(s.lower() for s in student_skills))}")
 
-                # === СРАВНЕНИЕ С РЫНКОМ (TF-IDF) ===
+                # TF-IDF
                 score, confidence = recommendation_engine.comparator.compare(student_skills)
-                logger.info(f"\n📊 TF-IDF сравнение с рынком:")
-                logger.info(f"  - Match Score: {score:.4f} (косинусное сходство)")
-                logger.info(f"  - Confidence: {confidence:.4f} (уверенность в оценке)")
-                
-                student_dir = config.DATA_DIR / "result" / profile_name
-                student_dir.mkdir(parents=True, exist_ok=True)
 
-                # === GAP АНАЛИЗ ===
+                # Gap-анализ
                 gaps = recommendation_engine.gap_analyzer.analyze_gap(student_skills)
                 coverage, coverage_details = recommendation_engine.gap_analyzer.coverage(student_skills)
                 recommendations_text = recommendation_engine.gap_analyzer.get_recommendations(student_skills, gaps)
 
-                logger.info(f"\n📈 Анализ пробелов (Gaps):")
-                logger.info(f"  - Coverage: {coverage_details['coverage_percent']:.2f}%")
-                logger.info(f"  - Covered skills: {coverage_details['covered_skills_count']}/{coverage_details['total_market_skills']}")
-                logger.info(f"  - High priority gaps: {len(gaps['high_priority'])}")
-                logger.info(f"  - Medium priority gaps: {len(gaps['medium_priority'])}")
-                logger.info(f"  - Low priority gaps: {len(gaps['low_priority'])}")
+                # === ML UPLIFT ===
+                ml_impacts = []
+                if getattr(ml_engine, 'is_fitted', False):
+                    missing_skills = (
+                        [g['skill'] for g in gaps.get('high_priority', [])[:15]] +
+                        [g['skill'] for g in gaps.get('medium_priority', [])[:15]]
+                    )
+                    ml_impacts = ml_engine.predict_skill_impact(student_skills, missing_skills)
+                    if ml_impacts:
+                        logger.info(f"ML uplift для {profile_name}: ТОП-1 = +{ml_impacts[0][1]:,}₽ → {ml_impacts[0][0]}")
 
-                if gaps['stats']:
-                    logger.info(f"\n📉 Статистика по пробелам:")
-                    logger.info(f"  - Среднее значение: {gaps['stats'].get('avg_weight', 0):.4f}")
-                    logger.info(f"  - Максимум: {gaps['stats'].get('max_weight', 0):.4f}")
-                    logger.info(f"  - Минимум: {gaps['stats'].get('min_weight', 0):.4f}")
+                # === СОХРАНЕНИЕ ===
+                student_dir = config.DATA_DIR / "result" / profile_name
+                student_dir.mkdir(parents=True, exist_ok=True)
 
-                # === РЕКОМЕНДАЦИИ ===
-                logger.info(f"\n💡 Рекомендации для {profile_name}:")
-                for i, rec in enumerate(recommendations_text, 1):
-                    logger.info(f"  {i}. {rec}")
-
-                # === ТОП ДЕФИЦИТНЫЕ НАВЫКИ ===
-                if gaps['high_priority']:
-                    logger.info(f"\n🔴 Топ-5 КРИТИЧНЫХ ДЕФИЦИТОВ:")
-                    for i, gap in enumerate(gaps['high_priority'][:5], 1):
-                        logger.info(f"  {i}. {gap['skill']:25s} - важность: {gap['importance']:.4f}")
-
-                if gaps['medium_priority']:
-                    logger.info(f"\n🟡 Топ-5 СРЕДНИХ ДЕФИЦИТОВ:")
-                    for i, gap in enumerate(gaps['medium_priority'][:5], 1):
-                        logger.info(f"  {i}. {gap['skill']:25s} - важность: {gap['importance']:.4f}")
-
-                # === СОХРАНЕНИЕ ДЕТАЛЬНОГО АНАЛИЗА ===
                 detailed_analysis = {
                     "student": profile_name,
                     "timestamp": str(time.strftime('%Y-%m-%d %H:%M:%S')),
-                    "tfidf_scores": {
-                        "match_score": round(score, 4),
-                        "confidence": round(confidence, 4)
-                    },
+                    "tfidf_scores": {"match_score": round(score, 4), "confidence": round(confidence, 4)},
                     "coverage_stats": {
                         "coverage_percent": round(coverage_details["coverage_percent"], 2),
                         "covered_skills_count": coverage_details["covered_skills_count"],
                         "total_market_skills": coverage_details["total_market_skills"],
-                        "covered_weight": round(coverage_details["covered_weight"], 2),
-                        "total_weight": round(coverage_details["total_weight"], 2)
+                        "covered_weight": round(coverage_details.get("covered_weight", 0), 2),
+                        "total_weight": round(coverage_details.get("total_weight", 0), 2)
                     },
                     "gaps": {
                         "high_priority": gaps["high_priority"][:15],
                         "medium_priority": gaps["medium_priority"][:15],
                         "low_priority": gaps["low_priority"][:10],
-                        "total_gaps": gaps["total_gaps"],
-                        "gaps_stats": gaps["stats"]
+                        "total_gaps": gaps.get("total_gaps", 0),
+                        "gaps_stats": gaps.get("stats", {})
                     },
                     "recommendations": recommendations_text,
+                    "ml_recommendations": [
+                        {"skill": skill, "salary_uplift": uplift, "explanation": expl}
+                        for skill, uplift, expl in ml_impacts
+                    ],
                     "student_skills": sorted(student_skills)[:50],
                     "market_top_skills": recommendation_engine.gap_analyzer.top_market_skills(30)
                 }
@@ -659,76 +577,7 @@ def main():
                 with open(student_dir / f"detailed_analysis_{profile_name}.json", "w", encoding="utf-8") as f:
                     json.dump(detailed_analysis, f, ensure_ascii=False, indent=2)
                 
-                logger.info(f"\n✓ Детальный анализ сохранён:")
-                logger.info(f"   {student_dir}/detailed_analysis_{profile_name}.json")
-
-                # === ДАННЫЕ ДЛЯ ГРАФИКОВ ===
-                results_for_charts[profile_name] = {
-                    'coverage_percent': coverage_details["coverage_percent"],
-                    'match_score': score,
-                    'confidence': confidence,
-                    # Добавляем взвешенное покрытие
-                    'weighted_coverage_percent': (
-                        coverage_details["covered_weight"] / coverage_details["total_weight"] * 100
-                        if coverage_details["total_weight"] > 0 else 0
-                    ),
-                    'high_demand_gaps': gaps["high_priority"][:10],
-                    'covered_skills': student_skills
-                }
-
-                # === АРХИВ РЕЗУЛЬТАТОВ ДЛЯ СРАВНЕНИЯ ===
-                all_profiles_results.append({
-                    'profile': profile_name,
-                    'score': round(score, 4),
-                    'confidence': round(confidence, 4),
-                    'coverage': round(coverage_details["coverage_percent"], 2),
-                    'high_gaps': len(gaps['high_priority']),
-                    'medium_gaps': len(gaps['medium_priority'])
-                })
-
-                # === ИТОГОВАЯ СТРОКА ===
-                logger.info("")
-                logger.info(f"✅ ИТОГ для {profile_name.upper()}")
-                logger.info(f"   Score: {score:.4f} | Confidence: {confidence:.4f} | Coverage: {coverage_details['coverage_percent']:.1f}%")
-
-            # === СРАВНЕНИЕ ВСЕХ ПРОФИЛЕЙ ===
-            if all_profiles_results:
-                logger.info("\n" + "="*85)
-                logger.info("СРАВНЕНИЕ ВСЕХ ПРОФИЛЕЙ")
-                logger.info("="*85)
-                
-                # Сортируем по score
-                sorted_profiles = sorted(all_profiles_results, key=lambda x: x['score'], reverse=True)
-                
-                logger.info(f"\nРейтинг профилей:")
-                for rank, profile in enumerate(sorted_profiles, 1):
-                    logger.info(
-                        f"  {rank}. {profile['profile'].upper():10s} - "
-                        f"Score: {profile['score']:.4f}, "
-                        f"Coverage: {profile['coverage']:.1f}%, "
-                        f"Gaps: {profile['high_gaps']} high/{profile['medium_gaps']} med"
-                    )
-                
-                best_profile = sorted_profiles[0]
-                worst_profile = sorted_profiles[-1]
-                avg_coverage = sum(p['coverage'] for p in all_profiles_results) / len(all_profiles_results)
-                
-                logger.info(f"\n📊 Статистика по профилям:")
-                logger.info(f"  - Лучший: {best_profile['profile'].upper()} (score: {best_profile['score']:.4f})")
-                logger.info(f"  - Худший: {worst_profile['profile'].upper()} (score: {worst_profile['score']:.4f})")
-                logger.info(f"  - Средний coverage: {avg_coverage:.1f}%")
-                
-                # Сохраняем итоговую сводку
-                summary_path = config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
-                with open(summary_path, "w", encoding="utf-8") as f:
-                    json.dump({
-                        "timestamp": str(time.strftime('%Y-%m-%d %H:%M:%S')),
-                        "total_profiles_analyzed": len(all_profiles_results),
-                        "profiles": all_profiles_results,
-                        "best_profile": best_profile,
-                        "average_coverage": round(avg_coverage, 2)
-                    }, f, ensure_ascii=False, indent=2)
-                logger.info(f"\n✓ Сводка сохранена: {summary_path}")
+                logger.info(f"✓ Детальный анализ + ML сохранён для {profile_name}")
 
             # === СОЗДАНИЕ ГРАФИКОВ ===
             if results_for_charts:
