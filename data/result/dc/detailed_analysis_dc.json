@@ -1,0 +1,257 @@
+{
+  "student": "dc",
+  "level": "middle",
+  "timestamp": "2026-03-29 19:43:19",
+  "tfidf_scores": {
+    "match_score": 18,
+    "confidence": 0.0245
+  },
+  "coverage_stats": {
+    "coverage_percent": 59.36,
+    "covered_skills_count": 4,
+    "total_market_skills": 10,
+    "covered_weight": 2.32,
+    "total_weight": 3.91
+  },
+  "gaps": {
+    "high_priority": [
+      {
+        "skill": "html",
+        "weight": 0.5629165124598852,
+        "importance": 0.14411582712827178,
+        "priority": "HIGH"
+      },
+      {
+        "skill": "css",
+        "weight": 0.5629165124598852,
+        "importance": 0.14411582712827178,
+        "priority": "HIGH"
+      }
+    ],
+    "medium_priority": [
+      {
+        "skill": "git",
+        "weight": 0.18189065641985533,
+        "importance": 0.04656698074515939,
+        "priority": "MEDIUM"
+      },
+      {
+        "skill": "net core",
+        "weight": 0.09327725970248991,
+        "importance": 0.023880502946235588,
+        "priority": "MEDIUM"
+      },
+      {
+        "skill": "mongodb",
+        "weight": 0.09327725970248991,
+        "importance": 0.023880502946235588,
+        "priority": "MEDIUM"
+      },
+      {
+        "skill": "redis",
+        "weight": 0.09327725970248991,
+        "importance": 0.023880502946235588,
+        "priority": "MEDIUM"
+      }
+    ],
+    "low_priority": [],
+    "total_gaps": 6,
+    "gaps_stats": {
+      "avg_weight": 0.2646,
+      "max_weight": 0.5629,
+      "min_weight": 0.0933,
+      "total_missing_weight": 1.5876
+    }
+  },
+  "recommendations": [
+    "📈 Среднее покрытие (40-60%). Есть потенциал для роста.",
+    "🔴 Приоритет №1: html, css",
+    "🟡 Приоритет №2: git, net core, mongodb"
+  ],
+  "ml_recommendations": [
+    {
+      "skill": "html",
+      "importance_score": 56,
+      "explanation": "Уровень: middle | Требуется для middle",
+      "roadmap": {
+        "junior": false,
+        "middle": true,
+        "senior": false
+      }
+    },
+    {
+      "skill": "css",
+      "importance_score": 56,
+      "explanation": "Уровень: middle | Требуется для middle",
+      "roadmap": {
+        "junior": false,
+        "middle": true,
+        "senior": false
+      }
+    },
+    {
+      "skill": "git",
+      "importance_score": 18,
+      "explanation": "Уровень: middle | Требуется для middle",
+      "roadmap": {
+        "junior": false,
+        "middle": true,
+        "senior": false
+      }
+    },
+    {
+      "skill": "net core",
+      "importance_score": 9,
+      "explanation": "Уровень: middle | Встречается в вакансиях",
+      "roadmap": {
+        "junior": false,
+        "middle": false,
+        "senior": false
+      }
+    },
+    {
+      "skill": "mongodb",
+      "importance_score": 9,
+      "explanation": "Уровень: middle | Встречается в вакансиях",
+      "roadmap": {
+        "junior": false,
+        "middle": false,
+        "senior": false
+      }
+    },
+    {
+      "skill": "redis",
+      "importance_score": 9,
+      "explanation": "Уровень: middle | Встречается в вакансиях",
+      "roadmap": {
+        "junior": false,
+        "middle": false,
+        "senior": false
+      }
+    }
+  ],
+  "student_skills": [
+    "accuracy",
+    "bayesian",
+    "bias",
+    "bias mitigation",
+    "big data",
+    "c++",
+    "catboost",
+    "chain of thought",
+    "cot",
+    "cross validation",
+    "data cleaning",
+    "data preparation",
+    "docker",
+    "eda",
+    "explainable ai",
+    "exploratory data analysis",
+    "f1 score",
+    "fairness",
+    "feature engineering",
+    "feature importance",
+    "feature preprocessing",
+    "feature selection",
+    "hadoop",
+    "hallucination",
+    "hyperparameter tuning",
+    "java",
+    "kubernetes",
+    "langchain",
+    "lightgbm",
+    "llm api",
+    "model selection",
+    "multimodal",
+    "mysql",
+    "openai api",
+    "pca",
+    "postgresql",
+    "power bi",
+    "prompt design",
+    "prompt engineering",
+    "prompt optimization",
+    "pyspark",
+    "random forest",
+    "responsible ai",
+    "roc auc",
+    "scikit-learn",
+    "spark",
+    "spring boot",
+    "sql",
+    "tableau",
+    "trustworthy ai"
+  ],
+  "market_top_skills": [
+    {
+      "rank": 1,
+      "skill": "mysql",
+      "weight": 1.95,
+      "importance": 0.4992,
+      "priority": "HIGH"
+    },
+    {
+      "rank": 2,
+      "skill": "html",
+      "weight": 0.5629,
+      "importance": 0.1441,
+      "priority": "HIGH"
+    },
+    {
+      "rank": 3,
+      "skill": "css",
+      "weight": 0.5629,
+      "importance": 0.1441,
+      "priority": "HIGH"
+    },
+    {
+      "rank": 4,
+      "skill": "git",
+      "weight": 0.1819,
+      "importance": 0.0466,
+      "priority": "MEDIUM"
+    },
+    {
+      "rank": 5,
+      "skill": "sql",
+      "weight": 0.1819,
+      "importance": 0.0466,
+      "priority": "MEDIUM"
+    },
+    {
+      "rank": 6,
+      "skill": "net core",
+      "weight": 0.0933,
+      "importance": 0.0239,
+      "priority": "MEDIUM"
+    },
+    {
+      "rank": 7,
+      "skill": "postgresql",
+      "weight": 0.0933,
+      "importance": 0.0239,
+      "priority": "MEDIUM"
+    },
+    {
+      "rank": 8,
+      "skill": "mongodb",
+      "weight": 0.0933,
+      "importance": 0.0239,
+      "priority": "MEDIUM"
+    },
+    {
+      "rank": 9,
+      "skill": "docker",
+      "weight": 0.0933,
+      "importance": 0.0239,
+      "priority": "MEDIUM"
+    },
+    {
+      "rank": 10,
+      "skill": "redis",
+      "weight": 0.0933,
+      "importance": 0.0239,
+      "priority": "MEDIUM"
+    }
+  ]
+}
