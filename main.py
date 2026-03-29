@@ -52,7 +52,7 @@ from src.visualization.charts import (
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
     
-    parser.add_argument('--query', '-q', type=str, default="Backend Developer")
+    parser.add_argument('--query', '-q', type=str, default="Frontend Developer")
     parser.add_argument('--area-id', '-a', type=int, default=76)
     parser.add_argument('--max-pages', '-p', type=int, default=20)
     parser.add_argument('--period', '-d', type=int, default=30)
@@ -82,7 +82,7 @@ def parse_arguments():
     parser.add_argument(
         '--async-threshold',
         type=int,
-        default=1500,
+        default=500,
         help="Максимальное количество вакансий для асинхронной загрузки (больше -> синхрон)"
     )
     
@@ -380,10 +380,36 @@ def main():
         if mapping:
             comp_counter = map_to_competencies(skill_freq, mapping)
             if comp_counter:
+                # === ОЧИЩАЕМ ПЕРЕД СОХРАНЕНИЕМ ===
+                filter_engine = SkillFilter()
+                
+                # Фильтруем competency_counter
+                cleaned_comp = {}
+                for skill, count in comp_counter.most_common():
+                    skill_clean = skill.lower().strip()
+                    if skill_clean == "frontend":
+                        print("DEBUG: frontend source:", skill, "=>", count)
+                    # Исключаем generic слова
+                    if skill_clean in filter_engine.GENERIC_WORDS:
+                        logger.debug(f"  ⊘ удаляем generic: '{skill}'")
+                        continue
+                    
+                    # Исключаем bigrams (если надо)
+                    # (опционально - зависит от ваших требований)
+                    
+                    cleaned_comp[skill_clean] = count
+                
+                # === Добавь ПЕЧАТЬ для отладки после фильтрации ===
+                print([k for k in cleaned_comp if k in filter_engine.GENERIC_WORDS])
+                logger.info(f"📝 CHECK: generic words после фильтрации: {[k for k in cleaned_comp if k in filter_engine.GENERIC_WORDS]}")
+                
                 comp_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency_mapped.json"
                 with open(comp_freq_path, 'w', encoding='utf-8') as f:
-                    json.dump(dict(comp_counter.most_common()), f, ensure_ascii=False, indent=2)
+                    json.dump(cleaned_comp, f, ensure_ascii=False, indent=2)
+                
+                logger.info(f"✓ Сохранено {len(cleaned_comp)} очищенных компетенций (удалено {len(comp_counter) - len(cleaned_comp)})")
                 print_top_competencies(comp_counter)
+
     except Exception as e:
         logger.exception(f"Ошибка преобразования компетенций: {e}")
 
@@ -433,15 +459,28 @@ def main():
             
             # Преобразуем словарь частот в формат для TF-IDF
             # Каждый навык повторяется столько раз, сколько раз встречался
+            # Проверяем есть ли уже готовые навыки в vacancies
             vacancies_skills = []
-            for skill_name, count in skill_freq.items():
-                if count > 0:
-                    # Повторяем навык count раз (пропорционально частоте)
-                    for _ in range(min(count, 100)):  # Ограничиваем 100 для производительности
-                        vacancies_skills.append([skill_name])
-            
-            logger.info(f"✓ Подготовлено {len(vacancies_skills)} документов для TF-IDF")
-            logger.info(f"  (каждый документ = один навык повторённый по частоте)")
+            for vacancy in vacancies_to_process:
+                # Пытаемся получить навыки из вакансии
+                skills_in_vacancy = []
+                
+                # Вариант 1: если сохранены в объекте vacancy
+                if hasattr(vacancy, 'extracted_skills') and vacancy.extracted_skills:
+                    skills_in_vacancy = vacancy.extracted_skills
+                
+                # Вариант 2: если сохранены в description
+                if not skills_in_vacancy and hasattr(vacancy, 'description'):
+                    # Переиспользуем уже выделенные из skill_freq
+                    for skill in skill_freq.keys():
+                        if skill.lower() in vacancy.description.lower():
+                            skills_in_vacancy.append(skill)
+                
+                if skills_in_vacancy:
+                    vacancies_skills.append(skills_in_vacancy)
+
+            logger.info(f"✓ Подготовлено {len(vacancies_skills)} вакансий для TF-IDF")
+            logger.info(f"  Среднее навыков на вакансию: {sum(len(s) for s in vacancies_skills) / len(vacancies_skills):.1f}")
             
             if not vacancies_skills:
                 logger.error("❌ Не удалось подготовить данные для TF-IDF")
@@ -456,13 +495,13 @@ def main():
             
             # === ЖЁСТКИЕ ТРЕБОВАНИЯ: ТОЛЬКО UNIGRAMS ===
             recommendation_engine.comparator = CompetencyComparator(
-                ngram_range=(1, 1),  # ← ТОЛЬКО unigrams, БЕЗ bigrams!
+                ngram_range=(1, 2),  # ← ТОЛЬКО unigrams, БЕЗ bigrams!
                 min_df=1,            # Даже одно упоминание OK (уже отфильтровано)
                 max_df=0.95
             )
             
             logger.info("Параметры TF-IDF:")
-            logger.info("  - ngram_range: (1, 1) - ТОЛЬКО отдельные слова")
+            logger.info("  - ngram_range: (1, 2) - ТОЛЬКО отдельные слова")
             logger.info("  - min_df: 1 - даже редкие навыки в порядке")
             logger.info("  - max_df: 0.95 - исключаются частые слова")
             logger.info("  - max_features: 300 - максимум для чистоты")
@@ -628,6 +667,11 @@ def main():
                     'coverage_percent': coverage_details["coverage_percent"],
                     'match_score': score,
                     'confidence': confidence,
+                    # Добавляем взвешенное покрытие
+                    'weighted_coverage_percent': (
+                        coverage_details["covered_weight"] / coverage_details["total_weight"] * 100
+                        if coverage_details["total_weight"] > 0 else 0
+                    ),
                     'high_demand_gaps': gaps["high_priority"][:10],
                     'covered_skills': student_skills
                 }
