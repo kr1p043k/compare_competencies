@@ -5,6 +5,7 @@
 
 from typing import List, Dict, Tuple
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +19,8 @@ class GapAnalyzer:
     - Детальная статистика
     - Confidence для каждого gap
     - Рекомендации по приоритизации
+    - ДИНАМИЧЕСКИЕ пороги на основе распределения весов
     """
-
-    # Пороги для категоризации важности
-    HIGH_IMPORTANCE = 0.70    # 70% - критичные навыки
-    MEDIUM_IMPORTANCE = 0.30  # 30-70% - желательные
-    LOW_IMPORTANCE = 0.0      # 0-30% - опциональные
 
     def __init__(self, skill_weights: Dict[str, float]):
         """
@@ -33,10 +30,37 @@ class GapAnalyzer:
         self.skill_weights = skill_weights or {}
         self.total_weight = sum(self.skill_weights.values())
         
+        # Вычисляем динамические пороги на основе распределения весов
+        self._calculate_dynamic_thresholds()
+        
         if not self.skill_weights:
             logger.warning("GapAnalyzer: получены пустые веса навыков")
         else:
             logger.info(f"GapAnalyzer инициализирован с {len(self.skill_weights)} навыками")
+            logger.info(f"  Пороги: HIGH={self.HIGH_IMPORTANCE:.4f}, MEDIUM={self.MEDIUM_IMPORTANCE:.4f}")
+
+    def _calculate_dynamic_thresholds(self):
+        """Вычисляет пороги на основе распределения весов"""
+        if not self.skill_weights:
+            self.HIGH_IMPORTANCE = 0.70
+            self.MEDIUM_IMPORTANCE = 0.30
+            return
+        
+        weights = list(self.skill_weights.values())
+        normalized_weights = [w / self.total_weight for w in weights]
+        
+        # Используем перцентили вместо жёстких значений
+        # HIGH = top 33% (выше 67 перцент��ля)
+        # MEDIUM = 33-67% (между 33 и 67 перцентилями)
+        # LOW = bottom 33%
+        
+        self.HIGH_IMPORTANCE = np.percentile(normalized_weights, 67)
+        self.MEDIUM_IMPORTANCE = np.percentile(normalized_weights, 33)
+        
+        logger.info(f"Вычислены динамические пороги:")
+        logger.info(f"  HIGH (>67%): {self.HIGH_IMPORTANCE:.4f}")
+        logger.info(f"  MEDIUM (33-67%): {self.MEDIUM_IMPORTANCE:.4f}")
+        logger.info(f"  LOW (<33%): {self.MEDIUM_IMPORTANCE:.4f}")
 
     def analyze_gap(self, student_skills: List[str], top_n: int = 20) -> Dict:
         """
@@ -97,7 +121,7 @@ class GapAnalyzer:
 
     def coverage(self, student_skills: List[str]) -> Tuple[float, Dict]:
         """
-        Доля пок��ытия рынка (weighted).
+        Доля покрытия рынка (weighted).
         
         Returns:
             (coverage_percent, details_dict)
@@ -168,14 +192,16 @@ class GapAnalyzer:
         
         coverage, _ = self.coverage(student_skills)
         
-        if coverage < 30:
-            recommendations.append("⚠️ КРИТИЧНО: Покрытие менее 30%. Требуется переквалификация.")
-        elif coverage < 50:
-            recommendations.append("⚠️ Низкое покрытие (50%). Нужно срочно добавить skills.")
-        elif coverage < 70:
-            recommendations.append("📈 Среднее покрытие (50-70%). Есть потенциал для роста.")
+        if coverage < 20:
+            recommendations.append("⚠️ КРИТИЧНО: Покрытие менее 20%. Требуется переквалификация.")
+        elif coverage < 40:
+            recommendations.append("⚠️ Низкое покрытие (<40%). Нужно срочно добавить skills.")
+        elif coverage < 60:
+            recommendations.append("📈 Среднее покрытие (40-60%). Есть потенциал для роста.")
+        elif coverage < 80:
+            recommendations.append("✅ Хорошее покрытие (60-80%). Продолжайте развиваться.")
         else:
-            recommendations.append("✅ Хорошее покрытие (>70%). Продолжайте развиваться.")
+            recommendations.append("🌟 Отличное покрытие (>80%). Вы на хорошем пути!")
         
         if gaps["high_priority"]:
             top_3 = [g["skill"] for g in gaps["high_priority"][:3]]
