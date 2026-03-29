@@ -82,7 +82,7 @@ class Salary:
     currency: str = "RUB"
     
     def get_midpoint(self) -> Optional[int]:
-        """��озвращает среднее значение зарплаты"""
+        """Возвращает среднее значение зарплаты"""
         if self.from_amount and self.to_amount:
             return (self.from_amount + self.to_amount) // 2
         return self.from_amount or self.to_amount
@@ -135,6 +135,48 @@ class Employer:
 
 
 @dataclass
+class Experience:
+    """
+    Требуемый опыт работы
+    
+    Attributes:
+        id: ID опыта в hh.ru (например 'between3and6')
+        name: Название опыта (например 'От 3 до 6 лет')
+    """
+    id: str
+    name: str
+    
+    def get_level(self) -> str:
+        """
+        Преобразует ID опыта в уровень (junior/middle/senior)
+        
+        Returns:
+            'junior', 'middle', 'senior' или 'unknown'
+        """
+        if not self.id:
+            return 'middle'
+        
+        exp_id = self.id.lower()
+        
+        # junior: нет опыта, менее 1 года
+        if any(x in exp_id for x in ['no_experience', 'less1', 'junior']):
+            return 'junior'
+        
+        # middle: 1-6 лет
+        elif any(x in exp_id for x in ['between1and3', 'between3and6', 'middle']):
+            return 'middle'
+        
+        # senior: 6+ лет
+        elif any(x in exp_id for x in ['between6and10', 'morethan10', 'senior']):
+            return 'senior'
+        
+        return 'middle'  # default
+    
+    def __repr__(self):
+        return f"Experience({self.get_level()}: {self.name})"
+
+
+@dataclass
 class Vacancy:
     """
     ПОЛНАЯ модель вакансии с валидацией и типизацией
@@ -148,7 +190,9 @@ class Vacancy:
         description: Полное описание вакансии
         snippet: Краткая информация (требования/обязанности)
         salary: Информация о зарплате
+        experience: Требуемый опыт
         published_at: Дата публикации
+        experience_level: Нормализованный уровень (junior/middle/senior)
         raw_data: Сырые данные для debug (должны быть только если нужны)
     """
     # Обязательные поля
@@ -162,7 +206,11 @@ class Vacancy:
     description: Optional[str] = None
     snippet: Optional[Snippet] = None
     salary: Optional[Salary] = None
+    experience: Optional[Experience] = None
     published_at: Optional[str] = None
+    
+    # Вычисляемое поле (зависит от experience)
+    experience_level: str = field(default='middle')
     
     # Служебные поля (NOT для use в основной логике!)
     raw_data: Dict[str, Any] = field(default_factory=dict, repr=False)
@@ -174,6 +222,12 @@ class Vacancy:
             raise ValueError("ID вакансии должен быть непустой строкой")
         if not self.name or not isinstance(self.name, str):
             raise ValueError("Название вакансии должно быть непустой строкой")
+        
+        # Вычисляем experience_level на основе experience
+        if self.experience:
+            self.experience_level = self.experience.get_level()
+        else:
+            self.experience_level = 'middle'
     
     @classmethod
     def from_api(cls, data: dict) -> "Vacancy":
@@ -247,6 +301,15 @@ class Vacancy:
                     currency=salary_data.get('currency', 'RUB')
                 )
             
+            # Парсим опыт
+            experience = None
+            experience_data = data.get('experience')
+            if experience_data:
+                experience = Experience(
+                    id=experience_data.get('id', ''),
+                    name=experience_data.get('name', 'Не указан')
+                )
+            
             # Создаём вакансию
             return cls(
                 id=vacancy_id,
@@ -257,6 +320,7 @@ class Vacancy:
                 description=data.get('description'),
                 snippet=snippet,
                 salary=salary,
+                experience=experience,
                 published_at=data.get('published_at'),
                 raw_data=data
             )
@@ -285,7 +349,7 @@ class Vacancy:
         return len(self.key_skills) > 0
     
     def __repr__(self):
-        return f"Vacancy('{self.name}' @ {self.employer.name}, ID={self.id})"
+        return f"Vacancy('{self.name}' @ {self.employer.name}, {self.experience_level}, ID={self.id})"
     
     def __hash__(self):
         return hash(self.id)
@@ -333,11 +397,19 @@ class VacancyCollection:
         skills_count = len(self.get_all_skills())
         vacancies_with_skills = sum(1 for v in self.vacancies if v.has_skills())
         
+        # Статистика по уровням
+        level_stats = {
+            'junior': sum(1 for v in self.vacancies if v.experience_level == 'junior'),
+            'middle': sum(1 for v in self.vacancies if v.experience_level == 'middle'),
+            'senior': sum(1 for v in self.vacancies if v.experience_level == 'senior'),
+        }
+        
         return {
             'total_vacancies': len(self),
             'vacancies_with_skills': vacancies_with_skills,
             'total_unique_skills': skills_count,
-            'avg_skills_per_vacancy': skills_count / max(vacancies_with_skills, 1)
+            'avg_skills_per_vacancy': skills_count / max(vacancies_with_skills, 1),
+            'by_level': level_stats
         }
     
     def __repr__(self):
