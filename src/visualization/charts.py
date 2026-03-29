@@ -32,26 +32,53 @@ logger = logging.getLogger(__name__)
 def plot_coverage_comparison(results: Dict[str, Any], save_path: Optional[Path] = None) -> plt.Figure:
     """
     Строит столбчатую диаграмму сравнения покрытия для нескольких учеников.
-    :param results: словарь {student_name: report_dict} с полями 'coverage_percent' и 'weighted_coverage_percent'
     """
-    df = pd.DataFrame([
-        {
-            'Ученик': name,
-            'Покрытие (доля)': rep['coverage_percent'],
-            'Взвешенное покрытие': rep['weighted_coverage_percent']
-        }
-        for name, rep in results.items()
-    ])
+    data = []
+    for name, rep in results.items():
+        row = {'Ученик': name}
+        
+        # Основное покрытие
+        if 'coverage_percent' in rep:
+            row['Покрытие (доля)'] = rep['coverage_percent']
+        
+        # Взвешенное покрытие (если есть)
+        if 'weighted_coverage_percent' in rep:
+            row['Взвешенное покрытие'] = rep['weighted_coverage_percent']
+        elif 'coverage_details' in rep and 'covered_weight' in rep['coverage_details']:
+            # Альтернатива: вычисляем из деталей
+            row['Взвешенное покрытие'] = (
+                rep['coverage_details']['covered_weight'] / 
+                rep['coverage_details']['total_weight'] * 100
+                if rep['coverage_details']['total_weight'] > 0 else 0
+            )
+        
+        data.append(row)
+    
+    if not data:
+        logger.error("Нет данных для графика покрытия")
+        fig, ax = plt.subplots()
+        ax.text(0.5, 0.5, "Нет данных для графика", ha='center', va='center')
+        return fig
+    
+    df = pd.DataFrame(data)
+    
     fig, ax = plt.subplots(figsize=(8, 5))
-    df.plot(x='Ученик', y=['Покрытие (доля)', 'Взвешенное покрытие'], kind='bar', ax=ax)
+    
+    # Определяем какие столбцы есть в данных
+    columns_to_plot = ['Покрытие (доля)']
+    if 'Взвешенное покрытие' in df.columns:
+        columns_to_plot.append('Взвешенное покрытие')
+    
+    df.plot(x='Ученик', y=columns_to_plot, kind='bar', ax=ax)
     ax.set_title('Сравнение покрытия рыночных навыков')
     ax.set_ylabel('Процент')
     ax.set_ylim(0, 100)
     ax.grid(axis='y', alpha=0.3)
+    
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
     return fig
-
 
 def plot_top_deficits(deficits: List[Dict], student_name: str, save_path: Optional[Path] = None) -> plt.Figure:
     """
