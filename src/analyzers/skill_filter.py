@@ -2,7 +2,7 @@
 Фильтр навыков: убирает мусор, оставляет только чистые навыки.
 Использует competency_frequency как reference.
 """
-
+import numpy as np
 from typing import Dict, List, Set
 import logging
 
@@ -38,9 +38,9 @@ class SkillFilter:
     
     # === GENERIC слова, которые ВСЕГДА исключаются ===
     GENERIC_WORDS = {
-        "frontend", "backend", "fullstack", "api",  # слишком broad
-        "core", "net",  # части других слов
-        "crm",  # business term, не tech skill
+        "frontend", "backend", "fullstack", "api", "core", "net", "crm",
+        "английский", "english", "язык", "разработки", "разработка",  # ← добавь
+        "и др", "и другие", "знание", "опыт", "умение", "требуется"
     }
     
     def __init__(self, reference_skills: Set[str] = None):
@@ -77,10 +77,10 @@ class SkillFilter:
             words = skill_lower.split()
             
             # === ПРОВЕРКА 1: Это bigram или более? ===
-            if len(words) > 1:
-                removed_bigrams += 1
-                removed_count += 1
-                continue
+            #if len(words) > 1:
+                #removed_bigrams += 1
+                #removed_count += 1
+                #continue
             
             # === ПРОВЕРКА 2: Это generic слово? ===
             if skill_lower in self.GENERIC_WORDS:
@@ -187,47 +187,57 @@ class SkillFilter:
             
             return merged
 
-    def get_clean_weights(
-        self,
-        skill_weights: Dict[str, float],
-        competency_freq: Dict[str, int] = None,
-        use_reference: bool = True
-    ) -> Dict[str, float]:
-        """
-        Получает чистые веса навыков.
-        
-        Порядок обработки:
-        1. Фильтруем TF-IDF веса (удаляем bigrams, generic, unknown)
-        2. Объединяем с competency_freq если есть
-        3. Нормализуем
-        """
+    def get_clean_weights(self, skill_weights_raw: Dict[str, float], 
+                          competency_freq: Dict[str, int] = None, 
+                          use_reference: bool = True) -> Dict[str, float]:
+        """Финальная очистка весов с сохранением реальной важности навыков"""
         logger.info("\n" + "="*80)
-        logger.info("ФИНАЛЬНАЯ ОЧИСТКА НАВЫКОВ")
+        logger.info("ФИНАЛЬНАЯ ОЧИСТКА НАВЫКОВ (улучшенная версия 2026)")
         logger.info("="*80)
-        
-        # Шаг 1: Фильтруем
-        filtered = self.filter_weights(skill_weights)
-        
-        # Шаг 2: Объединяем с reference если есть
-        if competency_freq and use_reference:
-            clean = self.merge_with_reference(skill_weights, competency_freq)
-        else:
-            clean = self.filter_weights(skill_weights)
-        
-        if not clean:
-            logger.error("❌ После фильтрации навыков не осталось!")
+
+        if not skill_weights_raw:
+            logger.warning("skill_weights_raw пустой")
             return {}
-        
-        logger.info(f"\n✅ ФИНАЛЬНЫЙ РЕЗУЛЬТАТ:")
-        logger.info(f"  - Чистых навыков: {len(clean)}")
-        
-        # Логируем топ-10
-        logger.info(f"\n  Топ-10 навыков:")
-        top_10 = sorted(clean.items(), key=lambda x: x[1], reverse=True)[:10]
-        for rank, (skill, weight) in enumerate(top_10, 1):
-            logger.info(f"    {rank:2d}. {skill:20s} - {weight:.4f}")
-        
-        return clean
+
+        # 1. Берём данные из competency_freq как основной источник частот (самый надёжный)
+        if competency_freq and len(competency_freq) > 0:
+            logger.info(f"Используем реальные частоты из competency_frequency.json ({len(competency_freq)} навыков)")
+            raw_freq = {k.lower().strip(): float(v) for k, v in competency_freq.items() if v > 0}
+        else:
+            # fallback на то, что пришло
+            raw_freq = {k.lower().strip(): float(v) for k, v in skill_weights_raw.items() if v > 0}
+
+        # 2. Убираем generic слова
+        generic_removed = 0
+        for word in list(raw_freq.keys()):
+            if word in self.GENERIC_WORDS or len(word.split()) > 3:   # убираем очень длинные фразы
+                del raw_freq[word]
+                generic_removed += 1
+
+        logger.info(f"- Удалено generic и длинных фраз: {generic_removed}")
+        logger.info(f"- Осталось после очистки: {len(raw_freq)} навыков")
+
+        if not raw_freq:
+            return {}
+
+        # 3. Нормализация с сохранением пропорций (главное исправление)
+        total = sum(raw_freq.values())
+        if total > 0:
+            # Используем softmax-подобную нормализацию, чтобы частые навыки сильно выделялись
+            normalized = {}
+            for skill, count in raw_freq.items():
+                # Логарифмическая шкала + нормализация (чтобы не было плоских весов)
+                weight = np.log1p(count) / np.log1p(total) if total > 1 else count / total
+                normalized[skill] = round(float(weight), 4)
+        else:
+            normalized = {skill: 1.0 for skill in raw_freq}
+
+        logger.info(f"✓ ИТОГО чистых навыков: {len(normalized)}")
+        logger.info("ТОП-10 наиболее важных навыков рынка:")
+        for skill, w in sorted(normalized.items(), key=lambda x: x[1], reverse=True)[:10]:
+            logger.info(f"   {skill:25} → {w:.4f}")
+
+        return normalized
 
     def validate_skills(self, skills: List[str]) -> List[str]:
         """Валидирует список навыков, оставляя только чистые."""
