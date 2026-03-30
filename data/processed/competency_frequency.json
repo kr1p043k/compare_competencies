@@ -1,12 +1,5 @@
 {
   "html": 1,
   "css": 1,
-  "mysql": 1,
-  "git": 1,
-  "sql": 1,
-  "net core": 1,
-  "postgresql": 1,
-  "mongodb": 1,
-  "docker": 1,
-  "redis": 1
+  "mysql": 1
 }
