@@ -4,6 +4,7 @@
 ```plaintext
 └── 📁 competency-comparison
     ├── 📁 data # Хранение всех данных (сырые, обработанные, ученики, результаты)
+    │   ├── 📁 embeddings 
     │   ├── 📁 last_uploaded # Последняя загруженная версия компетенций учеников 
     │   │   └── 📄 competency_matrix.csv #Последний загруженный вариант компетенций
     │   ├── 📁 processed # Обработанные и нормализованные данные с hh.ru
@@ -43,6 +44,7 @@
     │   │   ├── 📄 gap_analyzer.py # Определение приоритетных дефицитов и группировка по категориям
     │   │   ├── 📄 init.py # Маркер пакета Python
     │   │   ├── 📄 profile_evaluator.py
+    │   │   ├── 📄 embedding_comparator.py
     │   │   ├── 📄 skill_filter.py
     │   │   ├── 📄 skill_level_analyzer.py # Маркер пакета Python        
     │   │   └── 📄 trends.py # Анализ временных трендов навыков (если есть исторические данные)
