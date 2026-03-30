@@ -90,7 +90,6 @@
   "Webpack",
   "Адаптивная верстка",
   "Аналитика данных",
-  "Аналитика маркетплейсов",
   "Аналитическое мышление",
   "Английский язык",
   "Бизнес-анализ",
@@ -119,5 +118,12 @@
   "Тестирование ПО",
   "Техническая поддержка",
   "Управление проектами",
-  "Электронный документооборот"
+  "Электронный документооборот",
+  "javascript", "typescript", "react", "vue", "angular", "next.js", "nuxt.js",
+"html", "css", "scss", "sass", "tailwind", "bootstrap",
+"git", "github", "gitlab", "bitbucket",
+"rest api", "restful", "axios", "fetch", "xml", "dom",
+"redux", "flux", "mobx", "zustand",
+"webpack", "vite", "babel", "eslint", "prettier",
+"figma", "storybook", "jest", "cypress", "playwright"
 ]
