@@ -36,7 +36,6 @@ from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.utils import load_competency_mapping
 
 # === Gap-анализ и рекомендации ===
-from src.models.student import StudentProfile
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.skill_filter import SkillFilter
 from src.analyzers.comparator import CompetencyComparator
@@ -55,8 +54,8 @@ from src.visualization.charts import (
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
     
-    parser.add_argument('--query', '-q', type=str, default="Fullstack developer")
-    parser.add_argument('--area-id', '-a', type=int, default=76)
+    parser.add_argument('--query', '-q', type=str, default="Frontend developer")
+    parser.add_argument('--area-id', '-a', type=int, default=1)
     parser.add_argument('--max-pages', '-p', type=int, default=20)
     parser.add_argument('--period', '-d', type=int, default=30)
     parser.add_argument('--show-vacancies', '-v', action='store_true')
@@ -72,7 +71,7 @@ def parse_arguments():
     
     parser.add_argument('--use-async', action='store_true', default=True)
     parser.add_argument('--async-workers', type=int, default=3)
-    parser.add_argument('--async-threshold', type=int, default=500)
+    parser.add_argument('--async-threshold', type=int, default=250)
     
     parser.add_argument('--run-gap-analysis', action='store_true', default=True)
     parser.add_argument('--run-notebooks', action='store_true')
@@ -439,22 +438,37 @@ def main():
                 logger.error("❌ Не удалось подготовить данные для TF-IDF")
                 return
 
-            # === TF-IDF (оригинальный код) ===
+                       # === ИНИЦИАЛИЗАЦИЯ EMBEDDINGS (новая рабочая система) ===
             logger.info("\n" + "="*85)
-            logger.info("ИНИЦИАЛИЗАЦИЯ TF-IDF С ОПТИМАЛЬНЫМИ ПАРАМЕТРАМИ")
+            logger.info("ИНИЦИАЛИЗАЦИЯ EMBEDDINGS + FALLBACK")
             logger.info("="*85)
             
             recommendation_engine = RecommendationEngine()
+            
+            # ←←← ИСПРАВЛЕНИЕ: включаем embeddings + fallback
             recommendation_engine.comparator = CompetencyComparator(
                 ngram_range=(1, 2),
                 min_df=1,
-                max_df=0.95
+                max_df=0.95,
+                use_embeddings=True,      # ← КРИТИЧНО
+                level="middle"
             )
+            
             recommendation_engine.fit(vacancies_skills)
 
             skill_weights_raw = recommendation_engine.comparator.get_skill_weights()
+            
+            # === Fallback на частотные веса (то, что уже посчитал парсер) ===
+            if not skill_weights_raw or len(skill_weights_raw) == 0:
+                logger.warning(
+                    "⚠️  Embedding mode вернул пустые веса. "
+                    "Используем частоты навыков из skill_freq (fallback)"
+                )
+                skill_weights_raw = {k: float(v) for k, v in skill_freq.items() if v > 0}
+                logger.info(f"✓ Fallback weights создан: {len(skill_weights_raw)} навыков")
+            
             if not skill_weights_raw:
-                logger.error("❌ Не удалось получить веса навыков")
+                logger.error("❌ Даже fallback не смог создать веса")
                 return
 
             # === ФИЛЬТРАЦИЯ ===
@@ -468,7 +482,17 @@ def main():
             if competency_freq_path.exists():
                 with open(competency_freq_path, 'r', encoding='utf-8') as f:
                     competency_freq = json.load(f)
-
+                    
+                        # === ЗАЩИТА ОТ НУЛЕВЫХ ВЕСОВ ===
+            if not skill_weights_raw or all(v == 0 for v in skill_weights_raw.values()):
+                logger.warning("⚠️  Все веса обнулились после фильтра. Используем сырые частоты как веса.")
+                skill_weights_raw = {k: float(v) for k, v in skill_freq.items() if v > 0}
+                        # === УЛУЧШЕННЫЙ FALLBACK ДЛЯ ВЕСОВ ===
+            if not skill_weights_raw or len(skill_weights_raw) == 0 or all(abs(v - 1.0) < 0.01 for v in skill_weights_raw.values()):
+                logger.warning("⚠️  Embedding mode или плоские веса → используем реальные частоты из skill_freq")
+                skill_weights_raw = {k: float(v) for k, v in skill_freq.items() if v > 0}
+                logger.info(f"✓ Создано {len(skill_weights_raw)} весов на основе частот")
+                
             skill_weights = filter_engine.get_clean_weights(
                 skill_weights_raw,
                 competency_freq=competency_freq,
@@ -555,213 +579,74 @@ def main():
             logger.info("АНАЛИЗ ПРОФИЛЕЙ СТУДЕНТОВ")
             logger.info("="*85)
             
-            # Маппим профили на уровни опыта
-            profile_levels = {
-                'base': 'junior',      # базовый профиль → junior
-                'dc': 'middle',        # основной курс → middle
-                'top_dc': 'senior'     # продвинутый → senior
-            }
-            
-            for profile_name in ["base", "dc", "top_dc"]:
-                logger.info(f"\n{'-'*85}")
-                target_level = profile_levels[profile_name]
-                logger.info(f"Профиль: {profile_name.upper()} (уровень: {target_level.upper()})")
-                logger.info(f"{'-'*85}")
-                
-                student_codes = load_student_competencies(profile_name)
-                if not student_codes:
-                    logger.warning(f"Профиль {profile_name} пуст - пропускаем")
-                    continue
-
-                student_skills = map_codes_to_skills(student_codes)
-                
-                # ← КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: получаем веса для уровня
-                logger.info(f"Получаем веса навыков для уровня {target_level}...")
-                profile_skill_weights = level_analyzer.get_weights_for_level(
-                    skill_weights,
-                    target_level
-                )
-                logger.info(f"  Переупорядочено {len(profile_skill_weights)} навыков")
-                
-                # Создаём уровень-специфичный gap analyzer
-                from src.analyzers.gap_analyzer import GapAnalyzer
-                profile_gap_analyzer = GapAnalyzer(profile_skill_weights)
-
-                # TF-IDF (используем общий comparator)
-                score, confidence = recommendation_engine.comparator.compare(student_skills)
-
-                # ← используем профильный analyzer с уровень-специфичными весами
-                gaps = profile_gap_analyzer.analyze_gap(student_skills)
-                coverage, coverage_details = profile_gap_analyzer.coverage(student_skills)
-                recommendations_text = profile_gap_analyzer.get_recommendations(student_skills, gaps)
-
-                # === ВЫВОД ПРОГРЕССА ===
-                logger.info(f"Результаты анализа для {profile_name} ({target_level}):")
-                logger.info(f"  📊 TF-IDF скор: {score:.4f} (confidence: {confidence:.4f})")
-                logger.info(f"  📈 Coverage: {coverage_details['coverage_percent']:.2f}%")
-                logger.info(f"  🔴 High priority gaps: {len(gaps['high_priority'])}")
-                logger.info(f"  🟡 Medium priority gaps: {len(gaps['medium_priority'])}")
-                logger.info(f"  🟢 Low priority gaps: {len(gaps['low_priority'])}")
-
-                # === ML АНАЛИЗ (анализ на основе важности) ===
-                ml_impacts = []
-                if len(gaps['high_priority']) > 0 or len(gaps['medium_priority']) > 0:
-                    missing_skills = (
-                        [g['skill'] for g in gaps.get('high_priority', [])[:15]] +
-                        [g['skill'] for g in gaps.get('medium_priority', [])[:15]]
-                    )
-                    
-                    # Используем fallback версию (без ML модели)
-                    if missing_skills:
-                        for skill in missing_skills[:10]:
-                            skill_lower = skill.lower().strip()
-                            importance = profile_skill_weights.get(skill, 0)
-                            
-                            # Получаем информацию о навыке
-                            roadmap = level_analyzer.get_skill_roadmap(skill)
-                            skill_level = level_analyzer.get_skill_level(skill)
-                            
-                            explanation = f"Уровень: {skill_level} | "
-                            if roadmap[target_level]:
-                                explanation += f"Требуется для {target_level}"
-                            else:
-                                explanation += f"Встречается в вакансиях"
-                            
-                            # Добавляем информацию о дорожке развития
-                            levels_present = [l for l in ['junior', 'middle', 'senior'] if roadmap[l]]
-                            if len(levels_present) > 1:
-                                explanation += f" | Путь развития: {' → '.join(levels_present)}"
-                            
-                            ml_impacts.append((skill, round(importance * 100), explanation))
-                        
-                        ml_impacts.sort(key=lambda x: x[1], reverse=True)
-                        ml_impacts = ml_impacts[:10]
-                        
-                        if ml_impacts:
-                            logger.info(f"💡 ML рекомендации ({len(ml_impacts)}):")
-                            for skill, score, expl in ml_impacts[:3]:
-                                logger.info(f"  - {skill} (скор: {score}) | {expl}")
-
-                # === СОХРАНЕНИЕ ===
-                student_dir = config.DATA_DIR / "result" / profile_name
-                student_dir.mkdir(parents=True, exist_ok=True)
-
-                detailed_analysis = {
-                    "student": profile_name,
-                    "level": target_level,
-                    "timestamp": str(time.strftime('%Y-%m-%d %H:%M:%S')),
-                    "tfidf_scores": {"match_score": round(score, 4), "confidence": round(confidence, 4)},
-                    "coverage_stats": {
-                        "coverage_percent": round(coverage_details["coverage_percent"], 2),
-                        "covered_skills_count": coverage_details["covered_skills_count"],
-                        "total_market_skills": coverage_details["total_market_skills"],
-                        "covered_weight": round(coverage_details.get("covered_weight", 0), 2),
-                        "total_weight": round(coverage_details.get("total_weight", 0), 2)
-                    },
-                    "gaps": {
-                        "high_priority": gaps["high_priority"][:15],
-                        "medium_priority": gaps["medium_priority"][:15],
-                        "low_priority": gaps["low_priority"][:10],
-                        "total_gaps": gaps.get("total_gaps", 0),
-                        "gaps_stats": gaps.get("stats", {})
-                    },
-                    "recommendations": recommendations_text,
-                    "ml_recommendations": [
-                        {
-                            "skill": skill, 
-                            "importance_score": impact,
-                            "explanation": expl,
-                            "roadmap": level_analyzer.get_skill_roadmap(skill)
-                        }
-                        for skill, impact, expl in ml_impacts
-                    ],
-                    "student_skills": sorted(student_skills)[:50],
-                    "market_top_skills": profile_gap_analyzer.top_market_skills(30)
-                }
-                
-                with open(student_dir / f"detailed_analysis_{profile_name}.json", "w", encoding="utf-8") as f:
-                    json.dump(detailed_analysis, f, ensure_ascii=False, indent=2)
-                
-                logger.info(f"✓ Детальный анализ + ML сохранён для {profile_name}")
-
-            # === СОЗДАНИЕ СВОДКИ ПО ПРОФИЛЯМ ===
+           # =====================================================================
+            # ← ИНТЕГРАЦИЯ ProfileEvaluator (финальная версия — без .summary)
+            # =====================================================================
             logger.info("\n" + "="*85)
-            logger.info("СОЗДАНИЕ СВОДКИ ПО ПРОФИЛЯМ")
+            logger.info("ФОРМИРОВАНИЕ СВОДКИ ПО ПРОФИЛЯМ ЧЕРЕЗ PROFILEEVALUATOR")
             logger.info("="*85)
-            
-            profile_comparison_data = {
-                "timestamp": str(time.strftime('%Y-%m-%d %H:%M:%S')),
-                "total_profiles_analyzed": 0,
-                "profiles": [],
-                "best_profile": None,
-                "average_coverage": 0.0
-            }
-            
-            profile_coverages = []
-            profile_details_list = []
-            
-            for profile_name in ["base", "dc", "top_dc"]:
-                target_level = profile_levels[profile_name]
+
+            # 1. Подготавливаем StudentProfile
+            profiles: dict[str, StudentProfile] = {}
+            profile_levels = {'base': 'junior', 'dc': 'middle', 'top_dc': 'senior'}
+
+            for profile_name, target_level_str in profile_levels.items():
                 student_codes = load_student_competencies(profile_name)
-                
                 if not student_codes:
-                    logger.warning(f"Профиль {profile_name} пуст - пропускаем в сводку")
+                    logger.warning(f"Профиль {profile_name} пуст")
                     continue
-                
+
                 student_skills = map_codes_to_skills(student_codes)
                 
-                # Получаем веса для уровня
-                profile_skill_weights = level_analyzer.get_weights_for_level(
-                    skill_weights,
-                    target_level
+                profiles[profile_name] = StudentProfile(
+                    profile_name=profile_name,
+                    competencies=student_codes,
+                    skills=student_skills,
+                    target_level=target_level_str
                 )
-                
-                # Создаём gap analyzer для этого профиля
-                profile_gap_analyzer = GapAnalyzer(profile_skill_weights)
-                
-                # Анализируем
-                score, confidence = recommendation_engine.comparator.compare(student_skills)
-                gaps = profile_gap_analyzer.analyze_gap(student_skills)
-                coverage, _ = profile_gap_analyzer.coverage(student_skills)
-                
-                profile_detail = {
-                    "profile": profile_name,
-                    "level": target_level,
-                    "score": round(score, 4),
-                    "confidence": round(confidence, 4),
-                    "coverage": round(coverage, 2),
-                    "high_gaps": len(gaps['high_priority']),
-                    "medium_gaps": len(gaps['medium_priority']),
-                    "low_gaps": len(gaps['low_priority'])
-                }
-                
-                profile_comparison_data['profiles'].append(profile_detail)
-                profile_coverages.append(coverage)
-                profile_details_list.append(profile_detail)
-                
-                logger.info(f"✓ Добавлена сводка для {profile_name}: coverage={coverage:.2f}%")
-            
-            # Заполняем общие статистики
-            profile_comparison_data['total_profiles_analyzed'] = len(profile_comparison_data['profiles'])
-            
-            if profile_coverages:
-                profile_comparison_data['average_coverage'] = round(sum(profile_coverages) / len(profile_coverages), 2)
-                
-                # Находим best profile по coverage
-                best_idx = profile_coverages.index(max(profile_coverages))
-                profile_comparison_data['best_profile'] = profile_details_list[best_idx]
-            
-            # Сохраняем сводку
-            summary_path = config.DATA_DIR / "processed" / "profiles_comparison_summary.json"
-            with open(summary_path, "w", encoding="utf-8") as f:
-                json.dump(profile_comparison_data, f, ensure_ascii=False, indent=2)
-            
-            logger.info(f"✅ Сводка по профилям сохранена в {summary_path}")
-            logger.info(f"   Total profiles: {profile_comparison_data['total_profiles_analyzed']}")
-            logger.info(f"   Average coverage: {profile_comparison_data['average_coverage']}%")
-            if profile_comparison_data['best_profile']:
-                logger.info(f"   Best profile: {profile_comparison_data['best_profile']['profile']} ({profile_comparison_data['best_profile']['coverage']}%)")
 
+            # 2. Level-specific weights
+            skill_weights_by_level = {}
+            for level in ['junior', 'middle', 'senior']:
+                skill_weights_by_level[level] = level_analyzer.get_weights_for_level(
+                    skill_weights, level
+                )
+
+            # 3. Запускаем evaluator
+            evaluator = ProfileEvaluator(
+                skill_weights=skill_weights,
+                vacancies_skills=vacancies_skills
+            )
+
+            comparison = evaluator.evaluate_multiple_profiles(
+                profiles=profiles,
+                level_analyzer=level_analyzer,
+                skill_weights_by_level=skill_weights_by_level
+            )
+
+            # 4. Сохраняем сводку (используем встроенный .to_dict_for_json() + добавляем текстовую сводку)
+            summary_path = config.DATA_DIR / "processed" / "profiles_comparison_summary.json"
+
+            # Генерируем красивую текстовую сводку (чтобы ничего не потерять)
+            summary_text = (
+                f"Сравнение {len(comparison.evaluations)} профилей студентов\n"
+                f"Средняя готовность: {comparison.average_readiness:.1f}%\n"
+                f"Лучший профиль: {comparison.best_evaluation.profile_name} "
+                f"({comparison.best_evaluation.level}) — {comparison.best_evaluation.readiness_score:.1f}%\n\n"
+                f"Рекомендация для лучшего профиля:\n{comparison.best_evaluation.recommendation}"
+            )
+
+            summary_dict = comparison.to_dict_for_json()
+            summary_dict["summary_text"] = summary_text          # добавляем текстовую сводку
+            summary_dict["timestamp"] = time.strftime('%Y-%m-%d %H:%M:%S')
+
+            with open(summary_path, "w", encoding="utf-8") as f:
+                json.dump(summary_dict, f, ensure_ascii=False, indent=2)
+
+            logger.info(f"✅ profiles_comparison_summary.json сохранён → {summary_path}")
+            logger.info("\n" + "="*60)
+            logger.info(summary_text)
+            logger.info("="*60)
             # === СОЗДАНИЕ ГРАФИКОВ ===
             if results_for_charts:
                 logger.info("\n" + "="*85)
