@@ -147,6 +147,10 @@ class SkillParser:
             return []
         
         text = text[:max_text_length]
+                # === очистка HTML ===
+        text = re.sub(r'<[^>]+>', ' ', text)          # удаляем все теги
+        text = re.sub(r'\s+', ' ', text).strip()      # схлопываем пробелы
+        text = text.replace('strong', '')             # убираем остатки "strong"
         self.stats.text_length_processed += len(text)
         
         skills = []
