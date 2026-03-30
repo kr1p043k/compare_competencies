@@ -26,8 +26,8 @@ class ProfileEvaluator:
     # Коэффициенты сложности для каждого уровня
     LEVEL_DIFFICULTY = {
         'junior': 1.0,    # базовый уровень
-        'middle': 1.2,    # 20% выше требования
-        'senior': 1.5     # 50% выше требования
+        'middle': 1.1,    # 20% выше требования
+        'senior': 1.25     # 50% выше требования
     }
     
     def __init__(self, skill_weights: Dict[str, float], vacancies_skills: List[List[str]]):
@@ -178,24 +178,27 @@ class ProfileEvaluator:
         return comparison
     
     def _get_or_create_comparator(self, target_level: str, level_analyzer) -> CompetencyComparator:
-        """Получает или создаёт comparator для уровня"""
+        """Получает или создаёт level-specific comparator с embeddings"""
         if target_level in self.comparators:
             return self.comparators[target_level]
-        
-        logger.info(f"Создаём comparator для уровня {target_level}...")
-        
+
+        logger.info(f"Создаём level-specific Embedding Comparator для {target_level}...")
+
         comparator = CompetencyComparator(
-            ngram_range=(1, 2),
-            min_df=1,
-            max_df=0.95
+            use_embeddings=True,      # ← ВКЛЮЧАЕМ embeddings
+            level=target_level
         )
-        comparator.fit(self.vacancies_skills)
         
+        # fit_market вызывается здесь — каждый уровень получает свой кэш
+        success = comparator.fit_market(self.vacancies_skills)
+        
+        if success:
+            logger.info(f"  ✓ {target_level} comparator успешно обучен (embeddings)")
+        else:
+            logger.warning(f"  ⚠️ Не удалось обучить {target_level} comparator")
+
         self.comparators[target_level] = comparator
-        logger.info(f"  ✓ Comparator для {target_level} готов")
-        
         return comparator
-    
     def _calculate_readiness(
         self, 
         score: float, 
