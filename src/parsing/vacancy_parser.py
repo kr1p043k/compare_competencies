@@ -1,5 +1,6 @@
 """
 Парсер вакансий с поддержкой как старых dict, так и новых типизированных моделей.
+Исправленная версия с корректным подсчётом частот навыков.
 """
 
 import json
@@ -24,6 +25,7 @@ class VacancyParser:
     """
     Парсер вакансий - совместим с обоими форматами (dict и Vacancy объекты).
     Теперь использует новые парсер, валидатор и нормализатор.
+    Исправлен подсчёт частот навыков (считает вхождения, а не уникальные навыки).
     """
 
     def __init__(self):
@@ -76,7 +78,7 @@ class VacancyParser:
         logger.info(f"Частоты навыков сохранены в {filepath} (навыков: {len(frequencies)})")
 
     # =========================================================================
-    # ИЗВЛЕЧЕНИЕ НАВЫКОВ
+    # ИЗВЛЕЧЕНИЕ НАВЫКОВ (ИСПРАВЛЕННАЯ ВЕРСИЯ)
     # =========================================================================
 
     def extract_skills_from_vacancies(
@@ -84,43 +86,69 @@ class VacancyParser:
         vacancies: Union[List[Dict], List[Vacancy]]
     ) -> Dict[str, int]:
         """
-        Извлекает навыки с НОРМАЛИЗАЦИЕЙ для TF-IDF анализа.
+        Извлекает навыки с ПОДСЧЁТОМ ЧАСТОТ (сколько раз навык встречается во всех вакансиях)
         
         Порядок обработки:
-        1. Парсинг (извлечение всех найденных навыков)
+        1. Парсинг (извлечение всех найденных навыков с дубликатами)
         2. Нормализация (python3 -> python)
         3. Валидация (удаление мусора)
-        4. Дедупликация (удаление дубликатов)
-        5. Подсчёт частоты
+        4. Подсчёт частоты (сколько раз каждый навык встречается)
+        5. Возврат словаря {навык: частота}
+        
+        Args:
+            vacancies: Список вакансий (dict или Vacancy объекты)
+        
+        Returns:
+            Словарь {навык: частота упоминаний}
         """
-        all_extracted_skills = []
+        logger.info(f"Начинаем извлечение навыков из {len(vacancies)} вакансий...")
         
         # Конвертируем в Vacancy если нужно
         vacancy_objects = []
+        invalid_count = 0
         for vac in vacancies:
             if isinstance(vac, dict):
                 try:
                     vacancy_objects.append(Vacancy.from_api(vac))
                 except ValueError as e:
-                    logger.warning(f"Невалидная вакансия: {e}")
+                    logger.debug(f"Невалидная вакансия: {e}")
+                    invalid_count += 1
                     continue
             else:
                 vacancy_objects.append(vac)
         
-        # === ШАГ 1: ПАРСИНГ ===
+        if invalid_count > 0:
+            logger.warning(f"Пропущено {invalid_count} невалидных вакансий")
+        
+        logger.info(f"Обрабатывается {len(vacancy_objects)} валидных вакансий")
+        
+        # === ШАГ 1: ПАРСИНГ (собираем ВСЕ навыки, включая дубликаты) ===
+        all_extracted_skills = []
+        vacancies_with_skills = 0
+        
         for vacancy in vacancy_objects:
             extracted = self.skill_parser.parse_vacancy(vacancy)
-            all_extracted_skills.extend(extracted)
+            if extracted:
+                vacancies_with_skills += 1
+                all_extracted_skills.extend(extracted)
         
-        logger.info(f"Парсинг завершён: {self.skill_parser.get_stats()}")
+        logger.info(f"Парсинг завершён:")
+        logger.info(f"  - Вакансий с навыками: {vacancies_with_skills}/{len(vacancy_objects)}")
+        logger.info(f"  - Извлечено сырых навыков: {len(all_extracted_skills)}")
         
-        # === ШАГ 2: НОРМАЛИЗАЦИЯ ===
+        if not all_extracted_skills:
+            logger.warning("Не удалось извлечь ни одного навыка!")
+            return {}
+        
+        # === ШАГ 2: НОРМАЛИЗАЦИЯ (приводим к единому формату) ===
         skill_texts = [s.text for s in all_extracted_skills]
         normalized_skills = SkillNormalizer.normalize_batch(skill_texts)
         
-        logger.info(f"После нормализации: {len(set(normalized_skills))} уникальных навыков")
+        unique_before_norm = len(set(skill_texts))
+        unique_after_norm = len(set(normalized_skills))
+        logger.info(f"Нормализация: {unique_before_norm} → {unique_after_norm} уникальных")
         
-        # === ШАГ 3: ВАЛИДАЦИЯ ===
+        # === ШАГ 3: ВАЛИДАЦИЯ (удаляем мусор) ===
         valid_skills, validation_results = self.skill_validator.validate_batch(normalized_skills)
         
         rejection_report = self.skill_validator.get_rejection_report(validation_results)
@@ -128,19 +156,120 @@ class VacancyParser:
         logger.info(f"  - Всего проверено: {rejection_report['total_validated']}")
         logger.info(f"  - Валидных: {rejection_report['valid']}")
         logger.info(f"  - Отклонено: {rejection_report['rejected']}")
+        
         if rejection_report['rejection_reasons']:
             logger.info(f"  - Причины отклонений: {rejection_report['rejection_reasons']}")
         
-        # === ШАГ 4: ДЕДУПЛИКАЦИЯ ===
-        unique_skills = SkillNormalizer.deduplicate(valid_skills)
-        logger.info(f"После дедупликации: {len(unique_skills)} навыков")
+        if not valid_skills:
+            logger.warning("После валидации не осталось ни одного навыка!")
+            return {}
         
-        # === ШАГ 5: ПОДСЧЁТ ЧАСТОТЫ ===
-        skill_freq = Counter(unique_skills)
+        # === ШАГ 4: ПОДСЧЁТ ЧАСТОТЫ (важно: считаем количество вхождений, а не уникальных) ===
+        skill_freq = Counter(valid_skills)
         
-        logger.info(f"Итого: {len(skill_freq)} уникальных валидных навыков")
+        # === ШАГ 5: ФИЛЬТРАЦИЯ ПО МИНИМАЛЬНОЙ ЧАСТОТЕ (опционально) ===
+        # Удаляем навыки, которые встречаются слишком редко (меньше 3 раз)
+        min_frequency = 3
+        filtered_freq = {k: v for k, v in skill_freq.items() if v >= min_frequency}
         
-        return dict(skill_freq)
+        removed_rare = len(skill_freq) - len(filtered_freq)
+        if removed_rare > 0:
+            logger.info(f"Удалено редких навыков (менее {min_frequency} упоминаний): {removed_rare}")
+        
+        # === ИТОГОВАЯ СТАТИСТИКА ===
+        total_occurrences = sum(filtered_freq.values())
+        logger.info(f"\n{'='*60}")
+        logger.info(f"ИТОГОВАЯ СТАТИСТИКА ИЗВЛЕЧЕНИЯ НАВЫКОВ:")
+        logger.info(f"{'='*60}")
+        logger.info(f"  Уникальных навыков: {len(filtered_freq)}")
+        logger.info(f"  Всего упоминаний: {total_occurrences}")
+        logger.info(f"  Средняя частота: {total_occurrences / len(filtered_freq):.1f}")
+        
+        # Выводим топ-20 для проверки
+        top_skills = sorted(filtered_freq.items(), key=lambda x: x[1], reverse=True)[:20]
+        logger.info(f"\nТОП-20 НАВЫКОВ ПО ЧАСТОТЕ:")
+        for i, (skill, count) in enumerate(top_skills, 1):
+            logger.info(f"  {i:2}. {skill:<30} → {count:>3} упоминаний")
+        
+        return filtered_freq
+
+    # =========================================================================
+    # МЕТОД ДЛЯ ОТЛАДКИ (показывает статистику по источникам навыков)
+    # =========================================================================
+
+    def extract_skills_with_stats(
+        self,
+        vacancies: Union[List[Dict], List[Vacancy]]
+    ) -> Dict[str, Any]:
+        """
+        Расширенная версия extract_skills_from_vacancies с подробной статистикой.
+        Возвращает словарь с навыками и метаданными.
+        
+        Returns:
+            {
+                'frequencies': Dict[str, int],
+                'stats': {
+                    'total_extracted': int,
+                    'by_source': Dict[str, int],
+                    'by_confidence': Dict[str, int]
+                }
+            }
+        """
+        # Конвертируем в Vacancy если нужно
+        vacancy_objects = []
+        for vac in vacancies:
+            if isinstance(vac, dict):
+                try:
+                    vacancy_objects.append(Vacancy.from_api(vac))
+                except ValueError:
+                    continue
+            else:
+                vacancy_objects.append(vac)
+        
+        # Собираем все навыки с метаданными
+        all_skills = []
+        stats_by_source = Counter()
+        stats_by_confidence = Counter()
+        
+        for vacancy in vacancy_objects:
+            extracted = self.skill_parser.parse_vacancy(vacancy)
+            for skill in extracted:
+                all_skills.append(skill)
+                stats_by_source[skill.source.value] += 1
+                # Категоризируем по уверенности
+                if skill.confidence >= 0.9:
+                    stats_by_confidence['high'] += 1
+                elif skill.confidence >= 0.7:
+                    stats_by_confidence['medium'] += 1
+                else:
+                    stats_by_confidence['low'] += 1
+        
+        # Нормализуем и валидируем
+        skill_texts = [s.text for s in all_skills]
+        normalized = SkillNormalizer.normalize_batch(skill_texts)
+        valid, _ = self.skill_validator.validate_batch(normalized)
+        
+        # Подсчитываем частоты
+        skill_freq = Counter(valid)
+        
+        logger.info(f"\n{'='*60}")
+        logger.info("ДЕТАЛЬНАЯ СТАТИСТИКА ИЗВЛЕЧЕНИЯ:")
+        logger.info(f"{'='*60}")
+        logger.info(f"Источники навыков:")
+        for source, count in stats_by_source.most_common():
+            logger.info(f"  {source}: {count}")
+        logger.info(f"\nУверенность извлечения:")
+        for level, count in stats_by_confidence.items():
+            logger.info(f"  {level}: {count}")
+        
+        return {
+            'frequencies': dict(skill_freq),
+            'stats': {
+                'total_extracted': len(all_skills),
+                'by_source': dict(stats_by_source),
+                'by_confidence': dict(stats_by_confidence)
+            }
+        }
 
     # =========================================================================
     # СТАРЫЕ МЕТОДЫ (для обратной совместимости)

@@ -1,48 +1,48 @@
 {
-  "timestamp": "2026-03-31 02:22:18",
+  "timestamp": "2026-03-31 04:13:03",
   "total_profiles_analyzed": 3,
-  "average_readiness": 14.87,
+  "average_readiness": 22.03,
   "best_profile": {
-    "profile": "top_dc",
-    "level": "senior",
-    "readiness_score": 16.95,
-    "adjusted_coverage": 14.29,
-    "recommendation": "❌ Недостаточно готов к senior"
+    "profile": "dc",
+    "level": "middle",
+    "readiness_score": 28.58,
+    "adjusted_coverage": 18.92,
+    "recommendation": "❌ Недостаточно готов к middle"
   },
   "profiles": [
     {
       "profile": "base",
       "level": "junior",
-      "readiness_score": 13.88,
-      "coverage_raw": 3.88,
-      "coverage_adjusted": 3.88,
-      "high_gaps": 20,
-      "medium_gaps": 0,
-      "low_gaps": 0,
+      "readiness_score": 17.9,
+      "coverage_raw": 9.56,
+      "coverage_adjusted": 9.56,
+      "high_gaps": 9,
+      "medium_gaps": 6,
+      "low_gaps": 8,
       "recommendation": "❌ Недостаточно готов к junior"
     },
     {
       "profile": "dc",
       "level": "middle",
-      "readiness_score": 13.78,
-      "coverage_raw": 11.3,
-      "coverage_adjusted": 10.28,
-      "high_gaps": 20,
-      "medium_gaps": 0,
+      "readiness_score": 28.58,
+      "coverage_raw": 20.82,
+      "coverage_adjusted": 18.92,
+      "high_gaps": 6,
+      "medium_gaps": 8,
       "low_gaps": 8,
       "recommendation": "❌ Недостаточно готов к middle"
     },
     {
       "profile": "top_dc",
       "level": "senior",
-      "readiness_score": 16.95,
-      "coverage_raw": 17.86,
-      "coverage_adjusted": 14.29,
-      "high_gaps": 20,
-      "medium_gaps": 0,
-      "low_gaps": 0,
+      "readiness_score": 19.62,
+      "coverage_raw": 16.24,
+      "coverage_adjusted": 12.99,
+      "high_gaps": 9,
+      "medium_gaps": 5,
+      "low_gaps": 6,
       "recommendation": "❌ Недостаточно готов к senior"
     }
   ],
-  "summary_text": "Сравнение 3 профилей студентов\nСредняя готовность: 14.9%\nЛучший профиль: top_dc (senior) — 17.0%\n\nРекомендация для лучшего профиля:\n❌ Недостаточно готов к senior"
+  "summary_text": "Сравнение 3 профилей студентов\nСредняя готовность: 22.0%\nЛучший профиль: dc (middle) — 28.6%\n\nРекомендация для лучшего профиля:\n❌ Недостаточно готов к middle"
 }
