@@ -1,11 +1,20 @@
 # src/parsing/utils.py
+from __future__ import annotations
+
 import json
 import logging
 import re
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
-from collections import Counter
+
+# Только для проверки типов (не выполняется в runtime → нет цикла)
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .skill_normalizer import SkillNormalizer
+    from .vacancy_parser import VacancyParser
+    from .skill_validator import SkillValidator, ValidationReason
 
 from src import config
 
@@ -14,10 +23,8 @@ from src import config
 # Базовые утилиты (логирование, чтение/запись JSON)
 # ----------------------------------------------------------------------
 
-def setup_logging():
-    """
-    Настраивает логирование: вывод в консоль (INFO) и в файл (DEBUG).
-    """
+def setup_logging() -> None:
+    """Настраивает логирование: вывод в консоль (INFO) и в файл (DEBUG)."""
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
@@ -42,16 +49,23 @@ def read_json(filepath: Path) -> Any:
     """Безопасно читает JSON-файл."""
     logger = logging.getLogger(__name__)
     logger.debug(f"Чтение JSON из {filepath}")
-    with open(filepath, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Ошибка чтения {filepath}: {e}")
+        return None
 
 
-def write_json(data: Any, filepath: Path):
+def write_json(data: Any, filepath: Path) -> None:
     """Безопасно записывает данные в JSON-файл."""
     logger = logging.getLogger(__name__)
     logger.debug(f"Запись JSON в {filepath}")
-    with open(filepath, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Ошибка записи в {filepath}: {e}")
 
 
 # ----------------------------------------------------------------------
@@ -59,10 +73,7 @@ def write_json(data: Any, filepath: Path):
 # ----------------------------------------------------------------------
 
 def load_it_skills() -> Set[str]:
-    """
-    Загружает список допустимых IT-навыков из файла data/it_skills.json.
-    Возвращает множество строк в нижнем регистре.
-    """
+    """Загружает список допустимых IT-навыков из data/it_skills.json."""
     logger = logging.getLogger(__name__)
     skills_file = config.DATA_DIR / "it_skills.json"
     if not skills_file.exists():
@@ -83,15 +94,13 @@ def load_it_skills() -> Set[str]:
 
 
 def filter_skills_by_whitelist(skills_dict: Dict[str, int], whitelist: Set[str]) -> Dict[str, int]:
-    """
-    Оставляет в словаре только те навыки, которые присутствуют в whitelist.
-    """
+    """Оставляет только навыки из whitelist."""
     if not whitelist:
         return skills_dict.copy()
-    filtered = {}
-    for skill, count in skills_dict.items():
-        if skill.lower().strip() in whitelist:
-            filtered[skill] = count
+    filtered = {
+        skill: count for skill, count in skills_dict.items()
+        if skill.lower().strip() in whitelist
+    }
     logger = logging.getLogger(__name__)
     logger.info(f"Фильтрация: осталось {len(filtered)} навыков из {len(skills_dict)}")
     return filtered
@@ -110,10 +119,7 @@ def collect_vacancies_multiple(
     industry: Optional[int] = None,
     max_vacancies_per_query: int = 1000
 ) -> List[Dict[str, Any]]:
-    """
-    Собирает вакансии по комбинациям запросов и регионов,
-    возвращает список уникальных вакансий.
-    """
+    """Собирает вакансии по комбинациям запросов и регионов."""
     all_vacancies = []
     seen_ids: Set[str] = set()
     logger = logging.getLogger("collector")
@@ -318,21 +324,20 @@ def normalize_skill_for_matching(skill: str) -> str:
     return normalized
 
 
-def extract_and_count_skills(vacancies: List[Dict], parser) -> Dict[str, int]:
-    """Извлекает навыки из вакансий и возвращает словарь частот."""
+def extract_and_count_skills(
+    vacancies: List[Dict[str, Any]],
+    parser: "VacancyParser"
+) -> Dict[str, Any]:   # теперь возвращает dict с frequencies + tfidf_weights
     logger = logging.getLogger(__name__)
-    all_skills = parser.extract_skills(vacancies)
-    if not all_skills:
-        logger.info("key_skills не найдены, пробуем извлечь из текста...")
-        all_skills = parser.extract_skills_from_text(vacancies)
-    if not all_skills:
-        logger.warning("Не удалось извлечь навыки.")
-        return {}
-    logger.info(f"Извлечено {len(all_skills)} сырых навыков")
-    skill_freq = parser.count_skills(all_skills)
-    logger.info(f"Уникальных навыков после нормализации: {len(skill_freq)}")
-    return skill_freq
 
+    if not vacancies:
+        return {"frequencies": {}, "tfidf_weights": {}}
+
+    try:
+        return parser.extract_skills_from_vacancies(vacancies)
+    except Exception as e:
+        logger.error(f"Ошибка: {e}")
+        return {"frequencies": {}, "tfidf_weights": {}}
 
 def map_to_competencies(
     skill_frequencies: Dict[str, int],

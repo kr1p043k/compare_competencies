@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional, Union
 import logging
 import pandas as pd
 from pathlib import Path
-
+from sklearn.feature_extraction.text import TfidfVectorizer
 from src import config
 from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
 from src.models.vacancy import Vacancy
@@ -78,69 +78,101 @@ class VacancyParser:
     # =========================================================================
     # ИЗВЛЕЧЕНИЕ НАВЫКОВ
     # =========================================================================
-
+    def extract_skills_from_description(self, description: str) -> List[str]:
+        """Извлекает навыки ТОЛЬКО из описания (для старого utils.py)"""
+        if not description:
+            return []
+        extracted = self.skill_parser._extract_from_text(
+            description, source=self.skill_parser.SkillSource.DESCRIPTION
+        )
+        return [skill.text for skill in extracted]
+    
     def extract_skills_from_vacancies(
-        self,
-        vacancies: Union[List[Dict], List[Vacancy]]
-    ) -> Dict[str, int]:
+        self, vacancies: Union[List[Dict], List[Vacancy]]
+    ) -> Dict[str, Any]:
         """
-        Извлекает навыки с НОРМАЛИЗАЦИЕЙ для TF-IDF анализа.
-        
-        Порядок обработки:
-        1. Парсинг (извлечение всех найденных навыков)
-        2. Нормализация (python3 -> python)
-        3. Валидация (удаление мусора)
-        4. Дедупликация (удаление дубликатов)
-        5. Подсчёт частоты
+        Возвращает:
+            {
+                "frequencies": {навык: количество_упоминаний},
+                "tfidf_weights": {навык: вес}
+            }
         """
         all_extracted_skills = []
-        
-        # Конвертируем в Vacancy если нужно
+
+        # Конвертируем в Vacancy объекты
         vacancy_objects = []
         for vac in vacancies:
             if isinstance(vac, dict):
                 try:
                     vacancy_objects.append(Vacancy.from_api(vac))
-                except ValueError as e:
-                    logger.warning(f"Невалидная вакансия: {e}")
+                except ValueError:
                     continue
             else:
                 vacancy_objects.append(vac)
-        
+
         # === ШАГ 1: ПАРСИНГ ===
         for vacancy in vacancy_objects:
             extracted = self.skill_parser.parse_vacancy(vacancy)
             all_extracted_skills.extend(extracted)
-        
+
         logger.info(f"Парсинг завершён: {self.skill_parser.get_stats()}")
-        
+
         # === ШАГ 2: НОРМАЛИЗАЦИЯ ===
         skill_texts = [s.text for s in all_extracted_skills]
         normalized_skills = SkillNormalizer.normalize_batch(skill_texts)
-        
-        logger.info(f"После нормализации: {len(set(normalized_skills))} уникальных навыков")
-        
+
         # === ШАГ 3: ВАЛИДАЦИЯ ===
         valid_skills, validation_results = self.skill_validator.validate_batch(normalized_skills)
-        
+
         rejection_report = self.skill_validator.get_rejection_report(validation_results)
-        logger.info(f"Валидация завершена:")
-        logger.info(f"  - Всего проверено: {rejection_report['total_validated']}")
-        logger.info(f"  - Валидных: {rejection_report['valid']}")
-        logger.info(f"  - Отклонено: {rejection_report['rejected']}")
-        if rejection_report['rejection_reasons']:
-            logger.info(f"  - Причины отклонений: {rejection_report['rejection_reasons']}")
-        
-        # === ШАГ 4: ДЕДУПЛИКАЦИЯ ===
-        unique_skills = SkillNormalizer.deduplicate(valid_skills)
-        logger.info(f"После дедупликации: {len(unique_skills)} навыков")
-        
-        # === ШАГ 5: ПОДСЧЁТ ЧАСТОТЫ ===
-        skill_freq = Counter(unique_skills)
-        
-        logger.info(f"Итого: {len(skill_freq)} уникальных валидных навыков")
-        
-        return dict(skill_freq)
+        logger.info(f"Валидация: {rejection_report['valid']}/{rejection_report['total_validated']} валидных")
+
+        # === ШАГ 4: ПОДСЧЁТ ЧАСТОТЫ (ИСПРАВЛЕНО!) ===
+        # НЕ дедуплицируем перед Counter — считаем все реальные вхождения
+        skill_freq = Counter(valid_skills)
+
+        # === ШАГ 5: TF-IDF ВЕСА ===
+        tfidf_weights = self._calculate_tfidf_weights(vacancies)
+
+        logger.info(f"Итого: {len(skill_freq)} навыков | TF-IDF весов: {len(tfidf_weights)}")
+
+        return {
+            "frequencies": dict(skill_freq),
+            "tfidf_weights": tfidf_weights
+        }
+    def _calculate_tfidf_weights(self, vacancies: List) -> Dict[str, float]:
+        """Расчёт TF-IDF весов по всем вакансиям"""
+        texts = []
+        for vac in vacancies:
+            if isinstance(vac, Vacancy):
+                desc = vac.description or ""
+                key_skills = " ".join(s.name for s in vac.key_skills)
+            else:
+                desc = vac.get("description", "") or ""
+                key_skills = " ".join(s.get("name", "") for s in vac.get("key_skills", []))
+            texts.append(desc + " " + key_skills)
+
+        if not texts:
+            return {}
+
+        try:
+            vectorizer = TfidfVectorizer(
+                lowercase=True,
+                min_df=1,
+                token_pattern=r'(?u)\b\w[\w\+\-\#]+\b'
+            )
+            tfidf_matrix = vectorizer.fit_transform(texts)
+            feature_names = vectorizer.get_feature_names_out()
+
+            weights = {}
+            for i, skill in enumerate(feature_names):
+                weight = float(tfidf_matrix[:, i].mean())
+                if weight > 0.05:  # порог, чтобы не засорять
+                    weights[skill] = round(weight, 4)
+            return weights
+        except Exception as e:
+            logger.warning(f"TF-IDF не рассчитан: {e}")
+            return {}
 
     # =========================================================================
     # СТАРЫЕ МЕТОДЫ (для обратной совместимости)
