@@ -1,48 +1,48 @@
 {
-  "timestamp": "2026-03-31 02:22:18",
+  "timestamp": "2026-04-06 02:44:35",
   "total_profiles_analyzed": 3,
-  "average_readiness": 14.87,
+  "average_readiness": 13.8,
   "best_profile": {
     "profile": "top_dc",
     "level": "senior",
-    "readiness_score": 16.95,
-    "adjusted_coverage": 14.29,
+    "readiness_score": 15.28,
+    "adjusted_coverage": 15.89,
     "recommendation": "❌ Недостаточно готов к senior"
   },
   "profiles": [
     {
       "profile": "base",
       "level": "junior",
-      "readiness_score": 13.88,
-      "coverage_raw": 3.88,
-      "coverage_adjusted": 3.88,
+      "readiness_score": 12.13,
+      "coverage_raw": 10.13,
+      "coverage_adjusted": 10.13,
       "high_gaps": 20,
-      "medium_gaps": 0,
-      "low_gaps": 0,
+      "medium_gaps": 20,
+      "low_gaps": 20,
       "recommendation": "❌ Недостаточно готов к junior"
     },
     {
       "profile": "dc",
       "level": "middle",
-      "readiness_score": 13.78,
-      "coverage_raw": 11.3,
-      "coverage_adjusted": 10.28,
+      "readiness_score": 13.98,
+      "coverage_raw": 14.62,
+      "coverage_adjusted": 13.29,
       "high_gaps": 20,
-      "medium_gaps": 0,
-      "low_gaps": 8,
+      "medium_gaps": 20,
+      "low_gaps": 20,
       "recommendation": "❌ Недостаточно готов к middle"
     },
     {
       "profile": "top_dc",
       "level": "senior",
-      "readiness_score": 16.95,
-      "coverage_raw": 17.86,
-      "coverage_adjusted": 14.29,
+      "readiness_score": 15.28,
+      "coverage_raw": 19.86,
+      "coverage_adjusted": 15.89,
       "high_gaps": 20,
-      "medium_gaps": 0,
-      "low_gaps": 0,
+      "medium_gaps": 20,
+      "low_gaps": 20,
       "recommendation": "❌ Недостаточно готов к senior"
     }
   ],
-  "summary_text": "Сравнение 3 профилей студентов\nСредняя готовность: 14.9%\nЛучший профиль: top_dc (senior) — 17.0%\n\nРекомендация для лучшего профиля:\n❌ Недостаточно готов к senior"
+  "summary_text": "Сравнение 3 профилей студентов\nСредняя готовность: 13.8%\nЛучший профиль: top_dc (senior) — 15.3%\n\nРекомендация для лучшего профиля:\n❌ Недостаточно готов к senior"
 }
