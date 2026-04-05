@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 import json
-
+from typing import List, Dict, Any, Optional
 # Windows UTF-8 fix
 if sys.platform == 'win32':
     import io
@@ -328,62 +328,72 @@ def main():
                 logger=logger
             )
 
-    # ====================== 2. ОБРАБОТКА НАВЫКОВ ======================
+        # ====================== 2. ОБРАБОТКА НАВЫКОВ (НОВАЯ ВЕРСИЯ) ======================
     logger.info("=" * 85)
     logger.info("ИЗВЛЕЧЕНИЕ И ВАЛИДАЦИЯ НАВЫКОВ")
     logger.info("=" * 85)
-    
-    skill_freq = parser.extract_skills_from_vacancies(vacancies_to_process)
-    
+
+        # Новая версия парсера возвращает словарь с frequencies и tfidf_weights
+    result = parser.extract_skills_from_vacancies(vacancies_to_process)
+
+    skill_freq: Dict[str, int] = result["frequencies"]
+    tfidf_weights: Dict[str, float] = result.get("tfidf_weights", {})
+
     if not skill_freq:
         logger.error("Не удалось извлечь навыки.")
         return
 
+    logger.info(f"Извлечено {len(skill_freq)} уникальных валидных навыков "
+                f"(TF-IDF весов: {len(tfidf_weights)})")
+
+        # ====================== СОХРАНЕНИЕ ======================
     parser.save_processed_frequencies(skill_freq, apply_filter=not args.no_filter)
+
+        # ====================== ВЫВОД ======================
     print_top_skills(skill_freq)
 
+        # === ДОПОЛНИТЕЛЬНЫЙ ВЫВОД TF-IDF ВЕСОВ ===
+    if tfidf_weights:
+        print("\n" + "=" * 70)
+        print("ТОП-15 НАВЫКОВ ПО TF-IDF ВЕСУ")
+        print("=" * 70)
+        top_weights = sorted(tfidf_weights.items(), key=lambda x: x[1], reverse=True)[:15]
+        for i, (skill, weight) in enumerate(top_weights, 1):
+            print(f"{i:2}. {skill:<45} {weight:.4f}")
+
+        # ====================== МАППИНГ КОМПЕТЕНЦИЙ ======================
     try:
         mapping = load_competency_mapping()
         if mapping:
-            comp_counter = map_to_competencies(skill_freq, mapping)
+            comp_counter = map_to_competencies(skill_freq, mapping)   # передаём только frequencies!
+
             if comp_counter:
-                # === ОЧИЩАЕМ ПЕРЕД СОХРАНЕНИЕМ ===
                 filter_engine = SkillFilter()
-                
-                # Фильтруем competency_counter
                 cleaned_comp = {}
+
                 for skill, count in comp_counter.most_common():
                     skill_clean = skill.lower().strip()
-                    if skill_clean == "frontend":
-                        print("DEBUG: frontend source:", skill, "=>", count)
-                    # Исключаем generic слова
                     if skill_clean in filter_engine.GENERIC_WORDS:
                         logger.debug(f"  ⊘ удаляем generic: '{skill}'")
                         continue
-                    
-                    # Исключаем bigrams (если надо)
-                    # (опционально - зависит от ваших требований)
-                    
                     cleaned_comp[skill_clean] = count
-                
-                # === Добавь ПЕЧАТЬ для отладки после фильтрации ===
-                print([k for k in cleaned_comp if k in filter_engine.GENERIC_WORDS])
-                logger.info(f"📝 CHECK: generic words после фильтрации: {[k for k in cleaned_comp if k in filter_engine.GENERIC_WORDS]}")
-                
+
                 comp_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency_mapped.json"
                 with open(comp_freq_path, 'w', encoding='utf-8') as f:
                     json.dump(cleaned_comp, f, ensure_ascii=False, indent=2)
-                
-                logger.info(f"✓ Сохранено {len(cleaned_comp)} очищенных компетенций (удалено {len(comp_counter) - len(cleaned_comp)})")
+
+                logger.info(f"✓ Сохранено {len(cleaned_comp)} очищенных компетенций")
                 print_top_competencies(comp_counter)
 
     except Exception as e:
         logger.exception(f"Ошибка преобразования компетенций: {e}")
 
+        # ====================== EXCEL ======================
     if args.excel:
         df = parser.aggregate_to_dataframe(vacancies_to_process)
         if not df.empty:
-            filename = "vacancies_it_sector.xlsx" if getattr(args, 'it_sector', False) else f"vacancies_{args.query.replace(' ', '_')}.xlsx"
+            filename = "vacancies_it_sector.xlsx" if getattr(args, 'it_sector', False) else \
+                        f"vacancies_{args.query.replace(' ', '_')}.xlsx"
             parser.save_to_excel(df, filename)
 
 # ====================== 3. GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ ======================
