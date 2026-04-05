@@ -71,8 +71,8 @@ class SkillParser:
         "tensorflow", "pytorch", "keras", "scikit-learn", "pandas", "numpy",
         "postgresql", "postgres", "mysql", "mongodb", "redis", "elasticsearch",
         "docker", "kubernetes", "k8s", "jenkins", "git", "gitlab", "github",
-        "aws", "azure", "gcp", "yandex cloud",
-        "machine learning", "deep learning", "nlp", "data science", "big data", "etl",
+        "aws", "azure", "gcp", "yandex cloud", "c#", "csharp"
+        "machine learning", "deep learning", "nlp", "data science", "big data", "etl"
     }
     
     SKILL_MARKERS = [
