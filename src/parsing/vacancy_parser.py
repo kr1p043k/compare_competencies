@@ -9,7 +9,11 @@ from collections import Counter
 from typing import List, Dict, Any, Optional, Union
 import logging
 import pandas as pd
+import torch
 from pathlib import Path
+from sentence_transformers import SentenceTransformer
+import torch
+import numpy as np   # если ещё нет
 from sklearn.feature_extraction.text import TfidfVectorizer
 from src import config
 from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
@@ -34,6 +38,50 @@ class VacancyParser:
             whitelist=load_it_skills()
         )
 
+        # === ЗАГРУЗКА МОДЕЛИ ЭМБЕДДИНГОВ (один раз при создании парсера) ===
+        logger.info(f"🚀 Загрузка модели эмбеддингов: {config.EMBEDDING_MODEL}")
+        try:
+            self.embedding_model = SentenceTransformer(config.EMBEDDING_MODEL)
+            self.embedding_model.eval()   # режим inference
+            logger.info("✅ Модель эмбеддингов успешно загружена")
+        except Exception as e:
+            logger.error(f"❌ Не удалось загрузить модель эмбеддингов: {e}")
+            self.embedding_model = None   # чтобы не падало дальше
+    def _get_skill_embeddings(self, skills: List[str]) -> Dict[str, List[float]]:
+        """Генерирует эмбеддинги для списка навыков с кэшированием."""
+        if not skills:
+            return {}
+
+        cache_file = config.EMBEDDINGS_CACHE_DIR / "skill_embeddings.json"
+        
+        # Пытаемся загрузить кэш
+        if cache_file.exists():
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cache = json.load(f)
+                logger.info(f"Кэш эмбеддингов загружен ({len(cache)} навыков)")
+                # Возвращаем только нужные
+                return {s: cache[s] for s in skills if s in cache}
+            except Exception:
+                pass
+
+        # Вычисляем новые эмбеддинги
+        logger.info(f"Вычисление эмбеддингов для {len(skills)} навыков...")
+        with torch.no_grad():
+            embeddings = self.embedding_model.encode(
+                skills, 
+                convert_to_numpy=True, 
+                show_progress_bar=True,
+                batch_size=32
+            )
+
+        # Сохраняем в кэш
+        cache = {skill: emb.tolist() for skill, emb in zip(skills, embeddings)}
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+
+        logger.info("Эмбеддинги успешно вычислены и закэшированы")
+        return cache
     # =========================================================================
     # СОХРАНЕНИЕ
     # =========================================================================
@@ -95,15 +143,15 @@ class VacancyParser:
         """
         Возвращает:
             {
-                "frequencies": {навык: количество_упоминаний},
-                "tfidf_weights": {навык: вес}
+                "frequencies": {навык: count},
+                "tfidf_weights": {навык: вес},
+                "skill_embeddings": {навык: [0.12, -0.34, ...]}   ← НОВОЕ
             }
         """
+        # === 1. Парсинг + валидация (как было) ===
         all_extracted_skills = []
-
-        # Конвертируем в Vacancy объекты
         vacancy_objects = []
-        invalid_count = 0
+
         for vac in vacancies:
             if isinstance(vac, dict):
                 try:
@@ -113,35 +161,31 @@ class VacancyParser:
             else:
                 vacancy_objects.append(vac)
 
-        # === ШАГ 1: ПАРСИНГ ===
         for vacancy in vacancy_objects:
             extracted = self.skill_parser.parse_vacancy(vacancy)
             all_extracted_skills.extend(extracted)
 
         logger.info(f"Парсинг завершён: {self.skill_parser.get_stats()}")
 
-        # === ШАГ 2: НОРМАЛИЗАЦИЯ ===
         skill_texts = [s.text for s in all_extracted_skills]
         normalized_skills = SkillNormalizer.normalize_batch(skill_texts)
 
-        # === ШАГ 3: ВАЛИДАЦИЯ ===
         valid_skills, validation_results = self.skill_validator.validate_batch(normalized_skills)
-
-        rejection_report = self.skill_validator.get_rejection_report(validation_results)
-        logger.info(f"Валидация: {rejection_report['valid']}/{rejection_report['total_validated']} валидных")
-
-        # === ШАГ 4: ПОДСЧЁТ ЧАСТОТЫ (ИСПРАВЛЕНО!) ===
-        # НЕ дедуплицируем перед Counter — считаем все реальные вхождения
         skill_freq = Counter(valid_skills)
 
-        # === ШАГ 5: TF-IDF ВЕСА ===
+        # === 2. TF-IDF (как было) ===
         tfidf_weights = self._calculate_tfidf_weights(vacancies)
 
-        logger.info(f"Итого: {len(skill_freq)} навыков | TF-IDF весов: {len(tfidf_weights)}")
+        # === 3. ЭМБЕДДИНГИ (новое) ===
+        unique_valid_skills = list(skill_freq.keys())
+        skill_embeddings = self._get_skill_embeddings(unique_valid_skills)
+
+        logger.info(f"Итого навыков: {len(skill_freq)} | Эмбеддингов: {len(skill_embeddings)}")
 
         return {
             "frequencies": dict(skill_freq),
-            "tfidf_weights": tfidf_weights
+            "tfidf_weights": tfidf_weights,
+            "skill_embeddings": skill_embeddings          # ← КЛЮЧЕВОЕ ДОБАВЛЕНИЕ
         }
     def _calculate_tfidf_weights(self, vacancies: List) -> Dict[str, float]:
         """Расчёт TF-IDF весов по всем вакансиям"""
