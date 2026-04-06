@@ -71,6 +71,17 @@ class SkillParser:
         "tensorflow", "pytorch", "keras", "scikit-learn", "pandas", "numpy",
         "postgresql", "postgres", "mysql", "mongodb", "redis", "elasticsearch",
         "docker", "kubernetes", "k8s", "jenkins", "git", "gitlab", "github",
+        "aws", "azure", "gcp", "yandex cloud",
+        "machine learning", "deep learning", "nlp", "data science", "big data", "etl", "neural networks", "ml", "dl",
+    "data science", "data analysis", "data mining", "statistics",
+    "pandas", "numpy", "scipy", "matplotlib", "seaborn", "plotly",
+    "scikit-learn", "sklearn", "tensorflow", "keras", "pytorch",
+    "xgboost", "lightgbm", "catboost", "gradient boosting",
+    "nlp", "computer vision", "cv", "llm", "langchain",
+    "rag", "transformers", "bert", "gpt", "openai",
+    "etl", "data warehouse", "data lake", "big data",
+    "spark", "pyspark", "hadoop", "hive", "kafka",
+    "airflow", "mlflow", "dvc", "feature store",
         "aws", "azure", "gcp", "yandex cloud", "c#", "csharp"
         "machine learning", "deep learning", "nlp", "data science", "big data", "etl"
     }

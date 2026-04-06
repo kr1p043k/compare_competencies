@@ -22,6 +22,14 @@ class HeadHunterAPIAsync:
         self.batch_size = batch_size
         self.semaphore = asyncio.Semaphore(max_concurrent)
         self.last_request_time = 0
+        self.stats = {
+            'success': 0,
+            '403_errors': 0,
+            '404_errors': 0,
+            '429_errors': 0,
+            'timeouts': 0,
+            'other_errors': 0
+        }
 
     async def _throttle(self):
         """Соблюдает rate limit между запросами"""
@@ -53,9 +61,11 @@ class HeadHunterAPIAsync:
                     }
                 ) as resp:
                     if resp.status == 200:
+                        self.stats['success'] += 1
                         return await resp.json()
                     
                     elif resp.status == 429:
+                        self.stats['429_errors'] += 1
                         retry_after = int(resp.headers.get("Retry-After", 5))
                         logger.warning(f"Rate limited. Ждём {retry_after}с...")
                         await asyncio.sleep(retry_after)
@@ -67,28 +77,39 @@ class HeadHunterAPIAsync:
                             logger.error(f"Превышены попытки для {url}")
                             return None
                     
-                    elif resp.status == 404:
-                        logger.debug(f"Ресурс не найден (404): {url}")
+                    elif resp.status == 403:
+                        self.stats['403_errors'] += 1
+                        # 403 обычно означает, что вакансия удалена или недоступна
+                        # Не нужно повторять запрос, просто пропускаем
+                        vacancy_id = url.split('/')[-1]
+                        logger.debug(f"Вакансия {vacancy_id} недоступна (403)")
                         return None
                     
-                    elif resp.status == 403:
-                        logger.warning(f"Доступ запрещён (403): {url}")
+                    elif resp.status == 404:
+                        self.stats['404_errors'] += 1
+                        logger.debug(f"Вакансия не найдена (404): {url}")
                         return None
                     
                     else:
+                        self.stats['other_errors'] += 1
                         logger.warning(f"HTTP {resp.status} для {url}")
                         return None
                         
             except asyncio.TimeoutError:
+                self.stats['timeouts'] += 1
                 logger.error(f"Timeout при запросе {url}")
                 if retries < max_retries:
-                    await asyncio.sleep(2 ** retries)  # Экспоненциальная задержка
+                    wait_time = 2 ** retries  # Экспоненциальная задержка
+                    logger.debug(f"Повторная попытка через {wait_time}с...")
+                    await asyncio.sleep(wait_time)
                     return await self._request(session, url, params, retries + 1, max_retries)
                 return None
             except aiohttp.ClientError as e:
+                self.stats['other_errors'] += 1
                 logger.error(f"HTTP ошибка: {e}")
                 return None
             except Exception as e:
+                self.stats['other_errors'] += 1
                 logger.error(f"Неожиданная ошибка: {e}")
                 return None
 
@@ -114,10 +135,16 @@ class HeadHunterAPIAsync:
         
         all_results = []
         
+        # Сбрасываем статистику
+        self.stats = {k: 0 for k in self.stats}
+        
         # Разбиваем на пакеты
+        total_batches = (len(vacancy_ids) + self.batch_size - 1) // self.batch_size
+        
         for i in range(0, len(vacancy_ids), self.batch_size):
             batch = vacancy_ids[i:i + self.batch_size]
-            logger.info(f"Пакет {i//self.batch_size + 1}/{(len(vacancy_ids)-1)//self.batch_size + 1} ({len(batch)} вакансий)")
+            batch_num = i // self.batch_size + 1
+            logger.info(f"Пакет {batch_num}/{total_batches} ({len(batch)} вакансий)")
             
             async with aiohttp.ClientSession() as session:
                 tasks = [
@@ -132,15 +159,24 @@ class HeadHunterAPIAsync:
                     if r is not None and not isinstance(r, Exception):
                         all_results.append(r)
                     elif isinstance(r, Exception):
-                        logger.error(f"Ошибка при загрузке: {r}")
+                        logger.debug(f"Пропущена вакансия из-за ошибки: {r}")
             
-            logger.info(f"Прогресс: {len(all_results)}/{len(vacancy_ids)}")
+            logger.info(f"Прогресс: {len(all_results)}/{len(vacancy_ids)} вакансий")
+            logger.debug(f"Статистика пакета: успешно={self.stats['success']}, "
+                        f"403={self.stats['403_errors']}, 404={self.stats['404_errors']}, "
+                        f"429={self.stats['429_errors']}, таймауты={self.stats['timeouts']}")
             
-            # Пауза между пакетами
+            # Пауза между пакетами для предотвращения rate limiting
             if i + self.batch_size < len(vacancy_ids):
-                await asyncio.sleep(2)
+                await asyncio.sleep(1)  # Уменьшено с 2 до 1 секунды
         
-        logger.info(f"Загрузка завершена: {len(all_results)}/{len(vacancy_ids)} деталей")
+        # Итоговая статистика
+        success_rate = (len(all_results) / len(vacancy_ids)) * 100 if vacancy_ids else 0
+        logger.info(f"Загрузка завершена: {len(all_results)}/{len(vacancy_ids)} деталей ({success_rate:.1f}%)")
+        logger.info(f"Итоговая статистика: успешно={self.stats['success']}, "
+                   f"403={self.stats['403_errors']}, 404={self.stats['404_errors']}, "
+                   f"429={self.stats['429_errors']}, таймауты={self.stats['timeouts']}")
+        
         return all_results
 
     def get_vacancies_details_sync(
@@ -150,6 +186,8 @@ class HeadHunterAPIAsync:
         """Синхронная обёртка для асинхронной загрузки"""
         try:
             loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError("Event loop is closed")
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)

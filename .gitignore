@@ -1,6 +1,7 @@
 logs
 areas
 __pycache__
+venv
 .venv
 competency_frequency_mapped.json
 test/test_output
@@ -8,3 +9,4 @@ test/test_output
 *.jpg
 *.jpeg
 .pytest_cache
+.vscode
