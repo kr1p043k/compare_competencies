@@ -38,3 +38,12 @@ PROFILES_DISCIPLINES = {
     "dc": [1, 2, 3, 4, 5, 6, 9, 10, 13, 14, 18, 20, 22, 24, 25],
     "top_dc": [1, 2, 3, 4, 5, 6, 9, 10, 13, 14, 18, 20, 22, 24, 25, 7, 8, 11, 12, 19, 21, 23],
 }
+
+# ====================== ЭМБЕДДИНГИ ======================
+EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+EMBEDDING_DIM = 384
+EMBEDDINGS_CACHE_DIR = DATA_DIR / "embeddings"
+EMBEDDINGS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Порог схожести для embedding_comparator (будет использоваться позже)
+SIMILARITY_THRESHOLD = 0.75
