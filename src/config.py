@@ -21,7 +21,7 @@ for dir_path in [DATA_RAW_DIR, DATA_PROCESSED_DIR, STUDENTS_DIR, LAST_UPLOADED_D
     dir_path.mkdir(parents=True, exist_ok=True)
 
 # Настройки API hh.ru
-HH_USER_AGENT = "CompetencyAnalyzer/1.0 (kok.yoko@gmx.com)"
+HH_USER_AGENT = "CompetencyAnalyzer/1.0 (opik@sfedu.ru)"
 REQUEST_DELAY = 0.5
 MAX_RETRIES = 3
 RETRY_DELAY = 2
