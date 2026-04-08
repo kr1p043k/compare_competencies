@@ -22,3 +22,4 @@ torchaudio==2.4.0
 rapidfuzz
 scikit-learn
 pytest-cov
+aioresponses
