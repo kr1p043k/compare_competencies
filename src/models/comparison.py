@@ -1,10 +1,10 @@
-from pydantic import BaseModel
-from typing import List, Tuple, Dict
+from pydantic import BaseModel, Field, validator
+from typing import Literal, List
 
 class GapResult(BaseModel):
     skill: str
-    frequency: int
-    demand_level: str   # "high", "medium", "low"
+    frequency: int = Field(ge=0)
+    demand_level: Literal["high", "medium", "low"]   # строгая валидация
 
 class ComparisonReport(BaseModel):
     student_name: str
