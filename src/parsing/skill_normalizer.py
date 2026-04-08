@@ -30,9 +30,11 @@ class SkillNormalizer:
         "py3": "python",
         "py": "python",
         "golang": "go",
-        "c++": "cpp",
-        "c#": "csharp",
         "c sharp": "csharp",
+        "c#": "csharp", "c#": "c sharp",
+        "c++": "cpp", "c#": "csharp",
+        "cpp": "c++",
+        "С++": "cpp", "C++": "c++",
         
         # Фреймворки
         "vue.js": "vue",
@@ -40,6 +42,8 @@ class SkillNormalizer:
         "angular.js": "angular",
         "express.js": "express",
         "node.js": "nodejs",
+        "node js": "node.js",      
+        "nodejs": "node.js",       
         "fastapi": "fastapi",
         "django rest": "django",
         "django rest framework": "django",
@@ -61,6 +65,8 @@ class SkillNormalizer:
         # Data Science
         "machine learning": "mlops",
         "machine learning": "ml",
+        "mlops": "machine learning",
+        "ml": "mlops",
         "deep learning": "dl",
         "data science": "data science",
         "big data": "big data",
@@ -91,15 +97,23 @@ class SkillNormalizer:
         'framework', 'library', 'tool',
     ]
     # === НОВОЕ: fuzzy-настройки ===
-    FUZZY_THRESHOLD = 88         # % сходства (можно вынести в config)
+    FUZZY_THRESHOLD = 85         # % сходства (можно вынести в config)
     MAX_FUZZY_CANDIDATES = 3
 
     _whitelist: Optional[Set[str]] = None
     @classmethod
     def _get_whitelist(cls) -> Set[str]:
+        """Загружает и дополняет белый список."""
         if cls._whitelist is None:
             cls._whitelist = load_it_skills()
-            logger.info(f"Загружен whitelist для fuzzy: {len(cls._whitelist)} навыков")
+            # Гарантируем наличие ключевых канонических навыков
+            cls._whitelist.update([
+                "python", "node.js", "react", "angular", "vue", "django",
+                "flask", "fastapi", "sql", "postgresql", "mysql", "mongodb",
+                "docker", "kubernetes", "git", "mlops", "cpp", "csharp",
+                "go", "java", "html", "css", "javascript", "typescript"
+            ])
+            logger.info(f"Whitelist загружен и дополнен: {len(cls._whitelist)} навыков")
         return cls._whitelist
 
     @staticmethod
@@ -107,10 +121,9 @@ class SkillNormalizer:
         """Полная нормализация с fuzzy fallback"""
         if not skill:
             return ""
-
         original = skill.strip()
         skill_lower = original.lower()
-
+        
         # 1. Правило-based (твои старые правила)
         normalized = skill_lower
 
@@ -130,8 +143,9 @@ class SkillNormalizer:
 
         # Чистка
         normalized = re.sub(r'\s+', ' ', normalized).strip()
-        normalized = re.sub(r'[^\w\s\+\#\-]', '', normalized)
+        normalized = re.sub(r'[^\w\s\+\#\-\.]', '', normalized)
         normalized = re.sub(r'\s+', ' ', normalized).strip()
+        normalized = re.sub(r'\.$', '', normalized)   # удалить точку в конце
 
         # 2. Fuzzy fallback (ТОЛЬКО если не нашли точное совпадение в whitelist)
         whitelist = SkillNormalizer._get_whitelist()
