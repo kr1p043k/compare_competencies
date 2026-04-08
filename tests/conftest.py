@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from datetime import datetime
 import numpy as np
+import logging
+import pytest
 from unittest.mock import MagicMock
 from src.models.student import StudentProfile
 from src.models.vacancy import Vacancy, Area, Employer, KeySkill
@@ -20,7 +22,18 @@ from src.visualization.charts import (
     plot_coverage_comparison,
     plot_top_deficits,
 )
-
+@pytest.fixture(autouse=True)
+def clean_logging_handlers():
+    """Удаляет все FileHandler из корневого логгера, чтобы избежать ошибок закрытого файла."""
+    root = logging.getLogger()
+    for handler in root.handlers[:]:
+        if isinstance(handler, logging.FileHandler):
+            root.removeHandler(handler)
+    # Добавляем NullHandler, чтобы подавить вывод, если нужно
+    if not any(isinstance(h, logging.StreamHandler) for h in root.handlers):
+        root.addHandler(logging.NullHandler())
+    yield
+    # Можно восстановить, но для тестов не обязательно
 @pytest.fixture(scope="session")
 def data_dir() -> Path:
     return Path(__file__).parent.parent / "data"
@@ -120,6 +133,9 @@ def profile_evaluator():
 def skill_level_analyzer():
     return SkillLevelAnalyzer()
 
-#@pytest.fixture
-#def charts_module():
-    #return сharts()  # или charts если это модуль с функциями
+@pytest.fixture
+def charts_module():
+    """Временная fixture до реализации класса Charts (если он нужен).
+    Пока используем существующие plot-функции."""
+    import src.visualization.charts as charts
+    return charts
