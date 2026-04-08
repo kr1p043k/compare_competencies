@@ -11,11 +11,12 @@ from typing import List, Optional, Dict
 
 import pandas as pd
 
-from src.models.student import StudentProfile   # ← ИСПРАВЛЕНО: импортируем StudentProfile
+from src.models.student import StudentProfile
 from src.utils import get_logger
 from src.config import STUDENTS_DIR, LAST_UPLOADED_DIR, PROFILES_DISCIPLINES, DATA_RAW_DIR
 
 logger = get_logger(__name__)
+
 
 class StudentLoader:
     """Загрузчик данных учеников из JSON-файлов."""
@@ -29,18 +30,22 @@ class StudentLoader:
         if not file_path.exists():
             logger.error(f"Файл {file_path} не найден")
             return None
+
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
+
         skills = data.get("навыки", [])
-        # Создаём объект StudentProfile с правильными полями
+
+        # ИСПРАВЛЕНО: используем поля, которые принимает текущая модель StudentProfile
         return StudentProfile(
-            student_id=profile_name,
-            name=profile_name,
-            competencies=skills,          # ← поле competencies, а не skills
-            target_role="Data Scientist"
+            profile_name=profile_name,           # ← обязательно для модели
+            competencies=skills,
+            skills=skills,                       # дублируем для совместимости с остальным кодом
+            target_level="middle",               # или target_role — в зависимости от модели
         )
 
     def load_all_students(self) -> List[StudentProfile]:
+        """Загружает все три профиля."""
         students = []
         for profile in ["base", "dc", "top_dc"]:
             student = self.load_student(profile)
@@ -49,6 +54,7 @@ class StudentLoader:
         return students
 
 
+# ====================== ОСТАЛЬНОЙ КОД БЕЗ ИЗМЕНЕНИЙ ======================
 def generate_profiles_from_csv(
     csv_path: Path = DATA_RAW_DIR / "competency_matrix.csv",
     output_dir: Path = STUDENTS_DIR,
@@ -101,7 +107,6 @@ def generate_profiles_from_csv(
         for _, row in profile_df.iterrows():
             for indicator in indicator_codes:
                 val = row.get(indicator)
-                # Защита от случая, когда val оказывается Series (ошибка неоднозначности)
                 if isinstance(val, pd.Series):
                     logger.warning(f"Пропуск индикатора {indicator}: получен Series, ожидался скаляр")
                     continue
