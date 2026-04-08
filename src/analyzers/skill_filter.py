@@ -41,7 +41,7 @@ class SkillFilter:
         
         # Data Science и ML
         "machine learning", "deep learning", "nlp", "computer vision", "data science",
-        "big data", "spark", "hadoop", "airflow", "mlflow", "langchain",
+        "big data", "spark", "hadoop", "airflow", "mlflow", "langchain", "mlops",
         
         # Фронтенд
         "html", "css", "sass", "scss", "webpack", "vite", "redux", "mobx", "graphql",
