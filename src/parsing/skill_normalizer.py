@@ -7,9 +7,7 @@ import re
 from typing import List, Dict, Optional, Set
 import logging
 from pathlib import Path
-
 from rapidfuzz import process, fuzz
-
 from src import config
 from src.parsing.utils import load_it_skills  # уже есть в проекте
 
@@ -25,6 +23,7 @@ class SkillNormalizer:
     SKILL_SYNONYMS = {
         # Языки
         "javascript": "js",
+        "javascript": "node.js",
         "typescript": "ts",
         "python3": "python",
         "python 3": "python",
@@ -57,8 +56,10 @@ class SkillNormalizer:
         "k8": "k8s",
         "docker": "docker",
         "jenkins": "jenkins",
+
         
         # Data Science
+        "machine learning": "mlops",
         "machine learning": "ml",
         "deep learning": "dl",
         "data science": "data science",
@@ -90,7 +91,7 @@ class SkillNormalizer:
         'framework', 'library', 'tool',
     ]
     # === НОВОЕ: fuzzy-настройки ===
-    FUZZY_THRESHOLD = 85          # % сходства (можно вынести в config)
+    FUZZY_THRESHOLD = 88         # % сходства (можно вынести в config)
     MAX_FUZZY_CANDIDATES = 3
 
     _whitelist: Optional[Set[str]] = None
@@ -156,8 +157,8 @@ class SkillNormalizer:
 
     @staticmethod
     def normalize_batch(skills: List[str]) -> List[str]:
-        """Нормализует батч"""
-        return [SkillNormalizer.normalize(s) for s in skills if s]
+        """Нормализует батч + автоматическая дедупликация (сохраняет порядок)."""
+        return SkillNormalizer.deduplicate(skills)
 
     @staticmethod
     def deduplicate(skills: List[str]) -> List[str]:
