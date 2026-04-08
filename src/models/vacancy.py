@@ -112,6 +112,11 @@ class Area:
     def __hash__(self):
         return hash(self.id)
     
+    def __eq__(self, other):
+        if isinstance(other, Area):
+            return self.id == other.id
+        return False
+    
     def __repr__(self):
         return f"{self.name} (ID {self.id})"
 
