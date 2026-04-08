@@ -46,4 +46,4 @@ EMBEDDINGS_CACHE_DIR = DATA_DIR / "embeddings"
 EMBEDDINGS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # Порог схожести для embedding_comparator (будет использоваться позже)
-SIMILARITY_THRESHOLD = 0.75
+SIMILARITY_THRESHOLD = 0.80
