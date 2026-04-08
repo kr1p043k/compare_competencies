@@ -23,7 +23,8 @@ import numpy as np
 from src.parsing.vacancy_parser import VacancyParser
 from src.parsing.hh_api import HeadHunterAPI
 from src.parsing.skill_validator import SkillValidator, ValidationReason
-from src.parsing.skill_normalizer import SkillNormalizer 
+from src.parsing.skill_normalizer import SkillNormalizer
+from src.parsing.skill_parser import SkillSource
 from src.parsing.utils import (
     setup_logging,
     collect_vacancies_multiple,
