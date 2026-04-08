@@ -2,95 +2,124 @@
 import pytest
 import json
 from pathlib import Path
-from pydantic import ValidationError
-
-# Точные импорты под реальную структуру проекта
+from datetime import datetime
+import numpy as np
+from unittest.mock import MagicMock
 from src.models.student import StudentProfile
-from src.models.vacancy import Vacancy
+from src.models.vacancy import Vacancy, Area, Employer, KeySkill
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.embedding_comparator import EmbeddingComparator
 from src.analyzers.skill_filter import SkillFilter
 from src.loaders_student.student_loader import StudentLoader
-#from src.predictors.skill_forecast import SkillForecast
-from src.predictors.ml_recommendation_engine import MLRecommendationEngine
-
+from src.parsing.skill_validator import SkillValidator
+from src.analyzers.profile_evaluator import ProfileEvaluator
+from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
 from src.visualization.charts import (
     plot_radar_chart,
     plot_heatmap,
     plot_coverage_comparison,
     plot_top_deficits,
-    plot_skill_trends,
 )
-
-# ====================== ОБЩИЕ ФИКСТУРЫ ======================
 
 @pytest.fixture(scope="session")
 def data_dir() -> Path:
     return Path(__file__).parent.parent / "data"
 
-
 @pytest.fixture(scope="session")
 def sample_skill_weights() -> dict:
-    """Пример весов навыков (используется GapAnalyzer и SkillFilter)"""
     return {
-        "python": 2450,
-        "sql": 1890,
-        "docker": 1420,
-        "fastapi": 980,
-        "machine learning": 870,
-        "pandas": 650,
-        "git": 1200,
-        "postgresql": 1100,
-        "frontend": 50,          # будет отфильтровано
-        "разработка": 10         # generic — будет удалено
+        "python": 2450, "sql": 1890, "docker": 1420,
+        "fastapi": 980, "pandas": 650, "git": 1200,
+        "postgresql": 1100, "machine learning": 870
     }
-
 
 @pytest.fixture(scope="session")
 def sample_student() -> StudentProfile:
+    """Теперь используем актуальные поля StudentProfile"""
     return StudentProfile(
-        student_id="test",
-        name="Анна Иванова",
-        competencies=["Python", "SQL", "Git", "Pandas", "Docker"],
-        target_role="Data Scientist"
+        profile_name="base",                    # ← обязательно!
+        competencies=["SS1.1", "DL-1.3"],
+        skills=["Python", "SQL", "Git", "Pandas", "Docker"],
+        target_level="middle",
+        created_at=datetime.now()
     )
-
 
 @pytest.fixture(scope="session")
 def sample_vacancies() -> list[Vacancy]:
+    area = Area(id=1, name="Москва")
+    employer = Employer(id="123", name="Test Corp")
     return [
-        Vacancy(title="Junior DS", skills=["Python", "SQL", "Pandas", "Machine Learning"]),
-        Vacancy(title="Middle Python", skills=["Python", "FastAPI", "Docker", "PostgreSQL"])
+        Vacancy(
+            id="1",
+            name="Junior Data Scientist",
+            area=area,
+            employer=employer,
+            key_skills=[KeySkill(name="Python"), KeySkill(name="SQL")]
+        ),
+        Vacancy(
+            id="2",
+            name="Middle Python Developer",
+            area=area,
+            employer=employer,
+            key_skills=[KeySkill(name="FastAPI"), KeySkill(name="Docker")]
+        )
     ]
 
-
-# ====================== АНАЛИЗАТОРЫ ======================
-
+# Анализаторы
 @pytest.fixture
 def gap_analyzer(sample_skill_weights):
     return GapAnalyzer(skill_weights=sample_skill_weights)
 
+@pytest.fixture
+def embedding_comparator():
+    return EmbeddingComparator()   # модель грузится внутри
 
 @pytest.fixture
 def skill_filter():
     return SkillFilter()
 
-
 @pytest.fixture
 def student_loader():
     return StudentLoader()
 
+# Для визуализации
+@pytest.fixture
+def sample_student_skills():
+    return ["Python", "SQL", "Git", "Pandas", "Docker"]
 
 @pytest.fixture
-def embedding_comparator():
-    return EmbeddingComparator()
+def sample_market_top_skills():
+    return ["Python", "SQL", "Machine Learning", "FastAPI", "Docker"]
 
+@pytest.fixture
+def sample_results_dict():
+    return {
+        "base": {
+            "coverage_percent": 65,
+            "weighted_coverage_percent": 72,
+            "covered_skills": ["Python", "SQL"],
+            "high_demand_gaps": [{"skill": "FastAPI", "frequency": 87}]
+        }
+    }
+    
+@pytest.fixture
+def validator():
+    return SkillValidator()
+
+@pytest.fixture
+def mock_embedder(monkeypatch):
+    mock = MagicMock()
+    mock.encode.return_value = np.random.rand(1, 384)
+    monkeypatch.setattr("sentence_transformers.SentenceTransformer", lambda *a, **k: mock)
+
+@pytest.fixture
+def profile_evaluator():
+    return ProfileEvaluator()
+
+@pytest.fixture
+def skill_level_analyzer():
+    return SkillLevelAnalyzer()
 
 #@pytest.fixture
-#def skill_forecast():
-#    return SkillForecast()
-
-
-@pytest.fixture
-def ml_recommender():
-    return MLRecommendationEngine()
+#def charts_module():
+    #return сharts()  # или charts если это модуль с функциями
