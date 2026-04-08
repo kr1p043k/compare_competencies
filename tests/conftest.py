@@ -6,6 +6,7 @@ from datetime import datetime
 import numpy as np
 import logging
 import pytest
+import sys
 from unittest.mock import MagicMock
 from src.models.student import StudentProfile
 from src.models.vacancy import Vacancy, Area, Employer, KeySkill
@@ -22,6 +23,43 @@ from src.visualization.charts import (
     plot_coverage_comparison,
     plot_top_deficits,
 )
+def pytest_configure(config):
+    """Глобальный мок SentenceTransformer для всех тестов."""
+    # Создаём мок-модель, которая возвращает случайные эмбеддинги
+    mock_model = MagicMock()
+    mock_model.encode.return_value = np.random.rand(10, 384)
+    mock_model.eval.return_value = mock_model
+
+    # Подменяем модуль sentence_transformers в sys.modules
+    mock_st = MagicMock()
+    mock_st.SentenceTransformer = MagicMock(return_value=mock_model)
+    sys.modules['sentence_transformers'] = mock_st
+
+    # Также патчим конкретные модули проекта, если они уже загружены
+    try:
+        import src.parsing.vacancy_parser as vp
+        vp.SentenceTransformer = lambda *a, **k: mock_model
+    except ImportError:
+        pass
+    try:
+        import src.analyzers.embedding_comparator as ec
+        ec.SentenceTransformer = lambda *a, **k: mock_model
+    except ImportError:
+        pass
+
+    # Подавляем логи от httpx/httpcore
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+@pytest.fixture(autouse=True)
+def suppress_http_logging():
+    """Отключает файловые обработчики и повышает уровень httpx/httpcore логов."""
+    root = logging.getLogger()
+    for handler in root.handlers[:]:
+        if isinstance(handler, logging.FileHandler):
+            root.removeHandler(handler)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    yield
 @pytest.fixture(autouse=True)
 def clean_logging_handlers():
     """Удаляет все FileHandler из корневого логгера, чтобы избежать ошибок закрытого файла."""

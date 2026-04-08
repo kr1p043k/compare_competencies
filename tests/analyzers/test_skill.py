@@ -127,3 +127,123 @@ class TestSkillLevelAnalyzerExtended:
         assert roadmap == {"junior": True, "middle": True, "senior": True}
         roadmap2 = analyzer.get_skill_roadmap("docker")
         assert roadmap2 == {"junior": False, "middle": True, "senior": True}
+class TestSkillFilterExtended:
+    def test_filter_weights_removes_unknown(self):
+        sf = SkillFilter()
+        weights = {"python": 0.5, "unknownskill": 0.5, "pytest": 0.3}
+        filtered = sf.filter_weights(weights, min_weight=0.0)
+        assert "python" in filtered
+        assert "pytest" in filtered
+        assert "unknownskill" not in filtered
+
+    def test_filter_weights_partial_match_kept(self):
+        sf = SkillFilter()
+        weights = {"machine learning expert": 0.5, "deep learning framework": 0.3}
+        filtered = sf.filter_weights(weights, min_weight=0.0)
+        # "machine learning" есть в REFERENCE_SKILLS, частичное совпадение должно сохранить
+        assert "machine learning expert" in filtered
+        assert "deep learning framework" in filtered
+
+    def test_normalize_weights_log_method(self):
+        sf = SkillFilter()
+        weights = {"a": 1, "b": 100}
+        norm = sf.normalize_weights(weights, method='log')
+        assert norm["b"] == 1.0
+        assert 0 < norm["a"] < 1.0
+
+    def test_normalize_weights_softmax_method(self):
+        sf = SkillFilter()
+        weights = {"a": 1, "b": 2}
+        norm = sf.normalize_weights(weights, method='softmax')
+        total = sum(norm.values())
+        assert round(total, 4) == 1.0
+        assert norm["b"] > norm["a"]
+
+    def test_normalize_weights_invalid_method_fallback(self):
+        sf = SkillFilter()
+        weights = {"a": 1, "b": 2}
+        norm = sf.normalize_weights(weights, method='unknown')
+        assert norm == weights  # fallback to original
+
+    def test_merge_with_reference_empty_competency_freq(self):
+        sf = SkillFilter()
+        skill_weights = {"python": 0.9, "django": 0.7}
+        merged = sf.merge_with_reference(skill_weights, {})
+        # Возвращает отфильтрованные skill_weights
+        assert "python" in merged
+        assert merged["python"] == 0.9
+
+    def test_merge_with_reference_count_based_fallback(self):
+        sf = SkillFilter()
+        skill_weights = {"python": 0.9}
+        comp_freq = {"python": 50, "postgresql": 40, "docker": 30}
+        merged = sf.merge_with_reference(skill_weights, comp_freq)
+        assert "postgresql" in merged
+        assert 0.0 <= merged["postgresql"] <= 1.0
+
+    def test_get_clean_weights_full_flow(self):
+        sf = SkillFilter()
+        raw = {"python": 0.9, "frontend": 0.8, "postgresql": 0.5}  # заменили sql на postgresql
+        freq = {"python": 100, "postgresql": 50}
+        clean = sf.get_clean_weights(raw, freq, use_reference=True, normalize_method='minmax')
+        assert "frontend" not in clean
+        assert "python" in clean
+        assert "postgresql" in clean
+        assert clean["python"] == 1.0
+
+    def test_validate_skills_returns_only_valid(self):
+        sf = SkillFilter()
+        skills = ["python", "frontend", "unknown", "very long phrase with many words"]
+        valid = sf.validate_skills(skills)
+        assert valid == ["python"]
+
+    def test_get_skill_categories_empty(self):
+        sf = SkillFilter()
+        cats = sf.get_skill_categories([])
+        assert cats == {}
+    def test_normalize_weights_log_max_log_zero(self):
+        sf = SkillFilter()
+        weights = {"a": 0.0, "b": 0.0}
+        norm = sf.normalize_weights(weights, method='log')
+        assert norm == weights  # max_log = 0, возвращаются исходные
+
+    def test_merge_with_reference_all_counts_equal(self):
+        sf = SkillFilter()
+        skill_weights = {}
+        comp_freq = {"a": 5, "b": 5}
+        merged = sf.merge_with_reference(skill_weights, comp_freq)
+        # max_count == min_count -> weight = (5/5)*0.8 = 0.8
+        assert merged["a"] == 0.8
+        assert merged["b"] == 0.8
+
+    def test_get_clean_weights_no_reference_filter(self):
+        sf = SkillFilter()
+        raw = {"python": 0.9, "unknown": 0.5}
+        clean = sf.get_clean_weights(raw, use_reference=False)
+        # Без reference фильтра unknown останется (но generic удаляется)
+        assert "python" in clean
+        # "unknown" не generic и не длинный -> останется
+        assert "unknown" in clean
+
+    def test_get_clean_weights_removes_long_phrases(self):
+        sf = SkillFilter()
+        raw = {"python": 0.9, "this is a very long skill name with six words": 0.5}
+        clean = sf.get_clean_weights(raw, use_reference=False)
+        assert "python" in clean
+        assert "this is a very long skill name with six words" not in clean
+
+    def test_get_clean_weights_empty_after_reference(self):
+        sf = SkillFilter()
+        raw = {"unknown1": 0.9, "unknown2": 0.8}
+        # reference_skills не содержат этих слов -> после фильтрации пусто
+        clean = sf.get_clean_weights(raw, use_reference=True)
+        assert clean == {}
+
+    def test_validate_skills_partial_match(self):
+        sf = SkillFilter()
+        skills = ["python programming", "advanced sql"]
+        valid = sf.validate_skills(skills)
+        # "python programming" содержит "python" -> valid
+        # "advanced sql" содержит "sql", но sql в GENERIC_WORDS -> удаляется
+        assert "python programming" in valid
+        assert "advanced sql" not in valid

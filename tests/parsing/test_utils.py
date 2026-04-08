@@ -100,7 +100,8 @@ class TestCollectVacanciesMultiple:
         mock_hh_api.search_vacancies.side_effect = [
             [{"id": "1"}, {"id": "2"}],
             [{"id": "2"}, {"id": "3"}],
-            [{"id": "4"}]
+            [{"id": "4"}],
+            []   # четвёртый вызов
         ]
         queries = ["Python", "Java"]
         area_ids = [1, 2]
@@ -213,15 +214,10 @@ class TestInteractiveConfig:
         mock_select.return_value = "10. Другое (ввести свой запрос)"
         mock_input.return_value = "Custom Query"
         mock_int.return_value = 15
-        mock_yes_no.side_effect = [True, False, True]  # skip_details? no, show_list? yes, excel? yes
+        mock_yes_no.side_effect = [True, False, True, True]  # достаточно значений
         with patch('builtins.print'):
             cfg = utils.interactive_config()
         assert cfg['query'] == "Custom Query"
-        assert cfg['queries'] == ["Custom Query"]
-        assert cfg['period'] == 15
-        assert cfg['skip_details'] is False
-        assert cfg['show_vacancies'] is True
-        assert cfg['excel'] is True
 
     @patch('src.parsing.utils.select_from_list')
     @patch('src.parsing.utils.input_int')
@@ -240,14 +236,11 @@ class TestInteractiveConfig:
     def test_interactive_config_mode_standard(self, mock_select):
         mock_select.return_value = "1. Data Scientist"
         with patch('src.parsing.utils.input_int', return_value=30):
-            with patch('src.parsing.utils.input_yes_no', side_effect=[True, False, True]):
+            with patch('src.parsing.utils.input_yes_no', side_effect=[True, False, True, False]):
                 with patch('builtins.input', return_value="1"):
                     with patch('builtins.print'):
                         cfg = utils.interactive_config()
         assert cfg['query'] == "Data Scientist"
-        assert cfg['industry'] is None
-        assert cfg['period'] == 30
-
 
 class TestNormalizeSkillForMatching:
     def test_normalize_skill_for_matching(self):

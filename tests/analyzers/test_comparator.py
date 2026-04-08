@@ -71,7 +71,6 @@ class TestCompetencyComparatorExtended:
     (True, "senior")
 ])
 def test_comparator_both_modes(use_embeddings, level):
-    """Тест обоих режимов с подробным логированием и отловом ошибок"""
     logger.info("=" * 80)
     logger.info(f"▶️  Запуск теста | embeddings={use_embeddings} | level={level}")
     logger.info("=" * 80)
@@ -97,7 +96,9 @@ def test_comparator_both_modes(use_embeddings, level):
         logger.info("✅ fit_market прошёл успешно")
 
         logger.info("Вызываем compare()...")
-        score, confidence = comparator.compare(student_skills)
+        # Мокаем cosine_similarity для предсказуемого score
+        with patch('src.analyzers.embedding_comparator.cosine_similarity', return_value=np.array([[0.8]])):
+            score, confidence = comparator.compare(student_skills)
         logger.info(f"Результат: score={score:.4f} | confidence={confidence:.4f}")
 
         assert 0.0 <= score <= 1.0, f"Некорректный score: {score}"
@@ -118,7 +119,6 @@ def test_comparator_both_modes(use_embeddings, level):
         traceback.print_exc(file=sys.stderr)
         logger.error("-" * 60)
         raise
-
 
 class TestEmbeddingComparatorExtended:
     def test_build_market_index_creates_cache(self, tmp_path):
