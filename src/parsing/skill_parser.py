@@ -83,7 +83,7 @@ class SkillParser:
     "spark", "pyspark", "hadoop", "hive", "kafka",
     "airflow", "mlflow", "dvc", "feature store",
         "aws", "azure", "gcp", "yandex cloud", "c#", "csharp"
-        "machine learning", "deep learning", "nlp", "data science", "big data", "etl"
+        "machine learning", "deep learning", "nlp", "data science", "big data", "etl", "mlops"
     }
     
     SKILL_MARKERS = [
