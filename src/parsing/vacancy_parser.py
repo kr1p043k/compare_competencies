@@ -18,7 +18,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from src import config
 from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
 from src.models.vacancy import Vacancy
-from src.parsing.skill_parser import SkillParser
+from src.parsing.skill_parser import SkillParser, SkillSource
 from src.parsing.skill_validator import SkillValidator
 from src.parsing.skill_normalizer import SkillNormalizer
 
@@ -133,7 +133,7 @@ class VacancyParser:
         if not description:
             return []
         extracted = self.skill_parser._extract_from_text(
-            description, source=self.skill_parser.SkillSource.DESCRIPTION
+            description, source=SkillSource.DESCRIPTION
         )
         return [skill.text for skill in extracted]
     
