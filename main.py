@@ -54,9 +54,9 @@ from src.visualization.charts import (
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
     
-    parser.add_argument('--query', '-q', type=str, default="Frontend developer")
+    parser.add_argument('--query', '-q', type=str, default="Python developer")
     parser.add_argument('--area-id', '-a', type=int, default=1)
-    parser.add_argument('--max-pages', '-p', type=int, default=20)
+    parser.add_argument('--max-pages', '-p', type=int, default=3)
     parser.add_argument('--period', '-d', type=int, default=30)
     parser.add_argument('--show-vacancies', '-v', action='store_true')
     parser.add_argument('--skip-details', '-s', action='store_true')
@@ -337,14 +337,14 @@ def main():
     result = parser.extract_skills_from_vacancies(vacancies_to_process)
 
     skill_freq: Dict[str, int] = result["frequencies"]
-    tfidf_weights: Dict[str, float] = result.get("tfidf_weights", {})
+    hybrid_weights: Dict[str, float] = result.get("hybrid_weights", {})
 
     if not skill_freq:
         logger.error("Не удалось извлечь навыки.")
         return
 
     logger.info(f"Извлечено {len(skill_freq)} уникальных валидных навыков "
-                f"(TF-IDF весов: {len(tfidf_weights)})")
+                f"(Гибридные веса: {len(hybrid_weights)})")
 
         # ====================== СОХРАНЕНИЕ ======================
     parser.save_processed_frequencies(skill_freq, apply_filter=not args.no_filter)
@@ -353,14 +353,15 @@ def main():
     print_top_skills(skill_freq)
 
         # === ДОПОЛНИТЕЛЬНЫЙ ВЫВОД TF-IDF ВЕСОВ ===
-    if tfidf_weights:
-        print("\n" + "=" * 70)
-        print("ТОП-15 НАВЫКОВ ПО TF-IDF ВЕСУ")
-        print("=" * 70)
-        top_weights = sorted(tfidf_weights.items(), key=lambda x: x[1], reverse=True)[:15]
-        for i, (skill, weight) in enumerate(top_weights, 1):
-            print(f"{i:2}. {skill:<45} {weight:.4f}")
-
+    if hybrid_weights:
+            print("\n" + "=" * 80)
+            print("ТОП-15 НАВЫКОВ ПО ГИБРИДНОМУ ВЕСУ (BM25 + Embeddings)")
+            print("=" * 80)
+            top_weights = sorted(hybrid_weights.items(), key=lambda x: x[1], reverse=True)[:15]
+            for i, (skill, weight) in enumerate(top_weights, 1):
+                print(f"{i:2}. {skill:<40} {weight:.4f}")
+    else:
+        logger.warning("⚠️ hybrid_weights пустой — проверь вызов _calculate_hybrid_weights")
         # ====================== МАППИНГ КОМПЕТЕНЦИЙ ======================
     try:
         mapping = load_competency_mapping()
@@ -469,13 +470,22 @@ def main():
             skill_weights_raw = recommendation_engine.comparator.get_skill_weights()
             
             # === Fallback на частотные веса (то, что уже посчитал парсер) ===
+            skill_weights_raw = recommendation_engine.comparator.get_skill_weights()
+            
+            # === НОВЫЙ УЛУЧШЕННЫЙ FALLBACK ===
             if not skill_weights_raw or len(skill_weights_raw) == 0:
-                logger.warning(
-                    "⚠️  Embedding mode вернул пустые веса. "
-                    "Используем частоты навыков из skill_freq (fallback)"
-                )
-                skill_weights_raw = {k: float(v) for k, v in skill_freq.items() if v > 0}
-                logger.info(f"✓ Fallback weights создан: {len(skill_weights_raw)} навыков")
+                logger.warning("⚠️ Embedding mode вернул пустые веса → берём ГИБРИДНЫЕ веса из парсера")
+                
+                # Берём именно те hybrid_weights, которые посчитал VacancyParser
+                hybrid_weights: Dict[str, float] = result.get("hybrid_weights", {})
+                
+                if hybrid_weights:
+                    skill_weights_raw = hybrid_weights
+                    logger.info(f"✓ Использованы гибридные BM25+Embeddings веса ({len(skill_weights_raw)} навыков)")
+                else:
+                    # последний запасной вариант
+                    skill_weights_raw = {k: float(v) for k, v in skill_freq.items() if v > 0}
+                    logger.info(f"✓ Fallback на частоты: {len(skill_weights_raw)} навыков")
             
             if not skill_weights_raw:
                 logger.error("❌ Даже fallback не смог создать веса")
