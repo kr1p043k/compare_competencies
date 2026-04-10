@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Tuple
 # Windows UTF-8 fix
 if sys.platform == 'win32':
     import io
@@ -49,6 +49,39 @@ from src.visualization.charts import (
     run_notebook,
     save_all_charts
 )
+def generate_ml_recommendations_for_profiles(
+    profiles: Dict[str, StudentProfile],
+    market_skills: List[str],
+    logger: logging.Logger
+) -> Dict[str, List[Tuple[str, float, str]]]:
+    """
+    Генерирует ML-рекомендации для всех профилей.
+    Возвращает словарь {profile_name: [(skill, score, explanation), ...]}
+    """
+    model_path = config.MODELS_DIR / "skill_importance_regressor.joblib"
+    if not model_path.exists():
+        logger.warning("ML-модель не найдена. Рекомендации будут сгенерированы без ML.")
+        return {}
+
+    try:
+        engine = MLRecommendationEngine(model_path=model_path)
+        engine.load_model()
+    except Exception as e:
+        logger.error(f"Не удалось загрузить ML-модель: {e}")
+        return {}
+
+    ml_recommendations = {}
+    for profile_name, student in profiles.items():
+        student_skills = student.skills
+        missing = [s for s in market_skills if s not in student_skills]
+        if missing:
+            recs = engine.predict_skill_impact(student_skills, missing)
+            ml_recommendations[profile_name] = recs
+            logger.info(f"ML-рекомендации для {profile_name}: {len(recs)} навыков")
+        else:
+            ml_recommendations[profile_name] = []
+
+    return ml_recommendations
 
 
 def parse_arguments():
@@ -71,7 +104,7 @@ def parse_arguments():
     
     parser.add_argument('--use-async', action='store_true', default=True)
     parser.add_argument('--async-workers', type=int, default=3)
-    parser.add_argument('--async-threshold', type=int, default=250)
+    parser.add_argument('--async-threshold', type=int, default=10)
     
     parser.add_argument('--run-gap-analysis', action='store_true', default=True)
     parser.add_argument('--run-notebooks', action='store_true')
@@ -352,7 +385,7 @@ def main():
         # ====================== ВЫВОД ======================
     print_top_skills(skill_freq)
 
-        # === ДОПОЛНИТЕЛЬНЫЙ ВЫВОД TF-IDF ВЕСОВ ===
+        # === ДОПОЛНИТЕЛЬНЫЙ ВЫВОД BM 25 ВЕСОВ ===
     if hybrid_weights:
             print("\n" + "=" * 80)
             print("ТОП-15 НАВЫКОВ ПО ГИБРИДНОМУ ВЕСУ (BM25 + Embeddings)")
@@ -667,7 +700,45 @@ def main():
             logger.info("\n" + "="*60)
             logger.info(summary_text)
             logger.info("="*60)
+
+            # =====================================================================
+            # ← ИНТЕГРАЦИЯ ML-РЕКОМЕНДАЦИЙ
+            # =====================================================================
+            logger.info("\n" + "="*85)
+            logger.info("ГЕНЕРАЦИЯ ML-РЕКОМЕНДАЦИЙ ДЛЯ ПРОФИЛЕЙ")
+            logger.info("="*85)
+
+            market_skills_list = list(skill_weights.keys())
+            ml_recs = generate_ml_recommendations_for_profiles(profiles, market_skills_list, logger)
+
+            # Сохраняем ML-рекомендации в отдельные файлы и выводим в консоль
+            for profile_name, recs in ml_recs.items():
+                if recs:
+                    # Вывод в консоль
+                    print(f"\n📌 ML-рекомендации для профиля '{profile_name}' (топ-5):")
+                    for skill, score, expl in recs[:5]:
+                        print(f"   • {skill:<25} важность: {score:>5.1f}% | {expl}")
+
+                    # Сохранение в JSON
+                    rec_file = config.DATA_DIR / "result" / profile_name / f"ml_recommendations_{profile_name}.json"
+                    rec_file.parent.mkdir(parents=True, exist_ok=True)
+                    rec_data = {
+                        "profile": profile_name,
+                        "timestamp": time.strftime('%Y-%m-%d %H:%M:%S'),
+                        "recommendations": [
+                            {"skill": s, "score": sc, "explanation": ex}
+                            for s, sc, ex in recs
+                        ]
+                    }
+                    with open(rec_file, "w", encoding="utf-8") as f:
+                        json.dump(rec_data, f, ensure_ascii=False, indent=2)
+                    logger.info(f"✓ ML-рекомендации для {profile_name} сохранены в {rec_file}")
+                else:
+                    logger.info(f"Для профиля {profile_name} ML-рекомендации не сгенерированы (нет модели или нет недостающих навыков)")
+
+            # =====================================================================
             # === СОЗДАНИЕ ГРАФИКОВ ===
+            # =====================================================================
             if results_for_charts:
                 logger.info("\n" + "="*85)
                 logger.info("СОЗДАНИЕ ВИЗУАЛИЗАЦИЙ")
