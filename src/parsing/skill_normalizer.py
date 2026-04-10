@@ -141,13 +141,38 @@ class SkillNormalizer:
         r'\s*\(.*?\)',  # (описание)
         r'\s*\[.*?\]',  # [описание]
     ]
-    
+    PREFIX_REMOVALS = [
+        r'^опыт\s+(работы\s+)?(с\s+)?',
+        r'^знание\s+',
+        r'^владение\s+',
+        r'^умение\s+(работать\s+)?(с\s+)?',
+        r'^навык(и)?\s+(работы\s+)?(с\s+)?',
+        r'^понимание\s+',
+        r'^разработка\s+',
+        r'^программирование\s+на\s+',
+        r'^работа\s+с\s+',
+        r'^участие\s+в\s+',
+        r'^проведение\s+',
+        r'^организация\s+',
+        r'^управление\s+',
+        r'^построение\s+',
+        r'^создание\s+',
+        r'^внедрение\s+',
+        r'^оценивать\s+',
+    ]
     # Слова, которые можно безопасно удалить из конца
     SUFFIX_REMOVALS = [
         'язык', 'язык программирования',
         'фреймворк', 'библиотека', 'инструмент',
         'database', 'server', 'client',
         'framework', 'library', 'tool',
+            r'\s+или\s+подобных\s+языках?',
+    r'\s+или\s+аналогичных\s+(языков|языках)',
+    r'\s+и\s+т\.\s*д\.',
+    r'\s+и\s+т\.\s*п\.',
+    r'\s+и\s+др\.',
+    r'\s+и\s+проч\.',
+    r'\s+etc\.?',
     ]
     # === НОВОЕ: fuzzy-настройки ===
     FUZZY_THRESHOLD = 85         # % сходства (можно вынести в config)
@@ -177,39 +202,53 @@ class SkillNormalizer:
         skill_lower = original.lower()
         normalized = skill_lower
 
-        # Шаг 1: замена синонимов (используем канонический маппинг)
+        # === 1. Удаление префиксов ===
+        for pattern in SkillNormalizer.PREFIX_REMOVALS:
+            normalized = re.sub(pattern, '', normalized, flags=re.IGNORECASE)
+
+        # === 2. Замена синонимов (существующая логика) ===
         canon_map = SkillNormalizer._get_canonical_map()
-        # Разбиваем на слова, но также учитываем многословные синонимы
-        # Чтобы не усложнять, применим подход: для каждого ключа в canon_map,
-        # если он встречается как целое слово или фраза, заменяем.
-        # Сортируем ключи по убыванию длины, чтобы длинные фразы имели приоритет.
         sorted_keys = sorted(canon_map.keys(), key=len, reverse=True)
         for synonym in sorted_keys:
             if synonym == canon_map[synonym]:
-                continue  # пропускаем канонические сами на себя
-            # Для многословных синонимов используем границы без \b
+                continue
             if ' ' in synonym or '-' in synonym:
                 pattern = r'(?<!\w)' + re.escape(synonym) + r'(?!\w)'
             else:
                 pattern = r'\b' + re.escape(synonym) + r'\b'
-            # Заменяем все вхождения (не жадничаем, т.к. карта уже плоская)
             normalized = re.sub(pattern, canon_map[synonym], normalized)
 
-        # Шаг 2: версии и скобки (без изменений)
+        # === 3. Удаление версий и скобок ===
         for pattern in SkillNormalizer.VERSION_PATTERNS:
             normalized = re.sub(pattern, '', normalized)
 
-        # Шаг 3: суффиксы (без изменений)
+        # === 4. Удаление суффиксов ===
         for suffix in SkillNormalizer.SUFFIX_REMOVALS:
-            normalized = re.sub(rf'\s+{re.escape(suffix)}\s*$', '', normalized)
+            normalized = re.sub(rf'{suffix}', '', normalized, flags=re.IGNORECASE)
 
-        # Шаг 4: финальная чистка
+        # === 5. Финальная чистка ===
         normalized = re.sub(r'\s+', ' ', normalized).strip()
         normalized = re.sub(r'[^\w\s\+\#\-\.]', '', normalized)
         normalized = re.sub(r'\s+', ' ', normalized).strip()
         normalized = re.sub(r'\.$', '', normalized)
 
-        # Шаг 5: fuzzy fallback (без изменений)
+        # === 6. Если осталось несколько слов, пытаемся оставить только значимое ===
+        words = normalized.split()
+        if len(words) > 1:
+            RU_STOP = {
+                "или", "подобных", "подобные", "языках", "языки", "языков",
+                "и", "т.д.", "т.п.", "etc", "опыт", "знание", "умение",
+                "работа", "систем", "моделей", "production", "prod",
+                "архитектур", "системы", "с", "в", "на", "по", "для"
+            }
+            meaningful = [w for w in words if w.lower() not in RU_STOP]
+            if len(meaningful) == 1:
+                normalized = meaningful[0]
+            elif len(meaningful) == 0 and words:
+                normalized = words[-1]  # fallback – последнее слово
+            # если meaningful > 1, оставляем как есть (например, "machine learning")
+
+        # === 7. Fuzzy fallback (без изменений) ===
         whitelist = SkillNormalizer._get_whitelist()
         if normalized in whitelist:
             return normalized
@@ -220,7 +259,6 @@ class SkillNormalizer:
             scorer=fuzz.WRatio,
             limit=SkillNormalizer.MAX_FUZZY_CANDIDATES
         )
-
         if matches and matches[0][1] >= SkillNormalizer.FUZZY_THRESHOLD:
             best_match = matches[0][0]
             logger.debug(f"Fuzzy match: '{original}' → '{best_match}' (score={matches[0][1]})")
