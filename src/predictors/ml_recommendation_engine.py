@@ -1,355 +1,405 @@
 """
-ML Recommendation Engine v2 (без salary) - ИСПРАВЛЕННАЯ ВЕРСИЯ
-Использует RandomForest для классификации навыков как "важный" или "обычный"
+ML Recommendation Engine v4 (регрессия важности навыков)
+Использует RandomForestRegressor для предсказания непрерывного скора важности.
 """
 
+import json
 import logging
+from pathlib import Path
+from typing import List, Dict, Tuple, Optional, Any
+
 import numpy as np
 import pandas as pd
-from typing import List, Dict, Tuple, Set
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.model_selection import train_test_split
-from collections import Counter, defaultdict
-import re
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import cross_val_score, train_test_split
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+import joblib
+
+from src.parsing.vacancy_parser import VacancyParser
+from src.parsing.skill_normalizer import SkillNormalizer
+from src.analyzers.skill_filter import SkillFilter
+from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
+from src import config
 
 logger = logging.getLogger(__name__)
 
 
-class SkillAnalyzer:
-    """Анализирует навыки без использования зарплаты"""
-    
-    def __init__(self):
-        self.skill_frequency = {}
-        self.skill_pairs = defaultdict(int)
-        self.skill_by_level = defaultdict(lambda: defaultdict(int))
-        self.skill_position = defaultdict(list)
-        self.skill_importance = {}
-        
-    def analyze_vacancies(self, vacancies: List[Dict]) -> Dict[str, float]:
-        """Анализирует вакансии и вычисляет важность каждого навыка"""
-        logger.info(f"Анализируем {len(vacancies)} вакансий...")
-        
-        total_vacs = len(vacancies)
-        
-        for vac in vacancies:
-            skills = vac.get('skills', [])
-            experience = vac.get('experience', 'middle').lower()
-            description = vac.get('description', '')
-            
-            # Частота
-            for skill in skills:
-                self.skill_frequency[skill] = self.skill_frequency.get(skill, 0) + 1
-                self.skill_by_level[skill][experience] += 1
-                
-                # Позиция в описании
-                if description:
-                    pos = description.lower().find(skill.lower())
-                    if pos != -1:
-                        self.skill_position[skill].append(pos)
-            
-            # Пары навыков
-            for i, skill1 in enumerate(skills):
-                for skill2 in skills[i+1:]:
-                    key = tuple(sorted([skill1, skill2]))
-                    self.skill_pairs[key] += 1
-        
-        # Вычисляем важность
-        self._calculate_importance()
-        
-        logger.info(f"✓ Проанализировано {len(self.skill_frequency)} уникальных навыков")
-        return self.skill_importance
-    
-    def _calculate_importance(self):
-        """Вычисляет комплексный скор важности навыка"""
-        if not self.skill_frequency:
-            return
-            
-        total_vacancies = sum(self.skill_frequency.values())
-        
-        for skill, freq in self.skill_frequency.items():
-            # Компонента 1: Частота (0-0.4)
-            frequency_score = min(freq / (total_vacancies / 10), 1.0) * 0.4
-            
-            # Компонента 2: Уровень требования (0-0.3)
-            levels = self.skill_by_level[skill]
-            level_score = 0
-            if levels.get('senior', 0) > 0:
-                level_score += 0.15
-            if levels.get('middle', 0) > 0:
-                level_score += 0.10
-            if levels.get('junior', 0) > 0:
-                level_score += 0.05
-            level_score = min(level_score, 0.3)
-            
-            # Компонента 3: Позиция в описании (0-0.2)
-            position_score = 0
-            if self.skill_position[skill]:
-                avg_pos = np.mean(self.skill_position[skill])
-                position_score = max(0.2 - (avg_pos / 1000), 0.02) * 0.2
-            
-            # Компонента 4: Синергия (0-0.1)
-            synergy_score = 0
-            skill_pairs_count = sum(1 for pair in self.skill_pairs if skill in pair)
-            synergy_score = min(skill_pairs_count / 50, 1.0) * 0.1
-            
-            self.skill_importance[skill] = (
-                frequency_score + level_score + position_score + synergy_score
-            )
-    
-    def get_skill_synergies(self, skill: str, top_n: int = 5) -> List[Tuple[str, int]]:
-        """Возвращает навыки, которые часто встречаются с данным"""
-        synergies = []
-        for (s1, s2), count in self.skill_pairs.items():
-            if s1 == skill:
-                synergies.append((s2, count))
-            elif s2 == skill:
-                synergies.append((s1, count))
-        
-        return sorted(synergies, key=lambda x: x[1], reverse=True)[:top_n]
-    
-    def get_skill_explanation(self, skill: str) -> str:
-        """Генерирует объяснение для навыка"""
-        freq = self.skill_frequency.get(skill, 0)
-        levels = self.skill_by_level.get(skill, {})
-        importance = self.skill_importance.get(skill, 0)
-        
-        explanations = []
-        
-        # Частота
-        if freq > 0:
-            pct = (freq / sum(self.skill_frequency.values())) * 100
-            explanations.append(f"Встречается в {pct:.1f}% вакансий")
-        
-        # Уровень
-        level_info = []
-        if levels.get('senior', 0) > 0:
-            level_info.append("требуется для senior")
-        if levels.get('middle', 0) > 0:
-            level_info.append("требуется для middle")
-        if level_info:
-            explanations.append(f"{', '.join(level_info).capitalize()}")
-        
-        # Синергия
-        synergies = self.get_skill_synergies(skill, 2)
-        if synergies:
-            synergy_names = [s[0] for s in synergies]
-            explanations.append(f"Часто сочетается с {', '.join(synergy_names)}")
-        
-        return " → ".join(explanations) if explanations else f"{skill} — востребованный навык"
-
-
 class MLRecommendationEngine:
     """
-    ML движок для рекомендаций навыков (версия 2, без salary)
-    Классифицирует навыки как "важные" (top 30%) или "обычные"
+    ML-движок для предсказания важности навыков (регрессия).
+    Интегрируется с существующими модулями и данными.
     """
-    
-    def __init__(self):
-        self.analyzer = SkillAnalyzer()
-        self.skill_importance = {}
-        self.model = RandomForestClassifier(
-            n_estimators=50,
-            max_depth=8,
-            min_samples_split=2,
-            min_samples_leaf=1,
-            random_state=42,
-            n_jobs=-1
-        )
-        self.mlb = MultiLabelBinarizer()
-        self.is_fitted = False
-        self.feature_names = None
-        logger.info("MLRecommendationEngine v2 инициализирован")
-    
-    def fit(self, vacancies: List[Dict]):
-        """Обучаем модель - классифицируем навыки как важные или обычные"""
-        logger.info("Начинаем обучение ML модели...")
-        
-        if not vacancies:
-            raise ValueError("Нужны вакансии для обучения")
-        
-        logger.info(f"DEBUG: Получено {len(vacancies)} вакансий")
-        
-        # Анализируем вакансии
-        self.skill_importance = self.analyzer.analyze_vacancies(vacancies)
-        
-        # Подготавливаем данные для RandomForest
-        X_data = []
-        y_data = []
-        
-        for vac in vacancies:
-            skills = vac.get('skills', [])
-            
-            if not skills:
-                continue
-            
-            X_data.append(skills)
-            y_data.append(skills)  # для подсчета важности
-        
-        logger.info(f"DEBUG: Вакансий с навыками: {len(X_data)}")
-        
-        if not X_data or len(X_data) < 3:
-            logger.warning(f"⚠️ Недостаточно данных ({len(X_data)} < 3)")
-            self.is_fitted = False
-            return self
-        
-        # One-hot encoding
-        try:
-            X = self.mlb.fit_transform(X_data)
-            self.feature_names = self.mlb.classes_
-            logger.info(f"DEBUG: Features: {len(self.feature_names)}")
-        except Exception as e:
-            logger.error(f"❌ Ошибка при one-hot encoding: {e}")
-            self.is_fitted = False
-            return self
-        
-        # Создаём бинарный target: навык в top 30% по важности = 1, иначе 0
-        # Считаем медиану важности
-        importances = list(self.skill_importance.values())
-        if importances:
-            threshold = np.percentile(importances, 70)  # top 30%
-        else:
-            threshold = 0
-        
-        logger.info(f"DEBUG: Threshold важности: {threshold:.4f}")
-        
-        y = np.array([
-            1 if self.skill_importance.get(skill, 0) >= threshold else 0
-            for skill in self.feature_names
+
+    def __init__(self, model_path: Optional[Path] = None):
+        self.vacancy_parser = VacancyParser()
+        self.skill_filter = SkillFilter()
+        self.level_analyzer = SkillLevelAnalyzer()
+
+        self.pipeline = Pipeline([
+            ('scaler', StandardScaler()),
+            ('reg', RandomForestRegressor(
+                n_estimators=100,
+                max_depth=8,
+                random_state=42,
+                n_jobs=-1
+            ))
         ])
-        
-        logger.info(f"DEBUG: Y distribution: {np.bincount(y)}")
-        
-        # Если только один класс - добавляем фиктивные образцы
-        if len(np.unique(y)) < 2:
-            logger.warning("⚠️ Только один класс в данных, добавляем фиктивные образцы")
-            # Просто используем важность напрямую, без классификации
-            self.is_fitted = True
+
+        self.is_fitted = False
+        self.feature_names: List[str] = []
+        self.skill_metadata: Dict[str, Dict[str, Any]] = {}
+        self.total_vacancies = 0
+
+        if model_path is None:
+            config.MODELS_DIR.mkdir(parents=True, exist_ok=True)
+            self.model_path = config.MODELS_DIR / "skill_importance_regressor.joblib"
+        else:
+            self.model_path = model_path
+
+    def fit(self, vacancies: List[Dict], test_size: float = 0.2) -> "MLRecommendationEngine":
+        if len(vacancies) < 10:
+            logger.warning("Недостаточно вакансий для обучения ML-модели")
+            self.is_fitted = False
             return self
-        
-        # Train/test split
-        try:
-            if len(X) < 10:
-                test_size = 0.2
+
+        logger.info(f"Обучение ML-модели (регрессия) на {len(vacancies)} вакансиях...")
+
+        # 1. Извлекаем частоты и гибридные веса через VacancyParser
+        extraction_result = self.vacancy_parser.extract_skills_from_vacancies(vacancies)
+        frequencies = extraction_result["frequencies"]
+        hybrid_weights = extraction_result.get("hybrid_weights", {})
+
+        # 2. Подготавливаем данные для SkillLevelAnalyzer вручную
+        processed_vacancies = []
+        for vac in vacancies:
+            skills = set()
+            # Из key_skills
+            for ks in vac.get("key_skills", []):
+                name = ks.get("name", "")
+                if name:
+                    norm = SkillNormalizer.normalize(name)
+                    if norm:
+                        skills.add(norm)
+            # Из description (опционально)
+            desc_skills = self.vacancy_parser.extract_skills_from_description(vac.get("description", ""))
+            for s in desc_skills:
+                norm = SkillNormalizer.normalize(s)
+                if norm:
+                    skills.add(norm)
+
+            # Обработка experience
+            exp_raw = vac.get("experience", {})
+            if isinstance(exp_raw, dict):
+                exp_name = exp_raw.get("name", "").lower()
+                if "junior" in exp_name or "младший" in exp_name:
+                    experience = "junior"
+                elif "senior" in exp_name or "старший" in exp_name:
+                    experience = "senior"
+                else:
+                    experience = "middle"
             else:
-                test_size = 0.2
-            
+                experience = exp_raw if isinstance(exp_raw, str) else "middle"
+
+            processed_vacancies.append({
+                "skills": list(skills),
+                "experience": experience
+            })
+
+        self.level_analyzer.analyze_vacancies(processed_vacancies)
+
+        # 3. Сохраняем метаданные для каждого навыка
+        self.skill_metadata = {}
+        for skill, freq in frequencies.items():
+            self.skill_metadata[skill] = {
+                "frequency": freq,
+                "hybrid_weight": hybrid_weights.get(skill, 0.0),
+                "level": self.level_analyzer.get_skill_level(skill),
+                "category": self._get_skill_category(skill),
+                "filtered": self.skill_filter.validate_skills([skill]) != []
+            }
+        self.total_vacancies = len(vacancies)
+
+        # 4. Формируем обучающую выборку
+        all_skills = list(self.skill_metadata.keys())
+        X_rows = []
+        y_rows = []
+
+        # Целевая переменная: нормализованная важность = лог-частота + 0.3 * hybrid_weight
+        max_freq = max(frequencies.values()) if frequencies else 1
+        max_log = np.log1p(max_freq)
+
+        for skill in all_skills:
+            freq = frequencies[skill]
+            hw = hybrid_weights.get(skill, 0.0)
+            # Комбинированный скор: лог-частота (0-1) и hybrid_weight (0-1)
+            target = (np.log1p(freq) / max_log) * 0.7 + hw * 0.3
+            features = self._extract_features(skill)
+            X_rows.append(features)
+            y_rows.append(target)
+
+        X = pd.DataFrame(X_rows)
+        y = np.array(y_rows)
+        self.feature_names = X.columns.tolist()
+
+        # --- Разделение на train/test для оценки ---
+        if len(X) > 20:
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=test_size, random_state=42
             )
-            
-            logger.info(f"DEBUG: Train: {len(X_train)}, Test: {len(X_test)}")
-        except Exception as e:
-            logger.error(f"❌ Ошибка при split: {e}")
-            self.is_fitted = False
-            return self
-        
-        # Обучаем модель
-        try:
-            self.model.fit(X_train, y_train)
-            logger.info("✅ RandomForest fit успешен")
-            
-            train_score = self.model.score(X_train, y_train)
-            test_score = self.model.score(X_test, y_test)
-            logger.info(f"ML модель: Train Acc={train_score:.3f}, Test Acc={test_score:.3f}")
-        except Exception as e:
-            logger.error(f"❌ Ошибка при fit: {e}")
-            self.is_fitted = False
-            return self
-        
+        else:
+            X_train, X_test, y_train, y_test = X, X, y, y  # fallback
+
+        # 5. Обучение
+        self.pipeline.fit(X_train, y_train)
         self.is_fitted = True
-        logger.info("✅ is_fitted = True")
+
+        # --- Оценка качества ---
+        if len(X_test) > 0:
+            y_pred = self.pipeline.predict(X_test)
+
+            r2 = r2_score(y_test, y_pred)
+            mae = mean_absolute_error(y_test, y_pred)
+            rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+
+            logger.info("\n" + "="*60)
+            logger.info("Оценка качества регрессионной модели на тестовой выборке")
+            logger.info("="*60)
+            logger.info(f"Размер тестовой выборки: {len(X_test)}")
+            logger.info(f"R² Score: {r2:.4f}")
+            logger.info(f"MAE: {mae:.4f}")
+            logger.info(f"RMSE: {rmse:.4f}")
+
+            # График: предсказанные vs истинные значения
+            plt.figure(figsize=(6,5))
+            plt.scatter(y_test, y_pred, alpha=0.6)
+            plt.plot([0, 1], [0, 1], 'r--')
+            plt.xlabel("Истинная важность")
+            plt.ylabel("Предсказанная важность")
+            plt.title("Predicted vs Actual Importance")
+            pred_vs_actual_path = config.MODELS_DIR / "pred_vs_actual.png"
+            plt.savefig(pred_vs_actual_path, dpi=150)
+            plt.close()
+            logger.info(f"График предсказаний сохранён: {pred_vs_actual_path}")
+
+            # Распределение остатков
+            residuals = y_test - y_pred
+            plt.figure(figsize=(6,4))
+            sns.histplot(residuals, kde=True, bins=15)
+            plt.xlabel("Ошибка предсказания")
+            plt.title("Distribution of Residuals")
+            resid_path = config.MODELS_DIR / "residuals_dist.png"
+            plt.savefig(resid_path, dpi=150)
+            plt.close()
+            logger.info(f"Распределение остатков сохранено: {resid_path}")
+
+        # --- Важность признаков ---
+        feature_importances = self.pipeline.named_steps['reg'].feature_importances_
+        importance_df = pd.DataFrame({
+            'feature': self.feature_names,
+            'importance': feature_importances
+        }).sort_values('importance', ascending=False)
+
+        logger.info("\nТоп-10 важных признаков:")
+        for _, row in importance_df.head(10).iterrows():
+            logger.info(f"  {row['feature']}: {row['importance']:.4f}")
+
+        # Сохраняем модель
+        joblib.dump({
+            "pipeline": self.pipeline,
+            "feature_names": self.feature_names,
+            "skill_metadata": self.skill_metadata,
+            "total_vacancies": self.total_vacancies
+        }, self.model_path)
+        logger.info(f"Модель сохранена в {self.model_path}")
+
         return self
-    
+
+    def load_model(self, path: Optional[Path] = None) -> "MLRecommendationEngine":
+        """Загружает ранее обученную модель."""
+        model_path = path or self.model_path
+        if not model_path.exists():
+            logger.error(f"Файл модели не найден: {model_path}")
+            return self
+
+        data = joblib.load(model_path)
+        self.pipeline = data["pipeline"]
+        self.feature_names = data["feature_names"]
+        self.skill_metadata = data["skill_metadata"]
+        self.total_vacancies = data["total_vacancies"]
+        self.is_fitted = True
+        logger.info(f"Модель загружена из {model_path}")
+        return self
+
     def predict_skill_impact(
-        self, 
-        student_skills: List[str], 
+        self,
+        student_skills: List[str],
         missing_skills: List[str]
     ) -> List[Tuple[str, float, str]]:
-        """Предсказываем важность каждого missing_skill"""
-        
+        """
+        Предсказывает важность недостающих навыков (непрерывный скор).
+        Возвращает список кортежей (навык, скор_важности, объяснение).
+        """
         if not self.is_fitted:
-            logger.warning("⚠️ Модель не обучена, используем только аналитику")
+            logger.warning("Модель не обучена, возвращаю fallback на частоты")
             return self._fallback_impacts(missing_skills)
-        
+
         impacts = []
-        
         for skill in missing_skills:
-            importance = self.skill_importance.get(skill, 0)
-            explanation = self.analyzer.get_skill_explanation(skill)
-            
-            # Если навык встречался в обучении
-            if skill in self.feature_names:
-                try:
-                    # Создаём вектор с этим навыком
-                    vector = np.zeros(len(self.feature_names), dtype=int)
-                    idx = np.where(self.feature_names == skill)[0][0]
-                    vector[idx] = 1
-                    
-                    # Предсказываем вероятность "важности"
-                    prob = self.model.predict_proba([vector])[0]
-                    ml_score = prob[1] * 100  # вероятность класса 1
-                    
-                    total_score = (importance * 50) + (ml_score * 0.5)
-                except Exception as e:
-                    logger.debug(f"Ошибка predict для {skill}: {e}")
-                    total_score = importance * 100
-            else:
-                total_score = importance * 100
-            
-            impacts.append((skill, round(total_score), explanation))
-        
-        impacts.sort(key=lambda x: x[1], reverse=True)
-        return impacts[:10]
-    
+            features = self._extract_features(skill)
+            X_skill = pd.DataFrame([features])[self.feature_names]
+
+            try:
+                # Предсказываем непрерывное значение важности (0-1)
+                pred = self.pipeline.predict(X_skill)[0]
+                # Ограничиваем диапазон и переводим в проценты
+                score = max(0.0, min(1.0, pred)) * 100
+            except Exception as e:
+                logger.debug(f"Ошибка предсказания для {skill}: {e}")
+                score = self._fallback_score(skill)
+
+            explanation = self._generate_explanation(skill, score / 100)
+            impacts.append((skill, round(score, 2), explanation))
+
+        return sorted(impacts, key=lambda x: x[1], reverse=True)[:10]
+
+    def _extract_features(self, skill: str) -> Dict[str, float]:
+        """Извлекает признаки для одного навыка."""
+        meta = self.skill_metadata.get(skill, {})
+        freq = meta.get("frequency", 0)
+        level = meta.get("level", "middle")
+        category = meta.get("category", "other")
+        hybrid_weight = meta.get("hybrid_weight", 0.0)
+
+        level_map = {"junior": 1, "middle": 2, "senior": 3, "all_levels": 2}
+        category_map = {
+            "programming_languages": 5,
+            "frameworks": 4,
+            "databases": 3,
+            "devops": 4,
+            "cloud": 4,
+            "data_science": 4,
+            "frontend": 3,
+            "testing": 3,
+            "tools": 2,
+            "other": 1
+        }
+
+        return {
+            "frequency": freq,
+            "freq_log": np.log1p(freq),
+            "hybrid_weight": hybrid_weight,
+            "level_encoded": level_map.get(level, 2),
+            "category_encoded": category_map.get(category, 1),
+            "filtered": 1.0 if meta.get("filtered", False) else 0.0,
+        }
+
+    def _get_skill_category(self, skill: str) -> str:
+        """Определяет категорию навыка через SkillFilter."""
+        categories = self.skill_filter.get_skill_categories([skill])
+        for cat, skills in categories.items():
+            if skill in skills:
+                return cat
+        return "other"
+
+    def _fallback_score(self, skill: str) -> float:
+        """Fallback оценка на основе частоты и hybrid_weight."""
+        meta = self.skill_metadata.get(skill, {})
+        freq = meta.get("frequency", 0)
+        hw = meta.get("hybrid_weight", 0.0)
+        max_freq = max((m["frequency"] for m in self.skill_metadata.values()), default=1)
+        max_log = np.log1p(max_freq)
+        score = (np.log1p(freq) / max_log) * 0.7 + hw * 0.3
+        return score * 100
+
     def _fallback_impacts(self, missing_skills: List[str]) -> List[Tuple[str, float, str]]:
-        """Fallback: используем только аналитику без ML"""
+        """Fallback на частоты, если модель не обучена."""
         impacts = []
         for skill in missing_skills:
-            importance = self.skill_importance.get(skill, 0)
-            explanation = self.analyzer.get_skill_explanation(skill)
-            impacts.append((skill, round(importance * 100), explanation))
-        
-        impacts.sort(key=lambda x: x[1], reverse=True)
-        return impacts[:10]
-    
-    def get_feature_importance(self, top_n: int = 10) -> Dict[str, float]:
-        """Возвращает top-N важных признаков модели"""
-        if not self.is_fitted or self.feature_names is None:
-            return {}
-        
-        try:
-            importances = self.model.feature_importances_
-            feature_importance_dict = {}
-            
-            for name, importance in zip(self.feature_names, importances):
-                feature_importance_dict[str(name)] = float(importance)
-            
-            return dict(
-                sorted(feature_importance_dict.items(), key=lambda x: x[1], reverse=True)[:top_n]
-            )
-        except Exception as e:
-            logger.warning(f"⚠️ Ошибка при get_feature_importance: {e}")
-            return {}
-    
-    def _skills_to_vector(self, skills: List[str]) -> np.ndarray:
-        """Преобразует список навыков в one-hot вектор"""
-        if self.feature_names is None or len(self.feature_names) == 0:
-            return None
-        
-        vector = np.zeros(len(self.feature_names), dtype=int)
-        
-        for skill in skills:
-            indices = np.where(self.feature_names == skill)[0]
-            if len(indices) > 0:
-                vector[indices[0]] = 1
-        
-        return vector
-    
-    def get_top_skills(self, top_n: int = 20) -> List[Tuple[str, float]]:
-        """Возвращает топ навыков по важности"""
-        return sorted(
-            self.skill_importance.items(), 
-            key=lambda x: x[1], 
-            reverse=True
-        )[:top_n]
+            score = self._fallback_score(skill)
+            impacts.append((skill, round(score, 2), self._generate_explanation(skill, score/100)))
+        return sorted(impacts, key=lambda x: x[1], reverse=True)[:10]
+
+    def _generate_explanation(self, skill: str, importance: float) -> str:
+        """Генерирует текстовое объяснение для навыка."""
+        meta = self.skill_metadata.get(skill, {})
+        freq = meta.get("frequency", 0)
+        level = meta.get("level", "middle")
+        category = meta.get("category", "other")
+        return (f"Частота: {freq}, уровень: {level}, категория: {category}, "
+                f"важность: {importance:.2f}")
+
+
+# ----------------------------------------------------------------------
+# Блок для отладки и тестирования (__main__)
+# ----------------------------------------------------------------------
+if __name__ == "__main__":
+    import sys
+    import argparse
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+    parser = argparse.ArgumentParser(description="Отладка MLRecommendationEngine")
+    parser.add_argument("--load-raw", action="store_true", help="Загрузить сырые вакансии из data/raw/hh_vacancies_basic.json")
+    parser.add_argument("--train", action="store_true", help="Принудительно обучить модель (иначе загрузит готовую)")
+    parser.add_argument("--student", type=str, default="base", help="Профиль студента для демонстрации (base, dc, top_dc)")
+    args = parser.parse_args()
+
+    engine = MLRecommendationEngine()
+
+    if args.train or not engine.model_path.exists():
+        if args.load_raw:
+            raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+            if not raw_file.exists():
+                logger.error(f"Файл {raw_file} не найден.")
+                sys.exit(1)
+            with open(raw_file, 'r', encoding='utf-8') as f:
+                vacancies = json.load(f)
+            logger.info(f"Загружено {len(vacancies)} сырых вакансий из {raw_file}")
+        else:
+            logger.warning("Использую синтетические вакансии для демонстрации.")
+            vacancies = [
+                {"skills": ["python", "sql", "pandas"], "experience": "middle", "description": "Python developer"},
+                {"skills": ["python", "docker", "flask"], "experience": "senior", "description": "Senior Python dev"},
+                {"skills": ["java", "spring", "sql"], "experience": "middle", "description": "Java backend"},
+                {"skills": ["python", "machine learning", "pytorch"], "experience": "senior", "description": "ML engineer"},
+                {"skills": ["javascript", "react", "html"], "experience": "junior", "description": "Frontend dev"},
+            ]
+        engine.fit(vacancies)
+    else:
+        engine.load_model()
+
+    student_file = config.STUDENTS_DIR / f"{args.student}_competency.json"
+    student_skills = []
+    if student_file.exists():
+        with open(student_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            student_skills = data.get("навыки", [])
+        logger.info(f"Навыки студента '{args.student}': {student_skills}")
+    else:
+        logger.warning(f"Файл студента {student_file} не найден. Использую заглушку ['python', 'sql']")
+        student_skills = ["python", "sql"]
+
+    market_skills = list(engine.skill_metadata.keys())
+    missing = [s for s in market_skills if s not in student_skills]
+
+    print("\n" + "=" * 60)
+    print(f"Рекомендации для профиля '{args.student}' (недостающие навыки):")
+    print("=" * 60)
+
+    recommendations = engine.predict_skill_impact(student_skills, missing)
+    for skill, score, expl in recommendations:
+        print(f"• {skill:<20} важность: {score:>5.1f}% | {expl}")
+
+    print("\n" + "=" * 60)
+    print("Топ-10 самых важных рыночных навыков (по модели):")
+    print("=" * 60)
+    top_skills = sorted(engine.skill_metadata.items(), key=lambda x: x[1]["frequency"], reverse=True)[:10]
+    for skill, meta in top_skills:
+        print(f"• {skill:<20} частота: {meta['frequency']} | уровень: {meta['level']}")
