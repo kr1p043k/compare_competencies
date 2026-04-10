@@ -54,7 +54,7 @@ class StudentLoader:
         return students
 
 
-# ====================== ОСТАЛЬНОЙ КОД БЕЗ ИЗМЕНЕНИЙ ======================
+# ====================== Создание профилей из CSV ======================
 def generate_profiles_from_csv(
     csv_path: Path = DATA_RAW_DIR / "competency_matrix.csv",
     output_dir: Path = STUDENTS_DIR,
@@ -79,24 +79,31 @@ def generate_profiles_from_csv(
 
     # Индикаторы компетенций (вторая строка)
     indicators_raw = df.iloc[1, 1:].tolist()
-    indicator_codes = []
+
+    # ---------- ИЗМЕНЕНИЕ ----------
+    # 1. Формируем маппинг: позиция столбца → исходный код компетенции
+    indicator_mapping = {}
+    col_idx = 2  # первые два столбца: № и Дисциплина
     for raw in indicators_raw:
         if pd.isna(raw):
             continue
         code = str(raw).split(' ', 1)[0]
-        indicator_codes.append(code)
-    logger.info(f"Найдено индикаторов компетенций: {len(indicator_codes)}")
+        indicator_mapping[col_idx] = code
+        col_idx += 1
+    logger.info(f"Найдено индикаторов компетенций: {len(indicator_mapping)}")
+    # ------------------------------
 
     # Данные дисциплин (строки с 3-й)
     disciplines_df = df.iloc[2:, :].copy()
-    disciplines_df.columns = ['№', 'Дисциплина'] + indicator_codes
-    disciplines_df['№'] = pd.to_numeric(disciplines_df['№'], errors='coerce').fillna(0).astype(int)
+    # Присваиваем простые числовые имена столбцов, чтобы избежать конфликтов
+    disciplines_df.columns = list(range(disciplines_df.shape[1]))
+    disciplines_df[0] = pd.to_numeric(disciplines_df[0], errors='coerce').fillna(0).astype(int)
 
     # Сбор навыков по профилям
     profiles_skills = {}
     for profile_name, discipline_ids in PROFILES_DISCIPLINES.items():
         logger.debug(f"Обработка профиля {profile_name}, дисциплины: {discipline_ids}")
-        profile_df = disciplines_df[disciplines_df['№'].isin(discipline_ids)]
+        profile_df = disciplines_df[disciplines_df[0].isin(discipline_ids)]
 
         if len(profile_df) == 0:
             logger.warning(f"Для профиля {profile_name} не найдено ни одной дисциплины.")
@@ -105,13 +112,13 @@ def generate_profiles_from_csv(
 
         skills = set()
         for _, row in profile_df.iterrows():
-            for indicator in indicator_codes:
-                val = row.get(indicator)
-                if isinstance(val, pd.Series):
-                    logger.warning(f"Пропуск индикатора {indicator}: получен Series, ожидался скаляр")
-                    continue
+            # ---------- ИЗМЕНЕНИЕ ----------
+            # Идём по столбцам индикаторов через маппинг
+            for col_idx, indicator_code in indicator_mapping.items():
+                val = row.iloc[col_idx]
                 if pd.notna(val) and str(val).strip() in ('Б', 'П'):
-                    skills.add(indicator)
+                    skills.add(indicator_code)
+            # ------------------------------
 
         profile_skills = sorted(skills)
         profiles_skills[profile_name] = profile_skills
@@ -132,7 +139,6 @@ def generate_profiles_from_csv(
 
     logger.info("Обработка CSV завершена успешно")
     return profiles_skills
-
 
 if __name__ == "__main__":
     print("Запуск генерации профилей из CSV...")
