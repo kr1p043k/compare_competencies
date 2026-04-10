@@ -16,3 +16,5 @@ test/test_output
 htmlcov/
 coverage.xml
 .pytest_cache/
+data/embeddings/
+data/models/
