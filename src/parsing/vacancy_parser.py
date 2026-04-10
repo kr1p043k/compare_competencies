@@ -18,6 +18,7 @@ from src.models.vacancy import Vacancy
 from src.parsing.skill_parser import SkillParser, SkillSource
 from src.parsing.skill_validator import SkillValidator
 from src.parsing.skill_normalizer import SkillNormalizer
+from src.parsing.embedding_loader import get_embedding_model
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class VacancyParser:
         # === ЗАГРУЗКА МОДЕЛИ ЭМБЕДДИНГОВ (один раз при создании парсера) ===
         logger.info(f"🚀 Загрузка модели эмбеддингов: {config.EMBEDDING_MODEL}")
         try:
-            self.embedding_model = SentenceTransformer(config.EMBEDDING_MODEL)
+            self.embedding_model = get_embedding_model()
             self.embedding_model.eval()   # режим inference
             logger.info("✅ Модель эмбеддингов успешно загружена")
         except Exception as e:
@@ -204,44 +205,55 @@ class VacancyParser:
                 desc = vac.get("description", "") or ""
                 key_skills = " ".join(s.get("name", "") for s in vac.get("key_skills", []))
 
-            # Очистка HTML (используем уже существующий метод)
-            desc_clean = self._strip_html(desc) if hasattr(self, '_strip_html') else self._strip_html_static(desc)
-            texts.append(desc_clean + " " + key_skills)
+            desc_clean = self._strip_html(desc)
+            combined = (desc_clean + " " + key_skills).strip()
+            if combined:  # добавляем только непустые тексты
+                texts.append(combined)
 
         if not texts:
+            logger.warning("Нет текстов для BM25 (все вакансии пусты)")
             return {}
 
         try:
-            # === Токенизация (точно как в старом TF-IDF) ===
             import re
             token_pattern = re.compile(r'(?u)\b\w[\w\+\-\#]+\b')
             tokenized_corpus = [
                 token_pattern.findall(text.lower()) for text in texts
             ]
+            # Фильтруем пустые документы
+            tokenized_corpus = [tokens for tokens in tokenized_corpus if tokens]
+            if not tokenized_corpus:
+                logger.warning("После токенизации не осталось документов с термами")
+                return {}
 
             from rank_bm25 import BM25Okapi
             bm25 = BM25Okapi(tokenized_corpus)
 
-            # Собираем все уникальные термы
             all_terms = set()
             for tokens in tokenized_corpus:
                 all_terms.update(tokens)
 
-            # === Вычисляем средний BM25-score для каждого терма ===
             weights = {}
             logger.info(f"Вычисление BM25 для {len(all_terms)} термов...")
 
             for term in all_terms:
-                # treat term as 1-word query
-                scores = bm25.get_scores([term])
-                avg_score = float(sum(scores) / len(scores)) if sum(scores) > 0 else 0.0
-                
-                if avg_score > 0.03:   # порог (можно подкрутить)
-                    weights[term] = round(avg_score, 4)
+                try:
+                    scores = bm25.get_scores([term])
+                    if len(scores) == 0:
+                        continue
+                    avg_score = float(sum(scores) / len(scores))
+                    if avg_score > 0.03:
+                        weights[term] = round(avg_score, 4)
+                except ZeroDivisionError:
+                    logger.debug(f"ZeroDivisionError для терма '{term}'")
+                    continue
 
             logger.info(f"✅ BM25 рассчитан: {len(weights)} значимых весов навыков")
             return weights
 
+        except ZeroDivisionError as e:
+            logger.warning(f"BM25 не рассчитан из-за деления на ноль: {e}")
+            return {}
         except Exception as e:
             logger.warning(f"BM25 не рассчитан: {e}")
             return {}
