@@ -171,8 +171,8 @@ class SkillNormalizer:
 
     @staticmethod
     def normalize_batch(skills: List[str]) -> List[str]:
-        """Нормализует батч + автоматическая дедупликация (сохраняет порядок)."""
-        return SkillNormalizer.deduplicate(skills)
+        """Только нормализация, без глобальной дедупликации (для частот)"""
+        return [SkillNormalizer.normalize(skill) for skill in skills if skill]
 
     @staticmethod
     def deduplicate(skills: List[str]) -> List[str]:
