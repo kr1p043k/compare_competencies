@@ -25,33 +25,37 @@ class SkillLevelAnalyzer:
         }
     
     def analyze_vacancies(self, vacancies: List[Dict]):
-        """
-        Анализирует вакансии и определяет распределение навыков по уровням
-        
-        Args:
-            vacancies: List[Dict] с полями:
-                - 'skills': List[str]
-                - 'experience': str (junior/middle/senior/не указано)
-        """
         logger.info("Анализируем распределение навыков по уровням...")
-        
         total_by_level = defaultdict(int)
-        
-        # Подсчитываем навыки по уровням
+
         for vac in vacancies:
             skills = vac.get('skills', [])
-            experience = vac.get('experience', 'middle').lower()
-            
-            # Нормализуем experience
+            experience_raw = vac.get('experience', 'middle')
+
+            # Обработка разных форматов поля experience
+            if isinstance(experience_raw, dict):
+                exp_name = experience_raw.get('name', '').lower()
+                # Простая эвристика для извлечения уровня из названия
+                if 'junior' in exp_name or 'младший' in exp_name or 'начинающий' in exp_name:
+                    experience = 'junior'
+                elif 'senior' in exp_name or 'старший' in exp_name or 'ведущий' in exp_name:
+                    experience = 'senior'
+                else:
+                    experience = 'middle'
+            elif isinstance(experience_raw, str):
+                experience = experience_raw.lower()
+            else:
+                experience = 'middle'
+
             if experience not in ['junior', 'middle', 'senior']:
                 experience = 'middle'
-            
+
             total_by_level[experience] += 1
-            
+
             for skill in skills:
                 skill_lower = skill.lower().strip()
                 self.skill_by_level[skill_lower][experience] += 1
-        
+
         logger.info(f"Распределение вакансий: {dict(total_by_level)}")
         logger.info(f"Анализировано {len(self.skill_by_level)} уникальных навыков")
     
