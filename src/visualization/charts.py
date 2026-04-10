@@ -1,7 +1,8 @@
+# src/visualization/charts.py (обновлённая версия)
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import logging
 import json
 
@@ -10,14 +11,10 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 
-# Добавляем корень проекта в sys.path (2 уровня вверх)
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src import config
 
-# ----------------------------------------------------------------------
-# Настройка стилей
-# ----------------------------------------------------------------------
 plt.style.use('seaborn-v0_8')
 sns.set_palette("husl")
 plt.rcParams['figure.figsize'] = (12, 8)
@@ -25,200 +22,175 @@ plt.rcParams['figure.figsize'] = (12, 8)
 logger = logging.getLogger(__name__)
 
 
-# ----------------------------------------------------------------------
-# Базовые функции визуализации
-# ----------------------------------------------------------------------
+def load_skill_weights() -> Dict[str, float]:
+    """Загружает skill_weights из data/processed/skill_weights.json."""
+    path = config.DATA_PROCESSED_DIR / "skill_weights.json"
+    if path.exists():
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
+def load_hybrid_weights() -> Dict[str, float]:
+    """Загружает гибридные веса (если есть)."""
+    path = config.DATA_PROCESSED_DIR / "hybrid_weights.json"
+    if path.exists():
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
+def load_ml_recommendations(profile_name: str) -> List[Tuple[str, float, str]]:
+    """Загружает ML-рекомендации для профиля."""
+    rec_file = config.DATA_DIR / "result" / profile_name / f"ml_recommendations_{profile_name}.json"
+    if rec_file.exists():
+        with open(rec_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return [(item['skill'], item['score'], item['explanation']) for item in data.get('recommendations', [])]
+    return []
+
 
 def plot_coverage_comparison(results: Dict[str, Any], save_path: Optional[Path] = None) -> plt.Figure:
-    """
-    Строит столбчатую диаграмму сравнения покрытия для нескольких учеников.
-    """
+    """Сравнение покрытия (coverage) для нескольких профилей."""
     data = []
     for name, rep in results.items():
-        row = {'Ученик': name}
-        
-        # Основное покрытие
+        row = {'Профиль': name}
         if 'coverage_percent' in rep:
-            row['Покрытие (доля)'] = rep['coverage_percent']
-        
-        # Взвешенное покрытие (если есть)
-        if 'weighted_coverage_percent' in rep:
-            row['Взвешенное покрытие'] = rep['weighted_coverage_percent']
-        elif 'coverage_details' in rep and 'covered_weight' in rep['coverage_details']:
-            # Альтернатива: вычисляем из деталей
-            row['Взвешенное покрытие'] = (
-                rep['coverage_details']['covered_weight'] / 
-                rep['coverage_details']['total_weight'] * 100
-                if rep['coverage_details']['total_weight'] > 0 else 0
-            )
-        
+            row['Покрытие (%)'] = rep['coverage_percent']
+        elif 'coverage_details' in rep:
+            det = rep['coverage_details']
+            row['Покрытие (%)'] = (det['covered_weight'] / det['total_weight'] * 100) if det['total_weight'] > 0 else 0
+        if 'readiness_score' in rep:
+            row['Готовность (%)'] = rep['readiness_score']
         data.append(row)
-    
+
     if not data:
-        logger.error("Нет данных для графика покрытия")
         fig, ax = plt.subplots()
-        ax.text(0.5, 0.5, "Нет данных для графика", ha='center', va='center')
+        ax.text(0.5, 0.5, "Нет данных", ha='center', va='center')
         return fig
-    
+
     df = pd.DataFrame(data)
-    
-    fig, ax = plt.subplots(figsize=(8, 5))
-    
-    # Определяем какие столбцы есть в данных
-    columns_to_plot = ['Покрытие (доля)']
-    if 'Взвешенное покрытие' in df.columns:
-        columns_to_plot.append('Взвешенное покрытие')
-    
-    df.plot(x='Ученик', y=columns_to_plot, kind='bar', ax=ax)
-    ax.set_title('Сравнение покрытия рыночных навыков')
-    ax.set_ylabel('Процент')
+    fig, ax = plt.subplots(figsize=(10, 6))
+    df.plot(x='Профиль', kind='bar', ax=ax)
+    ax.set_title('Сравнение профилей: покрытие и готовность')
+    ax.set_ylabel('Проценты')
     ax.set_ylim(0, 100)
     ax.grid(axis='y', alpha=0.3)
-    
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    
     return fig
 
-def plot_top_deficits(deficits: List[Dict], student_name: str, save_path: Optional[Path] = None) -> plt.Figure:
-    """
-    Строит горизонтальную столбчатую диаграмму топ-дефицитов.
-    :param deficits: список словарей с ключами 'skill' и 'frequency'
-    """
-    if not deficits:
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.text(0.5, 0.5, "Нет дефицитов высокого спроса", ha='center', va='center')
-        ax.set_title(f"{student_name}")
+
+def plot_ml_importance(profile_name: str, top_n: int = 10, save_path: Optional[Path] = None) -> plt.Figure:
+    """Визуализирует топ-N ML-рекомендаций для профиля."""
+    recs = load_ml_recommendations(profile_name)
+    if not recs:
+        fig, ax = plt.subplots()
+        ax.text(0.5, 0.5, f"Нет ML-рекомендаций для '{profile_name}'", ha='center', va='center')
         return fig
 
-    skills = [d['skill'] for d in deficits[:10]]
-    freqs = [d['frequency'] for d in deficits[:10]]
+    skills = [r[0] for r in recs[:top_n]]
+    scores = [r[1] for r in recs[:top_n]]
+
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.barh(skills, freqs, color='salmon')
-    ax.set_title(f"Топ-10 дефицитов высокого спроса — {student_name}")
-    ax.set_xlabel("Частота в вакансиях")
+    bars = ax.barh(skills, scores, color='skyblue')
+    ax.set_title(f"ML-рекомендации для '{profile_name}': важность навыков")
+    ax.set_xlabel('Важность (%)')
     ax.invert_yaxis()
     ax.grid(axis='x', alpha=0.3)
+
+    # Добавим подписи с процентом
+    for bar, score in zip(bars, scores):
+        ax.text(bar.get_width() + 1, bar.get_y() + bar.get_height()/2, f'{score:.1f}%', va='center')
+
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
     return fig
 
 
-def plot_radar_chart(student_skills: List[str], market_top: List[str], student_name: str, save_path: Optional[Path] = None) -> plt.Figure:
-    """
-    Лепестковая диаграмма: сравнение профиля ученика с топ-навыками рынка.
-    """
-    # Создаём массив: 1, если навык есть у студента, иначе 0
-    data = [1 if skill in student_skills else 0 for skill in market_top]
-    angles = np.linspace(0, 2 * np.pi, len(market_top), endpoint=False).tolist()
-    # Замыкаем круг
+def plot_skill_comparison_radar(
+    student_skills: List[str],
+    market_top_skills: List[str],
+    student_name: str,
+    save_path: Optional[Path] = None
+) -> plt.Figure:
+    """Радарная диаграмма: профиль студента против топ-навыков рынка."""
+    data = [1 if skill in student_skills else 0 for skill in market_top_skills]
+    angles = np.linspace(0, 2 * np.pi, len(market_top_skills), endpoint=False).tolist()
     data += data[:1]
     angles += angles[:1]
 
-    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection='polar'))
+    fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
     ax.plot(angles, data, 'o-', linewidth=2)
     ax.fill(angles, data, alpha=0.25)
     ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(market_top, size=10)
-    ax.set_title(f"Профиль ученика {student_name} vs топ-навыки рынка")
+    ax.set_xticklabels(market_top_skills, size=9)
+    ax.set_title(f"Профиль '{student_name}' vs Топ-{len(market_top_skills)} рынка", pad=20)
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
     return fig
 
 
-def plot_skill_trends(history_df: pd.DataFrame, skill: str, save_path: Optional[Path] = None) -> plt.Figure:
-    """
-    Строит график изменения частоты навыка во времени.
-    """
-    data = history_df[history_df['skill'] == skill].sort_values('date')
-    if data.empty:
+def plot_weight_distribution(weights: Dict[str, float], title: str = "Распределение весов навыков", save_path: Optional[Path] = None) -> plt.Figure:
+    """Гистограмма распределения весов (skill_weights или hybrid_weights)."""
+    if not weights:
         fig, ax = plt.subplots()
-        ax.text(0.5, 0.5, f"Нет данных по навыку '{skill}'", ha='center', va='center')
+        ax.text(0.5, 0.5, "Нет данных о весах", ha='center', va='center')
         return fig
 
+    values = list(weights.values())
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(data['date'], data['frequency'], marker='o', linestyle='-')
-    ax.set_title(f"Тренд востребованности: {skill}")
-    ax.set_xlabel("Дата")
-    ax.set_ylabel("Частота в вакансиях")
-    ax.grid(alpha=0.3)
+    ax.hist(values, bins=30, edgecolor='black', alpha=0.7)
+    ax.set_title(title)
+    ax.set_xlabel('Вес')
+    ax.set_ylabel('Количество навыков')
+    ax.grid(axis='y', alpha=0.3)
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
     return fig
 
 
-def plot_heatmap(skill_matrix: pd.DataFrame, save_path: Optional[Path] = None) -> plt.Figure:
-    """
-    Тепловая карта соответствия учеников навыкам.
-    """
-    fig, ax = plt.subplots(figsize=(12, 8))
-    sns.heatmap(skill_matrix, annot=True, cmap='Blues', cbar_kws={'label': 'Наличие'}, ax=ax)
-    ax.set_title("Матрица соответствия учеников навыкам")
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    return fig
-
-
-def save_all_charts(results: Dict[str, Any], output_dir: Path):
-    """Сохраняет основные графики для каждого ученика и сводные."""
+def save_all_charts(results: Dict[str, Any], output_dir: Path, use_ml: bool = True):
+    """Сохраняет основные графики в output_dir."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Загружаем skill_weights для получения топ-навыков рынка
-    skill_weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
-    top_market_skills = []
-    if skill_weights_path.exists():
-        try:
-            with open(skill_weights_path, 'r', encoding='utf-8') as f:
-                skill_weights = json.load(f)
-
-            # Стоп-слова, которые не должны попадать в радиарную диаграмму
-            stop_skills = {
-                "язык", "английский", "английский язык", "язык frontend",
-                "frontend английский", "frontend английский язык"
-            }
-
-            def filter_top_skills(weights, top_n=40):
-                # Получаем топ-N навыков по весу, исключая стоп-слова
-                sorted_items = sorted(weights.items(), key=lambda x: x[1], reverse=True)
-                filtered_items = [(skill, w) for skill, w in sorted_items if skill not in stop_skills]
-                top_items = filtered_items[:top_n]
-                skills = [skill for skill, _ in top_items]
-
-                # Удаляем навыки, которые являются подстрокой другого навыка (оставляем более длинные)
-                result = []
-                for skill in skills:
-                    if not any(skill != other and skill in other for other in skills):
-                        result.append(skill)
-
-                # Если после фильтрации осталось слишком мало, возвращаем первые top_n без подстрок
-                if len(result) < top_n // 2:
-                    result = [skill for skill, _ in filtered_items[:top_n]]
-                return result
-
-            top_market_skills = filter_top_skills(skill_weights, top_n=20)
-            logger.info(f"Загружены топ-{len(top_market_skills)} навыков рынка для радиарной диаграммы: {top_market_skills}")
-        except Exception as e:
-            logger.warning(f"Не удалось загрузить skill_weights.json: {e}")
-    else:
-        logger.warning("skill_weights.json не найден, радиарные диаграммы не будут построены")
-
-    # Общий график покрытия
+    # Сводное сравнение покрытия
     plot_coverage_comparison(results, save_path=output_dir / "coverage_comparison.png")
 
+    # Загружаем рыночные топ-навыки для радаров
+    skill_weights = load_skill_weights()
+    stop_skills = {"язык", "английский", "английский язык", "frontend", "backend"}
+    top_skills = [s for s, _ in sorted(skill_weights.items(), key=lambda x: x[1], reverse=True)[:40]
+                  if s not in stop_skills][:20]
+
     for name, rep in results.items():
-        student_dir = output_dir / name
-        student_dir.mkdir(parents=True, exist_ok=True)
+        profile_dir = output_dir / name
+        profile_dir.mkdir(exist_ok=True)
 
-        # Дефициты
+        # Радарная диаграмма
+        if 'covered_skills' in rep and top_skills:
+            plot_skill_comparison_radar(rep['covered_skills'], top_skills, name,
+                                        save_path=profile_dir / f"radar_{name}.png")
+
+        # ML-рекомендации
+        if use_ml:
+            plot_ml_importance(name, save_path=profile_dir / f"ml_importance_{name}.png")
+
+        # Дефициты (если есть в отчёте)
         if 'high_demand_gaps' in rep:
-            plot_top_deficits(rep['high_demand_gaps'], name,
-                              save_path=student_dir / f"top_deficits_{name}.png")
-
-        # Радар (если есть covered_skills и топ-рыночные навыки)
-        if 'covered_skills' in rep and top_market_skills:
-            plot_radar_chart(rep['covered_skills'], top_market_skills, name,
-                             save_path=student_dir / f"radar_{name}.png")
+            deficits = rep['high_demand_gaps'][:10]
+            if deficits:
+                skills = [d['skill'] for d in deficits]
+                freqs = [d['frequency'] for d in deficits]
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.barh(skills, freqs, color='salmon')
+                ax.set_title(f"Топ-10 дефицитов высокого спроса — {name}")
+                ax.set_xlabel("Частота")
+                ax.invert_yaxis()
+                ax.grid(axis='x', alpha=0.3)
+                fig.savefig(profile_dir / f"deficits_{name}.png", dpi=300, bbox_inches='tight')
+                plt.close(fig)
 
 # ----------------------------------------------------------------------
 # Утилиты для запуска ноутбуков и вывода контекстной информации
@@ -346,15 +318,59 @@ def show_context_info() -> None:
 # Точка входа для демонстрации (если запустить файл напрямую)
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
+    import matplotlib
     logging.basicConfig(level=logging.INFO)
-
-    # Показываем контекстную информацию
     show_context_info()
 
-    # Запустить ноутбуки (опционально)
-    run_analysis = input("Запустить анализ через ноутбуки? (y/n): ").strip().lower()
+    # --------------------------------------------------------------
+    # ДЕМОНСТРАЦИЯ ГРАФИКОВ (автоматически при запуске)
+    # --------------------------------------------------------------
+    skill_weights = load_skill_weights()
+    if not skill_weights:
+        print("\n" + "=" * 60)
+        print("❌ skill_weights.json не найден.")
+        print("   Соберите данные командой: python main.py --it-sector")
+        print("=" * 60)
+        sys.exit(1)
+
+    # 1. Распределение весов навыков
+    fig1 = plot_weight_distribution(skill_weights, "Распределение очищенных весов навыков")
+    plt.show()
+
+    # 2. Попробуем построить сравнение покрытия по профилям
+    #    Загрузим данные из готовых отчётов или создадим минимальный словарь
+    results_for_charts = {}
+    profiles_found = False
+    for profile_name in ["base", "dc", "top_dc"]:
+        report_path = config.DATA_DIR / "result" / profile_name / f"comparison_report_{profile_name}.json"
+        if report_path.exists():
+            with open(report_path, 'r', encoding='utf-8') as f:
+                report = json.load(f)
+            results_for_charts[profile_name] = {
+                'coverage_percent': report.get('coverage', {}).get('raw', 0),
+                'readiness_score': report.get('readiness_score', 0),
+                'covered_skills': report.get('student', {}).get('skills', [])
+            }
+            profiles_found = True
+
+    if profiles_found:
+        fig2 = plot_coverage_comparison(results_for_charts)
+        plt.show()
+
+    # 3. ML-рекомендации для профиля 'base' (если есть)
+    recs = load_ml_recommendations("base")
+    if recs:
+        fig3 = plot_ml_importance("base", top_n=10)
+        plt.show()
+    else:
+        print("\n" + "-" * 60)
+        print("ℹ️  ML-рекомендации для 'base' не найдены.")
+        print("   Обучите модель командой:")
+        print("   python -m src.predictors.ml_recommendation_engine --load-raw --train")
+        print("-" * 60)
+
+    # 4. Опциональный запуск ноутбуков
+    run_analysis = input("\nЗапустить ноутбуки анализа? (y/n): ").strip().lower()
     if run_analysis == 'y':
-        # Запускаем 01_hh_analysis.ipynb (анализ рынка)
         run_notebook("01_hh_analysis.ipynb")
-        # Запускаем 02_competency_matching.ipynb (сравнение профилей)
         run_notebook("02_competency_matching.ipynb")
