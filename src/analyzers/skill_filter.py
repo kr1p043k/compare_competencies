@@ -5,7 +5,6 @@
 
 import numpy as np
 from typing import Dict, List, Set, Tuple, Optional
-from collections import Counter
 import logging
 
 logger = logging.getLogger(__name__)

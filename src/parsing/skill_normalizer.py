@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from rapidfuzz import process, fuzz
 from src import config
-from src.parsing.utils import load_it_skills  # уже есть в проекте
+from src.parsing.utils import load_it_skills 
 from collections import defaultdict
 logger = logging.getLogger(__name__)
 

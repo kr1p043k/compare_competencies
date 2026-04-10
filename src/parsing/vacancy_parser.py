@@ -1,6 +1,5 @@
 """
 Парсер вакансий с поддержкой как старых dict, так и новых типизированных моделей.
-Исправленная версия с корректным подсчётом частот навыков.
 """
 
 import json
@@ -9,12 +8,10 @@ from collections import Counter
 from typing import List, Dict, Any, Optional, Union
 import logging
 import pandas as pd
-import torch
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
 import torch
 import numpy as np   # если ещё нет
-from sklearn.feature_extraction.text import TfidfVectorizer
 from src import config
 from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
 from src.models.vacancy import Vacancy

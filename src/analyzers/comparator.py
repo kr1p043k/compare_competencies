@@ -1,11 +1,9 @@
 from typing import List, Dict, Tuple, Optional
 import logging
-from pathlib import Path
 
 from src.analyzers.embedding_comparator import EmbeddingComparator
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 
 logger = logging.getLogger(__name__)
 

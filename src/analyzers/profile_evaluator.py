@@ -3,8 +3,7 @@
 """
 
 import logging
-from typing import Dict, List, Tuple
-from datetime import datetime
+from typing import Dict, List
 from src.models.student import (
     StudentProfile, 
     ProfileEvaluation, 

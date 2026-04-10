@@ -9,7 +9,6 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-# Только для проверки типов (не выполняется в runtime → нет цикла)
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .skill_normalizer import SkillNormalizer
