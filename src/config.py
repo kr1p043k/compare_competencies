@@ -8,7 +8,10 @@ DATA_RAW_DIR = DATA_DIR / "raw"
 DATA_PROCESSED_DIR = DATA_DIR / "processed"
 STUDENTS_DIR = DATA_DIR / "students"              
 LAST_UPLOADED_DIR = DATA_DIR / "last_uploaded"
-COMPETENCY_MAPPING_FILE = DATA_PROCESSED_DIR / "competency_mapping.json"    
+COMPETENCY_MAPPING_FILE = DATA_PROCESSED_DIR / "competency_mapping.json"
+COMPETENCY_FREQ_PATH = DATA_PROCESSED_DIR / "competency_frequency.json"
+IT_SKILLS_PATH = DATA_DIR / "it_skills.json"    
+MODELS_DIR = DATA_DIR / "models"
 
 # Логи
 LOG_DIR = BASE_DIR / "logs"
