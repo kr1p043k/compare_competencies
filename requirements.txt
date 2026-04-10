@@ -20,3 +20,4 @@ torch>=2.5.0
 rapidfuzz
 pytest-cov
 aioresponses
+rank-bm25
