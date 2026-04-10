@@ -1,27 +1,11 @@
 # tests/parsing/test_parsers.py
-import pytest
 from src.parsing.skill_normalizer import SkillNormalizer
-from src.parsing.vacancy_parser import VacancyParser
-from unittest.mock import Mock, patch
 from src.models.vacancy import Vacancy, Area, Employer, KeySkill
-from unittest.mock import AsyncMock, patch
 import pytest
 import json
 import pandas as pd
-from pathlib import Path
 from unittest.mock import patch, MagicMock, mock_open, ANY
 import numpy as np
-import pytest
-import json
-import pandas as pd
-from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open, ANY
-import numpy as np
-from src.parsing.skill_parser import ExtractedSkill, SkillSource
-from src.parsing.vacancy_parser import VacancyParser
-from src.models.vacancy import Vacancy, Area, Employer, KeySkill
-from src.parsing.skill_parser import SkillParser, ExtractedSkill, SkillSource
-from src.parsing.skill_validator import SkillValidator, ValidationResult, ValidationReason
 from src.parsing.vacancy_parser import VacancyParser
 from src.models.vacancy import Vacancy, Area, Employer, KeySkill
 from src.parsing.skill_parser import SkillParser, ExtractedSkill, SkillSource
@@ -163,16 +147,11 @@ def test_extract_skills_from_description():
 # ----------------------------------------------------------------------
 # extract_skills_from_vacancies
 # ----------------------------------------------------------------------
-
 @patch('src.parsing.vacancy_parser.SkillNormalizer')
-@patch('src.parsing.vacancy_parser.TfidfVectorizer')
-def test_extract_skills_from_vacancies_dict(mock_tfidf, mock_normalizer, mock_skill_parser, mock_skill_validator, tmp_path, monkeypatch, sample_vacancy_dict):
+def test_extract_skills_from_vacancies_dict(mock_normalizer, mock_skill_parser, mock_skill_validator, tmp_path, monkeypatch, sample_vacancy_dict):
     monkeypatch.setattr("src.parsing.vacancy_parser.config.EMBEDDINGS_CACHE_DIR", tmp_path)
     mock_normalizer.normalize_batch.return_value = ["python", "django", "fastapi"]
-    mock_tfidf_instance = MagicMock()
-    mock_tfidf_instance.fit_transform.return_value = MagicMock()
-    mock_tfidf_instance.get_feature_names_out.return_value = ["python", "django"]
-    mock_tfidf.return_value = mock_tfidf_instance
+    # Убираем всё, связанное с TfidfVectorizer
 
     with patch('src.parsing.vacancy_parser.VacancyParser._get_skill_embeddings', return_value={"python": [0.1, 0.2]}):
         parser = VacancyParser()
@@ -540,3 +519,63 @@ class TestVacancyParser:
 
         result = parser.extract_skills_from_vacancies(vacancies)
         assert result['frequencies'].get('python') == 1
+    
+    def test_get_skill_embeddings_cache_corrupted(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("src.parsing.vacancy_parser.config.EMBEDDINGS_CACHE_DIR", tmp_path)
+        cache_file = tmp_path / "skill_embeddings.json"
+        cache_file.write_text("{not valid json", encoding='utf-8')
+
+        parser = VacancyParser()
+        mock_model = MagicMock()
+        # Модель должна вернуть массив для одного навыка
+        mock_model.encode.return_value = np.array([[0.1, 0.2]])
+        parser.embedding_model = mock_model
+
+        embeddings = parser._get_skill_embeddings(["python"])
+        mock_model.encode.assert_called_once()
+        assert "python" in embeddings
+    
+    def test_extract_skills_from_vacancies_skips_invalid_dict(self, monkeypatch):
+        parser = VacancyParser()
+        mock_parser = MagicMock()
+        parser.skill_parser = mock_parser
+
+        invalid_dict = {"id": "123", "name": "Test"}
+        with patch('src.models.vacancy.Vacancy.from_api', side_effect=ValueError):
+            result = parser.extract_skills_from_vacancies([invalid_dict])
+
+        assert result['frequencies'] == {}
+        mock_parser.parse_vacancy.assert_not_called()
+    
+    def test_extract_skills_from_vacancies_with_no_skills_or_desc(self, monkeypatch):
+        parser = VacancyParser()
+        area = Area(id=1, name="Москва")
+        employer = Employer(id="1", name="Test Corp")
+        vac = Vacancy(
+            id="1", name="Empty", area=area, employer=employer,
+            key_skills=[], description=""
+        )
+        with patch.object(parser.skill_parser, 'parse_vacancy', return_value=[]):
+            result = parser.extract_skills_from_vacancies([vac])
+            assert result['frequencies'] == {}
+            
+            
+    def test_calculate_bm25_weights_empty_texts(self):
+        parser = VacancyParser()
+        weights = parser._calculate_bm25_weights([])
+        assert weights == {}
+
+    def test_calculate_bm25_weights_exception_handling(self, monkeypatch):
+        parser = VacancyParser()
+        vacancies = [{"description": "test", "key_skills": []}]
+        with patch('re.compile', side_effect=Exception("Regex error")):
+            weights = parser._calculate_bm25_weights(vacancies)
+            assert weights == {}
+            
+    def test_calculate_hybrid_weights_few_embeddings(self, monkeypatch):
+        parser = VacancyParser()
+        bm25 = {f"skill{i}": 0.5 for i in range(5)}
+        with patch.object(parser, '_calculate_bm25_weights', return_value=bm25):
+            with patch.object(parser, '_get_skill_embeddings', return_value={f"skill{i}": [0.1] for i in range(5)}):
+                weights = parser._calculate_hybrid_weights([{}])
+                assert weights == bm25
