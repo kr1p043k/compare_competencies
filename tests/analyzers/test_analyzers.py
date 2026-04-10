@@ -1,5 +1,4 @@
 # tests/analyzers/test_analyzers.py
-# tests/analyzers/test_analyzers.py
 import pytest
 
 def test_embedding_comparator(embedding_comparator, sample_student):

@@ -1,6 +1,7 @@
-# tests/analyzers/test_skill_filter_extended.py
+# tests/analyzers/test_skill.py
 import pytest
 from src.analyzers.skill_filter import SkillFilter
+from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
 
 class TestSkillFilterExtended:
     def test_filter_weights_removes_generic(self):
@@ -73,9 +74,121 @@ class TestSkillFilterExtended:
         assert "devops" in cats
         assert "cloud" in cats
         assert "data_science" in cats
-# tests/analyzers/test_skill_level_analyzer_extended.py
-import pytest
-from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
+
+        # --------------------------------------------------------------
+    # Дополнительные тесты для покрытия пропущенных строк
+    # --------------------------------------------------------------
+
+    def test_filter_weights_empty_input(self):
+        sf = SkillFilter()
+        result = sf.filter_weights({})
+        assert result == {}
+
+    def test_normalize_weights_all_equal_minmax(self):
+        sf = SkillFilter()
+        weights = {"a": 5.0, "b": 5.0}
+        norm = sf.normalize_weights(weights, method='minmax')
+        # При равенстве min и max все получают 1.0
+        assert norm == {"a": 1.0, "b": 1.0}
+
+    def test_merge_with_reference_empty_comp_freq(self):
+        sf = SkillFilter()
+        skill_weights = {"python": 0.9, "django": 0.7}
+        # Пустой competency_freq — возвращаем отфильтрованные skill_weights
+        merged = sf.merge_with_reference(skill_weights, {})
+        assert "python" in merged
+        assert merged["python"] == 0.9
+
+    def test_merge_with_reference_equal_counts(self):
+        sf = SkillFilter()
+        skill_weights = {}
+        comp_freq = {"python": 10, "django": 10}
+        merged = sf.merge_with_reference(skill_weights, comp_freq)
+        # max_count == min_count => weight = count/max_count * 0.8 = 0.8
+        assert merged["python"] == 0.8
+        assert merged["django"] == 0.8
+
+    def test_merge_with_reference_adds_skills_only_in_tfidf(self):
+        sf = SkillFilter()
+        skill_weights = {"fastapi": 0.9}
+        comp_freq = {"python": 10}
+        merged = sf.merge_with_reference(skill_weights, comp_freq)
+        # "python" из comp_freq, "fastapi" только в skill_weights
+        assert "fastapi" in merged
+        assert merged["fastapi"] == 0.9
+
+    def test_get_clean_weights_empty_raw(self):
+        sf = SkillFilter()
+        clean = sf.get_clean_weights({})
+        assert clean == {}
+
+    def test_get_clean_weights_no_competency_freq_uses_raw(self):
+        sf = SkillFilter()
+        raw = {"python": 0.9}
+        # Без competency_freq использует raw_freq
+        clean = sf.get_clean_weights(raw, use_reference=False)
+        assert "python" in clean
+
+    def test_get_clean_weights_removes_long_phrases_in_clean(self):
+        sf = SkillFilter()
+        raw = {"python": 0.9, "this is a very long skill phrase with six words": 0.5}
+        clean = sf.get_clean_weights(raw, use_reference=False)
+        assert "python" in clean
+        assert "this is a very long skill phrase with six words" not in clean
+
+    def test_get_clean_weights_empty_after_generic_and_long(self):
+        sf = SkillFilter()
+        # Все навыки либо generic, либо слишком длинные
+        raw = {"frontend": 0.9, "this is a very long skill phrase with six words": 0.5}
+        clean = sf.get_clean_weights(raw, use_reference=False)
+        assert clean == {}
+
+    def test_get_clean_weights_empty_after_reference_filter(self):
+        sf = SkillFilter()
+        # Навыки не проходят reference фильтр
+        raw = {"unknownskill1": 0.9, "unknownskill2": 0.8}
+        clean = sf.get_clean_weights(raw, use_reference=True)
+        assert clean == {}
+
+    def test_get_skill_categories_full(self):
+        sf = SkillFilter()
+        skills = ["python", "react", "postgresql", "docker", "aws", "machine learning", 
+                  "html", "pytest", "git", "unknown"]
+        cats = sf.get_skill_categories(skills)
+        assert "programming_languages" in cats
+        assert "frameworks" in cats
+        assert "databases" in cats
+        assert "devops" in cats
+        assert "cloud" in cats
+        assert "data_science" in cats
+        assert "frontend" in cats
+        assert "testing" in cats
+        assert "tools" in cats
+        assert "other" in cats
+        assert "unknown" in cats["other"]
+
+    def test_get_skill_categories_empty(self):
+        sf = SkillFilter()
+        cats = sf.get_skill_categories([])
+        assert cats == {}
+
+    def test_filter_weights_min_weight_edge(self):
+        sf = SkillFilter()
+        weights = {"python": 0.009, "django": 0.01}
+        filtered = sf.filter_weights(weights, min_weight=0.01)
+        assert "python" not in filtered
+        assert "django" in filtered
+
+    def test_validate_skills_partial_match_known_ref(self):
+        sf = SkillFilter()
+        skills = ["python programming", "advanced react", "django rest"]
+        valid = sf.validate_skills(skills)
+        # "python programming" содержит "python" → valid
+        # "advanced react" содержит "react" → valid
+        # "django rest" содержит "django" → valid
+        assert "python programming" in valid
+        assert "advanced react" in valid
+        assert "django rest" in valid
 
 class TestSkillLevelAnalyzerExtended:
     def test_analyze_vacancies(self):
@@ -247,3 +360,117 @@ class TestSkillFilterExtended:
         # "advanced sql" содержит "sql", но sql в GENERIC_WORDS -> удаляется
         assert "python programming" in valid
         assert "advanced sql" not in valid
+class TestSkillFilterCoverage:
+    """Тесты для достижения 100% покрытия SkillFilter."""
+    
+    def test_filter_weights_empty_input(self):
+        sf = SkillFilter()
+        result = sf.filter_weights({})
+        assert result == {}
+
+    def test_filter_weights_keeps_valid_skill(self):
+        sf = SkillFilter()
+        weights = {"python": 0.5}
+        filtered = sf.filter_weights(weights, min_weight=0.01)
+        assert "python" in filtered
+
+    def test_normalize_weights_minmax_all_equal(self):
+        sf = SkillFilter()
+        weights = {"a": 5.0, "b": 5.0}
+        norm = sf.normalize_weights(weights, method='minmax')
+        # При равных значениях все получают 1.0
+        assert norm == {"a": 1.0, "b": 1.0}
+
+    def test_merge_with_reference_empty_comp_freq(self):
+        sf = SkillFilter()
+        skill_weights = {"python": 0.9, "django": 0.7}
+        merged = sf.merge_with_reference(skill_weights, {})
+        assert "python" in merged
+        assert merged["python"] == 0.9
+
+    def test_merge_with_reference_all_counts_equal(self):
+        sf = SkillFilter()
+        skill_weights = {}
+        comp_freq = {"python": 10, "django": 10}
+        merged = sf.merge_with_reference(skill_weights, comp_freq)
+        assert merged["python"] == 0.8
+        assert merged["django"] == 0.8
+
+    def test_merge_with_reference_adds_skills_only_in_tfidf(self):
+        sf = SkillFilter()
+        skill_weights = {"fastapi": 0.9}
+        comp_freq = {"python": 10}
+        merged = sf.merge_with_reference(skill_weights, comp_freq)
+        assert "fastapi" in merged
+        assert merged["fastapi"] == 0.9
+
+    def test_get_clean_weights_empty_raw(self):
+        sf = SkillFilter()
+        clean = sf.get_clean_weights({})
+        assert clean == {}
+
+    def test_get_clean_weights_no_competency_freq_uses_raw(self):
+        sf = SkillFilter()
+        raw = {"python": 0.9}
+        clean = sf.get_clean_weights(raw, use_reference=False)
+        assert "python" in clean
+
+    def test_get_clean_weights_removes_long_phrases(self):
+        sf = SkillFilter()
+        raw = {"python": 0.9, "this is a very long skill phrase with six words": 0.5}
+        clean = sf.get_clean_weights(raw, use_reference=False)
+        assert "python" in clean
+        assert "this is a very long skill phrase with six words" not in clean
+
+    def test_get_clean_weights_empty_after_generic_and_long(self):
+        sf = SkillFilter()
+        raw = {"frontend": 0.9, "this is a very long skill phrase with six words": 0.5}
+        clean = sf.get_clean_weights(raw, use_reference=False)
+        assert clean == {}
+
+    def test_get_clean_weights_empty_after_reference_filter(self):
+        sf = SkillFilter()
+        raw = {"unknownskill1": 0.9, "unknownskill2": 0.8}
+        clean = sf.get_clean_weights(raw, use_reference=True)
+        assert clean == {}
+
+    def test_get_skill_categories_full(self):
+        sf = SkillFilter()
+        skills = ["python", "react", "postgresql", "docker", "aws", "machine learning", 
+                "html", "pytest", "git", "unknown"]
+        cats = sf.get_skill_categories(skills)
+        
+        assert "programming_languages" in cats
+        assert "frameworks" in cats
+        assert "databases" in cats
+        assert "devops" in cats
+        assert "cloud" in cats
+        assert "data_science" in cats
+        assert "frontend" in cats
+        assert "testing" in cats
+        assert "other" in cats
+        
+        # Проверяем конкретные распределения
+        assert "python" in cats["programming_languages"]
+        assert "react" in cats["frameworks"]
+        assert "postgresql" in cats["databases"]
+        assert "docker" in cats["devops"]
+        assert "git" in cats["devops"]           # git попадает в devops
+        assert "aws" in cats["cloud"]
+        assert "machine learning" in cats["data_science"]
+        assert "html" in cats["frontend"]
+        assert "pytest" in cats["testing"]
+        assert "unknown" in cats["other"]
+
+    def test_get_skill_categories_empty(self):
+        sf = SkillFilter()
+        cats = sf.get_skill_categories([])
+        assert cats == {}
+
+    def test_validate_skills_partial_match(self):
+        sf = SkillFilter()
+        skills = ["python programming", "advanced react", "django rest"]
+        valid = sf.validate_skills(skills)
+        assert "python programming" in valid
+        assert "advanced react" in valid
+        assert "django rest" in valid
