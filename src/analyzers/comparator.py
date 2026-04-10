@@ -14,7 +14,8 @@ class CompetencyComparator:
         min_df: int = 1,
         max_df: float = 0.95,
         use_embeddings: bool = False,
-        level: str = "middle"
+        level: str = "middle",
+        similarity_threshold: float = 0.75
     ):
         self.use_embeddings = use_embeddings
         self.level = level
@@ -23,8 +24,9 @@ class CompetencyComparator:
         self.fitted = False
 
         if use_embeddings:
-            self.embedding_comparator = EmbeddingComparator()
-            logger.info(f"✅ EmbeddingComparator инициализирован для уровня {level}")
+            self.embedding_comparator = EmbeddingComparator(
+                similarity_threshold=similarity_threshold
+            )
         else:
             self.tfidf = TfidfVectorizer(
                 ngram_range=ngram_range,
