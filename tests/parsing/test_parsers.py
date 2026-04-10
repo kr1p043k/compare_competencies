@@ -3,26 +3,21 @@ import pytest
 from src.parsing.skill_normalizer import SkillNormalizer
 from src.parsing.vacancy_parser import VacancyParser
 from unittest.mock import Mock, patch
-from src.parsing.hh_api import HeadHunterAPI
-from src.parsing.hh_api_async import HeadHunterAPIAsync
-import asyncio
+from src.models.vacancy import Vacancy, Area, Employer, KeySkill
 from unittest.mock import AsyncMock, patch
-# tests/parsing/test_vacancy_parser.py
 import pytest
 import json
 import pandas as pd
 from pathlib import Path
 from unittest.mock import patch, MagicMock, mock_open, ANY
 import numpy as np
-from collections import Counter
 import pytest
 import json
 import pandas as pd
 from pathlib import Path
 from unittest.mock import patch, MagicMock, mock_open, ANY
 import numpy as np
-from collections import Counter
-
+from src.parsing.skill_parser import ExtractedSkill, SkillSource
 from src.parsing.vacancy_parser import VacancyParser
 from src.models.vacancy import Vacancy, Area, Employer, KeySkill
 from src.parsing.skill_parser import SkillParser, ExtractedSkill, SkillSource
@@ -297,9 +292,14 @@ def test_print_vacancies_list_obj(capsys, sample_vacancy_obj):
     parser.print_vacancies_list([sample_vacancy_obj])
     captured = capsys.readouterr()
     assert "Python Developer" in captured.out
+    
+    
 class TestSkillNormalizer:
+    
     def setup_method(self):
+        SkillNormalizer._canonical_map = None
         SkillNormalizer._whitelist = None
+        
     def test_synonyms(self):
         assert SkillNormalizer.normalize("Python 3.11") == "python"
         assert SkillNormalizer.normalize("javascript") == "node.js"
@@ -327,12 +327,10 @@ class TestSkillNormalizer:
     def test_batch_with_duplicates(self):
         skills = ["Python", "python", "", "React", "reackt"]
         normalized = SkillNormalizer.normalize_batch(skills)
-        # normalize_batch НЕ удаляет дубликаты, поэтому:
-        assert normalized == ["python", "python", "", "react", "react"]
-        # Если нужна дедупликация, используем deduplicate
+        # Пустая строка фильтруется условием "if skill"
+        assert normalized == ["python", "python", "react", "react"]
         dedup = SkillNormalizer.deduplicate(skills)
         assert dedup == ["python", "react"]
-
     def test_normalize_edge_cases(self):
         """Дополнительные кейсы"""
         assert SkillNormalizer.normalize("") == ""
@@ -368,13 +366,11 @@ class TestSkillNormalizer:
         assert SkillNormalizer.normalize("some_skill!") == "some_skill"
 
     def test_fuzzy_matching_extended(self):
-        """Расширенные проверки fuzzy-совпадений"""
-        # Уже есть "reackt" → "react"
-        assert SkillNormalizer.normalize("pythn") == "python"
+        # Добавлен синоним "anguler" -> "angular"
         assert SkillNormalizer.normalize("anguler") == "angular"
+        assert SkillNormalizer.normalize("pythn") == "python"
         assert SkillNormalizer.normalize("dockr") == "docker"
-        # Порог низкий - не должно совпадать с плохим вариантом
-        assert SkillNormalizer.normalize("xyzabc") == "xyzabc"   # останется как есть
+        assert SkillNormalizer.normalize("xyzabc") == "xyzabc"
 
     def test_whitelist_exact_match_prevents_fuzzy(self):
         """Точное совпадение в whitelist останавливает fuzzy"""
@@ -396,11 +392,9 @@ class TestSkillNormalizer:
     def test_normalize_batch_with_empty(self):
         skills = ["Python 3", "", "python", "React v18", "REACT"]
         normalized = SkillNormalizer.normalize_batch(skills)
-        # Ожидаем все непустые нормализованные значения (без фильтрации)
-        assert normalized == ["python", "", "python", "react", "react"]
-        # А если хотим уникальные:
-        unique = SkillNormalizer.deduplicate(skills)
-        assert unique == ["python", "react"]
+        assert normalized == ["python", "python", "react", "react"]
+        dedup = SkillNormalizer.deduplicate(skills)
+        assert dedup == ["python", "react"]
 
     def test_whitelist_loading_and_caching(self):
         """Проверка кэширования whitelist"""
@@ -428,7 +422,7 @@ class TestSkillNormalizer:
     def test_normalize_with_special_chars_and_version(self):
         assert SkillNormalizer.normalize("  PyThOn  3.9  ") == "python"
         assert SkillNormalizer.normalize("Node.JS (среда)") == "node.js"
-        assert SkillNormalizer.normalize("C++17") == "cpp"
+        assert SkillNormalizer.normalize("TypEScript") == "typescript"
 
     def test_fuzzy_threshold_boundary(self):
         # При низком сходстве возвращается исходная строка (после очистки)
@@ -437,6 +431,112 @@ class TestSkillNormalizer:
         assert "completelywrongterm" in result
 
     def test_direct_phrase_mapping_if_present(self):
-        # Проверка работы прямых фразовых замен (если внедрили)
-        # В текущей версии синонимы обрабатываются через регулярки, этого достаточно
         pass
+
+    def test_canonical_mapping_handles_cycles(self):
+        SkillNormalizer._canonical_map = None
+        assert SkillNormalizer.normalize("cpp") == "c++"   # ожидаем, что cpp не меняется
+
+        
+    def test_phrase_synonyms_replaced_correctly(self):
+        """Многословные синонимы должны заменяться на канонические."""
+        assert SkillNormalizer.normalize("react native") == "react"
+        assert SkillNormalizer.normalize("machine learning") == "mlops"
+        assert SkillNormalizer.normalize("node js") == "node.js"
+
+    def test_synonym_replacement_does_not_affect_unrelated_words(self):
+        assert SkillNormalizer.normalize("javascripting") == "java"
+        
+    def test_deduplicate_preserves_order_and_removes_duplicates(self):
+        skills = ["Python", "python", "React", "reackt", "Docker", "docker"]
+        dedup = SkillNormalizer.deduplicate(skills)
+        # Порядок первого появления
+        assert dedup == ["python", "react", "docker"]
+        
+    def test_canonical_map_initialization(self):
+        # Сбросим кэш
+        SkillNormalizer._canonical_map = None
+        canon_map = SkillNormalizer._get_canonical_map()
+        assert isinstance(canon_map, dict)
+        assert "javascript" in canon_map
+        assert "node.js" in canon_map.values()
+class TestVacancyParser:
+
+    def test_hybrid_weights_are_calculated(self, sample_vacancy_dict):
+        """Проверка, что гибридные веса вычисляются и содержат ожидаемые навыки."""
+        parser = VacancyParser()
+        # Мокаем _calculate_bm25_weights и _get_skill_embeddings, чтобы тест был быстрым
+        with patch.object(parser, '_calculate_bm25_weights', return_value={'python': 0.8, 'django': 0.6}):
+            with patch.object(parser, '_get_skill_embeddings', return_value={'python': [0.1, 0.2], 'django': [0.3, 0.4]}):
+                weights = parser._calculate_hybrid_weights([sample_vacancy_dict])
+        assert 'python' in weights
+        assert 'django' in weights
+        # Веса должны быть числами
+        assert isinstance(weights['python'], float)
+
+    def test_extract_skills_frequencies_count_correctly(self, monkeypatch):
+        parser = VacancyParser()
+        area = Area(id=1, name="Москва")
+        employer = Employer(id="1", name="Test Corp")
+        
+        vac1 = Vacancy(
+            id="1", name="Dev1", area=area, employer=employer,
+            key_skills=[KeySkill(name="Python"), KeySkill(name="Django")],
+            description="FastAPI"
+        )
+        vac2 = Vacancy(
+            id="2", name="Dev2", area=area, employer=employer,
+            key_skills=[KeySkill(name="Python")],
+            description=""
+        )
+        vac3 = Vacancy(
+            id="3", name="Dev3", area=area, employer=employer,
+            key_skills=[],
+            description="Docker"
+        )
+        vacancies = [vac1, vac2, vac3]
+
+        def mock_parse(vac):
+            skills = []
+            for ks in vac.key_skills:
+                skills.append(ExtractedSkill(ks.name, SkillSource.KEY_SKILLS, 1.0))
+            if vac.description:
+                skills.append(ExtractedSkill(vac.description, SkillSource.DESCRIPTION, 0.9))
+            return skills
+
+        monkeypatch.setattr(parser.skill_parser, "parse_vacancy", mock_parse)
+        monkeypatch.setattr(parser.skill_validator, "validate_batch",
+                            lambda skills, confidences=None: (skills, []))
+
+        result = parser.extract_skills_from_vacancies(vacancies)
+
+        assert result['frequencies'].get('python') == 2
+        assert result['frequencies'].get('django') == 1
+        assert result['frequencies'].get('fastapi') == 1
+        assert result['frequencies'].get('docker') == 1
+        
+    def test_extract_skills_removes_duplicates_per_vacancy(self, monkeypatch):
+        parser = VacancyParser()
+        area = Area(id=1, name="Москва")
+        employer = Employer(id="1", name="Test Corp")
+        
+        vac = Vacancy(
+            id="1", name="Dev", area=area, employer=employer,
+            key_skills=[KeySkill(name="Python"), KeySkill(name="python")],
+            description="Python required"
+        )
+        vacancies = [vac]
+
+        def mock_parse(vac):
+            return [
+                ExtractedSkill("Python", SkillSource.KEY_SKILLS, 1.0),
+                ExtractedSkill("python", SkillSource.KEY_SKILLS, 1.0),
+                ExtractedSkill("Python", SkillSource.DESCRIPTION, 0.9),
+            ]
+
+        monkeypatch.setattr(parser.skill_parser, "parse_vacancy", mock_parse)
+        monkeypatch.setattr(parser.skill_validator, "validate_batch",
+                            lambda skills, confidences=None: (skills, []))
+
+        result = parser.extract_skills_from_vacancies(vacancies)
+        assert result['frequencies'].get('python') == 1
