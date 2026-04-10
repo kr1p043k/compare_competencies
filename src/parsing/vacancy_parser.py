@@ -141,17 +141,10 @@ class VacancyParser:
         self, vacancies: Union[List[Dict], List[Vacancy]]
     ) -> Dict[str, Any]:
         """
-        Возвращает:
-            {
-                "frequencies": {навык: count},
-                "tfidf_weights": {навык: вес},
-                "skill_embeddings": {навык: [0.12, -0.34, ...]}   ← НОВОЕ
-            }
+        Исправленная версия: частоты считаются корректно (по количеству вакансий,
+        где навык встречается хотя бы раз).
         """
-        # === 1. Парсинг + валидация (как было) ===
-        all_extracted_skills = []
         vacancy_objects = []
-
         for vac in vacancies:
             if isinstance(vac, dict):
                 try:
@@ -161,35 +154,51 @@ class VacancyParser:
             else:
                 vacancy_objects.append(vac)
 
+        # === Правильный подсчёт частот ===
+        skill_freq = Counter()
+        all_extracted_for_embeddings = []   # для эмбеддингов и валидации
+
         for vacancy in vacancy_objects:
             extracted = self.skill_parser.parse_vacancy(vacancy)
-            all_extracted_skills.extend(extracted)
+            
+            # Нормализуем и убираем дубли ТОЛЬКО внутри одной вакансии
+            skill_texts = [s.text for s in extracted if s.text]
+            normalized_per_vac = SkillNormalizer.normalize_batch(skill_texts)  # или лучше отдельно normalize + unique
+            
+            # Убираем дубли внутри вакансии (сохраняем порядок)
+            unique_per_vac = list(dict.fromkeys([s for s in normalized_per_vac if s]))
+            
+            for skill in unique_per_vac:
+                skill_freq[skill] += 1                    # ← +1 за каждую вакансию, где навык есть
+                all_extracted_for_embeddings.append(skill)
 
         logger.info(f"Парсинг завершён: {self.skill_parser.get_stats()}")
+        logger.info(f"Найдено уникальных навыков: {len(skill_freq)} | Сумма частот: {sum(skill_freq.values())}")
 
-        skill_texts = [s.text for s in all_extracted_skills]
-        normalized_skills = SkillNormalizer.normalize_batch(skill_texts)
+        # Валидация
+        valid_skills, validation_results = self.skill_validator.validate_batch(list(skill_freq.keys()))
+        
+        # Фильтруем частоты только валидными навыками
+        final_freq = {skill: skill_freq[skill] for skill in valid_skills if skill in skill_freq}
 
-        valid_skills, validation_results = self.skill_validator.validate_batch(normalized_skills)
-        skill_freq = Counter(valid_skills)
+        # BM25 (оставляем как было)
+        hybrid_weights = self._calculate_hybrid_weights(vacancies)
 
-        # === 2. TF-IDF (как было) ===
-        tfidf_weights = self._calculate_tfidf_weights(vacancies)
-
-        # === 3. ЭМБЕДДИНГИ (новое) ===
-        unique_valid_skills = list(skill_freq.keys())
+        # Эмбеддинги только для валидных уникальных навыков
+        unique_valid_skills = list(final_freq.keys())
         skill_embeddings = self._get_skill_embeddings(unique_valid_skills)
 
-        logger.info(f"Итого навыков: {len(skill_freq)} | Эмбеддингов: {len(skill_embeddings)}")
+        logger.info(f"Итого после валидации: {len(final_freq)} навыков")
 
         return {
-            "frequencies": dict(skill_freq),
-            "tfidf_weights": tfidf_weights,
-            "skill_embeddings": skill_embeddings          # ← КЛЮЧЕВОЕ ДОБАВЛЕНИЕ
+            "frequencies": final_freq,           # ← теперь будут нормальные частоты (например python: 412)
+            "hybrid_weights": hybrid_weights,
+            "skill_embeddings": skill_embeddings
         }
-    def _calculate_tfidf_weights(self, vacancies: List) -> Dict[str, float]:
-        """Расчёт TF-IDF весов по всем вакансиям"""
+    def _calculate_bm25_weights(self, vacancies: List) -> Dict[str, float]:
+        """Расчёт BM25-весов (улучшенный TF-IDF) + полная очистка HTML"""
         texts = []
+
         for vac in vacancies:
             if isinstance(vac, Vacancy):
                 desc = vac.description or ""
@@ -197,29 +206,111 @@ class VacancyParser:
             else:
                 desc = vac.get("description", "") or ""
                 key_skills = " ".join(s.get("name", "") for s in vac.get("key_skills", []))
-            texts.append(desc + " " + key_skills)
+
+            # Очистка HTML (используем уже существующий метод)
+            desc_clean = self._strip_html(desc) if hasattr(self, '_strip_html') else self._strip_html_static(desc)
+            texts.append(desc_clean + " " + key_skills)
 
         if not texts:
             return {}
 
         try:
-            vectorizer = TfidfVectorizer(
-                lowercase=True,
-                min_df=1,
-                token_pattern=r'(?u)\b\w[\w\+\-\#]+\b'
-            )
-            tfidf_matrix = vectorizer.fit_transform(texts)
-            feature_names = vectorizer.get_feature_names_out()
+            # === Токенизация (точно как в старом TF-IDF) ===
+            import re
+            token_pattern = re.compile(r'(?u)\b\w[\w\+\-\#]+\b')
+            tokenized_corpus = [
+                token_pattern.findall(text.lower()) for text in texts
+            ]
 
+            from rank_bm25 import BM25Okapi
+            bm25 = BM25Okapi(tokenized_corpus)
+
+            # Собираем все уникальные термы
+            all_terms = set()
+            for tokens in tokenized_corpus:
+                all_terms.update(tokens)
+
+            # === Вычисляем средний BM25-score для каждого терма ===
             weights = {}
-            for i, skill in enumerate(feature_names):
-                weight = float(tfidf_matrix[:, i].mean())
-                if weight > 0.05:  # порог, чтобы не засорять
-                    weights[skill] = round(weight, 4)
+            logger.info(f"Вычисление BM25 для {len(all_terms)} термов...")
+
+            for term in all_terms:
+                # treat term as 1-word query
+                scores = bm25.get_scores([term])
+                avg_score = float(sum(scores) / len(scores)) if sum(scores) > 0 else 0.0
+                
+                if avg_score > 0.03:   # порог (можно подкрутить)
+                    weights[term] = round(avg_score, 4)
+
+            logger.info(f"✅ BM25 рассчитан: {len(weights)} значимых весов навыков")
             return weights
+
         except Exception as e:
-            logger.warning(f"TF-IDF не рассчитан: {e}")
+            logger.warning(f"BM25 не рассчитан: {e}")
             return {}
+
+    def _calculate_hybrid_weights(self, vacancies: List) -> Dict[str, float]:
+        """
+        ГИБРИДНЫЙ РАСЧЁТ ВЕСОВ:
+        BM25 (lexical) + Sentence-Transformer embeddings (semantic centrality)
+        """
+        # 1. Сначала считаем чистый BM25
+        bm25_weights = self._calculate_bm25_weights(vacancies)
+        if not bm25_weights:
+            logger.warning("BM25 вернул пустой результат → возвращаем fallback")
+            return {}
+
+        # 2. Получаем эмбеддинги только для навыков, которые есть в BM25
+        unique_skills = list(bm25_weights.keys())
+        skill_embeddings_dict = self._get_skill_embeddings(unique_skills)
+
+        if len(skill_embeddings_dict) < 10:
+            logger.warning("Слишком мало эмбеддингов → возвращаем только BM25")
+            return bm25_weights
+
+        # 3. Подготовка матрицы эмбеддингов
+        skill_list = list(skill_embeddings_dict.keys())
+        emb_list = [skill_embeddings_dict[s] for s in skill_list]
+        embeddings = torch.tensor(emb_list, dtype=torch.float32)
+        embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)  # L2-нормализация
+
+        # 4. Матрица косинусных сходств (O(n²) — для 2000 навыков ~0.1 сек)
+        sim_matrix = torch.matmul(embeddings, embeddings.T)
+        semantic_centrality = sim_matrix.mean(dim=1).cpu().numpy()  # средняя схожесть с остальными
+
+        # 5. Нормализация обоих компонентов в [0, 1]
+        bm25_vals = np.array([bm25_weights.get(s, 0.0) for s in skill_list])
+        bm25_norm = (bm25_vals - bm25_vals.min()) / (bm25_vals.max() - bm25_vals.min() + 1e-8)
+
+        semantic_norm = (semantic_centrality - semantic_centrality.min()) / (
+            semantic_centrality.max() - semantic_centrality.min() + 1e-8
+        )
+
+        # 6. ГИБРИДНЫЙ ВЕС (настраиваемые коэффициенты)
+        alpha = 0.65   # вес BM25
+        beta = 0.35    # вес семантики (можно увеличить до 0.4, если хочешь сильнее учитывать смысл)
+
+        hybrid_weights = {}
+        for i, skill in enumerate(skill_list):
+            hybrid_score = alpha * bm25_norm[i] + beta * semantic_norm[i]
+            hybrid_weights[skill] = round(float(hybrid_score), 4)
+
+        logger.info(f"✅ ГИБРИД BM25 + Embeddings готов: {len(hybrid_weights)} навыков "
+                    f"(α={alpha}, β={beta})")
+
+        return hybrid_weights
+
+    # Добавь этот статический метод в класс VacancyParser (рядом с clean_highlighttext)
+    @staticmethod
+    def _strip_html(text: str) -> str:
+        """Полная очистка HTML-тегов из описания вакансии"""
+        if not text:
+            return ""
+        # Удаляем все теги
+        text = re.sub(r'<[^>]+>', ' ', text)
+        # Удаляем множественные пробелы
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
 
     # =========================================================================
     # СТАРЫЕ МЕТОДЫ (для обратной совместимости)
