@@ -21,3 +21,4 @@ rapidfuzz
 pytest-cov
 aioresponses
 rank-bm25
+faiss-cpu
