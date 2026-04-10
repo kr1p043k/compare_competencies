@@ -29,7 +29,6 @@ class SkillNormalizer:
         ("c++", "cpp"),
         ("С++", "cpp"),
         ("C++", "cpp"),
-        ("cpp", "c++"),          # циклично, лучше выбрать одно каноническое (рекомендую всегда "cpp")
         
         # Фреймворки
         ("vue.js", "vue"),
@@ -165,7 +164,7 @@ class SkillNormalizer:
                 "python", "node.js", "react", "angular", "vue", "django",
                 "flask", "fastapi", "sql", "postgresql", "mysql", "mongodb",
                 "docker", "kubernetes", "git", "mlops", "cpp", "csharp",
-                "go", "java", "html", "css", "javascript", "typescript"
+                "go", "java", "html", "css", "javascript", "typescript","c++"
             ])
             logger.info(f"Whitelist загружен и дополнен: {len(cls._whitelist)} навыков")
         return cls._whitelist
