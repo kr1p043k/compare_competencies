@@ -11,33 +11,37 @@ logger = logging.getLogger(__name__)
 
 
 class GapAnalyzer:
-    """
-    Анализатор пробелов между студентом и рынком.
-    
-    Улучшения:
-    - Категоризация gaps по важности (high/medium/low)
-    - Детальная статистика
-    - Confidence для каждого gap
-    - Рекомендации по приоритизации
-    - ДИНАМИЧЕСКИЕ пороги на основе распределения весов
-    """
+    def __init__(
+        self,
+        skill_weights: Dict[str, float],
+        high_percentile: float = 67,
+        medium_percentile: float = 33
+    ):
+        self.high_percentile = high_percentile
+        self.medium_percentile = medium_percentile
+        self.update_weights(skill_weights)
 
-    def __init__(self, skill_weights: Dict[str, float]):
-        """
-        Args:
-            skill_weights: Веса навыков (важность на рынке)
-        """
+    def update_weights(self, skill_weights: Dict[str, float]):
         self.skill_weights = skill_weights or {}
         self.total_weight = sum(self.skill_weights.values())
-        
-        # Вычисляем динамические пороги на основе распределения весов
         self._calculate_dynamic_thresholds()
-        
         if not self.skill_weights:
             logger.warning("GapAnalyzer: получены пустые веса навыков")
         else:
-            logger.info(f"GapAnalyzer инициализирован с {len(self.skill_weights)} навыками")
+            logger.info(f"GapAnalyzer обновлён с {len(self.skill_weights)} навыками")
             logger.info(f"  Пороги: HIGH={self.HIGH_IMPORTANCE:.4f}, MEDIUM={self.MEDIUM_IMPORTANCE:.4f}")
+
+    def _calculate_dynamic_thresholds(self):
+        if not self.skill_weights:
+            self.HIGH_IMPORTANCE = 0.70
+            self.MEDIUM_IMPORTANCE = 0.30
+            return
+
+        weights = list(self.skill_weights.values())
+        normalized_weights = [w / self.total_weight for w in weights]
+
+        self.HIGH_IMPORTANCE = np.percentile(normalized_weights, self.high_percentile)
+        self.MEDIUM_IMPORTANCE = np.percentile(normalized_weights, self.medium_percentile)
 
     def _calculate_dynamic_thresholds(self):
         """Вычисляет пороги на основе распределения весов"""
