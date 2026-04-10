@@ -37,6 +37,24 @@ class TestStudentLoader:
         assert student.competencies == ["Python", "SQL"]
         assert student.skills == ["Python", "SQL"]
         assert student.profile_name == "test"
+    def test_load_all_students_loads_all_profiles(self, tmp_path):
+        # Создаём все три JSON-файла
+        profiles = ["base", "dc", "top_dc"]
+        for p in profiles:
+            (tmp_path / f"{p}_competency.json").write_text('{"навыки": ["A"]}', encoding='utf-8')
+
+        loader = StudentLoader(students_dir=tmp_path)
+        students = loader.load_all_students()
+
+        assert len(students) == 3
+        loaded_names = {s.profile_name for s in students}
+        assert loaded_names == {"base", "dc", "top_dc"}
+    def test_load_student_sets_target_level(self, tmp_path):
+        file_path = tmp_path / "test_competency.json"
+        file_path.write_text('{"навыки": ["Python"]}', encoding='utf-8')
+        loader = StudentLoader(students_dir=tmp_path)
+        student = loader.load_student("test")
+        assert student.target_level == "middle"   
 
 
 class TestGenerateProfilesFromCSV:
@@ -145,7 +163,59 @@ class TestGenerateProfilesFromCSV:
 
         # Только первая дисциплина имеет отметку 'Б'
         assert profiles['base'] == ['SS1.1']
+    def test_generate_profiles_save_copy_creates_dir(self, tmp_path):
+        csv_content = ",h1,\n,ind,\n1,Дисц,Б\n"
+        csv_path = tmp_path / "competency_matrix.csv"
+        csv_path.write_text(csv_content, encoding='utf-8')
+        output_dir = tmp_path / "students"
+        output_dir.mkdir()
 
+        last_uploaded_dir = tmp_path / "last_uploaded"  # ещё не существует
+
+        with patch('src.loaders_student.student_loader.PROFILES_DISCIPLINES', {'base': [1]}):
+            with patch('src.loaders_student.student_loader.LAST_UPLOADED_DIR', last_uploaded_dir):
+                generate_profiles_from_csv(csv_path, output_dir, save_copy=True)
+
+        assert last_uploaded_dir.exists()
+        assert (last_uploaded_dir / "competency_matrix.csv").exists()
+        
+    def test_generate_profiles_logs_warning_for_empty_profile(self, tmp_path, caplog):
+        csv_content = ",h1,\n,ind,\n1,Дисц1,Б\n"
+        csv_path = tmp_path / "competency_matrix.csv"
+        csv_path.write_text(csv_content, encoding='utf-8')
+        output_dir = tmp_path / "students"
+        output_dir.mkdir()
+
+        with patch('src.loaders_student.student_loader.PROFILES_DISCIPLINES', {'empty': [99]}):
+            with caplog.at_level('WARNING'):
+                generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
+
+        assert "не найдено ни одной дисциплины" in caplog.text
+    
+    def test_generate_profiles_non_numeric_discipline_id(self, tmp_path):
+        csv_content = """,h1,
+    ,ind,
+    abc,Дисц1,Б
+    """
+        csv_path = tmp_path / "competency_matrix.csv"
+        csv_path.write_text(csv_content, encoding='utf-8')
+        output_dir = tmp_path / "students"
+        output_dir.mkdir()
+
+        with patch('src.loaders_student.student_loader.PROFILES_DISCIPLINES', {'base': [0]}):
+            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
+        # Дисциплина с id=0 будет обработана, навыки извлекутся
+        assert profiles['base'] == ['ind']
+
+    def test_generate_profiles_read_csv_exception(self, tmp_path):
+        csv_path = tmp_path / "dummy.csv"
+        csv_path.write_text("dummy", encoding='utf-8')
+        output_dir = tmp_path / "students"
+        output_dir.mkdir()
+
+        with patch('pandas.read_csv', side_effect=Exception("Test error")):
+            with pytest.raises(Exception, match="Test error"):
+                generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
 
 class TestStudentLoaderEdgeCases:
     def test_load_all_students_skips_missing(self, tmp_path):
