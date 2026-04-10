@@ -2,7 +2,7 @@
 Нормализация навыков + fuzzy fallback.
 Критично для качества skill_weights!
 """
-
+#skill_normalizer.py
 import re
 from typing import List, Dict, Optional, Set
 import logging
@@ -10,77 +10,130 @@ from pathlib import Path
 from rapidfuzz import process, fuzz
 from src import config
 from src.parsing.utils import load_it_skills  # уже есть в проекте
-
+from collections import defaultdict
 logger = logging.getLogger(__name__)
 
 class SkillNormalizer:
-    """
-    Нормализует навыки для TF-IDF анализа.
-    
-    """
-    
-    # Маппинг синонимов
-    SKILL_SYNONYMS = {
+    # Теперь это список пар (синоним, каноническое_имя)
+    SKILL_SYNONYMS = [
         # Языки
-        "javascript": "js",
-        "javascript": "node.js",
-        "typescript": "ts",
-        "python3": "python",
-        "python 3": "python",
-        "py3": "python",
-        "py": "python",
-        "golang": "go",
-        "c sharp": "csharp",
-        "c#": "csharp", "c#": "c sharp",
-        "c++": "cpp", "c#": "csharp",
-        "cpp": "c++",
-        "С++": "cpp", "C++": "c++",
+        ("javascript", "node.js"),
+        ("typescript", "ts"),
+        ("python3", "python"),
+        ("python 3", "python"),
+        ("py3", "python"),
+        ("py", "python"),
+        ("golang", "go"),
+        ("c sharp", "csharp"),
+        ("c#", "csharp"),
+        ("c++", "cpp"),
+        ("С++", "cpp"),
+        ("C++", "cpp"),
+        ("cpp", "c++"),          # циклично, лучше выбрать одно каноническое (рекомендую всегда "cpp")
         
         # Фреймворки
-        "vue.js": "vue",
-        "react.js": "react",
-        "angular.js": "angular",
-        "express.js": "express",
-        "node.js": "nodejs",
-        "node js": "node.js",      
-        "nodejs": "node.js",       
-        "fastapi": "fastapi",
-        "django rest": "django",
-        "django rest framework": "django",
+        ("vue.js", "vue"),
+        ("react.js", "react"),
+        ("angular.js", "angular"),
+        ("express.js", "express"),
+        ("node.js", "nodejs"),
+        ("node js", "node.js"),
+        ("nodejs", "node.js"),
+        ("fastapi", "fastapi"),
+        ("django rest", "django"),
+        ("django rest framework", "django"),
+        ("react native", "react"),
         
         # БД
-        "postgres": "postgresql",
-        "psql": "postgresql",
-        "mysql": "mysql",
-        "mongo": "mongodb",
-        "mongo db": "mongodb",
+        ("postgres", "postgresql"),
+        ("psql", "postgresql"),
+        ("mysql", "mysql"),
+        ("mongo", "mongodb"),
+        ("mongo db", "mongodb"),
         
         # DevOps
-        "kubernetes": "k8s",
-        "k8": "k8s",
-        "docker": "docker",
-        "jenkins": "jenkins",
-
+        ("kubernetes", "k8s"),
+        ("k8", "k8s"),
+        ("docker", "docker"),
+        ("jenkins", "jenkins"),
         
         # Data Science
-        "machine learning": "mlops",
-        "machine learning": "ml",
-        "mlops": "machine learning",
-        "ml": "mlops",
-        "deep learning": "dl",
-        "data science": "data science",
-        "big data": "big data",
-        "nlp": "nlp",
-        "computer vision": "cv",
-        "cv": "cv",
-        "scikit learn": "scikit-learn",
+        ("machine learning", "mlops"),
+        ("ml", "mlops"),
+        ("mlops", "machine learning"),   # циклично, выберите один канон (лучше "mlops")
+        ("deep learning", "dl"),
+        ("data science", "data science"),
+        ("big data", "big data"),
+        ("nlp", "nlp"),
+        ("computer vision", "cv"),
+        ("cv", "cv"),
+        ("scikit learn", "scikit-learn"),
         
         # Облако
-        "amazon web services": "aws",
-        "microsoft azure": "azure",
-        "google cloud": "gcp",
-        "yandex cloud": "yandex cloud",
-    }
+        ("amazon web services", "aws"),
+        ("microsoft azure", "azure"),
+        ("google cloud", "gcp"),
+        ("yandex cloud", "yandex cloud"),
+    ]
+    _canonical_map: Optional[Dict[str, str]] = None
+    @classmethod
+    def _build_canonical_map(cls) -> Dict[str, str]:
+        """Разрешает цепочки синонимов, строя стабильный маппинг на единого представителя."""
+        # 1. Строим граф: ключ → множество значений, куда он ведёт
+        graph = defaultdict(set)
+        all_nodes = set()
+        for a, b in cls.SKILL_SYNONYMS:
+            graph[a].add(b)
+            all_nodes.add(a)
+            all_nodes.add(b)
+
+        # 2. Обход в глубину для нахождения компонент связности
+        visited = set()
+        components = []
+
+        def dfs(node, comp):
+            stack = [node]
+            while stack:
+                n = stack.pop()
+                if n not in visited:
+                    visited.add(n)
+                    comp.append(n)
+                    for neighbor in graph[n]:
+                        if neighbor not in visited:
+                            stack.append(neighbor)
+                    # Также учитываем обратные связи (для циклов)
+                    for k, vset in graph.items():
+                        if n in vset and k not in visited:
+                            stack.append(k)
+
+        for node in all_nodes:
+            if node not in visited:
+                comp = []
+                dfs(node, comp)
+                components.append(comp)
+
+        # 3. Для каждой компоненты выбираем канонического представителя
+        #    (например, лексикографически наименьший или первый из whitelist)
+        whitelist = cls._get_whitelist()
+        canon_map = {}
+        for comp in components:
+            # Приоритет: 1) элемент из whitelist (если есть) 2) самый короткий 3) первый по алфавиту
+            comp_in_whitelist = [c for c in comp if c in whitelist]
+            if comp_in_whitelist:
+                representative = min(comp_in_whitelist, key=lambda x: (len(x), x))
+            else:
+                representative = min(comp, key=lambda x: (len(x), x))
+            for node in comp:
+                canon_map[node] = representative
+
+        logger.info(f"Построен канонический маппинг из {len(canon_map)} синонимов")
+        return canon_map
+
+    @classmethod
+    def _get_canonical_map(cls) -> Dict[str, str]:
+        if cls._canonical_map is None:
+            cls._canonical_map = cls._build_canonical_map()
+        return cls._canonical_map
     
     # Версии и варианты (удаляются полностью)
     VERSION_PATTERNS = [
@@ -118,41 +171,49 @@ class SkillNormalizer:
 
     @staticmethod
     def normalize(skill: str) -> str:
-        """Полная нормализация с fuzzy fallback"""
         if not skill:
             return ""
         original = skill.strip()
         skill_lower = original.lower()
-        
-        # 1. Правило-based (твои старые правила)
         normalized = skill_lower
 
-        # Синонимы (длинные первыми)
-        for synonym in sorted(SkillNormalizer.SKILL_SYNONYMS.keys(), key=len, reverse=True):
-            canonical = SkillNormalizer.SKILL_SYNONYMS[synonym]
-            if re.search(rf'\b{re.escape(synonym)}\b', normalized):
-                normalized = re.sub(rf'\b{re.escape(synonym)}\b', canonical, normalized)
+        # Шаг 1: замена синонимов (используем канонический маппинг)
+        canon_map = SkillNormalizer._get_canonical_map()
+        # Разбиваем на слова, но также учитываем многословные синонимы
+        # Чтобы не усложнять, применим подход: для каждого ключа в canon_map,
+        # если он встречается как целое слово или фраза, заменяем.
+        # Сортируем ключи по убыванию длины, чтобы длинные фразы имели приоритет.
+        sorted_keys = sorted(canon_map.keys(), key=len, reverse=True)
+        for synonym in sorted_keys:
+            if synonym == canon_map[synonym]:
+                continue  # пропускаем канонические сами на себя
+            # Для многословных синонимов используем границы без \b
+            if ' ' in synonym or '-' in synonym:
+                pattern = r'(?<!\w)' + re.escape(synonym) + r'(?!\w)'
+            else:
+                pattern = r'\b' + re.escape(synonym) + r'\b'
+            # Заменяем все вхождения (не жадничаем, т.к. карта уже плоская)
+            normalized = re.sub(pattern, canon_map[synonym], normalized)
 
-        # Версии и скобки
+        # Шаг 2: версии и скобки (без изменений)
         for pattern in SkillNormalizer.VERSION_PATTERNS:
             normalized = re.sub(pattern, '', normalized)
 
-        # Суффиксы
+        # Шаг 3: суффиксы (без изменений)
         for suffix in SkillNormalizer.SUFFIX_REMOVALS:
             normalized = re.sub(rf'\s+{re.escape(suffix)}\s*$', '', normalized)
 
-        # Чистка
+        # Шаг 4: финальная чистка
         normalized = re.sub(r'\s+', ' ', normalized).strip()
         normalized = re.sub(r'[^\w\s\+\#\-\.]', '', normalized)
         normalized = re.sub(r'\s+', ' ', normalized).strip()
-        normalized = re.sub(r'\.$', '', normalized)   # удалить точку в конце
+        normalized = re.sub(r'\.$', '', normalized)
 
-        # 2. Fuzzy fallback (ТОЛЬКО если не нашли точное совпадение в whitelist)
+        # Шаг 5: fuzzy fallback (без изменений)
         whitelist = SkillNormalizer._get_whitelist()
         if normalized in whitelist:
             return normalized
 
-        # Ищем лучшее fuzzy-совпадение
         matches = process.extract(
             normalized,
             whitelist,
@@ -165,10 +226,9 @@ class SkillNormalizer:
             logger.debug(f"Fuzzy match: '{original}' → '{best_match}' (score={matches[0][1]})")
             return best_match
 
-        # Если ничего не подошло — возвращаем то, что есть (валидатор потом отрежет)
         logger.debug(f"No good fuzzy match for: '{original}' → '{normalized}'")
         return normalized
-
+    
     @staticmethod
     def normalize_batch(skills: List[str]) -> List[str]:
         """Только нормализация, без глобальной дедупликации (для частот)"""
