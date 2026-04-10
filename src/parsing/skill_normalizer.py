@@ -68,6 +68,7 @@ class SkillNormalizer:
         ("computer vision", "cv"),
         ("cv", "cv"),
         ("scikit learn", "scikit-learn"),
+        ("anguler", "angular"),
         
         # Облако
         ("amazon web services", "aws"),
