@@ -3,7 +3,7 @@
 """
 
 import logging
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from src.models.student import (
     StudentProfile, 
     ProfileEvaluation, 
@@ -17,27 +17,39 @@ logger = logging.getLogger(__name__)
 
 
 class ProfileEvaluator:
-    """
-    Оценивает профилей студентов с учётом уровня опыта (junior/middle/senior)
-    Работает с моделями StudentProfile, ProfileEvaluation и ProfileComparison
-    """
-    
-    # Коэффициенты сложности для каждого уровня
-    LEVEL_DIFFICULTY = {
-        'junior': 1.0,    # базовый уровень
-        'middle': 1.1,    # 20% выше требования
-        'senior': 1.25     # 50% выше требования
+    # Коэффициенты по умолчанию
+    DEFAULT_LEVEL_DIFFICULTY = {
+        'junior': 1.0,
+        'middle': 1.1,
+        'senior': 1.25
     }
-    
-    def __init__(self, skill_weights: Dict[str, float], vacancies_skills: List[List[str]]):
-        """
-        Args:
-            skill_weights: Исходные веса навыков с рынка
-            vacancies_skills: Список вакансий (каждая - список навыков)
-        """
+    DEFAULT_READINESS_WEIGHTS = (0.5, 0.3, 0.2)  # coverage, score, gap
+
+    def __init__(
+        self,
+        skill_weights: Dict[str, float],
+        vacancies_skills: List[List[str]],
+        level_difficulty: Dict[str, float] = None,
+        readiness_weights: Tuple[float, float, float] = None
+    ):
         self.skill_weights = skill_weights
         self.vacancies_skills = vacancies_skills
-        self.comparators = {}  # Кешируем comparators для каждого уровня
+        self.comparators = {}
+        self.level_difficulty = level_difficulty or self.DEFAULT_LEVEL_DIFFICULTY
+        self.readiness_weights = readiness_weights or self.DEFAULT_READINESS_WEIGHTS
+
+    def _calculate_readiness(self, score, adjusted_coverage, gaps, difficulty_multiplier):
+        w_cov, w_score, w_gap = self.readiness_weights
+        coverage_component = adjusted_coverage
+        score_component = min(score * 100, 100)
+        high_gaps = gaps.get('high_priority', [])
+        gap_component = max(0, 100 - (len(high_gaps) * 10))
+        readiness = (
+            w_cov * coverage_component +
+            w_score * score_component +
+            w_gap * gap_component
+        )
+        return min(readiness, 100)
     
     def evaluate_profile(
         self,
