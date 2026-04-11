@@ -18,3 +18,6 @@ coverage.xml
 .pytest_cache/
 data/embeddings/
 data/models/
+competency_frequency.json
+profiles_comparison_summary.json
+skill_weights.json
