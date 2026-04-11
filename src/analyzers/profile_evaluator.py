@@ -85,7 +85,7 @@ class ProfileEvaluator:
         coverage, coverage_details = profile_gap_analyzer.coverage(student.skills)
         
         # 4. Вычисляем adjusted coverage с учётом сложности
-        difficulty_multiplier = self.LEVEL_DIFFICULTY.get(target_level, 1.0)
+        difficulty_multiplier = self.level_difficulty.get(target_level, 1.0)
         adjusted_coverage = coverage / difficulty_multiplier
         
         # 5. Вычисляем readiness скор

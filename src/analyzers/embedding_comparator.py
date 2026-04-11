@@ -63,9 +63,13 @@ class EmbeddingComparator:
     def build_market_index(self, all_market_skills: List[str], level: str = "middle"):
         cache_path = self._get_cache_path("market_embeddings", level)
         if cache_path.exists():
-            data = joblib.load(cache_path)
-            self.market_embeddings = data["embeddings"]
-            self.market_skills = data["skills"]
+            loaded = joblib.load(cache_path)
+            # Поддержка старого формата (кортеж) и нового (словарь)
+            if isinstance(loaded, dict):
+                self.market_embeddings = loaded["embeddings"]
+                self.market_skills = loaded["skills"]
+            else:
+                self.market_embeddings, self.market_skills = loaded
             logger.info(f"✅ Загружен кэш embeddings для {level}")
 
             if self.use_faiss:
@@ -102,16 +106,18 @@ class EmbeddingComparator:
 
         if self.use_faiss and self.index is not None:
             scores, indices = self.index.search(student_emb, len(self.market_skills))
-            similarities = scores[0]
-            # FAISS возвращает внутренний продукт, после нормализации это cosine similarity
+            similarities = scores[0]   # для первого (и единственного) запроса
+            top_indices = indices[0]   # аналогично
+            # Сортируем по убыванию сходства
+            sorted_pairs = sorted(zip(top_indices, similarities), key=lambda x: x[1], reverse=True)
         else:
             similarities = cosine_similarity(student_emb, self.market_embeddings)[0]
-            indices = np.argsort(similarities)[::-1]
+            sorted_pairs = sorted(enumerate(similarities), key=lambda x: x[1], reverse=True)
 
         matches = []
         missing = []
 
-        for idx, sim in zip(indices, similarities):
+        for idx, sim in sorted_pairs:
             skill = self.market_skills[idx]
             if sim >= self.similarity_threshold:
                 matches.append({"skill": skill, "score": float(sim)})
@@ -119,7 +125,7 @@ class EmbeddingComparator:
                 missing.append({"skill": skill, "score": float(sim)})
 
         return {
-            "matches": sorted(matches, key=lambda x: x["score"], reverse=True),
-            "missing": sorted(missing, key=lambda x: x["score"], reverse=True)[:20],
+            "matches": matches,
+            "missing": missing[:20],
             "avg_similarity": float(np.mean(similarities))
         }
