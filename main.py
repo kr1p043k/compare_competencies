@@ -89,7 +89,7 @@ def parse_arguments():
     
     parser.add_argument('--query', '-q', type=str, default="Python developer")
     parser.add_argument('--area-id', '-a', type=int, default=1)
-    parser.add_argument('--max-pages', '-p', type=int, default=1)
+    parser.add_argument('--max-pages', '-p', type=int, default=1) #kol-vo stranic 1 = 100 vacancy
     parser.add_argument('--period', '-d', type=int, default=30)
     parser.add_argument('--show-vacancies', '-v', action='store_true')
     parser.add_argument('--skip-details', '-s', action='store_true')
@@ -104,7 +104,7 @@ def parse_arguments():
     
     parser.add_argument('--use-async', action='store_true', default=True)
     parser.add_argument('--async-workers', type=int, default=3)
-    parser.add_argument('--async-threshold', type=int, default=10)
+    parser.add_argument('--async-threshold', type=int, default=10) #rate-limit
     
     parser.add_argument('--run-gap-analysis', action='store_true', default=True)
     parser.add_argument('--run-notebooks', action='store_true')
@@ -641,7 +641,7 @@ def main():
                             'description': vac.get('description', ''),
                             'experience': vac_experience
                         }
-                        level_vacancies_data(vac_data)
+                        level_vacancies_data.append(vac_data)
             
             logger.info(f"Подготовлено {len(level_vacancies_data)} вакансий для анализа уровней")
             
@@ -784,10 +784,6 @@ def main():
                     logger.info(f"✓ LTR-рекомендации для {profile_name} сохранены в {rec_file}")
                 else:
                     logger.info(f"Для профиля {profile_name} LTR-рекомендации не сгенерированы (нет модели или нет недостающих навыков)")
-
-            # =====================================================================
-            # === СОЗДАНИЕ ГРАФИКОВ ===
-            # =====================================================================
 
             # =====================================================================
             # === СОЗДАНИЕ ГРАФИКОВ ===
