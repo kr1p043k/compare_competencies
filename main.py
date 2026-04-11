@@ -43,45 +43,45 @@ from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
 from src.analyzers.profile_evaluator import ProfileEvaluator
 from src.analyzers.trends import TrendAnalyzer
 from src.predictors.recommendation_engine import RecommendationEngine
-from src.predictors.ml_recommendation_engine import MLRecommendationEngine
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 from src.visualization.charts import (
     show_context_info,
     run_notebook,
     save_all_charts
 )
-def generate_ml_recommendations_for_profiles(
+def generate_ltr_recommendations_for_profiles(
     profiles: Dict[str, StudentProfile],
     market_skills: List[str],
     logger: logging.Logger
 ) -> Dict[str, List[Tuple[str, float, str]]]:
     """
-    Генерирует ML-рекомендации для всех профилей.
+    Генерирует LTR-рекомендации для всех профилей.
     Возвращает словарь {profile_name: [(skill, score, explanation), ...]}
     """
-    model_path = config.MODELS_DIR / "skill_importance_regressor.joblib"
+    model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
     if not model_path.exists():
-        logger.warning("ML-модель не найдена. Рекомендации будут сгенерированы без ML.")
+        logger.warning("LTR-модель не найдена. Рекомендации будут сгенерированы без ML.")
         return {}
 
     try:
-        engine = MLRecommendationEngine(model_path=model_path)
+        engine = LTRRecommendationEngine(model_path=model_path)
         engine.load_model()
     except Exception as e:
-        logger.error(f"Не удалось загрузить ML-модель: {e}")
+        logger.error(f"Не удалось загрузить LTR-модель: {e}")
         return {}
 
-    ml_recommendations = {}
+    ltr_recommendations = {}
     for profile_name, student in profiles.items():
         student_skills = student.skills
         missing = [s for s in market_skills if s not in student_skills]
         if missing:
             recs = engine.predict_skill_impact(student_skills, missing)
-            ml_recommendations[profile_name] = recs
-            logger.info(f"ML-рекомендации для {profile_name}: {len(recs)} навыков")
+            ltr_recommendations[profile_name] = recs
+            logger.info(f"LTR-рекомендации для {profile_name}: {len(recs)} навыков")
         else:
-            ml_recommendations[profile_name] = []
+            ltr_recommendations[profile_name] = []
 
-    return ml_recommendations
+    return ltr_recommendations
 
 
 def parse_arguments():
@@ -108,6 +108,8 @@ def parse_arguments():
     
     parser.add_argument('--run-gap-analysis', action='store_true', default=True)
     parser.add_argument('--run-notebooks', action='store_true')
+    
+    parser.add_argument('--train-model', action='store_true', help='Обучить LTR-модель на текущих данных (hh_vacancies_basic.json) и выйти')
     return parser.parse_args()
 
 
@@ -429,6 +431,32 @@ def main():
             filename = "vacancies_it_sector.xlsx" if getattr(args, 'it_sector', False) else \
                         f"vacancies_{args.query.replace(' ', '_')}.xlsx"
             parser.save_to_excel(df, filename)
+    
+    
+        # === ОБУЧЕНИЕ LTR-МОДЕЛИ (если указан флаг) ===
+    if args.train_model:
+        logger.info("\n" + "=" * 85)
+        logger.info("ЗАПУСК ОБУЧЕНИЯ LTR-МОДЕЛИ")
+        logger.info("=" * 85)
+
+        # Проверяем наличие файла с вакансиями
+        raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+        if not raw_file.exists():
+            logger.error(f"Файл {raw_file} не найден. Сначала выполните сбор вакансий.")
+            sys.exit(1)
+
+        with open(raw_file, 'r', encoding='utf-8') as f:
+            training_vacancies = json.load(f)
+
+        logger.info(f"Загружено {len(training_vacancies)} сырых вакансий для обучения")
+
+        ltr_engine = LTRRecommendationEngine()
+        ltr_engine.fit(training_vacancies)
+
+        logger.info("✅ Обучение LTR-модели завершено.")
+        logger.info(f"Модель сохранена в: {ltr_engine.model_path}")
+        logger.info("Для генерации рекомендаций с новой моделью перезапустите main.py без флага --train-model")
+        return
 
 # ====================== 3. GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ ======================
     if args.run_gap_analysis:
@@ -564,7 +592,7 @@ def main():
             logger.info("="*85)
             
             # Подготавливаем данные для level analyzer
-            ml_vacancies_data = []
+            level_vacancies_data = []
             for vac in vacancies_to_process:
                 if isinstance(vac, Vacancy):
                     # Извлекаем навыки
@@ -601,7 +629,7 @@ def main():
                             'description': vac.description or '',
                             'experience': vac_experience
                         }
-                        ml_vacancies_data.append(vac_data)
+                        level_vacancies_data.append(vac_data)
                 else:
                     # dict формат (для совместимости)
                     vac_skills = [s['name'] for s in vac.get('key_skills', [])]
@@ -613,13 +641,13 @@ def main():
                             'description': vac.get('description', ''),
                             'experience': vac_experience
                         }
-                        ml_vacancies_data.append(vac_data)
+                        level_vacancies_data(vac_data)
             
-            logger.info(f"Подготовлено {len(ml_vacancies_data)} вакансий для анализа уровней")
+            logger.info(f"Подготовлено {len(level_vacancies_data)} вакансий для анализа уровней")
             
             # Инициализируем level analyzer
             level_analyzer = SkillLevelAnalyzer()
-            level_analyzer.analyze_vacancies(ml_vacancies_data)
+            level_analyzer.analyze_vacancies(level_vacancies_data)
             logger.info("✅ Анализатор уровней инициализирован")
 
             # =====================================================================
@@ -702,25 +730,46 @@ def main():
             logger.info("="*60)
 
             # =====================================================================
-            # ← ИНТЕГРАЦИЯ ML-РЕКОМЕНДАЦИЙ
+            # ← ИНТЕГРАЦИЯ LTR-РЕКОМЕНДАЦИЙ
             # =====================================================================
             logger.info("\n" + "="*85)
-            logger.info("ГЕНЕРАЦИЯ ML-РЕКОМЕНДАЦИЙ ДЛЯ ПРОФИЛЕЙ")
+            logger.info("ГЕНЕРАЦИЯ LTR-РЕКОМЕНДАЦИЙ ДЛЯ ПРОФИЛЕЙ")
             logger.info("="*85)
 
             market_skills_list = list(skill_weights.keys())
-            ml_recs = generate_ml_recommendations_for_profiles(profiles, market_skills_list, logger)
+            model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
+            ltr_recs = {}
+            
+            if model_path.exists():
+                try:
+                    ltr_engine = LTRRecommendationEngine(model_path=model_path)
+                    ltr_engine.load_model()
+                    logger.info(f"LTR-модель загружена из {model_path}")
 
-            # Сохраняем ML-рекомендации в отдельные файлы и выводим в консоль
-            for profile_name, recs in ml_recs.items():
+                    for profile_name, student in profiles.items():
+                        student_skills = student.skills
+                        missing = [s for s in market_skills_list if s not in student_skills]
+                        if missing:
+                            recs = ltr_engine.predict_skill_impact(student_skills, missing)
+                            ltr_recs[profile_name] = recs
+                            logger.info(f"LTR-рекомендации для {profile_name}: {len(recs)} навыков")
+                        else:
+                            ltr_recs[profile_name] = []
+                except Exception as e:
+                    logger.error(f"Не удалось загрузить LTR-модель: {e}")
+            else:
+                logger.warning("LTR-модель не найдена. Рекомендации будут сгенерированы без ML.")
+
+            # Сохраняем LTR-рекомендации в отдельные файлы и выводим в консоль
+            for profile_name, recs in ltr_recs.items():
                 if recs:
                     # Вывод в консоль
-                    print(f"\n📌 ML-рекомендации для профиля '{profile_name}' (топ-5):")
+                    print(f"\n📌 LTR-рекомендации для профиля '{profile_name}' (топ-5):")
                     for skill, score, expl in recs[:5]:
                         print(f"   • {skill:<25} важность: {score:>5.1f}% | {expl}")
 
                     # Сохранение в JSON
-                    rec_file = config.DATA_DIR / "result" / profile_name / f"ml_recommendations_{profile_name}.json"
+                    rec_file = config.DATA_DIR / "result" / profile_name / f"ltr_recommendations_{profile_name}.json"
                     rec_file.parent.mkdir(parents=True, exist_ok=True)
                     rec_data = {
                         "profile": profile_name,
@@ -732,9 +781,13 @@ def main():
                     }
                     with open(rec_file, "w", encoding="utf-8") as f:
                         json.dump(rec_data, f, ensure_ascii=False, indent=2)
-                    logger.info(f"✓ ML-рекомендации для {profile_name} сохранены в {rec_file}")
+                    logger.info(f"✓ LTR-рекомендации для {profile_name} сохранены в {rec_file}")
                 else:
-                    logger.info(f"Для профиля {profile_name} ML-рекомендации не сгенерированы (нет модели или нет недостающих навыков)")
+                    logger.info(f"Для профиля {profile_name} LTR-рекомендации не сгенерированы (нет модели или нет недостающих навыков)")
+
+            # =====================================================================
+            # === СОЗДАНИЕ ГРАФИКОВ ===
+            # =====================================================================
 
             # =====================================================================
             # === СОЗДАНИЕ ГРАФИКОВ ===
