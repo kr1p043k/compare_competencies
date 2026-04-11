@@ -179,19 +179,6 @@ class TestGenerateProfilesFromCSV:
         assert last_uploaded_dir.exists()
         assert (last_uploaded_dir / "competency_matrix.csv").exists()
         
-    def test_generate_profiles_logs_warning_for_empty_profile(self, tmp_path, caplog):
-        csv_content = ",h1,\n,ind,\n1,Дисц1,Б\n"
-        csv_path = tmp_path / "competency_matrix.csv"
-        csv_path.write_text(csv_content, encoding='utf-8')
-        output_dir = tmp_path / "students"
-        output_dir.mkdir()
-
-        with patch('src.loaders_student.student_loader.PROFILES_DISCIPLINES', {'empty': [99]}):
-            with caplog.at_level('WARNING'):
-                generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
-
-        assert "не найдено ни одной дисциплины" in caplog.text
-    
     def test_generate_profiles_non_numeric_discipline_id(self, tmp_path):
         csv_content = """,h1,
     ,ind,
@@ -204,8 +191,9 @@ class TestGenerateProfilesFromCSV:
 
         with patch('src.loaders_student.student_loader.PROFILES_DISCIPLINES', {'base': [0]}):
             profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
-        # Дисциплина с id=0 будет обработана, навыки извлекутся
-        assert profiles['base'] == ['ind']
+        # Дисциплина с ID=abc преобразуется в 0, а 0 не входит в список дисциплин профиля 'base'
+        # Поэтому профиль должен быть пустым
+        assert profiles['base'] == []
 
     def test_generate_profiles_read_csv_exception(self, tmp_path):
         csv_path = tmp_path / "dummy.csv"

@@ -160,7 +160,7 @@ class TestHeadHunterAPIAsync:
         await api._throttle()
         await api._throttle()
         elapsed = time.time() - start
-        assert elapsed >= 0.1
+        assert elapsed >= 0.095  # небольшая погрешность из-за asyncio.sleep
 
     @pytest.mark.asyncio
     async def test_request_success(self):

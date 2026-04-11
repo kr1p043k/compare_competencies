@@ -112,9 +112,9 @@ class TestProfileEvaluatorExtended:
 
     def test_level_difficulty_multipliers(self):
         evaluator = ProfileEvaluator({}, [])
-        assert evaluator.LEVEL_DIFFICULTY["junior"] == 1.0
-        assert evaluator.LEVEL_DIFFICULTY["middle"] == 1.1
-        assert evaluator.LEVEL_DIFFICULTY["senior"] == 1.25
+        assert evaluator.level_difficulty["junior"] == 1.0
+        assert evaluator.level_difficulty["middle"] == 1.1
+        assert evaluator.level_difficulty["senior"] == 1.25
         # --------------------------------------------------------------
     # Дополнительные тесты для покрытия пропущенных строк
     # --------------------------------------------------------------

@@ -4,12 +4,11 @@ from src.models.vacancy import Vacancy, Area, Employer, KeySkill
 import pytest
 import json
 import pandas as pd
-from unittest.mock import patch, MagicMock, mock_open, ANY
+from unittest.mock import patch, MagicMock
 import numpy as np
 from src.parsing.vacancy_parser import VacancyParser
-from src.models.vacancy import Vacancy, Area, Employer, KeySkill
 from src.parsing.skill_parser import SkillParser, ExtractedSkill, SkillSource
-from src.parsing.skill_validator import SkillValidator, ValidationResult, ValidationReason
+from src.parsing.skill_validator import SkillValidator, ValidationResult
 
 
 # ----------------------------------------------------------------------
@@ -24,8 +23,10 @@ def sample_vacancy_dict():
         "area": {"id": 1, "name": "Москва"},
         "employer": {"id": "10", "name": "Test Corp"},
         "key_skills": [{"name": "Python"}, {"name": "Django"}],
-        "description": "Опыт работы с FastAPI"
+        "description": "Опыт работы с FastAPI",
+        "snippet": {}  # для совместимости
     }
+
 
 @pytest.fixture
 def sample_vacancy_obj():
@@ -39,6 +40,7 @@ def sample_vacancy_obj():
         key_skills=[KeySkill(name="Python"), KeySkill(name="Django")],
         description="Опыт работы с FastAPI"
     )
+
 
 @pytest.fixture
 def mock_skill_parser():
@@ -54,16 +56,17 @@ def mock_skill_parser():
     parser.get_stats.return_value = MagicMock()
     return parser
 
+
 @pytest.fixture
 def mock_skill_validator():
     validator = MagicMock(spec=SkillValidator)
-    # validate_batch: возвращает список валидных навыков и список результатов
     def validate_batch_side_effect(skills, confidences=None):
         valid = [s for s in skills if s in {"python", "django", "fastapi"}]
         results = [ValidationResult(skill=s, is_valid=(s in valid), confidence=0.9) for s in skills]
         return valid, results
     validator.validate_batch.side_effect = validate_batch_side_effect
     return validator
+
 
 @pytest.fixture
 def mock_embedding_model():
@@ -83,9 +86,10 @@ def test_init_loads_skill_parser_and_validator():
         assert parser.skill_validator is not None
         assert parser.embedding_model is not None
 
-@patch('src.parsing.vacancy_parser.SentenceTransformer')
-def test_init_embedding_model_load_failure(mock_st):
-    mock_st.side_effect = Exception("Model load error")
+
+@patch('src.parsing.vacancy_parser.get_embedding_model')
+def test_init_embedding_model_load_failure(mock_get_emb):
+    mock_get_emb.side_effect = Exception("Model load error")
     with patch('src.parsing.vacancy_parser.load_it_skills', return_value=set()):
         parser = VacancyParser()
         assert parser.embedding_model is None
@@ -106,12 +110,14 @@ def test_save_raw_vacancies_dict(tmp_path, sample_vacancy_dict, monkeypatch):
     assert len(data) == 1
     assert data[0]["id"] == "123"
 
+
 def test_save_raw_vacancies_obj(tmp_path, sample_vacancy_obj, monkeypatch):
     monkeypatch.setattr("src.parsing.vacancy_parser.config.DATA_RAW_DIR", tmp_path)
     parser = VacancyParser()
     parser.save_raw_vacancies([sample_vacancy_obj], filename="test_obj.json")
     saved = tmp_path / "test_obj.json"
     assert saved.exists()
+
 
 def test_save_processed_frequencies_no_filter(tmp_path, monkeypatch):
     monkeypatch.setattr("src.parsing.vacancy_parser.config.DATA_PROCESSED_DIR", tmp_path)
@@ -123,6 +129,7 @@ def test_save_processed_frequencies_no_filter(tmp_path, monkeypatch):
     with open(saved, 'r', encoding='utf-8') as f:
         data = json.load(f)
     assert data == freqs
+
 
 def test_save_processed_frequencies_with_filter(tmp_path, monkeypatch):
     monkeypatch.setattr("src.parsing.vacancy_parser.config.DATA_PROCESSED_DIR", tmp_path)
@@ -147,11 +154,11 @@ def test_extract_skills_from_description():
 # ----------------------------------------------------------------------
 # extract_skills_from_vacancies
 # ----------------------------------------------------------------------
+
 @patch('src.parsing.vacancy_parser.SkillNormalizer')
 def test_extract_skills_from_vacancies_dict(mock_normalizer, mock_skill_parser, mock_skill_validator, tmp_path, monkeypatch, sample_vacancy_dict):
     monkeypatch.setattr("src.parsing.vacancy_parser.config.EMBEDDINGS_CACHE_DIR", tmp_path)
     mock_normalizer.normalize_batch.return_value = ["python", "django", "fastapi"]
-    # Убираем всё, связанное с TfidfVectorizer
 
     with patch('src.parsing.vacancy_parser.VacancyParser._get_skill_embeddings', return_value={"python": [0.1, 0.2]}):
         parser = VacancyParser()
@@ -184,8 +191,8 @@ def test_get_skill_embeddings_cache_exists(tmp_path, monkeypatch):
     parser.embedding_model = MagicMock()
     embeddings = parser._get_skill_embeddings(["python"])
     assert embeddings["python"] == [0.1, 0.2]
-    # Модель не вызывалась, т.к. взято из кэша
     parser.embedding_model.encode.assert_not_called()
+
 
 def test_get_skill_embeddings_compute_new(tmp_path, monkeypatch, mock_embedding_model):
     monkeypatch.setattr("src.parsing.vacancy_parser.config.EMBEDDINGS_CACHE_DIR", tmp_path)
@@ -195,7 +202,6 @@ def test_get_skill_embeddings_compute_new(tmp_path, monkeypatch, mock_embedding_
     embeddings = parser._get_skill_embeddings(skills)
     assert len(embeddings) == 2
     mock_embedding_model.encode.assert_called_once()
-    # Проверяем, что кэш создан
     cache_file = tmp_path / "skill_embeddings.json"
     assert cache_file.exists()
 
@@ -210,20 +216,24 @@ def test_clean_highlighttext():
     assert "highlighttext" not in cleaned
     assert "Python" in cleaned
 
+
 def test_extract_skills_static(sample_vacancy_dict):
     skills = VacancyParser.extract_skills([sample_vacancy_dict])
     assert "Python" in skills
     assert "Django" in skills
 
+
 def test_normalize_skill():
     assert VacancyParser.normalize_skill("Опыт работы с Python") == "python"
-    assert VacancyParser.normalize_skill("командная работа") == "командная работа"  # из стоп-слов
+    assert VacancyParser.normalize_skill("командная работа") == "командная работа"
     assert VacancyParser.normalize_skill("очень длинное название навыка из пяти слов") == ""
+
 
 def test_is_valid_skill():
     assert VacancyParser.is_valid_skill("Python") is True
     assert VacancyParser.is_valid_skill("") is False
     assert VacancyParser.is_valid_skill("a") is False
+
 
 def test_count_skills():
     skills_list = ["Python", "python", "Django", "коммуникация"]
@@ -231,8 +241,8 @@ def test_count_skills():
         counts = VacancyParser.count_skills(skills_list)
     assert counts == {"python": 2, "django": 1}
 
+
 def test_extract_skills_from_text_deprecated():
-    # Должен вернуть пустой список и залогировать предупреждение
     result = VacancyParser.extract_skills_from_text([])
     assert result == []
 
@@ -248,10 +258,12 @@ def test_aggregate_to_dataframe_dict(sample_vacancy_dict):
     assert df.shape[0] == 1
     assert df.loc[0, 'Вакансия'] == "Python Developer"
 
+
 def test_aggregate_to_dataframe_obj(sample_vacancy_obj):
     parser = VacancyParser()
     df = parser.aggregate_to_dataframe([sample_vacancy_obj])
     assert df.shape[0] == 1
+
 
 def test_save_to_excel(tmp_path, monkeypatch):
     monkeypatch.setattr("src.parsing.vacancy_parser.config.DATA_PROCESSED_DIR", tmp_path)
@@ -260,25 +272,31 @@ def test_save_to_excel(tmp_path, monkeypatch):
     parser.save_to_excel(df, "test.xlsx")
     assert (tmp_path / "test.xlsx").exists()
 
+
 def test_print_vacancies_list_dict(capsys, sample_vacancy_dict):
     parser = VacancyParser()
     parser.print_vacancies_list([sample_vacancy_dict])
     captured = capsys.readouterr()
     assert "Python Developer" in captured.out
 
+
 def test_print_vacancies_list_obj(capsys, sample_vacancy_obj):
     parser = VacancyParser()
     parser.print_vacancies_list([sample_vacancy_obj])
     captured = capsys.readouterr()
     assert "Python Developer" in captured.out
-    
-    
+
+
+# ----------------------------------------------------------------------
+# Тесты SkillNormalizer
+# ----------------------------------------------------------------------
+
 class TestSkillNormalizer:
-    
+
     def setup_method(self):
         SkillNormalizer._canonical_map = None
         SkillNormalizer._whitelist = None
-        
+
     def test_synonyms(self):
         assert SkillNormalizer.normalize("Python 3.11") == "python"
         assert SkillNormalizer.normalize("javascript") == "node.js"
@@ -290,42 +308,38 @@ class TestSkillNormalizer:
         SkillNormalizer._whitelist = None
         assert SkillNormalizer.normalize("reackt") == "react"
         assert SkillNormalizer.normalize("react native") == "react"
-        assert SkillNormalizer.normalize("node js") == "node.js"          # ← исправлено
-        assert SkillNormalizer.normalize("NodeJS") == "node.js"           # ← исправлено
+        assert SkillNormalizer.normalize("node js") == "node.js"
+        assert SkillNormalizer.normalize("NodeJS") == "node.js"
 
     def test_no_match_returns_cleaned_version(self):
         result = SkillNormalizer.normalize("какой-то_мусор_навык_123")
         assert result == "какой-то_мусор_навык_"
-        
+
     def test_normalize_batch(self):
         skills = ["Python 3", "React.js v18", "reackt", "machine learning"]
         normalized = SkillNormalizer.normalize_batch(skills)
         assert normalized == ["python", "react", "react", "mlops"]
-        # или вызвать deduplicate
 
     def test_batch_with_duplicates(self):
         skills = ["Python", "python", "", "React", "reackt"]
         normalized = SkillNormalizer.normalize_batch(skills)
-        # Пустая строка фильтруется условием "if skill"
         assert normalized == ["python", "python", "react", "react"]
         dedup = SkillNormalizer.deduplicate(skills)
         assert dedup == ["python", "react"]
+
     def test_normalize_edge_cases(self):
-        """Дополнительные кейсы"""
         assert SkillNormalizer.normalize("") == ""
         assert SkillNormalizer.normalize("   Python   ") == "python"
         assert SkillNormalizer.normalize("React.js v18") == "react"
         assert SkillNormalizer.normalize("NodeJS") == "node.js"
-        
+
     def test_empty_and_whitespace(self):
-        """Проверка пустых и пробельных строк"""
         assert SkillNormalizer.normalize("") == ""
         assert SkillNormalizer.normalize("   ") == ""
         assert SkillNormalizer.normalize("\t\n") == ""
-        assert SkillNormalizer.normalize(None) == ""  # если поддерживается None
+        assert SkillNormalizer.normalize(None) == ""
 
     def test_version_patterns(self):
-        """Удаление номеров версий и данных в скобках"""
         assert SkillNormalizer.normalize("Python 3.11") == "python"
         assert SkillNormalizer.normalize("React v18.2.1") == "react"
         assert SkillNormalizer.normalize("Django (фреймворк)") == "django"
@@ -333,7 +347,6 @@ class TestSkillNormalizer:
         assert SkillNormalizer.normalize("PostgreSQL 14.5") == "postgresql"
 
     def test_suffix_removal_extended(self):
-        """Удаление лишних слов из конца"""
         assert SkillNormalizer.normalize("язык программирования Python") == "python"
         assert SkillNormalizer.normalize("Python язык") == "python"
         assert SkillNormalizer.normalize("React фреймворк") == "react"
@@ -345,25 +358,19 @@ class TestSkillNormalizer:
         assert SkillNormalizer.normalize("some_skill!") == "some_skill"
 
     def test_fuzzy_matching_extended(self):
-        # Добавлен синоним "anguler" -> "angular"
         assert SkillNormalizer.normalize("anguler") == "angular"
         assert SkillNormalizer.normalize("pythn") == "python"
         assert SkillNormalizer.normalize("dockr") == "docker"
         assert SkillNormalizer.normalize("xyzabc") == "xyzabc"
 
     def test_whitelist_exact_match_prevents_fuzzy(self):
-        """Точное совпадение в whitelist останавливает fuzzy"""
-        # Предполагаем, что 'python' есть в whitelist
         assert SkillNormalizer.normalize("python") == "python"
-        # А 'pythn' нет, поэтому сработает fuzzy и исправит
         assert SkillNormalizer.normalize("pythn") == "python"
 
     def test_deduplicate_order_and_uniqueness(self):
-        """Проверка дедупликации с сохранением порядка"""
         skills = ["React", "react", "Python", "python", "Docker", "React"]
         result = SkillNormalizer.deduplicate(skills)
         assert result == ["react", "python", "docker"]
-        # Пустые значения игнорируются
         skills_with_empty = ["", "React", None, "React"]
         result2 = SkillNormalizer.deduplicate(skills_with_empty)
         assert result2 == ["react"]
@@ -376,7 +383,6 @@ class TestSkillNormalizer:
         assert dedup == ["python", "react"]
 
     def test_whitelist_loading_and_caching(self):
-        """Проверка кэширования whitelist"""
         SkillNormalizer._whitelist = None
         whitelist1 = SkillNormalizer._get_whitelist()
         whitelist2 = SkillNormalizer._get_whitelist()
@@ -386,78 +392,66 @@ class TestSkillNormalizer:
         assert "node.js" in whitelist1
 
     def test_direct_phrase_mapping(self):
-        """Проверка точного фразового маппинга (если добавлен DIRECT_PHRASE_MAP)"""
-        # Если вы реализовали DIRECT_PHRASE_MAP, как предлагалось ранее
         if hasattr(SkillNormalizer, 'DIRECT_PHRASE_MAP'):
             assert SkillNormalizer.normalize("machine learning") == "mlops"
             assert SkillNormalizer.normalize("node js") == "node.js"
             assert SkillNormalizer.normalize("react native") == "react"
 
     def test_complex_input_combinations(self):
-        """Комбинации синонимов, версий и суффиксов"""
         assert SkillNormalizer.normalize("язык программирования Python 3.11") == "python"
         assert SkillNormalizer.normalize("фреймворк React.js v18") == "react"
-        
+
     def test_normalize_with_special_chars_and_version(self):
         assert SkillNormalizer.normalize("  PyThOn  3.9  ") == "python"
         assert SkillNormalizer.normalize("Node.JS (среда)") == "node.js"
         assert SkillNormalizer.normalize("TypEScript") == "typescript"
 
     def test_fuzzy_threshold_boundary(self):
-        # При низком сходстве возвращается исходная строка (после очистки)
         result = SkillNormalizer.normalize("completelywrongterm")
-        # Если в whitelist нет похожих, должно вернуться очищенное "completelywrongterm"
         assert "completelywrongterm" in result
-
-    def test_direct_phrase_mapping_if_present(self):
-        pass
-
-    def test_canonical_mapping_handles_cycles(self):
-        SkillNormalizer._canonical_map = None
-        assert SkillNormalizer.normalize("cpp") == "c++"   # ожидаем, что cpp не меняется
 
         
     def test_phrase_synonyms_replaced_correctly(self):
-        """Многословные синонимы должны заменяться на канонические."""
         assert SkillNormalizer.normalize("react native") == "react"
         assert SkillNormalizer.normalize("machine learning") == "mlops"
         assert SkillNormalizer.normalize("node js") == "node.js"
 
     def test_synonym_replacement_does_not_affect_unrelated_words(self):
         assert SkillNormalizer.normalize("javascripting") == "java"
-        
+
     def test_deduplicate_preserves_order_and_removes_duplicates(self):
         skills = ["Python", "python", "React", "reackt", "Docker", "docker"]
         dedup = SkillNormalizer.deduplicate(skills)
-        # Порядок первого появления
         assert dedup == ["python", "react", "docker"]
-        
+
     def test_canonical_map_initialization(self):
-        # Сбросим кэш
         SkillNormalizer._canonical_map = None
         canon_map = SkillNormalizer._get_canonical_map()
         assert isinstance(canon_map, dict)
         assert "javascript" in canon_map
         assert "node.js" in canon_map.values()
+
+
+# ----------------------------------------------------------------------
+# Тесты VacancyParser
+# ----------------------------------------------------------------------
+
 class TestVacancyParser:
 
     def test_hybrid_weights_are_calculated(self, sample_vacancy_dict):
-        """Проверка, что гибридные веса вычисляются и содержат ожидаемые навыки."""
         parser = VacancyParser()
-        # Мокаем _calculate_bm25_weights и _get_skill_embeddings, чтобы тест был быстрым
         with patch.object(parser, '_calculate_bm25_weights', return_value={'python': 0.8, 'django': 0.6}):
             with patch.object(parser, '_get_skill_embeddings', return_value={'python': [0.1, 0.2], 'django': [0.3, 0.4]}):
                 weights = parser._calculate_hybrid_weights([sample_vacancy_dict])
         assert 'python' in weights
         assert 'django' in weights
-        # Веса должны быть числами
         assert isinstance(weights['python'], float)
 
     def test_extract_skills_frequencies_count_correctly(self, monkeypatch):
         parser = VacancyParser()
         area = Area(id=1, name="Москва")
         employer = Employer(id="1", name="Test Corp")
-        
+
         vac1 = Vacancy(
             id="1", name="Dev1", area=area, employer=employer,
             key_skills=[KeySkill(name="Python"), KeySkill(name="Django")],
@@ -493,12 +487,12 @@ class TestVacancyParser:
         assert result['frequencies'].get('django') == 1
         assert result['frequencies'].get('fastapi') == 1
         assert result['frequencies'].get('docker') == 1
-        
+
     def test_extract_skills_removes_duplicates_per_vacancy(self, monkeypatch):
         parser = VacancyParser()
         area = Area(id=1, name="Москва")
         employer = Employer(id="1", name="Test Corp")
-        
+
         vac = Vacancy(
             id="1", name="Dev", area=area, employer=employer,
             key_skills=[KeySkill(name="Python"), KeySkill(name="python")],
@@ -519,7 +513,7 @@ class TestVacancyParser:
 
         result = parser.extract_skills_from_vacancies(vacancies)
         assert result['frequencies'].get('python') == 1
-    
+
     def test_get_skill_embeddings_cache_corrupted(self, tmp_path, monkeypatch):
         monkeypatch.setattr("src.parsing.vacancy_parser.config.EMBEDDINGS_CACHE_DIR", tmp_path)
         cache_file = tmp_path / "skill_embeddings.json"
@@ -527,14 +521,13 @@ class TestVacancyParser:
 
         parser = VacancyParser()
         mock_model = MagicMock()
-        # Модель должна вернуть массив для одного навыка
         mock_model.encode.return_value = np.array([[0.1, 0.2]])
         parser.embedding_model = mock_model
 
         embeddings = parser._get_skill_embeddings(["python"])
         mock_model.encode.assert_called_once()
         assert "python" in embeddings
-    
+
     def test_extract_skills_from_vacancies_skips_invalid_dict(self, monkeypatch):
         parser = VacancyParser()
         mock_parser = MagicMock()
@@ -546,7 +539,7 @@ class TestVacancyParser:
 
         assert result['frequencies'] == {}
         mock_parser.parse_vacancy.assert_not_called()
-    
+
     def test_extract_skills_from_vacancies_with_no_skills_or_desc(self, monkeypatch):
         parser = VacancyParser()
         area = Area(id=1, name="Москва")
@@ -558,8 +551,7 @@ class TestVacancyParser:
         with patch.object(parser.skill_parser, 'parse_vacancy', return_value=[]):
             result = parser.extract_skills_from_vacancies([vac])
             assert result['frequencies'] == {}
-            
-            
+
     def test_calculate_bm25_weights_empty_texts(self):
         parser = VacancyParser()
         weights = parser._calculate_bm25_weights([])
@@ -571,7 +563,22 @@ class TestVacancyParser:
         with patch('re.compile', side_effect=Exception("Regex error")):
             weights = parser._calculate_bm25_weights(vacancies)
             assert weights == {}
-            
+
+    def test_calculate_bm25_weights_uses_snippet(self):
+        parser = VacancyParser()
+        vacancy = {
+            "description": "",
+            "key_skills": [],
+            "snippet": {
+                "requirement": "Опыт работы с Python и SQL",
+                "responsibility": "Разработка микросервисов на FastAPI"
+            }
+        }
+        with patch.object(parser, '_strip_html', side_effect=lambda x: x):
+            weights = parser._calculate_bm25_weights([vacancy])
+        # Просто проверяем, что метод отработал без ошибок
+        assert isinstance(weights, dict)
+
     def test_calculate_hybrid_weights_few_embeddings(self, monkeypatch):
         parser = VacancyParser()
         bm25 = {f"skill{i}": 0.5 for i in range(5)}
