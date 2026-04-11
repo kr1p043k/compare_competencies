@@ -80,8 +80,7 @@ def generate_profiles_from_csv(
     # Индикаторы компетенций (вторая строка)
     indicators_raw = df.iloc[1, 1:].tolist()
 
-    # ---------- ИЗМЕНЕНИЕ ----------
-    # 1. Формируем маппинг: позиция столбца → исходный код компетенции
+    # Формируем маппинг: позиция столбца → исходный код компетенции
     indicator_mapping = {}
     col_idx = 2  # первые два столбца: № и Дисциплина
     for raw in indicators_raw:
@@ -91,46 +90,44 @@ def generate_profiles_from_csv(
         indicator_mapping[col_idx] = code
         col_idx += 1
     logger.info(f"Найдено индикаторов компетенций: {len(indicator_mapping)}")
-    # ------------------------------
 
     # Данные дисциплин (строки с 3-й)
     disciplines_df = df.iloc[2:, :].copy()
-    # Присваиваем простые числовые имена столбцов, чтобы избежать конфликтов
     disciplines_df.columns = list(range(disciplines_df.shape[1]))
     disciplines_df[0] = pd.to_numeric(disciplines_df[0], errors='coerce').fillna(0).astype(int)
 
-    # Сбор навыков по профилям
-    profiles_skills = {}
-    for profile_name, discipline_ids in PROFILES_DISCIPLINES.items():
-        logger.debug(f"Обработка профиля {profile_name}, дисциплины: {discipline_ids}")
-        profile_df = disciplines_df[disciplines_df[0].isin(discipline_ids)]
+    # Инициализируем наборы навыков для профилей
+    profiles_skills = {profile: set() for profile in PROFILES_DISCIPLINES.keys()}
 
-        if len(profile_df) == 0:
-            logger.warning(f"Для профиля {profile_name} не найдено ни одной дисциплины.")
-            profiles_skills[profile_name] = []
+    for _, row in disciplines_df.iterrows():
+        discipline_id = int(row[0])
+        if discipline_id == 0:
             continue
 
-        skills = set()
-        for _, row in profile_df.iterrows():
-            # ---------- ИЗМЕНЕНИЕ ----------
-            # Идём по столбцам индикаторов через маппинг
+        for profile_name, discipline_ids in PROFILES_DISCIPLINES.items():
+            if discipline_id not in discipline_ids:
+                continue
+
+            # Для каждой дисциплины учебного плана профиля
+            # добавляем ВСЕ компетенции, у которых есть любая отметка (Б, П, Э, X)
             for col_idx, indicator_code in indicator_mapping.items():
                 val = row.iloc[col_idx]
-                if pd.notna(val) and str(val).strip() in ('Б', 'П'):
-                    skills.add(indicator_code)
-            # ------------------------------
+                if pd.notna(val) and str(val).strip() in ('Б', 'П', 'Э', 'X'):
+                    profiles_skills[profile_name].add(indicator_code)
 
-        profile_skills = sorted(skills)
-        profiles_skills[profile_name] = profile_skills
-        logger.info(f"Профиль {profile_name}: получено {len(profile_skills)} навыков")
+    # Сохраняем JSON-файлы и формируем результат
+    result = {}
+    for profile_name, skills in profiles_skills.items():
+        sorted_skills = sorted(skills)
+        result[profile_name] = sorted_skills
+        logger.info(f"Профиль {profile_name}: получено {len(sorted_skills)} навыков")
 
-        # Сохраняем JSON
         json_path = output_dir / f"{profile_name}_competency.json"
         with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump({"навыки": profile_skills}, f, ensure_ascii=False, indent=2)
+            json.dump({"навыки": sorted_skills}, f, ensure_ascii=False, indent=2)
         logger.debug(f"Сохранён JSON: {json_path}")
 
-    # Копия CSV
+    # Копия CSV (как было)
     if save_copy:
         LAST_UPLOADED_DIR.mkdir(parents=True, exist_ok=True)
         last_csv_path = LAST_UPLOADED_DIR / "competency_matrix.csv"
@@ -138,7 +135,7 @@ def generate_profiles_from_csv(
         logger.info(f"Сохранена копия загруженного CSV: {last_csv_path}")
 
     logger.info("Обработка CSV завершена успешно")
-    return profiles_skills
+    return result
 
 if __name__ == "__main__":
     print("Запуск генерации профилей из CSV...")
