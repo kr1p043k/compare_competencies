@@ -176,7 +176,7 @@
 
 ### Поиск по конкретному запросу
 ```bash
-    python main.py --query "Data Scientist" --area-id 2 --max-pages 5 --excel
+python main.py --query "Data Scientist" --area-id 2 --max-pages 5 --excel
 
 ### Загрузка запросов из файла
 python main.py --queries-file queries.txt --regions 1,2 --excel
