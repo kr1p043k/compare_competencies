@@ -194,20 +194,34 @@ class VacancyParser:
             "skill_embeddings": skill_embeddings
         }
     def _calculate_bm25_weights(self, vacancies: List) -> Dict[str, float]:
-        """Расчёт BM25-весов (улучшенный TF-IDF) + полная очистка HTML"""
+        """Расчёт BM25-весов с учётом snippet и пустых полей."""
         texts = []
 
         for vac in vacancies:
-            if isinstance(vac, Vacancy):
-                desc = vac.description or ""
-                key_skills = " ".join(s.name for s in vac.key_skills)
-            else:
-                desc = vac.get("description", "") or ""
+            parts = []
+            if isinstance(vac, dict):
+                desc = vac.get("description") or ""
+                if desc:
+                    parts.append(self._strip_html(desc))
+                snippet = vac.get("snippet", {})
+                req = snippet.get("requirement") or ""
+                resp = snippet.get("responsibility") or ""
+                if req:
+                    parts.append(self._strip_html(req))
+                if resp:
+                    parts.append(self._strip_html(resp))
                 key_skills = " ".join(s.get("name", "") for s in vac.get("key_skills", []))
+                if key_skills:
+                    parts.append(key_skills)
+            else:  # Vacancy объект
+                if vac.description:
+                    parts.append(self._strip_html(vac.description))
+                key_skills = " ".join(s.name for s in vac.key_skills)
+                if key_skills:
+                    parts.append(key_skills)
 
-            desc_clean = self._strip_html(desc)
-            combined = (desc_clean + " " + key_skills).strip()
-            if combined:  # добавляем только непустые тексты
+            combined = " ".join(part.strip() for part in parts if part and part.strip())
+            if combined:
                 texts.append(combined)
 
         if not texts:
@@ -220,7 +234,6 @@ class VacancyParser:
             tokenized_corpus = [
                 token_pattern.findall(text.lower()) for text in texts
             ]
-            # Фильтруем пустые документы
             tokenized_corpus = [tokens for tokens in tokenized_corpus if tokens]
             if not tokenized_corpus:
                 logger.warning("После токенизации не осталось документов с термами")
@@ -251,9 +264,6 @@ class VacancyParser:
             logger.info(f"✅ BM25 рассчитан: {len(weights)} значимых весов навыков")
             return weights
 
-        except ZeroDivisionError as e:
-            logger.warning(f"BM25 не рассчитан из-за деления на ноль: {e}")
-            return {}
         except Exception as e:
             logger.warning(f"BM25 не рассчитан: {e}")
             return {}
