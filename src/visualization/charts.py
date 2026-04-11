@@ -307,8 +307,6 @@ def show_context_info() -> None:
         print("  - Создайте файл competency_mapping.json в data/processed/")
     elif not students:
         print("  - Загрузите профили студентов через student_loader.py или вручную в data/students/")
-    elif reports_found == 0:
-        print("  - Запустите gap-анализ: python main.py (или выполните 02_competency_matching.ipynb)")
     else:
         print("  - Все данные в порядке. Вы можете запускать визуализацию или веб-интерфейс.")
     print("=" * 80 + "\n")
