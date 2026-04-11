@@ -89,7 +89,7 @@ def parse_arguments():
     
     parser.add_argument('--query', '-q', type=str, default="Python developer")
     parser.add_argument('--area-id', '-a', type=int, default=1)
-    parser.add_argument('--max-pages', '-p', type=int, default=3)
+    parser.add_argument('--max-pages', '-p', type=int, default=1)
     parser.add_argument('--period', '-d', type=int, default=30)
     parser.add_argument('--show-vacancies', '-v', action='store_true')
     parser.add_argument('--skip-details', '-s', action='store_true')
@@ -489,7 +489,7 @@ def main():
 
             # === ПОДГОТОВКА ДАННЫХ ДЛЯ TF-IDF ===
             logger.info("\n" + "="*85)
-            logger.info("ПОДГОТОВКА ДАННЫХ ДЛЯ TF-IDF АНАЛИЗА")
+            logger.info("ПОДГОТОВКА ДАННЫХ")
             logger.info("="*85)
             
             vacancies_skills = []
@@ -504,10 +504,10 @@ def main():
                 if skills_in_vacancy:
                     vacancies_skills.append(skills_in_vacancy)
 
-            logger.info(f"✓ Подготовлено {len(vacancies_skills)} вакансий для TF-IDF")
+            logger.info(f"✓ Подготовлено {len(vacancies_skills)} вакансий")
 
             if not vacancies_skills:
-                logger.error("❌ Не удалось подготовить данные для TF-IDF")
+                logger.error("❌ Не удалось подготовить данные")
                 return
 
                        # === ИНИЦИАЛИЗАЦИЯ EMBEDDINGS (новая рабочая система) ===
@@ -775,7 +775,7 @@ def main():
                         "profile": profile_name,
                         "timestamp": time.strftime('%Y-%m-%d %H:%M:%S'),
                         "recommendations": [
-                            {"skill": s, "score": sc, "explanation": ex}
+                            {"skill": s, "score": float(sc), "explanation": ex}
                             for s, sc, ex in recs
                         ]
                     }
