@@ -105,7 +105,6 @@
     │   ├── 📁 predictors
     │   │   ├── 📄 __init__.py
     │   │   ├── 📄 ltr_recommendation_engine.py
-    │   │   ├── 📄 ml_recommendation_engine.py   # устаревшая версия, можно удалить
     │   │   ├── 📄 recommendation_engine.py
     │   │   └── 📄 skill_forecast.py
     │   ├── 📁 visualization
