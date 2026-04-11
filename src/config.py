@@ -45,8 +45,9 @@ PROFILES_DISCIPLINES = {
 # ====================== ЭМБЕДДИНГИ ======================
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 EMBEDDING_DIM = 384
-EMBEDDINGS_CACHE_DIR = DATA_DIR / "embeddings"
+DATA_EMBEDDINGS_DIR = DATA_DIR / "embeddings"
+DATA_EMBEDDINGS_DIR.mkdir(parents=True, exist_ok=True)
+EMBEDDINGS_CACHE_DIR = DATA_EMBEDDINGS_DIR / "cache"
 EMBEDDINGS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
 # Порог схожести для embedding_comparator (будет использоваться позже)
 SIMILARITY_THRESHOLD = 0.80
