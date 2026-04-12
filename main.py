@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 import json
 from typing import List, Dict, Tuple
-# Windows UTF-8 fix
+
 if sys.platform == 'win32':
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -19,7 +19,7 @@ from src.parsing.hh_api import HeadHunterAPI
 from src.parsing.hh_api_async import HeadHunterAPIAsync 
 from src.parsing.vacancy_parser import VacancyParser
 from src.models.vacancy import Vacancy
-from src.models.student import StudentProfile, ExperienceLevel
+from src.models.student import StudentProfile
 from src.parsing.utils import (
     setup_logging,
     collect_vacancies_multiple,
@@ -27,9 +27,7 @@ from src.parsing.utils import (
     interactive_config,
     print_top_skills,
     print_top_competencies,
-    extract_and_count_skills,
     map_to_competencies,
-    load_it_skills
 )
 from src import config
 from src.loaders_student.student_loader import generate_profiles_from_csv
@@ -41,7 +39,6 @@ from src.analyzers.skill_filter import SkillFilter
 from src.analyzers.comparator import CompetencyComparator
 from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
 from src.analyzers.profile_evaluator import ProfileEvaluator
-from src.analyzers.trends import TrendAnalyzer
 from src.predictors.recommendation_engine import RecommendationEngine
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 from src.visualization.charts import (
@@ -49,47 +46,13 @@ from src.visualization.charts import (
     run_notebook,
     save_all_charts
 )
-def generate_ltr_recommendations_for_profiles(
-    profiles: Dict[str, StudentProfile],
-    market_skills: List[str],
-    logger: logging.Logger
-) -> Dict[str, List[Tuple[str, float, str]]]:
-    """
-    Генерирует LTR-рекомендации для всех профилей.
-    Возвращает словарь {profile_name: [(skill, score, explanation), ...]}
-    """
-    model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
-    if not model_path.exists():
-        logger.warning("LTR-модель не найдена. Рекомендации будут сгенерированы без ML.")
-        return {}
-
-    try:
-        engine = LTRRecommendationEngine(model_path=model_path)
-        engine.load_model()
-    except Exception as e:
-        logger.error(f"Не удалось загрузить LTR-модель: {e}")
-        return {}
-
-    ltr_recommendations = {}
-    for profile_name, student in profiles.items():
-        student_skills = student.skills
-        missing = [s for s in market_skills if s not in student_skills]
-        if missing:
-            recs = engine.predict_skill_impact(student_skills, missing)
-            ltr_recommendations[profile_name] = recs
-            logger.info(f"LTR-рекомендации для {profile_name}: {len(recs)} навыков")
-        else:
-            ltr_recommendations[profile_name] = []
-
-    return ltr_recommendations
-
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
     
     parser.add_argument('--query', '-q', type=str, default="Python developer")
     parser.add_argument('--area-id', '-a', type=int, default=1)
-    parser.add_argument('--max-pages', '-p', type=int, default=1) #kol-vo stranic 1 = 100 vacancy
+    parser.add_argument('--max-pages', '-p', type=int, default=3)
     parser.add_argument('--period', '-d', type=int, default=30)
     parser.add_argument('--show-vacancies', '-v', action='store_true')
     parser.add_argument('--skip-details', '-s', action='store_true')
@@ -104,14 +67,14 @@ def parse_arguments():
     
     parser.add_argument('--use-async', action='store_true', default=True)
     parser.add_argument('--async-workers', type=int, default=3)
-    parser.add_argument('--async-threshold', type=int, default=10) #rate-limit
+    parser.add_argument('--async-threshold', type=int, default=10)
     
     parser.add_argument('--run-gap-analysis', action='store_true', default=True)
     parser.add_argument('--run-notebooks', action='store_true')
     
     parser.add_argument('--train-model', action='store_true', help='Обучить LTR-модель на текущих данных (hh_vacancies_basic.json) и выйти')
+    parser.add_argument('--use-llm', action='store_true', default=True, help='Использовать LLM (YandexGPT) для живых объяснений рекомендаций')
     return parser.parse_args()
-
 
 def load_student_competencies(profile_name: str):
     path = config.DATA_DIR / "students" / f"{profile_name}_competency.json"
@@ -125,7 +88,6 @@ def load_student_competencies(profile_name: str):
         logging.warning(f"Не удалось загрузить профиль {profile_name}: {e}")
         return []
 
-
 def calculate_expected_vacancies(args) -> int:
     if args.it_sector:
         return 11 * 500
@@ -137,7 +99,6 @@ def calculate_expected_vacancies(args) -> int:
         except:
             num_queries = 1
     return num_queries * min(args.max_vacancies_per_query, 1000)
-
 
 def get_load_mode(total_vacancies: int, args, logger) -> tuple:
     threshold = args.async_threshold
@@ -154,7 +115,6 @@ def get_load_mode(total_vacancies: int, args, logger) -> tuple:
     logger.info("✓ АСИНХРОННАЯ ЗАГРУЗКА АКТИВИРОВАНА")
     logger.info("=" * 90)
     return True, args.async_workers, f"Малый объём → асинхрон"
-
 
 def load_vacancies_details(
     basic_vacancies: list,
@@ -193,7 +153,7 @@ def load_vacancies_details(
                 try:
                     detailed.append(Vacancy.from_api(raw_data))
                 except ValueError as e:
-                    logger.warning(f"Невалидная ваканси��: {e}")
+                    logger.warning(f"Невалидная вакансия: {e}")
                     continue
             
             logger.info(f"✓ Асинхронная загрузка завершена за {elapsed:.1f} сек")
@@ -229,7 +189,6 @@ def load_vacancies_details(
         logger.info(f"✓ Синхронная загрузка завершена за {elapsed/60:.1f} мин")
         logger.info(f"  Загружено: {len(detailed)}/{total} вакансий")
         return detailed
-
 
 def main():
     setup_logging()
@@ -363,12 +322,11 @@ def main():
                 logger=logger
             )
 
-        # ====================== 2. ОБРАБОТКА НАВЫКОВ (НОВАЯ ВЕРСИЯ) ======================
+    # ====================== 2. ОБРАБОТКА НАВЫКОВ ======================
     logger.info("=" * 85)
     logger.info("ИЗВЛЕЧЕНИЕ И ВАЛИДАЦИЯ НАВЫКОВ")
     logger.info("=" * 85)
 
-        # Новая версия парсера возвращает словарь с frequencies и tfidf_weights
     result = parser.extract_skills_from_vacancies(vacancies_to_process)
 
     skill_freq: Dict[str, int] = result["frequencies"]
@@ -381,65 +339,54 @@ def main():
     logger.info(f"Извлечено {len(skill_freq)} уникальных валидных навыков "
                 f"(Гибридные веса: {len(hybrid_weights)})")
 
-        # ====================== СОХРАНЕНИЕ ======================
     parser.save_processed_frequencies(skill_freq, apply_filter=not args.no_filter)
-
-        # ====================== ВЫВОД ======================
     print_top_skills(skill_freq)
 
-        # === ДОПОЛНИТЕЛЬНЫЙ ВЫВОД BM 25 ВЕСОВ ===
     if hybrid_weights:
-            print("\n" + "=" * 80)
-            print("ТОП-15 НАВЫКОВ ПО ГИБРИДНОМУ ВЕСУ (BM25 + Embeddings)")
-            print("=" * 80)
-            top_weights = sorted(hybrid_weights.items(), key=lambda x: x[1], reverse=True)[:15]
-            for i, (skill, weight) in enumerate(top_weights, 1):
-                print(f"{i:2}. {skill:<40} {weight:.4f}")
+        print("\n" + "=" * 80)
+        print("ТОП-15 НАВЫКОВ ПО ГИБРИДНОМУ ВЕСУ (BM25 + Embeddings)")
+        print("=" * 80)
+        top_weights = sorted(hybrid_weights.items(), key=lambda x: x[1], reverse=True)[:15]
+        for i, (skill, weight) in enumerate(top_weights, 1):
+            print(f"{i:2}. {skill:<40} {weight:.4f}")
     else:
-        logger.warning("⚠️ hybrid_weights пустой — проверь вызов _calculate_hybrid_weights")
-        # ====================== МАППИНГ КОМПЕТЕНЦИЙ ======================
+        logger.warning("⚠️ hybrid_weights пустой")
+
+    # ====================== МАППИНГ КОМПЕТЕНЦИЙ ======================
     try:
         mapping = load_competency_mapping()
         if mapping:
-            comp_counter = map_to_competencies(skill_freq, mapping)   # передаём только frequencies!
-
+            comp_counter = map_to_competencies(skill_freq, mapping)
             if comp_counter:
                 filter_engine = SkillFilter()
                 cleaned_comp = {}
-
                 for skill, count in comp_counter.most_common():
                     skill_clean = skill.lower().strip()
                     if skill_clean in filter_engine.GENERIC_WORDS:
-                        logger.debug(f"  ⊘ удаляем generic: '{skill}'")
                         continue
                     cleaned_comp[skill_clean] = count
-
                 comp_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency_mapped.json"
                 with open(comp_freq_path, 'w', encoding='utf-8') as f:
                     json.dump(cleaned_comp, f, ensure_ascii=False, indent=2)
-
                 logger.info(f"✓ Сохранено {len(cleaned_comp)} очищенных компетенций")
                 print_top_competencies(comp_counter)
-
     except Exception as e:
         logger.exception(f"Ошибка преобразования компетенций: {e}")
 
-        # ====================== EXCEL ======================
+    # ====================== EXCEL ======================
     if args.excel:
         df = parser.aggregate_to_dataframe(vacancies_to_process)
         if not df.empty:
             filename = "vacancies_it_sector.xlsx" if getattr(args, 'it_sector', False) else \
                         f"vacancies_{args.query.replace(' ', '_')}.xlsx"
             parser.save_to_excel(df, filename)
-    
-    
-        # === ОБУЧЕНИЕ LTR-МОДЕЛИ (если указан флаг) ===
+
+    # ====================== ОБУЧЕНИЕ LTR-МОДЕЛИ ======================
     if args.train_model:
         logger.info("\n" + "=" * 85)
         logger.info("ЗАПУСК ОБУЧЕНИЯ LTR-МОДЕЛИ")
         logger.info("=" * 85)
 
-        # Проверяем наличие файла с вакансиями
         raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
         if not raw_file.exists():
             logger.error(f"Файл {raw_file} не найден. Сначала выполните сбор вакансий.")
@@ -458,7 +405,7 @@ def main():
         logger.info("Для генерации рекомендаций с новой моделью перезапустите main.py без флага --train-model")
         return
 
-# ====================== 3. GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ ======================
+    # ====================== 3. GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ ======================
     if args.run_gap_analysis:
         logger.info("\n" + "="*85)
         logger.info("ЗАПУСК GAP-АНАЛИЗА И ГЕНЕРАЦИИ РЕКОМЕНДАЦИЙ")
@@ -487,7 +434,6 @@ def main():
                         skills.update(competency_mapping[code.strip('.')])
                 return list(skills)
 
-            # === ПОДГОТОВКА ДАННЫХ ДЛЯ TF-IDF ===
             logger.info("\n" + "="*85)
             logger.info("ПОДГОТОВКА ДАННЫХ")
             logger.info("="*85)
@@ -510,41 +456,30 @@ def main():
                 logger.error("❌ Не удалось подготовить данные")
                 return
 
-                       # === ИНИЦИАЛИЗАЦИЯ EMBEDDINGS (новая рабочая система) ===
             logger.info("\n" + "="*85)
             logger.info("ИНИЦИАЛИЗАЦИЯ EMBEDDINGS + FALLBACK")
             logger.info("="*85)
             
-            recommendation_engine = RecommendationEngine()
+            recommendation_engine = RecommendationEngine(use_ltr=True, use_llm=args.use_llm)
             
-            # ←←← ИСПРАВЛЕНИЕ: включаем embeddings + fallback
+            # Временно используем старый comparator для совместимости
             recommendation_engine.comparator = CompetencyComparator(
                 ngram_range=(1, 2),
                 min_df=1,
                 max_df=0.95,
-                use_embeddings=True,      # ← КРИТИЧНО
+                use_embeddings=True,
                 level="middle"
             )
-            
             recommendation_engine.fit(vacancies_skills)
 
             skill_weights_raw = recommendation_engine.comparator.get_skill_weights()
             
-            # === Fallback на частотные веса (то, что уже посчитал парсер) ===
-            skill_weights_raw = recommendation_engine.comparator.get_skill_weights()
-            
-            # === НОВЫЙ УЛУЧШЕННЫЙ FALLBACK ===
             if not skill_weights_raw or len(skill_weights_raw) == 0:
                 logger.warning("⚠️ Embedding mode вернул пустые веса → берём ГИБРИДНЫЕ веса из парсера")
-                
-                # Берём именно те hybrid_weights, которые посчитал VacancyParser
-                hybrid_weights: Dict[str, float] = result.get("hybrid_weights", {})
-                
                 if hybrid_weights:
                     skill_weights_raw = hybrid_weights
                     logger.info(f"✓ Использованы гибридные BM25+Embeddings веса ({len(skill_weights_raw)} навыков)")
                 else:
-                    # последний запасной вариант
                     skill_weights_raw = {k: float(v) for k, v in skill_freq.items() if v > 0}
                     logger.info(f"✓ Fallback на частоты: {len(skill_weights_raw)} навыков")
             
@@ -552,7 +487,6 @@ def main():
                 logger.error("❌ Даже fallback не смог создать веса")
                 return
 
-            # === ФИЛЬТРАЦИЯ ===
             logger.info("\n" + "="*85)
             logger.info("ФИЛЬТРАЦИЯ И ОЧИСТКА НАВЫКОВ")
             logger.info("="*85)
@@ -564,11 +498,9 @@ def main():
                 with open(competency_freq_path, 'r', encoding='utf-8') as f:
                     competency_freq = json.load(f)
                     
-                        # === ЗАЩИТА ОТ НУЛЕВЫХ ВЕСОВ ===
             if not skill_weights_raw or all(v == 0 for v in skill_weights_raw.values()):
                 logger.warning("⚠️  Все веса обнулились после фильтра. Используем сырые частоты как веса.")
                 skill_weights_raw = {k: float(v) for k, v in skill_freq.items() if v > 0}
-                        # === УЛУЧШЕННЫЙ FALLBACK ДЛЯ ВЕСОВ ===
             if not skill_weights_raw or len(skill_weights_raw) == 0 or all(abs(v - 1.0) < 0.01 for v in skill_weights_raw.values()):
                 logger.warning("⚠️  Embedding mode или плоские веса → используем реальные частоты из skill_freq")
                 skill_weights_raw = {k: float(v) for k, v in skill_freq.items() if v > 0}
@@ -584,26 +516,20 @@ def main():
             with open(weights_path, "w", encoding="utf-8") as f:
                 json.dump(skill_weights, f, ensure_ascii=False, indent=2)
 
-            # =====================================================================
-            # ← НОВАЯ ИНТЕГРАЦИЯ: АНАЛИЗАТОР УРОВНЕЙ
-            # =====================================================================
             logger.info("\n" + "="*85)
             logger.info("ИНИЦИАЛИЗАЦИЯ АНАЛИЗАТОРА УРОВНЕЙ ОПЫТА")
             logger.info("="*85)
             
-            # Подготавливаем данные для level analyzer
             level_vacancies_data = []
             for vac in vacancies_to_process:
                 if isinstance(vac, Vacancy):
-                    # Извлекаем навыки
                     vac_skills = []
                     if hasattr(vac, 'key_skills') and vac.key_skills:
                         vac_skills = [s.name if hasattr(s, 'name') else str(s) for s in vac.key_skills]
                     elif hasattr(vac, 'extracted_skills') and vac.extracted_skills:
                         vac_skills = vac.extracted_skills
                     
-                    # Извлекаем опыт
-                    vac_experience = 'middle'  # default
+                    vac_experience = 'middle'
                     if hasattr(vac, 'experience') and vac.experience:
                         exp_obj = vac.experience
                         if hasattr(exp_obj, 'id'):
@@ -623,51 +549,35 @@ def main():
                             else:
                                 vac_experience = 'middle'
                     
-                    if vac_skills:  # только если есть навыки
-                        vac_data = {
+                    if vac_skills:
+                        level_vacancies_data.append({
                             'skills': vac_skills,
                             'description': vac.description or '',
                             'experience': vac_experience
-                        }
-                        level_vacancies_data.append(vac_data)
+                        })
                 else:
-                    # dict формат (для совместимости)
                     vac_skills = [s['name'] for s in vac.get('key_skills', [])]
-                    vac_experience = 'middle'  # default для dict
-                    
                     if vac_skills:
-                        vac_data = {
+                        level_vacancies_data.append({
                             'skills': vac_skills,
                             'description': vac.get('description', ''),
-                            'experience': vac_experience
-                        }
-                        level_vacancies_data.append(vac_data)
+                            'experience': 'middle'
+                        })
             
             logger.info(f"Подготовлено {len(level_vacancies_data)} вакансий для анализа уровней")
             
-            # Инициализируем level analyzer
             level_analyzer = SkillLevelAnalyzer()
             level_analyzer.analyze_vacancies(level_vacancies_data)
             logger.info("✅ Анализатор уровней инициализирован")
-
-            # =====================================================================
-            # ← АНАЛИЗ ПРОФИЛЕЙ С УЧЁТОМ УРОВНЯ
-            # =====================================================================
-            results_for_charts = {}
-            all_profiles_results = []
 
             logger.info("\n" + "="*85)
             logger.info("АНАЛИЗ ПРОФИЛЕЙ СТУДЕНТОВ")
             logger.info("="*85)
             
-           # =====================================================================
-            # ← ИНТЕГРАЦИЯ ProfileEvaluator (финальная версия — без .summary)
-            # =====================================================================
             logger.info("\n" + "="*85)
             logger.info("ФОРМИРОВАНИЕ СВОДКИ ПО ПРОФИЛЯМ ЧЕРЕЗ PROFILEEVALUATOR")
             logger.info("="*85)
 
-            # 1. Подготавливаем StudentProfile
             profiles: dict[str, StudentProfile] = {}
             profile_levels = {'base': 'junior', 'dc': 'middle', 'top_dc': 'senior'}
 
@@ -678,7 +588,6 @@ def main():
                     continue
 
                 student_skills = map_codes_to_skills(student_codes)
-                
                 profiles[profile_name] = StudentProfile(
                     profile_name=profile_name,
                     competencies=student_codes,
@@ -686,14 +595,12 @@ def main():
                     target_level=target_level_str
                 )
 
-            # 2. Level-specific weights
             skill_weights_by_level = {}
             for level in ['junior', 'middle', 'senior']:
                 skill_weights_by_level[level] = level_analyzer.get_weights_for_level(
                     skill_weights, level
                 )
 
-            # 3. Запускаем evaluator
             evaluator = ProfileEvaluator(
                 skill_weights=skill_weights,
                 vacancies_skills=vacancies_skills
@@ -705,10 +612,7 @@ def main():
                 skill_weights_by_level=skill_weights_by_level
             )
 
-            # 4. Сохраняем сводку (используем встроенный .to_dict_for_json() + добавляем текстовую сводку)
             summary_path = config.DATA_DIR / "processed" / "profiles_comparison_summary.json"
-
-            # Генерируем красивую текстовую сводку (чтобы ничего не потерять)
             summary_text = (
                 f"Сравнение {len(comparison.evaluations)} профилей студентов\n"
                 f"Средняя готовность: {comparison.average_readiness:.1f}%\n"
@@ -718,7 +622,7 @@ def main():
             )
 
             summary_dict = comparison.to_dict_for_json()
-            summary_dict["summary_text"] = summary_text          # добавляем текстовую сводку
+            summary_dict["summary_text"] = summary_text
             summary_dict["timestamp"] = time.strftime('%Y-%m-%d %H:%M:%S')
 
             with open(summary_path, "w", encoding="utf-8") as f:
@@ -730,73 +634,49 @@ def main():
             logger.info("="*60)
 
             # =====================================================================
-            # ← ИНТЕГРАЦИЯ LTR-РЕКОМЕНДАЦИЙ
+            # ИНТЕГРАЦИЯ РЕКОМЕНДАЦИЙ (LTR + LLM)
             # =====================================================================
             logger.info("\n" + "="*85)
-            logger.info("ГЕНЕРАЦИЯ LTR-РЕКОМЕНДАЦИЙ ДЛЯ ПРОФИЛЕЙ")
+            logger.info("ГЕНЕРАЦИЯ ПЕРСОНАЛИЗИРОВАННЫХ РЕКОМЕНДАЦИЙ")
             logger.info("="*85)
 
-            market_skills_list = list(skill_weights.keys())
-            model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
-            ltr_recs = {}
-            
-            if model_path.exists():
+            rec_engine = RecommendationEngine(use_ltr=True, use_llm=args.use_llm)
+            rec_engine.fit(vacancies_skills, skill_weights=skill_weights)
+
+            all_recommendations = {}
+            for profile_name, student in profiles.items():
+                student_skills = student.skills
                 try:
-                    ltr_engine = LTRRecommendationEngine(model_path=model_path)
-                    ltr_engine.load_model()
-                    logger.info(f"LTR-модель загружена из {model_path}")
-
-                    for profile_name, student in profiles.items():
-                        student_skills = student.skills
-                        missing = [s for s in market_skills_list if s not in student_skills]
-                        if missing:
-                            recs = ltr_engine.predict_skill_impact(student_skills, missing)
-                            ltr_recs[profile_name] = recs
-                            logger.info(f"LTR-рекомендации для {profile_name}: {len(recs)} навыков")
-                        else:
-                            ltr_recs[profile_name] = []
+                    full_rec = rec_engine.generate_recommendations(student_skills, student_profile=student)
+                    all_recommendations[profile_name] = full_rec
+                    logger.info(f"Рекомендации для {profile_name} сгенерированы")
                 except Exception as e:
-                    logger.error(f"Не удалось загрузить LTR-модель: {e}")
-            else:
-                logger.warning("LTR-модель не найдена. Рекомендации будут сгенерированы без ML.")
+                    logger.error(f"Ошибка генерации рекомендаций для {profile_name}: {e}")
+                    all_recommendations[profile_name] = None
 
-            # Сохраняем LTR-рекомендации в отдельные файлы и выводим в консоль
-            for profile_name, recs in ltr_recs.items():
-                if recs:
-                    # Вывод в консоль
-                    print(f"\n📌 LTR-рекомендации для профиля '{profile_name}' (топ-5):")
-                    for skill, score, expl in recs[:5]:
-                        print(f"   • {skill:<25} важность: {score:>5.1f}% | {expl}")
+            for profile_name, full_rec in all_recommendations.items():
+                if not full_rec:
+                    continue
 
-                    # Сохранение в JSON
-                    rec_file = config.DATA_DIR / "result" / profile_name / f"ltr_recommendations_{profile_name}.json"
-                    rec_file.parent.mkdir(parents=True, exist_ok=True)
-                    rec_data = {
-                        "profile": profile_name,
-                        "timestamp": time.strftime('%Y-%m-%d %H:%M:%S'),
-                        "recommendations": [
-                            {"skill": s, "score": float(sc), "explanation": ex}
-                            for s, sc, ex in recs
-                        ]
-                    }
-                    with open(rec_file, "w", encoding="utf-8") as f:
-                        json.dump(rec_data, f, ensure_ascii=False, indent=2)
-                    logger.info(f"✓ LTR-рекомендации для {profile_name} сохранены в {rec_file}")
-                else:
-                    logger.info(f"Для профиля {profile_name} LTR-рекомендации не сгенерированы (нет модели или нет недостающих навыков)")
+                print(f"\n📌 РЕКОМЕНДАЦИИ ДЛЯ ПРОФИЛЯ '{profile_name}'")
+                print("=" * 70)
+                summ = full_rec.get("summary", {})
+                print(f"Match score: {summ.get('match_score', 0):.2f} | Confidence: {summ.get('confidence', 0):.2f}")
+                print(f"Покрытие рынка: {summ.get('coverage', 0):.1f}% ({summ.get('covered_skills', 0)}/{summ.get('total_market_skills', 0)} навыков)")
+                print("\nТОП-5 РЕКОМЕНДАЦИЙ:")
+                for rec in full_rec.get("recommendations", [])[:5]:
+                    print(f"{rec['rank']:2}. {rec['skill']:<25} важность: {rec['importance_score']:.3f} ({rec['priority']})")
+                    print(f"    Почему: {rec['why_important']}")
+                    print(f"    Как учить: {rec['how_to_learn']}")
+                    print(f"    Время: {rec['expected_timeframe']}")
+                    print()
 
-            # =====================================================================
-            # === СОЗДАНИЕ ГРАФИКОВ ===
-            # =====================================================================
-            if results_for_charts:
-                logger.info("\n" + "="*85)
-                logger.info("СОЗДАНИЕ ВИЗУАЛИЗАЦИЙ")
-                logger.info("="*85)
-                
-                logger.info("Генерируются графики...")
-                save_all_charts(results_for_charts, config.DATA_DIR / "result")
-                logger.info("✓ Графики сохранены в data/result/")
-            
+                rec_file = config.DATA_DIR / "result" / profile_name / f"full_recommendations_{profile_name}.json"
+                rec_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(rec_file, "w", encoding="utf-8") as f:
+                    json.dump(full_rec, f, ensure_ascii=False, indent=2)
+                logger.info(f"✓ Полные рекомендации для {profile_name} сохранены в {rec_file}")
+
             logger.info("\n" + "="*85)
             logger.info("✅ GAP-АНАЛИЗ УСПЕШНО ЗАВЕРШЁН")
             logger.info("="*85)
@@ -820,7 +700,7 @@ def main():
             csv_path = config.DATA_DIR / "last_uploaded" / "competency_matrix.csv"
         if csv_path.exists():
             generate_profiles_from_csv(csv_path)
-            logger.info("✓ Профили студент��в обновлены из competency_matrix.csv")
+            logger.info("✓ Профили студентов обновлены из competency_matrix.csv")
     except Exception as e:
         logger.warning(f"Не удалось обновить профили из CSV: {e}")
 
