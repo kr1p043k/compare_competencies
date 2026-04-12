@@ -73,7 +73,7 @@ def parse_arguments():
     parser.add_argument('--run-notebooks', action='store_true')
     
     parser.add_argument('--train-model', action='store_true', help='Обучить LTR-модель на текущих данных (hh_vacancies_basic.json) и выйти')
-    parser.add_argument('--use-llm', action='store_true', default=True, help='Использовать LLM (YandexGPT) для живых объяснений рекомендаций')
+    parser.add_argument('--use-llm', action='store_true', default=False, help='Использовать LLM (YandexGPT) для живых объяснений рекомендаций')
     return parser.parse_args()
 
 def load_student_competencies(profile_name: str):
