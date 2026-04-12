@@ -194,8 +194,24 @@ class VacancyParser:
             "skill_embeddings": skill_embeddings
         }
     def _calculate_bm25_weights(self, vacancies: List) -> Dict[str, float]:
-        """Расчёт BM25-весов с учётом snippet и пустых полей."""
+        """Расчёт BM25-весов с фильтрацией через SkillNormalizer и SkillValidator."""
         texts = []
+
+        # Расширенный список стоп-слов
+        STOP_WORDS = {
+            # Русские общие слова
+            "работы", "на", "для", "опыт", "по", "от", "мы", "или", "разработка",
+            "понимание", "работа", "данных", "умение", "лет", "будет", "возможность",
+            "участие", "компании", "требования", "quot", "настройка", "обеспечения",
+            "испытательного", "сфере", "включая", "который", "задачи", "проекта",
+            "системы", "решения", "знание", "владение", "уровень", "middle", "senior",
+            "junior", "команда", "проект", "разработки", "программирования", "язык",
+            "языки", "инструменты", "технологии", "стек", "поддержка", "сопровождение",
+            # Английские
+            "and", "the", "for", "with", "you", "are", "will", "have", "from",
+            "this", "that", "what", "when", "where", "which", "experience",
+            "development", "work", "years", "knowledge", "skills", "team"
+        }
 
         for vac in vacancies:
             parts = []
@@ -230,13 +246,17 @@ class VacancyParser:
 
         try:
             import re
-            token_pattern = re.compile(r'(?u)\b\w[\w\+\-\#]+\b')
-            tokenized_corpus = [
-                token_pattern.findall(text.lower()) for text in texts
-            ]
-            tokenized_corpus = [tokens for tokens in tokenized_corpus if tokens]
+            token_pattern = re.compile(r'(?u)\b\w[\w\+\-\#\.]+\b')
+            tokenized_corpus = []
+            for text in texts:
+                tokens = token_pattern.findall(text.lower())
+                # Фильтруем стоп-слова и короткие токены
+                filtered = [t for t in tokens if t not in STOP_WORDS and len(t) >= 3]
+                if filtered:
+                    tokenized_corpus.append(filtered)
+
             if not tokenized_corpus:
-                logger.warning("После токенизации не осталось документов с термами")
+                logger.warning("После фильтрации стоп-слов не осталось термов")
                 return {}
 
             from rank_bm25 import BM25Okapi
@@ -246,17 +266,32 @@ class VacancyParser:
             for tokens in tokenized_corpus:
                 all_terms.update(tokens)
 
+            # Дополнительная фильтрация через SkillNormalizer и SkillValidator
+            from src.parsing.skill_normalizer import SkillNormalizer
+            from src.parsing.skill_validator import SkillValidator
+            validator = SkillValidator()
+
             weights = {}
             logger.info(f"Вычисление BM25 для {len(all_terms)} термов...")
 
             for term in all_terms:
+                # Нормализуем терм
+                normalized = SkillNormalizer.normalize(term)
+                if not normalized:
+                    continue
+
+                # Проверяем валидность навыка
+                result = validator.validate(normalized, confidence=0.8)
+                if not result.is_valid:
+                    continue
+
                 try:
                     scores = bm25.get_scores([term])
                     if len(scores) == 0:
                         continue
                     avg_score = float(sum(scores) / len(scores))
-                    if avg_score > 0.03:
-                        weights[term] = round(avg_score, 4)
+                    if avg_score > 0.05:  # повышенный порог
+                        weights[normalized] = round(avg_score, 4)
                 except ZeroDivisionError:
                     logger.debug(f"ZeroDivisionError для терма '{term}'")
                     continue
