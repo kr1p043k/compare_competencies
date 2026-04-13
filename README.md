@@ -70,7 +70,7 @@
     │   └── 📄 app.py
     ├── 📁 logs                         # Логи работы приложения
     │   └── 📄 app.log
-    ├── 📁 notebooks                    # Jupyter ноутбуки
+    ├── 📁 notebook_jypiter                    # Jupyter ноутбуки
     │   ├── 📄 01_hh_analysis.ipynb
     │   ├── 📄 02_competency_matching.ipynb
     │   └── 📄 03_prediction_model.ipynb

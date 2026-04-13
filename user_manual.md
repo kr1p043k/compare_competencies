@@ -163,7 +163,7 @@ top_dc_competency.json в папке data/students/) выполняется gap-
 - Скрипт визуализации: python src/visualization/charts.py
   (показывает графики покрытия, ML-важности, радарные диаграммы и т.д.)
 
-- Jupyter ноутбуки в папке notebooks/:
+- Jupyter ноутбуки в папке notebook_jypiter/:
   - 01_hh_analysis.ipynb        – анализ частот, гибридных весов, распределений
   - 02_competency_matching.ipynb – gap-анализ и сравнение профилей
   - 03_prediction_model.ipynb    – обучение и оценка ML-модели
