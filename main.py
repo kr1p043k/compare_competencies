@@ -35,6 +35,7 @@ from src.utils import load_competency_mapping
 
 # === Gap-анализ и рекомендации ===
 from src.analyzers.gap_analyzer import GapAnalyzer
+from src.analyzers.trends import TrendAnalyzer
 from src.analyzers.skill_filter import SkillFilter
 from src.analyzers.comparator import CompetencyComparator
 from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
@@ -50,9 +51,9 @@ from src.visualization.charts import (
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
     
-    parser.add_argument('--query', '-q', type=str, default="Backend developer")
+    parser.add_argument('--query', '-q', type=str, default="Python developer")
     parser.add_argument('--area-id', '-a', type=int, default=1)
-    parser.add_argument('--max-pages', '-p', type=int, default=3)
+    parser.add_argument('--max-pages', '-p', type=int, default=1)
     parser.add_argument('--period', '-d', type=int, default=30)
     parser.add_argument('--show-vacancies', '-v', action='store_true')
     parser.add_argument('--skip-details', '-s', action='store_true')
@@ -228,13 +229,71 @@ def main():
         else:
             if args.it_sector:
                 args.queries = [
-                    "Data Scientist", "Data Analyst", "Machine Learning Engineer",
-                    "Python Developer", "Java Developer", "Frontend Developer",
-                    "Backend Developer", "Fullstack Developer", "DevOps Engineer",
-                    "QA Engineer", "Системный аналитик"
+                    # Data & AI
+                    "Data Scientist",
+                    "Data Analyst",
+                    "Machine Learning Engineer",
+                    "Computer Vision Engineer",
+                    "NLP Engineer",
+                    "Data Architect",
+                    "ETL Developer",
+                    
+                    # Development
+                    "Python Developer",
+                    "Java Developer",
+                    "Frontend Developer",
+                    "Backend Developer",
+                    "Fullstack Developer",
+                    "DevOps Engineer",
+                    "Embedded Developer",
+                    "Blockchain Developer",
+                    
+                    # Mobile
+                    "iOS Developer",
+                    "Android Developer",
+                    "React Native Developer",
+                    "Flutter Developer",
+                    
+                    # QA
+                    "QA Engineer",
+                    "Automation QA Engineer",
+                    "Performance QA Engineer",
+                    
+                    # Security
+                    "Специалист по кибербезопасности",
+                    "Security Engineer",
+                    "DevSecOps Engineer",
+                    
+                    # Infrastructure & Administration
+                    "SRE инженер",
+                    "Системный администратор",
+                    "Облачный инженер",
+                    "Сетевой инженер",
+                    "Администратор баз данных",
+                    
+                    # Architecture & Management
+                    "Системный аналитик",
+                    "Бизнес-аналитик",
+                    "Архитектор программного обеспечения",
+                    "Solution Architect",
+                    "Team Lead",
+                    "Tech Lead",
+                    "Project Manager IT",
+                    "Scrum Master",
+                    
+                    # Design
+                    "UX/UI дизайнер",
+                    "Product Designer",
+                    
+                    # Game Development
+                    "Unity Developer",
+                    "Unreal Engine Developer",
+                    
+                    # Other
+                    "Technical Writer",
                 ]
                 args.industry = 7
-                args.max_vacancies_per_query = 500
+                args.max_vacancies_per_query = 100000
                 logger.info("Режим: поиск по всему IT-сектору")
             elif args.queries_file:
                 args.queries = load_queries_from_file(Path(args.queries_file))
@@ -342,6 +401,22 @@ def main():
     parser.save_processed_frequencies(skill_freq, apply_filter=not args.no_filter)
     print_top_skills(skill_freq)
 
+    # Очистка частот перед сохранением снимка и дальнейшим использованием
+    filter_engine = SkillFilter()
+    skill_freq_filtered = {
+        skill: freq for skill, freq in skill_freq.items()
+        if filter_engine.validate_skills([skill])
+    }
+    logger.info(f"После очистки осталось {len(skill_freq_filtered)} навыков (было {len(skill_freq)})")
+
+    # Сохраняем снимок для анализа трендов (с чистыми данными)
+    trend_analyzer = TrendAnalyzer(skill_freq_filtered)
+    trend_analyzer.save_snapshot(skill_freq_filtered)
+    logger.info(f"📸 Снимок рынка сохранён в {trend_analyzer.history_dir}")
+
+    # Сохраняем снимок для анализа трендов
+    trend_analyzer = TrendAnalyzer(skill_freq_filtered)
+    trend_analyzer.save_snapshot(skill_freq_filtered)
     if hybrid_weights:
         print("\n" + "=" * 80)
         print("ТОП-15 НАВЫКОВ ПО ГИБРИДНОМУ ВЕСУ (BM25 + Embeddings)")
