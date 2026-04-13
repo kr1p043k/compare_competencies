@@ -8,7 +8,7 @@ from pathlib import Path
 import json
 from typing import List, Dict, Tuple
 
-if sys.platform == 'win32':
+if __name__ == "__main__" and sys.platform == 'win32':
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
@@ -50,7 +50,7 @@ from src.visualization.charts import (
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
     
-    parser.add_argument('--query', '-q', type=str, default="Python developer")
+    parser.add_argument('--query', '-q', type=str, default="Backend developer")
     parser.add_argument('--area-id', '-a', type=int, default=1)
     parser.add_argument('--max-pages', '-p', type=int, default=3)
     parser.add_argument('--period', '-d', type=int, default=30)
