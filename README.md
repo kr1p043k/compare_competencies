@@ -32,6 +32,7 @@
 └── 📁 competency_comparison
     ├── 📁 data
     │   ├── 📁 embeddings               # Кэш векторных представлений навыков
+    │   ├── 📁 history                  # Для построения тренда навыков    
     │   ├── 📁 last_uploaded            # Резервная копия последней загруженной матрицы компетенций
     │   │   └── 📄 competency_matrix.csv
     │   ├── 📁 models                   # Обученные ML‑модели и диагностические графики
@@ -119,18 +120,24 @@
     │   │   ├── 📄 test_comparator.py
     │   │   ├── 📄 test_gap_analyzer.py
     │   │   ├── 📄 test_profile_evaluator.py
+    │   │   ├── 📄 test_trends.py    
     │   │   └── 📄 test_skill.py
     │   ├── 📁 integration
+    │   │   ├── 📄 inter_parse.py    
     │   │   └── 📄 test_full_pipeline.py
     │   ├── 📁 loaders
     │   │   └── 📄 test_loaders.py
     │   ├── 📁 models
     │   │   └── 📄 test_models.py
     │   ├── 📁 parsing
+    │   │   ├── 📄 test_api.py
+    │   │   ├── 📄 test_utils.py
+    │   │   ├── 📄 test_validation.py          
     │   │   └── 📄 test_parsers.py
     │   ├── 📁 predictors
     │   │   ├── 📄 test_forecast.py
-    │   │   └── 📄 test_ml_recommendation.py
+    │   │   ├── 📄 test_recommendation_engine.py
+    │   │   └── 📄 test_ltr_recommendation.py
     │   ├── 📄 conftest.py
     │   └── 📄 __init__.py
     ├── 📄 .gitignore
