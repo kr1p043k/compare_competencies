@@ -5,7 +5,7 @@ import pandas as pd
 import json
 from pathlib import Path
 from unittest.mock import patch, MagicMock, call
-import sys
+
 
 plt.switch_backend('Agg')
 
@@ -33,7 +33,7 @@ def sample_market_top():
 # --------------------------------------------------------------
 def test_load_skill_weights_exists(tmp_path):
     weights_path = tmp_path / "skill_weights.json"
-    weights_path.write_text(json.dumps({"python": 1.0}))
+    weights_path.write_text(json.dumps({"python": 1.0}), encoding='utf-8')
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_PROCESSED_DIR = tmp_path
         result = load_skill_weights()
@@ -49,7 +49,7 @@ def test_load_skill_weights_missing():
 
 def test_load_hybrid_weights_exists(tmp_path):
     weights_path = tmp_path / "hybrid_weights.json"
-    weights_path.write_text(json.dumps({"docker": 0.9}))
+    weights_path.write_text(json.dumps({"docker": 0.9}), encoding='utf-8')
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_PROCESSED_DIR = tmp_path
         result = load_hybrid_weights()
@@ -64,7 +64,6 @@ def test_load_hybrid_weights_missing():
 
 
 def test_load_ml_recommendations_exists(tmp_path):
-    # Создаём структуру папок как в реальном проекте
     result_dir = tmp_path / "result" / "base"
     result_dir.mkdir(parents=True)
     rec_file = result_dir / "ml_recommendations_base.json"
@@ -80,6 +79,18 @@ def test_load_ml_recommendations_exists(tmp_path):
 def test_load_ml_recommendations_missing():
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_DIR = Path("/nonexistent")
+        result = load_ml_recommendations("base")
+        assert result == []
+
+
+def test_load_ml_recommendations_corrupted(tmp_path):
+    result_dir = tmp_path / "result" / "base"
+    result_dir.mkdir(parents=True)
+    rec_file = result_dir / "ml_recommendations_base.json"
+    rec_file.write_text("{not valid json", encoding='utf-8')
+
+    with patch("src.visualization.charts.config") as mock_config:
+        mock_config.DATA_DIR = tmp_path
         result = load_ml_recommendations("base")
         assert result == []
 
@@ -107,6 +118,16 @@ def test_plot_coverage_comparison_with_weighted(tmp_path):
     fig = plot_coverage_comparison(results, save_path=save_path)
     assert save_path.exists()
     assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_plot_coverage_comparison_with_readiness(tmp_path):
+    results = {
+        "base": {"coverage_percent": 50, "readiness_score": 65}
+    }
+    save_path = tmp_path / "coverage.png"
+    fig = plot_coverage_comparison(results, save_path=save_path)
+    assert save_path.exists()
     plt.close(fig)
 
 
@@ -151,16 +172,22 @@ def test_plot_skill_comparison_radar_no_overlap(sample_market_top):
     plt.close(fig)
 
 
+def test_plot_skill_comparison_radar_all_overlap(sample_market_top):
+    fig = plot_skill_comparison_radar(sample_market_top, sample_market_top, "Full")
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
 # --------------------------------------------------------------
 # Тесты plot_weight_distribution
 # --------------------------------------------------------------
 def test_plot_weight_distribution_empty(tmp_path):
     save_path = tmp_path / "weight_dist.png"
     fig = plot_weight_distribution({}, save_path=save_path)
-    # Файл не должен создаваться, т.к. веса пусты
     assert not save_path.exists()
     assert isinstance(fig, plt.Figure)
     plt.close(fig)
+
 
 def test_plot_weight_distribution_with_data(tmp_path):
     weights = {"python": 1.0, "sql": 0.8, "docker": 0.5}
@@ -200,6 +227,25 @@ def test_save_all_charts(mock_ml, mock_radar, mock_coverage, tmp_path):
         mock_radar.assert_called_once()
         mock_ml.assert_called_once()
         assert (output_dir / "base").exists()
+
+
+@patch("src.visualization.charts.plot_coverage_comparison")
+def test_save_all_charts_empty_results(mock_coverage, tmp_path):
+    output_dir = tmp_path / "output"
+    save_all_charts({}, output_dir)
+    mock_coverage.assert_called_once()
+
+
+@patch("src.visualization.charts.plot_coverage_comparison")
+def test_save_all_charts_no_skill_weights(mock_coverage, tmp_path):
+    with patch("src.visualization.charts.config") as mock_config:
+        mock_config.DATA_PROCESSED_DIR = tmp_path / "nonexistent"
+        results = {"base": {"coverage_percent": 60}}
+        output_dir = tmp_path / "output"
+        save_all_charts(results, output_dir, use_ml=False)
+        mock_coverage.assert_called_once()
+        # Радар не должен вызываться, так как нет top_skills
+        assert not (output_dir / "base" / "radar_base.png").exists()
 
 
 # --------------------------------------------------------------
@@ -274,58 +320,177 @@ def test_show_context_info_with_data(mock_config, mock_print, tmp_path):
     assert "python" in printed
     assert "test" in printed
 
-def test_load_hybrid_weights_exists(tmp_path):
-    hybrid_file = tmp_path / "hybrid_weights.json"
-    hybrid_file.write_text(json.dumps({"python": 0.9, "sql": 0.7}))
-    with patch("src.visualization.charts.config") as mock_config:
-        mock_config.DATA_PROCESSED_DIR = tmp_path
-        weights = load_hybrid_weights()
-        assert len(weights) == 2
-        assert weights["python"] == 0.9
 
-def test_load_hybrid_weights_missing(tmp_path):
-    with patch("src.visualization.charts.config") as mock_config:
-        mock_config.DATA_PROCESSED_DIR = tmp_path
-        weights = load_hybrid_weights()
-        assert weights == {}
+def test_show_context_info_with_corrupted_market_file(tmp_path, capsys):
+    processed_dir = tmp_path / "processed"
+    processed_dir.mkdir()
+    market_file = processed_dir / "competency_frequency.json"
+    market_file.write_text("{not valid", encoding='utf-8')
 
-@patch("src.visualization.charts.load_ml_recommendations")
-def test_plot_ml_importance_with_data(mock_load, tmp_path):
-    mock_load.return_value = [("docker", 85.5, "высокий рыночный вес"), ("k8s", 72.0, "частый запрос")]
-    save_path = tmp_path / "ml_importance.png"
-    fig = plot_ml_importance("base", save_path=save_path)
+    with patch("src.visualization.charts.config") as mock_config:
+        mock_config.DATA_PROCESSED_DIR = processed_dir
+        mock_config.COMPETENCY_MAPPING_FILE = tmp_path / "mapping.json"
+        mock_config.STUDENTS_DIR = tmp_path / "students"
+        mock_config.DATA_DIR = tmp_path / "data"
+
+        show_context_info()
+
+    captured = capsys.readouterr().out
+    assert "Не удалось загрузить" in captured
+
+# Дополнительные тесты для достижения 100% покрытия
+
+def test_plot_weight_distribution_single_element(tmp_path):
+    """Покрытие случая с одним элементом (max == min)."""
+    weights = {"python": 1.0}
+    save_path = tmp_path / "weight_dist.png"
+    fig = plot_weight_distribution(weights, save_path=save_path)
     assert save_path.exists()
-    assert isinstance(fig, plt.Figure)
     plt.close(fig)
 
-def test_plot_skill_comparison_radar_save(tmp_path):
-    student_skills = ["python", "docker"]
-    market_top = ["python", "react", "docker", "fastapi", "sql"]
-    save_path = tmp_path / "radar.png"
-    fig = plot_skill_comparison_radar(student_skills, market_top, "test", save_path=save_path)
+
+def test_save_all_charts_empty_results_no_ml(tmp_path):
+    """Покрытие случая с пустыми результатами и use_ml=False."""
+    output_dir = tmp_path / "output"
+    with patch("src.visualization.charts.config") as mock_config:
+        mock_config.DATA_PROCESSED_DIR = tmp_path / "processed"
+        mock_config.DATA_DIR = tmp_path
+        save_all_charts({}, output_dir, use_ml=False)
+    # Файл создаётся, т.к. plot_coverage_comparison вызывается с save_path
+    assert (output_dir / "coverage_comparison.png").exists()
+
+
+def test_plot_skill_comparison_radar_single_skill(tmp_path):
+    """Радар с одним навыком в market_top."""
+    student_skills = ["python"]
+    market_top = ["python"]
+    save_path = tmp_path / "radar_single.png"
+    fig = plot_skill_comparison_radar(student_skills, market_top, "Test", save_path=save_path)
     assert save_path.exists()
-    assert isinstance(fig, plt.Figure)
     plt.close(fig)
 
-def test_plot_coverage_comparison_save(tmp_path):
-    results = {"base": {"coverage_percent": 65}}
+
+def test_plot_ml_importance_no_save_path():
+    """Покрытие ветки без сохранения файла."""
+    with patch("src.visualization.charts.load_ml_recommendations") as mock_load:
+        mock_load.return_value = [("docker", 85.5, "explanation")]
+        fig = plot_ml_importance("base", save_path=None)
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+
+def test_plot_coverage_comparison_with_readiness_only(tmp_path):
+    """Покрытие случая, когда есть только readiness_score."""
+    results = {"base": {"readiness_score": 75}}
     save_path = tmp_path / "coverage.png"
     fig = plot_coverage_comparison(results, save_path=save_path)
     assert save_path.exists()
     plt.close(fig)
 
-def test_save_all_charts_integration(tmp_path):
-    """Проверяет, что save_all_charts создаёт все ожидаемые файлы."""
+
+def test_load_skill_weights_corrupted(tmp_path):
+    """Повреждённый JSON при загрузке skill_weights."""
+    weights_path = tmp_path / "skill_weights.json"
+    weights_path.write_text("{not valid", encoding='utf-8')
+    with patch("src.visualization.charts.config") as mock_config:
+        mock_config.DATA_PROCESSED_DIR = tmp_path
+        result = load_skill_weights()
+        assert result == {}
+
+
+def test_load_hybrid_weights_corrupted(tmp_path):
+    """Повреждённый JSON при загрузке hybrid_weights."""
+    weights_path = tmp_path / "hybrid_weights.json"
+    weights_path.write_text("{not valid", encoding='utf-8')
+    with patch("src.visualization.charts.config") as mock_config:
+        mock_config.DATA_PROCESSED_DIR = tmp_path
+        result = load_hybrid_weights()
+        assert result == {}
+
+
+def test_plot_coverage_comparison_no_data():
+    """Покрытие случая с пустым DataFrame."""
+    results = {"base": {}}
+    fig = plot_coverage_comparison(results)
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+def test_plot_weight_distribution_no_save():
+    weights = {"python": 1.0}
+    fig = plot_weight_distribution(weights)
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+    
+def test_plot_skill_comparison_radar_empty_skills(sample_market_top):
+    fig = plot_skill_comparison_radar([], sample_market_top, "Empty")
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+    
+def test_load_skill_weights_file_not_found():
+    with patch("src.visualization.charts.config") as mock_config:
+        mock_config.DATA_PROCESSED_DIR = Path("/nonexistent")
+        assert load_skill_weights() == {}
+        
+def test_load_hybrid_weights_file_not_found():
+    with patch("src.visualization.charts.config") as mock_config:
+        mock_config.DATA_PROCESSED_DIR = Path("/nonexistent")
+        assert load_hybrid_weights() == {}
+
+def test_load_skill_weights_io_error(tmp_path):
+    """Имитация ошибки ввода-вывода при чтении skill_weights."""
+    weights_path = tmp_path / "skill_weights.json"
+    weights_path.write_text('{"python": 1.0}', encoding='utf-8')
+    with patch("builtins.open", side_effect=IOError("Read error")):
+        with patch("src.visualization.charts.config") as mock_config:
+            mock_config.DATA_PROCESSED_DIR = tmp_path
+            result = load_skill_weights()
+            assert result == {}
+
+
+def test_load_hybrid_weights_io_error(tmp_path):
+    """Имитация ошибки ввода-вывода при чтении hybrid_weights."""
+    weights_path = tmp_path / "hybrid_weights.json"
+    weights_path.write_text('{"docker": 0.9}', encoding='utf-8')
+    with patch("builtins.open", side_effect=IOError("Read error")):
+        with patch("src.visualization.charts.config") as mock_config:
+            mock_config.DATA_PROCESSED_DIR = tmp_path
+            result = load_hybrid_weights()
+            assert result == {}
+
+
+def test_plot_coverage_comparison_save_empty(tmp_path):
+    """Сохранение графика при пустых данных."""
+    results = {"base": {}}
+    save_path = tmp_path / "empty.png"
+    fig = plot_coverage_comparison(results, save_path=save_path)
+    assert save_path.exists()
+    plt.close(fig)
+
+
+def test_plot_skill_comparison_radar_save_no_path():
+    """Радар без сохранения файла."""
+    student_skills = ["python"]
+    market_top = ["python", "docker"]
+    fig = plot_skill_comparison_radar(student_skills, market_top, "Test")
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_plot_weight_distribution_save_empty(tmp_path):
+    """Попытка сохранить распределение при пустых весах."""
+    save_path = tmp_path / "empty_weight.png"
+    fig = plot_weight_distribution({}, save_path=save_path)
+    # Файл не должен создаться, но фигура возвращается
+    assert not save_path.exists()
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_save_all_charts_no_ml_with_skill_weights(tmp_path):
+    """Интеграционный тест save_all_charts без ML, но с весами."""
     skill_weights_path = tmp_path / "processed" / "skill_weights.json"
     skill_weights_path.parent.mkdir(parents=True)
     skill_weights_path.write_text(json.dumps({"python": 100, "docker": 80}))
-
-    # Создаём структуру результата
-    result_dir = tmp_path / "result" / "base"
-    result_dir.mkdir(parents=True)
-    (result_dir / "ml_recommendations_base.json").write_text(
-        json.dumps({"recommendations": [{"skill": "k8s", "score": 70, "explanation": "..."}]})
-    )
 
     results = {
         "base": {
@@ -338,10 +503,33 @@ def test_save_all_charts_integration(tmp_path):
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
         mock_config.DATA_DIR = tmp_path
-        save_all_charts(results, tmp_path / "charts_output", use_ml=True)
+        output_dir = tmp_path / "charts_output"
+        save_all_charts(results, output_dir, use_ml=False)
 
-    output_dir = tmp_path / "charts_output"
     assert (output_dir / "coverage_comparison.png").exists()
     assert (output_dir / "base" / "radar_base.png").exists()
-    assert (output_dir / "base" / "ml_importance_base.png").exists()
     assert (output_dir / "base" / "deficits_base.png").exists()
+    # ML-график не должен создаваться
+    assert not (output_dir / "base" / "ml_importance_base.png").exists()
+
+
+def test_show_context_info_mapping_corrupted(tmp_path, capsys):
+    """Повреждённый файл маппинга в show_context_info."""
+    processed_dir = tmp_path / "processed"
+    processed_dir.mkdir()
+    market_file = processed_dir / "competency_frequency.json"
+    market_file.write_text(json.dumps({"python": 100}))
+
+    mapping_file = tmp_path / "mapping.json"
+    mapping_file.write_text("{not valid", encoding='utf-8')
+
+    with patch("src.visualization.charts.config") as mock_config:
+        mock_config.DATA_PROCESSED_DIR = processed_dir
+        mock_config.COMPETENCY_MAPPING_FILE = mapping_file
+        mock_config.STUDENTS_DIR = tmp_path / "students"
+        mock_config.DATA_DIR = tmp_path
+
+        show_context_info()
+
+    captured = capsys.readouterr().out
+    assert "Не удалось загрузить" in captured
