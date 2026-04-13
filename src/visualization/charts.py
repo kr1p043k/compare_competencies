@@ -26,8 +26,12 @@ def load_skill_weights() -> Dict[str, float]:
     """Загружает skill_weights из data/processed/skill_weights.json."""
     path = config.DATA_PROCESSED_DIR / "skill_weights.json"
     if path.exists():
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            logger.warning(f"Не удалось загрузить {path}")
+            return {}
     return {}
 
 
@@ -35,8 +39,12 @@ def load_hybrid_weights() -> Dict[str, float]:
     """Загружает гибридные веса (если есть)."""
     path = config.DATA_PROCESSED_DIR / "hybrid_weights.json"
     if path.exists():
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            logger.warning(f"Не удалось загрузить {path}")
+            return {}
     return {}
 
 
@@ -44,14 +52,17 @@ def load_ml_recommendations(profile_name: str) -> List[Tuple[str, float, str]]:
     """Загружает ML-рекомендации для профиля."""
     rec_file = config.DATA_DIR / "result" / profile_name / f"ml_recommendations_{profile_name}.json"
     if rec_file.exists():
-        with open(rec_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        try:
+            with open(rec_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
             return [(item['skill'], item['score'], item['explanation']) for item in data.get('recommendations', [])]
+        except Exception as e:
+            logger.warning(f"Ошибка загрузки ML-рекомендаций: {e}")
+            return []
     return []
 
 
 def plot_coverage_comparison(results: Dict[str, Any], save_path: Optional[Path] = None) -> plt.Figure:
-    """Сравнение покрытия (coverage) для нескольких профилей."""
     data = []
     for name, rep in results.items():
         row = {'Профиль': name}
@@ -67,9 +78,19 @@ def plot_coverage_comparison(results: Dict[str, Any], save_path: Optional[Path] 
     if not data:
         fig, ax = plt.subplots()
         ax.text(0.5, 0.5, "Нет данных", ha='center', va='center')
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
         return fig
 
     df = pd.DataFrame(data)
+    numeric_cols = df.select_dtypes(include=['number']).columns
+    if len(numeric_cols) == 0:
+        fig, ax = plt.subplots()
+        ax.text(0.5, 0.5, "Нет числовых данных для отображения", ha='center', va='center')
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        return fig
+
     fig, ax = plt.subplots(figsize=(10, 6))
     df.plot(x='Профиль', kind='bar', ax=ax)
     ax.set_title('Сравнение профилей: покрытие и готовность')
@@ -79,7 +100,6 @@ def plot_coverage_comparison(results: Dict[str, Any], save_path: Optional[Path] 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
     return fig
-
 
 def plot_ml_importance(profile_name: str, top_n: int = 10, save_path: Optional[Path] = None) -> plt.Figure:
     """Визуализирует топ-N ML-рекомендаций для профиля."""
