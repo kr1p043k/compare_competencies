@@ -21,6 +21,8 @@ COMPETENCY_MAPPING_FILE = DATA_PROCESSED_DIR / "competency_mapping.json"
 COMPETENCY_FREQ_PATH = DATA_PROCESSED_DIR / "competency_frequency.json"
 IT_SKILLS_PATH = DATA_DIR / "it_skills.json"
 MODELS_DIR = DATA_DIR / "models"
+HISTORY_DIR = DATA_DIR / "history"
+HISTORY_DIR.mkdir(parents=True, exist_ok=True)
 
 LOG_DIR = BASE_DIR / "logs"
 LOG_FILE = LOG_DIR / "app.log"
