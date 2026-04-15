@@ -7,8 +7,8 @@ import re
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
-
+from typing import Any, Dict, List, Optional, Set, Tuple
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .skill_normalizer import SkillNormalizer
@@ -118,32 +118,79 @@ def collect_vacancies_multiple(
     industry: Optional[int] = None,
     max_vacancies_per_query: int = 1000000
 ) -> List[Dict[str, Any]]:
-    """Собирает вакансии по комбинациям запросов и регионов."""
+    """
+    Собирает вакансии по комбинациям запросов и регионов.
+    Если ожидается больше 2000 вакансий, автоматически разбивает период на интервалы.
+    """
     all_vacancies = []
     seen_ids: Set[str] = set()
     logger = logging.getLogger("collector")
+
+    # Порог, после которого включаем разбивку по датам (например, 2000)
+    CHUNK_THRESHOLD = 2000
+    DATE_CHUNK_DAYS = 5
 
     for query in queries:
         query_vacancies = []
         for area_id in area_ids:
             logger.info(f"Поиск: '{query}', регион ID {area_id}")
-            vacs = hh_api.search_vacancies(
+
+            # Пробный запрос с одной страницей, чтобы оценить количество
+            test_vacs = hh_api.search_vacancies(
                 text=query,
                 area=area_id,
                 period_days=period_days,
-                max_pages=max_pages,
+                max_pages=1,
                 per_page=100,
                 industry=industry
             )
-            for vac in vacs:
-                vid = vac.get('id')
-                if vid and vid not in seen_ids:
-                    seen_ids.add(vid)
-                    query_vacancies.append(vac)
+            last_resp = getattr(hh_api, 'last_response', None)
+            total_found = last_resp.get('found', 0) if last_resp else 0
+
+            if total_found <= CHUNK_THRESHOLD or period_days <= DATE_CHUNK_DAYS:
+                # Обычный сбор, если вакансий мало или период короткий
+                vacs = hh_api.search_vacancies(
+                    text=query,
+                    area=area_id,
+                    period_days=period_days,
+                    max_pages=max_pages,
+                    per_page=100,
+                    industry=industry
+                )
+                for vac in vacs:
+                    vid = vac.get('id')
+                    if vid and vid not in seen_ids:
+                        seen_ids.add(vid)
+                        query_vacancies.append(vac)
+                        if len(query_vacancies) >= max_vacancies_per_query:
+                            break
+                if len(query_vacancies) >= max_vacancies_per_query:
+                    break
+            else:
+                # Разбиваем период на интервалы
+                chunks = date_chunks(period_days, DATE_CHUNK_DAYS)
+                logger.info(f"Разбиваем запрос на {len(chunks)} интервалов (общий период {period_days} дней)")
+                for date_from, date_to in chunks:
+                    vacs = hh_api.search_vacancies(
+                        text=query,
+                        area=area_id,
+                        date_from=date_from,
+                        date_to=date_to,
+                        max_pages=max_pages,
+                        per_page=100,
+                        industry=industry
+                    )
+                    for vac in vacs:
+                        vid = vac.get('id')
+                        if vid and vid not in seen_ids:
+                            seen_ids.add(vid)
+                            query_vacancies.append(vac)
+                            if len(query_vacancies) >= max_vacancies_per_query:
+                                break
                     if len(query_vacancies) >= max_vacancies_per_query:
                         break
-            if len(query_vacancies) >= max_vacancies_per_query:
-                break
+                    time.sleep(config.REQUEST_DELAY)
+
             time.sleep(config.REQUEST_DELAY)
 
         all_vacancies.extend(query_vacancies[:max_vacancies_per_query])
@@ -151,7 +198,6 @@ def collect_vacancies_multiple(
 
     logger.info(f"Всего собрано уникальных вакансий: {len(all_vacancies)}")
     return all_vacancies
-
 
 def load_queries_from_file(filepath: Path) -> List[str]:
     """Загружает список запросов из текстового файла."""
@@ -418,3 +464,16 @@ def print_top_competencies(comp_counter: Counter, top_n: int = 20) -> None:
     print("=" * 60)
     for i, (comp, freq) in enumerate(top, 1):
         print(f"{i:2}. {comp:<25} {freq:>4} суммарных упоминаний")
+
+def date_chunks(days: int, chunk_size: int = 5) -> List[Tuple[int, int]]:
+    """
+    Разбивает общий период поиска (в днях) на интервалы по chunk_size дней.
+    Возвращает список кортежей (date_from, date_to) в формате Unix timestamp.
+    """
+    end_date = datetime.now()
+    chunks = []
+    for offset in range(0, days, chunk_size):
+        to_date = end_date - timedelta(days=offset)
+        from_date = to_date - timedelta(days=min(chunk_size, days - offset))
+        chunks.append((int(from_date.timestamp()), int(to_date.timestamp())))
+    return chunks
