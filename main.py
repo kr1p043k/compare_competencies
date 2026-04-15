@@ -19,7 +19,7 @@ from src.parsing.hh_api import HeadHunterAPI
 from src.parsing.hh_api_async import HeadHunterAPIAsync 
 from src.parsing.vacancy_parser import VacancyParser
 from src.models.vacancy import Vacancy
-from src.models.student import StudentProfile
+from src.models.student import StudentProfile, merge_skills_hierarchically 
 from src.parsing.utils import (
     setup_logging,
     collect_vacancies_multiple,
@@ -47,11 +47,20 @@ from src.visualization.charts import (
     run_notebook,
     save_all_charts
 )
-
+def convert_float32(obj):
+    """Рекурсивно преобразует numpy.float32 в float."""
+    import numpy as np
+    if isinstance(obj, np.float32):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {k: convert_float32(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_float32(item) for item in obj]
+    return obj
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
     
-    parser.add_argument('--query', '-q', type=str, default="Python developer")
+    parser.add_argument('--query', '-q', type=str, default="Backend developer")
     parser.add_argument('--area-id', '-a', type=int, default=1)
     parser.add_argument('--max-pages', '-p', type=int, default=1)
     parser.add_argument('--period', '-d', type=int, default=30)
@@ -401,22 +410,20 @@ def main():
     parser.save_processed_frequencies(skill_freq, apply_filter=not args.no_filter)
     print_top_skills(skill_freq)
 
-    # Очистка частот перед сохранением снимка и дальнейшим использованием
-    filter_engine = SkillFilter()
-    skill_freq_filtered = {
-        skill: freq for skill, freq in skill_freq.items()
-        if filter_engine.validate_skills([skill])
-    }
-    logger.info(f"После очистки осталось {len(skill_freq_filtered)} навыков (было {len(skill_freq)})")
-
-    # Сохраняем снимок для анализа трендов (с чистыми данными)
-    trend_analyzer = TrendAnalyzer(skill_freq_filtered)
-    trend_analyzer.save_snapshot(skill_freq_filtered)
-    logger.info(f"📸 Снимок рынка сохранён в {trend_analyzer.history_dir}")
+    # Применяем ту же фильтрацию, что и для competency_frequency.json
+    from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
+    whitelist = load_it_skills()
+    if whitelist:
+        skill_freq_filtered = filter_skills_by_whitelist(skill_freq, whitelist)
+        logger.info(f"После фильтрации по белому списку осталось {len(skill_freq_filtered)} навыков (было {len(skill_freq)})")
+    else:
+        skill_freq_filtered = skill_freq
 
     # Сохраняем снимок для анализа трендов
     trend_analyzer = TrendAnalyzer(skill_freq_filtered)
-    trend_analyzer.save_snapshot(skill_freq_filtered)
+    trend_analyzer.save_snapshot(skill_freq_filtered, apply_whitelist=False)
+    logger.info(f"📸 Снимок рынка сохранён в {trend_analyzer.history_dir}")
+
     if hybrid_weights:
         print("\n" + "=" * 80)
         print("ТОП-15 НАВЫКОВ ПО ГИБРИДНОМУ ВЕСУ (BM25 + Embeddings)")
@@ -502,11 +509,13 @@ def main():
                     return codes
                 skills = set()
                 for code in codes:
-                    code_clean = code.strip('. ').upper()
-                    if code_clean in competency_mapping:
-                        skills.update(competency_mapping[code_clean])
-                    elif code.strip('.') in competency_mapping:
-                        skills.update(competency_mapping[code.strip('.')])
+                    # Удаляем все не-буквенно-цифровые символы, приводим к верхнему регистру
+                    code_norm = ''.join(c for c in code if c.isalnum()).upper()
+                    for key, value in competency_mapping.items():
+                        key_norm = ''.join(c for c in key if c.isalnum()).upper()
+                        if code_norm == key_norm:
+                            skills.update(value)
+                            break
                 return list(skills)
 
             logger.info("\n" + "="*85)
@@ -547,7 +556,11 @@ def main():
             )
             recommendation_engine.fit(vacancies_skills)
 
-            skill_weights_raw = recommendation_engine.comparator.get_skill_weights()
+            if hybrid_weights:
+                skill_weights_raw = hybrid_weights
+                logger.info(f"✓ Использованы гибридные BM25+Embeddings веса ({len(skill_weights_raw)} навыков)")
+            else:
+                skill_weights_raw = recommendation_engine.comparator.get_skill_weights()
             
             if not skill_weights_raw or len(skill_weights_raw) == 0:
                 logger.warning("⚠️ Embedding mode вернул пустые веса → берём ГИБРИДНЫЕ веса из парсера")
@@ -653,38 +666,70 @@ def main():
             logger.info("ФОРМИРОВАНИЕ СВОДКИ ПО ПРОФИЛЯМ ЧЕРЕЗ PROFILEEVALUATOR")
             logger.info("="*85)
 
+            # ========== ИЕРАРХИЧЕСКОЕ ОБЪЕДИНЕНИЕ НАВЫКОВ ДЛЯ top_dc ==========
+            # Сначала загружаем все сырые коды
+            all_codes = {}
+            for name in ['base', 'dc', 'top_dc']:
+                codes = load_student_competencies(name)
+                if codes:
+                    all_codes[name] = codes
+                else:
+                    logger.warning(f"Профиль {name} не загружен")
+            
             profiles: dict[str, StudentProfile] = {}
             profile_levels = {'base': 'junior', 'dc': 'middle', 'top_dc': 'senior'}
-
+            
             for profile_name, target_level_str in profile_levels.items():
-                student_codes = load_student_competencies(profile_name)
-                if not student_codes:
-                    logger.warning(f"Профиль {profile_name} пуст")
+                if profile_name not in all_codes:
                     continue
+                
+                if profile_name == 'top_dc':
+                    top_codes = all_codes.get('top_dc', [])
+                    dc_codes = all_codes.get('dc', [])
+                    base_codes = all_codes.get('base', [])
 
-                student_skills = map_codes_to_skills(student_codes)
+                    top_skills = map_codes_to_skills(top_codes)
+                    dc_skills = map_codes_to_skills(dc_codes)
+                    base_skills = map_codes_to_skills(base_codes)
+
+                    student_skills = merge_skills_hierarchically(top_skills, dc_skills, base_skills)
+                    student_codes = top_codes
+                    logger.info(f"top_dc: объединено {len(top_skills)}+{len(dc_skills)}+{len(base_skills)} → {len(student_skills)} навыков")
+                else:
+                    student_codes = all_codes[profile_name]
+                    student_skills = map_codes_to_skills(student_codes)
+
                 profiles[profile_name] = StudentProfile(
                     profile_name=profile_name,
                     competencies=student_codes,
                     skills=student_skills,
                     target_level=target_level_str
                 )
-
             skill_weights_by_level = {}
             for level in ['junior', 'middle', 'senior']:
                 skill_weights_by_level[level] = level_analyzer.get_weights_for_level(
                     skill_weights, level
                 )
 
+            # Подготавливаем гибридные веса по уровням
+            hybrid_weights_by_level = {}
+            if hybrid_weights:
+                for level in ['junior', 'middle', 'senior']:
+                    hybrid_weights_by_level[level] = level_analyzer.get_weights_for_level(
+                        hybrid_weights, level
+                    )
+
             evaluator = ProfileEvaluator(
                 skill_weights=skill_weights,
-                vacancies_skills=vacancies_skills
+                vacancies_skills=vacancies_skills,
+                hybrid_weights=hybrid_weights  # <-- передаём сырые гибридные веса (не обязательно, но для полноты)
             )
 
             comparison = evaluator.evaluate_multiple_profiles(
                 profiles=profiles,
                 level_analyzer=level_analyzer,
-                skill_weights_by_level=skill_weights_by_level
+                skill_weights_by_level=skill_weights_by_level,
+                hybrid_weights_by_level=hybrid_weights_by_level  # <-- передаём по уровням
             )
 
             summary_path = config.DATA_DIR / "processed" / "profiles_comparison_summary.json"
@@ -748,8 +793,10 @@ def main():
 
                 rec_file = config.DATA_DIR / "result" / profile_name / f"full_recommendations_{profile_name}.json"
                 rec_file.parent.mkdir(parents=True, exist_ok=True)
+                # Преобразуем float32 -> float перед сериализацией
+                full_rec_serializable = convert_float32(full_rec)
                 with open(rec_file, "w", encoding="utf-8") as f:
-                    json.dump(full_rec, f, ensure_ascii=False, indent=2)
+                    json.dump(full_rec_serializable, f, ensure_ascii=False, indent=2)
                 logger.info(f"✓ Полные рекомендации для {profile_name} сохранены в {rec_file}")
 
             logger.info("\n" + "="*85)
@@ -764,6 +811,38 @@ def main():
     # === ФИНАЛЬНАЯ ИНФОРМАЦИЯ ===
     show_context_info()
 
+    # ====================== ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ ======================
+    logger.info("\n" + "="*85)
+    logger.info("ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ")
+    logger.info("="*85)
+
+    # Подготавливаем данные для визуализации
+    results_for_viz = {}
+    for eval_result in comparison.evaluations:
+        profile_name = eval_result.profile_name
+        cov_dict = eval_result.coverage
+        results_for_viz[profile_name] = {
+            'simple_coverage': cov_dict.get('simple', 0),
+            'weighted_hybrid_coverage': cov_dict.get('weighted_hybrid', 0),
+            'weighted_coverage': cov_dict.get('weighted_freq', 0),  # на всякий случай
+            'readiness_score': eval_result.readiness_score,
+            'covered_skills': eval_result.student.skills,
+            'student_skills': eval_result.student.skills,
+        }
+        # Добавляем дефициты при наличии
+        if profile_name in all_recommendations and all_recommendations[profile_name]:
+            recs = all_recommendations[profile_name].get('recommendations', [])
+            deficits = [{'skill': r['skill'], 'frequency': r.get('market_frequency_percent', 0)}
+                        for r in recs if r.get('priority') == 'HIGH']
+            if deficits:
+                results_for_viz[profile_name]['high_demand_gaps'] = deficits
+
+    output_viz_dir = config.DATA_DIR / "result"
+    output_viz_dir.mkdir(parents=True, exist_ok=True)
+    save_all_charts(results_for_viz, output_viz_dir, use_ml=True)
+
+    logger.info(f"✅ Презентационные графики сохранены в {output_viz_dir}")
+    
     if args.run_notebooks:
         logger.info("Запуск Jupyter ноутбуков...")
         run_notebook("01_hh_analysis.ipynb", output_dir=config.DATA_DIR / "notebooks")
