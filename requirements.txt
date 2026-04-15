@@ -24,3 +24,4 @@ rank-bm25
 faiss-cpu
 ipywidgets
 python-dotenv>=1.0.0
+pymorhy3
