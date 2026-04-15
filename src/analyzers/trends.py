@@ -30,8 +30,18 @@ class TrendAnalyzer:
         self.history_dir = historical_dir or config.HISTORY_DIR
         self.history_dir.mkdir(parents=True, exist_ok=True)
 
-    def save_snapshot(self, frequencies: Dict[str, float], label: str = None):
-        """Сохраняет текущий снимок рынка."""
+    def save_snapshot(self, frequencies: Dict[str, float], label: str = None, apply_whitelist: bool = True):
+        """Сохраняет текущий снимок рынка, опционально фильтруя по белому списку."""
+        if apply_whitelist:
+            from src.parsing.skill_validator import SkillValidator
+            validator = SkillValidator()
+            filtered = {}
+            for skill, freq in frequencies.items():
+                if validator.validate(skill).is_valid:
+                    filtered[skill] = freq
+            frequencies = filtered
+            logger.info(f"После фильтрации по белому списку осталось {len(frequencies)} навыков")
+
         timestamp = datetime.now().strftime("%Y-%m-%d")
         filename = f"freq_{label or timestamp}.json"
         path = self.history_dir / filename
