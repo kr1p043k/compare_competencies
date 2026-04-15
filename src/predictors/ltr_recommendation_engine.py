@@ -102,7 +102,7 @@ class LTRRecommendationEngine:
         y_rows = []
 
         skill_list = list(frequencies.keys())
-        max_train_vacancies = min(len(vacancies), 500)
+        max_train_vacancies = min(len(vacancies), 100000)
         logger.info(f"Шаг 5: генерация обучающих примеров из {max_train_vacancies} вакансий...")
 
         # Определяем целевую переменную: нормализованный гибридный вес, при отсутствии — частота
