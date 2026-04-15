@@ -3,7 +3,7 @@
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from datetime import datetime
 from enum import Enum
 
@@ -60,7 +60,7 @@ class ProfileEvaluation(BaseModel):
     level: ExperienceLevel
     raw_score: float
     confidence: float
-    coverage: Dict[str, float]  # {raw, adjusted, difficulty_multiplier}
+    coverage: Dict[str, Any] = Field(default_factory=dict)  # {raw, adjusted, difficulty_multiplier}
     readiness_score: float       # 0-100
     recommendation: str
     gaps: Dict = Field(default_factory=dict)  # {high_priority, medium_priority, low_priority, total, skills}
@@ -119,3 +119,45 @@ class ProfileComparison(BaseModel):
                 for e in self.evaluations
             ]
         }
+
+# ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
+
+def merge_skills_hierarchically(
+    top_skills: List[str],
+    middle_skills: List[str],
+    base_skills: List[str]
+) -> List[str]:
+    """
+    Объединяет навыки трёх уровней (top_dc, dc, base) в один список,
+    сохраняя порядок приоритета и исключая дубликаты.
+    
+    Используется для профиля 'top_dc', чтобы гарантировать наличие
+    всех навыков из более низких уровней.
+    
+    Args:
+        top_skills: Навыки top_dc
+        middle_skills: Навыки dc
+        base_skills: Навыки base
+    
+    Returns:
+        Объединённый список навыков без дубликатов
+    """
+    seen = set()
+    merged = []
+    
+    for skill in top_skills:
+        if skill not in seen:
+            merged.append(skill)
+            seen.add(skill)
+    
+    for skill in middle_skills:
+        if skill not in seen:
+            merged.append(skill)
+            seen.add(skill)
+    
+    for skill in base_skills:
+        if skill not in seen:
+            merged.append(skill)
+            seen.add(skill)
+    
+    return merged
