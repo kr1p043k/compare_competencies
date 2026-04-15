@@ -123,3 +123,44 @@ class EmbeddingComparator:
             "missing": missing[:20],
             "avg_similarity": float(np.mean(similarities))
         }
+        
+    # embedding_comparator.py (добавить в класс EmbeddingComparator)
+
+    def get_vacancy_embedding(self, skills: List[str]) -> np.ndarray:
+        """Средний эмбеддинг навыков вакансии."""
+        if not skills:
+            return np.zeros(self.model.get_sentence_embedding_dimension())
+        embs = self.embed_skills(skills)
+        return np.mean(embs, axis=0)
+
+    def find_closest_vacancies(
+        self,
+        student_skills: List[str],
+        vacancies: List[Dict],
+        level: str = "middle",
+        top_k: int = 50
+    ) -> List[Dict]:
+        """
+        Возвращает top_k вакансий нужного уровня, наиболее близких к студенту.
+        """
+        student_emb = self.embed_skills(student_skills)
+        student_emb = np.mean(student_emb, axis=0) if len(student_emb) > 0 else np.zeros(self.model.get_sentence_embedding_dimension())
+
+        # Фильтруем вакансии по уровню
+        level_vacancies = [v for v in vacancies if v.get('experience') == level]
+        if not level_vacancies:
+            level_vacancies = vacancies  # fallback на все, если пусто
+
+        vac_embs = []
+        for vac in level_vacancies:
+            vac_skills = vac.get('skills', [])
+            emb = self.get_vacancy_embedding(vac_skills)
+            vac_embs.append(emb)
+
+        if not vac_embs:
+            return []
+
+        vac_embs = np.vstack(vac_embs)
+        similarities = cosine_similarity([student_emb], vac_embs)[0]
+        top_indices = np.argsort(similarities)[-top_k:][::-1]
+        return [level_vacancies[i] for i in top_indices]
