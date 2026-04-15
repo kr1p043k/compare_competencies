@@ -116,7 +116,7 @@ def collect_vacancies_multiple(
     period_days: int,
     max_pages: int,
     industry: Optional[int] = None,
-    max_vacancies_per_query: int = 1000
+    max_vacancies_per_query: int = 1000000
 ) -> List[Dict[str, Any]]:
     """Собирает вакансии по комбинациям запросов и регионов."""
     all_vacancies = []
@@ -234,11 +234,31 @@ def interactive_config() -> Dict[str, Any]:
     if selected_mode == "11. Поиск по всему IT-сектору (industry=7)":
         print("\nРежим: Поиск по всему IT-сектору")
         positions = [
+           # Data & AI
             "Data Scientist", "Data Analyst", "Machine Learning Engineer",
+            "Computer Vision Engineer", "NLP Engineer", "Data Architect", "ETL Developer",
+            # Development
             "Python Developer", "Java Developer", "Frontend Developer",
             "Backend Developer", "Fullstack Developer", "DevOps Engineer",
-            "QA Engineer", "Системный аналитик", "Product Manager",
-            "Mobile Developer", "iOS Developer", "Android Developer"
+            "Embedded Developer", "Blockchain Developer",
+            # Mobile
+            "iOS Developer", "Android Developer", "React Native Developer", "Flutter Developer",
+            # QA
+            "QA Engineer", "Automation QA Engineer", "Performance QA Engineer",
+            # Security
+            "Специалист по кибербезопасности", "Security Engineer", "DevSecOps Engineer",
+            # Infrastructure & Administration
+            "SRE инженер", "Системный администратор", "Облачный инженер",
+            "Сетевой инженер", "Администратор баз данных",
+            # Architecture & Management
+            "Системный аналитик", "Бизнес-аналитик", "Архитектор программного обеспечения",
+            "Solution Architect", "Team Lead", "Tech Lead", "Project Manager IT", "Scrum Master",
+            # Design
+            "UX/UI дизайнер", "Product Designer",
+            # Game Development
+            "Unity Developer", "Unreal Engine Developer",
+            # Other
+            "Technical Writer", "MLops engineer"
         ]
         print("Позиции для поиска:")
         for p in positions:
@@ -284,14 +304,14 @@ def interactive_config() -> Dict[str, Any]:
         show_list = False
         print("\nОграничение: 500 вакансий на одну позицию")
         apply_filter = input_yes_no("Применять фильтрацию по белому списку?", default=False)
-        max_vacancies = 500
+        max_vacancies = 100000
     else:
         period = input_int("\nПериод поиска в днях (по умолчанию 30): ", default=30)
         max_pages = input_int("Максимальное количество страниц (по умолчанию 20): ", default=20, max_val=20)
         skip_details = not input_yes_no("Загружать полную информацию по каждой вакансии?", default=True)
         show_list = input_yes_no("Показывать список найденных вакансий?", default=False)
         apply_filter = input_yes_no("Применять фильтрацию по белому списку?", default=True)
-        max_vacancies = 1000
+        max_vacancies = 2000
 
     save_excel = input_yes_no("Сохранить результаты в Excel?", default=True)
 
