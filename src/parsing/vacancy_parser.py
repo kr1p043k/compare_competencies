@@ -5,12 +5,12 @@
 import json
 import re
 from collections import Counter
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Union
 import logging
 import pandas as pd
-from pathlib import Path
-from sentence_transformers import SentenceTransformer
+import pymorphy3
 import torch
+from rank_bm25 import BM25Okapi
 import numpy as np   # если ещё нет
 from src import config
 from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
@@ -193,25 +193,60 @@ class VacancyParser:
             "hybrid_weights": hybrid_weights,
             "skill_embeddings": skill_embeddings
         }
+        
     def _calculate_bm25_weights(self, vacancies: List) -> Dict[str, float]:
-        """Расчёт BM25-весов с фильтрацией через SkillNormalizer и SkillValidator."""
-        texts = []
+        """BM25 на n-граммах (1-3 слова) с фильтрацией по белому списку IT-навыков."""
+        morph = pymorphy3.MorphAnalyzer()
 
-        # Расширенный список стоп-слов
-        STOP_WORDS = {
-            # Русские общие слова
-            "работы", "на", "для", "опыт", "по", "от", "мы", "или", "разработка",
-            "понимание", "работа", "данных", "умение", "лет", "будет", "возможность",
-            "участие", "компании", "требования", "quot", "настройка", "обеспечения",
-            "испытательного", "сфере", "включая", "который", "задачи", "проекта",
-            "системы", "решения", "знание", "владение", "уровень", "middle", "senior",
-            "junior", "команда", "проект", "разработки", "программирования", "язык",
-            "языки", "инструменты", "технологии", "стек", "поддержка", "сопровождение",
-            # Английские
-            "and", "the", "for", "with", "you", "are", "will", "have", "from",
-            "this", "that", "what", "when", "where", "which", "experience",
-            "development", "work", "years", "knowledge", "skills", "team"
+        # Загружаем белый список IT-навыков (нормализованный)
+        whitelist_raw = load_it_skills()
+        whitelist = set()
+        for skill in whitelist_raw:
+            norm = SkillNormalizer.normalize(skill)
+            if norm:
+                whitelist.add(norm)
+
+        # Стоп-леммы (предлоги, союзы, местоимения, общие слова)
+        STOP_LEMMAS = {
+            "в", "без", "до", "из", "к", "на", "по", "о", "от", "перед", "при",
+            "через", "с", "у", "за", "над", "об", "под", "про", "для", "и",
+            "да", "или", "либо", "не", "ни", "как", "так", "то", "что", "чтобы",
+            "если", "хотя", "пока", "когда", "где", "который", "этот", "тот",
+            "мой", "твой", "свой", "наш", "ваш", "весь", "всякий", "любой",
+            "человек", "год", "раз", "дело", "жизнь", "день", "время", "работа",
+            "сила", "рука", "слово", "место", "часть", "город", "страна",
+            "опыт", "знание", "умение", "владение", "навык", "разработка",
+            "программирование", "язык", "технология", "система", "решение",
+            "задача", "проект", "команда", "компания", "клиент", "сервер",
+            "поддержка", "сопровождение", "настройка", "обеспечение", "анализ",
+            "тестирование", "отладка", "документация", "обучение", "мониторинг",
+            "управление", "процесс", "функция", "модуль", "архитектура",
+            "инфраструктура", "платформа", "среда", "код", "данные",
+            "алгоритм", "модель", "метод", "подход", "практика", "стандарт",
+            "версия", "релиз", "сборка", "деплой", "интеграция", "миграция",
+            "контроль", "планирование", "оценка", "риск", "качество",
+            "производительность", "масштабирование", "безопасность",
+            "сеть", "база", "хранилище", "облако", "кластер", "контейнер",
+            "виртуализация", "оркестрация", "автоматизация", "интерфейс",
+            "пользователь", "администратор", "разработчик", "специалист",
+            "инженер", "аналитик", "менеджер", "руководитель",
+            "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
+            "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
+            "this", "but", "his", "by", "from", "they", "we", "say", "her",
+            "she", "or", "an", "will", "my", "one", "all", "would", "there",
+            "their", "what", "so", "up", "out", "if", "about", "who", "get",
+            "which", "go", "me", "when", "make", "can", "like", "time", "no",
+            "just", "him", "know", "take", "person", "into", "year", "your",
+            "good", "some", "could", "them", "see", "other", "than", "then",
+            "now", "look", "only", "come", "its", "over", "think", "also",
+            "back", "after", "use", "two", "how", "our", "work", "first",
+            "well", "way", "even", "new", "want", "because", "any", "these",
+            "give", "day", "most", "us", "is", "was", "are", "been", "has",
+            "had", "were", "said", "did", "get", "may", "am"
         }
+
+        tokenized_corpus = []
+        all_ngrams = set()
 
         for vac in vacancies:
             parts = []
@@ -229,80 +264,77 @@ class VacancyParser:
                 key_skills = " ".join(s.get("name", "") for s in vac.get("key_skills", []))
                 if key_skills:
                     parts.append(key_skills)
-            else:  # Vacancy объект
+            else:
                 if vac.description:
                     parts.append(self._strip_html(vac.description))
                 key_skills = " ".join(s.name for s in vac.key_skills)
                 if key_skills:
                     parts.append(key_skills)
 
-            combined = " ".join(part.strip() for part in parts if part and part.strip())
-            if combined:
-                texts.append(combined)
+            text = " ".join(part.strip() for part in parts if part and part.strip())
+            if not text:
+                continue
 
-        if not texts:
-            logger.warning("Нет текстов для BM25 (все вакансии пусты)")
-            return {}
+            words = re.findall(r'(?u)\b\w[\w\+\-\#\.]+\b', text.lower())
+            if len(words) < 1:
+                continue
 
-        try:
-            import re
-            token_pattern = re.compile(r'(?u)\b\w[\w\+\-\#\.]+\b')
-            tokenized_corpus = []
-            for text in texts:
-                tokens = token_pattern.findall(text.lower())
-                # Фильтруем стоп-слова и короткие токены
-                filtered = [t for t in tokens if t not in STOP_WORDS and len(t) >= 3]
-                if filtered:
-                    tokenized_corpus.append(filtered)
+            # Лемматизация русских слов
+            lemmas = []
+            for w in words:
+                if any('а' <= c <= 'я' or c == 'ё' for c in w):
+                    try:
+                        lemmas.append(morph.parse(w)[0].normal_form)
+                    except:
+                        lemmas.append(w)
+                else:
+                    lemmas.append(w)
 
-            if not tokenized_corpus:
-                logger.warning("После фильтрации стоп-слов не осталось термов")
-                return {}
-
-            from rank_bm25 import BM25Okapi
-            bm25 = BM25Okapi(tokenized_corpus)
-
-            all_terms = set()
-            for tokens in tokenized_corpus:
-                all_terms.update(tokens)
-
-            # Дополнительная фильтрация через SkillNormalizer и SkillValidator
-            from src.parsing.skill_normalizer import SkillNormalizer
-            from src.parsing.skill_validator import SkillValidator
-            validator = SkillValidator()
-
-            weights = {}
-            logger.info(f"Вычисление BM25 для {len(all_terms)} термов...")
-
-            for term in all_terms:
-                # Нормализуем терм
-                normalized = SkillNormalizer.normalize(term)
-                if not normalized:
-                    continue
-
-                # Проверяем валидность навыка
-                result = validator.validate(normalized, confidence=0.8)
-                if not result.is_valid:
-                    continue
-
-                try:
-                    scores = bm25.get_scores([term])
-                    if len(scores) == 0:
+            # Генерация n-грамм (1-3 слова)
+            for n in range(1, 4):
+                for i in range(len(lemmas) - n + 1):
+                    ngram = " ".join(lemmas[i:i+n])
+                    # Проверка на стоп-леммы
+                    if any(lemma in STOP_LEMMAS for lemma in lemmas[i:i+n]):
                         continue
-                    avg_score = float(sum(scores) / len(scores))
-                    if avg_score > 0.05:  # повышенный порог
-                        weights[normalized] = round(avg_score, 4)
-                except ZeroDivisionError:
-                    logger.debug(f"ZeroDivisionError для терма '{term}'")
-                    continue
+                    norm = SkillNormalizer.normalize(ngram)
+                    # Оставляем только n-граммы из белого списка
+                    if norm and norm in whitelist:
+                        all_ngrams.add(norm)
+                        tokenized_corpus.append([norm])
 
-            logger.info(f"✅ BM25 рассчитан: {len(weights)} значимых весов навыков")
-            return weights
-
-        except Exception as e:
-            logger.warning(f"BM25 не рассчитан: {e}")
+        if not tokenized_corpus:
+            logger.warning("Нет валидных n-грамм для BM25")
             return {}
 
+        # Убираем дубликаты документов
+        unique_docs = []
+        seen = set()
+        for doc in tokenized_corpus:
+            key = tuple(doc)
+            if key not in seen:
+                seen.add(key)
+                unique_docs.append(doc)
+
+        bm25 = BM25Okapi(unique_docs)
+
+        weights = {}
+        logger.info(f"Вычисление BM25 для {len(all_ngrams)} n-грамм...")
+
+        for term in all_ngrams:
+            try:
+                scores = bm25.get_scores([term])
+                if len(scores) == 0:
+                    continue
+                avg_score = float(sum(scores) / len(scores))
+                if avg_score > 0.005:   # умеренный порог
+                    weights[term] = round(avg_score, 4)
+            except ZeroDivisionError:
+                continue
+
+        logger.info(f"✅ BM25 рассчитан: {len(weights)} значимых n-грамм")
+        return weights
+            
     def _calculate_hybrid_weights(self, vacancies: List) -> Dict[str, float]:
         """
         ГИБРИДНЫЙ РАСЧЁТ ВЕСОВ:

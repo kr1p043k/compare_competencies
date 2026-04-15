@@ -159,6 +159,9 @@ class SkillNormalizer:
         r'^создание\s+',
         r'^внедрение\s+',
         r'^оценивать\s+',
+        r'^(уверенный|senior|middle|junior)\s+',
+        r'^(опыт|знание|умение|владение|навык)\s+(работы\s+)?(с\s+)?',
+        r'^(разработчик|разработчика)\s+(уровня\s+)?(senior|middle|junior)?'
     ]
     # Слова, которые можно безопасно удалить из конца
     SUFFIX_REMOVALS = [
@@ -173,6 +176,8 @@ class SkillNormalizer:
     r'\s+и\s+др\.',
     r'\s+и\s+проч\.',
     r'\s+etc\.?',
+            r'\s+(senior|middle|junior)$',
+        r'\s+и\s+(другие|т\.д\.|т\.п\.|etc)$',
     ]
     # === НОВОЕ: fuzzy-настройки ===
     FUZZY_THRESHOLD = 85         # % сходства (можно вынести в config)
