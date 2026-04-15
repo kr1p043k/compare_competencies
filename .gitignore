@@ -22,3 +22,4 @@ competency_frequency.json
 profiles_comparison_summary.json
 skill_weights.json
 .env
+evaluation_cache.json
