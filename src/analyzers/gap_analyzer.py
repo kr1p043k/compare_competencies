@@ -69,25 +69,19 @@ class GapAnalyzer:
     def analyze_gap(self, student_skills: List[str], top_n: int = 20) -> Dict:
         """
         Анализирует пробелы и возвращает категоризированный результат.
-        
-        Args:
-            student_skills: Навыки студента
-            top_n: Количество результатов в каждой категории
-        
-        Returns:
-            Словарь с high/medium/low priority gaps
+        Пороги вычисляются динамически на основе текущих весов.
         """
         if not student_skills:
             student_skills = []
 
-        # Нормализуем навыки студента
+        # Пересчитываем пороги при каждом вызове
+        self._calculate_dynamic_thresholds()
+
         student_set = {s.lower().strip() for s in student_skills if s}
         
-        # Находим недостающие навыки с весами
         missing = []
         for skill, weight in self.skill_weights.items():
             if skill.lower().strip() not in student_set:
-                # Нормализуем вес к диапазону 0-1
                 normalized_weight = weight / self.total_weight if self.total_weight > 0 else 0
                 missing.append({
                     "skill": skill,
@@ -96,10 +90,8 @@ class GapAnalyzer:
                     "priority": self._get_priority(normalized_weight)
                 })
 
-        # Сортируем по весу
         missing_sorted = sorted(missing, key=lambda x: x["weight"], reverse=True)
         
-        # Категоризируем
         result = {
             "high_priority": [],
             "medium_priority": [],
@@ -123,9 +115,13 @@ class GapAnalyzer:
         
         return result
 
-    def coverage(self, student_skills: List[str]) -> Tuple[float, Dict]:
+    def coverage(self, student_skills: List[str], method: str = 'weighted') -> Tuple[float, Dict]:
         """
-        Доля покрытия рынка (weighted).
+        Рассчитывает покрытие рынка навыками студента.
+        
+        Args:
+            student_skills: список навыков студента
+            method: 'weighted' (по умолчанию) или 'simple' (по уникальным навыкам)
         
         Returns:
             (coverage_percent, details_dict)
@@ -135,22 +131,30 @@ class GapAnalyzer:
 
         student_set = {s.lower().strip() for s in student_skills if s}
         
-        covered_weight = sum(
-            weight for skill, weight in self.skill_weights.items()
-            if skill.lower().strip() in student_set
-        )
-
-        coverage = (covered_weight / self.total_weight * 100) if self.total_weight > 0 else 0.0
-        
-        details = {
-            "covered_weight": round(covered_weight, 2),
-            "total_weight": round(self.total_weight, 2),
-            "coverage_percent": round(coverage, 2),
-            "covered_skills_count": len(student_set & set(s.lower().strip() for s in self.skill_weights.keys())),
-            "total_market_skills": len(self.skill_weights)
-        }
-        
-        return coverage, details
+        if method == 'simple':
+            covered = sum(1 for skill in self.skill_weights if skill.lower().strip() in student_set)
+            total = len(self.skill_weights)
+            coverage_val = (covered / total * 100) if total > 0 else 0.0
+            details = {
+                'covered_skills_count': covered,
+                'total_market_skills': total,
+                'coverage_percent': round(coverage_val, 2)
+            }
+            return coverage_val, details
+        else:  # weighted
+            covered_weight = sum(
+                weight for skill, weight in self.skill_weights.items()
+                if skill.lower().strip() in student_set
+            )
+            coverage_val = (covered_weight / self.total_weight * 100) if self.total_weight > 0 else 0.0
+            details = {
+                'covered_weight': round(covered_weight, 2),
+                'total_weight': round(self.total_weight, 2),
+                'coverage_percent': round(coverage_val, 2),
+                'covered_skills_count': len(student_set & set(s.lower().strip() for s in self.skill_weights.keys())),
+                'total_market_skills': len(self.skill_weights)
+            }
+            return coverage_val, details
 
     def top_market_skills(self, top_n: int = 20) -> List[Dict]:
         """
