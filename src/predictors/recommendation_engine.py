@@ -6,11 +6,11 @@
 
 import json
 import logging
-from pathlib import Path
+import numpy as np
 from typing import List, Dict, Optional, Any
 import requests
 import time
-
+import pandas as pd
 from src.analyzers.comparator import CompetencyComparator
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.skill_filter import SkillFilter
@@ -32,7 +32,9 @@ class RecommendationEngine:
         self.gap_analyzer: Optional[GapAnalyzer] = None
         self.skill_filter = SkillFilter()
         self.is_fitted = False
-
+        if use_llm is None:
+            use_llm = bool(config.YC_API_KEY and config.YC_FOLDER_ID)
+        self.use_llm = use_llm
         # LTR
         self.use_ltr = use_ltr
         self.ltr_engine: Optional[LTRRecommendationEngine] = None
@@ -132,7 +134,6 @@ class RecommendationEngine:
         high_priority = gaps.get("high_priority", [])[:10]
         medium_priority = gaps.get("medium_priority", [])[:8]
 
-        detailed_recs = []
         all_missing = [g["skill"] for g in high_priority + medium_priority]
 
         ltr_scores: Dict[str, float] = {}
@@ -146,10 +147,12 @@ class RecommendationEngine:
             except Exception as e:
                 logger.debug(f"LTR prediction failed: {e}")
 
-        for i, gap in enumerate(high_priority + medium_priority, 1):
+        # Собираем рекомендации без ранга
+        temp_recs = []
+        for gap in high_priority + medium_priority:
             skill = gap.get("skill", "")
             importance = gap.get("importance", 0)
-            priority = "HIGH" if i <= len(high_priority) else "MEDIUM"
+            priority = "HIGH" if gap in high_priority else "MEDIUM"
 
             combined_importance = importance
             if skill in ltr_scores:
@@ -159,14 +162,21 @@ class RecommendationEngine:
                 skill=skill,
                 importance=combined_importance,
                 priority=priority,
-                rank=i,
+                rank=0,  # временный ранг
                 student_profile=student_profile,
                 ltr_explanation=ltr_explanations.get(skill),
                 student_skills=student_skills,
                 coverage=analysis['coverage']
             )
             if rec:
-                detailed_recs.append(rec)
+                temp_recs.append(rec)
+
+        # Сортируем по убыванию важности и присваиваем правильные ранги
+        temp_recs.sort(key=lambda x: x['importance_score'], reverse=True)
+        detailed_recs = []
+        for idx, rec in enumerate(temp_recs, 1):
+            rec['rank'] = idx
+            detailed_recs.append(rec)
 
         return {
             "summary": {
@@ -189,7 +199,10 @@ class RecommendationEngine:
         student_profile: Optional[StudentProfile] = None,
         ltr_explanation: Optional[str] = None,
         student_skills: Optional[List[str]] = None,
-        coverage: float = 0.0
+        coverage: float = 0.0,
+        shap_values: Optional[np.ndarray] = None,
+        X: Optional[pd.DataFrame] = None,
+        idx: int = 0
     ) -> Dict[str, Any]:
         skill_lower = skill.lower()
         is_soft = not self._is_hard_skill(skill_lower)
@@ -201,7 +214,10 @@ class RecommendationEngine:
             "priority": priority,
             "is_soft_skill": is_soft,
             "suggestion": self._get_suggestion(skill, is_soft),
-            "why_important": self._why_important(skill, importance, priority, ltr_explanation, student_skills, coverage),
+            "why_important": self._why_important(
+                skill, importance, priority, ltr_explanation,
+                student_skills, coverage, shap_values, X, idx
+            ),
             "how_to_learn": self._get_learning_path(skill, is_soft, student_profile),
             "expected_timeframe": self._get_timeframe(skill),
             "expected_outcome": self._get_expected_outcome(skill, student_profile),
@@ -306,16 +322,58 @@ class RecommendationEngine:
         # Небольшая задержка между запросами, чтобы не упереться в лимиты
         time.sleep(1.0)
         return self._llm_explain_with_retry(skill, importance, priority, student_skills, coverage)
+    
+
+    def _shap_explain(self, skill: str, shap_values: Optional[np.ndarray], 
+                      idx: int, X: pd.DataFrame) -> Optional[str]:
+        """Строит текстовое объяснение на основе SHAP-вкладов."""
+        if shap_values is None or idx >= len(shap_values):
+            return None
+        # Находим признак с наибольшим абсолютным вкладом
+        top_idx = np.argmax(np.abs(shap_values[idx]))
+        feat_name = self.feature_names[top_idx]
+        feat_val = X.iloc[idx][feat_name]
+        if feat_name == "cosine_sim":
+            return f"сильно связан с вашим текущим профилем (сходство {feat_val:.2f})"
+        elif feat_name == "hybrid_weight":
+            return f"имеет высокий рыночный вес ({feat_val:.2f})"
+        elif feat_name == "level_encoded":
+            level_str = {1: "junior", 2: "middle", 3: "senior"}.get(int(feat_val), "middle")
+            return f"востребован на уровне {level_str}"
+        elif feat_name == "frequency":
+            return f"часто встречается в вакансиях ({int(feat_val)} раз)"
+        elif feat_name == "category_encoded":
+            return f"относится к востребованной категории навыков"
+        return None
 
     def _why_important(self, skill: str, importance: float, priority: str,
                        ltr_explanation: Optional[str] = None,
                        student_skills: Optional[List[str]] = None,
-                       coverage: float = 0.0) -> str:
-        if student_skills is None:
-            student_skills = []
-        llm_expl = self._llm_explain(skill, importance, priority, student_skills, coverage)
-        if llm_expl:
-            return f"🤖 {llm_expl}"
+                       coverage: float = 0.0,
+                       shap_values: Optional[np.ndarray] = None,
+                       X: Optional[pd.DataFrame] = None,
+                       idx: int = 0) -> str:
+        """
+        Гибридное объяснение: LLM → SHAP → шаблоны.
+        """
+        # 1. Пытаемся получить LLM-объяснение
+        if self.use_llm:
+            llm_expl = self._llm_explain(skill, importance, priority, student_skills or [], coverage)
+            if llm_expl:
+                return f"🤖 {llm_expl}"
+
+        # 2. Если LLM нет, строим SHAP-объяснение
+        if shap_values is not None and X is not None:
+            shap_expl = self._shap_explain(skill, shap_values, idx, X)
+            if shap_expl:
+                base = f"🎯 Навык '{skill}' {shap_expl}."
+                if priority == "HIGH":
+                    base += " Это один из самых важных навыков для вашего уровня."
+                elif priority == "MEDIUM":
+                    base += " Его освоение повысит вашу конкурентоспособность."
+                return base
+
+        # 3. Fallback на шаблоны
         if ltr_explanation:
             return f"🎯 Модель: {ltr_explanation}"
         if priority == "HIGH":
