@@ -374,7 +374,7 @@ class VacancyParser:
 
         # 6. ГИБРИДНЫЙ ВЕС (настраиваемые коэффициенты)
         alpha = 0.65   # вес BM25
-        beta = 0.35    # вес семантики (можно увеличить до 0.4, если хочешь сильнее учитывать смысл)
+        beta = 0.35    # вес семантики 
 
         hybrid_weights = {}
         for i, skill in enumerate(skill_list):
