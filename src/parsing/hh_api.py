@@ -1,7 +1,7 @@
 """
 HeadHunterAPI - синхронный клиент для работы с API hh.ru
 """
-
+from datetime import datetime, timedelta
 import requests
 import time
 from typing import List, Dict, Any, Optional
@@ -44,6 +44,9 @@ class HeadHunterAPI:
             'Accept': 'application/json; charset=utf-8'
         })
         
+        # Сохраняем последний ответ для получения метаданных (например, found)
+        self.last_response: Optional[Dict[str, Any]] = None
+        
         logger.info(f"HeadHunterAPI инициализирован (MAX_RETRIES={config.MAX_RETRIES})")
 
     # =========================================================================
@@ -57,7 +60,9 @@ class HeadHunterAPI:
         period_days: int = 30,
         max_pages: int = 20,
         per_page: int = 100,
-        industry: Optional[int] = None
+        industry: Optional[int] = None,
+        date_from: Optional[int] = None,
+        date_to: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
         Поиск вакансий по тексту
@@ -65,10 +70,12 @@ class HeadHunterAPI:
         Args:
             text: Поисковый запрос
             area: ID региона
-            period_days: Период поис��а (дней)
+            period_days: Период поиска (дней) – используется, если date_from/date_to не заданы
             max_pages: Максимальное количество страниц
             per_page: Результатов на странице (макс 100)
             industry: ID отрасли (опционально)
+            date_from: Unix timestamp начала периода (опционально)
+            date_to: Unix timestamp конца периода (опционально)
         
         Returns:
             Список вакансий (dict)
@@ -76,15 +83,20 @@ class HeadHunterAPI:
         params = {
             'text': text,
             'area': area,
-            'period': period_days,
-            'per_page': min(per_page, 100),
+            'per_page': per_page,
+            'page': 0,
             'order_by': 'publication_time',
             'clusters': False,
             'describe_arguments': False,
         }
         
-        if industry is not None:
+        if industry:
             params['industry'] = industry
+        if date_from is not None and date_to is not None:
+            params['date_from'] = date_from
+            params['date_to'] = date_to
+        else:
+            params['period'] = period_days
         
         logger.info(f"Поиск вакансий: '{text}' (регион {area}, макс {max_pages} страниц)")
         
@@ -95,6 +107,7 @@ class HeadHunterAPI:
             params['page'] = page
             
             data = self._get(self.BASE_URL, params=params)
+            self.last_response = data  # сохраняем для внешнего использования
             
             if not data or 'items' not in data:
                 logger.error("Не удалось получить данные")
