@@ -333,7 +333,7 @@ class LTRRecommendationEngine:
         freq = meta.get("frequency", 0)
         level = meta.get("level", "middle")
         base = f"{skill}: важность {score*100:.1f}% (частота {freq}, уровень {level})"
-        if shap_values is not None:
+        if shap_values is not None and idx < len(shap_values):
             top_idx = np.argmax(np.abs(shap_values[idx]))
             feat_name = self.feature_names[top_idx]
             feat_val = X.iloc[idx][feat_name]
@@ -342,8 +342,10 @@ class LTRRecommendationEngine:
             elif feat_name == "level_encoded":
                 level_str = {1: "junior", 2: "middle", 3: "senior"}.get(int(feat_val), "middle")
                 base += f". Востребован на уровне {level_str}"
+            elif feat_name == "category_encoded":
+                base += ". Относится к востребованной категории навыков"
         return base
-
+    
     def load_model(self, path: Optional[Path] = None) -> "LTRRecommendationEngine":
         model_path = path or self.model_path
         if not model_path.exists():

@@ -114,7 +114,7 @@ class RecommendationEngine:
         weights = self.cluster_weights if self.cluster_weights else self.gap_analyzer.skill_weights
         temp_gap = GapAnalyzer(weights) if self.cluster_weights else self.gap_analyzer
 
-        score, old_confidence = self.comparator.compare(student_skills)
+        score, _ = self.comparator.compare(student_skills)
         gaps = temp_gap.analyze_gap(student_skills, top_n=30)
         coverage, coverage_details = temp_gap.coverage(student_skills)
         top_market = temp_gap.top_market_skills(20)

@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""
+main.py — Полный пайплайн анализа вакансий и генерации персонализированных рекомендаций
+Исправленная версия с LTR-движком без data leakage
+"""
+
 import argparse
 import logging
 import sys
@@ -874,9 +879,15 @@ def main():
             logger.info("\n" + "="*85)
             logger.info("ГЕНЕРАЦИЯ ПЕРСОНАЛИЗИРОВАННЫХ РЕКОМЕНДАЦИЙ")
             logger.info("="*85)
-
-            rec_engine = RecommendationEngine(use_ltr=True, use_llm=args.use_llm)
-            rec_engine.fit(vacancies_skills, skill_weights=skill_weights)
+            
+            # Используем уже созданный recommendation_engine
+            rec_engine = recommendation_engine
+            # Перезагружаем LTR на всякий случай (если модель обновилась)
+            if rec_engine.ltr_engine is None:
+                rec_engine.ltr_engine = LTRRecommendationEngine()
+                model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
+                if model_path.exists():
+                    rec_engine.ltr_engine.load_model(model_path)
 
             evaluations_dict = {e.profile_name: e for e in comparison.evaluations}
 
@@ -937,6 +948,9 @@ def main():
             logger.exception(f"❌ Ошибка при gap-анализе: {e}")
             import traceback
             traceback.print_exc()
+            # Если произошла ошибка, создаём пустой comparison для визуализации
+            if 'comparison' not in locals():
+                comparison = type('obj', (object,), {'evaluations': []})()
             return
 
     show_context_info()
