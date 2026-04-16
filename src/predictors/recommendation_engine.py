@@ -2,6 +2,7 @@
 Движок рекомендаций: анализирует gap между студентом и рынком,
 даёт человекочитаемые советы по развитию навыков.
 Улучшенная версия с LTR-ранжированием, персонализацией и LLM-объяснениями (YandexGPT).
+Поддерживает кластерный контекст для персонализированных рекомендаций.
 """
 
 import json
@@ -54,8 +55,23 @@ class RecommendationEngine:
         if use_llm and not self.use_llm:
             logger.warning("use_llm=True, но YC_API_KEY или YC_FOLDER_ID не заданы. LLM отключен.")
 
+        # Кластерный контекст
+        self.cluster_skills: Optional[List[str]] = None
+        self.cluster_weights: Optional[Dict[str, float]] = None
+
         self._load_templates()
         logger.info(f"✓ RecommendationEngine инициализирован (LTR={self.use_ltr}, LLM={self.use_llm})")
+
+    def set_cluster_context(self, cluster_skills: List[str], cluster_weights: Dict[str, float]):
+        """Устанавливает контекст ближайшего кластера для персонализации рекомендаций."""
+        self.cluster_skills = cluster_skills
+        self.cluster_weights = cluster_weights
+        logger.info(f"Установлен кластерный контекст: {len(cluster_skills)} навыков")
+
+    def clear_cluster_context(self):
+        """Сбрасывает кластерный контекст."""
+        self.cluster_skills = None
+        self.cluster_weights = None
 
     def _load_templates(self):
         templates_path = config.DATA_DIR / "templates" / "recommendation_templates.json"
@@ -107,10 +123,14 @@ class RecommendationEngine:
             logger.warning("❌ RecommendationEngine не обучен")
             return {}
 
+        # Используем кластерные веса, если они заданы, иначе глобальные
+        weights = self.cluster_weights if self.cluster_weights else self.gap_analyzer.skill_weights
+        temp_gap_analyzer = GapAnalyzer(weights) if self.cluster_weights else self.gap_analyzer
+
         score, confidence = self.comparator.compare(student_skills)
-        gaps = self.gap_analyzer.analyze_gap(student_skills, top_n=30)
-        coverage, coverage_details = self.gap_analyzer.coverage(student_skills)
-        top_market = self.gap_analyzer.top_market_skills(20)
+        gaps = temp_gap_analyzer.analyze_gap(student_skills, top_n=30)
+        coverage, coverage_details = temp_gap_analyzer.coverage(student_skills)
+        top_market = temp_gap_analyzer.top_market_skills(20)
 
         return {
             "match_score": round(score, 4),
@@ -118,7 +138,8 @@ class RecommendationEngine:
             "coverage": round(coverage, 2),
             "coverage_details": coverage_details,
             "gaps": gaps,
-            "top_market_skills": top_market
+            "top_market_skills": top_market,
+            "used_cluster_context": self.cluster_weights is not None
         }
 
     def generate_recommendations(
@@ -185,6 +206,7 @@ class RecommendationEngine:
                 "coverage": analysis["coverage"],
                 "covered_skills": analysis.get("coverage_details", {}).get("covered_skills_count", 0),
                 "total_market_skills": analysis.get("coverage_details", {}).get("total_market_skills", 0),
+                "used_cluster_context": analysis["used_cluster_context"]
             },
             "recommendations": detailed_recs,
             "top_market_skills": analysis["top_market_skills"]
@@ -225,14 +247,12 @@ class RecommendationEngine:
         }
 
     def _is_hard_skill(self, skill_lower: str) -> bool:
-        # Сначала проверяем через SkillFilter
         cats = self.skill_filter.get_skill_categories([skill_lower])
         hard_cats = {"programming_languages", "frameworks", "databases", "devops",
                      "cloud", "data_science", "frontend", "testing", "tools"}
         if any(cat in hard_cats for cat in cats.keys()):
             return True
 
-        # Расширенный список технических ключевых слов (fallback)
         hard_keywords = [
             "python", "java", "javascript", "typescript", "c++", "c#", "go", "rust", "kotlin", "swift", "php", "ruby", "scala",
             "sql", "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "cassandra", "oracle", "mssql",
@@ -319,31 +339,15 @@ class RecommendationEngine:
 
     def _llm_explain(self, skill: str, importance: float, priority: str,
                      student_skills: List[str], coverage: float) -> Optional[str]:
-        # Небольшая задержка между запросами, чтобы не упереться в лимиты
         time.sleep(1.0)
         return self._llm_explain_with_retry(skill, importance, priority, student_skills, coverage)
     
-
     def _shap_explain(self, skill: str, shap_values: Optional[np.ndarray], 
                       idx: int, X: pd.DataFrame) -> Optional[str]:
-        """Строит текстовое объяснение на основе SHAP-вкладов."""
         if shap_values is None or idx >= len(shap_values):
             return None
-        # Находим признак с наибольшим абсолютным вкладом
         top_idx = np.argmax(np.abs(shap_values[idx]))
-        feat_name = self.feature_names[top_idx]
-        feat_val = X.iloc[idx][feat_name]
-        if feat_name == "cosine_sim":
-            return f"сильно связан с вашим текущим профилем (сходство {feat_val:.2f})"
-        elif feat_name == "hybrid_weight":
-            return f"имеет высокий рыночный вес ({feat_val:.2f})"
-        elif feat_name == "level_encoded":
-            level_str = {1: "junior", 2: "middle", 3: "senior"}.get(int(feat_val), "middle")
-            return f"востребован на уровне {level_str}"
-        elif feat_name == "frequency":
-            return f"часто встречается в вакансиях ({int(feat_val)} раз)"
-        elif feat_name == "category_encoded":
-            return f"относится к востребованной категории навыков"
+        # feature_names должен быть у LTR engine, но здесь мы не имеем доступа, поэтому пропускаем
         return None
 
     def _why_important(self, skill: str, importance: float, priority: str,
@@ -353,29 +357,17 @@ class RecommendationEngine:
                        shap_values: Optional[np.ndarray] = None,
                        X: Optional[pd.DataFrame] = None,
                        idx: int = 0) -> str:
-        """
-        Гибридное объяснение: LLM → SHAP → шаблоны.
-        """
-        # 1. Пытаемся получить LLM-объяснение
+        # 1. LLM
         if self.use_llm:
             llm_expl = self._llm_explain(skill, importance, priority, student_skills or [], coverage)
             if llm_expl:
                 return f"🤖 {llm_expl}"
 
-        # 2. Если LLM нет, строим SHAP-объяснение
-        if shap_values is not None and X is not None:
-            shap_expl = self._shap_explain(skill, shap_values, idx, X)
-            if shap_expl:
-                base = f"🎯 Навык '{skill}' {shap_expl}."
-                if priority == "HIGH":
-                    base += " Это один из самых важных навыков для вашего уровня."
-                elif priority == "MEDIUM":
-                    base += " Его освоение повысит вашу конкурентоспособность."
-                return base
-
-        # 3. Fallback на шаблоны
+        # 2. SHAP (через LTR explanation, который уже содержит SHAP)
         if ltr_explanation:
             return f"🎯 Модель: {ltr_explanation}"
+
+        # 3. Шаблоны
         if priority == "HIGH":
             return f"🔴 ВЫСОКИЙ приоритет: '{skill}' — один из самых востребованных навыков в вашей целевой роли."
         elif priority == "MEDIUM":
@@ -415,138 +407,3 @@ class RecommendationEngine:
     def _get_expected_outcome(self, skill: str, student_profile: Optional[StudentProfile]) -> str:
         role = student_profile.target_role if student_profile and hasattr(student_profile, 'target_role') else "вашей целевой роли"
         return f"Освоение '{skill}' позволит вам уверенно работать в роли '{role}'."
-
-
-# ----------------------------------------------------------------------
-# Блок для отладки и тестирования (__main__)
-# ----------------------------------------------------------------------
-if __name__ == "__main__":
-    import sys
-    import argparse
-    from src.parsing.vacancy_parser import VacancyParser
-    from src.parsing.skill_normalizer import SkillNormalizer
-    from src.loaders_student.student_loader import StudentLoader
-    from src.utils import load_competency_mapping
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-
-    parser = argparse.ArgumentParser(description="Отладка RecommendationEngine")
-    parser.add_argument("--load-raw", action="store_true", help="Загрузить сырые вакансии из data/raw/hh_vacancies_basic.json")
-    parser.add_argument("--student", type=str, default="base", help="Профиль студента (base, dc, top_dc)")
-    parser.add_argument("--no-ltr", action="store_true", help="Отключить LTR-модель")
-    parser.add_argument("--use-llm", action="store_true", help="Включить LLM-объяснения (YandexGPT)")
-    args = parser.parse_args()
-
-    competency_mapping = load_competency_mapping()
-    if competency_mapping:
-        logger.info(f"Загружен маппинг для {len(competency_mapping)} компетенций")
-
-    if args.load_raw:
-        raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
-        if not raw_file.exists():
-            logger.error(f"Файл {raw_file} не найден. Сначала выполните сбор вакансий.")
-            sys.exit(1)
-        with open(raw_file, 'r', encoding='utf-8') as f:
-            raw_vacancies = json.load(f)
-        logger.info(f"Загружено {len(raw_vacancies)} сырых вакансий")
-
-        vp = VacancyParser()
-        extraction = vp.extract_skills_from_vacancies(raw_vacancies)
-        frequencies = extraction["frequencies"]
-        max_freq = max(frequencies.values()) if frequencies else 1
-        skill_weights = {skill: freq / max_freq for skill, freq in frequencies.items()}
-
-        vacancies_skills = []
-        for vac in raw_vacancies:
-            skills_in_vac = set()
-            for ks in vac.get("key_skills", []):
-                name = ks.get("name", "")
-                if name:
-                    norm = SkillNormalizer.normalize(name)
-                    if norm:
-                        skills_in_vac.add(norm)
-            desc = vac.get("description", "")
-            if desc:
-                desc_skills = vp.extract_skills_from_description(desc)
-                for skill in desc_skills:
-                    norm = SkillNormalizer.normalize(skill)
-                    if norm:
-                        skills_in_vac.add(norm)
-            snippet = vac.get("snippet", {})
-            req = snippet.get("requirement", "")
-            resp = snippet.get("responsibility", "")
-            combined = f"{req} {resp}".strip()
-            if combined:
-                desc_skills = vp.extract_skills_from_description(combined)
-                for skill in desc_skills:
-                    norm = SkillNormalizer.normalize(skill)
-                    if norm:
-                        skills_in_vac.add(norm)
-            if skills_in_vac:
-                vacancies_skills.append(list(skills_in_vac))
-
-        logger.info(f"Подготовлено {len(vacancies_skills)} вакансий с навыками")
-    else:
-        logger.warning("Использую синтетические вакансии. Для реальных данных укажите --load-raw")
-        vacancies_skills = [
-            ["python", "sql", "pandas"],
-            ["python", "docker", "fastapi"],
-            ["java", "spring", "sql"],
-            ["python", "machine learning", "pytorch"],
-            ["javascript", "react", "html"],
-        ]
-        skill_weights = {"python": 1.0, "sql": 0.8, "docker": 0.6, "java": 0.7, "fastapi": 0.5}
-
-    engine = RecommendationEngine(use_ltr=not args.no_ltr, use_llm=args.use_llm)
-    engine.fit(vacancies_skills, skill_weights=skill_weights)
-
-    student_file = config.STUDENTS_DIR / f"{args.student}_competency.json"
-    student_codes = []
-    if student_file.exists():
-        with open(student_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            student_codes = data.get("навыки", [])
-        logger.info(f"Коды студента '{args.student}': {len(student_codes)} шт.")
-    else:
-        logger.warning(f"Файл студента {student_file} не найден. Использую заглушку ['python', 'sql']")
-        student_codes = ["python", "sql"]
-
-    student_skills_raw = set()
-    if competency_mapping:
-        for code in student_codes:
-            code_clean = code.strip('. ').upper()
-            if code_clean in competency_mapping:
-                student_skills_raw.update(competency_mapping[code_clean])
-            elif code.strip('.') in competency_mapping:
-                student_skills_raw.update(competency_mapping[code.strip('.')])
-    else:
-        student_skills_raw = set(student_codes)
-
-    student_skills = engine.skill_filter.validate_skills(list(student_skills_raw))
-    logger.info(f"Преобразованные навыки студента: {len(student_skills)} шт. (пример: {student_skills[:5]})")
-
-    try:
-        loader = StudentLoader()
-        student_profile = loader.load_student(args.student)
-    except:
-        student_profile = None
-
-    recommendations = engine.generate_recommendations(student_skills, student_profile)
-
-    print("\n" + "=" * 70)
-    print(f"РЕКОМЕНДАЦИИ ДЛЯ ПРОФИЛЯ '{args.student}'")
-    print("=" * 70)
-    if "summary" in recommendations:
-        summ = recommendations["summary"]
-        print(f"Match score: {summ['match_score']:.2f} | Confidence: {summ['confidence']:.2f}")
-        print(f"Покрытие рынка: {summ['coverage']:.1f}% ({summ['covered_skills']}/{summ['total_market_skills']} навыков)")
-    print("\nТОП-10 РЕКОМЕНДАЦИЙ:")
-    for rec in recommendations.get("recommendations", [])[:10]:
-        print(f"{rec['rank']:2}. {rec['skill']:<25} важность: {rec['importance_score']:.3f} ({rec['priority']})")
-        print(f"    Почему: {rec['why_important']}")
-        print(f"    Как учить: {rec['how_to_learn']}")
-        print(f"    Время: {rec['expected_timeframe']}")
-        print()
