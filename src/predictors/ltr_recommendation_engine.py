@@ -1,7 +1,4 @@
-"""
-LTR Recommendation Engine — ИСПРАВЛЕННАЯ ВЕРСИЯ
-Убрана утечка данных, добавлена персонализация и нормальная валидация.
-"""
+#src/predictors/ltr_recommendation_engine.py
 
 import json
 import logging

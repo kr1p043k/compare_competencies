@@ -1,8 +1,4 @@
-"""
-Движок рекомендаций — ИСПРАВЛЕННАЯ ВЕРСИЯ
-(Confidence теперь из LTR (топ-5) + подготовка SHAP)
-"""
-
+#src/predictors/recommendation_engine.py
 import json
 import logging
 import numpy as np
