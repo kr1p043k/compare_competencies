@@ -8,7 +8,6 @@ from pathlib import Path
 import json
 import hashlib
 import pickle
-from typing import List, Dict, Tuple
 
 if __name__ == "__main__" and sys.platform == 'win32':
     import io
@@ -19,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from src.parsing.hh_api import HeadHunterAPI
 from src.parsing.hh_api_async import HeadHunterAPIAsync 
+from src.parsing.skill_normalizer import SkillNormalizer
 from src.parsing.vacancy_parser import VacancyParser
 from src.models.vacancy import Vacancy
 from src.models.student import StudentProfile, merge_skills_hierarchically 
@@ -36,6 +36,7 @@ from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.utils import load_competency_mapping
 
 # === Gap-анализ и рекомендации ===
+from src.analyzers.vacancy_clustering import VacancyClusterer
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.trends import TrendAnalyzer
 from src.analyzers.skill_filter import SkillFilter
@@ -51,7 +52,6 @@ from src.visualization.charts import (
 )
 
 def convert_float32(obj):
-    """Рекурсивно преобразует numpy.float32 в float."""
     import numpy as np
     if isinstance(obj, np.float32):
         return float(obj)
@@ -139,7 +139,6 @@ def load_vacancies_details(
     parser: VacancyParser,
     logger
 ) -> list:
-    """Загружает детали вакансий с умным выбором режима."""
     logger.info("Загрузка детальной информации...")
     
     if use_async:
@@ -206,7 +205,6 @@ def load_vacancies_details(
         return detailed
 
 def get_file_hash(filepath: Path) -> str:
-    """Возвращает MD5-хеш содержимого файла."""
     hash_md5 = hashlib.md5()
     with open(filepath, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
@@ -272,7 +270,6 @@ def main():
             basic_vacancies = json.load(f)
 
         parser = VacancyParser()
-        # Проверяем кэш результатов парсинга
         cache_dir = config.DATA_PROCESSED_DIR
         cache_dir.mkdir(parents=True, exist_ok=True)
         cache_path = cache_dir / "parsed_skills.pkl"
@@ -300,11 +297,7 @@ def main():
             skill_freq = result["frequencies"]
             hybrid_weights = result.get("hybrid_weights", {})
 
-            # Сохраняем в кэш
-            cache_data = {
-                'source_hash': vacancies_hash,
-                'result': result
-            }
+            cache_data = {'source_hash': vacancies_hash, 'result': result}
             with open(cache_path, 'wb') as f:
                 pickle.dump(cache_data, f)
             logger.info(f"💾 Кэш результатов парсинга сохранён: {cache_path}")
@@ -315,7 +308,6 @@ def main():
 
         logger.info(f"Извлечено {len(skill_freq)} уникальных навыков")
 
-        # Формируем vacancies_to_process и level_vacancies_data
         for vac in basic_vacancies:
             vac_skills = []
             if 'extracted_skills' in vac:
@@ -331,7 +323,6 @@ def main():
             vac_copy['extracted_skills'] = vac_skills
             vacancies_to_process.append(vac_copy)
 
-            # Определяем опыт вакансии
             experience = 'middle'
             if 'experience' in vac:
                 exp_obj = vac['experience']
@@ -345,10 +336,17 @@ def main():
                         experience = 'senior'
                 elif isinstance(exp_obj, str):
                     exp_lower = exp_obj.lower()
-                    if 'junior' in exp_lower or 'нет опыта' in exp_lower:
+                    if 'junior' in exp_lower or 'нет опыта' in exp_lower or 'стажер' in exp_lower:
                         experience = 'junior'
                     elif 'senior' in exp_lower or 'более 6' in exp_lower:
                         experience = 'senior'
+
+            if experience == 'middle':
+                name = vac.get('name', '').lower()
+                if 'junior' in name or 'младший' in name or 'стажер' in name or 'intern' in name:
+                    experience = 'junior'
+                elif 'senior' in name or 'старший' in name or 'ведущий' in name:
+                    experience = 'senior'
 
             if vac_skills:
                 level_vacancies_data.append({
@@ -359,6 +357,21 @@ def main():
                 vacancies_skills.append(vac_skills)
 
         logger.info(f"Подготовлено {len(level_vacancies_data)} вакансий для анализа уровней")
+
+        clusterer = VacancyClusterer(n_clusters=30)
+        for level in ['junior', 'middle', 'senior']:
+            cluster_path = config.DATA_PROCESSED_DIR / f"vacancy_clusters_{level}.pkl"
+            if cluster_path.exists():
+                clusterer.load_model(level)
+                logger.info(f"Модель кластеризации для уровня {level} загружена")
+            else:
+                logger.info(f"Кластеризация вакансий уровня {level}...")
+                level_vacs = [v for v in level_vacancies_data if v.get('experience') == level]
+                if level_vacs:
+                    clusterer.fit(level_vacs, level=level)
+                else:
+                    logger.warning(f"Нет вакансий уровня {level} для кластеризации")
+
         args.run_gap_analysis = True
 
     else:
@@ -380,67 +393,20 @@ def main():
             else:
                 if args.it_sector:
                     args.queries = [
-                        # Data & AI
-                        "Data Scientist",
-                        "Data Analyst",
-                        "Machine Learning Engineer",
-                        "Computer Vision Engineer",
-                        "NLP Engineer",
-                        "Data Architect",
-                        "ETL Developer",
-                        
-                        # Development
-                        "Python Developer",
-                        "Java Developer",
-                        "Frontend Developer",
-                        "Backend Developer",
-                        "Fullstack Developer",
-                        "DevOps Engineer",
-                        "Embedded Developer",
-                        "Blockchain Developer",
-                        
-                        # Mobile
-                        "iOS Developer",
-                        "Android Developer",
-                        "React Native Developer",
-                        "Flutter Developer",
-                        
-                        # QA
-                        "QA Engineer",
-                        "Automation QA Engineer",
-                        "Performance QA Engineer",
-                        
-                        # Security
-                        "Специалист по кибербезопасности",
-                        "Security Engineer",
-                        "DevSecOps Engineer",
-                        
-                        # Infrastructure & Administration
-                        "SRE инженер",
-                        "Системный администратор",
-                        "Облачный инженер",
-                        "Сетевой инженер",
-                        "Администратор баз данных",
-                        
-                        # Architecture & Management
-                        "Системный аналитик",
-                        "Бизнес-аналитик",
-                        "Архитектор программного обеспечения",
-                        "Solution Architect",
-                        "Team Lead",
-                        "Tech Lead",
-                        "Project Manager IT",
-                        "Scrum Master",
-                        
-                        # Design
-                        "UX/UI дизайнер",
-                        "Product Designer",
-                        
-                        # Game Development
-                        "Unity Developer",
-                        "Unreal Engine Developer",
-                        
-                        # Other
+                        "Data Scientist", "Data Analyst", "Machine Learning Engineer",
+                        "Computer Vision Engineer", "NLP Engineer", "Data Architect", "ETL Developer",
+                        "Python Developer", "Java Developer", "Frontend Developer",
+                        "Backend Developer", "Fullstack Developer", "DevOps Engineer",
+                        "Embedded Developer", "Blockchain Developer",
+                        "iOS Developer", "Android Developer", "React Native Developer", "Flutter Developer",
+                        "QA Engineer", "Automation QA Engineer", "Performance QA Engineer",
+                        "Специалист по кибербезопасности", "Security Engineer", "DevSecOps Engineer",
+                        "SRE инженер", "Системный администратор", "Облачный инженер",
+                        "Сетевой инженер", "Администратор баз данных",
+                        "Системный аналитик", "Бизнес-аналитик", "Архитектор программного обеспечения",
+                        "Solution Architect", "Team Lead", "Tech Lead", "Project Manager IT", "Scrum Master",
+                        "UX/UI дизайнер", "Product Designer",
+                        "Unity Developer", "Unreal Engine Developer",
                         "Technical Writer",
                     ]
                     args.industry = 7
@@ -483,7 +449,6 @@ def main():
                 total_vacs = len(basic_vacancies)
                 use_async, async_workers, reason = get_load_mode(total_vacs, args, logger)
                 logger.info(f"Режим загрузки: {reason}")
-                
                 vacancies_to_process = load_vacancies_details(
                     basic_vacancies=basic_vacancies,
                     hh_api=hh_api,
@@ -497,7 +462,6 @@ def main():
                 parser.print_vacancies_list(vacancies_to_process)
 
         else:
-            # Стандартный режим
             hh_api = HeadHunterAPI()
             parser = VacancyParser()
 
@@ -522,7 +486,6 @@ def main():
                 total_vacs = len(basic_vacancies)
                 use_async, async_workers, reason = get_load_mode(total_vacs, args, logger)
                 logger.info(f"Режим загрузки: {reason}")
-                
                 vacancies_to_process = load_vacancies_details(
                     basic_vacancies=basic_vacancies,
                     hh_api=hh_api,
@@ -538,7 +501,6 @@ def main():
         logger.info("=" * 85)
 
         result = parser.extract_skills_from_vacancies(vacancies_to_process)
-
         skill_freq = result["frequencies"]
         hybrid_weights = result.get("hybrid_weights", {})
 
@@ -552,7 +514,6 @@ def main():
         parser.save_processed_frequencies(skill_freq, apply_filter=not args.no_filter)
         print_top_skills(skill_freq)
 
-        # Применяем ту же фильтрацию, что и для competency_frequency.json
         from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
         whitelist = load_it_skills()
         if whitelist:
@@ -561,7 +522,6 @@ def main():
         else:
             skill_freq_filtered = skill_freq
 
-        # Сохраняем снимок для анализа трендов
         trend_analyzer = TrendAnalyzer(skill_freq_filtered)
         trend_analyzer.save_snapshot(skill_freq_filtered, apply_whitelist=False)
         logger.info(f"📸 Снимок рынка сохранён в {trend_analyzer.history_dir}")
@@ -576,7 +536,6 @@ def main():
         else:
             logger.warning("⚠️ hybrid_weights пустой")
 
-        # ====================== МАППИНГ КОМПЕТЕНЦИЙ ======================
         try:
             mapping = load_competency_mapping()
             if mapping:
@@ -597,7 +556,6 @@ def main():
         except Exception as e:
             logger.exception(f"Ошибка преобразования компетенций: {e}")
 
-        # ====================== EXCEL ======================
         if args.excel:
             df = parser.aggregate_to_dataframe(vacancies_to_process)
             if not df.empty:
@@ -605,12 +563,10 @@ def main():
                             f"vacancies_{args.query.replace(' ', '_')}.xlsx"
                 parser.save_to_excel(df, filename)
 
-        # ====================== ИНИЦИАЛИЗАЦИЯ АНАЛИЗАТОРА УРОВНЕЙ ОПЫТА ======================
         logger.info("\n" + "="*85)
         logger.info("ИНИЦИАЛИЗАЦИЯ АНАЛИЗАТОРА УРОВНЕЙ ОПЫТА")
         logger.info("="*85)
         
-        level_vacancies_data = []
         for vac in vacancies_to_process:
             if isinstance(vac, Vacancy):
                 vac_skills = []
@@ -632,12 +588,19 @@ def main():
                             vac_experience = 'senior'
                     elif isinstance(exp_obj, str):
                         exp_lower = exp_obj.lower()
-                        if 'junior' in exp_lower or 'нет опыта' in exp_lower:
+                        if 'junior' in exp_lower or 'нет опыта' in exp_lower or 'стажер' in exp_lower:
                             vac_experience = 'junior'
                         elif 'senior' in exp_lower or 'более 6' in exp_lower:
                             vac_experience = 'senior'
                         else:
                             vac_experience = 'middle'
+
+                if vac_experience == 'middle':
+                    name = vac.name.lower() if hasattr(vac, 'name') else ''
+                    if 'junior' in name or 'младший' in name or 'стажер' in name or 'intern' in name:
+                        vac_experience = 'junior'
+                    elif 'senior' in name or 'старший' in name or 'ведущий' in name:
+                        vac_experience = 'senior'
                 
                 if vac_skills:
                     level_vacancies_data.append({
@@ -648,11 +611,49 @@ def main():
             else:
                 vac_skills = [s['name'] for s in vac.get('key_skills', [])]
                 if vac_skills:
+                    experience = 'middle'
+                    exp_obj = vac.get('experience', {})
+                    if isinstance(exp_obj, dict):
+                        exp_id = exp_obj.get('id', '').lower()
+                        if 'less1' in exp_id or 'junior' in exp_id or 'no_experience' in exp_id:
+                            experience = 'junior'
+                        elif 'between1and3' in exp_id or 'between3and6' in exp_id:
+                            experience = 'middle'
+                        elif 'between6and10' in exp_id or 'morethan10' in exp_id:
+                            experience = 'senior'
+                    elif isinstance(exp_obj, str):
+                        exp_lower = exp_obj.lower()
+                        if 'junior' in exp_lower or 'нет опыта' in exp_lower or 'стажер' in exp_lower:
+                            experience = 'junior'
+                        elif 'senior' in exp_lower or 'более 6' in exp_lower:
+                            experience = 'senior'
+                    if experience == 'middle':
+                        name = vac.get('name', '').lower()
+                        if 'junior' in name or 'младший' in name or 'стажер' in name or 'intern' in name:
+                            experience = 'junior'
+                        elif 'senior' in name or 'старший' in name or 'ведущий' in name:
+                            experience = 'senior'
                     level_vacancies_data.append({
                         'skills': vac_skills,
                         'description': vac.get('description', ''),
-                        'experience': 'middle'
+                        'experience': experience
                     })
+
+        logger.info(f"Подготовлено {len(level_vacancies_data)} вакансий для анализа уровней")
+
+        clusterer = VacancyClusterer(n_clusters=30)
+        for level in ['junior', 'middle', 'senior']:
+            cluster_path = config.DATA_PROCESSED_DIR / f"vacancy_clusters_{level}.pkl"
+            if cluster_path.exists():
+                clusterer.load_model(level)
+                logger.info(f"Модель кластеризации для уровня {level} загружена")
+            else:
+                logger.info(f"Кластеризация вакансий уровня {level}...")
+                level_vacs = [v for v in level_vacancies_data if v.get('experience') == level]
+                if level_vacs:
+                    clusterer.fit(level_vacs, level=level)
+                else:
+                    logger.warning(f"Нет вакансий уровня {level} для кластеризации")
 
     # ====================== 3. GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ ======================
     if args.run_gap_analysis:
@@ -676,7 +677,6 @@ def main():
                     return codes
                 skills = set()
                 for code in codes:
-                    # Удаляем все не-буквенно-цифровые символы, приводим к верхнему регистру
                     code_norm = ''.join(c for c in code if c.isalnum()).upper()
                     for key, value in competency_mapping.items():
                         key_norm = ''.join(c for c in key if c.isalnum()).upper()
@@ -690,7 +690,6 @@ def main():
             logger.info("="*85)
             
             if not vacancies_skills:
-                # Если в режиме --skip-collection vacancies_skills уже заполнен
                 for vacancy in vacancies_to_process:
                     if isinstance(vacancy, dict):
                         skills = vacancy.get('extracted_skills', [])
@@ -710,8 +709,6 @@ def main():
             logger.info("="*85)
             
             recommendation_engine = RecommendationEngine(use_ltr=True, use_llm=args.use_llm)
-            
-            # Временно используем старый comparator для совместимости
             recommendation_engine.comparator = CompetencyComparator(
                 ngram_range=(1, 2),
                 min_df=1,
@@ -785,8 +782,6 @@ def main():
             logger.info("ФОРМИРОВАНИЕ СВОДКИ ПО ПРОФИЛЯМ ЧЕРЕЗ PROFILEEVALUATOR")
             logger.info("="*85)
 
-            # ========== ИЕРАРХИЧЕСКОЕ ОБЪЕДИНЕНИЕ НАВЫКОВ ДЛЯ top_dc ==========
-            # Сначала загружаем все сырые коды
             all_codes = {}
             for name in ['base', 'dc', 'top_dc']:
                 codes = load_student_competencies(name)
@@ -818,6 +813,10 @@ def main():
                     student_codes = all_codes[profile_name]
                     student_skills = map_codes_to_skills(student_codes)
 
+                # === НОРМАЛИЗАЦИЯ ДЛЯ ВСЕХ ПРОФИЛЕЙ ===
+                student_skills = [SkillNormalizer.normalize(s) for s in student_skills if SkillNormalizer.normalize(s)]
+                student_skills = list(dict.fromkeys(student_skills))
+
                 profiles[profile_name] = StudentProfile(
                     profile_name=profile_name,
                     competencies=student_codes,
@@ -830,7 +829,6 @@ def main():
                     skill_weights, level
                 )
 
-            # Подготавливаем гибридные веса по уровням
             hybrid_weights_by_level = {}
             if hybrid_weights:
                 for level in ['junior', 'middle', 'senior']:
@@ -841,7 +839,7 @@ def main():
             evaluator = ProfileEvaluator(
                 skill_weights=skill_weights,
                 vacancies_skills=vacancies_skills,
-                vacancies_skills_dict=level_vacancies_data,   # ← передаём для Vacancy-centric matching
+                vacancies_skills_dict=level_vacancies_data,
                 hybrid_weights=hybrid_weights
             )
 
@@ -873,9 +871,6 @@ def main():
             logger.info(summary_text)
             logger.info("="*60)
 
-            # =====================================================================
-            # ИНТЕГРАЦИЯ РЕКОМЕНДАЦИЙ (LTR + LLM)
-            # =====================================================================
             logger.info("\n" + "="*85)
             logger.info("ГЕНЕРАЦИЯ ПЕРСОНАЛИЗИРОВАННЫХ РЕКОМЕНДАЦИЙ")
             logger.info("="*85)
@@ -883,10 +878,26 @@ def main():
             rec_engine = RecommendationEngine(use_ltr=True, use_llm=args.use_llm)
             rec_engine.fit(vacancies_skills, skill_weights=skill_weights)
 
+            evaluations_dict = {e.profile_name: e for e in comparison.evaluations}
+
             all_recommendations = {}
             for profile_name, student in profiles.items():
                 student_skills = student.skills
                 try:
+                    eval_result = evaluations_dict.get(profile_name)
+                    if eval_result:
+                        all_clusters = eval_result.coverage.get('all_clusters', [])
+                        if all_clusters:
+                            best_cluster = all_clusters[0]
+                            cluster_skills = best_cluster.get('top_skills', [])
+                            cluster_weights = {s: skill_weights.get(s, 0.0) for s in cluster_skills}
+                            rec_engine.set_cluster_context(cluster_skills, cluster_weights)
+                            logger.info(f"Для {profile_name} установлен кластерный контекст из {len(cluster_skills)} навыков")
+                        else:
+                            rec_engine.clear_cluster_context()
+                    else:
+                        rec_engine.clear_cluster_context()
+
                     full_rec = rec_engine.generate_recommendations(student_skills, student_profile=student)
                     all_recommendations[profile_name] = full_rec
                     logger.info(f"Рекомендации для {profile_name} сгенерированы")
@@ -913,7 +924,6 @@ def main():
 
                 rec_file = config.DATA_DIR / "result" / profile_name / f"full_recommendations_{profile_name}.json"
                 rec_file.parent.mkdir(parents=True, exist_ok=True)
-                # Преобразуем float32 -> float перед сериализацией
                 full_rec_serializable = convert_float32(full_rec)
                 with open(rec_file, "w", encoding="utf-8") as f:
                     json.dump(full_rec_serializable, f, ensure_ascii=False, indent=2)
@@ -927,17 +937,14 @@ def main():
             logger.exception(f"❌ Ошибка при gap-анализе: {e}")
             import traceback
             traceback.print_exc()
-            return   # ← чтобы не продолжать при ошибке
+            return
 
-    # === ФИНАЛЬНАЯ ИНФОРМАЦИЯ ===
     show_context_info()
 
-    # ====================== ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ ======================
     logger.info("\n" + "="*85)
     logger.info("ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ")
     logger.info("="*85)
 
-    # Подготавливаем данные для визуализации
     results_for_viz = {}
     for eval_result in comparison.evaluations:
         profile_name = eval_result.profile_name
@@ -950,7 +957,13 @@ def main():
             'covered_skills': eval_result.student.skills,
             'student_skills': eval_result.student.skills,
         }
-        # Добавляем дефициты при наличии
+        cluster_info = cov_dict.get('all_clusters')
+        if cluster_info:
+            results_for_viz[profile_name]['cluster_info'] = {
+                'clusters': cluster_info,
+                'best_cluster': cov_dict.get('best_cluster'),
+                'cluster_similarity': cov_dict.get('cluster_similarity', 0)
+            }
         if profile_name in all_recommendations and all_recommendations[profile_name]:
             recs = all_recommendations[profile_name].get('recommendations', [])
             deficits = [{'skill': r['skill'], 'frequency': r.get('market_frequency_percent', 0)}
