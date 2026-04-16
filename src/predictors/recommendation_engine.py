@@ -1,8 +1,6 @@
 """
-Движок рекомендаций: анализирует gap между студентом и рынком,
-даёт человекочитаемые советы по развитию навыков.
-Улучшенная версия с LTR-ранжированием, персонализацией и LLM-объяснениями (YandexGPT).
-Поддерживает кластерный контекст для персонализированных рекомендаций.
+Движок рекомендаций — ИСПРАВЛЕННАЯ ВЕРСИЯ
+(Confidence теперь из LTR (топ-5) + подготовка SHAP)
 """
 
 import json
@@ -12,6 +10,8 @@ from typing import List, Dict, Optional, Any
 import requests
 import time
 import pandas as pd
+
+from src.parsing.skill_normalizer import SkillNormalizer
 from src.analyzers.comparator import CompetencyComparator
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.skill_filter import SkillFilter
@@ -33,45 +33,38 @@ class RecommendationEngine:
         self.gap_analyzer: Optional[GapAnalyzer] = None
         self.skill_filter = SkillFilter()
         self.is_fitted = False
-        if use_llm is None:
-            use_llm = bool(config.YC_API_KEY and config.YC_FOLDER_ID)
-        self.use_llm = use_llm
-        # LTR
+
+        self.use_llm = use_llm and bool(config.YC_API_KEY and config.YC_FOLDER_ID)
         self.use_ltr = use_ltr
         self.ltr_engine: Optional[LTRRecommendationEngine] = None
+
         if use_ltr:
             self.ltr_engine = LTRRecommendationEngine()
-            ltr_model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
-            if ltr_model_path.exists():
+            model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
+            if model_path.exists():
                 try:
-                    self.ltr_engine.load_model(ltr_model_path)
-                    logger.info("✓ LTR-модель загружена")
+                    self.ltr_engine.load_model(model_path)
+                    logger.info("✓ LTR-модель успешно загружена")
                 except Exception as e:
-                    logger.warning(f"Не удалось загрузить LTR-модель: {e}")
+                    logger.warning(f"Не удалось загрузить LTR: {e}")
                     self.ltr_engine = None
 
-        # LLM (YandexGPT)
-        self.use_llm = use_llm and bool(config.YC_API_KEY and config.YC_FOLDER_ID)
-        if use_llm and not self.use_llm:
-            logger.warning("use_llm=True, но YC_API_KEY или YC_FOLDER_ID не заданы. LLM отключен.")
-
-        # Кластерный контекст
-        self.cluster_skills: Optional[List[str]] = None
-        self.cluster_weights: Optional[Dict[str, float]] = None
-
+        self.cluster_skills = None
+        self.cluster_weights = None
         self._load_templates()
         logger.info(f"✓ RecommendationEngine инициализирован (LTR={self.use_ltr}, LLM={self.use_llm})")
 
-    def set_cluster_context(self, cluster_skills: List[str], cluster_weights: Dict[str, float]):
-        """Устанавливает контекст ближайшего кластера для персонализации рекомендаций."""
-        self.cluster_skills = cluster_skills
-        self.cluster_weights = cluster_weights
-        logger.info(f"Установлен кластерный контекст: {len(cluster_skills)} навыков")
+    def set_cluster_context(self, skills: List[str], weights: Dict[str, float]):
+        """Устанавливает рынок навыков, ограниченный кластером."""
+        self.cluster_skills = skills
+        self.cluster_weights = weights
+        logger.info(f"Установлен кластерный контекст: {len(skills)} навыков")
 
     def clear_cluster_context(self):
-        """Сбрасывает кластерный контекст."""
+        """Сбрасывает кластерный контекст, возвращаясь к глобальному рынку."""
         self.cluster_skills = None
         self.cluster_weights = None
+        logger.info("Кластерный контекст сброшен")
 
     def _load_templates(self):
         templates_path = config.DATA_DIR / "templates" / "recommendation_templates.json"
@@ -120,21 +113,19 @@ class RecommendationEngine:
 
     def analyze(self, student_skills: List[str]) -> Dict[str, Any]:
         if not self.is_fitted:
-            logger.warning("❌ RecommendationEngine не обучен")
             return {}
 
-        # Используем кластерные веса, если они заданы, иначе глобальные
         weights = self.cluster_weights if self.cluster_weights else self.gap_analyzer.skill_weights
-        temp_gap_analyzer = GapAnalyzer(weights) if self.cluster_weights else self.gap_analyzer
+        temp_gap = GapAnalyzer(weights) if self.cluster_weights else self.gap_analyzer
 
-        score, confidence = self.comparator.compare(student_skills)
-        gaps = temp_gap_analyzer.analyze_gap(student_skills, top_n=30)
-        coverage, coverage_details = temp_gap_analyzer.coverage(student_skills)
-        top_market = temp_gap_analyzer.top_market_skills(20)
+        score, old_confidence = self.comparator.compare(student_skills)
+        gaps = temp_gap.analyze_gap(student_skills, top_n=30)
+        coverage, coverage_details = temp_gap.coverage(student_skills)
+        top_market = temp_gap.top_market_skills(20)
 
         return {
             "match_score": round(score, 4),
-            "confidence": round(confidence, 4),
+            "confidence": 0.0,  # будет перезаписан
             "coverage": round(coverage, 2),
             "coverage_details": coverage_details,
             "gaps": gaps,
@@ -155,60 +146,84 @@ class RecommendationEngine:
         high_priority = gaps.get("high_priority", [])[:10]
         medium_priority = gaps.get("medium_priority", [])[:8]
 
-        all_missing = [g["skill"] for g in high_priority + medium_priority]
+        # Нормализация всех недостающих навыков
+        all_missing_raw = [g["skill"] for g in high_priority + medium_priority]
+        all_missing = []
+        for s in all_missing_raw:
+            norm = SkillNormalizer.normalize(s)
+            if norm:
+                all_missing.append(norm)
+        all_missing = list(dict.fromkeys(all_missing))
 
-        ltr_scores: Dict[str, float] = {}
-        ltr_explanations: Dict[str, str] = {}
+        ltr_scores = {}
+        ltr_explanations = {}
+        ltr_shap_values = None
+        ltr_X = None
+        ltr_valid_skills = []
         if self.ltr_engine and self.ltr_engine.is_fitted and all_missing:
             try:
+                # Используем новый метод с SHAP
+                ltr_recs, ltr_shap_values, ltr_X = self.ltr_engine.predict_skill_impact_with_shap(
+                    student_skills, all_missing
+                )
+                for skill, score, expl in ltr_recs:
+                    ltr_scores[skill] = score / 100.0
+                    ltr_explanations[skill] = expl
+                    ltr_valid_skills.append(skill)
+            except AttributeError:
+                # Fallback на старый метод, если новый ещё не добавлен
                 ltr_recs = self.ltr_engine.predict_skill_impact(student_skills, all_missing)
                 for skill, score, expl in ltr_recs:
                     ltr_scores[skill] = score / 100.0
                     ltr_explanations[skill] = expl
+                    ltr_valid_skills.append(skill)
             except Exception as e:
-                logger.debug(f"LTR prediction failed: {e}")
+                logger.debug(f"LTR error: {e}")
 
-        # Собираем рекомендации без ранга
+        # Confidence — среднее по топ-5 LTR-скорам
+        if ltr_scores:
+            top5_scores = sorted(ltr_scores.values(), reverse=True)[:5]
+            avg_ltr = sum(top5_scores) / len(top5_scores)
+            analysis["confidence"] = round(avg_ltr, 4)
+        else:
+            analysis["confidence"] = round(analysis.get("match_score", 0), 4)
+
         temp_recs = []
-        for gap in high_priority + medium_priority:
-            skill = gap.get("skill", "")
+        for i, gap in enumerate(high_priority + medium_priority):
+            skill_raw = gap.get("skill", "")
+            skill = SkillNormalizer.normalize(skill_raw) or skill_raw
             importance = gap.get("importance", 0)
             priority = "HIGH" if gap in high_priority else "MEDIUM"
 
-            combined_importance = importance
-            if skill in ltr_scores:
-                combined_importance = max(importance, ltr_scores[skill])
+            combined_importance = max(importance, ltr_scores.get(skill, 0.0)) if skill in ltr_scores else importance
+
+            # Определяем индекс навыка в ltr_valid_skills для доступа к SHAP
+            shap_idx = ltr_valid_skills.index(skill) if skill in ltr_valid_skills else 0
 
             rec = self._generate_skill_recommendation(
                 skill=skill,
                 importance=combined_importance,
                 priority=priority,
-                rank=0,  # временный ранг
+                rank=0,
                 student_profile=student_profile,
                 ltr_explanation=ltr_explanations.get(skill),
                 student_skills=student_skills,
-                coverage=analysis['coverage']
+                coverage=analysis['coverage'],
+                shap_values=ltr_shap_values,
+                X=ltr_X,
+                idx=shap_idx,
+                feature_names=self.ltr_engine.feature_names if self.ltr_engine else None
             )
             if rec:
                 temp_recs.append(rec)
 
-        # Сортируем по убыванию важности и присваиваем правильные ранги
         temp_recs.sort(key=lambda x: x['importance_score'], reverse=True)
-        detailed_recs = []
         for idx, rec in enumerate(temp_recs, 1):
             rec['rank'] = idx
-            detailed_recs.append(rec)
 
         return {
-            "summary": {
-                "match_score": analysis["match_score"],
-                "confidence": analysis["confidence"],
-                "coverage": analysis["coverage"],
-                "covered_skills": analysis.get("coverage_details", {}).get("covered_skills_count", 0),
-                "total_market_skills": analysis.get("coverage_details", {}).get("total_market_skills", 0),
-                "used_cluster_context": analysis["used_cluster_context"]
-            },
-            "recommendations": detailed_recs,
+            "summary": analysis,
+            "recommendations": temp_recs,
             "top_market_skills": analysis["top_market_skills"]
         }
 
@@ -224,7 +239,8 @@ class RecommendationEngine:
         coverage: float = 0.0,
         shap_values: Optional[np.ndarray] = None,
         X: Optional[pd.DataFrame] = None,
-        idx: int = 0
+        idx: int = 0,
+        feature_names: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         skill_lower = skill.lower()
         is_soft = not self._is_hard_skill(skill_lower)
@@ -238,7 +254,7 @@ class RecommendationEngine:
             "suggestion": self._get_suggestion(skill, is_soft),
             "why_important": self._why_important(
                 skill, importance, priority, ltr_explanation,
-                student_skills, coverage, shap_values, X, idx
+                student_skills, coverage, shap_values, X, idx, feature_names
             ),
             "how_to_learn": self._get_learning_path(skill, is_soft, student_profile),
             "expected_timeframe": self._get_timeframe(skill),
@@ -341,13 +357,21 @@ class RecommendationEngine:
                      student_skills: List[str], coverage: float) -> Optional[str]:
         time.sleep(1.0)
         return self._llm_explain_with_retry(skill, importance, priority, student_skills, coverage)
-    
+
     def _shap_explain(self, skill: str, shap_values: Optional[np.ndarray], 
-                      idx: int, X: pd.DataFrame) -> Optional[str]:
+                      idx: int, X: pd.DataFrame, feature_names: List[str]) -> Optional[str]:
         if shap_values is None or idx >= len(shap_values):
             return None
         top_idx = np.argmax(np.abs(shap_values[idx]))
-        # feature_names должен быть у LTR engine, но здесь мы не имеем доступа, поэтому пропускаем
+        feat_name = feature_names[top_idx]
+        feat_val = X.iloc[idx][feat_name]
+        if feat_name == "cosine_sim":
+            return f"сильно связан с вашим текущим профилем (сходство {feat_val:.2f})"
+        elif feat_name == "level_encoded":
+            level_str = {1: "junior", 2: "middle", 3: "senior"}.get(int(feat_val), "middle")
+            return f"востребован на уровне {level_str}"
+        elif feat_name == "category_encoded":
+            return f"относится к востребованной категории навыков"
         return None
 
     def _why_important(self, skill: str, importance: float, priority: str,
@@ -356,18 +380,25 @@ class RecommendationEngine:
                        coverage: float = 0.0,
                        shap_values: Optional[np.ndarray] = None,
                        X: Optional[pd.DataFrame] = None,
-                       idx: int = 0) -> str:
-        # 1. LLM
+                       idx: int = 0,
+                       feature_names: Optional[List[str]] = None) -> str:
         if self.use_llm:
             llm_expl = self._llm_explain(skill, importance, priority, student_skills or [], coverage)
             if llm_expl:
                 return f"🤖 {llm_expl}"
 
-        # 2. SHAP (через LTR explanation, который уже содержит SHAP)
+        if shap_values is not None and X is not None and feature_names is not None:
+            shap_expl = self._shap_explain(skill, shap_values, idx, X, feature_names)
+            if shap_expl:
+                base = f"🎯 Навык '{skill}' {shap_expl}."
+                if priority == "HIGH":
+                    base += " Это один из самых важных навыков для вашего уровня."
+                elif priority == "MEDIUM":
+                    base += " Его освоение повысит вашу конкурентоспособность."
+                return base
+
         if ltr_explanation:
             return f"🎯 Модель: {ltr_explanation}"
-
-        # 3. Шаблоны
         if priority == "HIGH":
             return f"🔴 ВЫСОКИЙ приоритет: '{skill}' — один из самых востребованных навыков в вашей целевой роли."
         elif priority == "MEDIUM":
