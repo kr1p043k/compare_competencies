@@ -25,3 +25,6 @@ faiss-cpu
 ipywidgets
 python-dotenv>=1.0.0
 pymorhy3
+xgboost>=2.0.0
+shap>=0.45.0
+joblib

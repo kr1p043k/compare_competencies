@@ -23,3 +23,7 @@ profiles_comparison_summary.json
 skill_weights.json
 .env
 evaluation_cache.json
+data/processed/parsed_skills.pkl
+data/processed/vacancy_clusters_middle.pkl
+data/processed/vacancy_clusters_junior.pkl
+data/processed/vacancy_clusters_senior.pkl
