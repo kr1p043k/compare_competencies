@@ -274,6 +274,51 @@ def plot_skills_heatmap(results: Dict[str, Any], top_n: int = 20, save_path: Opt
     plt.close(fig)
     return fig
 
+def plot_cluster_insights(results: Dict[str, Any], output_dir: Path):
+    """
+    Для каждого профиля отображает ближайшие кластеры и покрытие в них.
+    """
+    for profile_name, data in results.items():
+        cluster_info = data.get('cluster_info')
+        if not cluster_info:
+            continue
+
+        clusters = cluster_info.get('clusters', [])
+        if not clusters:
+            continue
+
+        cluster_ids = [f"Кластер {c['cluster_id']}" for c in clusters]
+        similarities = [c['similarity'] * 100 for c in clusters]
+        coverages = [c['coverage'] * 100 for c in clusters]
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        x = np.arange(len(clusters))
+        width = 0.35
+
+        bars1 = ax.bar(x - width/2, similarities, width, label='Сходство (%)', color='#1f77b4')
+        bars2 = ax.bar(x + width/2, coverages, width, label='Покрытие (%)', color='#2ca02c')
+
+        ax.set_title(f"Ближайшие кластеры вакансий — {profile_name}", pad=20)
+        ax.set_xticks(x)
+        ax.set_xticklabels(cluster_ids, rotation=45, ha='right')
+        ax.set_ylabel('Процент')
+        ax.legend()
+
+        for bar in bars1:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%',
+                    ha='center', va='bottom', fontsize=10)
+        for bar in bars2:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%',
+                    ha='center', va='bottom', fontsize=10)
+
+        plt.tight_layout()
+        save_path = output_dir / profile_name / f"cluster_insights_{profile_name}.png"
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        logger.info(f"✅ cluster_insights сохранён → {save_path}")
+
 def save_all_charts(results: Dict[str, Any], output_dir: Path, use_ml: bool = True):
     """
     Главная функция — сохраняет все презентационные графики в указанную папку.
@@ -307,7 +352,6 @@ def save_all_charts(results: Dict[str, Any], output_dir: Path, use_ml: bool = Tr
 
         plot_weight_distribution(skill_weights, save_path=prof_dir / f"weights_{profile_name}.png")
 
-        # Дефициты (если есть в данных)
         if "high_demand_gaps" in data:
             deficits = data["high_demand_gaps"][:10]
             if deficits:
@@ -320,11 +364,15 @@ def save_all_charts(results: Dict[str, Any], output_dir: Path, use_ml: bool = Tr
                 ax.invert_yaxis()
                 fig.savefig(prof_dir / f"deficits_{profile_name}.png", dpi=300, bbox_inches="tight")
                 plt.close(fig)
-    
-        # 3. Тепловая карта покрытия
+
+    # 3. Тепловая карта покрытия (вызывается один раз после цикла)
     plot_skills_heatmap(results, top_n=20, save_path=output_dir / "skills_heatmap.png")
 
+    # 4. Инсайты по кластерам (вызывается один раз после цикла)
+    plot_cluster_insights(results, output_dir)
+
     logger.info("✅ Все графики готовы для презентации (DPI 300, современный стиль, русские подписи)")
+    
 
 
 # ----------------------------------------------------------------------
