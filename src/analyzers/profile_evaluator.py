@@ -17,6 +17,8 @@ from src.models.student import (
 )
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.comparator import CompetencyComparator
+from src.analyzers.vacancy_clustering import VacancyClusterer
+from src.parsing.skill_normalizer import SkillNormalizer
 from src import config
 
 logger = logging.getLogger(__name__)
@@ -34,16 +36,29 @@ class ProfileEvaluator:
         self,
         skill_weights: Dict[str, float],
         vacancies_skills: List[List[str]],
+        vacancies_skills_dict: List[Dict],
         hybrid_weights: Optional[Dict[str, float]] = None,
         level_difficulty: Dict[str, float] = None,
-        readiness_weights: Tuple[float, float, float] = None
+        readiness_weights: Tuple[float, float, float] = None,
+        use_clustering: bool = True
     ):
         self.skill_weights = skill_weights
         self.hybrid_weights = hybrid_weights or {}
         self.vacancies_skills = vacancies_skills
+        self.vacancies_skills_dict = vacancies_skills_dict
         self.comparators = {}
         self.level_difficulty = level_difficulty or self.DEFAULT_LEVEL_DIFFICULTY
         self.readiness_weights = readiness_weights or self.DEFAULT_READINESS_WEIGHTS
+        self.clusterer = VacancyClusterer()
+        self.use_clustering = use_clustering
+
+        # Загружаем модели кластеризации для всех уровней при инициализации
+        self.cluster_models_loaded = {
+            'junior': self.clusterer.load_model('junior'),
+            'middle': self.clusterer.load_model('middle'),
+            'senior': self.clusterer.load_model('senior')
+        }
+        logger.info(f"Модели кластеризации загружены: {self.cluster_models_loaded}")
 
     # ----------------------------------------------------------------------
     # Кэширование
@@ -67,7 +82,6 @@ class ProfileEvaluator:
             json.dump(cache, f, indent=2)
 
     def _get_student_hash(self, student: StudentProfile, level: str) -> str:
-        """Уникальный хеш набора навыков и уровня."""
         skills_str = ",".join(sorted(set(s.lower() for s in student.skills)))
         data = f"{level}:{skills_str}"
         return hashlib.md5(data.encode()).hexdigest()
@@ -76,10 +90,6 @@ class ProfileEvaluator:
     # Вспомогательные метрики
     # ----------------------------------------------------------------------
     def _shannon_diversity(self, skills: List[str], weights: Dict[str, float]) -> float:
-        """
-        Вычисляет индекс разнообразия Шеннона для навыков студента.
-        Значение выше = навыки более разнообразны (по рыночным весам).
-        """
         if not skills or not weights:
             return 0.0
 
@@ -119,38 +129,135 @@ class ProfileEvaluator:
             logger.info(f"  ✓ {profile_name}: загружено из кэша")
             return ProfileEvaluation.parse_obj(cached_data)
 
-        # 1. Comparator
+        # 1. Получаем comparator (нужен для embedding_comparator)
         profile_comparator = self._get_or_create_comparator(target_level, level_analyzer)
+        embedding_comp = profile_comparator.embedding_comparator
 
-        # 2. Score & confidence
-        score, confidence = profile_comparator.compare(student.skills)
+        # 2. Ищем ближайшие вакансии целевого уровня
+        level_vacancies = [v for v in self.vacancies_skills_dict if v.get('experience') == target_level]
+        if not level_vacancies:
+            level_vacancies = self.vacancies_skills_dict  # fallback
 
-        # 3. GapAnalyzer на частотных весах
-        gap_analyzer_freq = GapAnalyzer(profile_skill_weights)
-        gaps = gap_analyzer_freq.analyze_gap(student.skills)
-        weighted_freq_cov, wf_details = gap_analyzer_freq.coverage(student.skills, method='weighted')
-        simple_cov, s_details = gap_analyzer_freq.coverage(student.skills, method='simple')
+        top_vacancies = embedding_comp.find_closest_vacancies(
+            student.skills,
+            level_vacancies,
+            level=target_level,
+            top_k=50
+        )
 
-        # 4. GapAnalyzer на гибридных весах (если есть)
-        weighted_hybrid_cov = None
-        wh_details = None
-        if profile_hybrid_weights:
-            gap_analyzer_hybrid = GapAnalyzer(profile_hybrid_weights)
-            weighted_hybrid_cov, wh_details = gap_analyzer_hybrid.coverage(student.skills, method='weighted')
+        if not top_vacancies:
+            # Fallback на старый метод
+            score, confidence = profile_comparator.compare(student.skills)
+            gap_analyzer_freq = GapAnalyzer(profile_skill_weights)
+            gaps = gap_analyzer_freq.analyze_gap(student.skills)
+            weighted_freq_cov, wf_details = gap_analyzer_freq.coverage(student.skills, method='weighted')
+            simple_cov, s_details = gap_analyzer_freq.coverage(student.skills, method='simple')
+            weighted_hybrid_cov = None
+            wh_details = None
+            global_cov = weighted_freq_cov
+            cluster_score = None
+            best_cluster = None
+            cluster_similarity = 0.0
+            all_clusters = []
+        else:
+            # 3. Строим взвешенное покрытие только по навыкам из топ вакансий
+            market_skills = set()
+            for vac in top_vacancies:
+                market_skills.update(vac.get('skills', []))
+            market_skills = list(market_skills)
 
-        # 5. Adjusted coverage (используем weighted_freq)
+            # Ограничиваем веса только этими навыками
+            top_skill_weights = {s: profile_skill_weights.get(s, 0.0) for s in market_skills}
+            top_hybrid_weights = None
+            if profile_hybrid_weights:
+                top_hybrid_weights = {s: profile_hybrid_weights.get(s, 0.0) for s in market_skills}
+
+            # GapAnalyzer на урезанных весах
+            gap_analyzer_top = GapAnalyzer(top_skill_weights)
+            gaps = gap_analyzer_top.analyze_gap(student.skills)
+            weighted_freq_cov, wf_details = gap_analyzer_top.coverage(student.skills, method='weighted')
+            simple_cov, s_details = gap_analyzer_top.coverage(student.skills, method='simple')
+
+            # Score = доля покрытых навыков среди топ-рынка
+            covered = len(set(student.skills) & set(market_skills))
+            score = covered / len(market_skills) if market_skills else 0.0
+            confidence = min(1.0, covered / max(1, len(student.skills)))
+
+            # Гибридное покрытие (если есть)
+            weighted_hybrid_cov = None
+            wh_details = None
+            if top_hybrid_weights:
+                gap_analyzer_hybrid = GapAnalyzer(top_hybrid_weights)
+                weighted_hybrid_cov, wh_details = gap_analyzer_hybrid.coverage(student.skills, method='weighted')
+
+            global_cov = weighted_freq_cov
+
+            # === ГИБРИДНЫЙ СКОРИНГ: ГЛОБАЛЬНЫЙ + КЛАСТЕРНЫЙ ===
+            cluster_score = None
+            best_cluster = None
+            cluster_similarity = 0.0
+            all_clusters = []
+
+            if self.use_clustering and top_vacancies:
+                if self.cluster_models_loaded.get(target_level, False):
+                    closest = self.clusterer.find_closest_clusters(student.skills, top_k=3)
+                    if closest:
+                        all_clusters = []
+                        for cid, sim in closest:
+                            raw_skills = self.clusterer.get_cluster_skills(cid, level_vacancies)
+                            # Нормализуем и фильтруем навыки
+                            norm_skills = []
+                            for s in raw_skills:
+                                norm = SkillNormalizer.normalize(s)
+                                if norm and len(norm.split()) <= 3:
+                                    norm_skills.append(norm)
+                            # Убираем дубликаты
+                            seen = set()
+                            unique_skills = []
+                            for s in norm_skills:
+                                if s not in seen:
+                                    seen.add(s)
+                                    unique_skills.append(s)
+                            all_clusters.append({
+                                "cluster_id": cid,
+                                "similarity": sim,
+                                "coverage": 0.0,
+                                "top_skills": unique_skills[:10]
+                            })
+                        best_cluster, cluster_similarity = closest[0]
+                        cluster_skills = all_clusters[0]["top_skills"]  # уже нормализованные
+                        if cluster_skills:
+                            cluster_weights = {s: profile_skill_weights.get(s, 0.0) for s in cluster_skills}
+                            cluster_gap = GapAnalyzer(cluster_weights)
+                            cluster_score, _ = cluster_gap.coverage(student.skills, method='weighted')
+                            # Обновим coverage в all_clusters
+                            for i, _ in enumerate(closest):
+                                if i == 0:
+                                    all_clusters[i]["coverage"] = cluster_score
+                                else:
+                                    all_clusters[i]["coverage"] = cluster_score * 0.9  # приблизительно
+                            logger.info(f"  Лучший кластер: {best_cluster}, сходство: {cluster_similarity:.2f}, покрытие: {cluster_score:.1f}%")
+                else:
+                    logger.warning(f"Модель кластеризации для уровня {target_level} не загружена")
+
+            if cluster_score is not None:
+                weighted_freq_cov = 0.4 * global_cov + 0.6 * cluster_score
+            else:
+                weighted_freq_cov = global_cov
+
+        # 4. Adjusted coverage (используем weighted_freq)
         difficulty_multiplier = self.level_difficulty.get(target_level, 1.0)
         adjusted_coverage = weighted_freq_cov / difficulty_multiplier
 
-        # 6. Readiness
+        # 5. Readiness
         readiness_score = self._calculate_readiness(
             score, adjusted_coverage, gaps, difficulty_multiplier
         )
 
-        # 7. Индекс разнообразия
+        # 6. Индекс разнообразия
         diversity_index = self._shannon_diversity(student.skills, profile_skill_weights)
 
-        # 8. Формируем coverage
+        # 7. Формируем coverage
         coverage_dict = {
             'weighted_freq': weighted_freq_cov,
             'weighted_hybrid': weighted_hybrid_cov if weighted_hybrid_cov is not None else weighted_freq_cov,
@@ -159,6 +266,11 @@ class ProfileEvaluator:
             'difficulty_multiplier': difficulty_multiplier,
             'uniqueness_ratio': round(simple_cov / weighted_freq_cov, 2) if weighted_freq_cov > 0 else 0.0,
             'diversity_index': diversity_index,
+            'global_coverage': global_cov,
+            'cluster_coverage': cluster_score,
+            'best_cluster': best_cluster,
+            'cluster_similarity': cluster_similarity,
+            'all_clusters': all_clusters,
             'weighted_freq_details': wf_details,
             'weighted_hybrid_details': wh_details,
             'simple_details': s_details

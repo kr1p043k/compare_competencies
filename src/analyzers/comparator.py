@@ -15,7 +15,7 @@ class CompetencyComparator:
         max_df: float = 0.95,
         use_embeddings: bool = False,
         level: str = "middle",
-        similarity_threshold: float = 0.75
+        similarity_threshold: float = 0.5   # ← снижено с 0.75
     ):
         self.use_embeddings = use_embeddings
         self.level = level
@@ -60,7 +60,11 @@ class CompetencyComparator:
         if self.use_embeddings and self.embedding_comparator:
             result = self.embedding_comparator.compare_student_to_market(student_skills)
             score = result["avg_similarity"]
-            confidence = min(1.0, len(result.get("matches", [])) / max(1, len(student_skills) + 5))
+            # Если confidence всё ещё 0, используем fallback
+            matches = result.get("matches", [])
+            confidence = len(matches) / max(1, len(student_skills)) if student_skills else 0.0
+            if confidence == 0.0:
+                confidence = 0.5  # fallback
             return score, confidence
         else:
             if not student_skills:
@@ -68,9 +72,9 @@ class CompetencyComparator:
             student_text = " ".join(student_skills)
             student_vec = self.tfidf.transform([student_text])
             # legacy fallback
-            return 0.5, 0.7  # заглушка, не используется при embeddings
+            return 0.5, 0.7
+
     def get_skill_weights(self) -> Dict[str, float]:
-        """Compatibility stub"""
         if self.use_embeddings:
             logger.info("ℹ️  Embedding mode: get_skill_weights() не требуется")
             return {}
