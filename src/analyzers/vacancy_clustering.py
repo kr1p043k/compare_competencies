@@ -26,6 +26,7 @@ class VacancyClusterer:
         self.cluster_centers: Optional[np.ndarray] = None
         self.labels: Optional[np.ndarray] = None
         self.vacancy_ids: List[str] = []
+        self.vacancy_skills: List[List[str]] = []   # ← сохраняем навыки
         self.is_fitted = False
 
     def fit(self, vacancies: List[Dict], level: str = "all") -> "VacancyClusterer":
@@ -41,11 +42,11 @@ class VacancyClusterer:
             vacancies = [v for v in vacancies if v.get('experience') == level]
 
         self.vacancy_ids = [v.get('id', str(i)) for i, v in enumerate(vacancies)]
+        self.vacancy_skills = [v.get('skills', []) for v in vacancies]
 
         embedding_model = get_embedding_model()
         vacancy_embs = []
-        for vac in vacancies:
-            skills = vac.get('skills', [])
+        for skills in self.vacancy_skills:
             if not skills:
                 emb = np.zeros(embedding_model.get_sentence_embedding_dimension())
             else:
@@ -71,6 +72,7 @@ class VacancyClusterer:
             'labels': self.labels,
             'centers': self.cluster_centers,
             'vacancy_ids': self.vacancy_ids,
+            'vacancy_skills': self.vacancy_skills,   # ← сохраняем
             'n_clusters': self.n_clusters
         }
         with open(path, 'wb') as f:
@@ -88,6 +90,7 @@ class VacancyClusterer:
         self.labels = data['labels']
         self.cluster_centers = data['centers']
         self.vacancy_ids = data['vacancy_ids']
+        self.vacancy_skills = data.get('vacancy_skills', [])
         self.n_clusters = data['n_clusters']
         self.is_fitted = True
         logger.info(f"Модель кластеризации загружена: {path}")
@@ -114,12 +117,16 @@ class VacancyClusterer:
         top_indices = np.argsort(similarities)[-top_k:][::-1]
         return [(int(idx), float(similarities[idx])) for idx in top_indices]
 
-    def get_cluster_skills(self, cluster_id: int, vacancies: List[Dict]) -> List[str]:
-        """Возвращает список навыков, характерных для кластера."""
+    def get_cluster_skills(self, cluster_id: int, vacancies: Optional[List[Dict]] = None) -> List[str]:
+        """
+        Возвращает список навыков, характерных для кластера.
+        Использует сохранённые vacancy_skills, игнорируя переданный vacancies.
+        """
         if not self.is_fitted or self.labels is None:
             return []
-        cluster_vacs = [v for i, v in enumerate(vacancies) if self.labels[i] == cluster_id]
-        all_skills = set()
-        for vac in cluster_vacs:
-            all_skills.update(vac.get('skills', []))
-        return list(all_skills)
+        # Собираем навыки из тех вакансий, которые принадлежат кластеру
+        skills_set = set()
+        for i, label in enumerate(self.labels):
+            if label == cluster_id and i < len(self.vacancy_skills):
+                skills_set.update(self.vacancy_skills[i])
+        return list(skills_set)
