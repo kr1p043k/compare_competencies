@@ -31,116 +31,99 @@
 ```plaintext
 └── 📁 competency_comparison
     ├── 📁 data
-    │   ├── 📁 embeddings               # Кэш векторных представлений навыков
-    │   ├── 📁 history                  # Для построения тренда навыков    
-    │   ├── 📁 last_uploaded            # Резервная копия последней загруженной матрицы компетенций
+    │   ├── 📁 embeddings
+    │   ├── 📁 last_uploaded
     │   │   └── 📄 competency_matrix.csv
-    │   ├── 📁 models                   # Обученные ML‑модели и диагностические графики
-    │   │   ├── 📄 ltr_ranker_xgb_regressor.joblib
-    │   │   ├── 📄 ltr_feature_importance.png
-    │   │   ├── 📄 pred_vs_actual.png
-    │   │   └── 📄 residuals_dist.png
-    │   ├── 📁 processed                # Обработанные данные рынка
+    │   ├── 📁 processed
     │   │   ├── 📄 competency_frequency.json
-    │   │   ├── 📄 competency_frequency_mapped.json
     │   │   ├── 📄 competency_mapping.json
-    │   │   ├── 📄 profiles_comparison_summary.json
-    │   │   └── 📄 skill_weights.json
-    │   ├── 📁 raw                      # Сырые данные
+    │   │   └── 📄 market_competencies.csv
+    │   ├── 📁 raw
     │   │   ├── 📄 competency_matrix.csv
-    │   │   ├── 📄 hh_vacancies_basic.json
     │   │   └── 📄 hh_vacancies.json
-    │   ├── 📁 result                   # Результаты анализа по профилям
+    │   ├── 📁 result
     │   │   ├── 📁 base
     │   │   │   ├── 📄 comparison_report_base.json
-    │   │   │   └── 📄 ltr_recommendations_base.json
+    │   │   │   └── 📄 recommendations_base.json
     │   │   ├── 📁 dc
     │   │   │   ├── 📄 comparison_report_dc.json
-    │   │   │   └── 📄 ltr_recommendations_dc.json
+    │   │   │   └── 📄 recommendations_dc.json
     │   │   └── 📁 top_dc
     │   │       ├── 📄 comparison_report_top_dc.json
-    │   │       └── 📄 ltr_recommendations_top_dc.json
-    │   ├── 📁 students                 # Профили студентов
+    │   │       └── 📄 recommendations_top_dc.json
+    │   ├── 📁 students
     │   │   ├── 📄 base_competency.json
     │   │   ├── 📄 dc_competency.json
     │   │   ├── 📄 descriptiom_of_competency.txt
     │   │   └── 📄 top_dc_competency.json
-    │   └── 📄 it_skills.json           # Белый список IT‑навыков
-    ├── 📁 frontend                     # Прототип веб‑интерфейса
+    │   └── 📄 it_skills.json
+    ├── 📁 frontend
     │   └── 📄 app.py
-    ├── 📁 logs                         # Логи работы приложения
-    │   └── 📄 app.log
-    ├── 📁 notebook_jypiter                    # Jupyter ноутбуки
+    ├── 📁 notebooks
     │   ├── 📄 01_hh_analysis.ipynb
     │   ├── 📄 02_competency_matching.ipynb
     │   └── 📄 03_prediction_model.ipynb
+    ├── 📁 scripts
+    │   └── 📄 train_clusters.py
     ├── 📁 src
     │   ├── 📁 analyzers
     │   │   ├── 📄 comparator.py
+    │   │   ├── 📄 domain_analyzer.py
     │   │   ├── 📄 embedding_comparator.py
     │   │   ├── 📄 gap_analyzer.py
-    │   │   ├── 📄 __init__.py
+    │   │   ├── 📄 init.py
     │   │   ├── 📄 profile_evaluator.py
     │   │   ├── 📄 skill_filter.py
     │   │   ├── 📄 skill_level_analyzer.py
     │   │   └── 📄 trends.py
     │   ├── 📁 loaders
-    │   │   ├── 📄 __init__.py
+    │   │   ├── 📄 init.py
     │   │   └── 📄 student_loader.py
     │   ├── 📁 models
     │   │   ├── 📄 comparison.py
     │   │   ├── 📄 competency.py
-    │   │   ├── 📄 __init__.py
+    │   │   ├── 📄 init.py
+    │   │   ├── 📄 market_metrics.py
     │   │   ├── 📄 student.py
     │   │   └── 📄 vacancy.py
     │   ├── 📁 parsing
-    │   │   ├── 📄 embedding_loader.py
     │   │   ├── 📄 hh_api_async.py
     │   │   ├── 📄 hh_api.py
-    │   │   ├── 📄 __init__.py
+    │   │   ├── 📄 init.py
     │   │   ├── 📄 skill_normalizer.py
     │   │   ├── 📄 skill_parser.py
     │   │   ├── 📄 skill_validator.py
     │   │   ├── 📄 utils.py
     │   │   └── 📄 vacancy_parser.py
     │   ├── 📁 predictors
-    │   │   ├── 📄 __init__.py
+    │   │   ├── 📄 init.py
     │   │   ├── 📄 ltr_recommendation_engine.py
     │   │   ├── 📄 recommendation_engine.py
     │   │   └── 📄 skill_forecast.py
     │   ├── 📁 visualization
     │   │   ├── 📄 charts.py
-    │   │   └── 📄 __init__.py
+    │   │   └── 📄 init.py
     │   ├── 📄 config.py
-    │   ├── 📄 __init__.py
+    │   ├── 📄 init.py
     │   └── 📄 utils.py
     ├── 📁 tests
     │   ├── 📁 analyzers
     │   │   ├── 📄 test_analyzers.py
     │   │   ├── 📄 test_comparator.py
-    │   │   ├── 📄 test_gap_analyzer.py
-    │   │   ├── 📄 test_profile_evaluator.py
-    │   │   ├── 📄 test_trends.py    
-    │   │   └── 📄 test_skill.py
+    │   │   └── 📄 test_gap_analyzers.py
     │   ├── 📁 integration
-    │   │   ├── 📄 inter_parse.py    
     │   │   └── 📄 test_full_pipeline.py
     │   ├── 📁 loaders
     │   │   └── 📄 test_loaders.py
     │   ├── 📁 models
     │   │   └── 📄 test_models.py
     │   ├── 📁 parsing
-    │   │   ├── 📄 test_api.py
-    │   │   ├── 📄 test_utils.py
-    │   │   ├── 📄 test_validation.py          
     │   │   └── 📄 test_parsers.py
     │   ├── 📁 predictors
     │   │   ├── 📄 test_forecast.py
-    │   │   ├── 📄 test_recommendation_engine.py
-    │   │   └── 📄 test_ltr_recommendation.py
+    │   │   └── 📄 test_ml_recommendation.py
     │   ├── 📄 conftest.py
-    │   └── 📄 __init__.py
-    ├── 📄 .gitignore
+    │   └── 📄 init.py
     ├── 📄 main.py
     ├── 📄 README.md
     ├── 📄 requirements.txt

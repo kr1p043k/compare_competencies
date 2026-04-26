@@ -27,3 +27,5 @@ data/processed/parsed_skills.pkl
 data/processed/vacancy_clusters_middle.pkl
 data/processed/vacancy_clusters_junior.pkl
 data/processed/vacancy_clusters_senior.pkl
+data/.xslx
+data/processed/cluster_training_report.json
