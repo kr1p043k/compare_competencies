@@ -4,7 +4,7 @@
 """
 
 import numpy as np
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Set
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,43 +16,6 @@ class SkillFilter:
     Исправленная версия с правильной нормализацией и сохранением пропорций.
     """
     
-    # Чистые навыки (reference из competency_frequency)
-    REFERENCE_SKILLS = {
-        # Языки программирования
-        "python", "javascript", "typescript", "java", "c++", "c#", "go", "rust", "kotlin", "swift",
-        "php", "ruby", "scala", "r", "matlab", "perl", "lua", "haskell",
-        
-        # Фреймворки и библиотеки
-        "react", "vue", "angular", "django", "flask", "fastapi", "spring", "spring boot",
-        "tensorflow", "pytorch", "keras", "scikit-learn", "pandas", "numpy",
-        "express", "node", "next", "nuxt", "gatsby",
-        
-        # Базы данных
-        "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "sqlite", "cassandra",
-        "oracle", "mssql", "dynamodb", "couchdb", "neo4j",
-        
-        # DevOps и инфраструктура
-        "docker", "kubernetes", "k8s", "jenkins", "git", "gitlab", "github", "bitbucket",
-        "terraform", "ansible", "prometheus", "grafana", "nginx", "apache",
-        
-        # Облачные технологии
-        "aws", "azure", "gcp", "yandex cloud", "heroku", "digitalocean",
-        
-        # Data Science и ML
-        "machine learning", "deep learning", "nlp", "computer vision", "data science",
-        "big data", "spark", "hadoop", "airflow", "mlflow", "langchain", "mlops",
-        
-        # Фронтенд
-        "html", "css", "sass", "scss", "webpack", "vite", "redux", "mobx", "graphql",
-        "rest api", "restful", "axios", "tailwind", "bootstrap", "material ui",
-        
-        # Тестирование
-        "jest", "pytest", "cypress", "playwright", "selenium", "junit", "testng",
-        
-        # Инструменты
-        "figma", "storybook", "eslint", "prettier", "webpack", "babel", "npm", "yarn",
-    }
-    
     # GENERIC слова, которые ВСЕГДА исключаются
     GENERIC_WORDS = {
         "frontend", "front-end", "front end", "frontend разработка", "front-end разработка",
@@ -60,7 +23,6 @@ class SkillFilter:
         "fullstack", "full-stack", "full stack", "fullstack разработка",
         "разработка", "программирование", "кодинг", "coding",
         "web", "веб", "web разработка", "веб разработка",
-        "api", "rest", "soap", "graphql",
         "базы данных", "database", "sql", "nosql",
         "git", "svn", "version control",
         "linux", "windows", "macos",
@@ -72,9 +34,12 @@ class SkillFilter:
     def __init__(self, reference_skills: Set[str] = None):
         """
         Args:
-            reference_skills: Набор эталонных навыков
+            reference_skills: Набор эталонных навыков. Если не передан, загружается из it_skills.json.
         """
-        self.reference_skills = reference_skills or self.REFERENCE_SKILLS
+        if reference_skills is None:
+            from src.parsing.utils import load_it_skills
+            reference_skills = load_it_skills()
+        self.reference_skills = reference_skills
         logger.info(f"SkillFilter инициализирован с {len(self.reference_skills)} reference навыками")
 
     def filter_weights(
@@ -294,15 +259,6 @@ class SkillFilter:
     ) -> Dict[str, float]:
         """
         Финальная очистка весов с сохранением реальной важности навыков.
-        
-        Args:
-            skill_weights_raw: Сырые веса навыков
-            competency_freq: Частоты компетенций (основной источник)
-            use_reference: Использовать reference_skills для фильтрации
-            normalize_method: Метод нормализации ('minmax', 'log', 'softmax')
-        
-        Returns:
-            Очищенные и нормализованные веса
         """
         logger.info("\n" + "="*80)
         logger.info("ФИНАЛЬНАЯ ОЧИСТКА НАВЫКОВ (сохранение пропорций)")
@@ -312,7 +268,7 @@ class SkillFilter:
             logger.warning("skill_weights_raw пустой")
             return {}
 
-        # 1. Берём данные из competency_freq как основной источник частот (самый надёжный)
+        # 1. Берём данные из competency_freq как основной источник частот
         if competency_freq and len(competency_freq) > 0:
             logger.info(f"Используем реальные частоты из competency_frequency.json ({len(competency_freq)} навыков)")
             raw_freq = {k.lower().strip(): float(v) for k, v in competency_freq.items() if v > 0}
@@ -320,27 +276,15 @@ class SkillFilter:
             raw_freq = {k.lower().strip(): float(v) for k, v in skill_weights_raw.items() if v > 0}
             logger.info(f"Используем skill_weights_raw как источник ({len(raw_freq)} навыков)")
 
-        # 2. Убираем generic слова и слишком длинные фразы
+        # 2. Убираем generic слова (оставляем без изменений)
         generic_removed = 0
-        long_removed = 0
-        
         for word in list(raw_freq.keys()):
             if word in self.GENERIC_WORDS:
                 del raw_freq[word]
                 generic_removed += 1
-            elif len(word.split()) > 4:  # слишком длинные фразы
-                del raw_freq[word]
-                long_removed += 1
-
         logger.info(f"- Удалено generic слов: {generic_removed}")
-        logger.info(f"- Удалено длинных фраз (>4 слов): {long_removed}")
-        logger.info(f"- Осталось после очистки: {len(raw_freq)} навыков")
 
-        if not raw_freq:
-            logger.warning("После очистки не осталось навыков!")
-            return {}
-
-        # 3. Фильтрация по reference (если нужно)
+        # 3. Фильтрация по reference (понижаем вес неизвестным, НО не удаляем)
         if use_reference and self.reference_skills:
             filtered_by_ref = {}
             for skill, weight in raw_freq.items():
@@ -348,28 +292,38 @@ class SkillFilter:
                     filtered_by_ref[skill] = weight
                 else:
                     # Проверяем частичное совпадение
-                    matched = False
-                    for ref in self.reference_skills:
-                        if ref in skill or skill in ref:
-                            matched = True
-                            break
+                    matched = any(ref in skill or skill in ref for ref in self.reference_skills)
                     if matched:
-                        filtered_by_ref[skill] = weight * 0.9  # немного снижаем вес
-            
-            logger.info(f"- После фильтрации по reference: {len(filtered_by_ref)} навыков")
+                        filtered_by_ref[skill] = weight * 0.85   # частичное совпадение
+                    else:
+                        filtered_by_ref[skill] = weight * 0.4    # совсем неизвестный, но сохраняем
             raw_freq = filtered_by_ref
+            logger.info(f"- После фильтрации по reference: {len(raw_freq)} навыков")
+
+        # 4. ТОЛЬКО ТЕПЕРЬ удаляем длинные фразы (>6 слов)
+        long_removed = 0
+        for word in list(raw_freq.keys()):
+            if len(word.split()) > 6:
+                del raw_freq[word]
+                long_removed += 1
+        logger.info(f"- Удалено длинных фраз (>6 слов): {long_removed}")
+        logger.info(f"- Осталось после очистки: {len(raw_freq)} навыков")
 
         if not raw_freq:
-            logger.warning("После reference фильтрации не осталось навыков!")
+            logger.warning("После очистки не осталось навыков!")
             return {}
 
-        # 4. Нормализация с сохранением пропорций
+        # 5. Нормализация с сохранением пропорций
         normalized = self.normalize_weights(raw_freq, method=normalize_method)
+        if normalized:
+            vals = list(normalized.values())
+            logger.info(f"✓ ИТОГО чистых навыков: {len(normalized)}")
+            logger.info(f"   Диапазон весов: [{min(vals):.4f}, {max(vals):.4f}]")
+        else:
+            logger.warning("⚠️ После фильтрации не осталось навыков!")
 
-        # 5. Логируем топ-10
-        logger.info(f"\n✓ ИТОГО чистых навыков: {len(normalized)}")
+        # 6. Логируем топ-10
         logger.info("ТОП-10 наиболее важных навыков рынка:")
-        
         top_skills = sorted(normalized.items(), key=lambda x: x[1], reverse=True)[:10]
         for skill, w in top_skills:
             original_weight = raw_freq.get(skill, 0)

@@ -1,245 +1,31 @@
 """
-Анализатор пробелов (gaps) между компетенциями студента и рынком.
-С улучшениями: детальная статистика, категоризация, confidence.
+Анализатор пробелов (gaps) с использованием модели SkillMetrics.
 """
-
-from typing import List, Dict, Tuple
-import logging
+from typing import Dict, List
 import numpy as np
-
-logger = logging.getLogger(__name__)
-
+from src.models.market_metrics import SkillMetrics
 
 class GapAnalyzer:
-    def __init__(
-        self,
-        skill_weights: Dict[str, float],
-        high_percentile: float = 67,
-        medium_percentile: float = 33
-    ):
-        self.high_percentile = high_percentile
-        self.medium_percentile = medium_percentile
-        self.update_weights(skill_weights)
-
-    def update_weights(self, skill_weights: Dict[str, float]):
-        self.skill_weights = skill_weights or {}
-        self.total_weight = sum(self.skill_weights.values())
-        self._calculate_dynamic_thresholds()
-        if not self.skill_weights:
-            logger.warning("GapAnalyzer: получены пустые веса навыков")
-        else:
-            logger.info(f"GapAnalyzer обновлён с {len(self.skill_weights)} навыками")
-            logger.info(f"  Пороги: HIGH={self.HIGH_IMPORTANCE:.4f}, MEDIUM={self.MEDIUM_IMPORTANCE:.4f}")
-
-    def _calculate_dynamic_thresholds(self):
-        if not self.skill_weights:
-            self.HIGH_IMPORTANCE = 0.70
-            self.MEDIUM_IMPORTANCE = 0.30
-            return
-
-        weights = list(self.skill_weights.values())
-        normalized_weights = [w / self.total_weight for w in weights]
-
-        self.HIGH_IMPORTANCE = np.percentile(normalized_weights, self.high_percentile)
-        self.MEDIUM_IMPORTANCE = np.percentile(normalized_weights, self.medium_percentile)
-
-    def _calculate_dynamic_thresholds(self):
-        """Вычисляет пороги на основе распределения весов"""
-        if not self.skill_weights:
-            self.HIGH_IMPORTANCE = 0.70
-            self.MEDIUM_IMPORTANCE = 0.30
-            return
-        
-        weights = list(self.skill_weights.values())
-        normalized_weights = [w / self.total_weight for w in weights]
-        
-        # Используем перцентили вместо жёстких значений
-        # HIGH = top 33% (выше 67 перцент��ля)
-        # MEDIUM = 33-67% (между 33 и 67 перцентилями)
-        # LOW = bottom 33%
-        
-        self.HIGH_IMPORTANCE = np.percentile(normalized_weights, 67)
-        self.MEDIUM_IMPORTANCE = np.percentile(normalized_weights, 33)
-        
-        logger.info(f"Вычислены динамические пороги:")
-        logger.info(f"  HIGH (>67%): {self.HIGH_IMPORTANCE:.4f}")
-        logger.info(f"  MEDIUM (33-67%): {self.MEDIUM_IMPORTANCE:.4f}")
-        logger.info(f"  LOW (<33%): {self.MEDIUM_IMPORTANCE:.4f}")
-
-    def analyze_gap(self, student_skills: List[str], top_n: int = 20) -> Dict:
+    def __init__(self, skill_weights_by_level: Dict[str, Dict[str, float]]):
         """
-        Анализирует пробелы и возвращает категоризированный результат.
-        Пороги вычисляются динамически на основе текущих весов.
+        skill_weights_by_level: {'junior': {skill: weight}, 'middle': {...}, 'senior': {...}}
         """
-        if not student_skills:
-            student_skills = []
+        self.skill_weights = skill_weights_by_level
 
-        # Пересчитываем пороги при каждом вызове
-        self._calculate_dynamic_thresholds()
-
-        student_set = {s.lower().strip() for s in student_skills if s}
-        
-        missing = []
-        for skill, weight in self.skill_weights.items():
-            if skill.lower().strip() not in student_set:
-                normalized_weight = weight / self.total_weight if self.total_weight > 0 else 0
-                missing.append({
-                    "skill": skill,
-                    "weight": float(weight),
-                    "importance": normalized_weight,
-                    "priority": self._get_priority(normalized_weight)
-                })
-
-        missing_sorted = sorted(missing, key=lambda x: x["weight"], reverse=True)
-        
-        result = {
-            "high_priority": [],
-            "medium_priority": [],
-            "low_priority": [],
-            "total_gaps": len(missing),
-            "stats": self._calculate_stats(missing)
-        }
-        
-        for gap in missing_sorted:
-            if gap["priority"] == "HIGH":
-                if len(result["high_priority"]) < top_n:
-                    result["high_priority"].append(gap)
-            elif gap["priority"] == "MEDIUM":
-                if len(result["medium_priority"]) < top_n:
-                    result["medium_priority"].append(gap)
-            else:
-                if len(result["low_priority"]) < top_n:
-                    result["low_priority"].append(gap)
-        
-        logger.info(f"Gap анализ: {len(result['high_priority'])} высокий + {len(result['medium_priority'])} средний + {len(result['low_priority'])} низкий")
-        
-        return result
-
-    def coverage(self, student_skills: List[str], method: str = 'weighted') -> Tuple[float, Dict]:
-        """
-        Рассчитывает покрытие рынка навыками студента.
-        
-        Args:
-            student_skills: список навыков студента
-            method: 'weighted' (по умолчанию) или 'simple' (по уникальным навыкам)
-        
-        Returns:
-            (coverage_percent, details_dict)
-        """
-        if not self.skill_weights:
-            return 0.0, {}
-
-        student_set = {s.lower().strip() for s in student_skills if s}
-        
-        if method == 'simple':
-            covered = sum(1 for skill in self.skill_weights if skill.lower().strip() in student_set)
-            total = len(self.skill_weights)
-            coverage_val = (covered / total * 100) if total > 0 else 0.0
-            details = {
-                'covered_skills_count': covered,
-                'total_market_skills': total,
-                'coverage_percent': round(coverage_val, 2)
-            }
-            return coverage_val, details
-        else:  # weighted
-            covered_weight = sum(
-                weight for skill, weight in self.skill_weights.items()
-                if skill.lower().strip() in student_set
-            )
-            coverage_val = (covered_weight / self.total_weight * 100) if self.total_weight > 0 else 0.0
-            details = {
-                'covered_weight': round(covered_weight, 2),
-                'total_weight': round(self.total_weight, 2),
-                'coverage_percent': round(coverage_val, 2),
-                'covered_skills_count': len(student_set & set(s.lower().strip() for s in self.skill_weights.keys())),
-                'total_market_skills': len(self.skill_weights)
-            }
-            return coverage_val, details
-
-    def top_market_skills(self, top_n: int = 20) -> List[Dict]:
-        """
-        Топ-N самых важных навыков на рынке.
-        
-        Returns:
-            Список с метаданными о каждом навыке
-        """
-        if not self.skill_weights:
-            return []
-
-        sorted_skills = sorted(
-            self.skill_weights.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )
-        
-        result = []
-        for rank, (skill, weight) in enumerate(sorted_skills[:top_n], 1):
-            normalized = weight / self.total_weight if self.total_weight > 0 else 0
-            result.append({
-                "rank": rank,
-                "skill": skill,
-                "weight": round(weight, 4),
-                "importance": round(normalized, 4),
-                "priority": self._get_priority(normalized)
-            })
-        
-        return result
-
-    def get_recommendations(self, student_skills: List[str], gaps: Dict) -> List[str]:
-        """
-        Генерирует текстовые рекомендации на основе gaps.
-        
-        Args:
-            student_skills: Навыки студента
-            gaps: Результат analyze_gap()
-        
-        Returns:
-            Список рекомендаций
-        """
-        recommendations = []
-        
-        coverage, _ = self.coverage(student_skills)
-        
-        if coverage < 20:
-            recommendations.append("⚠️ КРИТИЧНО: Покрытие менее 20%. Требуется переквалификация.")
-        elif coverage < 40:
-            recommendations.append("⚠️ Низкое покрытие (<40%). Нужно срочно добавить skills.")
-        elif coverage < 60:
-            recommendations.append("📈 Среднее покрытие (40-60%). Есть потенциал для роста.")
-        elif coverage < 80:
-            recommendations.append("✅ Хорошее покрытие (60-80%). Продолжайте развиваться.")
-        else:
-            recommendations.append("🌟 Отличное покрытие (>80%). Вы на хорошем пути!")
-        
-        if gaps["high_priority"]:
-            top_3 = [g["skill"] for g in gaps["high_priority"][:3]]
-            recommendations.append(f"🔴 Приоритет №1: {', '.join(top_3)}")
-        
-        if gaps["medium_priority"]:
-            top_3 = [g["skill"] for g in gaps["medium_priority"][:3]]
-            recommendations.append(f"🟡 Приоритет №2: {', '.join(top_3)}")
-        
-        return recommendations
-
-    def _get_priority(self, normalized_weight: float) -> str:
-        """Определяет приоритет по нормализованному весу"""
-        if normalized_weight >= self.HIGH_IMPORTANCE:
-            return "HIGH"
-        elif normalized_weight >= self.MEDIUM_IMPORTANCE:
-            return "MEDIUM"
-        else:
-            return "LOW"
-
-    def _calculate_stats(self, missing: List[Dict]) -> Dict:
-        """Вычисляет статистику по gaps"""
-        if not missing:
-            return {}
-        
-        weights = [g["weight"] for g in missing]
-        
-        return {
-            "avg_weight": round(sum(weights) / len(weights), 4),
-            "max_weight": round(max(weights), 4),
-            "min_weight": round(min(weights), 4),
-            "total_missing_weight": round(sum(weights), 4)
-        }
+    def compute_metrics(self, user_skills: List[str], user_levels: Dict[str, float]) -> Dict[str, SkillMetrics]:
+        metrics: Dict[str, SkillMetrics] = {}
+        for level in ['junior', 'middle', 'senior']:
+            level_key = level[0]
+            for skill, market_weight in self.skill_weights.get(level, {}).items():
+                if skill not in metrics:
+                    metrics[skill] = SkillMetrics(
+                        skill=skill,
+                        user_level=user_levels.get(skill, 0.0)
+                    )
+                gap = max(0.0, market_weight - user_levels.get(skill, 0.0))
+                demand = np.log1p(market_weight)
+                setattr(metrics[skill], f'gap_{level_key}', gap)
+                setattr(metrics[skill], f'demand_{level_key}', demand)
+        return metrics
+    def set_weights_by_level(self, weights_by_level: Dict[str, Dict[str, float]]):
+        self.skill_weights_by_level = weights_by_level

@@ -9,6 +9,7 @@ import joblib
 from pathlib import Path
 from src import config
 from src.parsing.embedding_loader import get_embedding_model
+from src.parsing.skill_normalizer import SkillNormalizer
 
 if TYPE_CHECKING:
     from src.analyzers.vacancy_clustering import VacancyClusterer
@@ -20,18 +21,6 @@ try:
     FAISS_AVAILABLE = True
 except ImportError:
     FAISS_AVAILABLE = False
-
-
-def normalize_skills(skills: List[str]) -> List[str]:
-    normalized = []
-    for skill in skills:
-        if not skill:
-            continue
-        s = skill.lower().strip()
-        s = s.replace("'", "").replace('"', "").replace(":", "").replace("-", " ")
-        s = " ".join(s.split())
-        normalized.append(s)
-    return normalized
 
 
 class EmbeddingComparator:
@@ -53,8 +42,7 @@ class EmbeddingComparator:
         self.market_embeddings = None
         self.market_skills = None
         self.index = None
-
-        # Для кластеризации
+        self.skill_weights: Dict[str, float] = {}
         self.clusterer: Optional["VacancyClusterer"] = None
         self.vacancies_data: List[Dict] = []
 
@@ -67,11 +55,10 @@ class EmbeddingComparator:
         return self.cache_dir / f"{name}_{level}.pkl"
 
     def embed_skills(self, skills: List[str]) -> np.ndarray:
-        normalized = normalize_skills(skills)
-        if not normalized:
+        if not skills:
             dim = self.model.get_sentence_embedding_dimension()
             return np.zeros((0, dim))
-        return self.model.encode(normalized, convert_to_numpy=True, show_progress_bar=False)
+        return self.model.encode(skills, convert_to_numpy=True, show_progress_bar=False)
 
     def build_market_index(self, all_market_skills: List[str], level: str = "middle"):
         cache_path = self._get_cache_path("market_embeddings", level)
@@ -88,7 +75,7 @@ class EmbeddingComparator:
                 self._build_faiss_index()
             return
 
-        self.market_skills = normalize_skills(all_market_skills)
+        self.market_skills = all_market_skills
         self.market_embeddings = self.embed_skills(self.market_skills)
         joblib.dump(
             {"embeddings": self.market_embeddings, "skills": self.market_skills},
@@ -112,43 +99,72 @@ class EmbeddingComparator:
         if self.market_embeddings is None:
             raise ValueError("Сначала вызови build_market_index()")
 
-        student_emb = self.embed_skills(student_skills)
-        if len(student_emb) == 0:
-            return {"matches": [], "missing": [], "avg_similarity": 0.0}
-        student_emb = np.mean(student_emb, axis=0).reshape(1, -1)
-        faiss.normalize_L2(student_emb)
+        student_embs = self.embed_skills(student_skills)
+
+        if len(student_embs) == 0:
+            return {
+                "score": 0.0,
+                "weighted_coverage": 0.0,
+                "matches": [],
+                "missing": [],
+                "avg_similarity": 0.0
+            }
+
+        best_sims_per_market = {}
 
         if self.use_faiss and self.index is not None:
-            k = min(len(self.market_skills), 100)
-            scores, indices = self.index.search(student_emb, k)
-            similarities = scores[0]
-            top_indices = indices[0]
-            sorted_pairs = sorted(zip(top_indices, similarities), key=lambda x: x[1], reverse=True)
+            for stu_emb in student_embs:
+                stu_emb = stu_emb.reshape(1, -1).astype(np.float32)
+                faiss.normalize_L2(stu_emb)
+                scores, idx = self.index.search(stu_emb, k=5)
+                for score, midx in zip(scores[0], idx[0]):
+                    mskill = self.market_skills[midx]
+                    best_sims_per_market[mskill] = max(best_sims_per_market.get(mskill, 0.0), float(score))
         else:
-            similarities = cosine_similarity(student_emb, self.market_embeddings)[0]
-            sorted_pairs = sorted(enumerate(similarities), key=lambda x: x[1], reverse=True)
+            similarities = cosine_similarity(student_embs, self.market_embeddings)
+            for i in range(len(student_skills)):
+                for j, sim in enumerate(similarities[i]):
+                    mskill = self.market_skills[j]
+                    best_sims_per_market[mskill] = max(best_sims_per_market.get(mskill, 0.0), float(sim))
 
-        matches = []
-        missing = []
+        total_weighted = 0.0
+        total_weight = 0.0
 
-        for idx, sim in sorted_pairs:
-            skill = self.market_skills[idx]
-            if sim >= self.similarity_threshold:
-                matches.append({"skill": skill, "score": float(sim)})
-            else:
-                missing.append({"skill": skill, "score": float(sim)})
+        if not self.skill_weights:
+            logger.warning("EmbeddingComparator: skill_weights пусты, используется fallback (равные веса)")
+        else:
+            logger.debug(f"EmbeddingComparator: используем {len(self.skill_weights)} весов для weighted_coverage")
+
+        # === ИСПРАВЛЕНИЕ: квадратичный штраф для слабых совпадений ===
+        if self.skill_weights:
+            for mskill, weight in self.skill_weights.items():
+                raw_sim = best_sims_per_market.get(mskill, 0.0)
+                effective_sim = raw_sim ** 2   # ослабляет слабые совпадения
+                total_weighted += effective_sim * weight
+                total_weight += weight
+        else:
+            for mskill, raw_sim in best_sims_per_market.items():
+                effective_sim = raw_sim ** 2
+                total_weighted += effective_sim
+                total_weight += 1.0
+
+        weighted_coverage = total_weighted / total_weight if total_weight > 0 else 0.0
+        avg_similarity = float(np.mean(list(best_sims_per_market.values()))) if best_sims_per_market else 0.0
+
+        sorted_matches = sorted(
+            [{"skill": k, "similarity": v} for k, v in best_sims_per_market.items()],
+            key=lambda x: x["similarity"], reverse=True
+        )[:15]
 
         return {
-            "matches": matches,
-            "missing": missing[:20],
-            "avg_similarity": float(np.mean(similarities)) if len(similarities) > 0 else 0.0
+            "score": round(weighted_coverage, 4),
+            "weighted_coverage": round(weighted_coverage, 4),
+            "avg_similarity": round(avg_similarity, 4),
+            "matches": sorted_matches,
+            "missing": []
         }
 
-    # ----------------------------------------------------------------------
-    # Методы для vacancy-centric matching
-    # ----------------------------------------------------------------------
     def get_vacancy_embedding(self, skills: List[str]) -> np.ndarray:
-        """Средний эмбеддинг навыков вакансии."""
         if not skills:
             return np.zeros(self.model.get_sentence_embedding_dimension())
         embs = self.embed_skills(skills)
@@ -161,19 +177,15 @@ class EmbeddingComparator:
         level: str = "middle",
         top_k: int = 50
     ) -> List[Dict]:
-        """
-        Возвращает top_k вакансий нужного уровня, наиболее близких к студенту.
-        """
         student_emb = self.embed_skills(student_skills)
         if len(student_emb) == 0:
             student_emb = np.zeros((1, self.model.get_sentence_embedding_dimension()))
         else:
             student_emb = np.mean(student_emb, axis=0).reshape(1, -1)
 
-        # Фильтруем вакансии по уровню
         level_vacancies = [v for v in vacancies if v.get('experience') == level]
         if not level_vacancies:
-            level_vacancies = vacancies  # fallback на все, если пусто
+            level_vacancies = vacancies
 
         vac_embs = []
         for vac in level_vacancies:
@@ -189,13 +201,7 @@ class EmbeddingComparator:
         top_indices = np.argsort(similarities)[-top_k:][::-1]
         return [level_vacancies[i] for i in top_indices]
 
-    # ----------------------------------------------------------------------
-    # Интеграция с кластеризацией
-    # ----------------------------------------------------------------------
     def set_clusterer(self, clusterer: "VacancyClusterer", vacancies_data: List[Dict]):
-        """
-        Устанавливает обученную модель кластеризации и данные вакансий.
-        """
         self.clusterer = clusterer
         self.vacancies_data = vacancies_data
 
@@ -204,9 +210,6 @@ class EmbeddingComparator:
         student_skills: List[str],
         top_k: int = 3
     ) -> Dict[str, Any]:
-        """
-        Возвращает информацию о ближайших кластерах.
-        """
         if self.clusterer is None or not self.clusterer.is_fitted:
             return {"clusters": [], "error": "Clusterer not available"}
 
@@ -230,14 +233,9 @@ class EmbeddingComparator:
         global_weights: Dict[str, float],
         cluster_weight: float = 0.6
     ) -> Dict[str, Any]:
-        """
-        Гибридное сравнение: комбинирует глобальный и кластерный скоры.
-        """
-        # 1. Глобальный скор
         global_result = self.compare_student_to_market(student_skills)
         global_score = global_result['avg_similarity']
 
-        # 2. Кластерный скор
         cluster_result = self.compare_to_clusters(student_skills, top_k=3)
         clusters = cluster_result.get('clusters', [])
         if clusters:
@@ -247,7 +245,6 @@ class EmbeddingComparator:
             best_cluster = None
             cluster_score = global_score
 
-        # 3. Гибридный скор
         if best_cluster is not None:
             hybrid_score = (1 - cluster_weight) * global_score + cluster_weight * cluster_score
         else:
