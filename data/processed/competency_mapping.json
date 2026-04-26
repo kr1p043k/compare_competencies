@@ -86,7 +86,8 @@
   ],
   "BD-1.3": [
     "визуализация данных", "power bi", "tableau", "понижение размерности", "pca",
-    "t-SNE", "UMAP", "графическое представление данных", "дашборды"
+    "t-SNE", "UMAP", "графическое представление данных", "дашборды",
+    "matplotlib", "seaborn", "plotly"
   ],
   "BD-1.4": [
     "feature selection", "feature engineering", "feature importance",
@@ -98,31 +99,38 @@
   ],
   "BD-2.2": [
     "dataops", "непрерывная интеграция данных",
-    "конвейеры данных", "оркестрация данных", "Airflow", "управление качеством данных"
+    "конвейеры данных", "оркестрация данных", "Airflow", "управление качеством данных",
+    "apache airflow", "prefect"
   ],
   "BD-3.1": [
-    "sql", "postgresql", "mysql", "реляционные базы",
-    "SQL запросы", "нормализация БД", "индексы", "транзакции"
+    "sql", "postgresql", "mysql", "реляционные базы", "postgres",
+    "SQL запросы", "нормализация БД", "индексы", "транзакции",
+    "redis", "sqlite", "oracle db", "ms sql server"
   ],
   "BD-3.2": [
     "nosql", "mongodb", "elasticsearch", "неструктурированные данные",
-    "документоориентированные БД", "ключ-значение хранилища", "графовые БД"
+    "документоориентированные БД", "ключ-значение хранилища", "графовые БД",
+    "cassandra", "neo4j", "couchdb"
   ],
   "BD-4.1": [
     "big data", "spark", "hadoop", "pyspark",
-    "MapReduce", "Hive", "распределённые вычисления", "кластеры данных"
+    "MapReduce", "Hive", "распределённые вычисления", "кластеры данных",
+    "apache spark", "apache kafka", "kafka streams"
   ],
   "BD-4.2": [
     "обработка данных", "data processing", "etl",
-    "потоковая обработка", "пакетная обработка", "Spark Streaming", "Flink"
+    "потоковая обработка", "пакетная обработка", "Spark Streaming", "Flink",
+    "apache airflow", "prefect", "rabbitmq"
   ],
   "BD-5.1": [
     "инфраструктура бд", "стек больших данных",
-    "архитектура данных", "озёра данных", "Data Lake", "Data Warehouse"
+    "архитектура данных", "озёра данных", "Data Lake", "Data Warehouse",
+    "greenplum", "clickhouse", "arenadata db"
   ],
   "BD-5.2": [
     "docker", "kubernetes", "инфраструктура данных",
-    "контейнеризация", "оркестрация контейнеров", "развёртывание БД в K8s"
+    "контейнеризация", "оркестрация контейнеров", "развёртывание БД в K8s",
+    "terraform", "ansible", "prometheus", "grafana"
   ],
 
   "ML-2.1": [
@@ -130,8 +138,9 @@
     "обучение с учителем", "обучение без учителя", "регрессия", "классификация"
   ],
   "ML-2.2": [
-    "предобработка данных", "feature preprocessing", "feature engineering", "scikit-learn",
-    "масштабирование признаков", "кодирование категорий", "обработка выбросов"
+    "предобработка данных", "feature preprocessing", "feature engineering",
+    "масштабирование признаков", "кодирование категорий", "обработка выбросов",
+    "scikit-learn", "pandas", "numpy"
   ],
   "ML-2.3": [
     "метрики качества", "accuracy", "f1 score", "roc auc", "cross validation",
@@ -184,11 +193,13 @@
   "DL-1.3": [
     "deep learning", "глубокие нейронные сети", "cnn", "rnn", "transformer", "attention",
     "pytorch", "tensorflow", "keras", "bert", "gpt", "computer vision", "сверточные сети",
-    "resnet", "LSTM", "seq2seq", "механизм внимания"
+    "resnet", "LSTM", "seq2seq", "механизм внимания", "huggingface", "fine-tuning",
+    "opencv", "yolo", "image processing", "object detection"
   ],
   "DL-1.6": [
     "генеративные модели", "gan", "vae", "stable diffusion", "dall-e", "generative ai",
-    "генеративно-состязательные сети", "вариационные автокодировщики", "диффузионные модели"
+    "генеративно-состязательные сети", "вариационные автокодировщики", "диффузионные модели",
+    "midjourney", "diffusion models"
   ],
   "DL-1.8": [
     "gnn", "графовые нейронные сети", "graph neural networks",
@@ -200,11 +211,13 @@
   ],
   "DL-4.1": [
     "nlp", "обработка естественного языка", "spacy", "nltk",
-    "tokenization", "word embeddings", "BERT", "текстовая аналитика"
+    "tokenization", "word embeddings", "BERT", "текстовая аналитика",
+    "transformers", "huggingface", "text classification", "named entity recognition"
   ],
   "DL-4.2": [
     "диалоговые системы", "question answering", "рекомендательные системы",
-    "чат-боты", "извлечение информации", "коллаборативная фильтрация"
+    "чат-боты", "извлечение информации", "коллаборативная фильтрация",
+    "sentiment analysis", "topic modeling", "text summarization"
   ],
   "DL-4.3": [
     "nlp pipeline", "развёртывание nlp",
@@ -213,12 +226,14 @@
 
   "PL-1.1": [
     "python", "python разработка",
-    "python programming", "скрипты Python", "ООП Python"
+    "python programming", "скрипты Python", "ООП Python",
+    "git", "pytest", "debugging"
   ],
   "PL-1.2": [
     "numpy", "pandas", "matplotlib", "seaborn", "scikit-learn", "pytorch", "tensorflow",
     "keras", "jupyter", "data science python",
-    "анализ данных на Python", "визуализация Python", "машинное обучение Python"
+    "анализ данных на Python", "визуализация Python", "машинное обучение Python",
+    "jupyter notebook", "streamlit", "plotly"
   ],
   "PL-1.3": [
     "pyspark", "big data python",
@@ -226,18 +241,21 @@
   ],
   "PL-1.4": [
     "docker", "ci/cd", "asyncio",
-    "контейнеризация Python", "микросервисы Python", "FastAPI", "Celery"
+    "контейнеризация Python", "микросервисы Python", "FastAPI", "Celery",
+    "restful", "redis", "node.js", "flask", "django"
   ],
   "PL-2.1": [
     "java", "spring boot",
-    "java разработка", "enterprise java", "микросервисы на Java", "Hibernate"
+    "java разработка", "enterprise java", "микросервисы на Java", "Hibernate",
+    "maven", "gradle", "junit"
   ],
   "PL-2.2": [
     "java big data", "apache spark java",
     "Hadoop Java", "Flink Java", "обработка потоков на Java"
   ],
   "PL-3.1": [
-    "c++", "c++ разработка", "современный C++", "STL", "многопоточность C++"
+    "c++", "c++ разработка", "современный C++", "STL", "многопоточность C++",
+    "cmake", "gtest", "boost"
   ],
   "PL-3.2": [
     "c++ embedded", "cpp для встроенных систем",
@@ -269,7 +287,8 @@
   "LC-7.1": [
     "mlops", "devops", "ci/cd", "docker", "kubernetes", "terraform", "mlflow",
     "model serving", "промышленная разработка ии", "fastapi",
-    "непрерывная поставка ML", "мониторинг моделей", "автоматизация развёртывания"
+    "непрерывная поставка ML", "мониторинг моделей", "автоматизация развёртывания",
+    "restful", "apache kafka", "prometheus", "grafana", "elk stack", "ansible"
   ],
 
   "AIS-1.1": [
@@ -286,7 +305,8 @@
   ],
   "AIS-2.2": [
     "adversarial defense", "приватность", "дифференциальная приватность",
-    "федеративное обучение", "гомоморфное шифрование", "защита персональных данных"
+    "федеративное обучение", "гомоморфное шифрование", "защита персональных данных",
+    "adversarial training", "federated learning"
   ],
 
   "LLM-3.7": [
@@ -295,7 +315,8 @@
   ],
   "LLM-5.1": [
     "prompt engineering", "промпт инжиниринг", "langchain",
-    "составление запросов к LLM", "шаблоны промптов", "инженерия подсказок"
+    "составление запросов к LLM", "шаблоны промптов", "инженерия подсказок",
+    "openai api", "llm api"
   ],
   "LLM-5.2": [
     "chain of thought", "cot",
@@ -303,7 +324,8 @@
   ],
   "LLM-5.3": [
     "openai api", "llm api",
-    "API GPT", "интеграция LLM", "вызов языковых моделей"
+    "API GPT", "интеграция LLM", "вызов языковых моделей",
+    "function calling", "structured outputs"
   ],
   "LLM-5.4": [
     "prompt design", "дизайн промптов", "структура запроса", "эффективные промпты"
@@ -331,7 +353,8 @@
   ],
   "FC-2.1": [
     "llm research", "большие языковые модели",
-    "исследование LLM", "разработка языковых моделей", "трансформеры"
+    "исследование LLM", "разработка языковых моделей", "трансформеры",
+    "bert", "gpt", "llama", "mistral"
   ],
   "FC-2.2": [
     "диффузионные модели", "генерация изображений",
