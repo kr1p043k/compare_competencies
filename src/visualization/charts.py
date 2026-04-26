@@ -3,6 +3,7 @@
 Модуль визуализации результатов gap-анализа и рекомендаций.
 Генерирует презентационные графики в высоком качестве (DPI 300).
 Включает запуск Jupyter ноутбуков и вывод контекстной информации.
+Полностью адаптирован под новую модель метрик (evaluate_profile).
 """
 
 import subprocess
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 # ----------------------------------------------------------------------
-# Функции загрузки данных
+# Функции загрузки данных (адаптированы под новую модель)
 # ----------------------------------------------------------------------
 def load_skill_weights() -> Dict[str, float]:
     """Загружает skill_weights из data/processed/skill_weights.json."""
@@ -82,7 +83,6 @@ def load_ml_recommendations(profile: str) -> List[Tuple[str, float, str]]:
                 recs = []
                 for r in data.get("recommendations", []):
                     skill = r.get("skill", "")
-                    # пробуем разные ключи важности
                     score = r.get("importance_score", r.get("importance", r.get("score", 0.0)))
                     explanation = r.get("explanation", r.get("why_important", ""))
                     recs.append((skill, score, explanation))
@@ -91,22 +91,42 @@ def load_ml_recommendations(profile: str) -> List[Tuple[str, float, str]]:
                 logger.warning(f"Ошибка загрузки ML-рекомендаций из {path}: {e}")
     return []
 
-# ----------------------------------------------------------------------
-# Основные графики
-# ----------------------------------------------------------------------
 
+def load_profile_evaluation(profile_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Загружает результат evaluate_profile для заданного профиля из profiles_comparison_summary.json.
+    """
+    summary_path = config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
+    if not summary_path.exists():
+        logger.warning(f"Файл {summary_path} не найден")
+        return None
+    try:
+        with open(summary_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data.get("evaluations", {}).get(profile_name)
+    except Exception as e:
+        logger.warning(f"Ошибка загрузки оценки профиля {profile_name}: {e}")
+        return None
+
+
+# ----------------------------------------------------------------------
+# Основные графики (адаптированы под новую модель)
+# ----------------------------------------------------------------------
 def plot_coverage_comparison(results: Dict[str, Any], save_path: Optional[Path] = None) -> plt.Figure:
+    """
+    results: словарь {profile_name: evaluation_dict} из evaluate_profile
+    """
     profiles = list(results.keys())
-    simple_cov = [results[p].get('simple_coverage', 0) for p in profiles]
-    hybrid_cov = [results[p].get('weighted_hybrid_coverage', results[p].get('weighted_coverage', 0)) for p in profiles]
+    market_cov = [results[p].get('market_coverage_score', 0) for p in profiles]
+    skill_cov = [results[p].get('skill_coverage', 0) for p in profiles]
     readiness = [results[p].get('readiness_score', 0) for p in profiles]
 
     fig, ax = plt.subplots(figsize=(14, 9))
     x = np.arange(len(profiles))
     width = 0.25
 
-    bars1 = ax.bar(x - width, simple_cov, width, label='Покрытие (простое) %', color='#2ca02c', alpha=0.9)
-    bars2 = ax.bar(x, hybrid_cov, width, label='Покрытие (гибридное) %', color='#9467bd', alpha=0.9)
+    bars1 = ax.bar(x - width, skill_cov, width, label='Покрытие навыков %', color='#2ca02c', alpha=0.9)
+    bars2 = ax.bar(x, market_cov, width, label='Общее покрытие рынка %', color='#9467bd', alpha=0.9)
     bars3 = ax.bar(x + width, readiness, width, label='Готовность к уровню %', color='#ff7f0e', alpha=0.9)
 
     ax.set_title("Сравнение профилей: покрытие и готовность", pad=20)
@@ -142,7 +162,6 @@ def plot_skill_comparison_radar(
     """
     Радарная диаграмма: навыки студента против топ-навыков рынка.
     """
-    # Ограничиваем количество навыков для читаемости
     all_skills = list(dict.fromkeys(market_top[:12] + student_skills))
     if len(all_skills) > 15:
         all_skills = all_skills[:15]
@@ -153,13 +172,11 @@ def plot_skill_comparison_radar(
 
     fig, ax = plt.subplots(figsize=(11, 11), subplot_kw=dict(polar=True))
 
-    # Студент
     student_vals = [1 if skill in student_skills else 0 for skill in all_skills]
     student_vals += student_vals[:1]
     ax.plot(angles, student_vals, linewidth=3, linestyle="solid", label=student_name, color="#1f77b4")
     ax.fill(angles, student_vals, color="#1f77b4", alpha=0.25)
 
-    # Рынок
     market_vals = [1 if skill in market_top else 0 for skill in all_skills]
     market_vals += market_vals[:1]
     ax.plot(angles, market_vals, linewidth=3, linestyle="solid", label="Топ рынка", color="#d62728")
@@ -235,11 +252,13 @@ def plot_weight_distribution(weights: Dict[str, float], title: str = "Топ-15 
         plt.savefig(save_path)
     plt.close(fig)
     return fig
+
+
 def plot_skills_heatmap(results: Dict[str, Any], top_n: int = 20, save_path: Optional[Path] = None) -> plt.Figure:
     """
     Тепловая карта покрытия топ-N рыночных навыков разными профилями.
+    results: словарь {profile_name: evaluation_dict}
     """
-    # Загружаем топ-N навыков из skill_weights
     skill_weights = load_skill_weights()
     if not skill_weights:
         fig, ax = plt.subplots()
@@ -250,69 +269,79 @@ def plot_skills_heatmap(results: Dict[str, Any], top_n: int = 20, save_path: Opt
 
     top_skills = [s for s, _ in sorted(skill_weights.items(), key=lambda x: x[1], reverse=True)[:top_n]]
     profiles = list(results.keys())
-    
-    # Строим матрицу: 1 если навык есть у студента, иначе 0
+
     data = []
     for profile in profiles:
-        student_skills = results[profile].get('student_skills', [])
+        eval_dict = results[profile]
+        # Извлекаем реальные навыки студента (теперь они есть в результате оценки)
+        student_skills = eval_dict.get('student_skills', [])
         student_set = set(s.lower() for s in student_skills)
         row = [1 if skill.lower() in student_set else 0 for skill in top_skills]
         data.append(row)
-    
+
     df = pd.DataFrame(data, index=profiles, columns=top_skills)
-    
+
     fig, ax = plt.subplots(figsize=(max(12, top_n*0.4), len(profiles)*0.8))
     sns.heatmap(df, annot=True, fmt='d', cmap='YlGnBu', cbar_kws={'label': 'Наличие навыка'}, ax=ax)
     ax.set_title(f"Покрытие топ-{top_n} рыночных навыков", pad=20)
     ax.set_xlabel("Навыки")
     ax.set_ylabel("Профиль")
     plt.xticks(rotation=45, ha='right')
-    
+
     if save_path:
         plt.savefig(save_path, bbox_inches='tight')
         logger.info(f"✅ heatmap сохранён → {save_path}")
     plt.close(fig)
     return fig
 
+
 def plot_cluster_insights(results: Dict[str, Any], output_dir: Path):
     """
-    Для каждого профиля отображает ближайшие кластеры и покрытие в них.
+    Для каждого профиля отображает ближайшие кластеры и покрытие навыков студента.
+    results: словарь {profile_name: evaluation_dict}
     """
-    for profile_name, data in results.items():
-        cluster_info = data.get('cluster_info')
-        if not cluster_info:
+    for profile_name, eval_dict in results.items():
+        cluster_ctx = eval_dict.get('cluster_context')
+        if not cluster_ctx:
             continue
-
-        clusters = cluster_info.get('clusters', [])
-        if not clusters:
+            
+        closest = cluster_ctx.get('closest_clusters', [])
+        if not closest:
             continue
-
-        cluster_ids = [f"Кластер {c['cluster_id']}" for c in clusters]
-        similarities = [c['similarity'] * 100 for c in clusters]
-        coverages = [c['coverage'] * 100 for c in clusters]
-
+            
+        # Получаем навыки студента (теперь они есть в результате)
+        student_skills = set(s.lower() for s in eval_dict.get('student_skills', []))
+        cluster_skills_map = cluster_ctx.get('skills', {})
+        cluster_skills_set = set(cluster_skills_map.keys())
+        
+        cluster_ids = [f"Кластер {c['id']}" for c in closest]
+        similarities = [c['similarity'] * 100 for c in closest]
+        
+        # Покрытие: процент навыков студента, присутствующих в данном кластерном контексте
+        if student_skills and cluster_skills_set:
+            coverage = len(student_skills & cluster_skills_set) / len(student_skills) * 100
+        else:
+            coverage = 0.0
+        
         fig, ax = plt.subplots(figsize=(10, 6))
-        x = np.arange(len(clusters))
+        x = np.arange(len(closest))
         width = 0.35
-
+        
         bars1 = ax.bar(x - width/2, similarities, width, label='Сходство (%)', color='#1f77b4')
-        bars2 = ax.bar(x + width/2, coverages, width, label='Покрытие (%)', color='#2ca02c')
-
+        # Покрытие одинаково для всех кластеров, т.к. контекст общий, но можно показать один раз
+        ax.axhline(y=coverage, color='#2ca02c', linestyle='--', linewidth=2, label=f'Покрытие навыков студента ({coverage:.1f}%)')
+        
         ax.set_title(f"Ближайшие кластеры вакансий — {profile_name}", pad=20)
         ax.set_xticks(x)
         ax.set_xticklabels(cluster_ids, rotation=45, ha='right')
         ax.set_ylabel('Процент')
         ax.legend()
-
+        
         for bar in bars1:
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%',
                     ha='center', va='bottom', fontsize=10)
-        for bar in bars2:
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%',
-                    ha='center', va='bottom', fontsize=10)
-
+        
         plt.tight_layout()
         save_path = output_dir / profile_name / f"cluster_insights_{profile_name}.png"
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -320,59 +349,42 @@ def plot_cluster_insights(results: Dict[str, Any], output_dir: Path):
         logger.info(f"✅ cluster_insights сохранён → {save_path}")
 
 def save_all_charts(results: Dict[str, Any], output_dir: Path, use_ml: bool = True):
-    """
-    Главная функция — сохраняет все презентационные графики в указанную папку.
-    :param results: словарь с данными профилей (см. plot_coverage_comparison)
-    :param output_dir: директория для сохранения (например, data/result/)
-    :param use_ml: генерировать ли ML-графики важности
-    """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"🚀 Генерация презентационных графиков в {output_dir}")
 
-    # 1. Общее сравнение покрытия
     plot_coverage_comparison(results, output_dir / "coverage_comparison.png")
-
-    # Загружаем топ навыков рынка (для радаров)
     skill_weights = load_skill_weights()
     market_top = list(skill_weights.keys())[:15] if skill_weights else []
 
-    # 2. Для каждого профиля
-    for profile_name, data in results.items():
+    for profile_name, eval_dict in results.items():
         prof_dir = output_dir / profile_name
         prof_dir.mkdir(exist_ok=True)
-
-        student_skills = data.get("covered_skills", []) + data.get("student_skills", [])
+        student_skills = list(eval_dict.get('skill_metrics', {}).keys())
         if market_top:
             plot_skill_comparison_radar(student_skills, market_top, profile_name.capitalize(),
                                         prof_dir / f"radar_{profile_name}.png")
-
         if use_ml:
             plot_ml_importance(profile_name, save_path=prof_dir / f"ml_importance_{profile_name}.png")
-
         plot_weight_distribution(skill_weights, save_path=prof_dir / f"weights_{profile_name}.png")
 
-        if "high_demand_gaps" in data:
-            deficits = data["high_demand_gaps"][:10]
+        recs = load_ml_recommendations(profile_name)
+        if recs:
+            deficits = [(r[0], r[1]) for r in recs if r[1] > 50][:10]
             if deficits:
-                skills = [d["skill"] for d in deficits]
-                freqs = [d.get("frequency", 0) for d in deficits]
+                skills = [d[0] for d in deficits]
+                freqs = [d[1] for d in deficits]
                 fig, ax = plt.subplots()
                 ax.barh(skills, freqs, color="salmon")
                 ax.set_title(f"Топ-10 дефицитов высокого спроса — {profile_name}")
-                ax.set_xlabel("Частота в вакансиях")
+                ax.set_xlabel("Важность (%)")
                 ax.invert_yaxis()
                 fig.savefig(prof_dir / f"deficits_{profile_name}.png", dpi=300, bbox_inches="tight")
                 plt.close(fig)
 
-    # 3. Тепловая карта покрытия (вызывается один раз после цикла)
     plot_skills_heatmap(results, top_n=20, save_path=output_dir / "skills_heatmap.png")
-
-    # 4. Инсайты по кластерам (вызывается один раз после цикла)
-    plot_cluster_insights(results, output_dir)
-
-    logger.info("✅ Все графики готовы для презентации (DPI 300, современный стиль, русские подписи)")
-    
+    plot_cluster_insights(results, output_dir)   
+    logger.info("✅ Все графики готовы для презентации")
 
 
 # ----------------------------------------------------------------------
@@ -466,7 +478,7 @@ def show_context_info() -> None:
     if results_dir.exists():
         for student_dir in results_dir.glob("*"):
             if student_dir.is_dir():
-                report_file = student_dir / f"comparison_report_{student_dir.name}.json"
+                report_file = student_dir / f"full_recommendations_{student_dir.name}.json"
                 if report_file.exists():
                     reports_found += 1
     print(f"Готовые отчёты gap-анализа: {reports_found}")
@@ -504,18 +516,15 @@ if __name__ == "__main__":
     fig1 = plot_weight_distribution(skill_weights)
     plt.show()
 
-    # Пытаемся собрать данные по профилям из готовых отчётов
+    # Пытаемся собрать данные по профилям из сводного файла
     results_for_charts = {}
-    for profile_name in ["base", "dc", "top_dc"]:
-        report_path = config.DATA_DIR / "result" / profile_name / f"comparison_report_{profile_name}.json"
-        if report_path.exists():
-            with open(report_path, 'r', encoding='utf-8') as f:
-                report = json.load(f)
-            results_for_charts[profile_name] = {
-                'coverage_percent': report.get('coverage', {}).get('raw', 0),
-                'readiness_score': report.get('readiness_score', 0),
-                'covered_skills': report.get('student', {}).get('skills', [])
-            }
+    summary_path = config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
+    if summary_path.exists():
+        with open(summary_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        evaluations = data.get("evaluations", {})
+        for profile_name, eval_dict in evaluations.items():
+            results_for_charts[profile_name] = eval_dict
 
     if results_for_charts:
         fig2 = plot_coverage_comparison(results_for_charts)
