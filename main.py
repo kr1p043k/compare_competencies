@@ -20,13 +20,13 @@ if __name__ == "__main__" and sys.platform == 'win32':
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 sys.path.insert(0, str(Path(__file__).parent))
-
+from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
 from src.parsing.hh_api import HeadHunterAPI
-from src.parsing.hh_api_async import HeadHunterAPIAsync 
+from src.parsing.hh_api_async import HeadHunterAPIAsync
 from src.parsing.skill_normalizer import SkillNormalizer
 from src.parsing.vacancy_parser import VacancyParser
 from src.models.vacancy import Vacancy
-from src.models.student import StudentProfile, merge_skills_hierarchically 
+from src.models.student import StudentProfile, merge_skills_hierarchically
 from src.parsing.utils import (
     setup_logging,
     collect_vacancies_multiple,
@@ -56,6 +56,22 @@ from src.visualization.charts import (
     save_all_charts
 )
 
+
+def save_detailed_vacancies(vacancies, logger):
+    """Сохраняет детальные вакансии в data/result/ для повторного использования."""
+    detailed_file = config.DATA_RESULT_DIR / "hh_vacancies_detailed.json"
+    config.DATA_RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    data_to_save = []
+    for v in vacancies:
+        if isinstance(v, Vacancy):
+            data_to_save.append(v.raw_data)   # оригинальный JSON от API
+        else:
+            data_to_save.append(v)
+    with open(detailed_file, 'w', encoding='utf-8') as f:
+        json.dump(data_to_save, f, ensure_ascii=False, indent=2)
+    logger.info(f"✅ Детальные вакансии сохранены в {detailed_file} (содержат key_skills и description)")
+
+
 def convert_float32(obj):
     import numpy as np
     if isinstance(obj, np.float32):
@@ -66,12 +82,13 @@ def convert_float32(obj):
         return [convert_float32(item) for item in obj]
     return obj
 
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
-    
+
     parser.add_argument('--query', '-q', type=str, default="Backend developer")
     parser.add_argument('--area-id', '-a', type=int, default=1)
-    parser.add_argument('--max-pages', '-p', type=int, default=1)
+    parser.add_argument('--max-pages', '-p', type=int, default=5)
     parser.add_argument('--period', '-d', type=int, default=30)
     parser.add_argument('--show-vacancies', '-v', action='store_true')
     parser.add_argument('--skip-details', '-s', action='store_true')
@@ -83,18 +100,22 @@ def parse_arguments():
     parser.add_argument('--interactive', action='store_true')
     parser.add_argument('--max-vacancies-per-query', type=int, default=1000)
     parser.add_argument('--it-sector', action='store_true')
-    
+
     parser.add_argument('--use-async', action='store_true', default=True)
     parser.add_argument('--async-workers', type=int, default=3)
     parser.add_argument('--async-threshold', type=int, default=10)
-    
+
     parser.add_argument('--run-gap-analysis', action='store_true', default=True)
     parser.add_argument('--run-notebooks', action='store_true')
-    
-    parser.add_argument('--train-model', action='store_true', help='Обучить LTR-модель на текущих данных (hh_vacancies_basic.json) и выйти')
-    parser.add_argument('--use-llm', action='store_true', default=False, help='Использовать LLM (YandexGPT) для живых объяснений рекомендаций')
-    parser.add_argument('--skip-collection', action='store_true', help='Пропустить сбор вакансий, использовать существующий hh_vacancies_basic.json')
+
+    parser.add_argument('--train-model', action='store_true',
+                        help='Обучить LTR-модель на текущих данных и выйти')
+    parser.add_argument('--use-llm', action='store_true', default=False,
+                        help='Использовать LLM (YandexGPT) для живых объяснений рекомендаций')
+    parser.add_argument('--skip-collection', action='store_true',
+                        help='Пропустить сбор вакансий, использовать существующие файлы')
     return parser.parse_args()
+
 
 def load_student_competencies(profile_name: str):
     path = config.DATA_DIR / "students" / f"{profile_name}_competency.json"
@@ -108,6 +129,7 @@ def load_student_competencies(profile_name: str):
         logging.warning(f"Не удалось загрузить профиль {profile_name}: {e}")
         return []
 
+
 def calculate_expected_vacancies(args) -> int:
     if args.it_sector:
         return 11 * 500
@@ -119,6 +141,7 @@ def calculate_expected_vacancies(args) -> int:
         except:
             num_queries = 1
     return num_queries * min(args.max_vacancies_per_query, 1000)
+
 
 def get_load_mode(total_vacancies: int, args, logger) -> tuple:
     threshold = args.async_threshold
@@ -136,6 +159,7 @@ def get_load_mode(total_vacancies: int, args, logger) -> tuple:
     logger.info("=" * 90)
     return True, args.async_workers, f"Малый объём → асинхрон"
 
+
 def load_vacancies_details(
     basic_vacancies: list,
     hh_api: HeadHunterAPI,
@@ -145,28 +169,28 @@ def load_vacancies_details(
     logger
 ) -> list:
     logger.info("Загрузка детальной информации...")
-    
+
     if use_async:
         logger.info(f"Используется асинхронная загрузка ({async_workers} рабочих)...")
         try:
             from src.parsing.hh_api_async import HeadHunterAPIAsync
-            
+
             api_async = HeadHunterAPIAsync(
                 max_concurrent=async_workers,
                 request_delay=config.REQUEST_DELAY
             )
-            
+
             vacancy_ids = []
             for v in basic_vacancies:
                 if isinstance(v, dict):
                     vacancy_ids.append(v.get('id'))
                 else:
                     vacancy_ids.append(v.id)
-            
+
             start_time = time.time()
             raw_detailed = api_async.get_vacancies_details_sync(vacancy_ids)
             elapsed = time.time() - start_time
-            
+
             detailed = []
             for raw_data in raw_detailed:
                 try:
@@ -174,40 +198,41 @@ def load_vacancies_details(
                 except ValueError as e:
                     logger.warning(f"Невалидная вакансия: {e}")
                     continue
-            
+
             logger.info(f"✓ Асинхронная загрузка завершена за {elapsed:.1f} сек")
             logger.info(f"  Загружено: {len(detailed)}/{len(vacancy_ids)} вакансий")
             return detailed
-            
+
         except Exception as e:
             logger.warning(f"⚠️  Ошибка при асинхронной загрузке: {e}")
             logger.warning("   Переключение на синхронную загрузку...")
             use_async = False
-    
+
     if not use_async:
         logger.info("Используется синхронная загрузка (последовательная)...")
         detailed = []
         total = len(basic_vacancies)
-        
+
         start_time = time.time()
         for i, vac in enumerate(basic_vacancies, 1):
             vac_id = vac.get('id') if isinstance(vac, dict) else vac.id
-            
+
             if i % 50 == 0:
                 elapsed = time.time() - start_time
                 rate = i / elapsed
                 remaining = (total - i) / rate if rate > 0 else 0
                 logger.info(f"Прогресс: {i}/{total} ({i*100//total}%) | Осталось ~{remaining/60:.1f} мин")
-            
+
             det = hh_api.get_vacancy_details_as_object(vac_id)
             if det:
                 detailed.append(det)
             time.sleep(config.REQUEST_DELAY)
-        
+
         elapsed = time.time() - start_time
         logger.info(f"✓ Синхронная загрузка завершена за {elapsed/60:.1f} мин")
         logger.info(f"  Загружено: {len(detailed)}/{total} вакансий")
         return detailed
+
 
 def get_file_hash(filepath: Path) -> str:
     hash_md5 = hashlib.md5()
@@ -215,6 +240,7 @@ def get_file_hash(filepath: Path) -> str:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
+
 
 def main():
     setup_logging()
@@ -231,15 +257,23 @@ def main():
         logger.info("ЗАПУСК ОБУЧЕНИЯ LTR-МОДЕЛИ")
         logger.info("=" * 85)
 
-        raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
-        if not raw_file.exists():
-            logger.error(f"Файл {raw_file} не найден. Сначала выполните сбор вакансий.")
+        # Приоритет: детальный файл, иначе базовый
+        detailed_file = config.DATA_RESULT_DIR / "hh_vacancies_detailed.json"
+        basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+        if detailed_file.exists():
+            raw_file = detailed_file
+            logger.info(f"Используем детальные данные из {raw_file}")
+        elif basic_file.exists():
+            raw_file = basic_file
+            logger.warning("Детальный файл не найден, используем базовый (может не хватать навыков)")
+        else:
+            logger.error(f"Файлы вакансий не найдены. Сначала выполните сбор.")
             sys.exit(1)
 
         with open(raw_file, 'r', encoding='utf-8') as f:
             training_vacancies = json.load(f)
 
-        logger.info(f"Загружено {len(training_vacancies)} сырых вакансий для обучения")
+        logger.info(f"Загружено {len(training_vacancies)} вакансий для обучения")
 
         ltr_engine = LTRRecommendationEngine()
         ltr_engine.fit(training_vacancies)
@@ -250,10 +284,10 @@ def main():
         return
 
     use_multiple = (
-        args.interactive or 
-        args.queries_file is not None or 
-        args.regions is not None or 
-        args.industry is not None or 
+        args.interactive or
+        args.queries_file is not None or
+        args.regions is not None or
+        args.industry is not None or
         args.it_sector
     )
 
@@ -265,12 +299,20 @@ def main():
 
     # ====================== ПРОПУСК СБОРА, ЕСЛИ УКАЗАН --skip-collection ======================
     if args.skip_collection:
-        raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
-        if not raw_file.exists():
-            logger.error(f"Файл {raw_file} не найден. Сначала выполните сбор вакансий.")
+        # Приоритет: детальный файл из result, затем базовый из raw
+        detailed_file = config.DATA_RESULT_DIR / "hh_vacancies_detailed.json"
+        basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+        if detailed_file.exists():
+            raw_file = detailed_file
+            logger.info(f"Используем детальные данные из {raw_file}")
+        elif basic_file.exists():
+            raw_file = basic_file
+            logger.warning("Детальный файл не найден, используем базовый (без key_skills и описаний)")
+        else:
+            logger.error(f"Файлы вакансий не найдены. Сначала выполните сбор.")
             sys.exit(1)
 
-        logger.info(f"Пропуск сбора: загружаем существующие вакансии из {raw_file}")
+        logger.info(f"Загружаем существующие вакансии из {raw_file}")
         with open(raw_file, 'r', encoding='utf-8') as f:
             basic_vacancies = json.load(f)
 
@@ -306,6 +348,21 @@ def main():
             with open(cache_path, 'wb') as f:
                 pickle.dump(cache_data, f)
             logger.info(f"💾 Кэш результатов парсинга сохранён: {cache_path}")
+
+        # === ФИЛЬТРАЦИЯ ГИБРИДНЫХ ВЕСОВ ===
+        filter_engine = SkillFilter()
+        competency_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency.json"
+        competency_freq = {}
+        if competency_freq_path.exists():
+            with open(competency_freq_path, 'r', encoding='utf-8') as f:
+                competency_freq = json.load(f)
+
+        hybrid_weights = filter_engine.get_clean_weights(
+            hybrid_weights,
+            competency_freq=competency_freq,
+            use_reference=True
+        )
+        logger.info(f"📊 hybrid_weights после фильтрации: {len(hybrid_weights)} навыков")
 
         if not skill_freq:
             logger.error("Не удалось извлечь навыки из существующих вакансий.")
@@ -363,19 +420,10 @@ def main():
 
         logger.info(f"Подготовлено {len(level_vacancies_data)} вакансий для анализа уровней")
 
-        clusterer = VacancyClusterer(n_clusters=30)
-        for level in ['junior', 'middle', 'senior']:
-            cluster_path = config.DATA_PROCESSED_DIR / f"vacancy_clusters_{level}.pkl"
-            if cluster_path.exists():
-                clusterer.load_model(level)
-                logger.info(f"Модель кластеризации для уровня {level} загружена")
-            else:
-                logger.info(f"Кластеризация вакансий уровня {level}...")
-                level_vacs = [v for v in level_vacancies_data if v.get('experience') == level]
-                if level_vacs:
-                    clusterer.fit(level_vacs, level=level)
-                else:
-                    logger.warning(f"Нет вакансий уровня {level} для кластеризации")
+        # === ИНИЦИАЛИЗАЦИЯ АНАЛИЗАТОРА УРОВНЕЙ ===
+        level_analyzer = SkillLevelAnalyzer()
+        level_analyzer.analyze_vacancies(level_vacancies_data)
+        logger.info("✅ Анализатор уровней инициализирован")
 
         args.run_gap_analysis = True
 
@@ -447,7 +495,7 @@ def main():
             logger.info("Сохраняем базовые вакансии...")
             parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json")
             logger.info("Базовые вакансии сохранены.")
-            
+
             if args.skip_details:
                 vacancies_to_process = basic_vacancies
             else:
@@ -462,6 +510,7 @@ def main():
                     parser=parser,
                     logger=logger
                 )
+                save_detailed_vacancies(vacancies_to_process, logger)
 
             if args.show_vacancies:
                 parser.print_vacancies_list(vacancies_to_process)
@@ -484,7 +533,7 @@ def main():
             logger.info("Сохраняем базовые вакансии...")
             parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json")
             logger.info("Базовые вакансии сохранены.")
-            
+
             if args.skip_details:
                 vacancies_to_process = basic_vacancies
             else:
@@ -499,6 +548,7 @@ def main():
                     parser=parser,
                     logger=logger
                 )
+                save_detailed_vacancies(vacancies_to_process, logger)
 
         # ====================== 2. ОБРАБОТКА НАВЫКОВ ======================
         logger.info("=" * 85)
@@ -507,11 +557,33 @@ def main():
 
         result = parser.extract_skills_from_vacancies(vacancies_to_process)
         skill_freq = result["frequencies"]
-        hybrid_weights = result.get("hybrid_weights", {})
+        hybrid_weights_raw = result.get("hybrid_weights", {})
 
-        if not skill_freq:
-            logger.error("Не удалось извлечь навыки.")
-            return
+        # === ДИАГНОСТИКА ===
+        logger.info(f"📊 Получено hybrid_weights_raw: {len(hybrid_weights_raw)} навыков")
+        if hybrid_weights_raw:
+            sample = list(hybrid_weights_raw.items())[:5]
+            logger.info(f"   Примеры: {sample}")
+        else:
+            logger.warning("⚠️ hybrid_weights_raw пусты!")
+
+        # === ФИЛЬТРАЦИЯ ГИБРИДНЫХ ВЕСОВ ===
+        filter_engine = SkillFilter()
+        competency_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency.json"
+        competency_freq = {}
+        if competency_freq_path.exists():
+            with open(competency_freq_path, 'r', encoding='utf-8') as f:
+                competency_freq = json.load(f)
+
+        hybrid_weights = filter_engine.get_clean_weights(
+            hybrid_weights_raw,
+            competency_freq=competency_freq,
+            use_reference=True
+        )
+        logger.info(f"📊 hybrid_weights после фильтрации: {len(hybrid_weights)} навыков")
+        if hybrid_weights:
+            sample = list(hybrid_weights.items())[:5]
+            logger.info(f"   Примеры после фильтрации: {sample}")
 
         logger.info(f"Извлечено {len(skill_freq)} уникальных валидных навыков "
                     f"(Гибридные веса: {len(hybrid_weights)})")
@@ -519,7 +591,6 @@ def main():
         parser.save_processed_frequencies(skill_freq, apply_filter=not args.no_filter)
         print_top_skills(skill_freq)
 
-        from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
         whitelist = load_it_skills()
         if whitelist:
             skill_freq_filtered = filter_skills_by_whitelist(skill_freq, whitelist)
@@ -565,13 +636,13 @@ def main():
             df = parser.aggregate_to_dataframe(vacancies_to_process)
             if not df.empty:
                 filename = "vacancies_it_sector.xlsx" if getattr(args, 'it_sector', False) else \
-                            f"vacancies_{args.query.replace(' ', '_')}.xlsx"
+                    f"vacancies_{args.query.replace(' ', '_')}.xlsx"
                 parser.save_to_excel(df, filename)
 
-        logger.info("\n" + "="*85)
+        logger.info("\n" + "=" * 85)
         logger.info("ИНИЦИАЛИЗАЦИЯ АНАЛИЗАТОРА УРОВНЕЙ ОПЫТА")
-        logger.info("="*85)
-        
+        logger.info("=" * 85)
+
         for vac in vacancies_to_process:
             if isinstance(vac, Vacancy):
                 vac_skills = []
@@ -579,7 +650,7 @@ def main():
                     vac_skills = [s.name if hasattr(s, 'name') else str(s) for s in vac.key_skills]
                 elif hasattr(vac, 'extracted_skills') and vac.extracted_skills:
                     vac_skills = vac.extracted_skills
-                
+
                 vac_experience = 'middle'
                 if hasattr(vac, 'experience') and vac.experience:
                     exp_obj = vac.experience
@@ -606,7 +677,7 @@ def main():
                         vac_experience = 'junior'
                     elif 'senior' in name or 'старший' in name or 'ведущий' in name:
                         vac_experience = 'senior'
-                
+
                 if vac_skills:
                     level_vacancies_data.append({
                         'skills': vac_skills,
@@ -646,25 +717,11 @@ def main():
 
         logger.info(f"Подготовлено {len(level_vacancies_data)} вакансий для анализа уровней")
 
-        clusterer = VacancyClusterer(n_clusters=30)
-        for level in ['junior', 'middle', 'senior']:
-            cluster_path = config.DATA_PROCESSED_DIR / f"vacancy_clusters_{level}.pkl"
-            if cluster_path.exists():
-                clusterer.load_model(level)
-                logger.info(f"Модель кластеризации для уровня {level} загружена")
-            else:
-                logger.info(f"Кластеризация вакансий уровня {level}...")
-                level_vacs = [v for v in level_vacancies_data if v.get('experience') == level]
-                if level_vacs:
-                    clusterer.fit(level_vacs, level=level)
-                else:
-                    logger.warning(f"Нет вакансий уровня {level} для кластеризации")
-
     # ====================== 3. GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ ======================
     if args.run_gap_analysis:
-        logger.info("\n" + "="*85)
+        logger.info("\n" + "=" * 85)
         logger.info("ЗАПУСК GAP-АНАЛИЗА И ГЕНЕРАЦИИ РЕКОМЕНДАЦИЙ")
-        logger.info("="*85)
+        logger.info("=" * 85)
 
         try:
             if not skill_freq:
@@ -690,16 +747,14 @@ def main():
                             break
                 return list(skills)
 
-            logger.info("\n" + "="*85)
+            logger.info("\n" + "=" * 85)
             logger.info("ПОДГОТОВКА ДАННЫХ")
-            logger.info("="*85)
-            
+            logger.info("=" * 85)
+
+            # Заполняем vacancies_skills из level_vacancies_data
             if not vacancies_skills:
-                for vacancy in vacancies_to_process:
-                    if isinstance(vacancy, dict):
-                        skills = vacancy.get('extracted_skills', [])
-                    else:
-                        skills = getattr(vacancy, 'extracted_skills', [])
+                for vac_data in level_vacancies_data:
+                    skills = vac_data.get('skills', [])
                     if skills:
                         vacancies_skills.append(skills)
 
@@ -709,83 +764,43 @@ def main():
                 logger.error("❌ Не удалось подготовить данные")
                 return
 
-            logger.info("\n" + "="*85)
+            logger.info("\n" + "=" * 85)
             logger.info("ИНИЦИАЛИЗАЦИЯ EMBEDDINGS + FALLBACK")
-            logger.info("="*85)
-            
-            recommendation_engine = RecommendationEngine(use_ltr=True, use_llm=args.use_llm)
-            recommendation_engine.comparator = CompetencyComparator(
-                ngram_range=(1, 2),
-                min_df=1,
-                max_df=0.95,
-                use_embeddings=True,
-                level="middle"
-            )
-            recommendation_engine.fit(vacancies_skills)
+            logger.info("=" * 85)
+            skill_weights_raw = hybrid_weights
+            logger.info(f"✓ Использованы гибридные BM25+Embeddings веса после фильтрации ({len(skill_weights_raw)} навыков)")
 
-            if hybrid_weights:
-                skill_weights_raw = hybrid_weights
-                logger.info(f"✓ Использованы гибридные BM25+Embeddings веса ({len(skill_weights_raw)} навыков)")
-            else:
-                skill_weights_raw = recommendation_engine.comparator.get_skill_weights()
-            
-            if not skill_weights_raw or len(skill_weights_raw) == 0:
-                logger.warning("⚠️ Embedding mode вернул пустые веса → берём ГИБРИДНЫЕ веса из парсера")
-                if hybrid_weights:
-                    skill_weights_raw = hybrid_weights
-                    logger.info(f"✓ Использованы гибридные BM25+Embeddings веса ({len(skill_weights_raw)} навыков)")
-                else:
-                    skill_weights_raw = {k: float(v) for k, v in skill_freq.items() if v > 0}
-                    logger.info(f"✓ Fallback на частоты: {len(skill_weights_raw)} навыков")
-            
             if not skill_weights_raw:
                 logger.error("❌ Даже fallback не смог создать веса")
                 return
 
-            logger.info("\n" + "="*85)
-            logger.info("ФИЛЬТРАЦИЯ И ОЧИСТКА НАВЫКОВ")
-            logger.info("="*85)
-            
-            filter_engine = SkillFilter()
-            competency_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency.json"
-            competency_freq = {}
-            if competency_freq_path.exists():
-                with open(competency_freq_path, 'r', encoding='utf-8') as f:
-                    competency_freq = json.load(f)
-                    
-            if not skill_weights_raw or all(v == 0 for v in skill_weights_raw.values()):
-                logger.warning("⚠️  Все веса обнулились после фильтра. Используем сырые частоты как веса.")
-                skill_weights_raw = {k: float(v) for k, v in skill_freq.items() if v > 0}
-            if not skill_weights_raw or len(skill_weights_raw) == 0 or all(abs(v - 1.0) < 0.01 for v in skill_weights_raw.values()):
-                logger.warning("⚠️  Embedding mode или плоские веса → используем реальные частоты из skill_freq")
-                skill_weights_raw = {k: float(v) for k, v in skill_freq.items() if v > 0}
-                logger.info(f"✓ Создано {len(skill_weights_raw)} весов на основе частот")
-                
-            skill_weights = filter_engine.get_clean_weights(
-                skill_weights_raw,
-                competency_freq=competency_freq,
-                use_reference=True
-            )
+            logger.info("\n" + "=" * 85)
+            logger.info("ПРОВЕРКА ВЕСОВ")
+            logger.info("=" * 85)
+
+            skill_weights = hybrid_weights
+
+            if not skill_weights:
+                logger.error("❌ skill_weights пусты после фильтрации!")
+                return
+
+            logger.info(f"✓ Используем {len(skill_weights)} очищенных весов навыков")
 
             weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
             with open(weights_path, "w", encoding="utf-8") as f:
                 json.dump(skill_weights, f, ensure_ascii=False, indent=2)
 
-            logger.info("\n" + "="*85)
+            logger.info("\n" + "=" * 85)
             logger.info("ИНИЦИАЛИЗАЦИЯ АНАЛИЗАТОРА УРОВНЕЙ ОПЫТА")
-            logger.info("="*85)
-            
+            logger.info("=" * 85)
+
             level_analyzer = SkillLevelAnalyzer()
             level_analyzer.analyze_vacancies(level_vacancies_data)
             logger.info("✅ Анализатор уровней инициализирован")
 
-            logger.info("\n" + "="*85)
+            logger.info("\n" + "=" * 85)
             logger.info("АНАЛИЗ ПРОФИЛЕЙ СТУДЕНТОВ")
-            logger.info("="*85)
-            
-            logger.info("\n" + "="*85)
-            logger.info("ФОРМИРОВАНИЕ СВОДКИ ПО ПРОФИЛЯМ ЧЕРЕЗ PROFILEEVALUATOR")
-            logger.info("="*85)
+            logger.info("=" * 85)
 
             all_codes = {}
             for name in ['base', 'dc', 'top_dc']:
@@ -794,14 +809,14 @@ def main():
                     all_codes[name] = codes
                 else:
                     logger.warning(f"Профиль {name} не загружен")
-            
+
             profiles: dict[str, StudentProfile] = {}
             profile_levels = {'base': 'junior', 'dc': 'middle', 'top_dc': 'senior'}
-            
+
             for profile_name, target_level_str in profile_levels.items():
                 if profile_name not in all_codes:
                     continue
-                
+
                 if profile_name == 'top_dc':
                     top_codes = all_codes.get('top_dc', [])
                     dc_codes = all_codes.get('dc', [])
@@ -821,7 +836,7 @@ def main():
                 # === НОРМАЛИЗАЦИЯ ДЛЯ ВСЕХ ПРОФИЛЕЙ ===
                 student_skills = [SkillNormalizer.normalize(s) for s in student_skills if SkillNormalizer.normalize(s)]
                 student_skills = list(dict.fromkeys(student_skills))
-
+                logger.info(f"Профиль {profile_name}: student_skills = {student_skills}")                
                 profiles[profile_name] = StudentProfile(
                     profile_name=profile_name,
                     competencies=student_codes,
@@ -841,77 +856,135 @@ def main():
                         hybrid_weights, level
                     )
 
+            # --- Создаём evaluator и recommendation_engine ---
             evaluator = ProfileEvaluator(
                 skill_weights=skill_weights,
                 vacancies_skills=vacancies_skills,
                 vacancies_skills_dict=level_vacancies_data,
-                hybrid_weights=hybrid_weights
+                hybrid_weights=hybrid_weights,
+                skill_weights_by_level=skill_weights_by_level,
             )
 
-            comparison = evaluator.evaluate_multiple_profiles(
-                profiles=profiles,
-                level_analyzer=level_analyzer,
-                skill_weights_by_level=skill_weights_by_level,
-                hybrid_weights_by_level=hybrid_weights_by_level
+            recommendation_engine = RecommendationEngine(
+                use_ltr=True,
+                use_llm=args.use_llm,
+                profile_evaluator=evaluator
             )
+            recommendation_engine.comparator = CompetencyComparator(
+                ngram_range=(1, 2),
+                min_df=1,
+                max_df=0.95,
+                use_embeddings=True,
+                level="middle",
+                similarity_threshold=0.80
+            )
+            recommendation_engine.fit(vacancies_skills, skill_weights=hybrid_weights)
+            logger.info("✓ RecommendationEngine.fit выполнен с hybrid_weights")
+
+            # Оцениваем каждый профиль через новую модель
+            evaluations_new = {}
+            for profile_name, student in profiles.items():
+                logger.info(f"Оценка профиля {profile_name} через новую модель...")
+                eval_result = evaluator.evaluate_profile(student, user_type='student')
+                evaluations_new[profile_name] = eval_result
+                logger.info(f"  {profile_name}: readiness={eval_result['readiness_score']:.2f}%, "
+                            f"market_cov={eval_result['market_coverage_score']:.2f}%")
+
+            # Формируем сводку
+            readiness_scores = [ev['readiness_score'] for ev in evaluations_new.values()]
+            avg_readiness = sum(readiness_scores) / len(readiness_scores) if readiness_scores else 0
+            best_profile = max(evaluations_new.items(), key=lambda x: x[1]['readiness_score'])
+            best_profile_name, best_eval = best_profile
+
+            def get_recommendation(readiness_score: float, level: str) -> str:
+                if readiness_score >= 80:
+                    return f"✅ Готов к {level} уровню"
+                elif readiness_score >= 60:
+                    return f"📈 Неплохо для {level}, но есть пробелы"
+                elif readiness_score >= 40:
+                    return f"⚠️ Нужно подготовиться к {level}"
+                else:
+                    return f"❌ Недостаточно готов к {level}"
+
+            best_level = profiles[best_profile_name].target_level
+            best_recommendation = get_recommendation(best_eval['readiness_score'], best_level)
+
+            summary_text = (
+                f"Сравнение {len(evaluations_new)} профилей студентов\n"
+                f"Средняя готовность: {avg_readiness:.1f}%\n"
+                f"Лучший профиль: {best_profile_name} — {best_eval['readiness_score']:.1f}%\n\n"
+                f"Рекомендация для лучшего профиля:\n{best_recommendation}"
+            )
+
+            summary_dict = {
+                "summary_text": summary_text,
+                "timestamp": time.strftime('%Y-%m-%d %H:%M:%S'),
+                "average_readiness": round(avg_readiness, 2),
+                "best_profile": best_profile_name,
+                "evaluations": {
+                    profile_name: {
+                        "market_coverage_score": eval_data["market_coverage_score"],
+                        "skill_coverage": eval_data["skill_coverage"],
+                        "domain_coverage_score": eval_data["domain_coverage_score"],
+                        "readiness_score": eval_data["readiness_score"],
+                        "avg_gap": eval_data.get("avg_gap", 0),
+                        "gaps": eval_data.get("gaps", {}),
+                        "top_recommendations": eval_data.get("top_recommendations", [])
+                    }
+                    for profile_name, eval_data in evaluations_new.items()
+                }
+            }
 
             summary_path = config.DATA_DIR / "processed" / "profiles_comparison_summary.json"
-            summary_text = (
-                f"Сравнение {len(comparison.evaluations)} профилей студентов\n"
-                f"Средняя готовность: {comparison.average_readiness:.1f}%\n"
-                f"Лучший профиль: {comparison.best_evaluation.profile_name} "
-                f"({comparison.best_evaluation.level}) — {comparison.best_evaluation.readiness_score:.1f}%\n\n"
-                f"Рекомендация для лучшего профиля:\n{comparison.best_evaluation.recommendation}"
-            )
-
-            summary_dict = comparison.to_dict_for_json()
-            summary_dict["summary_text"] = summary_text
-            summary_dict["timestamp"] = time.strftime('%Y-%m-%d %H:%M:%S')
-
             with open(summary_path, "w", encoding="utf-8") as f:
                 json.dump(summary_dict, f, ensure_ascii=False, indent=2)
 
             logger.info(f"✅ profiles_comparison_summary.json сохранён → {summary_path}")
-            logger.info("\n" + "="*60)
+            logger.info("\n" + "=" * 60)
             logger.info(summary_text)
-            logger.info("="*60)
+            logger.info("=" * 60)
 
-            logger.info("\n" + "="*85)
+            logger.info("\n" + "=" * 85)
             logger.info("ГЕНЕРАЦИЯ ПЕРСОНАЛИЗИРОВАННЫХ РЕКОМЕНДАЦИЙ")
-            logger.info("="*85)
-            
-            # Используем уже созданный recommendation_engine
+            logger.info("=" * 85)
+
             rec_engine = recommendation_engine
-            # Перезагружаем LTR на всякий случай (если модель обновилась)
             if rec_engine.ltr_engine is None:
                 rec_engine.ltr_engine = LTRRecommendationEngine()
                 model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
                 if model_path.exists():
                     rec_engine.ltr_engine.load_model(model_path)
 
-            evaluations_dict = {e.profile_name: e for e in comparison.evaluations}
-
             all_recommendations = {}
+            v2_results = {}
             for profile_name, student in profiles.items():
                 student_skills = student.skills
                 try:
-                    eval_result = evaluations_dict.get(profile_name)
-                    if eval_result:
-                        all_clusters = eval_result.coverage.get('all_clusters', [])
-                        if all_clusters:
-                            best_cluster = all_clusters[0]
-                            cluster_skills = best_cluster.get('top_skills', [])
-                            cluster_weights = {s: skill_weights.get(s, 0.0) for s in cluster_skills}
-                            rec_engine.set_cluster_context(cluster_skills, cluster_weights)
-                            logger.info(f"Для {profile_name} установлен кластерный контекст из {len(cluster_skills)} навыков")
-                        else:
-                            rec_engine.clear_cluster_context()
-                    else:
-                        rec_engine.clear_cluster_context()
+                    v2_result = evaluator.evaluate_profile(student, user_type='student')
+                    v2_results[profile_name] = v2_result
 
-                    full_rec = rec_engine.generate_recommendations(student_skills, student_profile=student)
+                    skill_weights_context = {}
+                    cluster_ctx = v2_result.get('cluster_context') or {}
+                    cluster_skills = cluster_ctx.get('skills', {})
+                    for skill, metric_dict in v2_result['skill_metrics'].items():
+                        if skill in cluster_skills:
+                            weight = cluster_skills[skill]
+                        else:
+                            weight = metric_dict.get('cluster_relevance', 0.15)
+                        skill_weights_context[skill] = weight
+
+                    rec_engine.set_cluster_context(skill_weights_context)
+                    logger.info(f"Для {profile_name} установлен контекст из {len(skill_weights_context)} навыков (v2)")
+
+                    full_rec = rec_engine.generate_recommendations(student, user_type='student')
+                    if 'summary' not in full_rec:
+                        full_rec['summary'] = {}
+                    full_rec['summary']['market_coverage_score'] = v2_result['market_coverage_score']
+                    full_rec['summary']['skill_coverage'] = v2_result['skill_coverage']
+                    full_rec['summary']['domain_coverage_score'] = v2_result['domain_coverage_score']
+                    full_rec['domain_coverage'] = v2_result['domain_coverage']
                     all_recommendations[profile_name] = full_rec
-                    logger.info(f"Рекомендации для {profile_name} сгенерированы")
+                    logger.info(f"Рекомендации (v2) для {profile_name} сгенерированы")
                 except Exception as e:
                     logger.error(f"Ошибка генерации рекомендаций для {profile_name}: {e}")
                     all_recommendations[profile_name] = None
@@ -924,7 +997,18 @@ def main():
                 print("=" * 70)
                 summ = full_rec.get("summary", {})
                 print(f"Match score: {summ.get('match_score', 0):.2f} | Confidence: {summ.get('confidence', 0):.2f}")
-                print(f"Покрытие рынка: {summ.get('coverage', 0):.1f}% ({summ.get('covered_skills', 0)}/{summ.get('total_market_skills', 0)} навыков)")
+
+                if 'market_coverage_score' in summ:
+                    print(f"Общее покрытие рынка (v2): {summ['market_coverage_score']:.1f}%")
+                    print(f"  - навыковое: {summ.get('skill_coverage', 0):.1f}%")
+                    print(f"  - доменное: {summ.get('domain_coverage_score', 0):.1f}%")
+
+                coverage_val = summ.get('coverage', 0)
+                details = summ.get('coverage_details', {})
+                covered = details.get('covered_skills_count', '?')
+                total = details.get('total_market_skills', '?')
+                print(f"Покрытие рынка (старое): {coverage_val:.1f}% ({covered}/{total} навыков)")
+
                 print("\nТОП-5 РЕКОМЕНДАЦИЙ:")
                 for rec in full_rec.get("recommendations", [])[:5]:
                     print(f"{rec['rank']:2}. {rec['skill']:<25} важность: {rec['importance_score']:.3f} ({rec['priority']})")
@@ -940,57 +1024,30 @@ def main():
                     json.dump(full_rec_serializable, f, ensure_ascii=False, indent=2)
                 logger.info(f"✓ Полные рекомендации для {profile_name} сохранены в {rec_file}")
 
-            logger.info("\n" + "="*85)
+            logger.info("\n" + "=" * 85)
             logger.info("✅ GAP-АНАЛИЗ УСПЕШНО ЗАВЕРШЁН")
-            logger.info("="*85)
+            logger.info("=" * 85)
 
         except Exception as e:
             logger.exception(f"❌ Ошибка при gap-анализе: {e}")
             import traceback
             traceback.print_exc()
-            # Если произошла ошибка, создаём пустой comparison для визуализации
             if 'comparison' not in locals():
                 comparison = type('obj', (object,), {'evaluations': []})()
             return
 
     show_context_info()
 
-    logger.info("\n" + "="*85)
+    logger.info("\n" + "=" * 85)
     logger.info("ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ")
-    logger.info("="*85)
-
-    results_for_viz = {}
-    for eval_result in comparison.evaluations:
-        profile_name = eval_result.profile_name
-        cov_dict = eval_result.coverage
-        results_for_viz[profile_name] = {
-            'simple_coverage': cov_dict.get('simple', 0),
-            'weighted_hybrid_coverage': cov_dict.get('weighted_hybrid', 0),
-            'weighted_coverage': cov_dict.get('weighted_freq', 0),
-            'readiness_score': eval_result.readiness_score,
-            'covered_skills': eval_result.student.skills,
-            'student_skills': eval_result.student.skills,
-        }
-        cluster_info = cov_dict.get('all_clusters')
-        if cluster_info:
-            results_for_viz[profile_name]['cluster_info'] = {
-                'clusters': cluster_info,
-                'best_cluster': cov_dict.get('best_cluster'),
-                'cluster_similarity': cov_dict.get('cluster_similarity', 0)
-            }
-        if profile_name in all_recommendations and all_recommendations[profile_name]:
-            recs = all_recommendations[profile_name].get('recommendations', [])
-            deficits = [{'skill': r['skill'], 'frequency': r.get('market_frequency_percent', 0)}
-                        for r in recs if r.get('priority') == 'HIGH']
-            if deficits:
-                results_for_viz[profile_name]['high_demand_gaps'] = deficits
+    logger.info("=" * 85)
 
     output_viz_dir = config.DATA_DIR / "result"
     output_viz_dir.mkdir(parents=True, exist_ok=True)
-    save_all_charts(results_for_viz, output_viz_dir, use_ml=True)
+    save_all_charts(evaluations_new, output_viz_dir, use_ml=True)
 
     logger.info(f"✅ Презентационные графики сохранены в {output_viz_dir}")
-    
+
     if args.run_notebooks:
         logger.info("Запуск Jupyter ноутбуков...")
         run_notebook("01_hh_analysis.ipynb", output_dir=config.DATA_DIR / "notebooks")
@@ -1012,6 +1069,7 @@ def main():
     logger.info(f"📁 Результаты сохранены в: {config.DATA_DIR / 'result'}")
     logger.info(f"⏰ Время выполнения: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 85)
+
 
 if __name__ == "__main__":
     main()
