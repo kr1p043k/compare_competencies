@@ -15,6 +15,7 @@ BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / "data"
 DATA_RAW_DIR = DATA_DIR / "raw"
 DATA_PROCESSED_DIR = DATA_DIR / "processed"
+DATA_RESULT_DIR = DATA_DIR / "result"
 STUDENTS_DIR = DATA_DIR / "students"
 LAST_UPLOADED_DIR = DATA_DIR / "last_uploaded"
 COMPETENCY_MAPPING_FILE = DATA_PROCESSED_DIR / "competency_mapping.json"
@@ -33,10 +34,15 @@ for dir_path in [DATA_RAW_DIR, DATA_PROCESSED_DIR, STUDENTS_DIR, LAST_UPLOADED_D
     dir_path.mkdir(parents=True, exist_ok=True)
 
 # ====================== hh.ru API ======================
-HH_USER_AGENT = os.getenv("HH_USER_AGENT", "CompetencyAnalyzer/1.0 (opik@sfedu.ru)")
+HH_USER_AGENT = os.getenv("HH_USER_AGENT", "CompetencyAnalyzer (kok.yoko@gmx.com)")
 REQUEST_DELAY = float(os.getenv("REQUEST_DELAY", "0.5"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 RETRY_DELAY = float(os.getenv("RETRY_DELAY", "2"))
+# ====================== hh.ru OAuth ======================
+HH_CLIENT_ID = os.getenv("HH_CLIENT_ID")
+HH_CLIENT_SECRET = os.getenv("HH_CLIENT_SECRET")
+HH_ACCESS_TOKEN = None
+HH_TOKEN_EXPIRES_AT = 0
 
 # ====================== Параметры поиска по умолчанию ======================
 DEFAULT_AREA = int(os.getenv("DEFAULT_AREA", "1"))
@@ -52,8 +58,9 @@ PROFILES_DISCIPLINES = {
 }
 
 # ====================== Эмбеддинги ======================
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-mpnet-base-v2")
 EMBEDDING_DIM = 384
+HF_TOKEN = os.getenv("HF_TOKEN")
 DATA_EMBEDDINGS_DIR = DATA_DIR / "embeddings"
 DATA_EMBEDDINGS_DIR.mkdir(parents=True, exist_ok=True)
 EMBEDDINGS_CACHE_DIR = DATA_EMBEDDINGS_DIR / "cache"
