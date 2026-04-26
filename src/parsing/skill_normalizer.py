@@ -2,144 +2,188 @@
 Нормализация навыков + fuzzy fallback.
 Критично для качества skill_weights!
 """
-#skill_normalizer.py
 import re
 from typing import List, Dict, Optional, Set
 import logging
-from pathlib import Path
 from rapidfuzz import process, fuzz
-from src import config
 from src.parsing.utils import load_it_skills 
-from collections import defaultdict
+
 logger = logging.getLogger(__name__)
 
 class SkillNormalizer:
-    # Теперь это список пар (синоним, каноническое_имя)
-    SKILL_SYNONYMS = [
+    # ================= СЛОВАРЬ СИНОНИМОВ =================
+    SYNONYM_MAP = {
         # Языки
-        ("javascript", "node.js"),
-        ("typescript", "ts"),
-        ("python3", "python"),
-        ("python 3", "python"),
-        ("py3", "python"),
-        ("py", "python"),
-        ("golang", "go"),
-        ("c sharp", "csharp"),
-        ("c#", "csharp"),
-        ("c++", "cpp"),
-        ("С++", "cpp"),
-        ("C++", "cpp"),
-        
-        # Фреймворки
-        ("vue.js", "vue"),
-        ("react.js", "react"),
-        ("angular.js", "angular"),
-        ("express.js", "express"),
-        ("node.js", "nodejs"),
-        ("node js", "node.js"),
-        ("nodejs", "node.js"),
-        ("fastapi", "fastapi"),
-        ("django rest", "django"),
-        ("django rest framework", "django"),
-        ("react native", "react"),
-        
-        # БД
-        ("postgres", "postgresql"),
-        ("psql", "postgresql"),
-        ("mysql", "mysql"),
-        ("mongo", "mongodb"),
-        ("mongo db", "mongodb"),
-        
-        # DevOps
-        ("kubernetes", "k8s"),
-        ("k8", "k8s"),
-        ("docker", "docker"),
-        ("jenkins", "jenkins"),
-        
-        # Data Science
-        ("machine learning", "mlops"),
-        ("ml", "mlops"),
-        ("mlops", "machine learning"),   # циклично, выберите один канон (лучше "mlops")
-        ("deep learning", "dl"),
-        ("data science", "data science"),
-        ("big data", "big data"),
-        ("nlp", "nlp"),
-        ("computer vision", "cv"),
-        ("cv", "cv"),
-        ("scikit learn", "scikit-learn"),
-        ("anguler", "angular"),
-        
-        # Облако
-        ("amazon web services", "aws"),
-        ("microsoft azure", "azure"),
-        ("google cloud", "gcp"),
-        ("yandex cloud", "yandex cloud"),
-    ]
+        "python": ["python3", "python 3", "py3", "py"],
+        "javascript": ["js", "java script"],
+        "typescript": ["ts", "type script"],
+        "go": ["golang", "go lang"],
+        "csharp": ["c#", "c sharp", ".net"],
+        "cpp": ["c++", "c plus plus", "С++", "C++"],
+        "rust": ["rustlang"],
+        "swift": ["swiftui"],
+        "kotlin": ["kotlin android"],
+        "php": ["php8", "php 8"],
+        "ruby": ["ruby on rails", "rails"],
+        "r": ["r language"],
+        "matlab": ["matlab"],
+        "scala": ["scala"],
+        "perl": ["perl"],
+
+        # Frontend
+        "react": ["react.js", "reactjs"],
+        "react native": ["reactnative"],
+        "vue": ["vue.js", "vuejs", "vue3", "vue 3"],
+        "angular": ["angular.js", "angularjs"],
+        "next": ["next.js", "nextjs", "next js"],
+        "nuxt": ["nuxt.js", "nuxtjs"],
+        "svelte": ["sveltekit"],
+        "tailwind": ["tailwind css", "tailwindcss"],
+        "bootstrap": ["bootstrap5"],
+        "jquery": ["jquery"],
+        "redux": ["redux"],
+        "mobx": ["mobx"],
+        "webpack": ["webpack"],
+        "vite": ["vite"],
+        "babel": ["babel"],
+        "eslint": ["eslint"],
+        "prettier": ["prettier"],
+
+        # Backend / Frameworks
+        "nodejs": ["node.js", "node js", "node"],
+        "fastapi": ["fast api", "fast-api"],
+        "django": ["django rest", "django rest framework", "drf"],
+        "flask": ["flask restful"],
+        "spring": ["spring boot", "springboot", "spring framework"],
+        "express": ["express.js", "expressjs"],
+        "nestjs": ["nest.js", "nest js"],
+        "laravel": ["laravel"],
+        "symfony": ["symfony"],
+
+        # Базы данных
+        "postgresql": ["postgres", "postgre", "psql", "pg"],
+        "mysql": ["mariadb", "mysql"],
+        "mongodb": ["mongo", "mongo db"],
+        "redis": ["redis cache"],
+        "elasticsearch": ["elastic", "elastic search", "es"],
+        "sqlserver": ["mssql", "ms sql", "sql server"],
+        "sqlite": ["sqlite"],
+        "oracle": ["oracle db"],
+        "cassandra": ["cassandra"],
+        "dynamodb": ["dynamodb"],
+        "couchdb": ["couchdb"],
+        "neo4j": ["neo4j"],
+        "clickhouse": ["clickhouse"],
+
+        # DevOps / Cloud
+        "docker": ["docker container", "docker-compose", "docker compose", "containerization"],
+        "kubernetes": ["k8s", "kuber", "k8"],
+        "terraform": ["terraform", "tf"],
+        "ansible": ["ansible"],
+        "jenkins": ["jenkins"],
+        "git": ["git"],
+        "github": ["github"],
+        "gitlab": ["gitlab"],
+        "bitbucket": ["bitbucket"],
+        "prometheus": ["prometheus"],
+        "grafana": ["grafana"],
+        "nginx": ["nginx"],
+        "apache": ["apache"],
+        "kafka": ["apache kafka", "kafka streams"],
+        "rabbitmq": ["rabbitmq"],
+        "celery": ["celery"],
+        "airflow": ["apache airflow"],
+        "mlflow": ["mlflow"],
+
+        # CI/CD
+        "ci/cd": ["cicd", "ci cd", "continuous integration", "continuous delivery", "continuous deployment"],
+        "github actions": ["github action", "actions"],
+        "gitlab ci/cd": ["gitlab ci"],
+
+        # ML / AI / LLM
+        "ml": ["machine learning", "ml"],
+        "dl": ["deep learning"],
+        "mlops": ["ml ops", "mlo ps"],
+        "llm": ["large language model", "large language models", "llms"],
+        "rag": ["retrieval augmented generation"],
+        "langchain": ["langchain"],
+        "huggingface": ["hugging face"],
+        "transformers": ["transformers"],
+        "pytorch": ["pytorch"],
+        "tensorflow": ["tensorflow"],
+        "keras": ["keras"],
+        "scikit-learn": ["scikit learn", "sklearn"],
+        "pandas": ["pandas"],
+        "numpy": ["numpy"],
+        "matplotlib": ["matplotlib"],
+        "seaborn": ["seaborn"],
+        "plotly": ["plotly"],
+        "xgboost": ["xgboost"],
+        "lightgbm": ["lightgbm"],
+        "catboost": ["catboost"],
+        "spark": ["apache spark"],
+        "hadoop": ["hadoop"],
+        "dvc": ["dvc"],
+        "fine-tuning": ["fine tuning", "finetuning"],
+        "lora": ["qlora"],
+        "prompt engineering": ["prompting", "prompt engineering"],
+        "openai api": ["openai api"],
+
+        # Cloud
+        "aws": ["amazon web services", "amazon aws"],
+        "azure": ["microsoft azure"],
+        "gcp": ["google cloud platform", "google cloud"],
+        "yandex cloud": ["yandex cloud"],
+        "digitalocean": ["digital ocean"],
+        "heroku": ["heroku"],
+
+        # Тестирование
+        "jest": ["jest"],
+        "pytest": ["pytest"],
+        "cypress": ["cypress"],
+        "playwright": ["playwright"],
+        "selenium": ["selenium"],
+        "junit": ["junit"],
+        "testng": ["testng"],
+
+        # Frontend basics
+        "html": ["html5", "html"],
+        "css": ["css3", "css"],
+        "sass": ["scss"],
+        "less": ["less"],
+        "rest": ["rest api", "restful api", "restful", "restapi"],
+        "graphql": ["graph ql"],
+        "apollo": ["apollo"],
+
+        # Разное
+        "figma": ["figma"],
+        "storybook": ["storybook"],
+        "npm": ["npm"],
+        "yarn": ["yarn"],
+        "webpack": ["webpack"],
+        "vite": ["vite"],
+    }
+
     _canonical_map: Optional[Dict[str, str]] = None
-    @classmethod
-    def _build_canonical_map(cls) -> Dict[str, str]:
-        """Разрешает цепочки синонимов, строя стабильный маппинг на единого представителя."""
-        # 1. Строим граф: ключ → множество значений, куда он ведёт
-        graph = defaultdict(set)
-        all_nodes = set()
-        for a, b in cls.SKILL_SYNONYMS:
-            graph[a].add(b)
-            all_nodes.add(a)
-            all_nodes.add(b)
-
-        # 2. Обход в глубину для нахождения компонент связности
-        visited = set()
-        components = []
-
-        def dfs(node, comp):
-            stack = [node]
-            while stack:
-                n = stack.pop()
-                if n not in visited:
-                    visited.add(n)
-                    comp.append(n)
-                    for neighbor in graph[n]:
-                        if neighbor not in visited:
-                            stack.append(neighbor)
-                    # Также учитываем обратные связи (для циклов)
-                    for k, vset in graph.items():
-                        if n in vset and k not in visited:
-                            stack.append(k)
-
-        for node in all_nodes:
-            if node not in visited:
-                comp = []
-                dfs(node, comp)
-                components.append(comp)
-
-        # 3. Для каждой компоненты выбираем канонического представителя
-        #    (например, лексикографически наименьший или первый из whitelist)
-        whitelist = cls._get_whitelist()
-        canon_map = {}
-        for comp in components:
-            # Приоритет: 1) элемент из whitelist (если есть) 2) самый короткий 3) первый по алфавиту
-            comp_in_whitelist = [c for c in comp if c in whitelist]
-            if comp_in_whitelist:
-                representative = min(comp_in_whitelist, key=lambda x: (len(x), x))
-            else:
-                representative = min(comp, key=lambda x: (len(x), x))
-            for node in comp:
-                canon_map[node] = representative
-
-        logger.info(f"Построен канонический маппинг из {len(canon_map)} синонимов")
-        return canon_map
 
     @classmethod
     def _get_canonical_map(cls) -> Dict[str, str]:
+        """Строит плоский маппинг напрямую из SYNONYM_MAP."""
         if cls._canonical_map is None:
-            cls._canonical_map = cls._build_canonical_map()
+            canon = {}
+            for canonical, variants in cls.SYNONYM_MAP.items():
+                for v in variants:
+                    canon[v] = canonical
+                canon[canonical] = canonical  # каноник тоже маппится сам в себя
+            cls._canonical_map = canon
+            logger.info(f"Построен канонический маппинг из {len(canon)} терминов")
         return cls._canonical_map
-    
+
     # Версии и варианты (удаляются полностью)
     VERSION_PATTERNS = [
-        r'\s*v?\d+(\.\d+)*',  # v1, 1.0, 3.10
-        r'\s*\(.*?\)',  # (описание)
-        r'\s*\[.*?\]',  # [описание]
+        r'\s*v?\d+(\.\d+)*',
+        r'\s*\(.*?\)',
+        r'\s*\[.*?\]',
     ]
     PREFIX_REMOVALS = [
         r'^опыт\s+(работы\s+)?(с\s+)?',
@@ -153,6 +197,7 @@ class SkillNormalizer:
         r'^работа\s+с\s+',
         r'^участие\s+в\s+',
         r'^проведение\s+',
+        r'^принципов\s+', 
         r'^организация\s+',
         r'^управление\s+',
         r'^построение\s+',
@@ -163,38 +208,40 @@ class SkillNormalizer:
         r'^(опыт|знание|умение|владение|навык)\s+(работы\s+)?(с\s+)?',
         r'^(разработчик|разработчика)\s+(уровня\s+)?(senior|middle|junior)?'
     ]
-    # Слова, которые можно безопасно удалить из конца
     SUFFIX_REMOVALS = [
         'язык', 'язык программирования',
         'фреймворк', 'библиотека', 'инструмент',
         'database', 'server', 'client',
         'framework', 'library', 'tool',
-            r'\s+или\s+подобных\s+языках?',
-    r'\s+или\s+аналогичных\s+(языков|языках)',
-    r'\s+и\s+т\.\s*д\.',
-    r'\s+и\s+т\.\s*п\.',
-    r'\s+и\s+др\.',
-    r'\s+и\s+проч\.',
-    r'\s+etc\.?',
-            r'\s+(senior|middle|junior)$',
+        r'\s+или\s+подобных\s+языках?',
+        r'\s+и\s+(принципов|основ|т\.д\.|т\.п\.|др\.)',
+        r'\s+или\s+(аналогичных|подобных)\s+(языков|технологий)?',
+        r'\s+(хорошее|отличное|базовое)\s+(знание|понимание|умение)?$',
+        r'\s+(и|или)\s+\w+$',
+        r'\s+или\s+аналогичных\s+(языков|языках)',
+        r'\s+и\s+т\.\s*д\.',
+        r'\s+и\s+т\.\s*п\.',
+        r'\s+и\s+др\.',
+        r'\s+и\s+проч\.',
+        r'\s+etc\.?',
+        r'\s+(senior|middle|junior)$',
         r'\s+и\s+(другие|т\.д\.|т\.п\.|etc)$',
     ]
-    # === НОВОЕ: fuzzy-настройки ===
-    FUZZY_THRESHOLD = 85         # % сходства (можно вынести в config)
+
+    FUZZY_THRESHOLD = 85
     MAX_FUZZY_CANDIDATES = 3
 
     _whitelist: Optional[Set[str]] = None
+
     @classmethod
     def _get_whitelist(cls) -> Set[str]:
-        """Загружает и дополняет белый список."""
         if cls._whitelist is None:
             cls._whitelist = load_it_skills()
-            # Гарантируем наличие ключевых канонических навыков
             cls._whitelist.update([
                 "python", "node.js", "react", "angular", "vue", "django",
                 "flask", "fastapi", "sql", "postgresql", "mysql", "mongodb",
                 "docker", "kubernetes", "git", "mlops", "cpp", "csharp",
-                "go", "java", "html", "css", "javascript", "typescript","c++"
+                "go", "java", "html", "css", "javascript", "typescript", "c++"
             ])
             logger.info(f"Whitelist загружен и дополнен: {len(cls._whitelist)} навыков")
         return cls._whitelist
@@ -204,82 +251,52 @@ class SkillNormalizer:
         if not skill:
             return ""
         original = skill.strip()
-        skill_lower = original.lower()
-        normalized = skill_lower
+        text = original.lower()
 
-        # === 1. Удаление префиксов ===
-        for pattern in SkillNormalizer.PREFIX_REMOVALS:
-            normalized = re.sub(pattern, '', normalized, flags=re.IGNORECASE)
-
-        # === 2. Замена синонимов (существующая логика) ===
-        canon_map = SkillNormalizer._get_canonical_map()
-        sorted_keys = sorted(canon_map.keys(), key=len, reverse=True)
-        for synonym in sorted_keys:
-            if synonym == canon_map[synonym]:
-                continue
-            if ' ' in synonym or '-' in synonym:
-                pattern = r'(?<!\w)' + re.escape(synonym) + r'(?!\w)'
-            else:
-                pattern = r'\b' + re.escape(synonym) + r'\b'
-            normalized = re.sub(pattern, canon_map[synonym], normalized)
-
-        # === 3. Удаление версий и скобок ===
         for pattern in SkillNormalizer.VERSION_PATTERNS:
-            normalized = re.sub(pattern, '', normalized)
-
-        # === 4. Удаление суффиксов ===
+            text = re.sub(pattern, '', text)
+        for pattern in SkillNormalizer.PREFIX_REMOVALS:
+            text = re.sub(pattern, '', text, flags=re.IGNORECASE)
         for suffix in SkillNormalizer.SUFFIX_REMOVALS:
-            normalized = re.sub(rf'{suffix}', '', normalized, flags=re.IGNORECASE)
+            text = re.sub(suffix, '', text, flags=re.IGNORECASE)
 
-        # === 5. Финальная чистка ===
-        normalized = re.sub(r'\s+', ' ', normalized).strip()
-        normalized = re.sub(r'[^\w\s\+\#\-\.]', '', normalized)
-        normalized = re.sub(r'\s+', ' ', normalized).strip()
-        normalized = re.sub(r'\.$', '', normalized)
+        text = re.sub(r'\s+', ' ', text).strip()
 
-        # === 6. Если осталось несколько слов, пытаемся оставить только значимое ===
-        words = normalized.split()
-        if len(words) > 1:
-            RU_STOP = {
-                "или", "подобных", "подобные", "языках", "языки", "языков",
-                "и", "т.д.", "т.п.", "etc", "опыт", "знание", "умение",
-                "работа", "систем", "моделей", "production", "prod",
-                "архитектур", "системы", "с", "в", "на", "по", "для"
-            }
-            meaningful = [w for w in words if w.lower() not in RU_STOP]
-            if len(meaningful) == 1:
-                normalized = meaningful[0]
-            elif len(meaningful) == 0 and words:
-                normalized = words[-1]  # fallback – последнее слово
-            # если meaningful > 1, оставляем как есть (например, "machine learning")
+        text = SkillNormalizer._apply_synonym_map(text)
 
-        # === 7. Fuzzy fallback (без изменений) ===
+        text = re.sub(r'[^\w\s\+\#\-\.]', '', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+
         whitelist = SkillNormalizer._get_whitelist()
-        if normalized in whitelist:
-            return normalized
+        if text in whitelist:
+            return text
 
         matches = process.extract(
-            normalized,
-            whitelist,
-            scorer=fuzz.WRatio,
+            text, whitelist, scorer=fuzz.WRatio,
             limit=SkillNormalizer.MAX_FUZZY_CANDIDATES
         )
         if matches and matches[0][1] >= SkillNormalizer.FUZZY_THRESHOLD:
-            best_match = matches[0][0]
-            logger.debug(f"Fuzzy match: '{original}' → '{best_match}' (score={matches[0][1]})")
-            return best_match
+            best = matches[0][0]
+            logger.debug(f"Fuzzy match: '{original}' → '{best}' (score={matches[0][1]})")
+            return best
 
-        logger.debug(f"No good fuzzy match for: '{original}' → '{normalized}'")
-        return normalized
-    
+        logger.debug(f"No good fuzzy match for: '{original}' → '{text}'")
+        return text
+
+    @classmethod
+    def _apply_synonym_map(cls, text: str) -> str:
+        text_lower = text.lower().strip()
+        canon_map = cls._get_canonical_map()
+        if text_lower in canon_map:
+            return canon_map[text_lower]
+        return text_lower
+
     @staticmethod
     def normalize_batch(skills: List[str]) -> List[str]:
-        """Только нормализация, без глобальной дедупликации (для частот)"""
         return [SkillNormalizer.normalize(skill) for skill in skills if skill]
 
     @staticmethod
     def deduplicate(skills: List[str]) -> List[str]:
-        """Дедупликация с сохранением порядка"""
         seen = set()
         result = []
         for skill in skills:

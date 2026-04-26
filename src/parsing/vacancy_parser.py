@@ -33,7 +33,7 @@ class VacancyParser:
     def __init__(self):
         self.skill_parser = SkillParser()
         self.skill_validator = SkillValidator(
-            whitelist=load_it_skills()
+            whitelist=None
         )
 
         # === ЗАГРУЗКА МОДЕЛИ ЭМБЕДДИНГОВ (один раз при создании парсера) ===
@@ -479,37 +479,66 @@ class VacancyParser:
     # =========================================================================
 
     def aggregate_to_dataframe(self, vacancies: Union[List[Dict], List[Vacancy]]) -> pd.DataFrame:
-        """Агрегирует данные в DataFrame для Excel"""
+        """
+        Агрегирует данные в DataFrame для Excel.
+        Навыки собираются из key_skills + текстового парсера (объединение).
+        """
         rows = []
 
         for vac in vacancies:
+            # ---- собираем навыки из key_skills ----
+            key_skill_names = []
             if isinstance(vac, Vacancy):
-                row = {
-                    'Вакансия': vac.name,
-                    'Компания': vac.employer.name,
-                    'Регион': vac.area.name,
-                    'ID': vac.id,
-                    'Зарплата': str(vac.salary) if vac.salary else 'Не указана',
-                    'Навыков': len(vac.key_skills),
-                    'Навыки': ', '.join(vac.get_skill_names())
-                }
+                key_skill_names = vac.get_skill_names()
+                vac_name = vac.name
+                employer_name = vac.employer.name
+                area_name = vac.area.name
+                vac_id = vac.id
+                salary = str(vac.salary) if vac.salary else 'Не указана'
+                # текстовый парсинг
+                parsed_skills = self.skill_parser.parse_vacancy(vac)
+                text_skill_names = [s.text for s in parsed_skills if s.text]
+                description = vac.description or ''
+                snippet_req = vac.snippet.requirement if vac.snippet else ''
+                snippet_resp = vac.snippet.responsibility if vac.snippet else ''
             else:
+                # dict
+                key_skills = vac.get('key_skills', [])
+                key_skill_names = [s['name'] for s in key_skills if isinstance(s, dict) and 'name' in s]
                 vac_name = vac.get('name', 'Unknown')
-                employer_name = vac.get('employer', {}).get('name', 'Unknown')
-                area_name = vac.get('area', {}).get('name', 'Unknown')
-                skills = [s['name'] for s in vac.get('key_skills', [])]
+                employer = vac.get('employer', {}) or {}
+                employer_name = employer.get('name', 'Unknown')
+                area = vac.get('area', {}) or {}
+                area_name = area.get('name', 'Unknown')
+                vac_id = vac.get('id')
+                salary = 'Не указана'
+                # текстовое извлечение
+                description = vac.get('description', '') or ''
+                snippet = vac.get('snippet', {}) or {}
+                snippet_req = snippet.get('requirement', '') or ''
+                snippet_resp = snippet.get('responsibility', '') or ''
+                text_skill_names = self.extract_skills_from_description(
+                    f"{description} {snippet_req} {snippet_resp}"
+                )
 
-                row = {
-                    'Вакансия': vac_name,
-                    'Компания': employer_name,
-                    'Регион': area_name,
-                    'ID': vac.get('id'),
-                    'Зарплата': 'Не указана',
-                    'Навыков': len(skills),
-                    'Навыки': ', '.join(skills)
-                }
-            
-            rows.append(row)
+            # ---- объединяем, убираем дубли, нормализуем (опционально) ----
+            all_skills = list(dict.fromkeys(key_skill_names + text_skill_names))
+            # можно дополнительно нормализовать, если нужно
+            try:
+                from src.parsing.skill_normalizer import SkillNormalizer
+                all_skills = SkillNormalizer.deduplicate(all_skills)
+            except Exception:
+                pass
+
+            rows.append({
+                'Вакансия': vac_name,
+                'Компания': employer_name,
+                'Регион': area_name,
+                'ID': vac_id,
+                'Зарплата': salary,
+                'Навыков': len(all_skills),
+                'Навыки': ', '.join(all_skills)
+            })
 
         return pd.DataFrame(rows)
 
@@ -520,14 +549,40 @@ class VacancyParser:
         logger.info(f"Excel файл сохранён в {filepath}")
 
     def print_vacancies_list(self, vacancies: Union[List[Dict], List[Vacancy]]):
-        """Выводит список вакансий"""
+        """Выводит список вакансий (навыки: key_skills + текстовое извлечение)"""
         for i, vac in enumerate(vacancies[:20], 1):
+            # ----- как и выше, собираем все навыки -----
+            key_skill_names = []
+            text_skill_names = []
+
             if isinstance(vac, Vacancy):
-                print(f"{i}. {vac.name} @ {vac.employer.name} ({vac.area.name})")
-                if vac.key_skills:
-                    print(f"   Навыки: {', '.join(vac.get_skill_names()[:5])}")
+                vac_name = vac.name
+                employer_name = vac.employer.name
+                area_name = vac.area.name
+                key_skill_names = vac.get_skill_names()
+                parsed = self.skill_parser.parse_vacancy(vac)
+                text_skill_names = [s.text for s in parsed if s.text]
             else:
                 vac_name = vac.get('name', 'Unknown')
-                employer = vac.get('employer', {}).get('name', 'Unknown')
-                area = vac.get('area', {}).get('name', 'Unknown')
-                print(f"{i}. {vac_name} @ {employer} ({area})")
+                employer = vac.get('employer', {}) or {}
+                employer_name = employer.get('name', 'Unknown')
+                area = vac.get('area', {}) or {}
+                area_name = area.get('name', 'Unknown')
+                ks = vac.get('key_skills', [])
+                key_skill_names = [s['name'] for s in ks if isinstance(s, dict) and 'name' in s]
+                desc = vac.get('description', '') or ''
+                snip = vac.get('snippet', {}) or {}
+                req = snip.get('requirement', '') or ''
+                resp = snip.get('responsibility', '') or ''
+                text_skill_names = self.extract_skills_from_description(f"{desc} {req} {resp}")
+
+            all_skills = list(dict.fromkeys(key_skill_names + text_skill_names))
+            try:
+                from src.parsing.skill_normalizer import SkillNormalizer
+                all_skills = SkillNormalizer.deduplicate(all_skills)
+            except Exception:
+                pass
+
+            print(f"{i}. {vac_name} @ {employer_name} ({area_name})")
+            if all_skills:
+                print(f"   Навыки: {', '.join(all_skills[:5])}")
