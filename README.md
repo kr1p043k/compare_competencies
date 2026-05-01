@@ -64,6 +64,7 @@
     │   ├── 📄 02_competency_matching.ipynb
     │   └── 📄 03_prediction_model.ipynb
     ├── 📁 scripts
+    │   ├── 📄 full_rebuild.py
     │   └── 📄 train_clusters.py
     ├── 📁 src
     │   ├── 📁 analyzers

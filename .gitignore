@@ -29,3 +29,7 @@ data/processed/vacancy_clusters_junior.pkl
 data/processed/vacancy_clusters_senior.pkl
 data/.xslx
 data/processed/cluster_training_report.json
+data/embeddings/market_embeddings_senior.pkl
+data/embeddings/market_embeddings_middle.pkl
+data/embeddings/market_embeddings_junior.pkl
+data/it_skills.backup.json
