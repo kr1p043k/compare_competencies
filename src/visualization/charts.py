@@ -36,6 +36,8 @@ plt.rcParams.update({
     'savefig.bbox': 'tight',
     'savefig.pad_inches': 0.3,
 })
+plt.rcParams['font.family'] = 'sans-serif'
+plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial', 'sans-serif']
 
 logger = logging.getLogger(__name__)
 
@@ -113,38 +115,45 @@ def load_profile_evaluation(profile_name: str) -> Optional[Dict[str, Any]]:
 # Основные графики (адаптированы под новую модель)
 # ----------------------------------------------------------------------
 def plot_coverage_comparison(results: Dict[str, Any], save_path: Optional[Path] = None) -> plt.Figure:
-    """
-    results: словарь {profile_name: evaluation_dict} из evaluate_profile
-    """
     profiles = list(results.keys())
     market_cov = [results[p].get('market_coverage_score', 0) for p in profiles]
     skill_cov = [results[p].get('skill_coverage', 0) for p in profiles]
     readiness = [results[p].get('readiness_score', 0) for p in profiles]
+    real_coverage = [results[p].get('market_skill_coverage', 0) for p in profiles]  # новая метрика
 
-    fig, ax = plt.subplots(figsize=(14, 9))
+    fig, ax = plt.subplots(figsize=(16, 9))
     x = np.arange(len(profiles))
-    width = 0.25
+    width = 0.2  # чуть уже, чтобы поместились 4 столбца
 
-    bars1 = ax.bar(x - width, skill_cov, width, label='Покрытие навыков %', color='#2ca02c', alpha=0.9)
-    bars2 = ax.bar(x, market_cov, width, label='Общее покрытие рынка %', color='#9467bd', alpha=0.9)
-    bars3 = ax.bar(x + width, readiness, width, label='Готовность к уровню %', color='#ff7f0e', alpha=0.9)
+    bars1 = ax.bar(x - 1.5*width, skill_cov, width, label='Покрытие навыков %', color='#2ca02c', alpha=0.9)
+    bars2 = ax.bar(x - 0.5*width, market_cov, width, label='Общее покрытие рынка %', color='#9467bd', alpha=0.9)
+    bars3 = ax.bar(x + 0.5*width, readiness, width, label='Готовность к уровню %', color='#ff7f0e', alpha=0.9)
+    bars4 = ax.bar(x + 1.5*width, real_coverage, width, label='Реальное покрытие рынка %', color='#1f77b4', alpha=0.9)
 
     ax.set_title("Сравнение профилей: покрытие и готовность", pad=20)
     ax.set_ylabel("Процент")
     ax.set_xticks(x)
     ax.set_xticklabels(profiles, rotation=15)
     ax.set_ylim(0, 105)
-    ax.legend(loc='upper right')
+    ax.legend(loc='upper right', fontsize=12)
 
+    # Подписи над столбцами
     for bar in bars1:
         height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%', ha='center', va='bottom', fontsize=11, fontweight='bold')
+        ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%',
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
     for bar in bars2:
         height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%', ha='center', va='bottom', fontsize=11, fontweight='bold')
+        ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%',
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
     for bar in bars3:
         height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%', ha='center', va='bottom', fontsize=11, fontweight='bold')
+        ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%',
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
+    for bar in bars4:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%',
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
 
     if save_path:
         plt.savefig(save_path)
@@ -360,7 +369,7 @@ def save_all_charts(results: Dict[str, Any], output_dir: Path, use_ml: bool = Tr
     for profile_name, eval_dict in results.items():
         prof_dir = output_dir / profile_name
         prof_dir.mkdir(exist_ok=True)
-        student_skills = list(eval_dict.get('skill_metrics', {}).keys())
+        student_skills = eval_dict.get('student_skills', [])
         if market_top:
             plot_skill_comparison_radar(student_skills, market_top, profile_name.capitalize(),
                                         prof_dir / f"radar_{profile_name}.png")

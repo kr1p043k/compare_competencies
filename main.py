@@ -105,7 +105,7 @@ def parse_arguments():
     parser.add_argument('--async-workers', type=int, default=3)
     parser.add_argument('--async-threshold', type=int, default=10)
 
-    parser.add_argument('--run-gap-analysis', action='store_true', default=True)
+    parser.add_argument('--run-gap-analysis', action='store_true', default=False)
     parser.add_argument('--run-notebooks', action='store_true')
 
     parser.add_argument('--train-model', action='store_true',
@@ -835,8 +835,7 @@ def main():
 
                 # === НОРМАЛИЗАЦИЯ ДЛЯ ВСЕХ ПРОФИЛЕЙ ===
                 student_skills = [SkillNormalizer.normalize(s) for s in student_skills if SkillNormalizer.normalize(s)]
-                student_skills = list(dict.fromkeys(student_skills))
-                logger.info(f"Профиль {profile_name}: student_skills = {student_skills}")                
+                student_skills = list(dict.fromkeys(student_skills))            
                 profiles[profile_name] = StudentProfile(
                     profile_name=profile_name,
                     competencies=student_codes,
@@ -1002,6 +1001,7 @@ def main():
                     print(f"Общее покрытие рынка (v2): {summ['market_coverage_score']:.1f}%")
                     print(f"  - навыковое: {summ.get('skill_coverage', 0):.1f}%")
                     print(f"  - доменное: {summ.get('domain_coverage_score', 0):.1f}%")
+                    print(f"Реальное покрытие рынка: {summ['market_skill_coverage']:.1f}%")
 
                 coverage_val = summ.get('coverage', 0)
                 details = summ.get('coverage_details', {})
