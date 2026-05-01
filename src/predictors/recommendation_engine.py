@@ -187,14 +187,16 @@ class RecommendationEngine:
                 "domain_coverage_score": eval_result['domain_coverage_score'],
                 "readiness_score": eval_result['readiness_score'],
                 "avg_gap": eval_result.get('avg_gap', 0),
-                "coverage": eval_result['market_coverage_score'],  # для совместимости со старым кодом печати
+                "coverage": eval_result['market_coverage_score'],
                 "coverage_details": {
                     "covered_skills_count": len(
                         set(s.lower() for s in student.skills) &
                         set(eval_result.get('skill_metrics', {}).keys())
                     ),
                     "total_market_skills": len(eval_result.get('skill_metrics', {}))
-                }},
+                },
+                "market_skill_coverage": eval_result.get('market_skill_coverage', 0.0)   # ← новая строка
+            },
             "recommendations": recommendations[:15],
             "domain_coverage": eval_result.get('domain_coverage', {}),
             "gaps": eval_result.get('gaps', {})
