@@ -16,14 +16,16 @@ from src.loaders_student.student_loader import StudentLoader
 from src.parsing.skill_validator import SkillValidator
 from src.analyzers.profile_evaluator import ProfileEvaluator
 from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
-# Импортируем только существующие функции визуализации
+from src.analyzers.domain_analyzer import DomainAnalyzer
 from src.visualization.charts import (
-    plot_skill_comparison_radar,   # вместо plot_radar_chart
+    plot_skill_comparison_radar,
     plot_coverage_comparison,
-    plot_ml_importance,            # если нужна
-    plot_weight_distribution,      # если нужна
+    plot_ml_importance,
+    plot_weight_distribution,
     save_all_charts,
 )
+
+
 def pytest_configure(config):
     """Глобальный мок SentenceTransformer для всех тестов."""
     mock_model = MagicMock()
@@ -34,7 +36,6 @@ def pytest_configure(config):
     mock_st.SentenceTransformer = MagicMock(return_value=mock_model)
     sys.modules['sentence_transformers'] = mock_st
 
-    # Подавление логов
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
@@ -110,7 +111,7 @@ def sample_vacancies() -> list[Vacancy]:
 
 @pytest.fixture
 def gap_analyzer(sample_skill_weights):
-    return GapAnalyzer(skill_weights=sample_skill_weights)
+    return GapAnalyzer(sample_skill_weights)
 
 
 @pytest.fixture
@@ -164,7 +165,6 @@ def mock_embedder(monkeypatch):
 
 @pytest.fixture
 def profile_evaluator(sample_skill_weights):
-    # ProfileEvaluator требует skill_weights и vacancies_skills
     vacancies_skills = [["python", "sql"], ["fastapi", "docker"]]
     return ProfileEvaluator(
         skill_weights=sample_skill_weights,
@@ -175,6 +175,11 @@ def profile_evaluator(sample_skill_weights):
 @pytest.fixture
 def skill_level_analyzer():
     return SkillLevelAnalyzer()
+
+
+@pytest.fixture
+def domain_analyzer():
+    return DomainAnalyzer()
 
 
 @pytest.fixture

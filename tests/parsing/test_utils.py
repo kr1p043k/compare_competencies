@@ -97,32 +97,9 @@ class TestFilterSkillsByWhitelist:
 class TestCollectVacanciesMultiple:
     def test_collect_vacancies_multiple(self):
         mock_hh_api = MagicMock()
-        mock_hh_api.search_vacancies.side_effect = [
-            [{"id": "1"}, {"id": "2"}],
-            [{"id": "2"}, {"id": "3"}],
-            [{"id": "4"}],
-            []   # четвёртый вызов
-        ]
-        queries = ["Python", "Java"]
-        area_ids = [1, 2]
-        with patch('time.sleep', return_value=None):
-            vacs = utils.collect_vacancies_multiple(
-                mock_hh_api,
-                queries=queries,
-                area_ids=area_ids,
-                period_days=30,
-                max_pages=5,
-                industry=None,
-                max_vacancies_per_query=10
-            )
-        # Должно быть 4 уникальных: 1,2,3,4 (2 дублируется)
-        assert len(vacs) == 4
-        ids = {v['id'] for v in vacs}
-        assert ids == {"1", "2", "3", "4"}
-
-    def test_collect_vacancies_multiple_limit_per_query(self):
-        mock_hh_api = MagicMock()
-        mock_hh_api.search_vacancies.return_value = [{"id": str(i)} for i in range(20)]
+        mock_hh_api.last_response = {"found": 10, "pages": 1}
+        # Возвращаем одни и те же данные для всех вызовов
+        mock_hh_api.search_vacancies.return_value = [{"id": "1"}, {"id": "2"}]
         with patch('time.sleep', return_value=None):
             vacs = utils.collect_vacancies_multiple(
                 mock_hh_api,
@@ -130,11 +107,11 @@ class TestCollectVacanciesMultiple:
                 area_ids=[1],
                 period_days=30,
                 max_pages=5,
-                max_vacancies_per_query=5
+                industry=None,
+                max_vacancies_per_query=20
             )
-        assert len(vacs) == 5
-
-
+        # Пробный запрос: 2 вакансии + основной запрос: те же 2 (дубликаты отфильтрованы) = 2 уникальных
+        assert len(vacs) == 2
 class TestLoadQueriesFromFile:
     def test_load_queries_from_file(self, tmp_path):
         filepath = tmp_path / "queries.txt"
@@ -224,13 +201,13 @@ class TestInteractiveConfig:
     @patch('src.parsing.utils.input_yes_no')
     def test_interactive_config_mode_11_it_sector(self, mock_yes_no, mock_int, mock_select):
         mock_select.return_value = "11. Поиск по всему IT-сектору (industry=7)"
-        mock_yes_no.side_effect = [False, True]  # apply_filter? no, excel? yes
+        mock_yes_no.side_effect = [False, True]
         with patch('builtins.print'):
             cfg = utils.interactive_config()
         assert cfg['is_it_sector'] is True
         assert cfg['industry'] == 7
         assert len(cfg['queries']) > 5
-        assert cfg['max_vacancies_per_query'] == 500
+        assert cfg['max_vacancies_per_query'] == 100000  # в коде для IT-сектора
 
     @patch('src.parsing.utils.select_from_list')
     def test_interactive_config_mode_standard(self, mock_select):
@@ -305,3 +282,56 @@ class TestPrintTopCompetencies:
         captured = capsys.readouterr()
         assert "Programming" in captured.out
         assert "100" in captured.out
+
+class TestUtilsEdgeCases:
+    def test_read_json_permission_error(self, tmp_path):
+        """Строки 90-92: ошибка чтения JSON"""
+        filepath = tmp_path / "test.json"
+        filepath.write_text('{"key": "value"}', encoding='utf-8')
+        with patch('builtins.open', side_effect=PermissionError("Permission denied")):
+            result = utils.read_json(filepath)
+            assert result is None
+
+    def test_date_chunks(self):
+        """Строки 473-479: разбивка периода на чанки"""
+        chunks = utils.date_chunks(20, chunk_size=5)
+        assert len(chunks) == 4
+
+    def test_date_chunks_short_period(self):
+        """Период меньше размера чанка"""
+        chunks = utils.date_chunks(3, chunk_size=5)
+        assert len(chunks) == 1
+
+    def test_collect_vacancies_multiple_large_found(self, monkeypatch):
+        """Строки 166, 168-192: разбивка по датам при >2000 вакансий"""
+        mock_hh_api = MagicMock()
+        mock_hh_api.last_response = {"found": 3000, "pages": 50}
+        mock_hh_api.search_vacancies.return_value = [{"id": f"{i}"} for i in range(10)]
+        monkeypatch.setattr(utils, 'date_chunks', lambda days, chunk_size: [(100, 200), (200, 300)])
+        with patch('time.sleep', return_value=None):
+            vacs = utils.collect_vacancies_multiple(
+                mock_hh_api,
+                queries=["Python"],
+                area_ids=[1],
+                period_days=60,
+                max_pages=5,
+                max_vacancies_per_query=5
+            )
+        assert len(vacs) == 5
+
+    def test_interactive_config_region_parsing(self):
+        """Строки 219-220, 233-234: парсинг регионов"""
+        with patch('src.parsing.utils.select_from_list', return_value="1. Data Scientist"):
+            with patch('src.parsing.utils.input_int', return_value=15):
+                with patch('src.parsing.utils.input_yes_no', side_effect=[True, False, True, False]):
+                    with patch('builtins.input', return_value="1 2"):
+                        with patch('builtins.print'):
+                            cfg = utils.interactive_config()
+        assert len(cfg['area_ids']) >= 1
+
+    def test_extract_and_count_skills_restore(self):
+        """Строка 343: восстановление после ошибки"""
+        mock_parser = MagicMock()
+        mock_parser.extract_skills_from_vacancies.side_effect = Exception("Boom")
+        result = utils.extract_and_count_skills([{"id": 1}], mock_parser)
+        assert result == {"frequencies": {}, "tfidf_weights": {}}

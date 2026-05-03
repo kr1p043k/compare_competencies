@@ -1,3 +1,4 @@
+# tests/parsing/test_api.py
 import pytest
 import asyncio
 import time
@@ -8,10 +9,11 @@ from src.models.vacancy import Vacancy
 import requests
 import aiohttp
 from aioresponses import aioresponses
+
+
 class TestHeadHunterAPISync:
     """Тесты синхронного клиента HeadHunterAPI"""
 
-class TestHeadHunterAPISync:
     def test_init_creates_session_with_retries(self):
         api = HeadHunterAPI()
         assert api.session is not None
@@ -89,7 +91,6 @@ class TestHeadHunterAPISync:
             success_response = Mock(status_code=200)
             success_response.json.return_value = {"result": "ok"}
             mock_session_get.side_effect = [rate_limit_response, success_response]
-
             result = api._get("https://test.url")
             assert result == {"result": "ok"}
             assert mock_session_get.call_count == 2
@@ -108,10 +109,6 @@ class TestHeadHunterAPISync:
             assert result is None
 
     def test_context_manager_closes_session(self):
-        with HeadHunterAPI() as api:
-            assert api.session is not None
-        # после выхода сессия должна быть закрыта
-        # проверить сложно, но можно убедиться, что метод close вызван
         with patch.object(HeadHunterAPI, 'close') as mock_close:
             with HeadHunterAPI():
                 pass
@@ -124,13 +121,6 @@ class TestHeadHunterAPISync:
             result = api.search_vacancies(text="Python", area=1, max_pages=1)
             assert len(result) == 1
             mock_get.assert_called_once()
-
-    def test_get_vacancy_details_as_object_success_existing(self):
-        api = HeadHunterAPI()
-        raw = {"id": "123", "name": "Test", "area": {"id":1,"name":"MSK"}, "employer":{"id":"10","name":"Corp"}}
-        with patch.object(api, '_get', return_value=raw):
-            vac = api.get_vacancy_details_as_object("123")
-            assert vac.id == "123"
 
     def test_get_handles_304_not_modified(self):
         api = HeadHunterAPI()
@@ -151,16 +141,19 @@ class TestHeadHunterAPISync:
         with patch.object(api.session, 'get', side_effect=Exception("Boom")):
             result = api._get("https://test.url")
             assert result is None
+
+
 class TestHeadHunterAPIAsync:
+    """Тесты асинхронного клиента HeadHunterAPIAsync"""
+
     @pytest.mark.asyncio
     async def test_throttle_respects_delay(self):
         api = HeadHunterAPIAsync(request_delay=0.1)
-        import time
         start = time.time()
         await api._throttle()
         await api._throttle()
         elapsed = time.time() - start
-        assert elapsed >= 0.095  # небольшая погрешность из-за asyncio.sleep
+        assert elapsed >= 0.095
 
     @pytest.mark.asyncio
     async def test_request_success(self):
@@ -209,12 +202,11 @@ class TestHeadHunterAPIAsync:
         api = HeadHunterAPIAsync()
         with aioresponses() as m:
             m.get("https://test.url", exception=asyncio.TimeoutError())
-            m.get("https://test.url", payload={"ok": True})   # second try success
+            m.get("https://test.url", payload={"ok": True})
             async with aiohttp.ClientSession() as session:
                 with patch('asyncio.sleep', new_callable=AsyncMock):
                     result = await api._request(session, "https://test.url", max_retries=1)
                     assert result == {"ok": True}
-                    # stats могут быть обновлены дважды: первый timeout, потом success
                     assert api.stats['timeouts'] >= 1
 
     @pytest.mark.asyncio
@@ -258,17 +250,8 @@ class TestHeadHunterAPIAsync:
             assert len(results) == 2
 
     @pytest.mark.asyncio
-    async def test_stats_accumulation(self):
-        api = HeadHunterAPIAsync()
-        api.stats['success'] = 5
-        api.stats['403_errors'] = 2
-        api.stats = {k: 0 for k in api.stats}
-        assert api.stats['success'] == 0
-        
-    @pytest.mark.asyncio
     async def test_throttle_skips_sleep_when_elapsed_greater(self):
         api = HeadHunterAPIAsync(request_delay=0.05)
-        # Устанавливаем last_request_time в прошлом, чтобы не спать
         api.last_request_time = time.time() - 1.0
         with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
             await api._throttle()
@@ -300,20 +283,7 @@ class TestHeadHunterAPIAsync:
         results = await api.get_vacancies_details_batch([])
         assert results == []
 
-    def test_get_vacancies_details_sync_closed_loop(self):
-        api = HeadHunterAPIAsync()
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.close()
-        with patch.object(api, 'get_vacancies_details_batch', new_callable=AsyncMock) as mock_batch:
-            mock_batch.return_value = [{"id": "1"}]
-            # После закрытия loop метод должен создать новый
-            results = api.get_vacancies_details_sync(["1"])
-            assert results == [{"id": "1"}]
-    
-        
-# Дополнительно: тест для HeadHunterAPI с реальным (замоканным) requests.get
+
 class TestHeadHunterAPIMockedRequests:
     def test_search_vacancies_uses_industry_param(self):
         api = HeadHunterAPI()

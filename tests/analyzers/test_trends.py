@@ -993,3 +993,85 @@ except SystemExit:
         test_file.write_text('{"python": 100}', encoding='utf-8')
         data = trends_module.TrendAnalyzer.load_file(test_file)
         assert data == {"python": 100}
+
+# УДАЛИТЬ все CLI-тесты с subprocess (5 тестов) и заменить на ОДИН:
+
+    def test_cli_help_and_module_import(self):
+        """Строки 292-394: CLI --help и импорт модуля"""
+        import subprocess
+        import sys
+        result = subprocess.run(
+            [sys.executable, '-m', 'src.analyzers.trends', '--help'],
+            capture_output=True, text=True, timeout=30
+        )
+        assert result.returncode == 0
+
+    def test_trend_analyzer_load_file(self, tmp_path):
+        """Строки 292-310: TrendAnalyzer.load_file"""
+        test_file = tmp_path / "test.json"
+        test_file.write_text('{"python": 100}', encoding='utf-8')
+        data = TrendAnalyzer.load_file(test_file)
+        assert data == {"python": 100}
+
+    def test_get_snapshots_for_analysis_all(self, tmp_path, freq, prev):
+        """Строки 120-121: get_snapshots_for_analysis без n"""
+        for i in range(3):
+            snap = tmp_path / f"freq_2024-0{i+1}-01.json"
+            snap.write_text(json.dumps({"python": 100 + i * 50}))
+        analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
+        snapshots = analyzer.get_snapshots_for_analysis()
+        assert len(snapshots) == 3
+
+    def test_save_snapshot_no_whitelist_no_label(self, tmp_path, freq):
+        """Строка 104: save_snapshot без фильтрации и лейбла"""
+        analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
+        path = analyzer.save_snapshot(freq, apply_whitelist=False)
+        assert path.exists()
+        with open(path, 'r', encoding='utf-8') as f:
+            saved = json.load(f)
+        assert len(saved) == len(freq)
+
+    def test_get_trending_skills_rising_edge(self, tmp_path):
+        """Строка 211: ровно на границе порога rising"""
+        current = {"python": 110}
+        prev = {"python": 100}
+        analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
+        trends = analyzer.get_trending_skills(
+            top_n=5, min_change_percent=10.0, previous_snapshot=prev
+        )
+        assert len(trends["rising"]) == 1
+
+    def test_get_trending_skills_falling_edge(self, tmp_path):
+        """Строка 157: ровно на границе порога falling"""
+        current = {"python": 90}
+        prev = {"python": 100}
+        analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
+        trends = analyzer.get_trending_skills(
+            top_n=5, min_change_percent=10.0, previous_snapshot=prev
+        )
+        assert len(trends["falling"]) == 1
+        assert trends["falling"][0]["change_pct"] == -10.0
+
+    def test_plot_trending_no_rising_only_falling(self, tmp_path):
+        """Строки 200-232: график только с падающими навыками"""
+        current = {"python": 50}
+        prev = {"python": 100}
+        analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
+        save_path = tmp_path / "trending_fall.png"
+        with patch('matplotlib.pyplot.savefig') as mock_save:
+            result = analyzer.plot_trending(top_n=10, save_path=save_path, previous_snapshot=prev)
+            assert result is not None
+            mock_save.assert_called()
+
+    def test_plot_timeline_empty_skills(self, freq, prev):
+        """Строки 237-287: timeline с пустым списком навыков"""
+        analyzer = TrendAnalyzer(freq)
+        dt1 = datetime(2024, 1, 1)
+        dt2 = datetime(2024, 2, 1)
+        snapshots = [(dt1, Path("f1.json"), prev), (dt2, Path("f2.json"), freq)]
+        with patch('matplotlib.pyplot.savefig'):
+            result = analyzer.plot_timeline([], snapshots=snapshots)
+            assert result is not None
+
+
+
