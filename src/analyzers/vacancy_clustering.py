@@ -56,33 +56,42 @@ class VacancyClusterer:
 
     def _compute_embeddings(self, vacancies: List[Dict]) -> np.ndarray:
         embedding_model = get_embedding_model()
-        # Собираем тексты: все навыки через запятую
-        texts = []
+        dim = embedding_model.get_sentence_embedding_dimension()
+        vacancy_embs = []
         empty_skills_count = 0
+
         for skills in self.vacancy_skills:
             if not skills:
-                # если навыков нет, используем случайный шум или нулевой вектор
-                texts.append("")
+                # Пустая вакансия – нулевой вектор
+                vacancy_embs.append(np.zeros(dim))
                 empty_skills_count += 1
-            else:
-                # Нормализуем и соединяем
-                clean_skills = [SkillNormalizer.normalize(s) for s in skills]
-                clean_skills = [s for s in clean_skills if s]  # убираем пустые
-                if not clean_skills:
-                    texts.append("")
-                    empty_skills_count += 1
-                else:
-                    texts.append(", ".join(clean_skills))
-        
-        # Эмбеддинги для всех текстов разом (быстрее)
-        embeddings = embedding_model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
-        
+                continue
+
+            # Нормализуем навыки
+            clean_skills = [SkillNormalizer.normalize(s) for s in skills]
+            clean_skills = [s for s in clean_skills if s]  # убираем пустые строки
+
+            if not clean_skills:
+                vacancy_embs.append(np.zeros(dim))
+                empty_skills_count += 1
+                continue
+
+            # Эмбеддинг для каждого навыка отдельно, затем среднее
+            embs = embedding_model.encode(clean_skills, convert_to_numpy=True, show_progress_bar=False)
+            emb = np.mean(embs, axis=0)          # можно также 0.7*mean + 0.3*max
+            vacancy_embs.append(emb)
+
+        embeddings = np.vstack(vacancy_embs)
+
         # Диагностика
         mean_vec = np.mean(embeddings, axis=0)
         std_vec = np.std(embeddings, axis=0)
-        logger.info(f"Эмбеддинги: shape={embeddings.shape}, mean={mean_vec[:3].tolist()}..., std={std_vec[:3].tolist()}...")
+        logger.info(
+            f"Эмбеддинги: shape={embeddings.shape}, "
+            f"mean={mean_vec[:3].tolist()}..., std={std_vec[:3].tolist()}..."
+        )
         logger.info(f"Пустых навыков: {empty_skills_count} из {len(vacancies)}")
-        
+
         # L2-нормализация
         norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
@@ -141,7 +150,7 @@ class VacancyClusterer:
             if np.any(counts < self.min_cluster_size):
                 continue
             try:
-                score = silhouette_score(X, labels, metric='cosine')
+                score = silhouette_score(X, labels, metric='euclidean')
             except Exception:
                 continue
             logger.debug(f"K={k}, silhouette={score:.4f}")
@@ -171,7 +180,7 @@ class VacancyClusterer:
             try:
                 clusterer = hdbscan.HDBSCAN(
                     min_cluster_size=self.min_cluster_size,
-                    metric='cosine',
+                    metric='euclidean',
                     core_dist_n_jobs=-1
                 )
                 labels = clusterer.fit_predict(X)

@@ -112,23 +112,22 @@ class ProfileEvaluator:
 
         # === 6. Финальные скоры — ПРЯМАЯ ФИЛЬТРАЦИЯ ПО УЖЕ ИМЕЮЩИМСЯ НАВЫКАМ ===
         final_scores = {}
+        user_skills_set = set(s.lower().strip() for s in user_skills_list)
         MIN_GAP_FOR_FALLBACK = 0.05
 
         for skill, metric in metrics.items():
             skill_norm = skill.lower().strip()
-            # ЖЁСТКАЯ ПРОВЕРКА: если навык уже есть у студента — пропускаем
+            # Пропускаем уже освоенные навыки
             if skill_norm in user_skills_set:
                 continue
 
-            # Дополнительная страховка по gap (на случай расхождений нормализации)
             max_gap = max(metric.gap_j, metric.gap_m, metric.gap_s)
-            if max_gap > 0.01:
+            if max_gap > 0.05:
                 bonus = skill_to_domain_bonus.get(skill_norm, 0.0)
                 final_scores[skill] = metric.score(level_weights, domain_bonus=bonus)
 
-        # Fallback: если после фильтрации ничего не осталось (студент очень сильный)
         if not final_scores and metrics:
-            logger.warning(f"Для профиля {student.profile_name} все рыночные навыки уже покрыты. Fallback по cluster_relevance.")
+            logger.warning(f"Все рыночные навыки уже покрыты профилем {student.profile_name}. Fallback по cluster_relevance.")
             fallback_candidates = [
                 (s, m) for s, m in metrics.items()
                 if s.lower().strip() not in user_skills_set and max(m.gap_j, m.gap_m, m.gap_s) > MIN_GAP_FOR_FALLBACK
@@ -138,6 +137,12 @@ class ProfileEvaluator:
                 final_scores[skill] = metric.score(level_weights, domain_bonus=bonus) * 0.65
 
         # === 7. Итоговые метрики ===
+        # Реальное покрытие рынка (доля навыков студента от всех рыночных навыков)
+        user_skills_norm = {SkillNormalizer.normalize(s) for s in user_skills_list}
+        all_market_skills = list(metrics.keys())
+        covered_market = sum(1 for s in all_market_skills if s in user_skills_norm)
+        market_skill_coverage_pct = round(covered_market / len(all_market_skills) * 100, 2)
+
         skill_coverage = sum(final_scores.values()) / max(len(final_scores), 1) * 100
         avg_domain_cov = sum(d.coverage for d in domain_coverages.values()) / max(len(domain_coverages), 1)
         domain_coverage_score = avg_domain_cov * 100
@@ -157,7 +162,7 @@ class ProfileEvaluator:
                 if max(m.gap_j, m.gap_m, m.gap_s) > 0.15}
 
         return {
-            "market_coverage_score": round(market_coverage_score, 2),
+            "market_coverage_score": round(market_coverage_score, 2),   # потребность в дообучении
             "skill_coverage": round(skill_coverage, 2),
             "domain_coverage_score": round(domain_coverage_score, 2),
             "readiness_score": readiness_score,
@@ -168,7 +173,8 @@ class ProfileEvaluator:
             "top_recommendations": sorted(final_scores.items(), key=lambda x: x[1], reverse=True)[:15],
             "gaps": gaps,
             "level_weights_used": level_weights,
-            "student_skills": user_skills_list
+            "student_skills": user_skills_list,
+            "market_skill_coverage": market_skill_coverage_pct   # новое: реальное покрытие
         }
     # ------------------------------------------------------------------
     # Вспомогательные методы нового API
