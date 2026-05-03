@@ -7,8 +7,6 @@ import requests
 import time
 import pandas as pd
 
-from src.parsing.skill_normalizer import SkillNormalizer
-from src.analyzers.profile_evaluator import ProfileEvaluator
 from src.analyzers.comparator import CompetencyComparator
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.skill_filter import SkillFilter
@@ -109,39 +107,6 @@ class RecommendationEngine:
 
         logger.info(f"✓ RecommendationEngine обучен на {len(vacancies_skills)} вакансиях, веса для {len(skill_weights)} навыков")
         
-    def analyze(self, student_skills: List[str]) -> Dict[str, Any]:
-        if not self.is_fitted:
-            return {}
-
-        # Для score и confidence используем контекстные веса (кластер или глобальные)
-        weights_for_score = self.cluster_weights if self.cluster_weights else self.gap_analyzer.skill_weights
-        if not weights_for_score:
-            logger.warning("analyze: веса пусты!")
-            return {}
-
-        self.comparator.set_skill_weights(weights_for_score)
-        score, confidence = self.comparator.compare(student_skills)
-
-        # Гэпы и топ-навыки ВСЕГДА считаем по глобальному рынку
-        gaps = self.gap_analyzer.analyze_gap(student_skills, top_n=30)
-        coverage, coverage_details = self.gap_analyzer.coverage(student_skills)
-        top_market = self.gap_analyzer.top_market_skills(20)
-
-        if 'covered_skills_count' not in coverage_details:
-            coverage_details['covered_skills_count'] = coverage_details.get('covered_skills_count', 0)
-        if 'total_market_skills' not in coverage_details:
-            coverage_details['total_market_skills'] = coverage_details.get('total_market_skills', len(self.gap_analyzer.skill_weights))
-
-        return {
-            "match_score": round(score, 4),
-            "confidence": round(confidence, 4),
-            "coverage": round(coverage, 2),
-            "coverage_details": coverage_details,
-            "gaps": gaps,
-            "top_market_skills": top_market,
-            "used_cluster_context": self.cluster_weights is not None
-        }
-
     def generate_recommendations(
         self,
         student: StudentProfile,
