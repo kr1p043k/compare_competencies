@@ -1,89 +1,78 @@
 # tests/analyzers/test_gap_analyzer.py
 import pytest
+import numpy as np
 from src.analyzers.gap_analyzer import GapAnalyzer
 
+
 class TestGapAnalyzerExtended:
+    @pytest.fixture
+    def sample_weights_by_level(self):
+        return {
+            'junior': {'python': 0.8, 'sql': 0.6, 'git': 0.5, 'html': 0.4},
+            'middle': {'python': 0.9, 'docker': 0.7, 'sql': 0.5, 'fastapi': 0.4},
+            'senior': {'python': 0.9, 'docker': 0.9, 'k8s': 0.8, 'sql': 0.3},
+        }
+
     def test_init_with_empty_weights(self):
-        analyzer = GapAnalyzer({})
-        assert analyzer.total_weight == 0
-        assert analyzer.HIGH_IMPORTANCE == 0.70
-        assert analyzer.MEDIUM_IMPORTANCE == 0.30
+        ga = GapAnalyzer({})
+        assert ga.skill_weights == {}
 
-    def test_dynamic_thresholds_with_varied_weights(self):
-        weights = {"a": 1, "b": 2, "c": 5, "d": 10}
-        analyzer = GapAnalyzer(weights)
-        # Проверяем, что пороги вычислены как перцентили
-        assert 0 < analyzer.HIGH_IMPORTANCE < 1
-        assert 0 < analyzer.MEDIUM_IMPORTANCE < 1
-        assert analyzer.HIGH_IMPORTANCE > analyzer.MEDIUM_IMPORTANCE
+    def test_compute_metrics_returns_skills(self, sample_weights_by_level):
+        ga = GapAnalyzer(sample_weights_by_level)
+        user_skills = ["python", "sql"]
+        user_levels = {"python": 0.7, "sql": 0.4}
+        metrics = ga.compute_metrics(user_skills, user_levels)
 
-    def test_analyze_gap_empty_student(self):
-        weights = {"python": 10, "sql": 5}
-        analyzer = GapAnalyzer(weights)
-        result = analyzer.analyze_gap([])
-        assert result["total_gaps"] == 2
-        assert len(result["high_priority"]) + len(result["medium_priority"]) + len(result["low_priority"]) == 2
+        assert len(metrics) > 0
+        for skill, metric in metrics.items():
+            assert hasattr(metric, 'gap_j')
+            assert hasattr(metric, 'gap_m')
+            assert hasattr(metric, 'gap_s')
+            assert metric.gap_j >= 0
+            assert metric.gap_m >= 0
+            assert metric.gap_s >= 0
 
-    def test_analyze_gap_all_covered(self):
-        weights = {"python": 10, "sql": 5}
-        analyzer = GapAnalyzer(weights)
-        result = analyzer.analyze_gap(["python", "sql"])
-        assert result["total_gaps"] == 0
+    def test_compute_metrics_gap_calculation(self, sample_weights_by_level):
+        """Gap = max(0, market_weight - user_level)"""
+        ga = GapAnalyzer(sample_weights_by_level)
+        user_skills = ["python"]
+        user_levels = {"python": 0.3}
+        metrics = ga.compute_metrics(user_skills, user_levels)
 
-    def test_top_market_skills(self):
-        weights = {"python": 10, "sql": 8, "docker": 5}
-        analyzer = GapAnalyzer(weights)
-        top = analyzer.top_market_skills(2)
-        assert len(top) == 2
-        assert top[0]["skill"] == "python"
-        assert top[1]["skill"] == "sql"
-        assert "rank" in top[0]
-        assert "priority" in top[0]
+        assert "python" in metrics
+        assert metrics["python"].gap_j == pytest.approx(0.5)
+        assert metrics["python"].gap_m == pytest.approx(0.6)
 
-    def test_coverage_perfect(self):
-        weights = {"python": 10, "sql": 5}
-        analyzer = GapAnalyzer(weights)
-        coverage, details = analyzer.coverage(["python", "sql"])
-        assert coverage == 100.0
-        assert details["covered_skills_count"] == 2
+    def test_compute_metrics_no_gap_when_full_coverage(self, sample_weights_by_level):
+        ga = GapAnalyzer(sample_weights_by_level)
+        user_skills = ["python"]
+        user_levels = {"python": 1.0}
+        metrics = ga.compute_metrics(user_skills, user_levels)
 
-    def test_get_recommendations_various_coverages(self):
-        weights = {"a": 10, "b": 8, "c": 6}
-        analyzer = GapAnalyzer(weights)
-        gaps = analyzer.analyze_gap([])
-        # Низкое покрытие
-        recs = analyzer.get_recommendations([], gaps)
-        assert "КРИТИЧНО" in recs[0]
-        # Среднее покрытие
-        recs = analyzer.get_recommendations(["a"], gaps)
-        assert "Низкое" in recs[0] or "Среднее" in recs[0]
-        # Хорошее покрытие
-        recs = analyzer.get_recommendations(["a", "b", "c"], gaps)
-        assert "Отличное" in recs[0]
+        assert metrics["python"].gap_j == 0.0
+        assert metrics["python"].gap_m == 0.0
+        assert metrics["python"].gap_s == 0.0
 
-    def test_priority_categories(self):
-        weights = {"high": 100, "mid": 50, "low": 10}
-        analyzer = GapAnalyzer(weights)
-        # Искусственно подправим пороги для теста
-        analyzer.HIGH_IMPORTANCE = 0.6
-        analyzer.MEDIUM_IMPORTANCE = 0.2
-        gaps = analyzer.analyze_gap([])
-        assert gaps["high_priority"][0]["skill"] == "high"
-        assert gaps["medium_priority"][0]["skill"] == "mid"
-        assert gaps["low_priority"][0]["skill"] == "low"
-def test_gap_analyzer_init_and_dynamic_thresholds(gap_analyzer):
-    assert gap_analyzer.total_weight > 0
-    assert gap_analyzer.HIGH_IMPORTANCE > gap_analyzer.MEDIUM_IMPORTANCE
+    def test_compute_metrics_empty_user(self, sample_weights_by_level):
+        ga = GapAnalyzer(sample_weights_by_level)
+        metrics = ga.compute_metrics([], {})
+        assert len(metrics) > 0
+        for skill, metric in metrics.items():
+            if skill == "python":
+                assert metric.gap_j == pytest.approx(0.8)
+                assert metric.gap_m == pytest.approx(0.9)
 
-def test_analyze_gap_returns_categories(gap_analyzer):
-    result = gap_analyzer.analyze_gap(["Python", "SQL"])
-    assert "high_priority" in result
-    assert "medium_priority" in result
-    assert "low_priority" in result
-    assert result["total_gaps"] >= 0
+    def test_set_weights_by_level(self, sample_weights_by_level):
+        ga = GapAnalyzer({})
+        ga.set_weights_by_level(sample_weights_by_level)
+        assert ga.skill_weights_by_level == sample_weights_by_level
 
-def test_coverage_calculates_correctly(gap_analyzer):
-    coverage, details = gap_analyzer.coverage(["Python", "SQL", "Git"])
-    assert 0 <= coverage <= 100
-    assert details["covered_weight"] > 0
-    assert abs(details["coverage_percent"] - coverage) < 0.01
+    def test_set_weights_by_level_after_init(self, sample_weights_by_level):
+        ga = GapAnalyzer(sample_weights_by_level)
+        # skill_weights хранит позиционный аргумент
+        assert ga.skill_weights == sample_weights_by_level
+        # skill_weights_by_level ещё не установлен
+        assert not hasattr(ga, 'skill_weights_by_level')
+        # Устанавливаем явно
+        ga.set_weights_by_level(sample_weights_by_level)
+        assert ga.skill_weights_by_level == sample_weights_by_level
