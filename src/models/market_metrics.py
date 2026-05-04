@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from typing import Dict, List
-
 @dataclass
 class SkillMetrics:
     skill: str
@@ -12,11 +11,12 @@ class SkillMetrics:
     demand_s: float = 0.0
     cluster_relevance: float = 0.0
     user_level: float = 0.0
+    importance: float = 0.0      # новое: нормализованная важность (0-1)
+    category: str = "missing"    # новое: missing / weak / strong
 
     def score(self, level_weights: Dict[str, float], domain_bonus: float = 0.0) -> float:
-        """Единая формула RecommendationScore(skill) с возможным бонусом от домена"""
         alpha, beta, gamma = 0.5, 0.3, 0.2
-        domain_factor = 1.0 + 0.15 * domain_bonus   # до +15% при полном покрытии домена
+        domain_factor = 1.0 + 0.15 * domain_bonus
 
         def norm(x: float) -> float:
             return max(0.0, min(1.0, x))
@@ -36,6 +36,16 @@ class SkillMetrics:
                       level_weights.get('senior', 0) * score_s)
 
         return base_score * domain_factor
+
+    def __post_init__(self):
+        if not self.category:
+            max_gap = max(self.gap_j, self.gap_m, self.gap_s)
+            if max_gap < 0.2:
+                self.category = "strong"
+            elif max_gap < 0.6:
+                self.category = "weak"
+            else:
+                self.category = "missing"
 
 
 @dataclass

@@ -136,33 +136,73 @@ class ProfileEvaluator:
                 bonus = skill_to_domain_bonus.get(skill.lower().strip(), 0.0)
                 final_scores[skill] = metric.score(level_weights, domain_bonus=bonus) * 0.65
 
-        # === 7. Итоговые метрики ===
-        # Реальное покрытие рынка (доля навыков студента от всех рыночных навыков)
+        # === 7. Итоговые метрики (улучшенные) ===
+        total_market = len(metrics)
+
+        # Категоризация навыков
+        strong_count = 0
+        weak_count = 0
+        missing_count = 0
+        weighted_cov = 0.0
+        max_possible = 0.0
+
+        for m in metrics.values():
+            max_gap = max(m.gap_j, m.gap_m, m.gap_s)
+            max_demand = max(m.demand_j, m.demand_m, m.demand_s)
+            max_possible += max_demand
+
+            if max_gap < 0.2:
+                strong_count += 1
+                weighted_cov += 1.0 * max_demand
+            elif max_gap < 0.6:
+                weak_count += 1
+                weighted_cov += 0.5 * max_demand
+            else:
+                missing_count += 1
+                # weighted_cov += 0.0
+
+        # Навыковое покрытие (взвешенное по категориям)
+        skill_coverage = weighted_cov / max_possible * 100 if max_possible > 0 else 0.0
+
+        # Доменное покрытие
+        avg_domain_cov = sum(d.coverage for d in domain_coverages.values()) / max(len(domain_coverages), 1)
+        domain_coverage_score = avg_domain_cov * 100
+
+        # Общее покрытие рынка
+        market_coverage_score = 0.60 * skill_coverage + 0.40 * domain_coverage_score
+
+        # Готовность к уровню
+        readiness = (
+            0.50 * market_coverage_score +
+            0.20 * (strong_count / total_market * 100) +
+            0.15 * (weak_count / total_market * 100) +
+            0.15 * domain_coverage_score
+        )
+
+        total_gap = sum((m.gap_j + m.gap_m + m.gap_s) / 3 for m in metrics.values())
+        avg_gap = total_gap / max(len(metrics), 1) if metrics else 0.0
+
+        readiness_score = round(max(0.0, min(100.0, readiness)), 2)
+
+        # Реальное покрытие (доля навыков студента от рынка)
         user_skills_norm = {SkillNormalizer.normalize(s) for s in user_skills_list}
         all_market_skills = list(metrics.keys())
         covered_market = sum(1 for s in all_market_skills if s in user_skills_norm)
-        market_skill_coverage_pct = round(covered_market / len(all_market_skills) * 100, 2)
-
-        skill_coverage = sum(final_scores.values()) / max(len(final_scores), 1) * 100
-        avg_domain_cov = sum(d.coverage for d in domain_coverages.values()) / max(len(domain_coverages), 1)
-        domain_coverage_score = avg_domain_cov * 100
-        market_coverage_score = 0.70 * skill_coverage + 0.30 * domain_coverage_score
-
-        total_gap = sum((m.gap_j + m.gap_m + m.gap_s) / 3 for m in metrics.values())
-        avg_gap = total_gap / max(len(metrics), 1)
-
-        readiness_score = self._calculate_readiness(
-            market_coverage_score=market_coverage_score,
-            skill_coverage=skill_coverage,
-            domain_coverage_score=domain_coverage_score,
-            avg_gap=avg_gap
-        )
+        market_skill_coverage_pct = round(covered_market / len(all_market_skills) * 100, 2) if all_market_skills else 0.0
 
         gaps = {s: m.__dict__ for s, m in metrics.items()
                 if max(m.gap_j, m.gap_m, m.gap_s) > 0.15}
 
+        # Добавляем статистику категорий
+        skill_categories = {
+            "strong": strong_count,
+            "weak": weak_count,
+            "missing": missing_count,
+            "total": total_market
+        }
+
         return {
-            "market_coverage_score": round(market_coverage_score, 2),   # потребность в дообучении
+            "market_coverage_score": round(market_coverage_score, 2),
             "skill_coverage": round(skill_coverage, 2),
             "domain_coverage_score": round(domain_coverage_score, 2),
             "readiness_score": readiness_score,
@@ -174,7 +214,8 @@ class ProfileEvaluator:
             "gaps": gaps,
             "level_weights_used": level_weights,
             "student_skills": user_skills_list,
-            "market_skill_coverage": market_skill_coverage_pct   # новое: реальное покрытие
+            "market_skill_coverage": market_skill_coverage_pct,
+            "skill_categories": skill_categories
         }
     # ------------------------------------------------------------------
     # Вспомогательные методы нового API

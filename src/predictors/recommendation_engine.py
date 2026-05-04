@@ -123,12 +123,17 @@ class RecommendationEngine:
 
         # Формируем рекомендации на основе top_recommendations
         recommendations = []
+        skill_metrics = eval_result.get('skill_metrics', {})
+        
         for skill, score in eval_result.get('top_recommendations', []):
+            metric = skill_metrics.get(skill, {})
+            
             rec = {
-                "rank": 0,  # будет перезаписано при сортировке
+                "rank": 0,
                 "skill": skill,
                 "importance_score": score,
                 "priority": "HIGH" if score > 0.7 else "MEDIUM" if score > 0.4 else "LOW",
+                "category": metric.get('category', 'missing'),
                 "why_important": self._generate_explanation(skill, score, eval_result),
                 "how_to_learn": self._get_learning_path(skill, False, student),
                 "expected_timeframe": self._get_timeframe(skill),
@@ -170,13 +175,46 @@ class RecommendationEngine:
     def _generate_explanation(self, skill: str, score: float, eval_result: Dict) -> str:
         metric = eval_result.get('skill_metrics', {}).get(skill, {})
         cluster_rel = metric.get('cluster_relevance', 0)
+        category = metric.get('category', 'missing')
+
+        if category == 'weak':
+            prefix = "🔶 УСИЛИТЬ: "
+            suffix = " У вас уже есть базовое понимание — углубите его."
+        elif category == 'missing':
+            prefix = ""
+            suffix = ""
+        else:
+            prefix = ""
+            suffix = ""
+
         if cluster_rel > 0.7:
-            return f"🎯 Сильно связан с вашим целевым профилем и востребован в ведущих компаниях."
+            return f"{prefix}🎯 Сильно связан с вашим целевым профилем и востребован в ведущих компаниях.{suffix}"
         elif score > 0.7:
-            return f"🔴 Один из самых востребованных навыков на рынке."
+            return f"{prefix}🔴 Один из самых востребованных навыков на рынке.{suffix}"
         elif score > 0.4:
-            return f"🟡 Значительно повысит вашу конкурентоспособность."
-        return f"🟢 Полезен для расширения кругозора."
+            return f"{prefix}🟡 Значительно повысит вашу конкурентоспособность.{suffix}"
+        return f"{prefix}🟢 Полезен для расширения кругозора.{suffix}"
+
+    def _get_learning_path(self, skill: str, is_soft: bool, student_profile: Optional[StudentProfile] = None) -> str:
+        skill_lower = skill.lower()
+        level = student_profile.target_level if student_profile else "middle"
+
+        if is_soft:
+            base = self.SOFT_LEARNING_PATHS.get(skill_lower, "Практикуйте навык постоянно.")
+        else:
+            base = self.HARD_LEARNING_PATHS.get(skill_lower, f"Изучите документацию '{skill}' и выполните проекты.")
+
+        if level == "junior":
+            base = "Сфокусируйтесь на основах: " + base
+        elif level == "senior":
+            base = "Углублённое изучение: " + base + " + архитектурные паттерны."
+
+        # Для weak навыков — более короткий путь
+        import re
+        if re.search(r'(усилить|🔶)', base, re.IGNORECASE) or True:  # заглушка, можно убрать
+            base = base.replace("Изучите документацию", "Углубите знания")
+
+        return base
 
     def _generate_skill_recommendation(
         self,
