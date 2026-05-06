@@ -91,8 +91,32 @@ class ProfileEvaluator:
             else:
                 metric.cluster_relevance = 0.15 * getattr(metric, 'cluster_relevance', 0.0)
 
-        # === 3. Domain-level coverage ===
+        # === 3. Domain-level coverage (с весом доминирующего домена) ===
         domain_coverages = self.domain_analyzer.compute_domain_coverage(user_skills_list)
+
+        # Определяем доминирующий домен студента
+        if domain_coverages:
+            dominant_domain = max(domain_coverages.items(), key=lambda x: x[1].coverage)
+            dominant_name = dominant_domain[0]
+        else:
+            dominant_name = None
+
+        # Взвешенное покрытие: доминирующий домен получает вес 0.5
+        weighted_cov_sum = 0.0
+        other_count = len(domain_coverages) - 1 if len(domain_coverages) > 1 else 0
+
+        for dom_name, dom in domain_coverages.items():
+            if dom_name == dominant_name:
+                weight = 0.5
+            else:
+                weight = 0.5 / other_count if other_count > 0 else 0.5
+            weighted_cov_sum += dom.coverage * weight
+
+        # Итоговое доменное покрытие (0-100%)
+        domain_coverage_score = weighted_cov_sum * 100
+
+        logger.debug(f"Доминирующий домен: {dominant_name}, "
+                     f"взвешенное доменное покрытие: {domain_coverage_score:.1f}%")
 
         # === 4. Бонусы от доменов ===
         skill_to_domain_bonus = {}
@@ -240,7 +264,7 @@ class ProfileEvaluator:
             cluster_context = self.clusterer.get_cluster_context(
                 profile_embedding=student_emb,
                 level=target_level,
-                top_k_clusters=3,
+                top_k_clusters=5,
                 top_k_skills_per_cluster=25
             )
             logger.info(f"Кластерный контекст для {target_level}: "

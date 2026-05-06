@@ -147,8 +147,8 @@ class VacancyClusterer:
                 continue
             # Фильтр маленьких кластеров
             counts = np.bincount(labels)
-            if np.any(counts < self.min_cluster_size):
-                continue
+            #if np.any(counts < self.min_cluster_size):
+             #   continue
             try:
                 score = silhouette_score(X, labels, metric='euclidean')
             except Exception:
@@ -163,8 +163,8 @@ class VacancyClusterer:
             else:
                 no_improve += 1
             # early stopping
-            if no_improve >= 3:
-                break
+            #if no_improve >= 3:
+             #   break
 
         if best_score < 0.1:
             logger.warning(
@@ -331,38 +331,136 @@ class VacancyClusterer:
         return list(skills_set)
 
     def get_cluster_context(
-        self,
-        profile_embedding: np.ndarray,
-        level: str = "middle",
-        top_k_clusters: int = 3,
-        top_k_skills_per_cluster: int = 20
-    ) -> Dict[str, Any]:
+            self,
+            profile_embedding: np.ndarray,
+            level: str = "middle",
+            top_k_clusters: int = 3,
+            top_k_skills_per_cluster: int = 20
+        ) -> Dict[str, Any]:
+            """
+            Возвращает контекст: ближайшие кластеры, их навыки и веса.
+            """
+            if profile_embedding is None:
+                return {"clusters": [], "skills": {}, "total_skills_in_context": 0}
+
+            # Нормализуем эмбеддинг
+            embedding = profile_embedding / np.linalg.norm(profile_embedding)
+
+            # Находим ближайшие кластеры
+            closest = self.find_closest_clusters(embedding, top_k=top_k_clusters)
+            if not closest:
+                return {"clusters": [], "skills": {}, "total_skills_in_context": 0}
+
+            context_skills = {}
+            result_clusters = []
+            
+            for cluster_id, sim in closest:
+                top_skills = self.get_top_skills_in_cluster(cluster_id, top_n=top_k_skills_per_cluster)
+                
+                # Генерируем имя кластера на основе таксономии
+                cluster_name = self._generate_cluster_name(cluster_id)
+                
+                result_clusters.append({
+                    "id": int(cluster_id),
+                    "similarity": float(sim),
+                    "name": cluster_name
+                })
+                
+                for skill in top_skills:
+                    # Вес = сходство кластера (можно также учесть частоту)
+                    context_skills[skill] = max(context_skills.get(skill, 0.0), sim)
+
+            return {
+                "closest_clusters": result_clusters,
+                "skills": context_skills,
+                "total_skills_in_context": len(context_skills)
+            }
+
+    def _generate_cluster_name(self, cluster_id: int) -> str:
         """
-        Возвращает контекст: ближайшие кластеры, их навыки и веса.
+        Генерирует человекочитаемое имя кластера на основе таксономии навыков.
         """
-        if profile_embedding is None:
-            return {"clusters": [], "skills": {}, "total_skills_in_context": 0}
-
-        # Нормализуем эмбеддинг
-        embedding = profile_embedding / np.linalg.norm(profile_embedding)
-
-        # Находим ближайшие кластеры
-        closest = self.find_closest_clusters(embedding, top_k=top_k_clusters)
-        if not closest:
-            return {"clusters": [], "skills": {}, "total_skills_in_context": 0}
-
-        context_skills = {}
-        for cluster_id, sim in closest:
-            top_skills = self.get_top_skills_in_cluster(cluster_id, top_n=top_k_skills_per_cluster)
-            for skill in top_skills:
-                # Вес = сходство кластера (можно также учесть частоту)
-                context_skills[skill] = max(context_skills.get(skill, 0.0), sim)
-
-        return {
-            "closest_clusters": [{"id": cid, "similarity": sim} for cid, sim in closest],
-            "skills": context_skills,
-            "total_skills_in_context": len(context_skills)
-        }
+        from src.analyzers.skill_taxonomy import SkillTaxonomy
+        
+        taxonomy = SkillTaxonomy()
+        top_skills = self.get_top_skills_in_cluster(cluster_id, top_n=15)
+        
+        if not top_skills:
+            return f"Empty Cluster {cluster_id}"
+        
+        # Определяем доминирующую категорию
+        dominant = taxonomy.get_dominant_category(top_skills)
+        dominant_label = taxonomy.get_category_label_by_id(dominant)
+        dominant_icon = taxonomy.get_category_icon_by_id(dominant)
+        
+        # Ключевые технологии из доминирующей категории
+        key_techs = [s for s in top_skills if taxonomy.get_category(s) == dominant][:3]
+        
+        # Определяем вторичную категорию (если есть)
+        stats = taxonomy.get_category_stats(top_skills)
+        secondary = None
+        for cat, count in stats.items():
+            if cat != dominant and count >= 2:
+                secondary = taxonomy.get_category_label_by_id(cat)
+                break
+        
+        # Формируем имя
+        if key_techs:
+            name = f"{dominant_icon} {dominant_label}: {', '.join(key_techs)}"
+        else:
+            name = f"{dominant_icon} {dominant_label}"
+        
+        # Добавляем информацию о вторичной категории
+        if secondary:
+            name += f" + {secondary}"
+        
+        return name
+    
+    def _generate_cluster_name(self, cluster_id: int) -> str:
+        """
+        Генерирует человекочитаемое имя кластера.
+        Только доминирующая категория + вторичная (без перечисления навыков).
+        """
+        from src.analyzers.skill_taxonomy import SkillTaxonomy
+        
+        taxonomy = SkillTaxonomy()
+        top_skills = self.get_top_skills_in_cluster(cluster_id, top_n=15)
+        
+        if not top_skills:
+            return f"Empty Cluster {cluster_id}"
+        
+        # Определяем доминирующую категорию (по топ-15 навыкам)
+        dominant = taxonomy.get_dominant_category(top_skills)
+        
+        # Проверяем, что доминирующая категория осмысленна
+        # (если other — ищем следующую по величине)
+        if dominant == 'other':
+            stats = taxonomy.get_category_stats(top_skills)
+            for cat, count in stats.items():
+                if cat != 'other' and count >= 2:
+                    dominant = cat
+                    break
+        
+        dominant_label = taxonomy.get_category_label_by_id(dominant)
+        dominant_icon = taxonomy.get_category_icon_by_id(dominant)
+        
+        # Определяем вторичную категорию (если есть)
+        stats = taxonomy.get_category_stats(top_skills)
+        secondary = None
+        for cat, count in stats.items():
+            if cat != dominant and cat != 'other' and count >= 3:
+                secondary = taxonomy.get_category_label_by_id(cat)
+                break
+        
+        # Формируем имя: иконка + категория
+        from src.visualization.charts import EMOJI_TO_TEXT
+        text_icon = EMOJI_TO_TEXT.get(dominant_icon, '')
+        name = f"{text_icon} {dominant_label}" if text_icon else dominant_label
+        
+        if secondary:
+            name += f" + {secondary}"
+        
+        return name
 
     def get_top_skills_in_cluster(self, cluster_id: int, top_n: int = 30) -> List[str]:
         """Возвращает топ-N навыков кластера по частоте."""
