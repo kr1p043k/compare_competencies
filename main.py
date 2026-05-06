@@ -22,7 +22,6 @@ if __name__ == "__main__" and sys.platform == 'win32':
 sys.path.insert(0, str(Path(__file__).parent))
 from src.parsing.utils import load_it_skills, filter_skills_by_whitelist
 from src.parsing.hh_api import HeadHunterAPI
-from src.parsing.hh_api_async import HeadHunterAPIAsync
 from src.parsing.skill_normalizer import SkillNormalizer
 from src.parsing.vacancy_parser import VacancyParser
 from src.models.vacancy import Vacancy
@@ -39,10 +38,8 @@ from src.parsing.utils import (
 from src import config
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.utils import load_competency_mapping
-
+from src.utils import atomic_write_json
 # === Gap-анализ и рекомендации ===
-from src.analyzers.vacancy_clustering import VacancyClusterer
-from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.trends import TrendAnalyzer
 from src.analyzers.skill_filter import SkillFilter
 from src.analyzers.comparator import CompetencyComparator
@@ -86,9 +83,9 @@ def convert_float32(obj):
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
 
-    parser.add_argument('--query', '-q', type=str, default="Backend developer")
+    parser.add_argument('--query', '-q', type=str, default="Python developer")
     parser.add_argument('--area-id', '-a', type=int, default=1)
-    parser.add_argument('--max-pages', '-p', type=int, default=5)
+    parser.add_argument('--max-pages', '-p', type=int, default=10)
     parser.add_argument('--period', '-d', type=int, default=30)
     parser.add_argument('--show-vacancies', '-v', action='store_true')
     parser.add_argument('--skip-details', '-s', action='store_true')
@@ -103,7 +100,7 @@ def parse_arguments():
 
     parser.add_argument('--use-async', action='store_true', default=True)
     parser.add_argument('--async-workers', type=int, default=3)
-    parser.add_argument('--async-threshold', type=int, default=10)
+    parser.add_argument('--async-threshold', type=int, default=10000)
 
     parser.add_argument('--run-gap-analysis', action='store_true', default=False)
     parser.add_argument('--run-notebooks', action='store_true')
@@ -177,7 +174,9 @@ def load_vacancies_details(
 
             api_async = HeadHunterAPIAsync(
                 max_concurrent=async_workers,
-                request_delay=config.REQUEST_DELAY
+                request_delay=config.REQUEST_DELAY,
+                token=hh_api._token,                    # передаём токен из синхронного API
+                token_expires_at=hh_api._token_expires_at
             )
 
             vacancy_ids = []
@@ -787,8 +786,7 @@ def main():
             logger.info(f"✓ Используем {len(skill_weights)} очищенных весов навыков")
 
             weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
-            with open(weights_path, "w", encoding="utf-8") as f:
-                json.dump(skill_weights, f, ensure_ascii=False, indent=2)
+            atomic_write_json(skill_weights, weights_path)
 
             logger.info("\n" + "=" * 85)
             logger.info("ИНИЦИАЛИЗАЦИЯ АНАЛИЗАТОРА УРОВНЕЙ ОПЫТА")
@@ -926,6 +924,7 @@ def main():
                         "skill_coverage": eval_data["skill_coverage"],
                         "domain_coverage_score": eval_data["domain_coverage_score"],
                         "readiness_score": eval_data["readiness_score"],
+                        "market_skill_coverage": eval_data.get("market_skill_coverage", 0),
                         "avg_gap": eval_data.get("avg_gap", 0),
                         "gaps": eval_data.get("gaps", {}),
                         "top_recommendations": eval_data.get("top_recommendations", [])
@@ -935,8 +934,7 @@ def main():
             }
 
             summary_path = config.DATA_DIR / "processed" / "profiles_comparison_summary.json"
-            with open(summary_path, "w", encoding="utf-8") as f:
-                json.dump(summary_dict, f, ensure_ascii=False, indent=2)
+            atomic_write_json(summary_dict, summary_path)
 
             logger.info(f"✅ profiles_comparison_summary.json сохранён → {summary_path}")
             logger.info("\n" + "=" * 60)
@@ -995,33 +993,37 @@ def main():
                 print(f"\n📌 РЕКОМЕНДАЦИИ ДЛЯ ПРОФИЛЯ '{profile_name}'")
                 print("=" * 70)
                 summ = full_rec.get("summary", {})
-                print(f"Match score: {summ.get('match_score', 0):.2f} | Confidence: {summ.get('confidence', 0):.2f}")
+                print(f"Match score: {summ.get('match_score', 0):.2f} | "
+                      f"Готовность: {summ.get('confidence', 0):.2f}%")
+                print(f"Реальное покрытие рынка: {summ['market_skill_coverage']:.1f}% "
+                      f"(студент знает {summ['coverage_details']['covered_skills_count']} "
+                      f"из {summ['coverage_details']['total_market_skills']} востребованных навыков)")
 
-                if 'market_coverage_score' in summ:
-                    print(f"Общее покрытие рынка (v2): {summ['market_coverage_score']:.1f}%")
-                    print(f"  - навыковое: {summ.get('skill_coverage', 0):.1f}%")
-                    print(f"  - доменное: {summ.get('domain_coverage_score', 0):.1f}%")
-                    print(f"Реальное покрытие рынка: {summ['market_skill_coverage']:.1f}%")
+                # Ближайшие роли с пояснениями
+                roles = full_rec.get("closest_roles", [])
+                if roles:
+                    print("\n🎯 БЛИЖАЙШИЕ РОЛИ:")
+                    for i, role in enumerate(roles[:3], 1):
+                        print(f"  {i}. {role['role']}")
+                        print(f"     Семантическая близость: {role['semantic_similarity']}%")
+                        print(f"     Покрытие навыков: {role['skills_covered']} ({role['coverage_percent']}%)")
+                        if i == 1 and role.get('coverage_explanation'):
+                            print(f"     ℹ️  {role['coverage_explanation']}")
 
-                coverage_val = summ.get('coverage', 0)
-                details = summ.get('coverage_details', {})
-                covered = details.get('covered_skills_count', '?')
-                total = details.get('total_market_skills', '?')
-                print(f"Покрытие рынка (старое): {coverage_val:.1f}% ({covered}/{total} навыков)")
-
-                print("\nТОП-5 РЕКОМЕНДАЦИЙ:")
+                print("\n📋 РЕКОМЕНДАЦИИ К ИЗУЧЕНИЮ:")
                 for rec in full_rec.get("recommendations", [])[:5]:
-                    print(f"{rec['rank']:2}. {rec['skill']:<25} важность: {rec['importance_score']:.3f} ({rec['priority']})")
-                    print(f"    Почему: {rec['why_important']}")
+                    print(f"{rec['rank']:2}. {rec['skill']:<25} важность: {rec['importance_score']:.3f} "
+                          f"({rec['priority']})")
+                    print(f"    {rec['why_important']}")
                     print(f"    Как учить: {rec['how_to_learn']}")
                     print(f"    Время: {rec['expected_timeframe']}")
+                    print(f"    Результат: {rec['expected_outcome']}")
                     print()
 
                 rec_file = config.DATA_DIR / "result" / profile_name / f"full_recommendations_{profile_name}.json"
                 rec_file.parent.mkdir(parents=True, exist_ok=True)
                 full_rec_serializable = convert_float32(full_rec)
-                with open(rec_file, "w", encoding="utf-8") as f:
-                    json.dump(full_rec_serializable, f, ensure_ascii=False, indent=2)
+                atomic_write_json(full_rec_serializable, rec_file)
                 logger.info(f"✓ Полные рекомендации для {profile_name} сохранены в {rec_file}")
 
             logger.info("\n" + "=" * 85)
@@ -1038,15 +1040,17 @@ def main():
 
     show_context_info()
 
-    logger.info("\n" + "=" * 85)
-    logger.info("ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ")
-    logger.info("=" * 85)
+    if 'evaluations_new' in locals():
+        logger.info("\n" + "=" * 85)
+        logger.info("ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ")
+        logger.info("=" * 85)
 
-    output_viz_dir = config.DATA_DIR / "result"
-    output_viz_dir.mkdir(parents=True, exist_ok=True)
-    save_all_charts(evaluations_new, output_viz_dir, use_ml=True)
-
-    logger.info(f"✅ Презентационные графики сохранены в {output_viz_dir}")
+        output_viz_dir = config.DATA_DIR / "result"
+        output_viz_dir.mkdir(parents=True, exist_ok=True)
+        save_all_charts(evaluations_new, output_viz_dir, use_ml=True, vacancies_skills_list=vacancies_skills)
+        logger.info(f"✅ Презентационные графики сохранены в {output_viz_dir}")
+    else:
+        logger.warning("⚠️ Нет результатов gap-анализа — графики не построены")
 
     if args.run_notebooks:
         logger.info("Запуск Jupyter ноутбуков...")
