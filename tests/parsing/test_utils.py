@@ -1,22 +1,18 @@
 # tests/parsing/test_utils.py
-import pytest
 import json
 import logging
-import time
-from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open
 from collections import Counter
-import sys
+from unittest.mock import MagicMock, patch
 
-from src.parsing import utils
 from src import config
+from src.parsing import utils
 
 
 class TestReadWriteJson:
     def test_read_json_success(self, tmp_path):
         data = {"key": "value"}
         filepath = tmp_path / "test.json"
-        filepath.write_text(json.dumps(data), encoding='utf-8')
+        filepath.write_text(json.dumps(data), encoding="utf-8")
         result = utils.read_json(filepath)
         assert result == data
 
@@ -27,7 +23,7 @@ class TestReadWriteJson:
 
     def test_read_json_invalid_json(self, tmp_path):
         filepath = tmp_path / "invalid.json"
-        filepath.write_text("{not json", encoding='utf-8')
+        filepath.write_text("{not json", encoding="utf-8")
         result = utils.read_json(filepath)
         assert result is None
 
@@ -36,7 +32,7 @@ class TestReadWriteJson:
         filepath = tmp_path / "out.json"
         utils.write_json(data, filepath)
         assert filepath.exists()
-        loaded = json.loads(filepath.read_text(encoding='utf-8'))
+        loaded = json.loads(filepath.read_text(encoding="utf-8"))
         assert loaded == data
 
     def test_write_json_handles_error(self, tmp_path):
@@ -51,7 +47,7 @@ class TestReadWriteJson:
 class TestSetupLogging:
     def test_setup_logging(self, tmp_path, monkeypatch):
         # Подменяем LOG_FILE на временный
-        monkeypatch.setattr(config, 'LOG_FILE', tmp_path / "test.log")
+        monkeypatch.setattr(config, "LOG_FILE", tmp_path / "test.log")
         utils.setup_logging()
         logger = logging.getLogger()
         # Проверяем, что хендлеры добавились
@@ -63,20 +59,20 @@ class TestLoadItSkills:
     def test_load_it_skills_success(self, tmp_path, monkeypatch):
         skills_file = tmp_path / "it_skills.json"
         skills_list = ["Python", "JavaScript", "  React  "]
-        skills_file.write_text(json.dumps(skills_list), encoding='utf-8')
-        monkeypatch.setattr(config, 'DATA_DIR', tmp_path)
+        skills_file.write_text(json.dumps(skills_list), encoding="utf-8")
+        monkeypatch.setattr(config, "DATA_DIR", tmp_path)
         result = utils.load_it_skills()
         assert result == {"python", "javascript", "react"}
 
     def test_load_it_skills_file_missing(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(config, 'DATA_DIR', tmp_path)
+        monkeypatch.setattr(config, "DATA_DIR", tmp_path)
         result = utils.load_it_skills()
         assert result == set()
 
     def test_load_it_skills_not_a_list(self, tmp_path, monkeypatch):
         skills_file = tmp_path / "it_skills.json"
-        skills_file.write_text('{"not": "list"}', encoding='utf-8')
-        monkeypatch.setattr(config, 'DATA_DIR', tmp_path)
+        skills_file.write_text('{"not": "list"}', encoding="utf-8")
+        monkeypatch.setattr(config, "DATA_DIR", tmp_path)
         result = utils.load_it_skills()
         assert result == set()
 
@@ -100,7 +96,7 @@ class TestCollectVacanciesMultiple:
         mock_hh_api.last_response = {"found": 10, "pages": 1}
         # Возвращаем одни и те же данные для всех вызовов
         mock_hh_api.search_vacancies.return_value = [{"id": "1"}, {"id": "2"}]
-        with patch('time.sleep', return_value=None):
+        with patch("time.sleep", return_value=None):
             vacs = utils.collect_vacancies_multiple(
                 mock_hh_api,
                 queries=["Python"],
@@ -108,14 +104,16 @@ class TestCollectVacanciesMultiple:
                 period_days=30,
                 max_pages=5,
                 industry=None,
-                max_vacancies_per_query=20
+                max_vacancies_per_query=20,
             )
         # Пробный запрос: 2 вакансии + основной запрос: те же 2 (дубликаты отфильтрованы) = 2 уникальных
         assert len(vacs) == 2
+
+
 class TestLoadQueriesFromFile:
     def test_load_queries_from_file(self, tmp_path):
         filepath = tmp_path / "queries.txt"
-        filepath.write_text("Python\nJava\n  SQL  \n", encoding='utf-8')
+        filepath.write_text("Python\nJava\n  SQL  \n", encoding="utf-8")
         queries = utils.load_queries_from_file(filepath)
         assert queries == ["Python", "Java", "SQL"]
 
@@ -139,85 +137,88 @@ class TestSafePrint:
 
 class TestInputFunctions:
     def test_input_int_default(self, monkeypatch):
-        monkeypatch.setattr('builtins.input', lambda _: "")
+        monkeypatch.setattr("builtins.input", lambda _: "")
         result = utils.input_int("prompt", default=5)
         assert result == 5
 
     def test_input_int_valid(self, monkeypatch):
-        monkeypatch.setattr('builtins.input', lambda _: "10")
+        monkeypatch.setattr("builtins.input", lambda _: "10")
         result = utils.input_int("prompt", default=5, min_val=1, max_val=20)
         assert result == 10
 
     def test_input_int_out_of_range_then_valid(self, monkeypatch):
         inputs = iter(["100", "15"])
-        monkeypatch.setattr('builtins.input', lambda _: next(inputs))
+        monkeypatch.setattr("builtins.input", lambda _: next(inputs))
         result = utils.input_int("prompt", default=5, min_val=1, max_val=20)
         assert result == 15
 
     def test_input_yes_no_default(self, monkeypatch):
-        monkeypatch.setattr('builtins.input', lambda _: "")
+        monkeypatch.setattr("builtins.input", lambda _: "")
         assert utils.input_yes_no("prompt", default=True) is True
         assert utils.input_yes_no("prompt", default=False) is False
 
     def test_input_yes_no_yes(self, monkeypatch):
-        for ans in ['y', 'yes', 'да']:
-            monkeypatch.setattr('builtins.input', lambda _: ans)
+        for ans in ["y", "yes", "да"]:
+            monkeypatch.setattr("builtins.input", lambda _, a=ans: a)
             assert utils.input_yes_no("prompt") is True
 
     def test_input_yes_no_no(self, monkeypatch):
-        monkeypatch.setattr('builtins.input', lambda _: "n")
+        monkeypatch.setattr("builtins.input", lambda _: "n")
         assert utils.input_yes_no("prompt") is False
 
     def test_select_from_list(self, monkeypatch):
         items = ["A", "B", "C"]
-        monkeypatch.setattr('builtins.input', lambda _: "2")
+        monkeypatch.setattr("builtins.input", lambda _: "2")
         result = utils.select_from_list(items, "Choose:")
         assert result == "B"
 
     def test_select_from_list_invalid_then_valid(self, monkeypatch):
         items = ["A", "B", "C"]
         inputs = iter(["abc", "3"])
-        monkeypatch.setattr('builtins.input', lambda _: next(inputs))
+        monkeypatch.setattr("builtins.input", lambda _: next(inputs))
         result = utils.select_from_list(items, "Choose:")
         assert result == "C"
 
 
 class TestInteractiveConfig:
-    @patch('src.parsing.utils.select_from_list')
-    @patch('src.parsing.utils.input_int')
-    @patch('src.parsing.utils.input_yes_no')
-    @patch('builtins.input')
+    @patch("src.parsing.utils.select_from_list")
+    @patch("src.parsing.utils.input_int")
+    @patch("src.parsing.utils.input_yes_no")
+    @patch("builtins.input")
     def test_interactive_config_mode_10(self, mock_input, mock_yes_no, mock_int, mock_select):
         mock_select.return_value = "10. Другое (ввести свой запрос)"
         mock_input.return_value = "Custom Query"
         mock_int.return_value = 15
         mock_yes_no.side_effect = [True, False, True, True]  # достаточно значений
-        with patch('builtins.print'):
+        with patch("builtins.print"):
             cfg = utils.interactive_config()
-        assert cfg['query'] == "Custom Query"
+        assert cfg["query"] == "Custom Query"
 
-    @patch('src.parsing.utils.select_from_list')
-    @patch('src.parsing.utils.input_int')
-    @patch('src.parsing.utils.input_yes_no')
+    @patch("src.parsing.utils.select_from_list")
+    @patch("src.parsing.utils.input_int")
+    @patch("src.parsing.utils.input_yes_no")
     def test_interactive_config_mode_11_it_sector(self, mock_yes_no, mock_int, mock_select):
         mock_select.return_value = "11. Поиск по всему IT-сектору (industry=7)"
         mock_yes_no.side_effect = [False, True]
-        with patch('builtins.print'):
+        with patch("builtins.print"):
             cfg = utils.interactive_config()
-        assert cfg['is_it_sector'] is True
-        assert cfg['industry'] == 7
-        assert len(cfg['queries']) > 5
-        assert cfg['max_vacancies_per_query'] == 100000  # в коде для IT-сектора
+        assert cfg["is_it_sector"] is True
+        assert cfg["industry"] == 7
+        assert len(cfg["queries"]) > 5
+        assert cfg["max_vacancies_per_query"] == 100000  # в коде для IT-сектора
 
-    @patch('src.parsing.utils.select_from_list')
+    @patch("src.parsing.utils.select_from_list")
     def test_interactive_config_mode_standard(self, mock_select):
         mock_select.return_value = "1. Data Scientist"
-        with patch('src.parsing.utils.input_int', return_value=30):
-            with patch('src.parsing.utils.input_yes_no', side_effect=[True, False, True, False]):
-                with patch('builtins.input', return_value="1"):
-                    with patch('builtins.print'):
+        with (
+            patch("src.parsing.utils.input_int", return_value=30),
+            patch("src.parsing.utils.input_yes_no", side_effect=[True, False, True, False]),
+            patch("builtins.input", return_value="1"),
+            patch("builtins.print"),
+        ):
                         cfg = utils.interactive_config()
-        assert cfg['query'] == "Data Scientist"
+        assert cfg["query"] == "Data Scientist"
+
 
 class TestNormalizeSkillForMatching:
     def test_normalize_skill_for_matching(self):
@@ -235,7 +236,7 @@ class TestExtractAndCountSkills:
         mock_parser = MagicMock()
         mock_parser.extract_skills_from_vacancies.return_value = {
             "frequencies": {"python": 10},
-            "tfidf_weights": {"python": 0.9}
+            "tfidf_weights": {"python": 0.9},
         }
         result = utils.extract_and_count_skills([{"id": 1}], mock_parser)
         assert result["frequencies"] == {"python": 10}
@@ -250,10 +251,7 @@ class TestExtractAndCountSkills:
 class TestMapToCompetencies:
     def test_map_to_competencies(self):
         skill_freq = {"python": 10, "sql": 5, "unknown": 2}
-        mapping = {
-            "Programming": ["python", "java"],
-            "Databases": ["sql", "postgresql"]
-        }
+        mapping = {"Programming": ["python", "java"], "Databases": ["sql", "postgresql"]}
         counter = utils.map_to_competencies(skill_freq, mapping)
         assert counter["Programming"] == 10
         assert counter["Databases"] == 5
@@ -283,12 +281,13 @@ class TestPrintTopCompetencies:
         assert "Programming" in captured.out
         assert "100" in captured.out
 
+
 class TestUtilsEdgeCases:
     def test_read_json_permission_error(self, tmp_path):
         """Строки 90-92: ошибка чтения JSON"""
         filepath = tmp_path / "test.json"
-        filepath.write_text('{"key": "value"}', encoding='utf-8')
-        with patch('builtins.open', side_effect=PermissionError("Permission denied")):
+        filepath.write_text('{"key": "value"}', encoding="utf-8")
+        with patch("builtins.open", side_effect=PermissionError("Permission denied")):
             result = utils.read_json(filepath)
             assert result is None
 
@@ -307,27 +306,24 @@ class TestUtilsEdgeCases:
         mock_hh_api = MagicMock()
         mock_hh_api.last_response = {"found": 3000, "pages": 50}
         mock_hh_api.search_vacancies.return_value = [{"id": f"{i}"} for i in range(10)]
-        monkeypatch.setattr(utils, 'date_chunks', lambda days, chunk_size: [(100, 200), (200, 300)])
-        with patch('time.sleep', return_value=None):
+        monkeypatch.setattr(utils, "date_chunks", lambda days, chunk_size: [(100, 200), (200, 300)])
+        with patch("time.sleep", return_value=None):
             vacs = utils.collect_vacancies_multiple(
-                mock_hh_api,
-                queries=["Python"],
-                area_ids=[1],
-                period_days=60,
-                max_pages=5,
-                max_vacancies_per_query=5
+                mock_hh_api, queries=["Python"], area_ids=[1], period_days=60, max_pages=5, max_vacancies_per_query=5
             )
         assert len(vacs) == 5
 
     def test_interactive_config_region_parsing(self):
         """Строки 219-220, 233-234: парсинг регионов"""
-        with patch('src.parsing.utils.select_from_list', return_value="1. Data Scientist"):
-            with patch('src.parsing.utils.input_int', return_value=15):
-                with patch('src.parsing.utils.input_yes_no', side_effect=[True, False, True, False]):
-                    with patch('builtins.input', return_value="1 2"):
-                        with patch('builtins.print'):
+        with (
+            patch("src.parsing.utils.select_from_list", return_value="1. Data Scientist"),
+            patch("src.parsing.utils.input_int", return_value=15),
+            patch("src.parsing.utils.input_yes_no", side_effect=[True, False, True, False]),
+            patch("builtins.input", return_value="1 2"),
+            patch("builtins.print"),
+        ):
                             cfg = utils.interactive_config()
-        assert len(cfg['area_ids']) >= 1
+        assert len(cfg["area_ids"]) >= 1
 
     def test_extract_and_count_skills_restore(self):
         """Строка 343: восстановление после ошибки"""

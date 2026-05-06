@@ -1,14 +1,14 @@
 # tests/predictors/test_recommendation_engine.py
 import json
-import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
-from src.predictors.recommendation_engine import RecommendationEngine
-from src.models.student import StudentProfile
-from src.analyzers.profile_evaluator import ProfileEvaluator
+import pytest
+
 from src import config
+from src.analyzers.profile_evaluator import ProfileEvaluator
+from src.models.student import StudentProfile
+from src.predictors.recommendation_engine import RecommendationEngine
 
 
 @pytest.fixture
@@ -56,7 +56,7 @@ def sample_student_profile():
         competencies=["SS1.1", "DL-1.3"],
         skills=["python", "sql", "git"],
         target_level="middle",
-        created_at=datetime.now()
+        created_at=datetime.now(),
     )
 
 
@@ -102,12 +102,17 @@ class TestLoadTemplates:
         templates_dir = tmp_path / "templates"
         templates_dir.mkdir()
         templates_file = templates_dir / "recommendation_templates.json"
-        templates_file.write_text(json.dumps({
-            "hard_skills": {"python": "Python is great"},
-            "soft_skills": {"communication": "Soft skill"},
-            "hard_paths": {"python": "Learn Python"},
-            "soft_paths": {"communication": "Practice"}
-        }), encoding='utf-8')
+        templates_file.write_text(
+            json.dumps(
+                {
+                    "hard_skills": {"python": "Python is great"},
+                    "soft_skills": {"communication": "Soft skill"},
+                    "hard_paths": {"python": "Learn Python"},
+                    "soft_paths": {"communication": "Practice"},
+                }
+            ),
+            encoding="utf-8",
+        )
         monkeypatch.setattr(config, "DATA_DIR", tmp_path)
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         assert engine.HARD_SKILL_TEMPLATES["python"] == "Python is great"
@@ -122,7 +127,9 @@ class TestLoadTemplates:
 class TestGenerateRecommendations:
     def test_generate_without_profile_evaluator(self):
         engine = RecommendationEngine()
-        student = StudentProfile(profile_name="test", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now())
+        student = StudentProfile(
+            profile_name="test", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+        )
         with pytest.raises(AttributeError):
             engine.generate_recommendations(student)
 
@@ -139,14 +146,20 @@ class TestGenerateRecommendations:
 
     def test_generate_with_user_type(self, mock_profile_evaluator, sample_student_profile):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        result = engine.generate_recommendations(sample_student_profile, user_type='junior')
-        mock_profile_evaluator.evaluate_profile.assert_called_with(sample_student_profile, user_type='junior')
-
+        _ = engine.generate_recommendations(sample_student_profile, user_type="junior")
+        mock_profile_evaluator.evaluate_profile.assert_called_with(sample_student_profile, user_type="junior")
     def test_generate_empty_recommendations(self, mock_profile_evaluator, sample_student_profile):
         mock_profile_evaluator.evaluate_profile.return_value = {
-            "market_coverage_score": 90.0, "skill_coverage": 85.0, "domain_coverage_score": 80.0,
-            "readiness_score": 88.0, "avg_gap": 5.0, "skill_metrics": {}, "domain_coverage": {},
-            "top_recommendations": [], "gaps": {}, "market_skill_coverage": 80.0,
+            "market_coverage_score": 90.0,
+            "skill_coverage": 85.0,
+            "domain_coverage_score": 80.0,
+            "readiness_score": 88.0,
+            "avg_gap": 5.0,
+            "skill_metrics": {},
+            "domain_coverage": {},
+            "top_recommendations": [],
+            "gaps": {},
+            "market_skill_coverage": 80.0,
         }
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         result = engine.generate_recommendations(sample_student_profile)
@@ -207,7 +220,13 @@ class TestLearningPaths:
         assert "Сфокусируйтесь на основах" in path
 
     def test_get_learning_path_senior(self, mock_profile_evaluator):
-        profile = StudentProfile(profile_name="senior_dev", competencies=[], skills=["python"], target_level="senior", created_at=datetime.now())
+        profile = StudentProfile(
+            profile_name="senior_dev",
+            competencies=[],
+            skills=["python"],
+            target_level="senior",
+            created_at=datetime.now(),
+        )
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         path = engine._get_learning_path("docker", False, profile)
         assert "Углублённое изучение" in path
@@ -250,6 +269,7 @@ class TestLLM:
         result = engine._llm_explain_with_retry("docker", 0.8, "HIGH", ["python"], 70.0)
         assert result is None
 
+
 class TestFullCoverageRecommendationEngine:
     """Дополнительные тесты для покрытия пропущенных строк"""
 
@@ -258,8 +278,12 @@ class TestFullCoverageRecommendationEngine:
         models_dir = tmp_path / "models"
         models_dir.mkdir(parents=True)
         import joblib
+
         model_path = models_dir / "ltr_ranker_xgb_regressor.joblib"
-        joblib.dump({"model": None, "feature_names": [], "skill_metadata": {}, "skill_embeddings": {}, "total_vacancies": 0}, model_path)
+        joblib.dump(
+            {"model": None, "feature_names": [], "skill_metadata": {}, "skill_embeddings": {}, "total_vacancies": 0},
+            model_path,
+        )
 
         monkeypatch.setattr(config, "MODELS_DIR", models_dir)
         engine = RecommendationEngine(use_ltr=True, profile_evaluator=mock_profile_evaluator)
@@ -334,13 +358,12 @@ class TestFullCoverageRecommendationEngine:
         """Строки 355-367: объяснение с SHAP значениями"""
         import numpy as np
         import pandas as pd
+
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         shap_vals = np.array([[0.1, 0.9]])
         X = pd.DataFrame([[0.5, 0.95]], columns=["level_encoded", "cosine_sim"])
         result = engine._why_important(
-            "docker", 0.8, "HIGH",
-            shap_values=shap_vals, X=X, idx=0,
-            feature_names=["level_encoded", "cosine_sim"]
+            "docker", 0.8, "HIGH", shap_values=shap_vals, X=X, idx=0, feature_names=["level_encoded", "cosine_sim"]
         )
         assert "🎯 Навык" in result
 
@@ -383,8 +406,10 @@ class TestFullCoverageRecommendationEngine:
         mock_success.status_code = 200
         mock_success.json.return_value = {"result": {"alternatives": [{"message": {"text": "Success after retry"}}]}}
 
-        with patch("requests.post", side_effect=[mock_fail, mock_success]):
-            with patch("time.sleep", return_value=None):
+        with (
+            patch("requests.post", side_effect=[mock_fail, mock_success]),
+            patch("time.sleep", return_value=None),
+        ):
                 result = engine._llm_explain_with_retry("docker", 0.8, "HIGH", ["python"], 70.0, max_retries=1)
                 assert result == "Success after retry"
 
@@ -408,8 +433,10 @@ class TestFullCoverageRecommendationEngine:
         monkeypatch.setattr(config, "YC_FOLDER_ID", "test-folder")
         engine = RecommendationEngine(use_llm=True, profile_evaluator=mock_profile_evaluator)
 
-        with patch("requests.post", side_effect=Exception("Network error")):
-            with patch("time.sleep", return_value=None):
+        with (
+            patch("requests.post", side_effect=Exception("Network error")),
+            patch("time.sleep", return_value=None),
+        ):
                 result = engine._llm_explain_with_retry("docker", 0.8, "HIGH", ["python"], 70.0)
                 assert result is None
 
@@ -436,16 +463,20 @@ class TestFullCoverageRecommendationEngine:
     def test_generate_recommendations_ranking(self, mock_profile_evaluator, sample_student_profile):
         """Проверка сортировки рекомендаций"""
         mock_profile_evaluator.evaluate_profile.return_value = {
-            "market_coverage_score": 50.0, "skill_coverage": 40.0,
-            "domain_coverage_score": 30.0, "readiness_score": 45.0,
-            "avg_gap": 25.0, "skill_metrics": {},
+            "market_coverage_score": 50.0,
+            "skill_coverage": 40.0,
+            "domain_coverage_score": 30.0,
+            "readiness_score": 45.0,
+            "avg_gap": 25.0,
+            "skill_metrics": {},
             "domain_coverage": {},
             "top_recommendations": [
                 ("k8s", 0.45),
                 ("docker", 0.85),
                 ("fastapi", 0.65),
             ],
-            "gaps": {}, "market_skill_coverage": 30.0,
+            "gaps": {},
+            "market_skill_coverage": 30.0,
         }
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         result = engine.generate_recommendations(sample_student_profile)
@@ -460,6 +491,7 @@ class TestFullCoverageRecommendationEngine:
         """SHAP объяснение для junior уровня"""
         import numpy as np
         import pandas as pd
+
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         shap_vals = np.array([[0.9, 0.1]])
         X = pd.DataFrame([[1, 0.5]], columns=["level_encoded", "cosine_sim"])
@@ -470,6 +502,7 @@ class TestFullCoverageRecommendationEngine:
         """SHAP объяснение для категории"""
         import numpy as np
         import pandas as pd
+
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         shap_vals = np.array([[0.1, 0.9]])
         X = pd.DataFrame([[2, 0.5]], columns=["level_encoded", "category_encoded"])
@@ -498,10 +531,7 @@ class TestFullCoverageRecommendationEngine:
         """Строки 231-234: полный метод _generate_skill_recommendation"""
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         rec = engine._generate_skill_recommendation(
-            "docker", 0.85, "HIGH", 1,
-            student_profile=sample_student_profile,
-            student_skills=["python"],
-            coverage=70.0
+            "docker", 0.85, "HIGH", 1, student_profile=sample_student_profile, student_skills=["python"], coverage=70.0
         )
         assert rec["skill"] == "docker"
         assert rec["importance_score"] == 0.85
@@ -522,15 +552,21 @@ class TestFullCoverageRecommendationEngine:
 
         import numpy as np
         import pandas as pd
+
         shap_vals = np.array([[0.9, 0.1]])
         X = pd.DataFrame([[3, 0.95]], columns=["level_encoded", "cosine_sim"])
 
         with patch.object(engine, "_llm_explain", return_value=None):
             result = engine._why_important(
-                "docker", 0.8, "HIGH",
-                student_skills=["python"], coverage=70.0,
-                shap_values=shap_vals, X=X, idx=0,
-                feature_names=["level_encoded", "cosine_sim"]
+                "docker",
+                0.8,
+                "HIGH",
+                student_skills=["python"],
+                coverage=70.0,
+                shap_values=shap_vals,
+                X=X,
+                idx=0,
+                feature_names=["level_encoded", "cosine_sim"],
             )
             assert "🎯 Навык" in result
 
@@ -554,12 +590,6 @@ class TestFullCoverageRecommendationEngine:
             result = engine._llm_explain_with_retry("docker", 0.8, "HIGH", ["python"], 70.0, max_retries=0)
             assert result is None
 
-    def test_fit_with_empty_vacancies(self, mock_profile_evaluator):
-        """Строка 57: fit с пустыми вакансиями"""
-        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        engine.fit([], skill_weights={"python": 0.9})
-        assert not engine.is_fitted
-
     def test_get_suggestion_soft_skill_fallback(self, mock_profile_evaluator):
         """Строка 305: soft skill без шаблона"""
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
@@ -570,6 +600,7 @@ class TestFullCoverageRecommendationEngine:
         """Строка 321: SHAP с уровнем junior"""
         import numpy as np
         import pandas as pd
+
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         shap_vals = np.array([[0.9, 0.1]])
         X = pd.DataFrame([[1, 0.5]], columns=["level_encoded", "cosine_sim"])
@@ -580,6 +611,7 @@ class TestFullCoverageRecommendationEngine:
         """Строка 332: SHAP с неизвестной фичей"""
         import numpy as np
         import pandas as pd
+
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         shap_vals = np.array([[0.9, 0.1]])
         X = pd.DataFrame([[2, 0.5]], columns=["unknown_feat", "cosine_sim"])
@@ -590,21 +622,19 @@ class TestFullCoverageRecommendationEngine:
         """Строки 353-354: MEDIUM приоритет с SHAP"""
         import numpy as np
         import pandas as pd
+
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         shap_vals = np.array([[0.1, 0.9]])
         X = pd.DataFrame([[2, 0.95]], columns=["level_encoded", "cosine_sim"])
         result = engine._why_important(
-            "docker", 0.5, "MEDIUM",
-            shap_values=shap_vals, X=X, idx=0,
-            feature_names=["level_encoded", "cosine_sim"]
+            "docker", 0.5, "MEDIUM", shap_values=shap_vals, X=X, idx=0, feature_names=["level_encoded", "cosine_sim"]
         )
         assert "Его освоение повысит" in result
 
     def test_get_learning_path_middle(self, mock_profile_evaluator):
         """Строка 362: middle уровень"""
         profile = StudentProfile(
-            profile_name="mid_dev", competencies=[], skills=["python"],
-            target_level="middle", created_at=datetime.now()
+            profile_name="mid_dev", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
         )
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         path = engine._get_learning_path("python", False, profile)
@@ -640,27 +670,16 @@ class TestFullCoverageRecommendationEngine:
         result = engine._get_suggestion("unknown_skill", True)
         assert "soft skill" in result.lower()
 
-    def test_shap_explain_level_junior(self, mock_profile_evaluator):
-        """Строка 321: SHAP объяснение для junior"""
-        import numpy as np
-        import pandas as pd
-        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        shap_vals = np.array([[0.9, 0.1]])
-        X = pd.DataFrame([[1, 0.5]], columns=["level_encoded", "cosine_sim"])
-        result = engine._shap_explain("python", shap_vals, 0, X, ["level_encoded", "cosine_sim"])
-        assert "junior" in result
-
     def test_get_learning_path_middle_level(self, mock_profile_evaluator):
         """Строка 362: путь обучения для middle"""
         profile = StudentProfile(
-            profile_name="mid", competencies=[], skills=["python"],
-            target_level="middle", created_at=datetime.now()
+            profile_name="mid", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
         )
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         path = engine._get_learning_path("python", False, profile)
         assert len(path) > 0
 
-# tests/predictors/test_recommendation_engine.py — добавить в TestFullCoverageRecommendationEngine:
+    # tests/predictors/test_recommendation_engine.py — добавить в TestFullCoverageRecommendationEngine:
 
     def test_fit_with_skill_weights(self, mock_profile_evaluator):
         """Строка 57: успешный fit с данными"""
@@ -684,6 +703,7 @@ class TestFullCoverageRecommendationEngine:
         """Строка 321: SHAP с junior (level_encoded=1)"""
         import numpy as np
         import pandas as pd
+
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         shap_vals = np.array([[0.9]])
         X = pd.DataFrame([[1]], columns=["level_encoded"])
@@ -693,8 +713,7 @@ class TestFullCoverageRecommendationEngine:
     def test_get_learning_path_middle_default(self, mock_profile_evaluator):
         """Строка 362: путь обучения для middle уровня"""
         profile = StudentProfile(
-            profile_name="mid", competencies=[], skills=["python"],
-            target_level="middle", created_at=datetime.now()
+            profile_name="mid", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
         )
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         path = engine._get_learning_path("python", False, profile)

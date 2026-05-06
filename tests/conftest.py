@@ -1,29 +1,23 @@
 # tests/conftest.py
-import pytest
-import json
-from pathlib import Path
-from datetime import datetime
-import numpy as np
 import logging
 import sys
+from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock
-from src.models.student import StudentProfile
-from src.models.vacancy import Vacancy, Area, Employer, KeySkill
-from src.analyzers.gap_analyzer import GapAnalyzer
-from src.analyzers.embedding_comparator import EmbeddingComparator
-from src.analyzers.skill_filter import SkillFilter
-from src.loaders_student.student_loader import StudentLoader
-from src.parsing.skill_validator import SkillValidator
-from src.analyzers.profile_evaluator import ProfileEvaluator
-from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
+
+import numpy as np
+import pytest
+
 from src.analyzers.domain_analyzer import DomainAnalyzer
-from src.visualization.charts import (
-    plot_skill_comparison_radar,
-    plot_coverage_comparison,
-    plot_ml_importance,
-    plot_weight_distribution,
-    save_all_charts,
-)
+from src.analyzers.embedding_comparator import EmbeddingComparator
+from src.analyzers.gap_analyzer import GapAnalyzer
+from src.analyzers.profile_evaluator import ProfileEvaluator
+from src.analyzers.skill_filter import SkillFilter
+from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
+from src.loaders_student.student_loader import StudentLoader
+from src.models.student import StudentProfile
+from src.models.vacancy import Area, Employer, KeySkill, Vacancy
+from src.parsing.skill_validator import SkillValidator
 
 
 def pytest_configure(config):
@@ -34,7 +28,7 @@ def pytest_configure(config):
 
     mock_st = MagicMock()
     mock_st.SentenceTransformer = MagicMock(return_value=mock_model)
-    sys.modules['sentence_transformers'] = mock_st
+    sys.modules["sentence_transformers"] = mock_st
 
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
@@ -70,9 +64,14 @@ def data_dir() -> Path:
 @pytest.fixture(scope="session")
 def sample_skill_weights() -> dict:
     return {
-        "python": 2450, "sql": 1890, "docker": 1420,
-        "fastapi": 980, "pandas": 650, "git": 1200,
-        "postgresql": 1100, "machine learning": 870
+        "python": 2450,
+        "sql": 1890,
+        "docker": 1420,
+        "fastapi": 980,
+        "pandas": 650,
+        "git": 1200,
+        "postgresql": 1100,
+        "machine learning": 870,
     }
 
 
@@ -83,7 +82,7 @@ def sample_student() -> StudentProfile:
         competencies=["SS1.1", "DL-1.3"],
         skills=["Python", "SQL", "Git", "Pandas", "Docker"],
         target_level="middle",
-        created_at=datetime.now()
+        created_at=datetime.now(),
     )
 
 
@@ -97,15 +96,15 @@ def sample_vacancies() -> list[Vacancy]:
             name="Junior Data Scientist",
             area=area,
             employer=employer,
-            key_skills=[KeySkill(name="Python"), KeySkill(name="SQL")]
+            key_skills=[KeySkill(name="Python"), KeySkill(name="SQL")],
         ),
         Vacancy(
             id="2",
             name="Middle Python Developer",
             area=area,
             employer=employer,
-            key_skills=[KeySkill(name="FastAPI"), KeySkill(name="Docker")]
-        )
+            key_skills=[KeySkill(name="FastAPI"), KeySkill(name="Docker")],
+        ),
     ]
 
 
@@ -146,7 +145,7 @@ def sample_results_dict():
             "coverage_percent": 65,
             "weighted_coverage_percent": 72,
             "covered_skills": ["Python", "SQL"],
-            "high_demand_gaps": [{"skill": "FastAPI", "frequency": 87}]
+            "high_demand_gaps": [{"skill": "FastAPI", "frequency": 87}],
         }
     }
 
@@ -166,10 +165,7 @@ def mock_embedder(monkeypatch):
 @pytest.fixture
 def profile_evaluator(sample_skill_weights):
     vacancies_skills = [["python", "sql"], ["fastapi", "docker"]]
-    return ProfileEvaluator(
-        skill_weights=sample_skill_weights,
-        vacancies_skills=vacancies_skills
-    )
+    return ProfileEvaluator(skill_weights=sample_skill_weights, vacancies_skills=vacancies_skills)
 
 
 @pytest.fixture
@@ -185,4 +181,5 @@ def domain_analyzer():
 @pytest.fixture
 def charts_module():
     import src.visualization.charts as charts
+
     return charts

@@ -1,5 +1,6 @@
 # tests/analyzers/test_skill_level_analyzer.py
 import pytest
+
 from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
 
 
@@ -10,11 +11,7 @@ class TestSkillLevelAnalyzerFull:
 
     def test_init(self, analyzer):
         assert analyzer.skill_by_level is not None
-        assert analyzer.level_thresholds == {
-            'junior': 0.3,
-            'middle': 0.5,
-            'senior': 0.7
-        }
+        assert analyzer.level_thresholds == {"junior": 0.3, "middle": 0.5, "senior": 0.7}
 
     def test_analyze_vacancies_with_dict_experience(self, analyzer):
         """experience как dict с name (реальный формат hh.ru)"""

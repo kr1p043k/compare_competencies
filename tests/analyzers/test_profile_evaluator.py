@@ -1,11 +1,11 @@
 # tests/analyzers/test_profile_evaluator.py
-import pytest
 from datetime import datetime
-import numpy as np
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from src.models.student import StudentProfile
+import pytest
+
 from src.analyzers.profile_evaluator import ProfileEvaluator
+from src.models.student import StudentProfile
 
 
 class TestProfileEvaluatorExtended:
@@ -16,15 +16,15 @@ class TestProfileEvaluatorExtended:
             competencies=[],
             skills=["python", "sql", "git", "fastapi", "docker"],
             target_level="middle",
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
     @pytest.fixture
     def skill_weights_by_level(self):
         return {
-            'junior': {'python': 0.8, 'sql': 0.6, 'git': 0.5, 'html': 0.4},
-            'middle': {'python': 0.9, 'docker': 0.7, 'sql': 0.5, 'fastapi': 0.4},
-            'senior': {'python': 0.9, 'docker': 0.9, 'k8s': 0.8, 'sql': 0.3},
+            "junior": {"python": 0.8, "sql": 0.6, "git": 0.5, "html": 0.4},
+            "middle": {"python": 0.9, "docker": 0.7, "sql": 0.5, "fastapi": 0.4},
+            "senior": {"python": 0.9, "docker": 0.9, "k8s": 0.8, "sql": 0.3},
         }
 
     @pytest.fixture
@@ -50,7 +50,7 @@ class TestProfileEvaluatorExtended:
             vacancies_skills=vacancies_skills,
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
-            use_clustering=False
+            use_clustering=False,
         )
         assert evaluator.skill_weights == {"python": 0.9, "sql": 0.7}
         assert evaluator.vacancies_skills == vacancies_skills
@@ -64,7 +64,7 @@ class TestProfileEvaluatorExtended:
             vacancies_skills=vacancies_skills,
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
-            use_clustering=False
+            use_clustering=False,
         )
 
         result = evaluator.evaluate_profile(student)
@@ -144,17 +144,16 @@ class TestProfileEvaluatorExtended:
             vacancies_skills_dict=[],
         )
         readiness = evaluator._calculate_readiness(
-            market_coverage_score=70.0,
-            skill_coverage=60.0,
-            domain_coverage_score=50.0,
-            avg_gap=0.3
+            market_coverage_score=70.0, skill_coverage=60.0, domain_coverage_score=50.0, avg_gap=0.3
         )
         # Формула: 0.5*70 + 0.2*60 + 0.2*50 - 0.1*30 = 35 + 12 + 10 - 3 = 54
         assert readiness == pytest.approx(54.0)
 
-    def test_domain_analyzer_creates_coverage(self, student, skill_weights_by_level,
-                                                vacancies_skills, vacancies_skills_dict):
+    def test_domain_analyzer_creates_coverage(
+        self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
+    ):
         from src.analyzers.domain_analyzer import DomainAnalyzer
+
         evaluator = ProfileEvaluator(
             skill_weights={"python": 0.9},
             vacancies_skills=vacancies_skills,
@@ -170,6 +169,7 @@ class TestProfileEvaluatorExtended:
         assert isinstance(coverages, dict)
         assert len(coverages) > 0
 
+
 class TestProfileEvaluatorFull:
     @pytest.fixture
     def student(self):
@@ -178,15 +178,15 @@ class TestProfileEvaluatorFull:
             competencies=[],
             skills=["python", "sql", "git", "fastapi", "docker"],
             target_level="middle",
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
     @pytest.fixture
     def skill_weights_by_level(self):
         return {
-            'junior': {'python': 0.8, 'sql': 0.6, 'git': 0.5, 'html': 0.4},
-            'middle': {'python': 0.9, 'docker': 0.7, 'sql': 0.5, 'fastapi': 0.4},
-            'senior': {'python': 0.9, 'docker': 0.9, 'k8s': 0.8, 'sql': 0.3},
+            "junior": {"python": 0.8, "sql": 0.6, "git": 0.5, "html": 0.4},
+            "middle": {"python": 0.9, "docker": 0.7, "sql": 0.5, "fastapi": 0.4},
+            "senior": {"python": 0.9, "docker": 0.9, "k8s": 0.8, "sql": 0.3},
         }
 
     @pytest.fixture
@@ -211,7 +211,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills=vacancies_skills,
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
-            use_clustering=False
+            use_clustering=False,
         )
 
         result = evaluator.evaluate_profile(student)
@@ -221,6 +221,7 @@ class TestProfileEvaluatorFull:
     def test_cache_save_and_load(self, tmp_path, sample_skill_weights):
         """Строки 264-277: кэширование результатов"""
         import src.config as config
+
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
 
@@ -257,7 +258,7 @@ class TestProfileEvaluatorFull:
             competencies=[],
             skills=["python", "sql"],
             target_level="middle",
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
         hash1 = evaluator._get_student_hash(student, "middle")
@@ -271,6 +272,7 @@ class TestProfileEvaluatorFull:
     def test_load_cache_exception(self, tmp_path, sample_skill_weights):
         """Строка 275-277: обработка ошибки загрузки кэша"""
         import src.config as config
+
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
 
@@ -297,7 +299,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills=vacancies_skills,
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
-            use_clustering=True
+            use_clustering=True,
         )
         result = evaluator.evaluate_profile(student)
         assert "cluster_context" in result
@@ -312,7 +314,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
         )
-        result = evaluator.evaluate_profile(student, user_type='student')
+        result = evaluator.evaluate_profile(student, user_type="student")
         assert result["level_weights_used"]["junior"] == pytest.approx(0.60)
         assert result["level_weights_used"]["senior"] == pytest.approx(0.10)
 
@@ -326,7 +328,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
         )
-        result = evaluator.evaluate_profile(student, user_type='junior')
+        result = evaluator.evaluate_profile(student, user_type="junior")
         assert result["level_weights_used"]["junior"] == pytest.approx(0.40)
         assert result["level_weights_used"]["middle"] == pytest.approx(0.40)
 
@@ -339,9 +341,9 @@ class TestProfileEvaluatorFull:
             vacancies_skills=vacancies_skills,
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
-            use_clustering=False  # отключаем, но проверяем структуру
+            use_clustering=False,  # отключаем, но проверяем структуру
         )
-        context = evaluator._get_cluster_context(student, 'middle')
+        context = evaluator._get_cluster_context(student, "middle")
         assert context is None  # без кластеризации возвращает None
 
     def test_get_cluster_context_without_model(
@@ -353,11 +355,11 @@ class TestProfileEvaluatorFull:
             vacancies_skills=vacancies_skills,
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
-            use_clustering=True
+            use_clustering=True,
         )
         # Модель не загружена для 'middle' (нет файла)
-        evaluator.cluster_models_loaded = {'junior': False, 'middle': False, 'senior': False}
-        context = evaluator._get_cluster_context(student, 'middle')
+        evaluator.cluster_models_loaded = {"junior": False, "middle": False, "senior": False}
+        context = evaluator._get_cluster_context(student, "middle")
         assert context is None
 
     def test_evaluate_profile_readiness_with_gap_penalty(
@@ -390,53 +392,26 @@ class TestProfileEvaluatorFull:
         assert "domain_coverage" in result
         assert len(result["domain_coverage"]) > 0
 
-    def test_evaluate_profile_readiness_with_gap_penalty(
-        self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
-    ):
-        """Строки 232-247: readiness с большим gap"""
-        evaluator = ProfileEvaluator(
-            skill_weights={"python": 0.9, "sql": 0.7},
-            vacancies_skills=vacancies_skills,
-            vacancies_skills_dict=vacancies_skills_dict,
-            skill_weights_by_level=skill_weights_by_level,
-        )
-        student.skills = ["python"]
-        result = evaluator.evaluate_profile(student)
-        assert result["readiness_score"] < 50
-
-    def test_evaluate_profile_domain_bonus_applied(
-        self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
-    ):
-        """Строки 250-257: бонус от доменов к навыкам"""
-        evaluator = ProfileEvaluator(
-            skill_weights={"python": 0.9, "sql": 0.7, "docker": 0.5},
-            vacancies_skills=vacancies_skills,
-            vacancies_skills_dict=vacancies_skills_dict,
-            skill_weights_by_level=skill_weights_by_level,
-        )
-        result = evaluator.evaluate_profile(student)
-        assert "domain_coverage" in result
-        assert len(result["domain_coverage"]) > 0
-        
     def test_evaluate_profile_warns_when_all_covered(
         self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict, caplog
     ):
         """Строки 130-137: предупреждение когда все навыки покрыты"""
         import logging
+
         caplog.set_level(logging.WARNING)
-        
+
         evaluator = ProfileEvaluator(
             skill_weights={"python": 0.9, "docker": 0.7, "sql": 0.5, "fastapi": 0.4},
             vacancies_skills=vacancies_skills,
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
-            use_clustering=False
+            use_clustering=False,
         )
         # Студент уже знает все навыки из middle-уровня
         student.skills = list(skill_weights_by_level["middle"].keys())
         result = evaluator.evaluate_profile(student)
         assert "top_recommendations" in result
-        
+
     def test_evaluate_profile_readiness_high_coverage(
         self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
     ):
@@ -446,11 +421,11 @@ class TestProfileEvaluatorFull:
             vacancies_skills=vacancies_skills,
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
-            use_clustering=False
+            use_clustering=False,
         )
         student.skills = list(skill_weights_by_level["middle"].keys())
         result = evaluator.evaluate_profile(student)
-        
+
         # Проверяем что метод возвращает все ключи
         assert "readiness_score" in result
         assert "market_coverage_score" in result
@@ -462,7 +437,7 @@ class TestProfileEvaluatorFull:
         # Все значения в допустимых диапазонах
         assert 0.0 <= result["readiness_score"] <= 100.0
         assert 0.0 <= result["market_coverage_score"] <= 100.0
-            
+
     def test_evaluate_profile_with_middle_user_type(
         self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
     ):
@@ -473,7 +448,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
         )
-        result = evaluator.evaluate_profile(student, user_type='middle')
+        result = evaluator.evaluate_profile(student, user_type="middle")
         assert result["level_weights_used"]["middle"] == pytest.approx(0.50)
         assert result["level_weights_used"]["junior"] == pytest.approx(0.20)
 
@@ -487,7 +462,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
         )
-        result = evaluator.evaluate_profile(student, user_type='unknown_type')
+        result = evaluator.evaluate_profile(student, user_type="unknown_type")
         assert result["level_weights_used"]["junior"] == pytest.approx(0.33)
         assert result["level_weights_used"]["middle"] == pytest.approx(0.34)
         assert result["level_weights_used"]["senior"] == pytest.approx(0.33)
@@ -498,17 +473,17 @@ class TestProfileEvaluatorFull:
             skill_weights={"python": 0.9},
             vacancies_skills=[["python", "sql"]],
             vacancies_skills_dict=[{"skills": ["python", "sql"]}],
-            skill_weights_by_level={'junior': {}, 'middle': {'python': 0.9}, 'senior': {}},
-            use_clustering=False
+            skill_weights_by_level={"junior": {}, "middle": {"python": 0.9}, "senior": {}},
+            use_clustering=False,
         )
         student = StudentProfile(
             profile_name="test",
             competencies=[],
             skills=["python", "sql"],
             target_level="middle",
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
-        context = evaluator._get_cluster_context(student, 'middle')
+        context = evaluator._get_cluster_context(student, "middle")
         assert context is None  # use_clustering=False
 
     def test_get_cluster_context_without_skills(self):
@@ -517,18 +492,14 @@ class TestProfileEvaluatorFull:
             skill_weights={"python": 0.9},
             vacancies_skills=[["python"]],
             vacancies_skills_dict=[{"skills": ["python"]}],
-            skill_weights_by_level={'junior': {}, 'middle': {'python': 0.9}, 'senior': {}},
-            use_clustering=True
+            skill_weights_by_level={"junior": {}, "middle": {"python": 0.9}, "senior": {}},
+            use_clustering=True,
         )
         student = StudentProfile(
-            profile_name="test",
-            competencies=[],
-            skills=[],
-            target_level="middle",
-            created_at=datetime.now()
+            profile_name="test", competencies=[], skills=[], target_level="middle", created_at=datetime.now()
         )
-        evaluator.cluster_models_loaded = {'middle': False}
-        context = evaluator._get_cluster_context(student, 'middle')
+        evaluator.cluster_models_loaded = {"middle": False}
+        context = evaluator._get_cluster_context(student, "middle")
         assert context is None
 
     def test_evaluate_profile_fallback_warns_and_returns_recommendations(
@@ -536,87 +507,76 @@ class TestProfileEvaluatorFull:
     ):
         """Строки 130-137: проверка что метод не падает при полном покрытии"""
         import logging
+
         caplog.set_level(logging.WARNING)
-        
+
         # Используем только middle-уровень чтобы избежать лишних навыков
-        middle_only = {
-            'junior': {},
-            'middle': skill_weights_by_level["middle"],
-            'senior': {}
-        }
+        middle_only = {"junior": {}, "middle": skill_weights_by_level["middle"], "senior": {}}
         evaluator = ProfileEvaluator(
             skill_weights=skill_weights_by_level["middle"],
             vacancies_skills=vacancies_skills,
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=middle_only,
-            use_clustering=False
+            use_clustering=False,
         )
-        
+
         student = StudentProfile(
             profile_name="perfect_student",
             competencies=[],
             skills=list(skill_weights_by_level["middle"].keys()),
             target_level="middle",
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
-        
+
         result = evaluator.evaluate_profile(student)
         assert "top_recommendations" in result
         assert "readiness_score" in result
         # При полном покрытии рекомендаций нет
         assert len(result["top_recommendations"]) == 0
 
-    def test_evaluate_profile_all_skills_covered(
-        self, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
-    ):
+    def test_evaluate_profile_all_skills_covered(self, skill_weights_by_level, vacancies_skills, vacancies_skills_dict):
         """Строки 130-137: все рыночные навыки покрыты → пустые рекомендации"""
-        middle_only = {
-            'junior': {},
-            'middle': skill_weights_by_level["middle"],
-            'senior': {}
-        }
+        middle_only = {"junior": {}, "middle": skill_weights_by_level["middle"], "senior": {}}
         evaluator = ProfileEvaluator(
             skill_weights=skill_weights_by_level["middle"],
             vacancies_skills=vacancies_skills,
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=middle_only,
-            use_clustering=False
+            use_clustering=False,
         )
-        
+
         student = StudentProfile(
             profile_name="perfect",
             competencies=[],
             skills=list(skill_weights_by_level["middle"].keys()),
             target_level="middle",
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
-        
+
         result = evaluator.evaluate_profile(student)
         assert "top_recommendations" in result
-        assert len(result["top_recommendations"]) == 0, \
-            f"Expected empty, got: {result['top_recommendations']}"
+        assert len(result["top_recommendations"]) == 0, f"Expected empty, got: {result['top_recommendations']}"
 
     def test_evaluate_profile_fallback_path(
         self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
     ):
         """Строки 136-137: проверка fallback ветки с caplog"""
-        import logging
         evaluator = ProfileEvaluator(
             skill_weights=skill_weights_by_level["middle"],
             vacancies_skills=vacancies_skills,
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
-            use_clustering=False
+            use_clustering=False,
         )
         # Студент покрывает все middle-навыки (они будут отфильтрованы)
         student.skills = list(skill_weights_by_level["middle"].keys())
-        
-        with patch.object(evaluator.gap_analyzer_new, 'compute_metrics') as mock_metrics:
+
+        with patch.object(evaluator.gap_analyzer_new, "compute_metrics") as mock_metrics:
             # Возвращаем метрики только для middle-навыков
             from src.models.market_metrics import SkillMetrics
+
             metrics_dict = {
-                skill: SkillMetrics(skill=skill, user_level=1.0)
-                for skill in skill_weights_by_level["middle"]
+                skill: SkillMetrics(skill=skill, user_level=1.0) for skill in skill_weights_by_level["middle"]
             }
             # Устанавливаем нулевые gaps чтобы попасть в ветку "все покрыты"
             for m in metrics_dict.values():
@@ -625,7 +585,7 @@ class TestProfileEvaluatorFull:
                 m.gap_s = 0.0
                 m.cluster_relevance = 0.0
             mock_metrics.return_value = metrics_dict
-            
+
             result = evaluator.evaluate_profile(student)
             assert "top_recommendations" in result
 

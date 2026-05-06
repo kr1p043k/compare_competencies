@@ -1,37 +1,27 @@
-import logging
-import json
-import sys
 import argparse
-import re
-import time
 import logging
+import re
+import sys
+import time
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-from sklearn.feature_extraction.text import TfidfVectorizer
-import pandas as pd
-import pytest
-import requests
-from unittest.mock import Mock, patch
-from collections import Counter
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
-import numpy as np
-from src.parsing.vacancy_parser import VacancyParser
-from src.parsing.hh_api import HeadHunterAPI
-from src.parsing.skill_validator import SkillValidator, ValidationReason
-from src.parsing.skill_normalizer import SkillNormalizer 
-from src.parsing.utils import (
-    setup_logging,
-    collect_vacancies_multiple,
-    interactive_config,
-    safe_print,
-    extract_and_count_skills,
-    print_top_skills
-)
 from src import config
+from src.parsing.hh_api import HeadHunterAPI
+from src.parsing.utils import (
+    collect_vacancies_multiple,
+    extract_and_count_skills,
+    interactive_config,
+    print_top_skills,
+    setup_logging,
+)
+from src.parsing.vacancy_parser import VacancyParser
+
 logger = logging.getLogger(__name__)
 
 TEST_OUTPUT_DIR = Path(__file__).parent / "test_output"
 TEST_OUTPUT_DIR.mkdir(exist_ok=True)
+
 
 def run_search(args: argparse.Namespace = None, interactive: bool = False):
     if interactive or args is None or len(sys.argv) == 1:
@@ -45,12 +35,12 @@ def run_search(args: argparse.Namespace = None, interactive: bool = False):
     logger.info("ЗАПУСК СБОРА ВАКАНСИЙ С HH.RU")
     logger.info("=" * 90)
 
-    queries = getattr(args, 'queries', [args.query])
+    queries = getattr(args, "queries", [args.query])
     area_ids = args.area_ids
-    sector_suffix = "_it_sector" if getattr(args, 'is_it_sector', False) else ""
-    query_part = re.sub(r'[^a-zA-Z0-9а-яА-ЯёЁ_-]', '_', args.query)[:40]
+    sector_suffix = "_it_sector" if getattr(args, "is_it_sector", False) else ""
+    query_part = re.sub(r"[^a-zA-Z0-9а-яА-ЯёЁ_-]", "_", args.query)[:40]
 
-    max_vacancies_limit = 500 if getattr(args, 'is_it_sector', False) else 1000
+    max_vacancies_limit = 500 if getattr(args, "is_it_sector", False) else 1000
 
     original_raw = config.DATA_RAW_DIR
     original_proc = config.DATA_PROCESSED_DIR
@@ -68,8 +58,8 @@ def run_search(args: argparse.Namespace = None, interactive: bool = False):
             area_ids=area_ids,
             period_days=args.period,
             max_pages=args.max_pages,
-            industry=getattr(args, 'industry', None),
-            max_vacancies_per_query=max_vacancies_limit
+            industry=getattr(args, "industry", None),
+            max_vacancies_per_query=max_vacancies_limit,
         )
 
         if not basic_vacancies:
@@ -82,7 +72,7 @@ def run_search(args: argparse.Namespace = None, interactive: bool = False):
         for i, vac in enumerate(basic_vacancies, 1):
             if i % 50 == 0:
                 logger.info(f"Прогресс деталей: {i}/{len(basic_vacancies)}")
-            det = hh_api.get_vacancy_details(vac['id'])
+            det = hh_api.get_vacancy_details(vac["id"])
             if det:
                 vacancies_to_process.append(det)
             time.sleep(config.REQUEST_DELAY)
@@ -96,7 +86,7 @@ def run_search(args: argparse.Namespace = None, interactive: bool = False):
 
         # === ИСПРАВЛЕННЫЙ ВЫЗОВ ===
         result = extract_and_count_skills(vacancies_to_process, parser)
-        skill_freq = result["frequencies"]          # ← только частоты
+        skill_freq = result["frequencies"]  # ← только частоты
         tfidf_weights = result.get("tfidf_weights", {})
 
         if not skill_freq:
@@ -108,7 +98,9 @@ def run_search(args: argparse.Namespace = None, interactive: bool = False):
         parser.save_raw_vacancies(vacancies_to_process, raw_file)
 
         parser.save_processed_frequencies(skill_freq, f"freq{sector_suffix}_{query_part}_raw.json", apply_filter=False)
-        parser.save_processed_frequencies(skill_freq, f"freq{sector_suffix}_{query_part}_filtered.json", apply_filter=not args.no_filter)
+        parser.save_processed_frequencies(
+            skill_freq, f"freq{sector_suffix}_{query_part}_filtered.json", apply_filter=not args.no_filter
+        )
 
         # Вывод
         print_top_skills(skill_freq)
@@ -133,11 +125,13 @@ def run_search(args: argparse.Namespace = None, interactive: bool = False):
     finally:
         config.DATA_RAW_DIR = original_raw
         config.DATA_PROCESSED_DIR = original_proc
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         run_search(interactive=True)
     else:
         parser = argparse.ArgumentParser()
-        parser.add_argument('--interactive', action='store_true')
+        parser.add_argument("--interactive", action="store_true")
         args = parser.parse_args()
         run_search(args, interactive=args.interactive)

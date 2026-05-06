@@ -1,13 +1,10 @@
 # tests/integration/test_full_pipeline.py
 import json
-import logging
-from pathlib import Path
-from unittest.mock import patch, MagicMock, ANY
+from unittest.mock import patch
 
 import pytest
 
 from src import config
-from src.models.vacancy import Vacancy, Area, Employer, KeySkill
 from src.models.student import StudentProfile
 
 
@@ -23,6 +20,7 @@ def test_skill_extraction_pipeline(mock_extract, tmp_path):
         "skill_embeddings": {},
     }
     from src.parsing.vacancy_parser import VacancyParser
+
     parser = VacancyParser()
     result = parser.extract_skills_from_vacancies([])
     assert "frequencies" in result
@@ -32,9 +30,7 @@ def test_skill_extraction_pipeline(mock_extract, tmp_path):
 @patch("src.parsing.hh_api.HeadHunterAPI.search_vacancies")
 def test_vacancy_collection(mock_search, tmp_path):
     """Проверяем сбор вакансий и сохранение в raw."""
-    mock_search.return_value = [
-        {"id": "1", "name": "Python Dev", "area": {"id": 1}, "employer": {"id": "10"}}
-    ]
+    mock_search.return_value = [{"id": "1", "name": "Python Dev", "area": {"id": 1}, "employer": {"id": "10"}}]
     from src.parsing.hh_api import HeadHunterAPI
     from src.parsing.vacancy_parser import VacancyParser
 
@@ -53,6 +49,7 @@ def test_vacancy_collection(mock_search, tmp_path):
 def test_gap_analysis_integration():
     """GapAnalyzer корректно считает покрытие и дефициты."""
     from src.analyzers.gap_analyzer import GapAnalyzer
+
     skill_weights = {"python": 10, "sql": 5, "docker": 2}
     analyzer = GapAnalyzer(skill_weights)
     coverage, details = analyzer.coverage(["python"])
@@ -70,12 +67,7 @@ def test_profile_evaluator_integration():
     vacancies_skills = [["python"], ["python", "docker"]]
     evaluator = ProfileEvaluator(skill_weights, vacancies_skills)
 
-    student = StudentProfile(
-        profile_name="test",
-        competencies=[],
-        skills=["python"],
-        target_level="middle"
-    )
+    student = StudentProfile(profile_name="test", competencies=[], skills=["python"], target_level="middle")
     level_analyzer = SkillLevelAnalyzer()
     level_analyzer.skill_by_level = {"python": {"middle": 1}, "docker": {"middle": 1}}
     level_weights = level_analyzer.get_weights_for_level(skill_weights, "middle")
@@ -118,7 +110,7 @@ def test_save_all_results(tmp_path):
             "coverage_percent": 60,
             "covered_skills": ["python"],
             "high_demand_gaps": [{"skill": "sql", "frequency": 5}],
-            "readiness_score": 65
+            "readiness_score": 65,
         }
     }
     skill_weights = {"python": 100, "sql": 80}
@@ -126,8 +118,10 @@ def test_save_all_results(tmp_path):
     skill_weights_path.parent.mkdir(parents=True)
     skill_weights_path.write_text(json.dumps(skill_weights))
 
-    with patch.object(config, "DATA_PROCESSED_DIR", skill_weights_path.parent):
-        with patch.object(config, "DATA_DIR", tmp_path):
+    with (
+        patch.object(config, "DATA_PROCESSED_DIR", skill_weights_path.parent),
+        patch.object(config, "DATA_DIR", tmp_path),
+    ):
             output_dir = tmp_path / "output"
             save_all_charts(results, output_dir, use_ml=False)
 
@@ -148,11 +142,13 @@ def test_config_paths_exist():
 
 def test_mock_full_main_execution():
     """Имитация полного выполнения main.py без реальных вызовов API."""
-    with patch("src.parsing.hh_api.HeadHunterAPI.search_vacancies") as mock_search, \
-         patch("src.parsing.vacancy_parser.VacancyParser.extract_skills_from_vacancies") as mock_extract, \
-         patch("src.predictors.recommendation_engine.RecommendationEngine.generate_recommendations") as mock_rec, \
-         patch("src.visualization.charts.save_all_charts") as mock_charts, \
-         patch("builtins.print"):
+    with (
+        patch("src.parsing.hh_api.HeadHunterAPI.search_vacancies") as mock_search,
+        patch("src.parsing.vacancy_parser.VacancyParser.extract_skills_from_vacancies") as mock_extract,
+        patch("src.predictors.recommendation_engine.RecommendationEngine.generate_recommendations") as mock_rec,
+        patch("src.visualization.charts.save_all_charts") as mock_charts,
+        patch("builtins.print"),
+    ):
         mock_search.return_value = [{"id": "1", "name": "Dev"}]
         mock_extract.return_value = {
             "frequencies": {"python": 10, "sql": 5},
@@ -162,6 +158,7 @@ def test_mock_full_main_execution():
 
         # Импортируем main и запускаем с тестовыми аргументами
         import main
+
         with patch("sys.argv", ["main.py", "--query", "test", "--max-pages", "1", "--skip-details"]):
             main.main()
 

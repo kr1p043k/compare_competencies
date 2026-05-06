@@ -2,14 +2,14 @@
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 from src import config
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
 
 @pytest.fixture
@@ -22,12 +22,14 @@ def sample_vacancies():
             skills = [{"name": "Java"}, {"name": "Spring"}, {"name": "Docker"}]
         else:
             skills = [{"name": "JavaScript"}, {"name": "React"}, {"name": "Node.js"}]
-        vacs.append({
-            "key_skills": skills,
-            "experience": {"name": "Middle"} if i < 30 else {"name": "Senior"},
-            "description": "Some description",
-            "snippet": {"requirement": "Git" if i % 4 == 0 else ""}
-        })
+        vacs.append(
+            {
+                "key_skills": skills,
+                "experience": {"name": "Middle"} if i < 30 else {"name": "Senior"},
+                "description": "Some description",
+                "snippet": {"requirement": "Git" if i % 4 == 0 else ""},
+            }
+        )
     return vacs
 
 
@@ -35,19 +37,55 @@ def sample_vacancies():
 def mock_dependencies(monkeypatch, tmp_path):
     mock_vp = MagicMock()
     mock_vp.extract_skills_from_vacancies.return_value = {
-        "frequencies": {"python": 18, "sql": 15, "git": 12, "java": 10, "spring": 8, "docker": 7, "javascript": 6, "react": 5, "node.js": 4},
-        "hybrid_weights": {"python": 0.9, "sql": 0.7, "git": 0.5, "java": 0.6, "spring": 0.4, "docker": 0.8, "javascript": 0.3, "react": 0.5, "node.js": 0.2}
+        "frequencies": {
+            "python": 18,
+            "sql": 15,
+            "git": 12,
+            "java": 10,
+            "spring": 8,
+            "docker": 7,
+            "javascript": 6,
+            "react": 5,
+            "node.js": 4,
+        },
+        "hybrid_weights": {
+            "python": 0.9,
+            "sql": 0.7,
+            "git": 0.5,
+            "java": 0.6,
+            "spring": 0.4,
+            "docker": 0.8,
+            "javascript": 0.3,
+            "react": 0.5,
+            "node.js": 0.2,
+        },
     }
     mock_vp.extract_skills_from_description.return_value = ["docker", "git", "linux", "bash"]
     monkeypatch.setattr("src.predictors.ltr_recommendation_engine.VacancyParser", lambda: mock_vp)
 
     mock_sf = MagicMock()
-    mock_sf.get_skill_categories.return_value = {"programming_languages": ["python", "java", "javascript"], "frameworks": ["spring", "react"], "devops": ["docker", "git"], "databases": ["sql"], "other": ["node.js"]}
+    mock_sf.get_skill_categories.return_value = {
+        "programming_languages": ["python", "java", "javascript"],
+        "frameworks": ["spring", "react"],
+        "devops": ["docker", "git"],
+        "databases": ["sql"],
+        "other": ["node.js"],
+    }
     mock_sf.validate_skills.return_value = ["python", "sql"]
     monkeypatch.setattr("src.predictors.ltr_recommendation_engine.SkillFilter", lambda: mock_sf)
 
     mock_sla = MagicMock()
-    mock_sla.get_skill_level.side_effect = lambda s: {"python": "senior", "sql": "middle", "git": "middle", "java": "middle", "spring": "junior", "docker": "senior", "javascript": "junior", "react": "middle", "node.js": "middle"}.get(s, "middle")
+    mock_sla.get_skill_level.side_effect = lambda s: {
+        "python": "senior",
+        "sql": "middle",
+        "git": "middle",
+        "java": "middle",
+        "spring": "junior",
+        "docker": "senior",
+        "javascript": "junior",
+        "react": "middle",
+        "node.js": "middle",
+    }.get(s, "middle")
     monkeypatch.setattr("src.predictors.ltr_recommendation_engine.SkillLevelAnalyzer", lambda: mock_sla)
 
     mock_emb_model = MagicMock()
@@ -71,7 +109,13 @@ def mock_dependencies(monkeypatch, tmp_path):
     monkeypatch.setattr("src.predictors.ltr_recommendation_engine.r2_score", lambda y_true, y_pred: 0.85)
     monkeypatch.setattr("src.predictors.ltr_recommendation_engine.mean_absolute_error", lambda y_true, y_pred: 0.1)
 
-    return {"vacancy_parser": mock_vp, "skill_filter": mock_sf, "level_analyzer": mock_sla, "embedding_model": mock_emb_model, "xgb_regressor": mock_xgb}
+    return {
+        "vacancy_parser": mock_vp,
+        "skill_filter": mock_sf,
+        "level_analyzer": mock_sla,
+        "embedding_model": mock_emb_model,
+        "xgb_regressor": mock_xgb,
+    }
 
 
 @pytest.fixture
@@ -103,13 +147,19 @@ class TestFit:
         assert len(result.skill_metadata) == 9
 
     def test_no_hybrid_weights(self, engine_with_mocks, sample_vacancies, mock_dependencies):
-        mock_dependencies["vacancy_parser"].extract_skills_from_vacancies.return_value = {"frequencies": {"python": 18, "sql": 15, "git": 12, "java": 10, "spring": 8}, "hybrid_weights": {}}
+        mock_dependencies["vacancy_parser"].extract_skills_from_vacancies.return_value = {
+            "frequencies": {"python": 18, "sql": 15, "git": 12, "java": 10, "spring": 8},
+            "hybrid_weights": {},
+        }
         result = engine_with_mocks.fit(sample_vacancies)
         assert result.is_fitted
         assert result.skill_metadata["python"]["hybrid_weight"] == 0.0
 
     def test_too_few_skills(self, engine_with_mocks, mock_dependencies):
-        mock_dependencies["vacancy_parser"].extract_skills_from_vacancies.return_value = {"frequencies": {"python": 1}, "hybrid_weights": {"python": 0.5}}
+        mock_dependencies["vacancy_parser"].extract_skills_from_vacancies.return_value = {
+            "frequencies": {"python": 1},
+            "hybrid_weights": {"python": 0.5},
+        }
         result = engine_with_mocks.fit([{"key_skills": [{"name": "Python"}]}])
         assert not result.is_fitted
 
@@ -185,7 +235,9 @@ class TestPredictSkillImpact:
 
 class TestAuxiliaryMethods:
     def test_extract_features(self, engine_with_mocks):
-        engine_with_mocks.skill_metadata = {"python": {"frequency": 10, "hybrid_weight": 0.8, "level": "senior", "category": "programming_languages"}}
+        engine_with_mocks.skill_metadata = {
+            "python": {"frequency": 10, "hybrid_weight": 0.8, "level": "senior", "category": "programming_languages"}
+        }
         engine_with_mocks.skill_embeddings = {"python": np.random.rand(384)}
         student_emb = np.random.rand(384)
         feats = engine_with_mocks._extract_features("python", student_emb, ["python"])
@@ -193,7 +245,9 @@ class TestAuxiliaryMethods:
         assert feats["in_student_profile"] == 1.0
 
     def test_extract_features_no_embedding(self, engine_with_mocks):
-        engine_with_mocks.skill_metadata = {"python": {"frequency": 5, "hybrid_weight": 0.5, "level": "middle", "category": "other"}}
+        engine_with_mocks.skill_metadata = {
+            "python": {"frequency": 5, "hybrid_weight": 0.5, "level": "middle", "category": "other"}
+        }
         engine_with_mocks.skill_embeddings = {}
         student_emb = np.random.rand(384)
         feats = engine_with_mocks._extract_features("python", student_emb, [])
@@ -281,8 +335,15 @@ class TestLoadModel:
         monkeypatch.setattr(config, "MODELS_DIR", models_dir)
 
         import joblib
+
         model_path = models_dir / "ltr_ranker_xgb_regressor.joblib"
-        dummy_data = {"model": None, "feature_names": ["freq"], "skill_metadata": {"python": {"frequency": 10}}, "skill_embeddings": {}, "total_vacancies": 100}
+        dummy_data = {
+            "model": None,
+            "feature_names": ["freq"],
+            "skill_metadata": {"python": {"frequency": 10}},
+            "skill_embeddings": {},
+            "total_vacancies": 100,
+        }
         joblib.dump(dummy_data, model_path)
 
         engine = LTRRecommendationEngine(model_path=model_path)
@@ -335,11 +396,12 @@ class TestMainBlock:
         monkeypatch.setattr(config, "MODELS_DIR", tmp_path / "models")
         monkeypatch.setattr(sys, "argv", ["ltr.py", "--load-raw", "--train"])
         with patch("sys.exit") as mock_exit:
-            engine = LTRRecommendationEngine()
+            _ = LTRRecommendationEngine()
             raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
             if not raw_file.exists():
                 mock_exit(1)
             mock_exit.assert_called_once_with(1)
+
 
 class TestFullCoverageLTR:
     """Дополнительные тесты для покрытия оставшихся строк"""
@@ -363,9 +425,7 @@ class TestFullCoverageLTR:
             mock_explainer.shap_values.return_value = np.array([[0.1, 0.9, 0.3, 0.5]])
             mock_shap.return_value = mock_explainer
 
-            recs, shap_vals, X = engine_with_mocks.predict_skill_impact_with_shap(
-                ["python"], ["docker", "java"]
-            )
+            recs, shap_vals, X = engine_with_mocks.predict_skill_impact_with_shap(["python"], ["docker", "java"])
             assert len(recs) > 0
             assert shap_vals is not None
 
@@ -379,6 +439,7 @@ class TestFullCoverageLTR:
     def test_load_model_full_metadata(self, tmp_path, monkeypatch):
         """Строки 342-346: загрузка модели с полными метаданными"""
         import joblib
+
         models_dir = tmp_path / "models"
         models_dir.mkdir(parents=True)
         monkeypatch.setattr(config, "MODELS_DIR", models_dir)
@@ -389,7 +450,7 @@ class TestFullCoverageLTR:
             "feature_names": ["cosine_sim", "level_encoded"],
             "skill_metadata": {"python": {"frequency": 50, "level": "senior"}},
             "skill_embeddings": {"python": np.array([0.1, 0.2])},
-            "total_vacancies": 200
+            "total_vacancies": 200,
         }
         joblib.dump(dummy_data, model_path)
 
@@ -422,7 +483,7 @@ class TestFullCoverageLTR:
         student_file = config.STUDENTS_DIR / "base_competency.json"
         student_skills = []
         if student_file.exists():
-            with open(student_file, 'r', encoding='utf-8') as f:
+            with open(student_file, encoding="utf-8") as f:
                 data = json.load(f)
                 student_skills = data.get("навыки", [])
 
@@ -492,9 +553,9 @@ class TestFullCoverageLTR:
 
         # Создаём файл с вакансиями
         raw_file = raw_dir / "hh_vacancies_basic.json"
-        raw_file.write_text(json.dumps([
-            {"key_skills": [{"name": "python"}], "experience": "middle", "description": "test"}
-        ] * 60))
+        raw_file.write_text(
+            json.dumps([{"key_skills": [{"name": "python"}], "experience": "middle", "description": "test"}] * 60)
+        )
 
         monkeypatch.setattr(config, "DATA_RAW_DIR", raw_dir)
         monkeypatch.setattr(config, "MODELS_DIR", models_dir)
@@ -502,7 +563,7 @@ class TestFullCoverageLTR:
         monkeypatch.setattr(sys, "argv", ["ltr.py", "--load-raw", "--train"])
 
         engine = LTRRecommendationEngine()
-        with patch.object(engine, 'fit') as mock_fit:
+        with patch.object(engine, "fit") as mock_fit:
             raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
             if raw_file.exists():
                 with open(raw_file) as f:
@@ -522,12 +583,12 @@ class TestFullCoverageLTR:
         monkeypatch.setattr(sys, "argv", ["ltr.py"])
 
         engine = LTRRecommendationEngine()
-        with patch.object(engine, 'load_model') as mock_load:
+        with patch.object(engine, "load_model") as mock_load:
             if engine.model_path.exists():
                 engine.load_model()
             mock_load.assert_called_once()
 
-# tests/predictors/test_ltr_recommendation_engine.py — добавить в TestFullCoverageLTR:
+    # tests/predictors/test_ltr_recommendation_engine.py — добавить в TestFullCoverageLTR:
 
     def test_main_block_with_student_and_missing(self, monkeypatch, tmp_path):
         """Строки 366-415: main с профилем студента и недостающими навыками"""
@@ -545,11 +606,7 @@ class TestFullCoverageLTR:
 
         engine = LTRRecommendationEngine()
         engine.is_fitted = True
-        engine.skill_metadata = {
-            "python": {"frequency": 10},
-            "docker": {"frequency": 8},
-            "java": {"frequency": 7}
-        }
+        engine.skill_metadata = {"python": {"frequency": 10}, "docker": {"frequency": 8}, "java": {"frequency": 7}}
         engine.model = MagicMock()
         engine.model.predict.return_value = np.array([0.9, 0.7])
         engine.feature_names = ["cosine_sim", "level_encoded"]
@@ -557,7 +614,7 @@ class TestFullCoverageLTR:
         student_file = config.STUDENTS_DIR / "base_competency.json"
         student_skills = []
         if student_file.exists():
-            with open(student_file, 'r', encoding='utf-8') as f:
+            with open(student_file, encoding="utf-8") as f:
                 data = json.load(f)
                 student_skills = data.get("навыки", [])
 
@@ -588,7 +645,7 @@ class TestFullCoverageLTR:
         student_file = config.STUDENTS_DIR / "unknown_competency.json"
         student_skills = []
         if student_file.exists():
-            with open(student_file, 'r', encoding='utf-8') as f:
+            with open(student_file, encoding="utf-8") as f:
                 data = json.load(f)
                 student_skills = data.get("навыки", [])
         else:
@@ -607,9 +664,9 @@ class TestFullCoverageLTR:
         raw_dir = tmp_path / "raw"
         raw_dir.mkdir(parents=True)
         raw_file = raw_dir / "hh_vacancies_basic.json"
-        raw_file.write_text(json.dumps([
-            {"key_skills": [{"name": "python"}], "experience": "middle", "description": "test"}
-        ] * 60))
+        raw_file.write_text(
+            json.dumps([{"key_skills": [{"name": "python"}], "experience": "middle", "description": "test"}] * 60)
+        )
 
         monkeypatch.setattr(config, "DATA_RAW_DIR", raw_dir)
         monkeypatch.setattr(config, "MODELS_DIR", tmp_path / "models")
@@ -617,7 +674,7 @@ class TestFullCoverageLTR:
         monkeypatch.setattr(sys, "argv", ["ltr.py", "--load-raw", "--train"])
 
         engine = LTRRecommendationEngine()
-        with patch.object(engine, 'fit') as mock_fit:
+        with patch.object(engine, "fit") as mock_fit:
             raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
             if raw_file.exists():
                 with open(raw_file) as f:
@@ -637,7 +694,7 @@ class TestFullCoverageLTR:
         monkeypatch.setattr(sys, "argv", ["ltr.py"])
 
         engine = LTRRecommendationEngine()
-        with patch.object(engine, 'load_model') as mock_load:
+        with patch.object(engine, "load_model") as mock_load:
             if engine.model_path.exists():
                 engine.load_model()
             mock_load.assert_called_once()
@@ -647,9 +704,9 @@ class TestFullCoverageLTR:
         raw_dir = tmp_path / "raw"
         raw_dir.mkdir(parents=True)
         raw_file = raw_dir / "hh_vacancies_basic.json"
-        raw_file.write_text(json.dumps([
-            {"key_skills": [{"name": "python"}], "experience": "middle", "description": "test"}
-        ] * 60))
+        raw_file.write_text(
+            json.dumps([{"key_skills": [{"name": "python"}], "experience": "middle", "description": "test"}] * 60)
+        )
 
         monkeypatch.setattr(config, "DATA_RAW_DIR", raw_dir)
         monkeypatch.setattr(config, "MODELS_DIR", tmp_path / "models")
@@ -657,7 +714,7 @@ class TestFullCoverageLTR:
         monkeypatch.setattr(sys, "argv", ["ltr.py", "--load-raw", "--train"])
 
         engine = LTRRecommendationEngine()
-        with patch.object(engine, 'fit') as mock_fit:
+        with patch.object(engine, "fit") as mock_fit:
             raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
             if raw_file.exists():
                 with open(raw_file) as f:
@@ -677,7 +734,7 @@ class TestFullCoverageLTR:
         monkeypatch.setattr(sys, "argv", ["ltr.py"])
 
         engine = LTRRecommendationEngine()
-        with patch.object(engine, 'load_model') as mock_load:
+        with patch.object(engine, "load_model") as mock_load:
             if engine.model_path.exists():
                 engine.load_model()
             mock_load.assert_called_once()
@@ -706,7 +763,7 @@ class TestFullCoverageLTR:
         student_file = config.STUDENTS_DIR / "base_competency.json"
         student_skills = []
         if student_file.exists():
-            with open(student_file, 'r', encoding='utf-8') as f:
+            with open(student_file, encoding="utf-8") as f:
                 data = json.load(f)
                 student_skills = data.get("навыки", [])
 
@@ -724,7 +781,7 @@ class TestFullCoverageLTR:
         monkeypatch.setattr(config, "DATA_RAW_DIR", tmp_path / "nonexistent")
         monkeypatch.setattr(config, "MODELS_DIR", tmp_path / "models")
         monkeypatch.setattr(sys, "argv", ["ltr.py", "--load-raw", "--train"])
-        
+
         with patch("sys.exit") as mock_exit:
             raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
             if not raw_file.exists():
@@ -749,7 +806,7 @@ class TestFullCoverageLTR:
         student_file = config.STUDENTS_DIR / "nonexistent_competency.json"
         student_skills = []
         if student_file.exists():
-            with open(student_file, 'r', encoding='utf-8') as f:
+            with open(student_file, encoding="utf-8") as f:
                 data = json.load(f)
                 student_skills = data.get("навыки", [])
         else:

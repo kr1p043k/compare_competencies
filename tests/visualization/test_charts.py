@@ -1,26 +1,27 @@
 # tests/visualization/test_charts.py
-import pytest
-import matplotlib.pyplot as plt
-import pandas as pd
 import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import MagicMock, patch
 
+import matplotlib
+import matplotlib.pyplot as plt
+import pytest
 
-plt.switch_backend('Agg')
-
-from src.visualization.charts import (
+from src.visualization.charts import (  # noqa: E402
+    load_hybrid_weights,
+    load_ml_recommendations,
+    load_skill_weights,
     plot_coverage_comparison,
     plot_ml_importance,
     plot_skill_comparison_radar,
     plot_weight_distribution,
-    save_all_charts,
     run_notebook,
+    save_all_charts,
     show_context_info,
-    load_skill_weights,
-    load_hybrid_weights,
-    load_ml_recommendations,
 )
+
+matplotlib.use("Agg")
+plt.switch_backend("Agg")
 
 
 @pytest.fixture
@@ -33,7 +34,7 @@ def sample_market_top():
 # --------------------------------------------------------------
 def test_load_skill_weights_exists(tmp_path):
     weights_path = tmp_path / "skill_weights.json"
-    weights_path.write_text(json.dumps({"python": 1.0}), encoding='utf-8')
+    weights_path.write_text(json.dumps({"python": 1.0}), encoding="utf-8")
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_PROCESSED_DIR = tmp_path
         result = load_skill_weights()
@@ -49,7 +50,7 @@ def test_load_skill_weights_missing():
 
 def test_load_hybrid_weights_exists(tmp_path):
     weights_path = tmp_path / "hybrid_weights.json"
-    weights_path.write_text(json.dumps({"docker": 0.9}), encoding='utf-8')
+    weights_path.write_text(json.dumps({"docker": 0.9}), encoding="utf-8")
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_PROCESSED_DIR = tmp_path
         result = load_hybrid_weights()
@@ -87,7 +88,7 @@ def test_load_ml_recommendations_corrupted(tmp_path):
     result_dir = tmp_path / "result" / "base"
     result_dir.mkdir(parents=True)
     rec_file = result_dir / "ml_recommendations_base.json"
-    rec_file.write_text("{not valid json", encoding='utf-8')
+    rec_file.write_text("{not valid json", encoding="utf-8")
 
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_DIR = tmp_path
@@ -106,13 +107,8 @@ def test_plot_coverage_comparison_empty():
 
 def test_plot_coverage_comparison_with_weighted(tmp_path):
     results = {
-        "student1": {
-            "coverage_percent": 65,
-            "coverage_details": {"covered_weight": 130, "total_weight": 200}
-        },
-        "student2": {
-            "weighted_coverage_percent": 85
-        }
+        "student1": {"coverage_percent": 65, "coverage_details": {"covered_weight": 130, "total_weight": 200}},
+        "student2": {"weighted_coverage_percent": 85},
     }
     save_path = tmp_path / "coverage.png"
     fig = plot_coverage_comparison(results, save_path=save_path)
@@ -122,9 +118,7 @@ def test_plot_coverage_comparison_with_weighted(tmp_path):
 
 
 def test_plot_coverage_comparison_with_readiness(tmp_path):
-    results = {
-        "base": {"coverage_percent": 50, "readiness_score": 65}
-    }
+    results = {"base": {"coverage_percent": 50, "readiness_score": 65}}
     save_path = tmp_path / "coverage.png"
     fig = plot_coverage_comparison(results, save_path=save_path)
     assert save_path.exists()
@@ -281,7 +275,7 @@ def test_run_notebook_file_missing():
 # --------------------------------------------------------------
 @patch("builtins.print")
 @patch("src.visualization.charts.config")
-def test_show_context_info_all_missing(mock_config, mock_print, tmp_path):
+def test_show_context_info_all_missing(mock_config, _, tmp_path):
     mock_config.DATA_PROCESSED_DIR = tmp_path / "processed"
     mock_config.COMPETENCY_MAPPING_FILE = tmp_path / "mapping.json"
     mock_config.STUDENTS_DIR = tmp_path / "students"
@@ -289,13 +283,13 @@ def test_show_context_info_all_missing(mock_config, mock_print, tmp_path):
 
     show_context_info()
 
-    printed = "\n".join(str(call) for call in mock_print.call_args_list)
+    printed = "\n".join(str(call) for call in _.call_args_list)
     assert "не найден" in printed
 
 
 @patch("builtins.print")
 @patch("src.visualization.charts.config")
-def test_show_context_info_with_data(mock_config, mock_print, tmp_path):
+def test_show_context_info_with_data(mock_config, _, tmp_path):
     processed_dir = tmp_path / "processed"
     processed_dir.mkdir()
     market_file = processed_dir / "competency_frequency.json"
@@ -319,7 +313,7 @@ def test_show_context_info_with_data(mock_config, mock_print, tmp_path):
 
     show_context_info()
 
-    printed = "\n".join(str(call) for call in mock_print.call_args_list)
+    printed = "\n".join(str(call) for call in _.call_args_list)
     assert "python" in printed
     assert "test" in printed
 
@@ -328,7 +322,7 @@ def test_show_context_info_with_corrupted_market_file(tmp_path, capsys):
     processed_dir = tmp_path / "processed"
     processed_dir.mkdir()
     market_file = processed_dir / "competency_frequency.json"
-    market_file.write_text("{not valid", encoding='utf-8')
+    market_file.write_text("{not valid", encoding="utf-8")
 
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_PROCESSED_DIR = processed_dir
@@ -341,7 +335,9 @@ def test_show_context_info_with_corrupted_market_file(tmp_path, capsys):
     captured = capsys.readouterr().out
     assert "Не удалось загрузить" in captured
 
+
 # Дополнительные тесты для достижения 100% покрытия
+
 
 def test_plot_weight_distribution_single_element(tmp_path):
     """Покрытие случая с одним элементом (max == min)."""
@@ -394,7 +390,7 @@ def test_plot_coverage_comparison_with_readiness_only(tmp_path):
 def test_load_skill_weights_corrupted(tmp_path):
     """Повреждённый JSON при загрузке skill_weights."""
     weights_path = tmp_path / "skill_weights.json"
-    weights_path.write_text("{not valid", encoding='utf-8')
+    weights_path.write_text("{not valid", encoding="utf-8")
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_PROCESSED_DIR = tmp_path
         result = load_skill_weights()
@@ -404,7 +400,7 @@ def test_load_skill_weights_corrupted(tmp_path):
 def test_load_hybrid_weights_corrupted(tmp_path):
     """Повреждённый JSON при загрузке hybrid_weights."""
     weights_path = tmp_path / "hybrid_weights.json"
-    weights_path.write_text("{not valid", encoding='utf-8')
+    weights_path.write_text("{not valid", encoding="utf-8")
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_PROCESSED_DIR = tmp_path
         result = load_hybrid_weights()
@@ -418,33 +414,40 @@ def test_plot_coverage_comparison_no_data():
     assert isinstance(fig, plt.Figure)
     plt.close(fig)
 
+
 def test_plot_weight_distribution_no_save():
     weights = {"python": 1.0}
     fig = plot_weight_distribution(weights)
     assert isinstance(fig, plt.Figure)
     plt.close(fig)
-    
+
+
 def test_plot_skill_comparison_radar_empty_skills(sample_market_top):
     fig = plot_skill_comparison_radar([], sample_market_top, "Empty")
     assert isinstance(fig, plt.Figure)
     plt.close(fig)
-    
+
+
 def test_load_skill_weights_file_not_found():
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_PROCESSED_DIR = Path("/nonexistent")
         assert load_skill_weights() == {}
-        
+
+
 def test_load_hybrid_weights_file_not_found():
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_PROCESSED_DIR = Path("/nonexistent")
         assert load_hybrid_weights() == {}
 
+
 def test_load_skill_weights_io_error(tmp_path):
     """Имитация ошибки ввода-вывода при чтении skill_weights."""
     weights_path = tmp_path / "skill_weights.json"
-    weights_path.write_text('{"python": 1.0}', encoding='utf-8')
-    with patch("builtins.open", side_effect=IOError("Read error")):
-        with patch("src.visualization.charts.config") as mock_config:
+    weights_path.write_text('{"python": 1.0}', encoding="utf-8")
+    with (
+        patch("builtins.open", side_effect=OSError("Read error")),
+        patch("src.visualization.charts.config") as mock_config,
+    ):
             mock_config.DATA_PROCESSED_DIR = tmp_path
             result = load_skill_weights()
             assert result == {}
@@ -453,9 +456,11 @@ def test_load_skill_weights_io_error(tmp_path):
 def test_load_hybrid_weights_io_error(tmp_path):
     """Имитация ошибки ввода-вывода при чтении hybrid_weights."""
     weights_path = tmp_path / "hybrid_weights.json"
-    weights_path.write_text('{"docker": 0.9}', encoding='utf-8')
-    with patch("builtins.open", side_effect=IOError("Read error")):
-        with patch("src.visualization.charts.config") as mock_config:
+    weights_path.write_text('{"docker": 0.9}', encoding="utf-8")
+    with (
+        patch("builtins.open", side_effect=OSError("Read error")),
+        patch("src.visualization.charts.config") as mock_config,
+    ):
             mock_config.DATA_PROCESSED_DIR = tmp_path
             result = load_hybrid_weights()
             assert result == {}
@@ -499,7 +504,7 @@ def test_save_all_charts_no_ml_with_skill_weights(tmp_path):
         "base": {
             "coverage_percent": 60,
             "covered_skills": ["python"],
-            "high_demand_gaps": [{"skill": "docker", "frequency": 5}]
+            "high_demand_gaps": [{"skill": "docker", "frequency": 5}],
         }
     }
 
@@ -524,7 +529,7 @@ def test_show_context_info_mapping_corrupted(tmp_path, capsys):
     market_file.write_text(json.dumps({"python": 100}))
 
     mapping_file = tmp_path / "mapping.json"
-    mapping_file.write_text("{not valid", encoding='utf-8')
+    mapping_file.write_text("{not valid", encoding="utf-8")
 
     with patch("src.visualization.charts.config") as mock_config:
         mock_config.DATA_PROCESSED_DIR = processed_dir
@@ -537,7 +542,9 @@ def test_show_context_info_mapping_corrupted(tmp_path, capsys):
     captured = capsys.readouterr().out
     assert "Не удалось загрузить" in captured
 
+
 # tests/visualization/test_charts.py — добавить в конец файла
+
 
 class TestFullCoverageCharts:
     """Дополнительные тесты для покрытия пропущенных строк"""
@@ -549,16 +556,14 @@ class TestFullCoverageCharts:
         skill_weights_path.write_text(json.dumps({"python": 100, "sql": 80, "docker": 60}))
 
         results = {
-            "base": {
-                "student_skills": ["python", "sql"],
-                "skill_metrics": {"python": {}, "sql": {}, "docker": {}}
-            }
+            "base": {"student_skills": ["python", "sql"], "skill_metrics": {"python": {}, "sql": {}, "docker": {}}}
         }
         save_path = tmp_path / "heatmap.png"
 
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
             from src.visualization.charts import plot_skills_heatmap
+
             fig = plot_skills_heatmap(results, top_n=10, save_path=save_path)
             assert save_path.exists()
             assert isinstance(fig, plt.Figure)
@@ -572,10 +577,10 @@ class TestFullCoverageCharts:
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = tmp_path / "nonexistent"
             from src.visualization.charts import plot_skills_heatmap
+
             fig = plot_skills_heatmap(results, save_path=save_path)
             assert save_path.exists()
             plt.close(fig)
-
 
     def test_plot_cluster_insights_with_data(self, tmp_path):
         """Строки 317-358: кластерные инсайты"""
@@ -587,12 +592,9 @@ class TestFullCoverageCharts:
             "base": {
                 "student_skills": ["python", "sql"],
                 "cluster_context": {
-                    "closest_clusters": [
-                        {"id": 1, "similarity": 0.9},
-                        {"id": 2, "similarity": 0.7}
-                    ],
-                    "skills": {"python": 0.9, "docker": 0.8}
-                }
+                    "closest_clusters": [{"id": 1, "similarity": 0.9}, {"id": 2, "similarity": 0.7}],
+                    "skills": {"python": 0.9, "docker": 0.8},
+                },
             }
         }
         output_dir = tmp_path / "charts"
@@ -602,6 +604,7 @@ class TestFullCoverageCharts:
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
             from src.visualization.charts import plot_cluster_insights
+
             plot_cluster_insights(results, output_dir)
             assert (output_dir / "base" / "cluster_insights_base.png").exists()
 
@@ -612,21 +615,18 @@ class TestFullCoverageCharts:
         output_dir.mkdir()
 
         from src.visualization.charts import plot_cluster_insights
+
         plot_cluster_insights(results, output_dir)
         # Файл не создаётся, т.к. нет cluster_context
         assert not (output_dir / "base" / "cluster_insights_base.png").exists()
 
     def test_plot_cluster_insights_no_clusters(self, tmp_path):
         """Строки 317-358: кластерный контекст без кластеров"""
-        results = {
-            "base": {
-                "student_skills": [],
-                "cluster_context": {"closest_clusters": []}
-            }
-        }
+        results = {"base": {"student_skills": [], "cluster_context": {"closest_clusters": []}}}
         output_dir = tmp_path / "charts"
 
         from src.visualization.charts import plot_cluster_insights
+
         plot_cluster_insights(results, output_dir)
         # Файл не создаётся
         assert not (output_dir / "base" / "cluster_insights_base.png").exists()
@@ -641,21 +641,14 @@ class TestFullCoverageCharts:
             "base": {
                 "student_skills": ["python"],
                 "skill_metrics": {"python": {}, "docker": {}, "sql": {}},
-                "cluster_context": {
-                    "closest_clusters": [{"id": 1, "similarity": 0.9}],
-                    "skills": {"docker": 0.8}
-                }
+                "cluster_context": {"closest_clusters": [{"id": 1, "similarity": 0.9}], "skills": {"docker": 0.8}},
             }
         }
 
         ml_dir = tmp_path / "result" / "base"
         ml_dir.mkdir(parents=True)
         ml_file = ml_dir / "ml_recommendations_base.json"
-        ml_file.write_text(json.dumps({
-            "recommendations": [
-                {"skill": "docker", "score": 85.0, "explanation": "test"}
-            ]
-        }))
+        ml_file.write_text(json.dumps({"recommendations": [{"skill": "docker", "score": 85.0, "explanation": "test"}]}))
 
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
@@ -674,13 +667,7 @@ class TestFullCoverageCharts:
         skill_weights_path.parent.mkdir(parents=True)
         skill_weights_path.write_text(json.dumps({"python": 100}))
 
-        results = {
-            "base": {
-                "student_skills": ["python"],
-                "skill_metrics": {"python": {}},
-                "cluster_context": None
-            }
-        }
+        results = {"base": {"student_skills": ["python"], "skill_metrics": {"python": {}}, "cluster_context": None}}
 
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
@@ -763,8 +750,10 @@ class TestFullCoverageCharts:
 
     def test_run_notebook_exception(self):
         """Строка 492: исключение при запуске ноутбука"""
-        with patch("subprocess.run", side_effect=Exception("Subprocess error")):
-            with patch("pathlib.Path.exists", return_value=True):
+        with (
+            patch("subprocess.run", side_effect=Exception("Subprocess error")),
+            patch("pathlib.Path.exists", return_value=True),
+        ):
                 result = run_notebook("test.ipynb")
                 assert result is False
 
@@ -775,16 +764,14 @@ class TestFullCoverageCharts:
         skill_weights_path.write_text(json.dumps({"python": 100, "java": 50, "sql": 30}))
 
         results = {
-            "base": {
-                "student_skills": ["python", "java"],
-                "skill_metrics": {"python": {}, "java": {}, "sql": {}}
-            }
+            "base": {"student_skills": ["python", "java"], "skill_metrics": {"python": {}, "java": {}, "sql": {}}}
         }
         save_path = tmp_path / "heatmap.png"
 
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
             from src.visualization.charts import plot_skills_heatmap
+
             fig = plot_skills_heatmap(results, top_n=10, save_path=save_path)
             assert save_path.exists()
             plt.close(fig)
@@ -801,6 +788,7 @@ class TestFullCoverageCharts:
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
             from src.visualization.charts import plot_skills_heatmap
+
             fig = plot_skills_heatmap(results, top_n=10, save_path=save_path)
             assert save_path.exists()
             plt.close(fig)
@@ -815,10 +803,7 @@ class TestFullCoverageCharts:
             "base": {
                 "student_skills": ["python"],
                 "skill_metrics": {"python": {}, "docker": {}},
-                "cluster_context": {
-                    "closest_clusters": [{"id": 1, "similarity": 0.9}],
-                    "skills": {"docker": 0.8}
-                }
+                "cluster_context": {"closest_clusters": [{"id": 1, "similarity": 0.9}], "skills": {"docker": 0.8}},
             }
         }
 
@@ -841,28 +826,28 @@ class TestFullCoverageCharts:
         ml_dir = tmp_path / "result" / "base"
         ml_dir.mkdir(parents=True)
         rec_file = ml_dir / "ltr_recommendations_base.json"
-        rec_file.write_text(json.dumps({
-            "recommendations": [{"skill": "docker", "score": 85.0, "explanation": "test"}]
-        }))
+        rec_file.write_text(
+            json.dumps({"recommendations": [{"skill": "docker", "score": 85.0, "explanation": "test"}]})
+        )
 
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
             mock_config.DATA_DIR = tmp_path
 
             # Симуляция main блока
-            with patch("matplotlib.pyplot.show") as mock_show:
+            with patch("matplotlib.pyplot.show") as _:
                 # load skill_weights
                 weights = load_skill_weights()
                 assert weights == {"python": 100, "docker": 80}
 
                 # plot weight distribution
-                fig1 = plot_weight_distribution(weights)
+                _ = plot_weight_distribution(weights)
 
                 # load ML recommendations
                 recs = load_ml_recommendations("base")
                 assert len(recs) > 0
 
-                fig2 = plot_ml_importance("base", top_n=10)
+                _ = plot_ml_importance("base", top_n=10)
 
     def test_main_block_no_ml_recommendations(self, capsys):
         """Строки 515-556: main блок без ML"""
@@ -878,7 +863,6 @@ class TestFullCoverageCharts:
             recs = load_ml_recommendations("base")
             assert recs == []
 
-
     def test_plot_skills_heatmap_with_student_skills(self, tmp_path):
         """Строка 176: student_skills из результата оценки"""
         skill_weights_path = tmp_path / "processed" / "skill_weights.json"
@@ -886,16 +870,14 @@ class TestFullCoverageCharts:
         skill_weights_path.write_text(json.dumps({"python": 100, "java": 50, "docker": 30}))
 
         results = {
-            "base": {
-                "student_skills": ["python", "docker"],
-                "skill_metrics": {"python": {}, "java": {}, "docker": {}}
-            }
+            "base": {"student_skills": ["python", "docker"], "skill_metrics": {"python": {}, "java": {}, "docker": {}}}
         }
         save_path = tmp_path / "heatmap.png"
 
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
             from src.visualization.charts import plot_skills_heatmap
+
             fig = plot_skills_heatmap(results, top_n=10, save_path=save_path)
             assert save_path.exists()
             plt.close(fig)
@@ -905,16 +887,14 @@ class TestFullCoverageCharts:
         results = {
             "base": {
                 "student_skills": [],
-                "cluster_context": {
-                    "closest_clusters": [{"id": 1, "similarity": 0.9}],
-                    "skills": {"docker": 0.8}
-                }
+                "cluster_context": {"closest_clusters": [{"id": 1, "similarity": 0.9}], "skills": {"docker": 0.8}},
             }
         }
         output_dir = tmp_path / "charts"
         (output_dir / "base").mkdir(parents=True)
 
         from src.visualization.charts import plot_cluster_insights
+
         plot_cluster_insights(results, output_dir)
         assert (output_dir / "base" / "cluster_insights_base.png").exists()
 
@@ -925,14 +905,15 @@ class TestFullCoverageCharts:
                 "student_skills": ["python"],
                 "cluster_context": {
                     "closest_clusters": [{"id": 1, "similarity": 0.9}],
-                    "skills": {"docker": 0.8, "k8s": 0.7}
-                }
+                    "skills": {"docker": 0.8, "k8s": 0.7},
+                },
             }
         }
         output_dir = tmp_path / "charts"
         (output_dir / "base").mkdir(parents=True)
 
         from src.visualization.charts import plot_cluster_insights
+
         plot_cluster_insights(results, output_dir)
         assert (output_dir / "base" / "cluster_insights_base.png").exists()
 
@@ -973,40 +954,37 @@ class TestFullCoverageCharts:
         ml_dir = tmp_path / "result" / "base"
         ml_dir.mkdir(parents=True)
         rec_file = ml_dir / "ltr_recommendations_base.json"
-        rec_file.write_text(json.dumps({
-            "recommendations": [{"skill": "docker", "score": 85.0, "explanation": "test"}]
-        }))
+        rec_file.write_text(
+            json.dumps({"recommendations": [{"skill": "docker", "score": 85.0, "explanation": "test"}]})
+        )
 
         summary_path = tmp_path / "processed" / "profiles_comparison_summary.json"
-        summary_path.write_text(json.dumps({
-            "evaluations": {
-                "base": {"coverage_percent": 60}
-            }
-        }))
+        summary_path.write_text(json.dumps({"evaluations": {"base": {"coverage_percent": 60}}}))
 
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
             mock_config.DATA_DIR = tmp_path
 
-            with patch("matplotlib.pyplot.show") as mock_show:
+            with patch("matplotlib.pyplot.show") as _:
                 # Симуляция main блока
                 from src.visualization.charts import (
-                    load_skill_weights, load_ml_recommendations,
-                    plot_weight_distribution, plot_ml_importance,
-                    plot_coverage_comparison
+                    load_ml_recommendations,
+                    load_skill_weights,
+                    plot_ml_importance,
+                    plot_weight_distribution,
                 )
 
                 weights = load_skill_weights()
                 assert len(weights) > 0
 
-                fig1 = plot_weight_distribution(weights)
-                plt.close(fig1)
+                _ = plot_weight_distribution(weights)
+                plt.close(_)
 
                 recs = load_ml_recommendations("base")
                 assert len(recs) > 0
 
-                fig2 = plot_ml_importance("base", top_n=10)
-                plt.close(fig2)
+                _ = plot_ml_importance("base", top_n=10)
+                plt.close(_)
 
     def test_main_block_no_data(self, tmp_path):
         """Строки 515-556: main без данных"""
@@ -1014,8 +992,9 @@ class TestFullCoverageCharts:
             mock_config.DATA_PROCESSED_DIR = tmp_path / "nonexistent"
             mock_config.DATA_DIR = tmp_path / "nonexistent"
 
-            with patch("builtins.print") as mock_print:
-                from src.visualization.charts import load_skill_weights, load_ml_recommendations
+            with patch("builtins.print") as _:
+                from src.visualization.charts import load_ml_recommendations, load_skill_weights
+
                 weights = load_skill_weights()
                 assert weights == {}
 
@@ -1030,13 +1009,17 @@ class TestFullCoverageCharts:
 
         results = {
             "base": {"student_skills": ["python"], "skill_metrics": {"python": {}, "java": {}, "docker": {}}},
-            "advanced": {"student_skills": ["python", "docker"], "skill_metrics": {"python": {}, "java": {}, "docker": {}}}
+            "advanced": {
+                "student_skills": ["python", "docker"],
+                "skill_metrics": {"python": {}, "java": {}, "docker": {}},
+            },
         }
         save_path = tmp_path / "heatmap.png"
 
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
             from src.visualization.charts import plot_skills_heatmap
+
             fig = plot_skills_heatmap(results, top_n=10, save_path=save_path)
             assert save_path.exists()
             plt.close(fig)
@@ -1079,32 +1062,32 @@ class TestFullCoverageCharts:
         results = {
             "base": {
                 "student_skills": ["skill_0", "skill_1", "skill_2"],
-                "skill_metrics": {f"skill_{i}": {} for i in range(20)}
+                "skill_metrics": {f"skill_{i}": {} for i in range(20)},
             },
             "dc": {
                 "student_skills": ["skill_0", "skill_5", "skill_10"],
-                "skill_metrics": {f"skill_{i}": {} for i in range(20)}
-            }
+                "skill_metrics": {f"skill_{i}": {} for i in range(20)},
+            },
         }
         save_path = tmp_path / "heatmap_big.png"
 
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
             from src.visualization.charts import plot_skills_heatmap
+
             fig = plot_skills_heatmap(results, top_n=15, save_path=save_path)
             assert save_path.exists()
             plt.close(fig)
 
     def test_plot_skills_heatmap_no_weights(self, tmp_path):
         """Строка 176: тепловая карта когда нет weight-файла"""
-        results = {
-            "base": {"student_skills": ["python"], "skill_metrics": {"python": {}}}
-        }
+        results = {"base": {"student_skills": ["python"], "skill_metrics": {"python": {}}}}
         save_path = tmp_path / "heatmap_nodata.png"
 
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = tmp_path / "nonexistent"
             from src.visualization.charts import plot_skills_heatmap
+
             fig = plot_skills_heatmap(results, save_path=save_path)
             assert save_path.exists()
             plt.close(fig)
@@ -1149,41 +1132,43 @@ class TestFullCoverageCharts:
         ml_dir = tmp_path / "result" / "base"
         ml_dir.mkdir(parents=True)
         rec_file = ml_dir / "ltr_recommendations_base.json"
-        rec_file.write_text(json.dumps({
-            "recommendations": [
-                {"skill": "docker", "score": 85.0, "explanation": "test"},
-                {"skill": "sql", "score": 65.0, "explanation": "test"}
-            ]
-        }))
+        rec_file.write_text(
+            json.dumps(
+                {
+                    "recommendations": [
+                        {"skill": "docker", "score": 85.0, "explanation": "test"},
+                        {"skill": "sql", "score": 65.0, "explanation": "test"},
+                    ]
+                }
+            )
+        )
 
         summary_path = tmp_path / "processed" / "profiles_comparison_summary.json"
-        summary_path.write_text(json.dumps({
-            "evaluations": {
-                "base": {"coverage_percent": 60, "readiness_score": 70}
-            }
-        }))
+        summary_path.write_text(json.dumps({"evaluations": {"base": {"coverage_percent": 60, "readiness_score": 70}}}))
 
         with patch("src.visualization.charts.config") as mock_config:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
             mock_config.DATA_DIR = tmp_path
 
-            with patch("matplotlib.pyplot.show") as mock_show:
+            with patch("matplotlib.pyplot.show") as _:
                 from src.visualization.charts import (
-                    load_skill_weights, load_ml_recommendations,
-                    plot_weight_distribution, plot_ml_importance,
-                    plot_coverage_comparison
+                    load_ml_recommendations,
+                    load_skill_weights,
+                    plot_coverage_comparison,
+                    plot_ml_importance,
+                    plot_weight_distribution,
                 )
 
                 weights = load_skill_weights()
-                fig1 = plot_weight_distribution(weights)
-                plt.close(fig1)
+                _ = plot_weight_distribution(weights)
+                plt.close(_)
 
                 recs = load_ml_recommendations("base")
-                fig2 = plot_ml_importance("base", top_n=10)
-                plt.close(fig2)
+                _ = plot_ml_importance("base", top_n=10)
+                plt.close(_)
 
                 # Проверка с summary файлом
-                with open(summary_path, 'r', encoding='utf-8') as f:
+                with open(summary_path, encoding="utf-8") as f:
                     data = json.load(f)
                 results = data.get("evaluations", {})
                 if results:
@@ -1203,16 +1188,15 @@ class TestFullCoverageCharts:
             mock_config.DATA_PROCESSED_DIR = skill_weights_path.parent
             mock_config.DATA_DIR = tmp_path
 
-            with patch("matplotlib.pyplot.show") as mock_show:
-                with patch("builtins.print") as mock_print:
-                    from src.visualization.charts import load_skill_weights
+            with patch("matplotlib.pyplot.show") as _, patch("builtins.print") as _:
+                from src.visualization.charts import load_skill_weights
 
-                    weights = load_skill_weights()
-                    assert weights == {"python": 100}
+                weights = load_skill_weights()
+                assert weights == {"python": 100}
 
-                    summary_path = mock_config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
-                    if not summary_path.exists():
-                        mock_print("ℹ️  ML-рекомендации для 'base' не найдены.")
+                summary_path = mock_config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
+                if not summary_path.exists():
+                    _("ℹ️  ML-рекомендации для 'base' не найдены.")
 
     def test_main_block_no_recs_suggestion(self, capsys):
         """Строки 515-556: main без ML-рекомендаций — печатает подсказку"""
@@ -1221,7 +1205,7 @@ class TestFullCoverageCharts:
             mock_config.DATA_DIR = Path("/nonexistent")
 
             with patch("builtins.input", return_value="n"):
-                from src.visualization.charts import load_skill_weights, load_ml_recommendations
+                from src.visualization.charts import load_ml_recommendations, load_skill_weights
 
                 weights = load_skill_weights()
                 if not weights:

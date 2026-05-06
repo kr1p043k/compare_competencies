@@ -1,16 +1,9 @@
 # tests/analyzers/test_analyzers.py
-import pytest
-import numpy as np
 
 
 def test_skill_filter_filters_generic(skill_filter):
     """SkillFilter удаляет generic слова"""
-    weights = {
-        "frontend": 0.9,
-        "python": 0.8,
-        "web разработка": 0.7,
-        "sql": 0.6
-    }
+    weights = {"frontend": 0.9, "python": 0.8, "web разработка": 0.7, "sql": 0.6}
     filtered = skill_filter.filter_weights(weights, min_weight=0.01)
     assert "python" in filtered
     assert "frontend" not in filtered
@@ -41,8 +34,17 @@ def test_embedding_comparator_initialization(embedding_comparator):
 def test_embedding_comparator_build_index(embedding_comparator):
     """Метод build_market_index работает корректно"""
     all_market_skills = [
-        "python", "javascript", "react", "node.js", "next.js",
-        "fastapi", "docker", "postgresql", "machine learning", "html", "mlops"
+        "python",
+        "javascript",
+        "react",
+        "node.js",
+        "next.js",
+        "fastapi",
+        "docker",
+        "postgresql",
+        "machine learning",
+        "html",
+        "mlops",
     ]
     embedding_comparator.build_market_index(all_market_skills)
 
@@ -60,9 +62,9 @@ def test_gap_analyzer_initialization():
     from src.analyzers.gap_analyzer import GapAnalyzer
 
     weights_by_level = {
-        'junior': {'python': 0.8, 'sql': 0.6, 'git': 0.4},
-        'middle': {'python': 0.9, 'docker': 0.7, 'sql': 0.5},
-        'senior': {'python': 0.9, 'docker': 0.9, 'k8s': 0.8, 'sql': 0.3},
+        "junior": {"python": 0.8, "sql": 0.6, "git": 0.4},
+        "middle": {"python": 0.9, "docker": 0.7, "sql": 0.5},
+        "senior": {"python": 0.9, "docker": 0.9, "k8s": 0.8, "sql": 0.3},
     }
     ga = GapAnalyzer(weights_by_level)
 

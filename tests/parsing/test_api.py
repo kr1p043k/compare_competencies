@@ -1,14 +1,15 @@
 # tests/parsing/test_api.py
-import pytest
-import asyncio
 import time
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, Mock, patch
+
+import aiohttp
+import pytest
+import requests
+from aioresponses import aioresponses
+
+from src.models.vacancy import Vacancy
 from src.parsing.hh_api import HeadHunterAPI
 from src.parsing.hh_api_async import HeadHunterAPIAsync
-from src.models.vacancy import Vacancy
-import requests
-import aiohttp
-from aioresponses import aioresponses
 
 
 class TestHeadHunterAPISync:
@@ -17,22 +18,18 @@ class TestHeadHunterAPISync:
     def test_init_creates_session_with_retries(self):
         api = HeadHunterAPI()
         assert api.session is not None
-        assert 'User-Agent' in api.session.headers
+        assert "User-Agent" in api.session.headers
         api.close()
 
-    @patch('src.parsing.hh_api.HeadHunterAPI._get')
+    @patch("src.parsing.hh_api.HeadHunterAPI._get")
     def test_search_vacancies_success(self, mock_get):
         api = HeadHunterAPI()
-        mock_get.return_value = {
-            "items": [{"id": "1"}, {"id": "2"}],
-            "pages": 1,
-            "found": 2
-        }
+        mock_get.return_value = {"items": [{"id": "1"}, {"id": "2"}], "pages": 1, "found": 2}
         result = api.search_vacancies(text="Python", area=1)
         assert len(result) == 2
         mock_get.assert_called_once()
 
-    @patch('src.parsing.hh_api.HeadHunterAPI._get')
+    @patch("src.parsing.hh_api.HeadHunterAPI._get")
     def test_search_vacancies_pagination(self, mock_get):
         api = HeadHunterAPI()
         mock_get.side_effect = [
@@ -43,14 +40,14 @@ class TestHeadHunterAPISync:
         assert len(result) == 3
         assert mock_get.call_count == 2
 
-    @patch('src.parsing.hh_api.HeadHunterAPI._get')
+    @patch("src.parsing.hh_api.HeadHunterAPI._get")
     def test_search_vacancies_stops_on_empty_page(self, mock_get):
         api = HeadHunterAPI()
         mock_get.return_value = {"items": [], "pages": 5}
         result = api.search_vacancies(text="C++", area=1)
         assert result == []
 
-    @patch('src.parsing.hh_api.HeadHunterAPI._get')
+    @patch("src.parsing.hh_api.HeadHunterAPI._get")
     def test_get_vacancy_details_success(self, mock_get):
         api = HeadHunterAPI()
         mock_get.return_value = {"id": "123", "name": "Test"}
@@ -59,7 +56,7 @@ class TestHeadHunterAPISync:
 
     def test_get_vacancy_details_returns_none_on_error(self):
         api = HeadHunterAPI()
-        with patch.object(api, '_get', return_value=None):
+        with patch.object(api, "_get", return_value=None):
             details = api.get_vacancy_details("999")
             assert details is None
 
@@ -70,9 +67,9 @@ class TestHeadHunterAPISync:
             "name": "Python Dev",
             "area": {"id": 1, "name": "Москва"},
             "employer": {"id": "10", "name": "Company"},
-            "key_skills": [{"name": "Python"}, {"name": "Django"}]
+            "key_skills": [{"name": "Python"}, {"name": "Django"}],
         }
-        with patch.object(api, '_get', return_value=raw):
+        with patch.object(api, "_get", return_value=raw):
             vacancy = api.get_vacancy_details_as_object("456")
             assert isinstance(vacancy, Vacancy)
             assert vacancy.id == "456"
@@ -80,13 +77,13 @@ class TestHeadHunterAPISync:
 
     def test_get_vacancy_details_as_object_invalid(self):
         api = HeadHunterAPI()
-        with patch.object(api, '_get', return_value={"id": "no_name"}):
+        with patch.object(api, "_get", return_value={"id": "no_name"}):
             vacancy = api.get_vacancy_details_as_object("bad")
             assert vacancy is None
 
     def test_get_handles_429_retry(self):
         api = HeadHunterAPI()
-        with patch.object(api.session, 'get') as mock_session_get:
+        with patch.object(api.session, "get") as mock_session_get:
             rate_limit_response = Mock(status_code=429, headers={"Retry-After": "1"})
             success_response = Mock(status_code=200)
             success_response.json.return_value = {"result": "ok"}
@@ -97,26 +94,26 @@ class TestHeadHunterAPISync:
 
     def test_get_handles_403_forbidden(self):
         api = HeadHunterAPI()
-        with patch.object(api.session, 'get') as mock_session_get:
+        with patch.object(api.session, "get") as mock_session_get:
             mock_session_get.return_value = Mock(status_code=403)
             result = api._get("https://blocked.url")
             assert result is None
 
     def test_get_handles_timeout(self):
         api = HeadHunterAPI()
-        with patch.object(api.session, 'get', side_effect=requests.exceptions.Timeout):
+        with patch.object(api.session, "get", side_effect=requests.exceptions.Timeout):
             result = api._get("https://timeout.url")
             assert result is None
 
     def test_context_manager_closes_session(self):
-        with patch.object(HeadHunterAPI, 'close') as mock_close:
+        with patch.object(HeadHunterAPI, "close") as mock_close:
             with HeadHunterAPI():
                 pass
             mock_close.assert_called_once()
 
     def test_search_vacancies_with_max_pages_one(self):
         api = HeadHunterAPI()
-        with patch.object(api, '_get') as mock_get:
+        with patch.object(api, "_get") as mock_get:
             mock_get.return_value = {"items": [{"id": "1"}], "pages": 1}
             result = api.search_vacancies(text="Python", area=1, max_pages=1)
             assert len(result) == 1
@@ -124,21 +121,21 @@ class TestHeadHunterAPISync:
 
     def test_get_handles_304_not_modified(self):
         api = HeadHunterAPI()
-        with patch.object(api.session, 'get') as mock_get:
+        with patch.object(api.session, "get") as mock_get:
             mock_get.return_value = Mock(status_code=304)
             result = api._get("https://test.url")
             assert result is None
 
     def test_get_handles_unexpected_status(self):
         api = HeadHunterAPI()
-        with patch.object(api.session, 'get') as mock_get:
+        with patch.object(api.session, "get") as mock_get:
             mock_get.return_value = Mock(status_code=418)
             result = api._get("https://test.url")
             assert result is None
 
     def test_get_handles_general_exception(self):
         api = HeadHunterAPI()
-        with patch.object(api.session, 'get', side_effect=Exception("Boom")):
+        with patch.object(api.session, "get", side_effect=Exception("Boom")):
             result = api._get("https://test.url")
             assert result is None
 
@@ -163,7 +160,7 @@ class TestHeadHunterAPIAsync:
             async with aiohttp.ClientSession() as session:
                 result = await api._request(session, "https://test.url")
                 assert result == {"data": "value"}
-                assert api.stats['success'] == 1
+                assert api.stats["success"] == 1
 
     @pytest.mark.asyncio
     async def test_request_handles_429_retry(self):
@@ -172,10 +169,10 @@ class TestHeadHunterAPIAsync:
             m.get("https://test.url", status=429, headers={"Retry-After": "0"})
             m.get("https://test.url", payload={"ok": True})
             async with aiohttp.ClientSession() as session:
-                with patch('asyncio.sleep', new_callable=AsyncMock):
+                with patch("asyncio.sleep", new_callable=AsyncMock):
                     result = await api._request(session, "https://test.url", retries=0, max_retries=2)
                     assert result == {"ok": True}
-                    assert api.stats['429_errors'] == 1
+                    assert api.stats["429_errors"] == 1
 
     @pytest.mark.asyncio
     async def test_request_handles_403_as_missing(self):
@@ -185,7 +182,7 @@ class TestHeadHunterAPIAsync:
             async with aiohttp.ClientSession() as session:
                 result = await api._request(session, "https://test.url/vacancies/123")
                 assert result is None
-                assert api.stats['403_errors'] == 1
+                assert api.stats["403_errors"] == 1
 
     @pytest.mark.asyncio
     async def test_request_handles_404(self):
@@ -195,19 +192,19 @@ class TestHeadHunterAPIAsync:
             async with aiohttp.ClientSession() as session:
                 result = await api._request(session, "https://test.url")
                 assert result is None
-                assert api.stats['404_errors'] == 1
+                assert api.stats["404_errors"] == 1
 
     @pytest.mark.asyncio
     async def test_request_timeout_retry(self):
         api = HeadHunterAPIAsync()
         with aioresponses() as m:
-            m.get("https://test.url", exception=asyncio.TimeoutError())
+            m.get("https://test.url", exception=TimeoutError())
             m.get("https://test.url", payload={"ok": True})
             async with aiohttp.ClientSession() as session:
-                with patch('asyncio.sleep', new_callable=AsyncMock):
+                with patch("asyncio.sleep", new_callable=AsyncMock):
                     result = await api._request(session, "https://test.url", max_retries=1)
                     assert result == {"ok": True}
-                    assert api.stats['timeouts'] >= 1
+                    assert api.stats["timeouts"] >= 1
 
     @pytest.mark.asyncio
     async def test_get_vacancy_details_async(self):
@@ -244,7 +241,7 @@ class TestHeadHunterAPIAsync:
     def test_get_vacancies_details_sync_wrapper(self):
         api = HeadHunterAPIAsync()
         vacancy_ids = ["1", "2"]
-        with patch.object(api, 'get_vacancies_details_batch', new_callable=AsyncMock) as mock_batch:
+        with patch.object(api, "get_vacancies_details_batch", new_callable=AsyncMock) as mock_batch:
             mock_batch.return_value = [{"id": "1"}, {"id": "2"}]
             results = api.get_vacancies_details_sync(vacancy_ids)
             assert len(results) == 2
@@ -253,7 +250,7 @@ class TestHeadHunterAPIAsync:
     async def test_throttle_skips_sleep_when_elapsed_greater(self):
         api = HeadHunterAPIAsync(request_delay=0.05)
         api.last_request_time = time.time() - 1.0
-        with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             await api._throttle()
             mock_sleep.assert_not_called()
 
@@ -265,7 +262,7 @@ class TestHeadHunterAPIAsync:
             async with aiohttp.ClientSession() as session:
                 result = await api._request(session, "https://test.url")
                 assert result is None
-                assert api.stats['other_errors'] == 1
+                assert api.stats["other_errors"] == 1
 
     @pytest.mark.asyncio
     async def test_request_handles_client_error(self):
@@ -275,7 +272,7 @@ class TestHeadHunterAPIAsync:
             async with aiohttp.ClientSession() as session:
                 result = await api._request(session, "https://test.url")
                 assert result is None
-                assert api.stats['other_errors'] == 1
+                assert api.stats["other_errors"] == 1
 
     @pytest.mark.asyncio
     async def test_get_vacancies_details_batch_empty_list(self):
@@ -287,8 +284,8 @@ class TestHeadHunterAPIAsync:
 class TestHeadHunterAPIMockedRequests:
     def test_search_vacancies_uses_industry_param(self):
         api = HeadHunterAPI()
-        with patch.object(api, '_get') as mock_get:
+        with patch.object(api, "_get") as mock_get:
             mock_get.return_value = {"items": [], "pages": 0}
             api.search_vacancies(text="DevOps", area=1, industry=7)
-            call_params = mock_get.call_args[1]['params']
-            assert call_params['industry'] == 7
+            call_params = mock_get.call_args[1]["params"]
+            assert call_params["industry"] == 7

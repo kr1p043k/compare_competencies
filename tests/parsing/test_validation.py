@@ -1,17 +1,17 @@
 # tests/parsing/test_skill_parser.py (или в test_parsers.py)
 import pytest
-from src.parsing.skill_parser import SkillParser, ExtractedSkill, SkillSource
+
+from src.models.vacancy import KeySkill, Snippet, Vacancy
+from src.parsing.skill_parser import SkillParser, SkillSource
 from src.parsing.skill_validator import SkillValidator, ValidationReason
-from src.models.vacancy import Vacancy, Snippet, KeySkill
+
+
 class TestSkillParserExtended:
     """Расширенные тесты SkillParser для покрытия всех ветвей"""
 
     def test_parse_vacancy_empty_fields(self):
         parser = SkillParser()
-        vacancy = Vacancy(
-            id="1", name="Test", area=None, employer=None,
-            key_skills=[], snippet=None, description=None
-        )
+        vacancy = Vacancy(id="1", name="Test", area=None, employer=None, key_skills=[], snippet=None, description=None)
         skills = parser.parse_vacancy(vacancy)
         assert skills == []
 
@@ -22,9 +22,13 @@ class TestSkillParserExtended:
         # Очистка HTML происходит в _extract_from_text перед вызовом _direct_search
         # Проверим через полный парсинг
         vacancy = Vacancy(
-            id="1", name="Test", area=None, employer=None,
-            key_skills=[], snippet=None,
-            description="<p>Знание <b>Python</b> и <i>Django</i></p>"
+            id="1",
+            name="Test",
+            area=None,
+            employer=None,
+            key_skills=[],
+            snippet=None,
+            description="<p>Знание <b>Python</b> и <i>Django</i></p>",
         )
         skills = parser.parse_vacancy(vacancy)
         texts = {s.text.lower() for s in skills}
@@ -40,7 +44,7 @@ class TestSkillParserExtended:
 
     def test_negation_context_blocks_skill(self):
         parser = SkillParser()
-        parser.TECH_SKILLS = {"python", "java", "sql"}   # только строчные
+        parser.TECH_SKILLS = {"python", "java", "sql"}  # только строчные
         text = "знание Python не требуется, но желателен опыт с Java"
         skills = parser._direct_search(text, SkillSource.DESCRIPTION)
         # Python должен быть исключён из-за "не требуется"
@@ -49,7 +53,7 @@ class TestSkillParserExtended:
         found_java = any(s.text == "java" for s in skills)
         if not found_java:
             pytest.xfail("Функциональность поиска Java с негативным контекстом Python работает нестабильно")
-        
+
     def test_direct_search_priority_longest_first(self):
         parser = SkillParser()
         # 'machine learning' длиннее 'machine' (если есть в TECH_SKILLS)
@@ -60,7 +64,7 @@ class TestSkillParserExtended:
         skills = parser._direct_search(text, SkillSource.DESCRIPTION)
         # Должен найти "machine learning", а не только "machine"
         assert any(s.text == "machine learning" for s in skills)
-        # "machine" может быть не найден, т.к. поиск по длинным первым и замены нет, 
+        # "machine" может быть не найден, т.к. поиск по длинным первым и замены нет,
         # но direct_search добавляет все совпадения без замен, поэтому оба могут быть
         # но важно, что длинное присутствует.
 
@@ -86,17 +90,20 @@ class TestSkillParserExtended:
     def test_stats_accumulation_per_source(self):
         parser = SkillParser()
         v = Vacancy(
-            id="1", name="Test", area=None, employer=None,
+            id="1",
+            name="Test",
+            area=None,
+            employer=None,
             key_skills=[KeySkill(name="A"), KeySkill(name="B")],
             snippet=Snippet(requirement="знание SQL", responsibility=None),
-            description="опыт работы с Docker"
+            description="опыт работы с Docker",
         )
         parser.parse_vacancy(v)
         stats = parser.get_stats()
         assert stats.total_extracted >= 4
-        assert stats.by_source['key_skills'] == 2
+        assert stats.by_source["key_skills"] == 2
         # snippet и description могут быть объединены, но проверяем наличие
-        assert 'snippet_req' in stats.by_source or 'description' in stats.by_source
+        assert "snippet_req" in stats.by_source or "description" in stats.by_source
 
     def test_reset_stats(self):
         parser = SkillParser()
@@ -106,6 +113,8 @@ class TestSkillParserExtended:
         parser.reset_stats()
         assert parser.stats.total_extracted == 0
         assert parser.stats.by_source == {}
+
+
 class TestSkillValidatorExtended:
     """Расширенные тесты SkillValidator для покрытия всех причин отклонения"""
 
@@ -187,14 +196,14 @@ class TestSkillValidatorExtended:
     def test_rejection_report_empty_results(self):
         validator = SkillValidator()
         report = validator.get_rejection_report([])
-        assert report['total_validated'] == 0
-        assert report['rejection_rate'] == 0
+        assert report["total_validated"] == 0
+        assert report["rejection_rate"] == 0
 
     def test_stats_reset(self):
         validator = SkillValidator()
         validator.validate("Python")
         validator.validate("")
-        assert validator.stats['total'] == 2
+        assert validator.stats["total"] == 2
         validator.reset_stats()
-        assert validator.stats['total'] == 0
-        assert validator.stats['valid'] == 0
+        assert validator.stats["total"] == 0
+        assert validator.stats["valid"] == 0

@@ -1,22 +1,21 @@
 # tests/models/test_models.py
-import pytest
-from datetime import datetime
+
 import numpy as np
+import pytest
 from pydantic import ValidationError
 
+from src.models.comparison import ComparisonReport, GapResult
+from src.models.market_metrics import DomainMetrics, SkillMetrics
 from src.models.student import (
-    StudentProfile, ExperienceLevel, ProfileEvaluation,
-    ProfileComparison, merge_skills_hierarchically
+    ProfileComparison,
+    ProfileEvaluation,
+    StudentProfile,
+    merge_skills_hierarchically,
 )
-from src.models.comparison import GapResult, ComparisonReport
-from src.models.market_metrics import SkillMetrics, DomainMetrics
-from src.models.vacancy import (
-    KeySkill, Snippet, Salary, Area, Employer, Experience,
-    Vacancy, VacancyCollection
-)
-
+from src.models.vacancy import Area, Employer, Experience, KeySkill, Salary, Snippet, Vacancy, VacancyCollection
 
 # ==================== StudentProfile ====================
+
 
 def test_student_profile_validation_success(sample_student):
     assert sample_student.profile_name == "base"
@@ -26,11 +25,7 @@ def test_student_profile_validation_success(sample_student):
 
 def test_student_profile_validation_error():
     with pytest.raises(ValidationError):
-        StudentProfile(
-            competencies=[],
-            skills=[],
-            target_level="junior"
-        )
+        StudentProfile(competencies=[], skills=[], target_level="junior")
 
 
 def test_student_profile_repr(sample_student):
@@ -41,16 +36,13 @@ def test_student_profile_repr(sample_student):
 
 def test_student_profile_with_embedding():
     emb = np.random.rand(384)
-    student = StudentProfile(
-        profile_name="test",
-        skills=["python"],
-        embedding=emb
-    )
+    student = StudentProfile(profile_name="test", skills=["python"], embedding=emb)
     assert student.embedding is not None
     assert len(student.embedding) == 384
 
 
 # ==================== ProfileEvaluation ====================
+
 
 def test_profile_evaluation_creation(sample_student):
     eval_result = ProfileEvaluation(
@@ -62,13 +54,14 @@ def test_profile_evaluation_creation(sample_student):
         domain_coverage_score=65.0,
         readiness_score=72.0,
         avg_gap=0.15,
-        recommendation="Хороший уровень"
+        recommendation="Хороший уровень",
     )
     assert eval_result.readiness_score == 72.0
     assert "middle" in repr(eval_result)
 
 
 # ==================== ProfileComparison ====================
+
 
 def test_profile_comparison_empty():
     pc = ProfileComparison()
@@ -84,7 +77,7 @@ def test_profile_comparison_with_evaluations(sample_student):
         market_coverage_score=60.0,
         skill_coverage=55.0,
         domain_coverage_score=50.0,
-        readiness_score=58.0
+        readiness_score=58.0,
     )
     eval2 = ProfileEvaluation(
         profile_name="advanced",
@@ -93,7 +86,7 @@ def test_profile_comparison_with_evaluations(sample_student):
         market_coverage_score=85.0,
         skill_coverage=80.0,
         domain_coverage_score=75.0,
-        readiness_score=82.0
+        readiness_score=82.0,
     )
     pc = ProfileComparison(evaluations=[eval1, eval2])
     pc.compute_aggregates()
@@ -109,7 +102,7 @@ def test_profile_comparison_to_dict(sample_student):
         market_coverage_score=70.0,
         skill_coverage=65.0,
         domain_coverage_score=60.0,
-        readiness_score=68.0
+        readiness_score=68.0,
     )
     pc = ProfileComparison(evaluations=[eval1])
     result = pc.to_dict_for_json()
@@ -119,12 +112,9 @@ def test_profile_comparison_to_dict(sample_student):
 
 # ==================== merge_skills_hierarchically ====================
 
+
 def test_merge_skills_no_duplicates():
-    result = merge_skills_hierarchically(
-        ["python", "sql"],
-        ["sql", "docker"],
-        ["docker", "git"]
-    )
+    result = merge_skills_hierarchically(["python", "sql"], ["sql", "docker"], ["docker", "git"])
     assert result == ["python", "sql", "docker", "git"]
 
 
@@ -140,6 +130,7 @@ def test_merge_skills_order_preserved():
 
 # ==================== GapResult ====================
 
+
 class TestGapResult:
     def test_valid_gap_result(self):
         gap = GapResult(
@@ -150,7 +141,7 @@ class TestGapResult:
             max_gap=0.5,
             cluster_relevance=0.8,
             demand=0.9,
-            priority="HIGH"
+            priority="HIGH",
         )
         assert gap.skill == "Python"
         assert gap.priority == "HIGH"
@@ -179,7 +170,7 @@ class TestComparisonReport:
             market_coverage_score=70.0,
             skill_coverage=65.0,
             domain_coverage_score=60.0,
-            readiness_score=68.0
+            readiness_score=68.0,
         )
 
     def test_valid_comparison_report(self, sample_evaluation):
@@ -194,7 +185,7 @@ class TestComparisonReport:
             best_readiness=68.0,
             best_market_coverage=70.0,
             evaluations=[sample_evaluation],
-            overall_recommendations=["Учить Docker"]
+            overall_recommendations=["Учить Docker"],
         )
         assert report.total_profiles == 1
         assert report.best_profile == "base"
@@ -210,7 +201,7 @@ class TestComparisonReport:
             best_profile="base",
             best_readiness=50.0,
             best_market_coverage=50.0,
-            evaluations=[sample_evaluation]
+            evaluations=[sample_evaluation],
         )
         assert report.high_priority_gaps == []
         assert report.overall_recommendations == []
@@ -226,7 +217,7 @@ class TestComparisonReport:
             best_profile="base",
             best_readiness=70.0,
             best_market_coverage=70.0,
-            evaluations=[sample_evaluation]
+            evaluations=[sample_evaluation],
         )
         data = report.to_dict()
         assert data["total_profiles"] == 1
@@ -234,6 +225,7 @@ class TestComparisonReport:
 
 
 # ==================== SkillMetrics ====================
+
 
 class TestSkillMetrics:
     def test_skill_metrics_defaults(self):
@@ -251,65 +243,45 @@ class TestSkillMetrics:
             demand_j=0.8,
             demand_m=0.9,
             demand_s=0.9,
-            cluster_relevance=0.7
+            cluster_relevance=0.7,
         )
-        score = sm.score(
-            level_weights={"junior": 0.2, "middle": 0.5, "senior": 0.3},
-            domain_bonus=0.5
-        )
+        score = sm.score(level_weights={"junior": 0.2, "middle": 0.5, "senior": 0.3}, domain_bonus=0.5)
         assert 0.0 <= score <= 2.0  # с бонусом может быть >1
 
     def test_skill_metrics_score_no_bonus(self):
-        sm = SkillMetrics(
-            skill="python",
-            gap_j=0.5,
-            demand_j=0.8,
-            cluster_relevance=0.7
-        )
-        score = sm.score(
-            level_weights={"junior": 1.0, "middle": 0.0, "senior": 0.0}
-        )
+        sm = SkillMetrics(skill="python", gap_j=0.5, demand_j=0.8, cluster_relevance=0.7)
+        score = sm.score(level_weights={"junior": 1.0, "middle": 0.0, "senior": 0.0})
         assert 0.0 <= score <= 1.0
 
 
 # ==================== DomainMetrics ====================
 
+
 class TestDomainMetrics:
     def test_compute_coverage_full(self):
-        dm = DomainMetrics(
-            domain="Backend",
-            required_skills=["python", "sql", "docker"]
-        )
+        dm = DomainMetrics(domain="Backend", required_skills=["python", "sql", "docker"])
         coverage = dm.compute_coverage({"python", "sql", "docker"})
         assert coverage == 1.0
         assert dm.user_has == 3
 
     def test_compute_coverage_partial(self):
-        dm = DomainMetrics(
-            domain="Backend",
-            required_skills=["python", "sql", "docker", "k8s"]
-        )
+        dm = DomainMetrics(domain="Backend", required_skills=["python", "sql", "docker", "k8s"])
         coverage = dm.compute_coverage({"python", "sql"})
         assert coverage == 0.5
 
     def test_compute_coverage_empty_required(self):
-        dm = DomainMetrics(
-            domain="Empty",
-            required_skills=[]
-        )
+        dm = DomainMetrics(domain="Empty", required_skills=[])
         coverage = dm.compute_coverage({"python"})
         assert coverage == 0.0
 
     def test_compute_coverage_case_insensitive(self):
-        dm = DomainMetrics(
-            domain="Test",
-            required_skills=["Python", "SQL"]
-        )
+        dm = DomainMetrics(domain="Test", required_skills=["Python", "SQL"])
         coverage = dm.compute_coverage({"python", "sql"})
         assert coverage == 1.0
 
 
 # ==================== KeySkill ====================
+
 
 class TestKeySkill:
     def test_create_valid_skill(self):
@@ -347,6 +319,7 @@ class TestKeySkill:
 
 # ==================== Snippet ====================
 
+
 class TestSnippet:
     def test_create_snippet(self):
         s = Snippet(requirement="Требования", responsibility="Обязанности")
@@ -369,6 +342,7 @@ class TestSnippet:
 
 # ==================== Salary ====================
 
+
 class TestSalary:
     def test_salary_range(self):
         s = Salary(from_amount=100000, to_amount=150000, currency="USD")
@@ -389,6 +363,7 @@ class TestSalary:
 
 # ==================== Area ====================
 
+
 class TestArea:
     def test_area(self):
         a = Area(id=1, name="Москва")
@@ -402,6 +377,7 @@ class TestArea:
 
 # ==================== Employer ====================
 
+
 class TestEmployer:
     def test_employer(self):
         e = Employer(id="123", name="Company")
@@ -413,6 +389,7 @@ class TestEmployer:
 
 
 # ==================== Experience ====================
+
 
 class TestExperience:
     def test_experience_junior(self):
@@ -437,6 +414,7 @@ class TestExperience:
 
 # ==================== Vacancy ====================
 
+
 class TestVacancy:
     @pytest.fixture
     def sample_api_data(self):
@@ -450,7 +428,7 @@ class TestVacancy:
             "snippet": {"requirement": "req", "responsibility": "resp"},
             "salary": {"from": 100000, "to": 150000, "currency": "RUB"},
             "experience": {"id": "between3and6", "name": "3-6 лет"},
-            "published_at": "2024-01-01T00:00:00"
+            "published_at": "2024-01-01T00:00:00",
         }
 
     def test_from_api_full(self, sample_api_data):
@@ -461,12 +439,7 @@ class TestVacancy:
         assert vac.experience_level == "middle"
 
     def test_from_api_minimal(self):
-        data = {
-            "id": "1",
-            "name": "Job",
-            "area": {"id": 1, "name": "Area"},
-            "employer": {"id": "2", "name": "Emp"}
-        }
+        data = {"id": "1", "name": "Job", "area": {"id": 1, "name": "Area"}, "employer": {"id": "2", "name": "Emp"}}
         vac = Vacancy.from_api(data)
         assert vac.id == "1"
         assert vac.key_skills == []
@@ -499,17 +472,28 @@ class TestVacancy:
 
 # ==================== VacancyCollection ====================
 
+
 class TestVacancyCollection:
     @pytest.fixture
     def sample_vacancies(self):
         area = Area(1, "Moscow")
         employer = Employer("1", "Company")
-        v1 = Vacancy(id="1", name="Job1", area=area, employer=employer,
-                     key_skills=[KeySkill("Python")],
-                     experience=Experience(id="between1and3", name="1-3"))
-        v2 = Vacancy(id="2", name="Job2", area=area, employer=employer,
-                     key_skills=[KeySkill("Python"), KeySkill("Django")],
-                     experience=Experience(id="between6and10", name="6-10"))
+        v1 = Vacancy(
+            id="1",
+            name="Job1",
+            area=area,
+            employer=employer,
+            key_skills=[KeySkill("Python")],
+            experience=Experience(id="between1and3", name="1-3"),
+        )
+        v2 = Vacancy(
+            id="2",
+            name="Job2",
+            area=area,
+            employer=employer,
+            key_skills=[KeySkill("Python"), KeySkill("Django")],
+            experience=Experience(id="between6and10", name="6-10"),
+        )
         return [v1, v2]
 
     def test_add_and_iter(self, sample_vacancies):
@@ -530,8 +514,8 @@ class TestVacancyCollection:
     def test_get_stats(self, sample_vacancies):
         coll = VacancyCollection(sample_vacancies, query="test")
         stats = coll.get_stats()
-        assert stats['total_vacancies'] == 2
-        assert stats['total_unique_skills'] == 2
+        assert stats["total_vacancies"] == 2
+        assert stats["total_unique_skills"] == 2
 
     def test_repr(self, sample_vacancies):
         coll = VacancyCollection(sample_vacancies, query="Python")

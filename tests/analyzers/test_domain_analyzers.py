@@ -1,5 +1,6 @@
 # tests/analyzers/test_domain_analyzer.py
 import pytest
+
 from src.analyzers.domain_analyzer import DomainAnalyzer
 
 
@@ -21,7 +22,7 @@ class TestDomainAnalyzer:
         result = analyzer.compute_domain_coverage([])
         assert isinstance(result, dict)
         # Все домены должны быть с нулевым покрытием
-        for domain_name, metrics in result.items():
+        for _domain_name, metrics in result.items():
             assert metrics.coverage == 0.0
 
     def test_compute_domain_coverage_partial(self, analyzer):
@@ -59,11 +60,19 @@ class TestDomainAnalyzer:
     def test_all_domains_present(self, analyzer):
         result = analyzer.compute_domain_coverage(["python"])
         expected_domains = {
-            "Backend", "Frontend", "Data Science",
-            "DevOps & Infrastructure", "Mobile Development",
-            "QA / Testing", "1C & ERP", "AI/ML Research & Advanced",
-            "Cybersecurity", "Game Development", "Embedded & Systems",
-            "GIS & Spatial", "Soft Skills & Management"
+            "Backend",
+            "Frontend",
+            "Data Science",
+            "DevOps & Infrastructure",
+            "Mobile Development",
+            "QA / Testing",
+            "1C & ERP",
+            "AI/ML Research & Advanced",
+            "Cybersecurity",
+            "Game Development",
+            "Embedded & Systems",
+            "GIS & Spatial",
+            "Soft Skills & Management",
         }
         for domain in expected_domains:
             assert domain in result, f"Domain {domain} missing from results"
@@ -71,9 +80,10 @@ class TestDomainAnalyzer:
     def test_domain_coverage_returns_domain_metrics(self, analyzer):
         result = analyzer.compute_domain_coverage(["python"])
         from src.models.market_metrics import DomainMetrics
+
         for domain_name, metrics in result.items():
             assert isinstance(metrics, DomainMetrics)
             assert metrics.domain == domain_name
-            assert hasattr(metrics, 'coverage')
-            assert hasattr(metrics, 'importance')
-            assert hasattr(metrics, 'required_skills')
+            assert hasattr(metrics, "coverage")
+            assert hasattr(metrics, "importance")
+            assert hasattr(metrics, "required_skills")

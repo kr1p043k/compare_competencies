@@ -1,5 +1,6 @@
 # tests/analyzers/test_skill.py
 import pytest
+
 from src.analyzers.skill_filter import SkillFilter
 from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
 
@@ -23,7 +24,7 @@ class TestSkillFilterExtended:
     def test_normalize_weights_minmax(self):
         sf = SkillFilter()
         weights = {"a": 1, "b": 5, "c": 10}
-        norm = sf.normalize_weights(weights, method='minmax')
+        norm = sf.normalize_weights(weights, method="minmax")
         assert norm["c"] == 1.0
         assert norm["a"] == 0.1
         assert 0.1 < norm["b"] < 1.0
@@ -31,7 +32,7 @@ class TestSkillFilterExtended:
     def test_normalize_weights_log(self):
         sf = SkillFilter()
         weights = {"a": 1, "b": 100}
-        norm = sf.normalize_weights(weights, method='log')
+        norm = sf.normalize_weights(weights, method="log")
         assert norm["b"] == 1.0
         assert norm["a"] < 1.0
 
@@ -49,7 +50,7 @@ class TestSkillFilterExtended:
         sf.GENERIC_WORDS = sf.GENERIC_WORDS - {"sql"}
         raw = {"python": 0.9, "frontend": 0.8, "sql": 0.5}
         freq = {"python": 100, "sql": 50}
-        clean = sf.get_clean_weights(raw, freq, use_reference=True, normalize_method='minmax')
+        clean = sf.get_clean_weights(raw, freq, use_reference=True, normalize_method="minmax")
         assert "frontend" not in clean
         assert "python" in clean
         assert clean["python"] == 1.0
@@ -83,7 +84,7 @@ class TestSkillFilterExtended:
     def test_normalize_weights_all_equal_minmax(self):
         sf = SkillFilter()
         weights = {"a": 5.0, "b": 5.0}
-        norm = sf.normalize_weights(weights, method='minmax')
+        norm = sf.normalize_weights(weights, method="minmax")
         assert norm == {"a": 1.0, "b": 1.0}
 
     def test_merge_with_reference_empty_comp_freq(self):
@@ -150,8 +151,18 @@ class TestSkillFilterExtended:
     # ИСПРАВЛЕНО: get_skill_categories кладёт git в devops (не в tools)
     def test_get_skill_categories_full(self):
         sf = SkillFilter()
-        skills = ["python", "react", "postgresql", "docker", "aws", "machine learning",
-                  "html", "pytest", "git", "unknown"]
+        skills = [
+            "python",
+            "react",
+            "postgresql",
+            "docker",
+            "aws",
+            "machine learning",
+            "html",
+            "pytest",
+            "git",
+            "unknown",
+        ]
         cats = sf.get_skill_categories(skills)
         assert "programming_languages" in cats
         assert "frameworks" in cats
@@ -191,6 +202,7 @@ class TestSkillFilterExtended:
         # Проверим, что функция возвращает список (фактический результат)
         assert isinstance(valid, list)
 
+
 class TestSkillFilterFull:
     @pytest.fixture
     def sf(self):
@@ -213,7 +225,7 @@ class TestSkillFilterFull:
     def test_normalize_weights_softmax(self, sf):
         """Строка 133: softmax нормализация"""
         weights = {"a": 1, "b": 2}
-        norm = sf.normalize_weights(weights, method='softmax')
+        norm = sf.normalize_weights(weights, method="softmax")
         total = sum(norm.values())
         assert round(total, 4) == 1.0
         assert norm["b"] > norm["a"]
@@ -221,13 +233,13 @@ class TestSkillFilterFull:
     def test_normalize_weights_invalid_method(self, sf):
         """Строка 133: неизвестный метод → fallback"""
         weights = {"a": 1, "b": 2}
-        norm = sf.normalize_weights(weights, method='invalid')
+        norm = sf.normalize_weights(weights, method="invalid")
         assert norm == weights
 
     def test_normalize_weights_log_max_zero(self, sf):
         """Строка 133: log при max_log=0"""
         weights = {"a": 0.0, "b": 0.0}
-        norm = sf.normalize_weights(weights, method='log')
+        norm = sf.normalize_weights(weights, method="log")
         assert norm == weights
 
     def test_merge_with_reference_count_based(self, sf):
@@ -251,12 +263,13 @@ class TestSkillFilterFull:
         sf.GENERIC_WORDS = sf.GENERIC_WORDS - {"sql"}
         raw = {"python": 0.9, "sql": 0.5}
         freq = {"python": 100, "sql": 10}
-        clean = sf.get_clean_weights(raw, freq, normalize_method='log')
+        clean = sf.get_clean_weights(raw, freq, normalize_method="log")
         assert "python" in clean
         assert "sql" in clean
         # При log нормализации максимальный вес = 1.0
         max_val = max(clean.values())
         assert max_val == 1.0
+
 
 class TestSkillFilterCoverage:
     """Тесты для достижения высокого покрытия SkillFilter."""
@@ -275,7 +288,7 @@ class TestSkillFilterCoverage:
     def test_normalize_weights_minmax_all_equal(self):
         sf = SkillFilter()
         weights = {"a": 5.0, "b": 5.0}
-        norm = sf.normalize_weights(weights, method='minmax')
+        norm = sf.normalize_weights(weights, method="minmax")
         assert norm == {"a": 1.0, "b": 1.0}
 
     def test_merge_with_reference_empty_comp_freq(self):
@@ -335,8 +348,18 @@ class TestSkillFilterCoverage:
 
     def test_get_skill_categories_full(self):
         sf = SkillFilter()
-        skills = ["python", "react", "postgresql", "docker", "aws", "machine learning",
-                "html", "pytest", "git", "unknown"]
+        skills = [
+            "python",
+            "react",
+            "postgresql",
+            "docker",
+            "aws",
+            "machine learning",
+            "html",
+            "pytest",
+            "git",
+            "unknown",
+        ]
         cats = sf.get_skill_categories(skills)
         assert "programming_languages" in cats
         assert "frameworks" in cats
@@ -375,14 +398,14 @@ class TestSkillFilterCoverage:
         """Строка 133: softmax нормализация — сумма ≈ 1"""
         sf = SkillFilter()
         weights = {"a": 1, "b": 2, "c": 3}
-        norm = sf.normalize_weights(weights, method='softmax')
+        norm = sf.normalize_weights(weights, method="softmax")
         assert abs(sum(norm.values()) - 1.0) < 0.01  # float-погрешность
 
     def test_normalize_weights_softmax_empty(self):
         """Строка 133: softmax с нулевыми весами"""
         sf = SkillFilter()
         weights = {"a": 0.0, "b": 0.0}
-        norm = sf.normalize_weights(weights, method='softmax')
+        norm = sf.normalize_weights(weights, method="softmax")
         # При exp(0)=1, total=2 → каждый получает 1/2=0.5
         assert norm["a"] == pytest.approx(0.5)
         assert norm["b"] == pytest.approx(0.5)
@@ -400,7 +423,7 @@ class TestSkillFilterCoverage:
         """Строка 297: log-нормализация с нулевыми весами"""
         sf = SkillFilter()
         raw = {"python": 5.0, "sql": 0.0}
-        clean = sf.get_clean_weights(raw, use_reference=False, normalize_method='log')
+        clean = sf.get_clean_weights(raw, use_reference=False, normalize_method="log")
         assert clean["python"] == 1.0
 
     def test_get_clean_weights_empty_after_filters(self):
@@ -426,7 +449,7 @@ class TestSkillLevelAnalyzerExtended:
             {"skills": ["python", "sql"], "experience": "junior"},
             {"skills": ["python", "docker"], "experience": "middle"},
             {"skills": ["docker", "k8s"], "experience": "senior"},
-            {"skills": ["python"], "experience": "не указано"}
+            {"skills": ["python"], "experience": "не указано"},
         ]
         analyzer.analyze_vacancies(vacancies)
         assert "python" in analyzer.skill_by_level
@@ -467,6 +490,7 @@ class TestSkillLevelAnalyzerExtended:
         assert roadmap == {"junior": True, "middle": True, "senior": True}
         roadmap2 = analyzer.get_skill_roadmap("docker")
         assert roadmap2 == {"junior": False, "middle": True, "senior": True}
+
 
 class TestSkillLevelAnalyzerFull:
     @pytest.fixture
@@ -513,7 +537,7 @@ class TestSkillLevelAnalyzerFull:
         assert analyzer._is_lower_level("senior", "middle") is False
         # Неизвестные уровни
         assert analyzer._is_lower_level("unknown", "middle") is False
-    
+
     def test_analyze_vacancies_with_leading_dict(self, analyzer):
         """Строка 48: опыт 'ведущий' через dict"""
         vacancies = [

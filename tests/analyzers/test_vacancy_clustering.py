@@ -1,8 +1,9 @@
 # tests/analyzers/test_vacancy_clustering.py
-import pytest
+from unittest.mock import patch
+
 import numpy as np
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+import pytest
+
 from src.analyzers.vacancy_clustering import VacancyClusterer
 
 
@@ -34,11 +35,7 @@ class TestVacancyClusterer:
 
     def test_init_custom_params(self):
         clusterer = VacancyClusterer(
-            n_clusters=5,
-            min_clusters=3,
-            max_clusters=20,
-            random_state=123,
-            use_hdbscan_fallback=False
+            n_clusters=5, min_clusters=3, max_clusters=20, random_state=123, use_hdbscan_fallback=False
         )
         assert clusterer.n_clusters == 5
         assert clusterer.min_clusters == 3
@@ -62,12 +59,7 @@ class TestVacancyClusterer:
 
     def test_fit_kmeans(self, sample_vacancies):
         """KMeans с достаточным количеством вакансий"""
-        clusterer = VacancyClusterer(
-            n_clusters=2,
-            min_clusters=2,
-            max_clusters=4,
-            use_hdbscan_fallback=False
-        )
+        clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=4, use_hdbscan_fallback=False)
         clusterer.fit(sample_vacancies, level="test")
         assert clusterer.is_fitted is True
         assert clusterer.n_clusters_ >= 1
@@ -80,12 +72,7 @@ class TestVacancyClusterer:
         assert result == []
 
     def test_find_closest_clusters(self, sample_vacancies):
-        clusterer = VacancyClusterer(
-            n_clusters=2,
-            min_clusters=2,
-            max_clusters=4,
-            use_hdbscan_fallback=False
-        )
+        clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=4, use_hdbscan_fallback=False)
         clusterer.fit(sample_vacancies, level="test")
 
         closest = clusterer.find_closest_clusters(["python", "sql"], top_k=1)
@@ -95,12 +82,7 @@ class TestVacancyClusterer:
 
     def test_find_closest_clusters_with_embedding(self, sample_vacancies):
         """Поиск кластеров по готовому эмбеддингу"""
-        clusterer = VacancyClusterer(
-            n_clusters=2,
-            min_clusters=2,
-            max_clusters=4,
-            use_hdbscan_fallback=False
-        )
+        clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=4, use_hdbscan_fallback=False)
         clusterer.fit(sample_vacancies, level="test")
 
         # Создаём случайный эмбеддинг правильной размерности
@@ -116,12 +98,7 @@ class TestVacancyClusterer:
                 assert 0.0 <= sim <= 1.0
 
     def test_get_cluster_skills(self, sample_vacancies):
-        clusterer = VacancyClusterer(
-            n_clusters=2,
-            min_clusters=2,
-            max_clusters=4,
-            use_hdbscan_fallback=False
-        )
+        clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=4, use_hdbscan_fallback=False)
         clusterer.fit(sample_vacancies, level="test")
 
         skills = clusterer.get_cluster_skills(0, sample_vacancies)
@@ -134,12 +111,7 @@ class TestVacancyClusterer:
         assert skills == []
 
     def test_get_top_skills_in_cluster(self, sample_vacancies):
-        clusterer = VacancyClusterer(
-            n_clusters=2,
-            min_clusters=2,
-            max_clusters=4,
-            use_hdbscan_fallback=False
-        )
+        clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=4, use_hdbscan_fallback=False)
         clusterer.fit(sample_vacancies, level="test")
 
         top = clusterer.get_top_skills_in_cluster(0, top_n=5)
@@ -154,12 +126,7 @@ class TestVacancyClusterer:
         assert top == []
 
     def test_get_cluster_context(self, sample_vacancies):
-        clusterer = VacancyClusterer(
-            n_clusters=2,
-            min_clusters=2,
-            max_clusters=4,
-            use_hdbscan_fallback=False
-        )
+        clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=4, use_hdbscan_fallback=False)
         clusterer.fit(sample_vacancies, level="test")
 
         # Создаём эмбеддинг
@@ -168,10 +135,7 @@ class TestVacancyClusterer:
         embedding = embedding / np.linalg.norm(embedding)
 
         context = clusterer.get_cluster_context(
-            profile_embedding=embedding,
-            level="test",
-            top_k_clusters=2,
-            top_k_skills_per_cluster=10
+            profile_embedding=embedding, level="test", top_k_clusters=2, top_k_skills_per_cluster=10
         )
         assert "closest_clusters" in context
         assert "skills" in context
@@ -186,14 +150,10 @@ class TestVacancyClusterer:
     def test_save_and_load_model(self, tmp_path, sample_vacancies, monkeypatch):
         """Проверяем сохранение и загрузку модели"""
         import src.config as config
+
         monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
 
-        clusterer = VacancyClusterer(
-            n_clusters=2,
-            min_clusters=2,
-            max_clusters=4,
-            use_hdbscan_fallback=False
-        )
+        clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=4, use_hdbscan_fallback=False)
         clusterer.fit(sample_vacancies, level="test")
 
         # Проверяем, что файл создан
@@ -213,23 +173,13 @@ class TestVacancyClusterer:
         assert loaded is False
 
     def test_n_clusters_property(self, sample_vacancies):
-        clusterer = VacancyClusterer(
-            n_clusters=2,
-            min_clusters=2,
-            max_clusters=4,
-            use_hdbscan_fallback=False
-        )
+        clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=4, use_hdbscan_fallback=False)
         assert clusterer.n_clusters_ == 0
         clusterer.fit(sample_vacancies, level="test")
         assert clusterer.n_clusters_ > 0
 
     def test_find_closest_clusters_returns_all_when_top_k_large(self, sample_vacancies):
-        clusterer = VacancyClusterer(
-            n_clusters=2,
-            min_clusters=2,
-            max_clusters=4,
-            use_hdbscan_fallback=False
-        )
+        clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=4, use_hdbscan_fallback=False)
         clusterer.fit(sample_vacancies, level="test")
         n = clusterer.n_clusters_
 
@@ -239,42 +189,25 @@ class TestVacancyClusterer:
 class TestVacancyClusteringFull:
     @pytest.fixture
     def vacancies(self):
-        return [
-            {"id": f"{i}", "skills": ["python", "sql", f"skill_{i}"]}
-            for i in range(20)
-        ]
+        return [{"id": f"{i}", "skills": ["python", "sql", f"skill_{i}"]} for i in range(20)]
 
     def test_hdbscan_not_available_constant(self):
         """Проверка константы HDBSCAN_AVAILABLE"""
         from src.analyzers import vacancy_clustering
-        # Константа уже вычислена при импорте модуля
-        assert isinstance(vacancy_clustering.HDBSCAN_AVAILABLE, bool)
 
-class TestVacancyClusteringFull:
-    @pytest.fixture
-    def vacancies(self):
-        return [
-            {"id": f"{i}", "skills": ["python", "sql", f"skill_{i}"]}
-            for i in range(20)
-        ]
-
-    def test_hdbscan_not_available_constant(self):
-        """Проверка константы HDBSCAN_AVAILABLE"""
-        from src.analyzers import vacancy_clustering
         assert isinstance(vacancy_clustering.HDBSCAN_AVAILABLE, bool)
 
     def test_use_hdbscan_when_not_available(self):
         """Когда HDBSCAN_AVAILABLE=False, use_hdbscan_fallback форсируется в False"""
         from src.analyzers.vacancy_clustering import HDBSCAN_AVAILABLE
+
         clusterer = VacancyClusterer(use_hdbscan_fallback=True)
         assert clusterer.use_hdbscan_fallback == HDBSCAN_AVAILABLE
 
     def test_fit_with_hdbscan_fallback(self, vacancies):
         """Строки 66-68, 75-77: HDBSCAN fallback"""
-        clusterer = VacancyClusterer(
-            n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True
-        )
-        with patch.object(clusterer, '_save_model'):
+        clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True)
+        with patch.object(clusterer, "_save_model"):
             clusterer.fit(vacancies, level="test")
         assert clusterer.is_fitted is True
 
@@ -308,6 +241,7 @@ class TestVacancyClusteringFull:
     def test_save_model_creates_file(self, tmp_path, vacancies):
         """Строки 226-230: сохранение модели"""
         import src.config as config
+
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
         clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=False)
@@ -319,44 +253,44 @@ class TestVacancyClusteringFull:
 
     def test_hdbscan_creates_multiple_clusters(self):
         """Строки 177-216: HDBSCAN создаёт несколько кластеров (без сохранения)"""
-        with patch('src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE', True):
-            with patch('src.analyzers.vacancy_clustering.hdbscan.HDBSCAN') as mock_hdb:
+        with (
+            patch("src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE", True),
+            patch("src.analyzers.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
+        ):
                 mock_instance = mock_hdb.return_value
                 labels = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2, -1] * 2)
                 mock_instance.fit_predict.return_value = labels[:20]
 
-                clusterer = VacancyClusterer(
-                    n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True
-                )
+                clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True)
                 vacancies = [{"id": f"{i}", "skills": ["python", f"skill_{i}"]} for i in range(20)]
-                with patch.object(clusterer, '_save_model'):
+                with patch.object(clusterer, "_save_model"):
                     clusterer.fit(vacancies, level="test_hdb")
                 assert clusterer.is_fitted is True
                 assert clusterer.clusterer_type == "hdbscan"
 
     def test_hdbscan_no_clusters_found(self, vacancies):
         """Строки 177-216: HDBSCAN не нашёл кластеры → KMeans"""
-        with patch('src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE', True):
-            with patch('src.analyzers.vacancy_clustering.hdbscan.HDBSCAN') as mock_hdb:
+        with (
+            patch("src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE", True),
+            patch("src.analyzers.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
+        ):
                 mock_instance = mock_hdb.return_value
                 mock_instance.fit_predict.return_value = np.full(len(vacancies), -1)
-                clusterer = VacancyClusterer(
-                    n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True
-                )
-                with patch.object(clusterer, '_save_model'):
+                clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True)
+                with patch.object(clusterer, "_save_model"):
                     clusterer.fit(vacancies, level="test")
                 assert clusterer.is_fitted is True
 
     def test_hdbscan_exception_fallback(self):
         """Строки 209-211: HDBSCAN выбрасывает исключение → KMeans"""
-        with patch('src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE', True):
-            with patch('src.analyzers.vacancy_clustering.hdbscan.HDBSCAN') as mock_hdb:
+        with (
+            patch("src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE", True),
+            patch("src.analyzers.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
+        ):
                 mock_hdb.side_effect = RuntimeError("HDBSCAN failed")
-                clusterer = VacancyClusterer(
-                    n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True
-                )
+                clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True)
                 vacancies = [{"id": f"{i}", "skills": ["python", f"skill_{i}"]} for i in range(20)]
-                with patch.object(clusterer, '_save_model'):
+                with patch.object(clusterer, "_save_model"):
                     clusterer.fit(vacancies, level="test_exc")
                 assert clusterer.is_fitted is True
                 assert clusterer.clusterer_type == "kmeans"
@@ -407,17 +341,18 @@ class TestVacancyClusteringFull:
     def test_hdbscan_low_silhouette_fallback_to_kmeans(self, tmp_path):
         """Строка 206: HDBSCAN находит только 1 кластер → KMeans"""
         import src.config as config
+
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
 
-        with patch('src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE', True):
-            with patch('src.analyzers.vacancy_clustering.hdbscan.HDBSCAN') as mock_hdb:
+        with (
+            patch("src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE", True),
+            patch("src.analyzers.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
+        ):
                 mock_instance = mock_hdb.return_value
                 labels = np.array([0] * 18 + [-1, -1])
                 mock_instance.fit_predict.return_value = labels
-                clusterer = VacancyClusterer(
-                    n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True
-                )
+                clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True)
                 vacancies = [{"id": f"{i}", "skills": ["python", f"skill_{i}"]} for i in range(20)]
                 clusterer.fit(vacancies, level="test_one_cluster")
                 assert clusterer.is_fitted is True
@@ -434,10 +369,7 @@ class TestVacancyClusteringFull:
     def test_compute_embeddings_with_empty_skills(self):
         """Строки 66-68: вакансия с пустыми навыками"""
         clusterer = VacancyClusterer()
-        vacancies = [
-            {"id": f"{i}", "skills": [] if i % 3 == 0 else ["python", f"skill_{i}"]}
-            for i in range(20)
-        ]
+        vacancies = [{"id": f"{i}", "skills": [] if i % 3 == 0 else ["python", f"skill_{i}"]} for i in range(20)]
         clusterer.fit(vacancies, level="test_empty")
         assert clusterer.is_fitted is True
 
@@ -461,6 +393,7 @@ class TestVacancyClusteringFull:
     def test_save_model_hdbscan_type(self, tmp_path):
         """Строки 226-230: сохранение модели HDBSCAN"""
         import src.config as config
+
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
         clusterer = VacancyClusterer()
@@ -523,23 +456,24 @@ class TestVacancyClusteringFull:
     def test_hdbscan_single_cluster_edge(self, tmp_path):
         """Строка 206: HDBSCAN возвращает 1 кластер (n_clusters < 2)"""
         import src.config as config
+
         monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
 
-        with patch('src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE', True):
-            with patch('src.analyzers.vacancy_clustering.hdbscan.HDBSCAN') as mock_hdb:
+        with (
+            patch("src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE", True),
+            patch("src.analyzers.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
+        ):
                 mock_instance = mock_hdb.return_value
                 # Все точки в одном кластере
                 mock_instance.fit_predict.return_value = np.zeros(20, dtype=int)
-                
-                clusterer = VacancyClusterer(
-                    n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True
-                )
+
+                clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True)
                 vacancies = [{"id": f"{i}", "skills": ["python", f"skill_{i}"]} for i in range(20)]
                 clusterer.fit(vacancies, level="test_one_cluster")
                 # n_clusters = 1 → должно fallback на KMeans
                 assert clusterer.is_fitted is True
-        
+
         monkeypatch.undo()
 
     def test_get_top_skills_unknown_cluster(self):
@@ -577,15 +511,15 @@ class TestVacancyClusteringFull:
 
     def test_hdbscan_fallback_on_low_silhouette(self):
         """Строка 206: KMeans silhouette < 0.2 → HDBSCAN → KMeans"""
-        with patch('src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE', True):
-            with patch('src.analyzers.vacancy_clustering.hdbscan.HDBSCAN') as mock_hdb:
+        with (
+            patch("src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE", True),
+            patch("src.analyzers.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
+        ):
                 mock_instance = mock_hdb.return_value
                 mock_instance.fit_predict.return_value = np.array([0, 0, 1, 1, 2, 2, 3, 3, 4, 4] * 2)
-                clusterer = VacancyClusterer(
-                    n_clusters=10, min_clusters=2, max_clusters=20, use_hdbscan_fallback=True
-                )
+                clusterer = VacancyClusterer(n_clusters=10, min_clusters=2, max_clusters=20, use_hdbscan_fallback=True)
                 vacancies = [{"id": f"{i}", "skills": [f"skill_{i}"]} for i in range(20)]
-                with patch.object(clusterer, '_save_model'):
+                with patch.object(clusterer, "_save_model"):
                     clusterer.fit(vacancies, level="test_low_sil")
                 assert clusterer.is_fitted is True
 

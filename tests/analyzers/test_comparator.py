@@ -1,18 +1,16 @@
 # tests/analyzers/test_comparator.py
-import pytest
 import logging
-import traceback
 import sys
+import traceback
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-from unittest.mock import patch, MagicMock
+import pytest
+
 from src.analyzers.comparator import CompetencyComparator
 from src.analyzers.embedding_comparator import EmbeddingComparator
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    force=True
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s", force=True)
 logger = logging.getLogger("test_comparator")
 
 
@@ -36,7 +34,7 @@ class TestCompetencyComparatorExtended:
         comparator.skill_weights = {"python": 0.9}
         # Мокаем weighted_coverage
         mock_emb.compare_student_to_market = None  # не должен вызываться
-        with patch.object(comparator, 'weighted_coverage', return_value=0.8):
+        with patch.object(comparator, "weighted_coverage", return_value=0.8):
             score, confidence = comparator.compare(["python"])
         assert score == 0.8
         assert 0 <= confidence <= 1
@@ -86,12 +84,15 @@ class TestCompetencyComparatorExtended:
         assert coverage > 0
 
 
-@pytest.mark.parametrize("use_embeddings,level", [
-    (False, "middle"),
-    (True, "junior"),
-    (True, "middle"),
-    (True, "senior"),
-])
+@pytest.mark.parametrize(
+    "use_embeddings,level",
+    [
+        (False, "middle"),
+        (True, "junior"),
+        (True, "middle"),
+        (True, "senior"),
+    ],
+)
 def test_comparator_tfidf_mode(use_embeddings, level):
     """Тест TF-IDF и Embeddings режимов (embeddings через глобальный мок)"""
     logger.info("=" * 80)
@@ -99,16 +100,13 @@ def test_comparator_tfidf_mode(use_embeddings, level):
     logger.info("=" * 80)
 
     try:
-        comparator = CompetencyComparator(
-            use_embeddings=use_embeddings,
-            level=level
-        )
+        comparator = CompetencyComparator(use_embeddings=use_embeddings, level=level)
         logger.info("✅ Comparator создан")
 
         vacancies_skills = [
             ["python", "sql", "pandas", "machine learning"],
             ["python", "pytorch", "ml", "rest api"],
-            ["sql", "django", "fastapi"]
+            ["sql", "django", "fastapi"],
         ]
         student_skills = ["python", "sql", "pytorch", "ml"]
 
@@ -127,7 +125,7 @@ def test_comparator_tfidf_mode(use_embeddings, level):
         stats = comparator.get_stats()
         logger.info(f"Статистика: {stats}")
 
-        logger.info(f"✅ ТЕСТ ПРОШЁЛ УСПЕШНО")
+        logger.info("✅ ТЕСТ ПРОШЁЛ УСПЕШНО")
         logger.info("=" * 80)
 
     except Exception as e:
@@ -136,6 +134,7 @@ def test_comparator_tfidf_mode(use_embeddings, level):
         logger.error(f"Сообщение: {e}")
         traceback.print_exc(file=sys.stderr)
         raise
+
 
 class TestEmbeddingComparatorExtended:
     def test_build_market_index_creates_cache(self, tmp_path):
@@ -171,6 +170,7 @@ class TestEmbeddingComparatorExtended:
         result = comparator.embed_skills(skills)
         assert result.shape[0] == 2
         assert result.shape[1] == comparator.model.get_sentence_embedding_dimension()
+
 
 class TestEmbeddingComparatorFull:
     @pytest.fixture
@@ -241,9 +241,7 @@ class TestEmbeddingComparatorFull:
             {"skills": ["java", "spring"], "experience": "middle"},
             {"skills": ["python", "docker"], "experience": "senior"},
         ]
-        result = comparator.find_closest_vacancies(
-            student_skills, vacancies, level="middle", top_k=2
-        )
+        result = comparator.find_closest_vacancies(student_skills, vacancies, level="middle", top_k=2)
         assert len(result) > 0
 
     def test_find_closest_vacancies_fallback_level(self, comparator):
@@ -252,9 +250,7 @@ class TestEmbeddingComparatorFull:
         vacancies = [
             {"skills": ["python", "sql"], "experience": "senior"},
         ]
-        result = comparator.find_closest_vacancies(
-            student_skills, vacancies, level="middle", top_k=2
-        )
+        result = comparator.find_closest_vacancies(student_skills, vacancies, level="middle", top_k=2)
         assert len(result) > 0
 
     def test_set_clusterer(self, comparator):
@@ -316,6 +312,7 @@ class TestEmbeddingComparatorFull:
         """Строки 22-23: проверка доступности FAISS"""
         # FAISS уже импортирован, проверяем флаг
         from src.analyzers.embedding_comparator import FAISS_AVAILABLE
+
         assert isinstance(FAISS_AVAILABLE, bool)
 
     def test_find_closest_vacancies_no_level_match_no_fallback(self, comparator):
@@ -326,10 +323,9 @@ class TestEmbeddingComparatorFull:
             {"skills": ["java", "spring"], "experience": "senior"},
         ]
         # Указан уровень junior, но все вакансии senior → filter пуст → fallback на все
-        result = comparator.find_closest_vacancies(
-            student_skills, vacancies, level="junior", top_k=2
-        )
+        result = comparator.find_closest_vacancies(student_skills, vacancies, level="junior", top_k=2)
         assert len(result) == 2  # fallback возвращает все
+
 
 class TestCompetencyComparatorFull:
     def test_compare_embeddings_no_weights_no_matches(self):
@@ -340,10 +336,7 @@ class TestCompetencyComparatorFull:
         mock_emb.compare_student_to_market.return_value = {
             "score": 0.5,
             "weighted_coverage": 0.5,
-            "matches": [
-                {"skill": "python", "similarity": 0.3},
-                {"skill": "java", "similarity": 0.2}
-            ]
+            "matches": [{"skill": "python", "similarity": 0.3}, {"skill": "java", "similarity": 0.2}],
         }
         comparator.embedding_comparator = mock_emb
         score, confidence = comparator.compare(["python"])
@@ -368,7 +361,7 @@ class TestCompetencyComparatorFull:
         # Первый вызов создаст _market_tfidf_matrix
         score1, _ = comparator.compare(["python"])
         # Второй вызов должен использовать кэш
-        assert hasattr(comparator, '_market_tfidf_matrix')
+        assert hasattr(comparator, "_market_tfidf_matrix")
         score2, _ = comparator.compare(["python"])
         assert score1 == score2
 
@@ -388,9 +381,7 @@ class TestCompetencyComparatorFull:
         comparator.embedding_comparator = mock_emb
 
         coverage = comparator.weighted_coverage(
-            ["python", "sql"],
-            {"python": 0.9, "sql": 0.7, "docker": 0.5},
-            use_hybrid=True
+            ["python", "sql"], {"python": 0.9, "sql": 0.7, "docker": 0.5}, use_hybrid=True
         )
         assert 0.0 <= coverage <= 1.01
 
@@ -417,10 +408,7 @@ class TestCompetencyComparatorFull:
         mock_emb.embed_skills.side_effect = mock_embed
         comparator.embedding_comparator = mock_emb
 
-        coverage = comparator.weighted_coverage(
-            ["python"],
-            {"nonexistent": 0.5}
-        )
+        coverage = comparator.weighted_coverage(["python"], {"nonexistent": 0.5})
         assert coverage == 0.0
 
     def test_get_skill_weights_embeddings(self):
@@ -434,7 +422,7 @@ class TestCompetencyComparatorFull:
         comparator = CompetencyComparator(use_embeddings=False)
         weights = comparator.get_skill_weights()
         assert weights == {}
-    
+
     def test_get_skill_weights_returns_dict(self):
         """Строки 57-59: get_skill_weights возвращает словарь"""
         comparator = CompetencyComparator(use_embeddings=True)
@@ -451,10 +439,10 @@ class TestCompetencyComparatorFull:
         coverage = comparator.weighted_coverage(
             ["python", "sql"],
             {"python": 0.9, "sql": 0.7},
-            use_hybrid=False  # не-hybrid режим
+            use_hybrid=False,  # не-hybrid режим
         )
         assert 0.0 <= coverage <= 1.01
-        
+
     def test_weighted_coverage_exact_match_no_hybrid(self):
         """Строка 141: точное совпадение без эмбеддингов"""
         comparator = CompetencyComparator(use_embeddings=False)
