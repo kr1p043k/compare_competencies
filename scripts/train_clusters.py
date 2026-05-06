@@ -162,7 +162,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
             clusterer.min_cluster_size = 3
             print("   → Используется KMeans (junior — мало данных)")
         elif lvl == "middle":
-            clusterer.min_cluster_size = 8
+            clusterer.min_cluster_size = 12
             clusterer.use_hdbscan_fallback = True
             clusterer.max_clusters = 25
             print("   → Используется HDBSCAN (cosine)")
