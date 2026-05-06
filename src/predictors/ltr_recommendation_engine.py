@@ -169,7 +169,8 @@ class LTRRecommendationEngine:
         return self
 
     # ====================== ПРИЗНАКИ ======================
-    def _extract_features(self, skill: str, student_emb: Optional[np.ndarray], student_skills: List[str]) -> Dict[str, float]:
+    def _extract_features(self, skill: str, student_emb: Optional[np.ndarray], 
+                          student_skills: List[str]) -> Dict[str, float]:
         meta = self.skill_metadata.get(skill, {})
         skill_emb = self.skill_embeddings.get(skill)
 
@@ -178,22 +179,23 @@ class LTRRecommendationEngine:
             sim = cosine_similarity([skill_emb], [student_emb])[0][0]
 
         level_map = {"junior": 1, "middle": 2, "senior": 3, "all_levels": 2}
+        
+        # Используем таксономию для категории
+        category = self._get_skill_category(skill)
         category_map = {
             "programming_languages": 5,
-            "frameworks": 4,
-            "databases": 3,
-            "devops": 4,
-            "cloud": 4,
-            "data_science": 4,
-            "frontend": 3,
-            "testing": 3,
-            "tools": 2,
+            "frameworks": 4, "devops": 4, "cloud": 4, "data_science": 4,
+            "ml_advanced": 4, "llm_ai": 4,
+            "databases": 3, "frontend": 3, "testing_qa": 3,
+            "mobile": 2, "security": 2, "enterprise": 2, "embedded": 2,
+            "game_dev": 2, "gis": 2, "mathematics": 2, "methodologies_concepts": 2,
+            "soft_skills": 1, "management": 1,
             "other": 1
         }
 
         return {
             "level_encoded": level_map.get(meta.get("level", "middle"), 2),
-            "category_encoded": category_map.get(meta.get("category", "other"), 1),
+            "category_encoded": category_map.get(category, 1),
             "cosine_sim": sim,
             "in_student_profile": 1.0 if skill in student_skills else 0.0,
         }
@@ -312,6 +314,15 @@ class LTRRecommendationEngine:
         return processed
 
     def _get_skill_category(self, skill: str) -> str:
+        """Определяет категорию навыка через таксономию (fallback — SkillFilter)."""
+        try:
+            from src.analyzers.skill_taxonomy import SkillTaxonomy
+            cat = SkillTaxonomy().get_category(skill)
+            if cat and cat != 'other':
+                return cat
+        except Exception:
+            pass
+        # Fallback на старую логику
         cats = self.skill_filter.get_skill_categories([skill])
         for cat, skills in cats.items():
             if skill in skills:
@@ -327,24 +338,39 @@ class LTRRecommendationEngine:
             impacts.append((skill, round(score, 2), f"Встречается в {freq} вакансиях"))
         return sorted(impacts, key=lambda x: x[1], reverse=True)[:10]
 
-    def _generate_explanation(self, skill: str, score: float, shap_values: Optional[np.ndarray],
+    def _generate_explanation(self, skill: str, score: float, 
+                              shap_values: Optional[np.ndarray],
                               idx: int, X: pd.DataFrame) -> str:
+        """
+        Генерирует понятное объяснение важности навыка.
+        Использует SHAP для определения главного фактора.
+        """
         meta = self.skill_metadata.get(skill, {})
         freq = meta.get("frequency", 0)
         level = meta.get("level", "middle")
-        base = f"{skill}: важность {score*100:.1f}% (частота {freq}, уровень {level})"
+
+        # Если есть SHAP — объясняем через главный признак
         if shap_values is not None and idx < len(shap_values):
             top_idx = np.argmax(np.abs(shap_values[idx]))
             feat_name = self.feature_names[top_idx]
             feat_val = X.iloc[idx][feat_name]
+
             if feat_name == "cosine_sim":
-                base += f". Сильно связан с вашим профилем (сходство {feat_val:.2f})"
+                return (f"🎯 {skill}: хорошо сочетается с вашим профилем "
+                        f"(сходство {feat_val:.2f}, важность {score*100:.1f}%)")
             elif feat_name == "level_encoded":
-                level_str = {1: "junior", 2: "middle", 3: "senior"}.get(int(feat_val), "middle")
-                base += f". Востребован на уровне {level_str}"
+                level_str = {1: "junior", 2: "middle", 3: "senior"}.get(
+                    int(feat_val), "middle")
+                return (f"📊 {skill}: востребован на уровне {level_str} "
+                        f"(важность {score*100:.1f}%, частота {freq})")
             elif feat_name == "category_encoded":
-                base += ". Относится к востребованной категории навыков"
-        return base
+                cat = self._get_skill_category(skill)
+                return (f"📁 {skill}: относится к востребованной категории "
+                        f"'{cat}' (важность {score*100:.1f}%)")
+
+        # Fallback
+        return (f"{skill}: важность {score*100:.1f}% "
+                f"(частота {freq}, уровень {level})")
     
     def load_model(self, path: Optional[Path] = None) -> "LTRRecommendationEngine":
         model_path = path or self.model_path

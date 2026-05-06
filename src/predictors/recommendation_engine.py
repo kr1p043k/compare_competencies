@@ -11,6 +11,7 @@ from src.analyzers.comparator import CompetencyComparator
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.skill_filter import SkillFilter
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
+from src.analyzers.skill_taxonomy import SkillTaxonomy
 from src.models.student import StudentProfile
 from src import config
 
@@ -113,15 +114,65 @@ class RecommendationEngine:
         user_type: str = 'student'
     ) -> Dict[str, Any]:
         """
-        Генерирует рекомендации, используя новую модель ProfileEvaluator.
+        Генерирует рекомендации с кластерным контекстом.
+        Включает сводку ближайших ролей и умные объяснения.
         """
+        import time
+        from src.utils import atomic_write_json
+        
         if not hasattr(self, 'profile_evaluator'):
             raise RuntimeError("RecommendationEngine должен быть инициализирован с profile_evaluator")
 
         # Получаем полную оценку от ProfileEvaluator
         eval_result = self.profile_evaluator.evaluate_profile(student, user_type=user_type)
 
-        # Формируем рекомендации на основе top_recommendations
+        # === КЛАСТЕРНЫЙ КОНТЕКСТ ===
+        cluster_context = eval_result.get('cluster_context', {})
+        closest_clusters = cluster_context.get('closest_clusters', [])
+        cluster_skills_map = cluster_context.get('skills', {})
+        student_set = set(s.lower() for s in student.skills)
+
+        # Формируем сводку ролей
+        closest_roles = []
+        for c in closest_clusters[:3]:
+            name = c.get('name', f"Кластер {c['id']}")
+            sim = c.get('similarity', 0)
+            
+            # Навыки этого кластера
+            cluster_id = c['id']
+            cluster_all_skills = set()
+            if hasattr(self.profile_evaluator, 'clusterer') and self.profile_evaluator.clusterer:
+                try:
+                    level = getattr(student, 'target_level', 'middle')
+                    cluster_all_skills = set(
+                        s.lower() for s in self.profile_evaluator.clusterer.get_top_skills_in_cluster(cluster_id, top_n=50)
+                    )
+                except Exception:
+                    cluster_all_skills = set(cluster_skills_map.keys())
+            else:
+                cluster_all_skills = set(cluster_skills_map.keys())
+            
+            covered = len(student_set & cluster_all_skills)
+            total = len(cluster_all_skills)
+            
+            closest_roles.append({
+                'role': name,
+                'semantic_similarity': round(sim * 100, 1),
+                'similarity_explanation': (
+                    f"Ваш профиль семантически близок к этой роли на {sim*100:.0f}%. "
+                    f"Это означает, что ваш набор навыков похож на требования вакансий "
+                    f"в этом кластере, но не гарантирует полного соответствия."
+                ),
+                'skills_covered': f"{covered}/{total}",
+                'coverage_percent': round(covered / total * 100, 1) if total > 0 else 0,
+                'coverage_explanation': (
+                    f"Вы уже знаете {covered} из {total} ключевых навыков этой роли "
+                    f"({round(covered/total*100, 1) if total > 0 else 0}%). "
+                    f"Рекомендации ниже помогут закрыть пробелы."
+                )
+            })
+
+        # === ФОРМИРОВАНИЕ РЕКОМЕНДАЦИЙ ===
         recommendations = []
         skill_metrics = eval_result.get('skill_metrics', {})
         
@@ -137,7 +188,7 @@ class RecommendationEngine:
                 "why_important": self._generate_explanation(skill, score, eval_result),
                 "how_to_learn": self._get_learning_path(skill, False, student),
                 "expected_timeframe": self._get_timeframe(skill),
-                "expected_outcome": f"Освоение '{skill}' повысит вашу конкурентоспособность на рынке.",
+                "expected_outcome": self._get_role_outcome(skill, closest_roles),
                 "is_soft_skill": not self._is_hard_skill(skill),
                 "market_frequency_percent": score * 100
             }
@@ -147,6 +198,30 @@ class RecommendationEngine:
         recommendations.sort(key=lambda x: x['importance_score'], reverse=True)
         for idx, rec in enumerate(recommendations, 1):
             rec['rank'] = idx
+
+        top_recommendations = recommendations[:15]
+
+        # === СОХРАНЕНИЕ LTR-РЕКОМЕНДАЦИЙ ===
+        profile_name = student.profile_name
+        ltr_file = config.DATA_DIR / "result" / profile_name / f"ltr_recommendations_{profile_name}.json"
+        ltr_file.parent.mkdir(parents=True, exist_ok=True)
+        ltr_data = {
+            "profile": profile_name,
+            "timestamp": time.strftime('%Y-%m-%d %H:%M:%S'),
+            "recommendations": [
+                {
+                    "skill": rec["skill"],
+                    "score": round(rec["importance_score"] * 100, 2),
+                    "explanation": rec["why_important"]
+                }
+                for rec in top_recommendations[:10]
+            ]
+        }
+        try:
+            atomic_write_json(ltr_data, ltr_file)
+            logger.info(f"✅ LTR-рекомендации сохранены: {ltr_file}")
+        except Exception as e:
+            logger.warning(f"Не удалось сохранить LTR-рекомендации: {e}")
 
         return {
             "summary": {
@@ -160,40 +235,114 @@ class RecommendationEngine:
                 "coverage": eval_result['market_coverage_score'],
                 "coverage_details": {
                     "covered_skills_count": len(
-                        set(s.lower() for s in student.skills) &
+                        student_set &
                         set(eval_result.get('skill_metrics', {}).keys())
                     ),
                     "total_market_skills": len(eval_result.get('skill_metrics', {}))
                 },
-                "market_skill_coverage": eval_result.get('market_skill_coverage', 0.0)   # ← новая строка
+                "market_skill_coverage": eval_result.get('market_skill_coverage', 0.0)
             },
-            "recommendations": recommendations[:15],
+            "closest_roles": closest_roles,
+            "recommendations": top_recommendations,
             "domain_coverage": eval_result.get('domain_coverage', {}),
             "gaps": eval_result.get('gaps', {})
         }
+
+    def _get_role_outcome(self, skill: str, closest_roles: List[Dict]) -> str:
+        """
+        Формирует понятный ожидаемый результат освоения навыка.
+        """
+        if not closest_roles:
+            return f"Освоение '{skill}' расширит ваш технический кругозор."
+        
+        top_role = closest_roles[0]
+        role_name = top_role['role']
+        similarity = top_role['semantic_similarity']
+        coverage = top_role['coverage_percent']
+        
+        # Оцениваем, насколько вырастет покрытие после освоения навыка
+        total_skills = int(top_role['skills_covered'].split('/')[1]) if '/' in top_role['skills_covered'] else 50
+        new_coverage = round((coverage * total_skills / 100 + 1) / total_skills * 100, 1)
+        improvement = round(new_coverage - coverage, 1)
+        
+        return (
+            f"После освоения '{skill}' ваше покрытие навыков для роли "
+            f"«{role_name}» вырастет с {coverage}% до {new_coverage}% (+{improvement}%). "
+            f"Семантическая близость к роли сейчас {similarity}% — навык усилит ваши позиции "
+            f"и откроет доступ к смежным вакансиям."
+        )
         
     def _generate_explanation(self, skill: str, score: float, eval_result: Dict) -> str:
+        """
+        Генерирует понятное объяснение, почему навык важен.
+        Ключевое: навык привязывается к роли только если он реально входит в топ навыков кластера.
+        """
         metric = eval_result.get('skill_metrics', {}).get(skill, {})
         cluster_rel = metric.get('cluster_relevance', 0)
         category = metric.get('category', 'missing')
 
+        # Получаем ближайший кластер
+        cluster_context = eval_result.get('cluster_context', {})
+        closest = cluster_context.get('closest_clusters', [])
+        top_cluster = closest[0] if closest else None
+        top_cluster_name = top_cluster['name'] if top_cluster else None
+        top_cluster_sim = top_cluster['similarity'] if top_cluster else 0
+
+        # Проверяем, входит ли навык в топ-навыки ближайшего кластера
+        cluster_skills = cluster_context.get('skills', {})
+        skill_in_top_cluster = skill in cluster_skills
+        
+        # Дополнительно: проверяем, что навык не из категории "other"
+        try:
+            from src.analyzers.skill_taxonomy import SkillTaxonomy
+            taxonomy = SkillTaxonomy()
+            skill_cat = taxonomy.get_category_label(skill)
+            skill_cat_id = taxonomy.get_category(skill)
+            is_other = (skill_cat_id == 'other')
+        except Exception:
+            skill_cat = "технический"
+            is_other = False
+
         if category == 'weak':
             prefix = "🔶 УСИЛИТЬ: "
             suffix = " У вас уже есть базовое понимание — углубите его."
-        elif category == 'missing':
-            prefix = ""
-            suffix = ""
         else:
             prefix = ""
             suffix = ""
 
-        if cluster_rel > 0.7:
-            return f"{prefix}🎯 Сильно связан с вашим целевым профилем и востребован в ведущих компаниях.{suffix}"
-        elif score > 0.7:
-            return f"{prefix}🔴 Один из самых востребованных навыков на рынке.{suffix}"
-        elif score > 0.4:
-            return f"{prefix}🟡 Значительно повысит вашу конкурентоспособность.{suffix}"
-        return f"{prefix}🟢 Полезен для расширения кругозора.{suffix}"
+        # === ТОЛЬКО если навык РЕАЛЬНО входит в топ кластера ===
+        if skill_in_top_cluster and top_cluster_name and cluster_rel > 0.5:
+            return (
+                f"{prefix}🎯 Ключевой навык для роли «{top_cluster_name}».\n"
+                f"   Ваш профиль семантически близок к этой роли ({top_cluster_sim*100:.0f}%), "
+                f"но для полного соответствия не хватает '{skill}'.\n"
+                f"   Навык входит в топ-требований этого направления."
+                f"{suffix}"
+            )
+        
+        # === Высокий спрос на рынке (без привязки к роли) ===
+        if score > 0.6:
+            return (
+                f"{prefix}🔴 Высокий рыночный спрос.\n"
+                f"   '{skill}' ({skill_cat}) — один из самых востребованных навыков "
+                f"на рынке. Работодатели часто указывают его в требованиях."
+                f"{suffix}"
+            )
+        
+        # === Умеренный спрос ===
+        if score > 0.35:
+            return (
+                f"{prefix}🟡 Умеренный спрос.\n"
+                f"   '{skill}' ({skill_cat}) дополнит ваш профиль и повысит "
+                f"привлекательность для работодателей в смежных областях."
+                f"{suffix}"
+            )
+        
+        return (
+            f"{prefix}🟢 Дополнительное преимущество.\n"
+            f"   '{skill}' полезен для расширения кругозора в категории '{skill_cat}'."
+            f"{suffix}"
+        )
 
     def _get_learning_path(self, skill: str, is_soft: bool, student_profile: Optional[StudentProfile] = None) -> str:
         skill_lower = skill.lower()
@@ -252,25 +401,52 @@ class RecommendationEngine:
         }
 
     def _is_hard_skill(self, skill_lower: str) -> bool:
-        cats = self.skill_filter.get_skill_categories([skill_lower])
-        hard_cats = {"programming_languages", "frameworks", "databases", "devops",
-                     "cloud", "data_science", "frontend", "testing", "tools"}
-        if any(cat in hard_cats for cat in cats.keys()):
-            return True
+        """
+        Определяет, является ли навык техническим (hard skill).
+        Использует таксономию; fallback — ключевые слова.
+        """
+        # Пробуем через таксономию
+        try:
+            from src.analyzers.skill_taxonomy import SkillTaxonomy
+            taxonomy = SkillTaxonomy()
+            cat = taxonomy.get_category(skill_lower)
+            # Явно soft-категории
+            soft_cats = {'soft_skills', 'management'}
+            if cat in soft_cats:
+                return False
+            # Явно hard-категории
+            hard_cats = {
+                'programming_languages', 'frameworks', 'databases', 'devops',
+                'cloud', 'data_science', 'ml_advanced', 'frontend', 'mobile',
+                'testing_qa', 'security', 'llm_ai', 'enterprise', 'gis',
+                'embedded', 'game_dev', 'mathematics', 'methodologies_concepts'
+            }
+            if cat in hard_cats:
+                return True
+            # Если категория не определена — fallback
+        except Exception:
+            pass
 
+        # Fallback: проверка по ключевым словам
         hard_keywords = [
-            "python", "java", "javascript", "typescript", "c++", "c#", "go", "rust", "kotlin", "swift", "php", "ruby", "scala",
-            "sql", "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "cassandra", "oracle", "mssql",
-            "docker", "kubernetes", "k8s", "jenkins", "git", "gitlab", "github", "bitbucket", "terraform", "ansible", "prometheus", "grafana",
+            "python", "java", "javascript", "typescript", "c++", "c#", "go", "rust",
+            "kotlin", "swift", "php", "ruby", "scala",
+            "sql", "postgresql", "mysql", "mongodb", "redis", "elasticsearch",
+            "cassandra", "oracle", "mssql",
+            "docker", "kubernetes", "k8s", "jenkins", "git", "gitlab", "github",
+            "bitbucket", "terraform", "ansible", "prometheus", "grafana",
             "aws", "azure", "gcp", "yandex cloud",
-            "machine learning", "deep learning", "nlp", "computer vision", "data science", "mlops", "pandas", "numpy", "scikit-learn", "tensorflow", "pytorch", "keras",
-            "react", "vue", "angular", "django", "flask", "fastapi", "spring", "express", "node.js", "next", "nuxt",
+            "machine learning", "deep learning", "nlp", "computer vision",
+            "data science", "mlops", "pandas", "numpy", "scikit-learn",
+            "tensorflow", "pytorch", "keras",
+            "react", "vue", "angular", "django", "flask", "fastapi",
+            "spring", "express", "node.js", "next", "nuxt",
             "rest api", "restful", "graphql", "api",
             "html", "css", "sass", "scss", "webpack", "vite", "redux", "mobx",
             "jest", "pytest", "cypress", "playwright", "selenium",
             "figma", "storybook", "eslint", "prettier", "babel", "npm", "yarn",
-            "kafka streams", "greenplum", "powershell", "nginx", "flask", "kotlin", "terraform",
-            "linux", "unix", "bash", "shell", "powershell", "cmd", "terminal",
+            "kafka streams", "greenplum", "powershell", "nginx", "flask",
+            "linux", "unix", "bash", "shell", "cmd", "terminal",
             "spark", "hadoop", "airflow", "kafka", "rabbitmq", "celery"
         ]
         for kw in hard_keywords:
@@ -370,13 +546,21 @@ class RecommendationEngine:
         return None
 
     def _why_important(self, skill: str, importance: float, priority: str,
-                       ltr_explanation: Optional[str] = None,
-                       student_skills: Optional[List[str]] = None,
-                       coverage: float = 0.0,
-                       shap_values: Optional[np.ndarray] = None,
-                       X: Optional[pd.DataFrame] = None,
-                       idx: int = 0,
-                       feature_names: Optional[List[str]] = None) -> str:
+                    ltr_explanation: Optional[str] = None,
+                    student_skills: Optional[List[str]] = None,
+                    coverage: float = 0.0,
+                    shap_values: Optional[np.ndarray] = None,
+                    X: Optional[pd.DataFrame] = None,
+                    idx: int = 0,
+                    feature_names: Optional[List[str]] = None) -> str:
+        try:
+            taxonomy = SkillTaxonomy()
+            category = taxonomy.get_category_label(skill)
+            icon = taxonomy.get_category_icon(skill)
+            category_str = f" ({icon} {category})" if category != 'other' else ""
+        except Exception:
+            category_str = ""
+        
         if self.use_llm:
             llm_expl = self._llm_explain(skill, importance, priority, student_skills or [], coverage)
             if llm_expl:
@@ -385,7 +569,7 @@ class RecommendationEngine:
         if shap_values is not None and X is not None and feature_names is not None:
             shap_expl = self._shap_explain(skill, shap_values, idx, X, feature_names)
             if shap_expl:
-                base = f"🎯 Навык '{skill}' {shap_expl}."
+                base = f"🎯 Навык '{skill}'{category_str} {shap_expl}."
                 if priority == "HIGH":
                     base += " Это один из самых важных навыков для вашего уровня."
                 elif priority == "MEDIUM":
@@ -394,12 +578,13 @@ class RecommendationEngine:
 
         if ltr_explanation:
             return f"🎯 Модель: {ltr_explanation}"
+
         if priority == "HIGH":
-            return f"🔴 ВЫСОКИЙ приоритет: '{skill}' — один из самых востребованных навыков в вашей целевой роли."
+            return f"🔴 ВЫСОКИЙ приоритет: '{skill}'{category_str} — один из самых востребованных навыков в вашей целевой роли."
         elif priority == "MEDIUM":
-            return f"🟡 СРЕДНИЙ приоритет: '{skill}' значительно повысит вашу конкурентоспособность."
+            return f"🟡 СРЕДНИЙ приоритет: '{skill}'{category_str} значительно повысит вашу конкурентоспособность."
         else:
-            return f"🟢 НИЗКИЙ приоритет: '{skill}' полезен для расширения кругозора и специализированных задач."
+            return f"🟢 НИЗКИЙ приоритет: '{skill}'{category_str} полезен для расширения кругозора и специализированных задач."
 
     def _get_learning_path(self, skill: str, is_soft: bool, student_profile: Optional[StudentProfile] = None) -> str:
         skill_lower = skill.lower()
