@@ -1,0 +1,12 @@
+-r requirements.txt
+pytest
+pytest-cov
+aioresponses
+jupyter
+ipykernel
+ipywidgets
+streamlit
+plotly
+nltk
+faiss-cpu
+hdbscan

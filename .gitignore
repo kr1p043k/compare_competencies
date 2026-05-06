@@ -5,7 +5,6 @@ venv
 .venv
 competency_frequency_mapped.json
 test/test_output
-*.png
 *.jpg
 *.jpeg
 .pytest_cache
@@ -33,3 +32,5 @@ data/embeddings/market_embeddings_senior.pkl
 data/embeddings/market_embeddings_middle.pkl
 data/embeddings/market_embeddings_junior.pkl
 data/it_skills.backup.json
+data/result/hh_vacancies_detailed.json
+data/raw/
