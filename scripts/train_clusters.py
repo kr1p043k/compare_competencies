@@ -53,9 +53,13 @@ def prepare_vacancies_for_clustering(raw_vacancies: list) -> list:
             else:
                 experience = "middle"
         elif isinstance(exp_obj, str):
-            experience = exp_obj.lower()
-        else:
-            experience = "middle"
+            exp_lower = exp_obj.lower()
+            if "junior" in exp_lower or "нет опыта" in exp_lower or "стажер" in exp_lower:
+                experience = "junior"
+            elif "senior" in exp_lower or "более 6" in exp_lower:
+                experience = "senior"
+            else:
+                experience = "middle"
 
         name = vac.get("name", "").lower()
         if "junior" in name or "младший" in name or "стажер" in name:

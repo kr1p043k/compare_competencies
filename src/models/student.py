@@ -103,14 +103,12 @@ class ProfileComparison(BaseModel):
             "average_skill_coverage": round(self.average_skill_coverage, 2),
             "average_domain_coverage": round(self.average_domain_coverage, 2),
             "best_profile": {
-                "profile_name": self.best_evaluation.profile_name if self.best_evaluation else None,
-                "readiness_score": round(self.best_evaluation.readiness_score, 2) if self.best_evaluation else None,
-                "market_coverage": round(self.best_evaluation.market_coverage_score, 2)
-                if self.best_evaluation
-                else None,
-            }
-            if self.best_evaluation
-            else None,
+                "profile_name": (self.best_evaluation.profile_name if self.best_evaluation else None),
+                "readiness_score": (round(self.best_evaluation.readiness_score, 2) if self.best_evaluation else None),
+                "market_coverage": (
+                    round(self.best_evaluation.market_coverage_score, 2) if self.best_evaluation else None
+                ),
+            },
             "profiles": [
                 {
                     "profile_name": e.profile_name,
