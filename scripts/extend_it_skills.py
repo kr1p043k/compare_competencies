@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Скрипт авторасширения it_skills.json из новых вакансий.
 
@@ -19,28 +18,24 @@
   # Только навыки с частотой ≥ 3
   python scripts/extend_it_skills.py --interactive --min-frequency 3
 """
+
 import argparse
 import json
 import logging
 import sys
-from pathlib import Path
-from typing import Set, List, Dict, Tuple
 from collections import Counter
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.parsing.vacancy_parser import VacancyParser
+from src import config
+from src.analyzers.skill_taxonomy import SkillTaxonomy
 from src.parsing.skill_normalizer import SkillNormalizer
 from src.parsing.skill_validator import SkillValidator
 from src.parsing.utils import load_it_skills, read_json
-from src.analyzers.skill_taxonomy import SkillTaxonomy
-from src import config
+from src.parsing.vacancy_parser import VacancyParser
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s | %(levelname)-8s | %(message)s',
-    datefmt='%H:%M:%S'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger(__name__)
 
 
@@ -48,7 +43,8 @@ logger = logging.getLogger(__name__)
 # ИЗВЛЕЧЕНИЕ НАВЫКОВ
 # =====================================================================
 
-def extract_all_skills(vacancies: List[dict], min_frequency: int = 1) -> List[Tuple[str, int]]:
+
+def extract_all_skills(vacancies: list[dict], min_frequency: int = 1) -> list[tuple[str, int]]:
     """
     Извлекает нормализованные навыки из вакансий с подсчётом частот.
     Использует SkillNormalizer и SkillValidator (без whitelist).
@@ -62,18 +58,18 @@ def extract_all_skills(vacancies: List[dict], min_frequency: int = 1) -> List[Tu
         skills_from_vac = set()
 
         # key_skills (если есть)
-        for s in vac.get('key_skills', []):
-            name = s.get('name', '') if isinstance(s, dict) else str(s)
+        for s in vac.get("key_skills", []):
+            name = s.get("name", "") if isinstance(s, dict) else str(s)
             if name:
                 norm = SkillNormalizer.normalize(name)
                 if norm:
                     skills_from_vac.add(norm)
 
         # Текстовые поля
-        desc = vac.get('description', '') or ''
-        snippet = vac.get('snippet', {}) or {}
-        req = snippet.get('requirement', '') or ''
-        resp = snippet.get('responsibility', '') or ''
+        desc = vac.get("description", "") or ""
+        snippet = vac.get("snippet", {}) or {}
+        req = snippet.get("requirement", "") or ""
+        resp = snippet.get("responsibility", "") or ""
         text_skills = parser.extract_skills_from_description(f"{desc} {req} {resp}")
         for skill in text_skills:
             norm = SkillNormalizer.normalize(skill)
@@ -92,9 +88,11 @@ def extract_all_skills(vacancies: List[dict], min_frequency: int = 1) -> List[Tu
         if validator.validate(skill).is_valid:
             valid.append((skill, count))
 
-    logger.info(f"Извлечено {len(skill_counter)} уникальных → "
-                f"{len(filtered)} после фильтра (≥{min_frequency}) → "
-                f"{len(valid)} валидных")
+    logger.info(
+        f"Извлечено {len(skill_counter)} уникальных → "
+        f"{len(filtered)} после фильтра (≥{min_frequency}) → "
+        f"{len(valid)} валидных"
+    )
     return sorted(valid, key=lambda x: x[1], reverse=True)
 
 
@@ -102,40 +100,40 @@ def extract_all_skills(vacancies: List[dict], min_frequency: int = 1) -> List[Tu
 # АНАЛИЗ
 # =====================================================================
 
-def analyze_coverage(current_skills: Set[str], taxonomy: SkillTaxonomy) -> Dict[str, Dict]:
+
+def analyze_coverage(current_skills: set[str], taxonomy: SkillTaxonomy) -> dict[str, dict]:
     """Покрытие категорий таксономии текущим белым списком."""
     coverage = {}
     for cat_id in taxonomy.get_all_categories():
         cat_skills = set(s.lower() for s in taxonomy.get_skills_in_category(cat_id))
         covered = cat_skills & current_skills
         coverage[cat_id] = {
-            'label': taxonomy.get_category_label_by_id(cat_id),
-            'icon': taxonomy.get_category_icon_by_id(cat_id),
-            'total': len(cat_skills),
-            'covered': len(covered),
-            'percent': round(len(covered) / len(cat_skills) * 100, 1) if cat_skills else 0
+            "label": taxonomy.get_category_label_by_id(cat_id),
+            "icon": taxonomy.get_category_icon_by_id(cat_id),
+            "total": len(cat_skills),
+            "covered": len(covered),
+            "percent": round(len(covered) / len(cat_skills) * 100, 1) if cat_skills else 0,
         }
     return coverage
 
 
-def find_dead_skills(current_skills: Set[str], extracted_skills: Dict[str, int]) -> List[str]:
+def find_dead_skills(current_skills: set[str], extracted_skills: dict[str, int]) -> list[str]:
     """Навыки из белого списка, не встретившиеся в вакансиях."""
     extracted_lower = {s.lower() for s in extracted_skills}
     return sorted(s for s in current_skills if s.lower() not in extracted_lower)
 
 
-def print_coverage(coverage: Dict[str, Dict]):
+def print_coverage(coverage: dict[str, dict]):
     """Красивый вывод покрытия категорий."""
     print("\n" + "=" * 70)
     print("📊 ПОКРЫТИЕ КАТЕГОРИЙ ТАКСОНОМИИ")
     print("=" * 70)
-    for cat_id, info in sorted(coverage.items(), key=lambda x: x[1]['percent']):
-        bar = _make_bar(info['percent'])
-        print(f"  {info['icon']} {info['label']:<30} {bar} {info['percent']:.1f}% "
-              f"({info['covered']}/{info['total']})")
+    for _cat_id, info in sorted(coverage.items(), key=lambda x: x[1]["percent"]):
+        bar = _make_bar(info["percent"])
+        print(f"  {info['icon']} {info['label']:<30} {bar} {info['percent']:.1f}% ({info['covered']}/{info['total']})")
 
 
-def print_new_skills(new_skills: Dict[str, int], taxonomy=None):
+def print_new_skills(new_skills: dict[str, int], taxonomy=None):
     """Вывод найденных новых навыков."""
     print("\n" + "=" * 70)
     print(f"🔍 НОВЫЕ НАВЫКИ (отсутствуют в it_skills.json): {len(new_skills)}")
@@ -144,14 +142,14 @@ def print_new_skills(new_skills: Dict[str, int], taxonomy=None):
         cat_info = ""
         if taxonomy:
             cat = taxonomy.get_category(skill)
-            if cat != 'other':
+            if cat != "other":
                 cat_info = f" [{taxonomy.get_category_icon(skill)} {taxonomy.get_category_label(skill)}]"
         print(f"  {skill:<45} частота: {freq}{cat_info}")
     if not new_skills:
         print("  ✅ Новых навыков не найдено — белый список актуален")
 
 
-def print_dead_skills(dead_skills: List[str]):
+def print_dead_skills(dead_skills: list[str]):
     """Вывод навыков, не встретившихся в вакансиях."""
     print("\n" + "=" * 70)
     print(f"⚠️  НАВЫКИ БЕЗ УПОМИНАНИЙ В ВАКАНСИЯХ: {len(dead_skills)}")
@@ -169,7 +167,8 @@ def print_dead_skills(dead_skills: List[str]):
 # ДОБАВЛЕНИЕ
 # =====================================================================
 
-def interactive_confirm(new_skills: Dict[str, int]) -> Set[str]:
+
+def interactive_confirm(new_skills: dict[str, int]) -> set[str]:
     """Интерактивный выбор навыков для добавления."""
     print("\n" + "=" * 70)
     print("ВЫБОР НАВЫКОВ ДЛЯ ДОБАВЛЕНИЯ")
@@ -182,21 +181,17 @@ def interactive_confirm(new_skills: Dict[str, int]) -> Set[str]:
     approved = set()
     for skill, freq in sorted(new_skills.items(), key=lambda x: x[1], reverse=True):
         ans = input(f"  [{freq:>3}] {skill:<45} ? [y/n/a/q]: ").strip().lower()
-        if ans == 'q':
+        if ans == "q":
             break
-        elif ans == 'a':
+        elif ans == "a":
             approved.update(new_skills.keys())
             break
-        elif ans == 'y':
+        elif ans == "y":
             approved.add(skill)
     return approved
 
 
-def add_skills_to_whitelist(
-    skills_to_add: Set[str],
-    output_path: Path,
-    backup: bool = True
-) -> int:
+def add_skills_to_whitelist(skills_to_add: set[str], output_path: Path, backup: bool = True) -> int:
     """Добавляет навыки в it_skills.json. Возвращает количество добавленных."""
     current = load_it_skills()
     if not current:
@@ -209,12 +204,13 @@ def add_skills_to_whitelist(
 
     if backup and output_path.exists():
         import shutil
-        backup_path = output_path.with_suffix('.backup.json')
+
+        backup_path = output_path.with_suffix(".backup.json")
         shutil.copy(output_path, backup_path)
         logger.info(f"Резервная копия: {backup_path}")
 
     updated = sorted(current | skills_to_add)
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(updated, f, ensure_ascii=False, indent=2)
 
     logger.info(f"✅ Белый список обновлён: {output_path}")
@@ -228,9 +224,10 @@ def add_skills_to_whitelist(
 # ВСПОМОГАТЕЛЬНЫЕ
 # =====================================================================
 
+
 def _make_bar(percent: float, width: int = 20) -> str:
     filled = int(width * percent / 100)
-    return '█' * filled + '░' * (width - filled)
+    return "█" * filled + "░" * (width - filled)
 
 
 def _print_available_files():
@@ -245,6 +242,7 @@ def _print_available_files():
 # MAIN
 # =====================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Анализ и расширение it_skills.json",
@@ -255,55 +253,38 @@ def main():
   python scripts/extend_it_skills.py --interactive           # анализ + выбор навыков
   python scripts/extend_it_skills.py --yes                   # анализ + добавить всё
   python scripts/extend_it_skills.py --interactive --coverage --dead  # всё вместе
-        """
+        """,
     )
     parser.add_argument(
-        '--vacancies', '-v',
+        "--vacancies",
+        "-v",
         type=Path,
         default=config.DATA_RESULT_DIR / "hh_vacancies_detailed.json",
-        help="JSON с вакансиями"
+        help="JSON с вакансиями",
     )
     parser.add_argument(
-        '--output', '-o',
+        "--output",
+        "-o",
         type=Path,
         default=config.IT_SKILLS_PATH,
-        help="Выходной файл (по умолчанию data/it_skills.json)"
+        help="Выходной файл (по умолчанию data/it_skills.json)",
     )
-    parser.add_argument(
-        '--min-frequency', '-f',
-        type=int,
-        default=1,
-        help="Минимальная частота навыка (default: 1)"
-    )
+    parser.add_argument("--min-frequency", "-f", type=int, default=1, help="Минимальная частота навыка (default: 1)")
 
     # Режимы запуска
     parser.add_argument(
-        '--interactive', '-i',
-        action='store_true',
-        help="Интерактивный режим: анализ + выбор навыков для добавления"
+        "--interactive", "-i", action="store_true", help="Интерактивный режим: анализ + выбор навыков для добавления"
     )
     parser.add_argument(
-        '--yes', '-y',
-        action='store_true',
-        help="Добавить все новые навыки автоматически (без подтверждения)"
+        "--yes", "-y", action="store_true", help="Добавить все новые навыки автоматически (без подтверждения)"
     )
 
     # Дополнительные отчёты (можно с любым режимом)
+    parser.add_argument("--coverage", "-c", action="store_true", help="Показать покрытие категорий таксономии")
     parser.add_argument(
-        '--coverage', '-c',
-        action='store_true',
-        help="Показать покрытие категорий таксономии"
+        "--dead", "-d", action="store_true", help="Показать навыки из белого списка без упоминаний в вакансиях"
     )
-    parser.add_argument(
-        '--dead', '-d',
-        action='store_true',
-        help="Показать навыки из белого списка без упоминаний в вакансиях"
-    )
-    parser.add_argument(
-        '--no-backup',
-        action='store_true',
-        help="Не создавать резервную копию перед изменением"
-    )
+    parser.add_argument("--no-backup", action="store_true", help="Не создавать резервную копию перед изменением")
 
     args = parser.parse_args()
 
@@ -366,9 +347,7 @@ def main():
     if args.yes:
         # Автоматическое добавление
         added = add_skills_to_whitelist(
-            skills_to_add=set(new_skills.keys()),
-            output_path=args.output,
-            backup=not args.no_backup
+            skills_to_add=set(new_skills.keys()), output_path=args.output, backup=not args.no_backup
         )
         if added > 0:
             print(f"\n✅ Добавлено {added} навыков.")
@@ -380,11 +359,7 @@ def main():
         # Интерактивный режим: пользователь выбирает
         selected = interactive_confirm(new_skills)
         if selected:
-            added = add_skills_to_whitelist(
-                skills_to_add=selected,
-                output_path=args.output,
-                backup=not args.no_backup
-            )
+            added = add_skills_to_whitelist(skills_to_add=selected, output_path=args.output, backup=not args.no_backup)
             if added > 0:
                 print(f"\n✅ Добавлено {added} навыков.")
                 print("⚠️  Очистите кэш перед следующим запуском:")

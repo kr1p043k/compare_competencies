@@ -10,3 +10,5 @@ plotly
 nltk
 faiss-cpu
 hdbscan
+pre-commit
+ruff

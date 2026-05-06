@@ -2,13 +2,17 @@
 Нормализация навыков + fuzzy fallback.
 Критично для качества skill_weights!
 """
-import re
-from typing import List, Dict, Optional, Set
+
 import logging
-from rapidfuzz import process, fuzz
-from src.parsing.utils import load_it_skills 
-from functools import lru_cache
+import re
+from functools import cache
+
+from rapidfuzz import fuzz, process
+
+from src.parsing.utils import load_it_skills
+
 logger = logging.getLogger(__name__)
+
 
 class SkillNormalizer:
     # ================= СЛОВАРЬ СИНОНИМОВ =================
@@ -29,7 +33,6 @@ class SkillNormalizer:
         "matlab": ["matlab"],
         "scala": ["scala"],
         "perl": ["perl"],
-
         # Frontend
         "react": ["react.js", "reactjs"],
         "react native": ["reactnative"],
@@ -48,7 +51,6 @@ class SkillNormalizer:
         "babel": ["babel"],
         "eslint": ["eslint"],
         "prettier": ["prettier"],
-
         # Backend / Frameworks
         "nodejs": ["node.js", "node js", "node"],
         "fastapi": ["fast api", "fast-api"],
@@ -59,7 +61,6 @@ class SkillNormalizer:
         "nestjs": ["nest.js", "nest js"],
         "laravel": ["laravel"],
         "symfony": ["symfony"],
-
         # Базы данных
         "postgresql": ["postgres", "postgre", "psql", "pg"],
         "mysql": ["mariadb", "mysql"],
@@ -74,7 +75,6 @@ class SkillNormalizer:
         "couchdb": ["couchdb"],
         "neo4j": ["neo4j"],
         "clickhouse": ["clickhouse"],
-
         # DevOps / Cloud
         "docker": ["docker container", "docker-compose", "docker compose", "containerization"],
         "kubernetes": ["k8s", "kuber", "k8"],
@@ -94,12 +94,10 @@ class SkillNormalizer:
         "celery": ["celery"],
         "airflow": ["apache airflow"],
         "mlflow": ["mlflow"],
-
         # CI/CD
         "ci/cd": ["cicd", "ci cd", "continuous integration", "continuous delivery", "continuous deployment"],
         "github actions": ["github action", "actions"],
         "gitlab ci/cd": ["gitlab ci"],
-
         # ML / AI / LLM
         "ml": ["machine learning", "ml"],
         "dl": ["deep learning"],
@@ -128,7 +126,6 @@ class SkillNormalizer:
         "lora": ["qlora"],
         "prompt engineering": ["prompting", "prompt engineering"],
         "openai api": ["openai api"],
-
         # Cloud
         "aws": ["amazon web services", "amazon aws"],
         "azure": ["microsoft azure"],
@@ -136,7 +133,6 @@ class SkillNormalizer:
         "yandex cloud": ["yandex cloud"],
         "digitalocean": ["digital ocean"],
         "heroku": ["heroku"],
-
         # Тестирование
         "jest": ["jest"],
         "pytest": ["pytest"],
@@ -145,7 +141,6 @@ class SkillNormalizer:
         "selenium": ["selenium"],
         "junit": ["junit"],
         "testng": ["testng"],
-
         # Frontend basics
         "html": ["html5", "html"],
         "css": ["css3", "css"],
@@ -154,20 +149,17 @@ class SkillNormalizer:
         "rest": ["rest api", "restful api", "restful", "restapi"],
         "graphql": ["graph ql"],
         "apollo": ["apollo"],
-
         # Разное
         "figma": ["figma"],
         "storybook": ["storybook"],
         "npm": ["npm"],
         "yarn": ["yarn"],
-        "webpack": ["webpack"],
-        "vite": ["vite"],
     }
 
-    _canonical_map: Optional[Dict[str, str]] = None
+    _canonical_map: dict[str, str] | None = None
 
     @classmethod
-    def _get_canonical_map(cls) -> Dict[str, str]:
+    def _get_canonical_map(cls) -> dict[str, str]:
         """Строит плоский маппинг напрямую из SYNONYM_MAP."""
         if cls._canonical_map is None:
             canon = {}
@@ -181,73 +173,103 @@ class SkillNormalizer:
 
     # Версии и варианты (удаляются полностью)
     VERSION_PATTERNS = [
-        r'\s*v?\d+(\.\d+)*',
-        r'\s*\(.*?\)',
-        r'\s*\[.*?\]',
+        r"\s*v?\d+(\.\d+)*",
+        r"\s*\(.*?\)",
+        r"\s*\[.*?\]",
     ]
     PREFIX_REMOVALS = [
-        r'^опыт\s+(работы\s+)?(с\s+)?',
-        r'^знание\s+',
-        r'^владение\s+',
-        r'^умение\s+(работать\s+)?(с\s+)?',
-        r'^навык(и)?\s+(работы\s+)?(с\s+)?',
-        r'^понимание\s+',
-        r'^разработка\s+',
-        r'^программирование\s+на\s+',
-        r'^работа\s+с\s+',
-        r'^участие\s+в\s+',
-        r'^проведение\s+',
-        r'^принципов\s+', 
-        r'^организация\s+',
-        r'^управление\s+',
-        r'^построение\s+',
-        r'^создание\s+',
-        r'^внедрение\s+',
-        r'^оценивать\s+',
-        r'^(уверенный|senior|middle|junior)\s+',
-        r'^(опыт|знание|умение|владение|навык)\s+(работы\s+)?(с\s+)?',
-        r'^(разработчик|разработчика)\s+(уровня\s+)?(senior|middle|junior)?'
+        r"^опыт\s+(работы\s+)?(с\s+)?",
+        r"^знание\s+",
+        r"^владение\s+",
+        r"^умение\s+(работать\s+)?(с\s+)?",
+        r"^навык(и)?\s+(работы\s+)?(с\s+)?",
+        r"^понимание\s+",
+        r"^разработка\s+",
+        r"^программирование\s+на\s+",
+        r"^работа\s+с\s+",
+        r"^участие\s+в\s+",
+        r"^проведение\s+",
+        r"^принципов\s+",
+        r"^организация\s+",
+        r"^управление\s+",
+        r"^построение\s+",
+        r"^создание\s+",
+        r"^внедрение\s+",
+        r"^оценивать\s+",
+        r"^(уверенный|senior|middle|junior)\s+",
+        r"^(опыт|знание|умение|владение|навык)\s+(работы\s+)?(с\s+)?",
+        r"^(разработчик|разработчика)\s+(уровня\s+)?(senior|middle|junior)?",
     ]
     SUFFIX_REMOVALS = [
-        'язык', 'язык программирования',
-        'фреймворк', 'библиотека', 'инструмент',
-        'database', 'server', 'client',
-        'framework', 'library', 'tool',
-        r'\s+или\s+подобных\s+языках?',
-        r'\s+и\s+(принципов|основ|т\.д\.|т\.п\.|др\.)',
-        r'\s+или\s+(аналогичных|подобных)\s+(языков|технологий)?',
-        r'\s+(хорошее|отличное|базовое)\s+(знание|понимание|умение)?$',
-        r'\s+(и|или)\s+\w+$',
-        r'\s+или\s+аналогичных\s+(языков|языках)',
-        r'\s+и\s+т\.\s*д\.',
-        r'\s+и\s+т\.\s*п\.',
-        r'\s+и\s+др\.',
-        r'\s+и\s+проч\.',
-        r'\s+etc\.?',
-        r'\s+(senior|middle|junior)$',
-        r'\s+и\s+(другие|т\.д\.|т\.п\.|etc)$',
+        "язык",
+        "язык программирования",
+        "фреймворк",
+        "библиотека",
+        "инструмент",
+        "database",
+        "server",
+        "client",
+        "framework",
+        "library",
+        "tool",
+        r"\s+или\s+подобных\s+языках?",
+        r"\s+и\s+(принципов|основ|т\.д\.|т\.п\.|др\.)",
+        r"\s+или\s+(аналогичных|подобных)\s+(языков|технологий)?",
+        r"\s+(хорошее|отличное|базовое)\s+(знание|понимание|умение)?$",
+        r"\s+(и|или)\s+\w+$",
+        r"\s+или\s+аналогичных\s+(языков|языках)",
+        r"\s+и\s+т\.\s*д\.",
+        r"\s+и\s+т\.\s*п\.",
+        r"\s+и\s+др\.",
+        r"\s+и\s+проч\.",
+        r"\s+etc\.?",
+        r"\s+(senior|middle|junior)$",
+        r"\s+и\s+(другие|т\.д\.|т\.п\.|etc)$",
     ]
 
     FUZZY_THRESHOLD = 85
     MAX_FUZZY_CANDIDATES = 3
 
-    _whitelist: Optional[Set[str]] = None
+    _whitelist: set[str] | None = None
 
     @classmethod
-    def _get_whitelist(cls) -> Set[str]:
+    def _get_whitelist(cls) -> set[str]:
         if cls._whitelist is None:
             cls._whitelist = load_it_skills()
-            cls._whitelist.update([
-                "python", "node.js", "react", "angular", "vue", "django",
-                "flask", "fastapi", "sql", "postgresql", "mysql", "mongodb",
-                "docker", "kubernetes", "git", "mlops", "cpp", "csharp",
-                "go", "java", "html", "css", "javascript", "typescript", "c++"
-            ])
+            cls._whitelist.update(
+                [
+                    "python",
+                    "node.js",
+                    "react",
+                    "angular",
+                    "vue",
+                    "django",
+                    "flask",
+                    "fastapi",
+                    "sql",
+                    "postgresql",
+                    "mysql",
+                    "mongodb",
+                    "docker",
+                    "kubernetes",
+                    "git",
+                    "mlops",
+                    "cpp",
+                    "csharp",
+                    "go",
+                    "java",
+                    "html",
+                    "css",
+                    "javascript",
+                    "typescript",
+                    "c++",
+                ]
+            )
             logger.info(f"Whitelist загружен и дополнен: {len(cls._whitelist)} навыков")
         return cls._whitelist
 
     @staticmethod
-    @lru_cache(maxsize=None)
+    @cache
     def normalize(skill: str) -> str:
         if not skill:
             return ""
@@ -255,27 +277,24 @@ class SkillNormalizer:
         text = original.lower()
 
         for pattern in SkillNormalizer.VERSION_PATTERNS:
-            text = re.sub(pattern, '', text)
+            text = re.sub(pattern, "", text)
         for pattern in SkillNormalizer.PREFIX_REMOVALS:
-            text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+            text = re.sub(pattern, "", text, flags=re.IGNORECASE)
         for suffix in SkillNormalizer.SUFFIX_REMOVALS:
-            text = re.sub(suffix, '', text, flags=re.IGNORECASE)
+            text = re.sub(suffix, "", text, flags=re.IGNORECASE)
 
-        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r"\s+", " ", text).strip()
 
         text = SkillNormalizer._apply_synonym_map(text)
 
-        text = re.sub(r'[^\w\s\+\#\-\.]', '', text)
-        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r"[^\w\s\+\#\-\.]", "", text)
+        text = re.sub(r"\s+", " ", text).strip()
 
         whitelist = SkillNormalizer._get_whitelist()
         if text in whitelist:
             return text
 
-        matches = process.extract(
-            text, whitelist, scorer=fuzz.WRatio,
-            limit=SkillNormalizer.MAX_FUZZY_CANDIDATES
-        )
+        matches = process.extract(text, whitelist, scorer=fuzz.WRatio, limit=SkillNormalizer.MAX_FUZZY_CANDIDATES)
         if matches and matches[0][1] >= SkillNormalizer.FUZZY_THRESHOLD:
             best = matches[0][0]
             logger.debug(f"Fuzzy match: '{original}' → '{best}' (score={matches[0][1]})")
@@ -293,11 +312,11 @@ class SkillNormalizer:
         return text_lower
 
     @staticmethod
-    def normalize_batch(skills: List[str]) -> List[str]:
+    def normalize_batch(skills: list[str]) -> list[str]:
         return [SkillNormalizer.normalize(skill) for skill in skills if skill]
 
     @staticmethod
-    def deduplicate(skills: List[str]) -> List[str]:
+    def deduplicate(skills: list[str]) -> list[str]:
         seen = set()
         result = []
         for skill in skills:

@@ -6,33 +6,28 @@ import logging
 import re
 import time
 from collections import Counter
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
 if TYPE_CHECKING:
-    from .skill_normalizer import SkillNormalizer
     from .vacancy_parser import VacancyParser
-    from .skill_validator import SkillValidator, ValidationReason
 
 from src import config
-
 
 # ----------------------------------------------------------------------
 # Базовые утилиты (логирование, чтение/запись JSON)
 # ----------------------------------------------------------------------
+
 
 def setup_logging() -> None:
     """Настраивает логирование: вывод в консоль (INFO) и в файл (DEBUG)."""
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 
-    file_handler = logging.FileHandler(config.LOG_FILE, encoding='utf-8')
+    file_handler = logging.FileHandler(config.LOG_FILE, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
 
@@ -49,7 +44,7 @@ def read_json(filepath: Path) -> Any:
     logger = logging.getLogger(__name__)
     logger.debug(f"Чтение JSON из {filepath}")
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         logger.error(f"Ошибка чтения {filepath}: {e}")
@@ -61,7 +56,7 @@ def write_json(data: Any, filepath: Path) -> None:
     logger = logging.getLogger(__name__)
     logger.debug(f"Запись JSON в {filepath}")
     try:
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.error(f"Ошибка записи в {filepath}: {e}")
@@ -71,7 +66,8 @@ def write_json(data: Any, filepath: Path) -> None:
 # Фильтрация навыков по белому списку
 # ----------------------------------------------------------------------
 
-def load_it_skills() -> Set[str]:
+
+def load_it_skills() -> set[str]:
     """Загружает список допустимых IT-навыков из data/it_skills.json."""
     logger = logging.getLogger(__name__)
     skills_file = config.DATA_DIR / "it_skills.json"
@@ -92,14 +88,11 @@ def load_it_skills() -> Set[str]:
         return set()
 
 
-def filter_skills_by_whitelist(skills_dict: Dict[str, int], whitelist: Set[str]) -> Dict[str, int]:
+def filter_skills_by_whitelist(skills_dict: dict[str, int], whitelist: set[str]) -> dict[str, int]:
     """Оставляет только навыки из whitelist."""
     if not whitelist:
         return skills_dict.copy()
-    filtered = {
-        skill: count for skill, count in skills_dict.items()
-        if skill.lower().strip() in whitelist
-    }
+    filtered = {skill: count for skill, count in skills_dict.items() if skill.lower().strip() in whitelist}
     logger = logging.getLogger(__name__)
     logger.info(f"Фильтрация: осталось {len(filtered)} навыков из {len(skills_dict)}")
     return filtered
@@ -109,26 +102,27 @@ def filter_skills_by_whitelist(skills_dict: Dict[str, int], whitelist: Set[str])
 # Сбор вакансий по множественным запросам/регионам
 # ----------------------------------------------------------------------
 
+
 def collect_vacancies_multiple(
     hh_api,
-    queries: List[str],
-    area_ids: List[int],
+    queries: list[str],
+    area_ids: list[int],
     period_days: int,
     max_pages: int,
-    industry: Optional[int] = None,
-    max_vacancies_per_query: int = 1000000
-) -> List[Dict[str, Any]]:
+    industry: int | None = None,
+    max_vacancies_per_query: int = 1000000,
+) -> list[dict[str, Any]]:
     """
     Собирает вакансии по комбинациям запросов и регионов.
     Если ожидается больше 2000 вакансий, автоматически разбивает период на интервалы.
     """
     all_vacancies = []
-    seen_ids: Set[str] = set()
+    seen_ids: set[str] = set()
     logger = logging.getLogger("collector")
 
     # Порог, после которого включаем разбивку по датам (например, 2000)
-    CHUNK_THRESHOLD = 2000
-    DATE_CHUNK_DAYS = 5
+    chunk_threshold = 2000
+    date_chunk_days = 5
 
     for query in queries:
         query_vacancies = []
@@ -136,18 +130,13 @@ def collect_vacancies_multiple(
             logger.info(f"Поиск: '{query}', регион ID {area_id}")
 
             # Пробный запрос с одной страницей, чтобы оценить количество
-            test_vacs = hh_api.search_vacancies(
-                text=query,
-                area=area_id,
-                period_days=period_days,
-                max_pages=1,
-                per_page=100,
-                industry=industry
+            _ = hh_api.search_vacancies(
+                text=query, area=area_id, period_days=period_days, max_pages=1, per_page=100, industry=industry
             )
-            last_resp = getattr(hh_api, 'last_response', None)
-            total_found = last_resp.get('found', 0) if last_resp else 0
+            last_resp = getattr(hh_api, "last_response", None)
+            total_found = last_resp.get("found", 0) if last_resp else 0
 
-            if total_found <= CHUNK_THRESHOLD or period_days <= DATE_CHUNK_DAYS:
+            if total_found <= chunk_threshold or period_days <= date_chunk_days:
                 # Обычный сбор, если вакансий мало или период короткий
                 vacs = hh_api.search_vacancies(
                     text=query,
@@ -155,10 +144,10 @@ def collect_vacancies_multiple(
                     period_days=period_days,
                     max_pages=max_pages,
                     per_page=100,
-                    industry=industry
+                    industry=industry,
                 )
                 for vac in vacs:
-                    vid = vac.get('id')
+                    vid = vac.get("id")
                     if vid and vid not in seen_ids:
                         seen_ids.add(vid)
                         query_vacancies.append(vac)
@@ -168,7 +157,7 @@ def collect_vacancies_multiple(
                     break
             else:
                 # Разбиваем период на интервалы
-                chunks = date_chunks(period_days, DATE_CHUNK_DAYS)
+                chunks = date_chunks(period_days, date_chunk_days)
                 logger.info(f"Разбиваем запрос на {len(chunks)} интервалов (общий период {period_days} дней)")
                 for date_from, date_to in chunks:
                     vacs = hh_api.search_vacancies(
@@ -178,10 +167,10 @@ def collect_vacancies_multiple(
                         date_to=date_to,
                         max_pages=max_pages,
                         per_page=100,
-                        industry=industry
+                        industry=industry,
                     )
                     for vac in vacs:
-                        vid = vac.get('id')
+                        vid = vac.get("id")
                         if vid and vid not in seen_ids:
                             seen_ids.add(vid)
                             query_vacancies.append(vac)
@@ -199,10 +188,11 @@ def collect_vacancies_multiple(
     logger.info(f"Всего собрано уникальных вакансий: {len(all_vacancies)}")
     return all_vacancies
 
-def load_queries_from_file(filepath: Path) -> List[str]:
+
+def load_queries_from_file(filepath: Path) -> list[str]:
     """Загружает список запросов из текстового файла."""
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding="utf-8") as f:
             return [line.strip() for line in f if line.strip()]
     except Exception as e:
         logging.error(f"Ошибка чтения файла запросов {filepath}: {e}")
@@ -213,11 +203,12 @@ def load_queries_from_file(filepath: Path) -> List[str]:
 # Интерактивный режим (используется в test_parsers.py и main.py)
 # ----------------------------------------------------------------------
 
+
 def safe_print(text: str) -> None:
     try:
         print(text)
     except UnicodeEncodeError:
-        print(re.sub(r'[^\x00-\x7F]+', '', text))
+        print(re.sub(r"[^\x00-\x7F]+", "", text))
 
 
 def input_int(prompt: str, default: int = 30, min_val: int = 1, max_val: int = 30) -> int:
@@ -239,10 +230,10 @@ def input_yes_no(prompt: str, default: bool = True) -> bool:
     ans = input(prompt + default_text).strip().lower()
     if not ans:
         return default
-    return ans in ('y', 'yes', 'да')
+    return ans in ("y", "yes", "да")
 
 
-def select_from_list(items: List[str], prompt: str) -> str:
+def select_from_list(items: list[str], prompt: str) -> str:
     print(prompt)
     for i, item in enumerate(items, 1):
         print(f"  {i}. {item}")
@@ -250,12 +241,12 @@ def select_from_list(items: List[str], prompt: str) -> str:
         try:
             idx = int(input("> ").strip())
             if 1 <= idx <= len(items):
-                return items[idx-1]
-        except:
+                return items[idx - 1]
+        except Exception:
             print("Некорректный ввод")
 
 
-def interactive_config() -> Dict[str, Any]:
+def interactive_config() -> dict[str, Any]:
     """Интерактивный сбор параметров для поиска."""
     print("\n" + "=" * 90)
     print("ИНТЕРАКТИВНЫЙ СБОР ВАКАНСИЙ С HH.RU")
@@ -272,7 +263,7 @@ def interactive_config() -> Dict[str, Any]:
         "8. QA Engineer",
         "9. Системный аналитик",
         "10. Другое (ввести свой запрос)",
-        "11. Поиск по всему IT-сектору (industry=7)"
+        "11. Поиск по всему IT-сектору (industry=7)",
     ]
 
     selected_mode = select_from_list(mode_options, "\nВыберите вариант поиска:")
@@ -280,31 +271,60 @@ def interactive_config() -> Dict[str, Any]:
     if selected_mode == "11. Поиск по всему IT-сектору (industry=7)":
         print("\nРежим: Поиск по всему IT-сектору")
         positions = [
-           # Data & AI
-            "Data Scientist", "Data Analyst", "Machine Learning Engineer",
-            "Computer Vision Engineer", "NLP Engineer", "Data Architect", "ETL Developer",
+            # Data & AI
+            "Data Scientist",
+            "Data Analyst",
+            "Machine Learning Engineer",
+            "Computer Vision Engineer",
+            "NLP Engineer",
+            "Data Architect",
+            "ETL Developer",
             # Development
-            "Python Developer", "Java Developer", "Frontend Developer",
-            "Backend Developer", "Fullstack Developer", "DevOps Engineer",
-            "Embedded Developer", "Blockchain Developer",
+            "Python Developer",
+            "Java Developer",
+            "Frontend Developer",
+            "Backend Developer",
+            "Fullstack Developer",
+            "DevOps Engineer",
+            "Embedded Developer",
+            "Blockchain Developer",
             # Mobile
-            "iOS Developer", "Android Developer", "React Native Developer", "Flutter Developer",
+            "iOS Developer",
+            "Android Developer",
+            "React Native Developer",
+            "Flutter Developer",
             # QA
-            "QA Engineer", "Automation QA Engineer", "Performance QA Engineer",
+            "QA Engineer",
+            "Automation QA Engineer",
+            "Performance QA Engineer",
             # Security
-            "Специалист по кибербезопасности", "Security Engineer", "DevSecOps Engineer",
+            "Специалист по кибербезопасности",
+            "Security Engineer",
+            "DevSecOps Engineer",
             # Infrastructure & Administration
-            "SRE инженер", "Системный администратор", "Облачный инженер",
-            "Сетевой инженер", "Администратор баз данных",
+            "SRE инженер",
+            "Системный администратор",
+            "Облачный инженер",
+            "Сетевой инженер",
+            "Администратор баз данных",
             # Architecture & Management
-            "Системный аналитик", "Бизнес-аналитик", "Архитектор программного обеспечения",
-            "Solution Architect", "Team Lead", "Tech Lead", "Project Manager IT", "Scrum Master",
+            "Системный аналитик",
+            "Бизнес-аналитик",
+            "Архитектор программного обеспечения",
+            "Solution Architect",
+            "Team Lead",
+            "Tech Lead",
+            "Project Manager IT",
+            "Scrum Master",
             # Design
-            "UX/UI дизайнер", "Product Designer",
+            "UX/UI дизайнер",
+            "Product Designer",
             # Game Development
-            "Unity Developer", "Unreal Engine Developer",
+            "Unity Developer",
+            "Unreal Engine Developer",
             # Other
-            "Technical Writer", "MLops engineer"
+            "Technical Writer",
+            "MLops engineer",
         ]
         print("Позиции для поиска:")
         for p in positions:
@@ -319,26 +339,31 @@ def interactive_config() -> Dict[str, Any]:
         is_it_sector = False
         queries = [query]
     else:
-        query = selected_mode.split('. ', 1)[1]
+        query = selected_mode.split(". ", 1)[1]
         industry = None
         is_it_sector = False
         queries = [query]
 
     # Регионы
     region_options = [
-        ("Москва", 1), ("Санкт-Петербург", 2), ("Екатеринбург", 3),
-        ("Новосибирск", 4), ("Казань", 88), ("Нижний Новгород", 66),
-        ("Ростов-на-Дону", 76), ("Вся Россия", 0)
+        ("Москва", 1),
+        ("Санкт-Петербург", 2),
+        ("Екатеринбург", 3),
+        ("Новосибирск", 4),
+        ("Казань", 88),
+        ("Нижний Новгород", 66),
+        ("Ростов-на-Дону", 76),
+        ("Вся Россия", 0),
     ]
     region_names = [f"{name} (ID {rid})" for name, rid in region_options]
     print("\nВыберите регионы (можно несколько, введите номера через пробел):")
     try:
         indices = list(map(int, input("> ").split()))
-        selected_regions = [region_names[i-1] for i in indices if 1 <= i <= len(region_names)]
-    except:
+        selected_regions = [region_names[i - 1] for i in indices if 1 <= i <= len(region_names)]
+    except (ValueError, IndexError):
         selected_regions = [region_names[0]]
 
-    area_ids = [int(re.search(r'ID (\d+)', s).group(1)) for s in selected_regions if re.search(r'ID (\d+)', s)]
+    area_ids = [int(re.search(r"ID (\d+)", s).group(1)) for s in selected_regions if re.search(r"ID (\d+)", s)]
     if not area_ids:
         area_ids = [1]
 
@@ -372,7 +397,7 @@ def interactive_config() -> Dict[str, Any]:
         "excel": save_excel,
         "no_filter": not apply_filter,
         "is_it_sector": is_it_sector,
-        "max_vacancies_per_query": max_vacancies
+        "max_vacancies_per_query": max_vacancies,
     }
 
 
@@ -380,18 +405,18 @@ def interactive_config() -> Dict[str, Any]:
 # Обработка навыков (извлечение, подсчёт, маппинг на компетенции)
 # ----------------------------------------------------------------------
 
+
 def normalize_skill_for_matching(skill: str) -> str:
     """Нормализует навык для сопоставления с маппингом."""
     normalized = skill.lower().strip()
-    normalized = re.sub(r'[^\w\s-]', '', normalized)
-    normalized = re.sub(r'\s+', ' ', normalized)
+    normalized = re.sub(r"[^\w\s-]", "", normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
     return normalized
 
 
 def extract_and_count_skills(
-    vacancies: List[Dict[str, Any]],
-    parser: "VacancyParser"
-) -> Dict[str, Any]:   # теперь возвращает dict с frequencies + tfidf_weights
+    vacancies: list[dict[str, Any]], parser: VacancyParser
+) -> dict[str, Any]:  # теперь возвращает dict с frequencies + tfidf_weights
     logger = logging.getLogger(__name__)
 
     if not vacancies:
@@ -403,10 +428,8 @@ def extract_and_count_skills(
         logger.error(f"Ошибка: {e}")
         return {"frequencies": {}, "tfidf_weights": {}}
 
-def map_to_competencies(
-    skill_frequencies: Dict[str, int],
-    mapping: Dict[str, List[str]]
-) -> Counter:
+
+def map_to_competencies(skill_frequencies: dict[str, int], mapping: dict[str, list[str]]) -> Counter:
     """Сопоставляет рыночные навыки с учебными компетенциями."""
     skill_to_comp = {}
     for comp, keywords in mapping.items():
@@ -428,7 +451,7 @@ def map_to_competencies(
         else:
             # Частичное совпадение
             found = False
-            for keyword in skill_to_comp.keys():
+            for keyword in skill_to_comp:
                 if keyword in normalized_skill or normalized_skill in keyword:
                     matched_skills += 1
                     for comp in skill_to_comp[keyword]:
@@ -445,7 +468,7 @@ def map_to_competencies(
     return comp_counter
 
 
-def print_top_skills(skill_frequencies: Dict[str, int], top_n: int = 20) -> None:
+def print_top_skills(skill_frequencies: dict[str, int], top_n: int = 20) -> None:
     """Выводит топ-N навыков в консоль."""
     top = sorted(skill_frequencies.items(), key=lambda x: x[1], reverse=True)[:top_n]
     print("\n" + "=" * 60)
@@ -464,7 +487,8 @@ def print_top_competencies(comp_counter: Counter, top_n: int = 20) -> None:
     for i, (comp, freq) in enumerate(top, 1):
         print(f"{i:2}. {comp:<25} {freq:>4} суммарных упоминаний")
 
-def date_chunks(days: int, chunk_size: int = 5) -> List[Tuple[int, int]]:
+
+def date_chunks(days: int, chunk_size: int = 5) -> list[tuple[int, int]]:
     """
     Разбивает общий период поиска (в днях) на интервалы по chunk_size дней.
     Возвращает список кортежей (date_from, date_to) в формате Unix timestamp.

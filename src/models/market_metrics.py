@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import Dict, List
+
+
 @dataclass
 class SkillMetrics:
     skill: str
@@ -11,29 +12,25 @@ class SkillMetrics:
     demand_s: float = 0.0
     cluster_relevance: float = 0.0
     user_level: float = 0.0
-    importance: float = 0.0      # новое: нормализованная важность (0-1)
-    category: str = "missing"    # новое: missing / weak / strong
+    importance: float = 0.0  # новое: нормализованная важность (0-1)
+    category: str = "missing"  # новое: missing / weak / strong
 
-    def score(self, level_weights: Dict[str, float], domain_bonus: float = 0.0) -> float:
+    def score(self, level_weights: dict[str, float], domain_bonus: float = 0.0) -> float:
         alpha, beta, gamma = 0.5, 0.3, 0.2
         domain_factor = 1.0 + 0.15 * domain_bonus
 
         def norm(x: float) -> float:
             return max(0.0, min(1.0, x))
 
-        score_j = (alpha * norm(self.gap_j) +
-                   beta * norm(self.demand_j) +
-                   gamma * self.cluster_relevance)
-        score_m = (alpha * norm(self.gap_m) +
-                   beta * norm(self.demand_m) +
-                   gamma * self.cluster_relevance)
-        score_s = (alpha * norm(self.gap_s) +
-                   beta * norm(self.demand_s) +
-                   gamma * self.cluster_relevance)
+        score_j = alpha * norm(self.gap_j) + beta * norm(self.demand_j) + gamma * self.cluster_relevance
+        score_m = alpha * norm(self.gap_m) + beta * norm(self.demand_m) + gamma * self.cluster_relevance
+        score_s = alpha * norm(self.gap_s) + beta * norm(self.demand_s) + gamma * self.cluster_relevance
 
-        base_score = (level_weights.get('junior', 0) * score_j +
-                      level_weights.get('middle', 0) * score_m +
-                      level_weights.get('senior', 0) * score_s)
+        base_score = (
+            level_weights.get("junior", 0) * score_j
+            + level_weights.get("middle", 0) * score_m
+            + level_weights.get("senior", 0) * score_s
+        )
 
         return base_score * domain_factor
 
@@ -51,7 +48,7 @@ class SkillMetrics:
 @dataclass
 class DomainMetrics:
     domain: str
-    required_skills: List[str]
+    required_skills: list[str]
     user_has: int = 0
     total_required: int = 0
     coverage: float = 0.0

@@ -1,43 +1,40 @@
-from typing import List, Dict, Tuple, Optional
 import logging
+
 import numpy as np
-from src.analyzers.embedding_comparator import EmbeddingComparator
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from src.analyzers.embedding_comparator import EmbeddingComparator
+
 logger = logging.getLogger(__name__)
+
 
 class CompetencyComparator:
     def __init__(
         self,
-        ngram_range: Tuple[int, int] = (1, 2),
+        ngram_range: tuple[int, int] = (1, 2),
         min_df: int = 1,
         max_df: float = 0.95,
         use_embeddings: bool = False,
         level: str = "middle",
-        similarity_threshold: float = 0.5
+        similarity_threshold: float = 0.5,
     ):
         self.use_embeddings = use_embeddings
         self.level = level
         self.tfidf = None
-        self.embedding_comparator: Optional[EmbeddingComparator] = None
+        self.embedding_comparator: EmbeddingComparator | None = None
         self.fitted = False
-        self.skill_weights: Optional[Dict[str, float]] = None
+        self.skill_weights: dict[str, float] | None = None
 
         if use_embeddings:
-            self.embedding_comparator = EmbeddingComparator(
-                similarity_threshold=similarity_threshold
-            )
+            self.embedding_comparator = EmbeddingComparator(similarity_threshold=similarity_threshold)
         else:
             self.tfidf = TfidfVectorizer(
-                ngram_range=ngram_range,
-                min_df=min_df,
-                max_df=max_df,
-                token_pattern=r"(?u)\b\w[\w-]*\b"
+                ngram_range=ngram_range, min_df=min_df, max_df=max_df, token_pattern=r"(?u)\b\w[\w-]*\b"
             )
             logger.info("✅ TF-IDF Comparator инициализирован (legacy)")
 
-    def set_skill_weights(self, weights: Dict[str, float]) -> None:
+    def set_skill_weights(self, weights: dict[str, float]) -> None:
         self.skill_weights = weights
         if self.embedding_comparator:
             self.embedding_comparator.skill_weights = weights
@@ -48,7 +45,7 @@ class CompetencyComparator:
         if self.embedding_comparator:
             logger.info("   Проброшено в embedding_comparator")
 
-    def fit_market(self, vacancies_skills: List[List[str]]) -> bool:
+    def fit_market(self, vacancies_skills: list[list[str]]) -> bool:
         if not vacancies_skills:
             logger.warning("Нет данных для fit_market")
             return False
@@ -66,7 +63,7 @@ class CompetencyComparator:
         self._vacancies_skills = vacancies_skills
         return True
 
-    def compare(self, student_skills: List[str]) -> Tuple[float, float]:
+    def compare(self, student_skills: list[str]) -> tuple[float, float]:
         if not self.fitted:
             raise ValueError("Сначала вызови fit_market()")
 
@@ -82,8 +79,7 @@ class CompetencyComparator:
             score = result.get("score", result.get("weighted_coverage", 0.0))
             matches = result.get("matches", [])
             confidence = (
-                len([m for m in matches if m.get("similarity", 0) >= 0.65])
-                / max(1, len(student_skills))
+                len([m for m in matches if m.get("similarity", 0) >= 0.65]) / max(1, len(student_skills))
                 if student_skills
                 else 0.0
             )
@@ -106,7 +102,7 @@ class CompetencyComparator:
 
             return round(score, 4), round(confidence, 4)
 
-    def get_skill_weights(self) -> Dict[str, float]:
+    def get_skill_weights(self) -> dict[str, float]:
         if self.use_embeddings:
             logger.info("ℹ️  Embedding mode: get_skill_weights() не требуется")
             return {}
@@ -114,19 +110,14 @@ class CompetencyComparator:
             logger.warning("get_skill_weights() для TF-IDF не реализован в текущей версии")
             return {}
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         return {
             "status": "ready" if self.fitted else "not_fitted",
             "mode": "embeddings" if self.use_embeddings else "tfidf",
-            "level": self.level
+            "level": self.level,
         }
 
-    def weighted_coverage(
-        self,
-        student_skills: List[str],
-        weights: Dict[str, float],
-        use_hybrid: bool = True
-    ) -> float:
+    def weighted_coverage(self, student_skills: list[str], weights: dict[str, float], use_hybrid: bool = True) -> float:
         if not student_skills or not weights:
             return 0.0
 

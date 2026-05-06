@@ -7,13 +7,12 @@ sys.path.insert(0, str(project_root))
 import json
 import shutil
 import traceback
-from typing import List, Optional, Dict
 
 import pandas as pd
 
+from src.config import DATA_RAW_DIR, LAST_UPLOADED_DIR, PROFILES_DISCIPLINES, STUDENTS_DIR
 from src.models.student import StudentProfile
 from src.utils import get_logger
-from src.config import STUDENTS_DIR, LAST_UPLOADED_DIR, PROFILES_DISCIPLINES, DATA_RAW_DIR
 
 logger = get_logger(__name__)
 
@@ -24,27 +23,27 @@ class StudentLoader:
     def __init__(self, students_dir: Path = STUDENTS_DIR):
         self.students_dir = students_dir
 
-    def load_student(self, profile_name: str) -> Optional[StudentProfile]:
+    def load_student(self, profile_name: str) -> StudentProfile | None:
         """Загружает данные ученика по имени профиля (base, dc, top_dc)."""
         file_path = self.students_dir / f"{profile_name}_competency.json"
         if not file_path.exists():
             logger.error(f"Файл {file_path} не найден")
             return None
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
 
         skills = data.get("навыки", [])
 
         # ИСПРАВЛЕНО: используем поля, которые принимает текущая модель StudentProfile
         return StudentProfile(
-            profile_name=profile_name,           # ← обязательно для модели
+            profile_name=profile_name,  # ← обязательно для модели
             competencies=skills,
-            skills=skills,                       # дублируем для совместимости с остальным кодом
-            target_level="middle",               # или target_role — в зависимости от модели
+            skills=skills,  # дублируем для совместимости с остальным кодом
+            target_level="middle",  # или target_role — в зависимости от модели
         )
 
-    def load_all_students(self) -> List[StudentProfile]:
+    def load_all_students(self) -> list[StudentProfile]:
         """Загружает все три профиля."""
         students = []
         for profile in ["base", "dc", "top_dc"]:
@@ -56,10 +55,8 @@ class StudentLoader:
 
 # ====================== Создание профилей из CSV ======================
 def generate_profiles_from_csv(
-    csv_path: Path = DATA_RAW_DIR / "competency_matrix.csv",
-    output_dir: Path = STUDENTS_DIR,
-    save_copy: bool = True
-) -> Dict[str, List[str]]:
+    csv_path: Path = DATA_RAW_DIR / "competency_matrix.csv", output_dir: Path = STUDENTS_DIR, save_copy: bool = True
+) -> dict[str, list[str]]:
     logger.info(f"Начало обработки CSV-файла: {csv_path}")
 
     if not csv_path.exists():
@@ -69,11 +66,11 @@ def generate_profiles_from_csv(
     # Чтение CSV
     try:
         try:
-            df = pd.read_csv(csv_path, header=None, encoding='utf-8')
+            df = pd.read_csv(csv_path, header=None, encoding="utf-8")
         except UnicodeDecodeError:
-            df = pd.read_csv(csv_path, header=None, encoding='cp1251')
+            df = pd.read_csv(csv_path, header=None, encoding="cp1251")
         logger.debug(f"CSV загружен, форма: {df.shape}")
-    except Exception as e:
+    except Exception:
         logger.exception("Ошибка при чтении CSV")
         raise
 
@@ -86,7 +83,7 @@ def generate_profiles_from_csv(
     for raw in indicators_raw:
         if pd.isna(raw):
             continue
-        code = str(raw).split(' ', 1)[0]
+        code = str(raw).split(" ", 1)[0]
         indicator_mapping[col_idx] = code
         col_idx += 1
     logger.info(f"Найдено индикаторов компетенций: {len(indicator_mapping)}")
@@ -94,10 +91,10 @@ def generate_profiles_from_csv(
     # Данные дисциплин (строки с 3-й)
     disciplines_df = df.iloc[2:, :].copy()
     disciplines_df.columns = list(range(disciplines_df.shape[1]))
-    disciplines_df[0] = pd.to_numeric(disciplines_df[0], errors='coerce').fillna(0).astype(int)
+    disciplines_df[0] = pd.to_numeric(disciplines_df[0], errors="coerce").fillna(0).astype(int)
 
     # Инициализируем наборы навыков для профилей
-    profiles_skills = {profile: set() for profile in PROFILES_DISCIPLINES.keys()}
+    profiles_skills = {profile: set() for profile in PROFILES_DISCIPLINES}
 
     for _, row in disciplines_df.iterrows():
         discipline_id = int(row[0])
@@ -112,7 +109,7 @@ def generate_profiles_from_csv(
             # добавляем ВСЕ компетенции, у которых есть любая отметка (Б, П, Э, X)
             for col_idx, indicator_code in indicator_mapping.items():
                 val = row.iloc[col_idx]
-                if pd.notna(val) and str(val).strip() in ('Б', 'П', 'Э', 'X'):
+                if pd.notna(val) and str(val).strip() in ("Б", "П", "Э", "X"):
                     profiles_skills[profile_name].add(indicator_code)
 
     # Сохраняем JSON-файлы и формируем результат
@@ -123,7 +120,7 @@ def generate_profiles_from_csv(
         logger.info(f"Профиль {profile_name}: получено {len(sorted_skills)} навыков")
 
         json_path = output_dir / f"{profile_name}_competency.json"
-        with open(json_path, 'w', encoding='utf-8') as f:
+        with open(json_path, "w", encoding="utf-8") as f:
             json.dump({"навыки": sorted_skills}, f, ensure_ascii=False, indent=2)
         logger.debug(f"Сохранён JSON: {json_path}")
 
@@ -136,6 +133,7 @@ def generate_profiles_from_csv(
 
     logger.info("Обработка CSV завершена успешно")
     return result
+
 
 if __name__ == "__main__":
     print("Запуск генерации профилей из CSV...")

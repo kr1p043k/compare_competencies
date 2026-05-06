@@ -2,15 +2,16 @@
 Модель данных студента с поддержкой уровней опыта, оценками и эмбеддингами.
 """
 
-from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Any
 from datetime import datetime
-from enum import Enum
-import numpy as np
+from enum import StrEnum
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 
-class ExperienceLevel(str, Enum):
+class ExperienceLevel(StrEnum):
     """Уровни опыта"""
+
     JUNIOR = "junior"
     MIDDLE = "middle"
     SENIOR = "senior"
@@ -18,14 +19,15 @@ class ExperienceLevel(str, Enum):
 
 class StudentProfile(BaseModel):
     """Профиль студента"""
+
     profile_name: str
-    competencies: List[str] = Field(default_factory=list)
-    skills: List[str] = Field(default_factory=list)
+    competencies: list[str] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
     target_level: ExperienceLevel = ExperienceLevel.MIDDLE
     created_at: datetime = Field(default_factory=datetime.now)
-    
+
     # Для работы кластерного контекста
-    embedding: Optional[Any] = Field(default=None, exclude=True)  # np.ndarray или list[float]
+    embedding: Any | None = Field(default=None, exclude=True)  # np.ndarray или list[float]
     embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
 
     class Config:
@@ -39,21 +41,22 @@ class StudentProfile(BaseModel):
 
 class ProfileEvaluation(BaseModel):
     """Результат оценки одного профиля (новая версия)"""
+
     profile_name: str
     student: StudentProfile
     level: ExperienceLevel
-    
+
     market_coverage_score: float
     skill_coverage: float
     domain_coverage_score: float
     readiness_score: float
     avg_gap: float = 0.0
-    
+
     recommendation: str = ""
-    gaps: Dict[str, Any] = Field(default_factory=dict)
-    cluster_context: Optional[Dict] = None
-    top_recommendations: List[Dict] = Field(default_factory=list)
-    
+    gaps: dict[str, Any] = Field(default_factory=dict)
+    cluster_context: dict | None = None
+    top_recommendations: list[dict] = Field(default_factory=list)
+
     evaluated_at: datetime = Field(default_factory=datetime.now)
 
     class Config:
@@ -66,8 +69,9 @@ class ProfileEvaluation(BaseModel):
 
 class ProfileComparison(BaseModel):
     """Сравнение нескольких профилей"""
-    evaluations: List[ProfileEvaluation] = Field(default_factory=list)
-    best_evaluation: Optional[ProfileEvaluation] = None
+
+    evaluations: list[ProfileEvaluation] = Field(default_factory=list)
+    best_evaluation: ProfileEvaluation | None = None
     average_readiness: float = 0.0
     average_market_coverage: float = 0.0
     average_skill_coverage: float = 0.0
@@ -89,7 +93,7 @@ class ProfileComparison(BaseModel):
         if self.evaluations:
             self.best_evaluation = max(self.evaluations, key=lambda e: e.readiness_score)
 
-    def to_dict_for_json(self) -> Dict:
+    def to_dict_for_json(self) -> dict:
         self.compute_aggregates()
         return {
             "timestamp": str(self.compared_at),
@@ -101,8 +105,12 @@ class ProfileComparison(BaseModel):
             "best_profile": {
                 "profile_name": self.best_evaluation.profile_name if self.best_evaluation else None,
                 "readiness_score": round(self.best_evaluation.readiness_score, 2) if self.best_evaluation else None,
-                "market_coverage": round(self.best_evaluation.market_coverage_score, 2) if self.best_evaluation else None,
-            } if self.best_evaluation else None,
+                "market_coverage": round(self.best_evaluation.market_coverage_score, 2)
+                if self.best_evaluation
+                else None,
+            }
+            if self.best_evaluation
+            else None,
             "profiles": [
                 {
                     "profile_name": e.profile_name,
@@ -112,46 +120,43 @@ class ProfileComparison(BaseModel):
                     "skill_coverage": round(e.skill_coverage, 2),
                     "domain_coverage_score": round(e.domain_coverage_score, 2),
                     "avg_gap": round(e.avg_gap, 3),
-                    "num_skills": len(e.student.skills)
+                    "num_skills": len(e.student.skills),
                 }
                 for e in self.evaluations
-            ]
+            ],
         }
 
 
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 
-def merge_skills_hierarchically(
-    top_skills: List[str],
-    middle_skills: List[str],
-    base_skills: List[str]
-) -> List[str]:
+
+def merge_skills_hierarchically(top_skills: list[str], middle_skills: list[str], base_skills: list[str]) -> list[str]:
     """
     Объединяет навыки трёх уровней (top_dc, dc, base) в один список,
     сохраняя порядок приоритета и исключая дубликаты.
-    
+
     Используется для профиля 'top_dc', чтобы гарантировать наличие
     всех навыков из более низких уровней.
     """
     seen = set()
     merged = []
-    
+
     # Сначала топ-навыки
     for skill in top_skills:
         if skill not in seen:
             merged.append(skill)
             seen.add(skill)
-    
+
     # Потом middle
     for skill in middle_skills:
         if skill not in seen:
             merged.append(skill)
             seen.add(skill)
-    
+
     # Потом base
     for skill in base_skills:
         if skill not in seen:
             merged.append(skill)
             seen.add(skill)
-    
+
     return merged

@@ -1,8 +1,8 @@
 # scripts/full_rebuild.py
-import sys
-from pathlib import Path
 import shutil
 import subprocess
+import sys
+from pathlib import Path
 
 BASE = Path(__file__).parent.parent
 DATA = BASE / "data"
@@ -20,7 +20,7 @@ to_remove = [
     DATA / "embeddings" / "vacancy_embeddings.json",
     DATA / "embeddings" / "market_embeddings_junior.pkl",
     DATA / "embeddings" / "market_embeddings_middle.pkl",
-    DATA / "embeddings" / "market_embeddings_senior.pkl"
+    DATA / "embeddings" / "market_embeddings_senior.pkl",
 ]
 
 # Удаляем папку embeddings/cache целиком
@@ -37,10 +37,10 @@ print("Все старые кэши и модели удалены.")
 
 # Формируем список команд для последовательного выполнения
 commands = [
-    ["python", "main.py", "--skip-collection"],                               # пересчёт навыков
-    ["python", "scripts/train_clusters.py", "--level", "all"],                # обучение кластеров
-    ["python", "main.py", "--train-model"],                                   # обучение LTR
-    ["python", "main.py", "--skip-collection", "--run-gap-analysis"]          # gap-анализ с рекомендациями
+    ["python", "main.py", "--skip-collection"],  # пересчёт навыков
+    ["python", "scripts/train_clusters.py", "--level", "all"],  # обучение кластеров
+    ["python", "main.py", "--train-model"],  # обучение LTR
+    ["python", "main.py", "--skip-collection", "--run-gap-analysis"],  # gap-анализ с рекомендациями
 ]
 
 # Выполняем все команды по очереди

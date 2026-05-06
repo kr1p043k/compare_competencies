@@ -3,9 +3,9 @@
 Исправленная версия с сохранением пропорций частот.
 """
 
-import numpy as np
-from typing import Dict, List, Set
 import logging
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -15,80 +15,112 @@ class SkillFilter:
     Фильтрует веса навыков, удаляя мусор и сохраняя реальную важность.
     Исправленная версия с правильной нормализацией и сохранением пропорций.
     """
-    
+
     # GENERIC слова, которые ВСЕГДА исключаются
     GENERIC_WORDS = {
-        "frontend", "front-end", "front end", "frontend разработка", "front-end разработка",
-        "backend", "back-end", "back end", "backend разработка", "back-end разработка",
-        "fullstack", "full-stack", "full stack", "fullstack разработка",
-        "разработка", "программирование", "кодинг", "coding",
-        "web", "веб", "web разработка", "веб разработка",
-        "базы данных", "database", "sql", "nosql",
-        "git", "svn", "version control",
-        "linux", "windows", "macos",
-        "английский", "english", "язык", "разработки", "разработка",
-        "и др", "и другие", "знание", "опыт", "умение", "требуется",
-        "core", "net", "crm", "erp",
+        "frontend",
+        "front-end",
+        "front end",
+        "frontend разработка",
+        "front-end разработка",
+        "backend",
+        "back-end",
+        "back end",
+        "backend разработка",
+        "back-end разработка",
+        "fullstack",
+        "full-stack",
+        "full stack",
+        "fullstack разработка",
+        "разработка",
+        "программирование",
+        "кодинг",
+        "coding",
+        "web",
+        "веб",
+        "web разработка",
+        "веб разработка",
+        "базы данных",
+        "database",
+        "sql",
+        "nosql",
+        "git",
+        "svn",
+        "version control",
+        "linux",
+        "windows",
+        "macos",
+        "английский",
+        "english",
+        "язык",
+        "разработки",
+        "и др",
+        "и другие",
+        "знание",
+        "опыт",
+        "умение",
+        "требуется",
+        "core",
+        "net",
+        "crm",
+        "erp",
     }
-    
-    def __init__(self, reference_skills: Set[str] = None):
+
+    def __init__(self, reference_skills: set[str] = None):
         """
         Args:
             reference_skills: Набор эталонных навыков. Если не передан, загружается из it_skills.json.
         """
         if reference_skills is None:
             from src.parsing.utils import load_it_skills
+
             reference_skills = load_it_skills()
         self.reference_skills = reference_skills
         logger.info(f"SkillFilter инициализирован с {len(self.reference_skills)} reference навыками")
 
-    def filter_weights(
-        self, 
-        skill_weights: Dict[str, float],
-        min_weight: float = 0.01
-    ) -> Dict[str, float]:
+    def filter_weights(self, skill_weights: dict[str, float], min_weight: float = 0.01) -> dict[str, float]:
         """
         Агрессивно фильтрует веса навыков.
-        
+
         Удаляет:
         1. Generic слова
         2. Мусор (короткие, неизвестные)
         3. Навыки с очень низким весом
-        
+
         Args:
             skill_weights: Словарь весов навыков
             min_weight: Минимальный вес для включения
-        
+
         Returns:
             Отфильтрованный словарь весов
         """
         if not skill_weights:
             return {}
-        
+
         filtered = {}
         removed_count = 0
         removed_generic = 0
         removed_unknown = 0
         removed_low_weight = 0
-        
-        logger.info(f"\n🔍 ФИЛЬТРАЦИЯ НАВЫКОВ:")
+
+        logger.info("\n🔍 ФИЛЬТРАЦИЯ НАВЫКОВ:")
         logger.info(f"  - Исходно: {len(skill_weights)} навыков")
-        
+
         for skill, weight in skill_weights.items():
             skill_lower = skill.lower().strip()
-            
+
             # === ПРОВЕРКА 1: Generic слово? ===
             if skill_lower in self.GENERIC_WORDS:
                 removed_generic += 1
                 removed_count += 1
                 continue
-            
+
             # === ПРОВЕРКА 2: Слишком маленький вес? ===
             if weight < min_weight:
                 removed_low_weight += 1
                 removed_count += 1
                 continue
-            
+
             # === ПРОВЕРКА 3: Известный навык? ===
             if skill_lower not in self.reference_skills:
                 # Проверяем частичное совпадение
@@ -97,47 +129,43 @@ class SkillFilter:
                     if ref in skill_lower or skill_lower in ref:
                         is_known = True
                         break
-                
+
                 if not is_known:
                     removed_unknown += 1
                     removed_count += 1
                     continue
-            
+
             # Все проверки пройдены - добавляем
             filtered[skill_lower] = weight
-        
+
         logger.info(f"  - Удалено generic: {removed_generic}")
         logger.info(f"  - Удалено unknown: {removed_unknown}")
         logger.info(f"  - Удалено low weight: {removed_low_weight}")
         logger.info(f"  - Всего удалено: {removed_count}")
         logger.info(f"  - ✓ Осталось: {len(filtered)} ЧИСТЫХ навыков")
-        
+
         return filtered
 
-    def normalize_weights(
-        self,
-        skill_weights: Dict[str, float],
-        method: str = 'minmax'
-    ) -> Dict[str, float]:
+    def normalize_weights(self, skill_weights: dict[str, float], method: str = "minmax") -> dict[str, float]:
         """
         Нормализует веса с сохранением пропорций.
-        
+
         Args:
             skill_weights: Словарь весов навыков
             method: Метод нормализации ('minmax', 'log', 'softmax')
-        
+
         Returns:
             Нормализованные веса
         """
         if not skill_weights:
             return {}
-        
+
         weights = list(skill_weights.values())
-        
-        if method == 'minmax':
+
+        if method == "minmax":
             min_w = min(weights)
             max_w = max(weights)
-            
+
             if max_w > min_w:
                 normalized = {}
                 for skill, weight in skill_weights.items():
@@ -148,73 +176,71 @@ class SkillFilter:
             else:
                 # Все веса одинаковые
                 return {skill: 1.0 for skill in skill_weights}
-        
-        elif method == 'log':
+
+        elif method == "log":
             # Логарифмическая нормализация (для больших разбросов)
             log_weights = {skill: np.log1p(weight) for skill, weight in skill_weights.items()}
             max_log = max(log_weights.values())
             if max_log > 0:
                 return {skill: round(w / max_log, 4) for skill, w in log_weights.items()}
             return skill_weights
-        
-        elif method == 'softmax':
+
+        elif method == "softmax":
             # Softmax нормализация
             exp_weights = {skill: np.exp(weight) for skill, weight in skill_weights.items()}
             total = sum(exp_weights.values())
             if total > 0:
                 return {skill: round(w / total, 4) for skill, w in exp_weights.items()}
             return skill_weights
-        
+
         else:
             logger.warning(f"Неизвестный метод нормализации: {method}")
             return skill_weights
 
     def merge_with_reference(
-        self,
-        skill_weights: Dict[str, float],
-        competency_freq: Dict[str, int]
-    ) -> Dict[str, float]:
+        self, skill_weights: dict[str, float], competency_freq: dict[str, int]
+    ) -> dict[str, float]:
         """
         Объединяет skill_weights (TF-IDF) с competency_frequency.
-        
+
         ЛОГИКА:
         - Если навык есть в competency_freq И в skill_weights → берём TF-IDF вес
         - Если навык есть ТОЛЬКО в competency_freq → вес = нормализованный count
         - Если навык есть ТОЛЬКО в skill_weights → берём TF-IDF вес
-        
+
         Args:
             skill_weights: Веса из TF-IDF (или других методов)
             competency_freq: Частоты из компетенций
-        
+
         Returns:
             Объединённый словарь весов
         """
         if not competency_freq:
             logger.warning("competency_freq пуст, возвращаем skill_weights")
             return self.filter_weights(skill_weights)
-        
+
         merged = {}
-        
-        logger.info(f"\n🔗 ОБЪЕДИНЕНИЕ С COMPETENCY_FREQUENCY:")
+
+        logger.info("\n🔗 ОБЪЕДИНЕНИЕ С COMPETENCY_FREQUENCY:")
         logger.info(f"  - competency_freq источник: {len(competency_freq)} навыков")
         logger.info(f"  - skill_weights источник: {len(skill_weights)} навыков")
-        
+
         # Найдём максимальный count для нормализации
         max_count = max(competency_freq.values()) if competency_freq.values() else 1
         min_count = min(competency_freq.values()) if competency_freq.values() else 0
-        
+
         tfidf_weights_used = 0
         count_weights_used = 0
         generic_removed = 0
-        
+
         for skill, count in competency_freq.items():
             skill_clean = skill.lower().strip()
-            
+
             # Исключаем generic слова
             if skill_clean in self.GENERIC_WORDS:
                 generic_removed += 1
                 continue
-            
+
             # Пытаемся использовать TF-IDF вес
             if skill_clean in skill_weights:
                 # ✅ Используем TF-IDF вес (это честнее, чем count)
@@ -227,17 +253,17 @@ class SkillFilter:
                     weight = (count - min_count) / (max_count - min_count)
                 else:
                     weight = count / max_count if max_count > 0 else 0.5
-                
+
                 # Немного понижаем вес для count-based (так как это менее надёжно)
                 weight = weight * 0.8
                 merged[skill_clean] = round(weight, 4)
                 count_weights_used += 1
-        
+
         logger.info(f"  - Удалено generic слов: {generic_removed}")
         logger.info(f"  - Добавлено из competency_freq: {len(competency_freq) - generic_removed}")
         logger.info(f"    • с TF-IDF весами: {tfidf_weights_used}")
         logger.info(f"    • с count весами: {count_weights_used}")
-        
+
         # Добавляем навыки, которые есть только в skill_weights
         skills_only_in_tfidf = set(skill_weights.keys()) - set(merged.keys())
         for skill in skills_only_in_tfidf:
@@ -245,24 +271,24 @@ class SkillFilter:
             if skill_clean not in self.GENERIC_WORDS:
                 merged[skill_clean] = skill_weights[skill]
                 logger.debug(f"  + Добавлен из skill_weights: {skill_clean}")
-        
+
         logger.info(f"  - ✓ ИТОГО: {len(merged)} навыков")
-        
+
         return merged
 
     def get_clean_weights(
         self,
-        skill_weights_raw: Dict[str, float],
-        competency_freq: Dict[str, int] = None,
+        skill_weights_raw: dict[str, float],
+        competency_freq: dict[str, int] = None,
         use_reference: bool = True,
-        normalize_method: str = 'minmax'
-    ) -> Dict[str, float]:
+        normalize_method: str = "minmax",
+    ) -> dict[str, float]:
         """
         Финальная очистка весов с сохранением реальной важности навыков.
         """
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("ФИНАЛЬНАЯ ОЧИСТКА НАВЫКОВ (сохранение пропорций)")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         if not skill_weights_raw:
             logger.warning("skill_weights_raw пустой")
@@ -294,9 +320,9 @@ class SkillFilter:
                     # Проверяем частичное совпадение
                     matched = any(ref in skill or skill in ref for ref in self.reference_skills)
                     if matched:
-                        filtered_by_ref[skill] = weight * 0.85   # частичное совпадение
+                        filtered_by_ref[skill] = weight * 0.85  # частичное совпадение
                     else:
-                        filtered_by_ref[skill] = weight * 0.4    # совсем неизвестный, но сохраняем
+                        filtered_by_ref[skill] = weight * 0.4  # совсем неизвестный, но сохраняем
             raw_freq = filtered_by_ref
             logger.info(f"- После фильтрации по reference: {len(raw_freq)} навыков")
 
@@ -331,29 +357,29 @@ class SkillFilter:
 
         return normalized
 
-    def validate_skills(self, skills: List[str]) -> List[str]:
+    def validate_skills(self, skills: list[str]) -> list[str]:
         """
         Валидирует список навыков, оставляя только чистые.
-        
+
         Args:
             skills: Список навыков для валидации
-        
+
         Returns:
             Список валидных навыков
         """
         validated = []
-        
+
         for skill in skills:
             skill_lower = skill.lower().strip()
-            
+
             # Пропускаем generic
             if skill_lower in self.GENERIC_WORDS:
                 continue
-            
+
             # Пропускаем слишком длинные
             if len(skill_lower.split()) > 4:
                 continue
-            
+
             # Пропускаем неизвестные (если нужна валидация)
             if skill_lower not in self.reference_skills:
                 # Проверяем частичное совпадение
@@ -364,57 +390,89 @@ class SkillFilter:
                         break
                 if not matched:
                     continue
-            
+
             validated.append(skill_lower)
-        
+
         return validated
 
-    def get_skill_categories(self, skills: List[str]) -> Dict[str, List[str]]:
+    def get_skill_categories(self, skills: list[str]) -> dict[str, list[str]]:
         """
         Группирует навыки по категориям.
-        
+
         Args:
             skills: Список навыков
-        
+
         Returns:
             Словарь {категория: [список навыков]}
         """
         categories = {
-            'programming_languages': [],
-            'frameworks': [],
-            'databases': [],
-            'devops': [],
-            'cloud': [],
-            'data_science': [],
-            'frontend': [],
-            'testing': [],
-            'tools': [],
-            'other': []
+            "programming_languages": [],
+            "frameworks": [],
+            "databases": [],
+            "devops": [],
+            "cloud": [],
+            "data_science": [],
+            "frontend": [],
+            "testing": [],
+            "tools": [],
+            "other": [],
         }
-        
+
         for skill in skills:
             skill_lower = skill.lower()
-            
-            if skill_lower in ['python', 'javascript', 'typescript', 'java', 'c++', 'c#', 'go', 'rust', 'kotlin', 'swift', 'php', 'ruby']:
-                categories['programming_languages'].append(skill)
-            elif skill_lower in ['react', 'vue', 'angular', 'django', 'flask', 'fastapi', 'spring', 'express', 'next', 'nuxt']:
-                categories['frameworks'].append(skill)
-            elif skill_lower in ['postgresql', 'mysql', 'mongodb', 'redis', 'elasticsearch', 'sqlite']:
-                categories['databases'].append(skill)
-            elif skill_lower in ['docker', 'kubernetes', 'jenkins', 'git', 'terraform', 'ansible']:
-                categories['devops'].append(skill)
-            elif skill_lower in ['aws', 'azure', 'gcp', 'yandex cloud']:
-                categories['cloud'].append(skill)
-            elif skill_lower in ['machine learning', 'deep learning', 'nlp', 'pandas', 'numpy', 'tensorflow', 'pytorch']:
-                categories['data_science'].append(skill)
-            elif skill_lower in ['html', 'css', 'sass', 'scss', 'webpack', 'redux', 'graphql']:
-                categories['frontend'].append(skill)
-            elif skill_lower in ['jest', 'pytest', 'cypress', 'playwright', 'selenium']:
-                categories['testing'].append(skill)
-            elif skill_lower in ['git', 'figma', 'storybook', 'eslint', 'prettier']:
-                categories['tools'].append(skill)
+
+            if skill_lower in [
+                "python",
+                "javascript",
+                "typescript",
+                "java",
+                "c++",
+                "c#",
+                "go",
+                "rust",
+                "kotlin",
+                "swift",
+                "php",
+                "ruby",
+            ]:
+                categories["programming_languages"].append(skill)
+            elif skill_lower in [
+                "react",
+                "vue",
+                "angular",
+                "django",
+                "flask",
+                "fastapi",
+                "spring",
+                "express",
+                "next",
+                "nuxt",
+            ]:
+                categories["frameworks"].append(skill)
+            elif skill_lower in ["postgresql", "mysql", "mongodb", "redis", "elasticsearch", "sqlite"]:
+                categories["databases"].append(skill)
+            elif skill_lower in ["docker", "kubernetes", "jenkins", "git", "terraform", "ansible"]:
+                categories["devops"].append(skill)
+            elif skill_lower in ["aws", "azure", "gcp", "yandex cloud"]:
+                categories["cloud"].append(skill)
+            elif skill_lower in [
+                "machine learning",
+                "deep learning",
+                "nlp",
+                "pandas",
+                "numpy",
+                "tensorflow",
+                "pytorch",
+            ]:
+                categories["data_science"].append(skill)
+            elif skill_lower in ["html", "css", "sass", "scss", "webpack", "redux", "graphql"]:
+                categories["frontend"].append(skill)
+            elif skill_lower in ["jest", "pytest", "cypress", "playwright", "selenium"]:
+                categories["testing"].append(skill)
+            elif skill_lower in ["git", "figma", "storybook", "eslint", "prettier"]:
+                categories["tools"].append(skill)
             else:
-                categories['other'].append(skill)
-        
+                categories["other"].append(skill)
+
         # Убираем пустые категории
         return {k: v for k, v in categories.items() if v}

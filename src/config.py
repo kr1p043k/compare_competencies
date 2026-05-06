@@ -1,5 +1,6 @@
-from pathlib import Path
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -68,10 +69,12 @@ EMBEDDINGS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.80"))
 # ====================== BM25 ======================
 BM25_MAX_CORPUS_DOCS = int(os.getenv("BM25_MAX_CORPUS_DOCS", "200"))  # топ-N документов для BM25
-BM25_MIN_SCORE = float(os.getenv("BM25_MIN_SCORE", "0.005"))          # минимальный вес n-граммы
+BM25_MIN_SCORE = float(os.getenv("BM25_MIN_SCORE", "0.005"))  # минимальный вес n-граммы
 
 # ====================== PCA для эмбеддингов ======================
 PCA_ENABLED = os.getenv("PCA_ENABLED", "true").lower() in ("true", "1", "yes")
-PCA_TARGET_DIM = int(os.getenv("PCA_TARGET_DIM", "256"))              # целевая размерность
-PCA_MIN_SAMPLES = int(os.getenv("PCA_MIN_SAMPLES", "100"))            # мин. навыков для PCA
-PCA_MIN_FEATURES = int(os.getenv("PCA_MIN_FEATURES", "128"))          # мин. размерность для PCA
+PCA_TARGET_DIM = int(os.getenv("PCA_TARGET_DIM", "256"))  # целевая размерность
+PCA_MIN_SAMPLES = int(os.getenv("PCA_MIN_SAMPLES", "100"))  # мин. навыков для PCA
+PCA_MIN_FEATURES = int(os.getenv("PCA_MIN_FEATURES", "128"))  # мин. размерность для PCA
+# ====================== Воспроизводимость ======================
+GLOBAL_RANDOM_SEED = int(os.getenv("GLOBAL_RANDOM_SEED", "42"))

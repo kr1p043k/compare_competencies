@@ -1,10 +1,11 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.analyzers.vacancy_clustering import VacancyClusterer
 
-for level in ['junior', 'middle', 'senior']:
+for level in ["junior", "middle", "senior"]:
     c = VacancyClusterer()
     if c.load_model(level):
         print(f"{level}: {c.n_clusters_} кластеров")

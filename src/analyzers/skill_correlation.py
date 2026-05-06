@@ -2,9 +2,10 @@
 Анализатор совместной встречаемости навыков в вакансиях.
 Строит матрицу корреляций (co-occurrence) для топ-N навыков.
 """
+
 import logging
-from typing import List, Dict, Optional, Set, Tuple
 from collections import defaultdict
+
 import numpy as np
 
 from src.parsing.skill_normalizer import SkillNormalizer
@@ -18,14 +19,14 @@ class SkillCorrelationAnalyzer:
     """
 
     def __init__(self):
-        self._cooccurrence: Dict[Tuple[str, str], int] = defaultdict(int)
-        self._skill_freq: Dict[str, int] = defaultdict(int)
+        self._cooccurrence: dict[tuple[str, str], int] = defaultdict(int)
+        self._skill_freq: dict[str, int] = defaultdict(int)
         self._total_vacancies = 0
 
-    def fit(self, vacancies_skills: List[List[str]]):
+    def fit(self, vacancies_skills: list[list[str]]):
         """
         Обучает анализатор на списке вакансий.
-        
+
         Args:
             vacancies_skills: список списков навыков для каждой вакансии
         """
@@ -52,20 +53,20 @@ class SkillCorrelationAnalyzer:
                     pair = (skill_list[i], skill_list[j])
                     self._cooccurrence[pair] += 1
 
-        logger.info(f"CorrelationAnalyzer обучен на {self._total_vacancies} вакансиях, "
-                    f"{len(self._skill_freq)} навыков, "
-                    f"{len(self._cooccurrence)} пар")
+        logger.info(
+            f"CorrelationAnalyzer обучен на {self._total_vacancies} вакансиях, "
+            f"{len(self._skill_freq)} навыков, "
+            f"{len(self._cooccurrence)} пар"
+        )
 
-    def get_top_skills(self, top_n: int = 30) -> List[str]:
+    def get_top_skills(self, top_n: int = 30) -> list[str]:
         """Возвращает топ-N навыков по частоте."""
-        return [s for s, _ in sorted(self._skill_freq.items(),
-                                     key=lambda x: x[1], reverse=True)[:top_n]]
+        return [s for s, _ in sorted(self._skill_freq.items(), key=lambda x: x[1], reverse=True)[:top_n]]
 
-    def get_correlation_matrix(self, skills: Optional[List[str]] = None,
-                               top_n: int = 30) -> np.ndarray:
+    def get_correlation_matrix(self, skills: list[str] | None = None, top_n: int = 30) -> np.ndarray:
         """
         Возвращает матрицу корреляций (нормированных) для указанных навыков.
-        
+
         Нормировка: Jaccard = |A ∩ B| / (|A| + |B| - |A ∩ B|)
         где |A| — количество вакансий с навыком A.
         """
@@ -92,8 +93,7 @@ class SkillCorrelationAnalyzer:
 
         return matrix
 
-    def get_correlation_labeled(self, skills: Optional[List[str]] = None,
-                                top_n: int = 30) -> Tuple[List[str], np.ndarray]:
+    def get_correlation_labeled(self, skills: list[str] | None = None, top_n: int = 30) -> tuple[list[str], np.ndarray]:
         """
         Возвращает (список навыков, матрица корреляций).
         Удобно для визуализации.
@@ -103,8 +103,7 @@ class SkillCorrelationAnalyzer:
         matrix = self.get_correlation_matrix(skills)
         return skills, matrix
 
-    def get_related_skills(self, skill: str, top_k: int = 10,
-                           min_cooccurrence: int = 3) -> List[Tuple[str, float]]:
+    def get_related_skills(self, skill: str, top_k: int = 10, min_cooccurrence: int = 3) -> list[tuple[str, float]]:
         """
         Возвращает навыки, наиболее связанные с указанным.
         """

@@ -1,13 +1,15 @@
 """
 HeadHunterAPI - синхронный клиент для работы с API hh.ru
 """
-from datetime import datetime, timedelta
-import requests
-import time
-from typing import List, Dict, Any, Optional
+
 import logging
+import time
+from typing import Any
+
+import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
 from src import config
 from src.models.vacancy import Vacancy
 
@@ -30,18 +32,15 @@ class HeadHunterAPI:
             total=config.MAX_RETRIES,
             status_forcelist=[429, 500, 502, 503, 504],
             backoff_factor=1,
-            allowed_methods=["GET"]
+            allowed_methods=["GET"],
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
 
-        self.session.headers.update({
-            'User-Agent': config.HH_USER_AGENT,
-            'Accept': 'application/json; charset=utf-8'
-        })
+        self.session.headers.update({"User-Agent": config.HH_USER_AGENT, "Accept": "application/json; charset=utf-8"})
 
-        self.last_response: Optional[Dict[str, Any]] = None
+        self.last_response: dict[str, Any] | None = None
 
         # === АВТОМАТИЧЕСКОЕ ПОЛУЧЕНИЕ ТОКЕНА ===
         self._token = None
@@ -60,7 +59,7 @@ class HeadHunterAPI:
         payload = {
             "grant_type": "client_credentials",
             "client_id": config.HH_CLIENT_ID,
-            "client_secret": config.HH_CLIENT_SECRET
+            "client_secret": config.HH_CLIENT_SECRET,
         }
         try:
             resp = self.session.post(url, data=payload, timeout=10)
@@ -82,36 +81,42 @@ class HeadHunterAPI:
             self._get_app_token()
 
     # ======================================================================
-    def search_vacancies(self, text, area, period_days=30, max_pages=20, per_page=100,
-                         industry=None, date_from=None, date_to=None):
+    def search_vacancies(
+        self, text, area, period_days=30, max_pages=20, per_page=100, industry=None, date_from=None, date_to=None
+    ):
         params = {
-            'text': text, 'area': area, 'per_page': per_page, 'page': 0,
-            'order_by': 'publication_time', 'clusters': False, 'describe_arguments': False,
+            "text": text,
+            "area": area,
+            "per_page": per_page,
+            "page": 0,
+            "order_by": "publication_time",
+            "clusters": False,
+            "describe_arguments": False,
         }
         if industry:
-            params['industry'] = industry
+            params["industry"] = industry
         if date_from is not None and date_to is not None:
-            params['date_from'] = date_from
-            params['date_to'] = date_to
+            params["date_from"] = date_from
+            params["date_to"] = date_to
         else:
-            params['period'] = period_days
+            params["period"] = period_days
 
         logger.info(f"Поиск вакансий: '{text}' (регион {area}, макс {max_pages} страниц)")
         all_vacancies = []
         page = 0
         while page < max_pages:
-            params['page'] = page
+            params["page"] = page
             data = self._get(self.BASE_URL, params=params)
             self.last_response = data
-            if not data or 'items' not in data:
+            if not data or "items" not in data:
                 logger.error("Не удалось получить данные")
                 break
-            items = data['items']
+            items = data["items"]
             if not items:
                 break
             all_vacancies.extend(items)
             logger.info(f"Страница {page + 1}: получено {len(items)} вакансий (всего найдено: {data.get('found', 0)})")
-            if page >= data.get('pages', 0) - 1:
+            if page >= data.get("pages", 0) - 1:
                 break
             page += 1
             time.sleep(config.REQUEST_DELAY)
@@ -167,9 +172,9 @@ class HeadHunterAPI:
                 logger.error("403 Forbidden. Проверьте права приложения или IP.")
                 return None
             elif response.status_code == 429:
-                retry_after = int(response.headers.get('Retry-After', 60))
+                retry_after = int(response.headers.get("Retry-After", 60))
                 if retry_count < 3:
-                    logger.warning(f"429. Попытка {retry_count+1}/3, жду {retry_after}с")
+                    logger.warning(f"429. Попытка {retry_count + 1}/3, жду {retry_after}с")
                     time.sleep(retry_after)
                     return self._get(url, params, retry_count + 1)
                 else:

@@ -2,22 +2,22 @@
 Оценка профилей студентов на основе уровня опыта и gap-анализа.
 Гибридная версия: новый API (для main.py) + кэширование.
 """
-import logging
-import math
+
 import hashlib
 import json
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+import logging
+from typing import Any
+
 import numpy as np
 
-from src.models.student import StudentProfile
-from src.analyzers.gap_analyzer import GapAnalyzer
-from src.analyzers.comparator import CompetencyComparator
-from src.analyzers.vacancy_clustering import VacancyClusterer
-from src.analyzers.domain_analyzer import DomainAnalyzer
-from src.parsing.skill_normalizer import SkillNormalizer
-from src.parsing.embedding_loader import get_embedding_model
 from src import config
+from src.analyzers.comparator import CompetencyComparator
+from src.analyzers.domain_analyzer import DomainAnalyzer
+from src.analyzers.gap_analyzer import GapAnalyzer
+from src.analyzers.vacancy_clustering import VacancyClusterer
+from src.models.student import StudentProfile
+from src.parsing.embedding_loader import get_embedding_model
+from src.parsing.skill_normalizer import SkillNormalizer
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +27,15 @@ class ProfileEvaluator:
 
     def __init__(
         self,
-        skill_weights: Dict[str, float],
-        vacancies_skills: List[List[str]],
-        vacancies_skills_dict: List[Dict],
-        hybrid_weights: Optional[Dict[str, float]] = None,
+        skill_weights: dict[str, float],
+        vacancies_skills: list[list[str]],
+        vacancies_skills_dict: list[dict],
+        hybrid_weights: dict[str, float] | None = None,
         use_clustering: bool = True,
-        skill_weights_by_level: Optional[Dict[str, Dict[str, float]]] = None,
-        readiness_weights: Tuple[float, float, float] = (0.5, 0.3, 0.2),
+        skill_weights_by_level: dict[str, dict[str, float]] | None = None,
+        readiness_weights: tuple[float, float, float] = (0.5, 0.3, 0.2),
         # Legacy параметры (для совместимости, если понадобятся)
-        level_difficulty: Optional[Dict[str, float]] = None,
+        level_difficulty: dict[str, float] | None = None,
     ):
         self.skill_weights = skill_weights
         self.hybrid_weights = hybrid_weights or {}
@@ -56,9 +56,9 @@ class ProfileEvaluator:
 
         # Загружаем модели кластеризации при инициализации
         self.cluster_models_loaded = {
-            'junior': self.clusterer.load_model('junior'),
-            'middle': self.clusterer.load_model('middle'),
-            'senior': self.clusterer.load_model('senior')
+            "junior": self.clusterer.load_model("junior"),
+            "middle": self.clusterer.load_model("middle"),
+            "senior": self.clusterer.load_model("senior"),
         }
         logger.info(f"Модели кластеризации загружены: {self.cluster_models_loaded}")
 
@@ -70,7 +70,7 @@ class ProfileEvaluator:
     # ------------------------------------------------------------------
     # НОВЫЙ ОСНОВНОЙ МЕТОД (используется в main.py)
     # ------------------------------------------------------------------
-    def evaluate_profile(self, student: StudentProfile, user_type: str = 'student') -> Dict[str, Any]:
+    def evaluate_profile(self, student: StudentProfile, user_type: str = "student") -> dict[str, Any]:
         if not self.gap_analyzer_new:
             raise RuntimeError("skill_weights_by_level не были переданы в конструктор")
 
@@ -82,14 +82,14 @@ class ProfileEvaluator:
         metrics = self.gap_analyzer_new.compute_metrics(user_skills_list, user_levels)
 
         # === 2. Cluster Context + Relevance ===
-        target_level = getattr(student, 'target_level', 'middle')
+        target_level = getattr(student, "target_level", "middle")
         cluster_context = self._get_cluster_context(student, target_level)
 
         for skill, metric in metrics.items():
             if cluster_context is not None and skill in cluster_context.get("skills", {}):
                 metric.cluster_relevance = cluster_context["skills"][skill]
             else:
-                metric.cluster_relevance = 0.15 * getattr(metric, 'cluster_relevance', 0.0)
+                metric.cluster_relevance = 0.15 * getattr(metric, "cluster_relevance", 0.0)
 
         # === 3. Domain-level coverage (с весом доминирующего домена) ===
         domain_coverages = self.domain_analyzer.compute_domain_coverage(user_skills_list)
@@ -106,21 +106,17 @@ class ProfileEvaluator:
         other_count = len(domain_coverages) - 1 if len(domain_coverages) > 1 else 0
 
         for dom_name, dom in domain_coverages.items():
-            if dom_name == dominant_name:
-                weight = 0.5
-            else:
-                weight = 0.5 / other_count if other_count > 0 else 0.5
+            weight = 0.5 if dom_name == dominant_name else 0.5 / other_count if other_count > 0 else 0.5
             weighted_cov_sum += dom.coverage * weight
 
         # Итоговое доменное покрытие (0-100%)
         domain_coverage_score = weighted_cov_sum * 100
 
-        logger.debug(f"Доминирующий домен: {dominant_name}, "
-                     f"взвешенное доменное покрытие: {domain_coverage_score:.1f}%")
+        logger.debug(f"Доминирующий домен: {dominant_name}, взвешенное доменное покрытие: {domain_coverage_score:.1f}%")
 
         # === 4. Бонусы от доменов ===
         skill_to_domain_bonus = {}
-        for dom_name, dom in domain_coverages.items():
+        for _dom_name, dom in domain_coverages.items():
             for req_skill in dom.required_skills:
                 req_norm = req_skill.lower().strip()
                 bonus = dom.coverage if req_norm in user_skills_set else dom.coverage * 0.5
@@ -129,15 +125,15 @@ class ProfileEvaluator:
 
         # === 5. Веса уровней ===
         level_weights = {
-            'student': {'junior': 0.60, 'middle': 0.30, 'senior': 0.10},
-            'junior':  {'junior': 0.40, 'middle': 0.40, 'senior': 0.20},
-            'middle':  {'junior': 0.20, 'middle': 0.50, 'senior': 0.30}
-        }.get(user_type, {'junior': 0.33, 'middle': 0.34, 'senior': 0.33})
+            "student": {"junior": 0.60, "middle": 0.30, "senior": 0.10},
+            "junior": {"junior": 0.40, "middle": 0.40, "senior": 0.20},
+            "middle": {"junior": 0.20, "middle": 0.50, "senior": 0.30},
+        }.get(user_type, {"junior": 0.33, "middle": 0.34, "senior": 0.33})
 
         # === 6. Финальные скоры — ПРЯМАЯ ФИЛЬТРАЦИЯ ПО УЖЕ ИМЕЮЩИМСЯ НАВЫКАМ ===
         final_scores = {}
         user_skills_set = set(s.lower().strip() for s in user_skills_list)
-        MIN_GAP_FOR_FALLBACK = 0.05
+        min_gap_for_fallback = 0.05
 
         for skill, metric in metrics.items():
             skill_norm = skill.lower().strip()
@@ -151,10 +147,13 @@ class ProfileEvaluator:
                 final_scores[skill] = metric.score(level_weights, domain_bonus=bonus)
 
         if not final_scores and metrics:
-            logger.warning(f"Все рыночные навыки уже покрыты профилем {student.profile_name}. Fallback по cluster_relevance.")
+            logger.warning(
+                f"Все рыночные навыки уже покрыты профилем {student.profile_name}. Fallback по cluster_relevance."
+            )
             fallback_candidates = [
-                (s, m) for s, m in metrics.items()
-                if s.lower().strip() not in user_skills_set and max(m.gap_j, m.gap_m, m.gap_s) > MIN_GAP_FOR_FALLBACK
+                (s, m)
+                for s, m in metrics.items()
+                if s.lower().strip() not in user_skills_set and max(m.gap_j, m.gap_m, m.gap_s) > min_gap_for_fallback
             ]
             for skill, metric in sorted(fallback_candidates, key=lambda x: x[1].cluster_relevance, reverse=True)[:15]:
                 bonus = skill_to_domain_bonus.get(skill.lower().strip(), 0.0)
@@ -197,10 +196,10 @@ class ProfileEvaluator:
 
         # Готовность к уровню
         readiness = (
-            0.50 * market_coverage_score +
-            0.20 * (strong_count / total_market * 100) +
-            0.15 * (weak_count / total_market * 100) +
-            0.15 * domain_coverage_score
+            0.50 * market_coverage_score
+            + 0.20 * (strong_count / total_market * 100)
+            + 0.15 * (weak_count / total_market * 100)
+            + 0.15 * domain_coverage_score
         )
 
         total_gap = sum((m.gap_j + m.gap_m + m.gap_s) / 3 for m in metrics.values())
@@ -212,18 +211,14 @@ class ProfileEvaluator:
         user_skills_norm = {SkillNormalizer.normalize(s) for s in user_skills_list}
         all_market_skills = list(metrics.keys())
         covered_market = sum(1 for s in all_market_skills if s in user_skills_norm)
-        market_skill_coverage_pct = round(covered_market / len(all_market_skills) * 100, 2) if all_market_skills else 0.0
+        market_skill_coverage_pct = (
+            round(covered_market / len(all_market_skills) * 100, 2) if all_market_skills else 0.0
+        )
 
-        gaps = {s: m.__dict__ for s, m in metrics.items()
-                if max(m.gap_j, m.gap_m, m.gap_s) > 0.15}
+        gaps = {s: m.__dict__ for s, m in metrics.items() if max(m.gap_j, m.gap_m, m.gap_s) > 0.15}
 
         # Добавляем статистику категорий
-        skill_categories = {
-            "strong": strong_count,
-            "weak": weak_count,
-            "missing": missing_count,
-            "total": total_market
-        }
+        skill_categories = {"strong": strong_count, "weak": weak_count, "missing": missing_count, "total": total_market}
 
         return {
             "market_coverage_score": round(market_coverage_score, 2),
@@ -239,12 +234,13 @@ class ProfileEvaluator:
             "level_weights_used": level_weights,
             "student_skills": user_skills_list,
             "market_skill_coverage": market_skill_coverage_pct,
-            "skill_categories": skill_categories
+            "skill_categories": skill_categories,
         }
+
     # ------------------------------------------------------------------
     # Вспомогательные методы нового API
     # ------------------------------------------------------------------
-    def _get_cluster_context(self, student: StudentProfile, target_level: str) -> Optional[Dict]:
+    def _get_cluster_context(self, student: StudentProfile, target_level: str) -> dict | None:
         """Получить кластерный контекст, если модель загружена."""
         if not self.use_clustering:
             return None
@@ -262,23 +258,21 @@ class ProfileEvaluator:
                 student_emb = np.mean(embs, axis=0)
 
             cluster_context = self.clusterer.get_cluster_context(
-                profile_embedding=student_emb,
-                level=target_level,
-                top_k_clusters=5,
-                top_k_skills_per_cluster=25
+                profile_embedding=student_emb, level=target_level, top_k_clusters=5, top_k_skills_per_cluster=25
             )
-            logger.info(f"Кластерный контекст для {target_level}: "
-                       f"{cluster_context['total_skills_in_context']} навыков из "
-                       f"{len(cluster_context.get('closest_clusters', []))} кластеров")
+            logger.info(
+                f"Кластерный контекст для {target_level}: "
+                f"{cluster_context['total_skills_in_context']} навыков из "
+                f"{len(cluster_context.get('closest_clusters', []))} кластеров"
+            )
             return cluster_context
         except Exception as e:
             logger.warning(f"Не удалось получить cluster_context: {e}")
             return None
 
-    def _calculate_readiness(self, market_coverage_score: float,
-                             skill_coverage: float,
-                             domain_coverage_score: float,
-                             avg_gap: float) -> float:
+    def _calculate_readiness(
+        self, market_coverage_score: float, skill_coverage: float, domain_coverage_score: float, avg_gap: float
+    ) -> float:
         """Новая readiness — полностью согласована с новыми метриками"""
         w_market = 0.50
         w_skill = 0.20
@@ -286,10 +280,10 @@ class ProfileEvaluator:
         w_gap_penalty = 0.10
 
         readiness = (
-            w_market * market_coverage_score +
-            w_skill * skill_coverage +
-            w_domain * domain_coverage_score -
-            w_gap_penalty * (avg_gap * 100)
+            w_market * market_coverage_score
+            + w_skill * skill_coverage
+            + w_domain * domain_coverage_score
+            - w_gap_penalty * (avg_gap * 100)
         )
         return round(max(0.0, min(100.0, readiness)), 2)
 
@@ -298,10 +292,7 @@ class ProfileEvaluator:
             return self.comparators[target_level]
 
         logger.info(f"Создаём level-specific Embedding Comparator для {target_level}...")
-        comparator = CompetencyComparator(
-            use_embeddings=True,
-            level=target_level
-        )
+        comparator = CompetencyComparator(use_embeddings=True, level=target_level)
         success = comparator.fit_market(self.vacancies_skills)
         if success:
             logger.info(f"  ✓ {target_level} comparator успешно обучен (embeddings)")
@@ -327,16 +318,16 @@ class ProfileEvaluator:
     def _load_cache(self):
         if self._cache_path.exists():
             try:
-                with open(self._cache_path, 'r', encoding='utf-8') as f:
+                with open(self._cache_path, encoding="utf-8") as f:
                     self._cache = json.load(f)
             except Exception:
                 self._cache = {}
 
     def _save_cache(self):
-        with open(self._cache_path, 'w', encoding='utf-8') as f:
+        with open(self._cache_path, "w", encoding="utf-8") as f:
             json.dump(self._cache, f, indent=2)
 
     def _get_student_hash(self, student: StudentProfile, level: str) -> str:
         skills_str = ",".join(sorted(set(s.lower() for s in student.skills)))
         data = f"{level}:{skills_str}"
-        return hashlib.md5(data.encode()).hexdigest()
+        return hashlib.sha256(data.encode()).hexdigest()

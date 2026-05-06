@@ -1,9 +1,14 @@
-import logging
 import json
-from src.config import *
-from typing import Any
-import numpy as np
+import logging
+import os
 import tempfile
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from src.config import COMPETENCY_MAPPING_FILE, LOG_FILE
+
 
 def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
     """
@@ -16,13 +21,10 @@ def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
 
     logger.setLevel(level)
 
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 
     # Файловый обработчик
-    file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
+    file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
 
@@ -36,13 +38,16 @@ def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
 
     return logger
 
+
 def load_competency_mapping():
-    with open(COMPETENCY_MAPPING_FILE, 'r', encoding='utf-8') as f:
+    with open(COMPETENCY_MAPPING_FILE, encoding="utf-8") as f:
         return json.load(f)
+
 
 # =========================================================================
 # АТОМАРНОЕ СОХРАНЕНИЕ
 # =========================================================================
+
 
 def atomic_write_json(data: Any, filepath: Path) -> None:
     """
@@ -52,9 +57,9 @@ def atomic_write_json(data: Any, filepath: Path) -> None:
     filepath = Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
-    fd, tmp_path = tempfile.mkstemp(dir=filepath.parent, suffix='.json.tmp')
+    fd, tmp_path = tempfile.mkstemp(dir=filepath.parent, suffix=".json.tmp")
     try:
-        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         os.replace(tmp_path, filepath)  # атомарно на POSIX, почти атомарно на Windows
     except Exception:
@@ -66,7 +71,7 @@ def atomic_write_json(data: Any, filepath: Path) -> None:
 def atomic_write_npz(data_dict: dict, filepath: Path, compressed: bool = True) -> None:
     """
     Атомарная запись NPZ: пишет во временный файл, затем переименовывает.
-    
+
     Args:
         data_dict: словарь массивов для сохранения (kwarg'ами в np.savez)
         filepath: целевой путь
@@ -75,7 +80,7 @@ def atomic_write_npz(data_dict: dict, filepath: Path, compressed: bool = True) -
     filepath = Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
-    fd, tmp_path = tempfile.mkstemp(dir=filepath.parent, suffix='.npz.tmp')
+    fd, tmp_path = tempfile.mkstemp(dir=filepath.parent, suffix=".npz.tmp")
     os.close(fd)
     try:
         if compressed:
@@ -94,7 +99,7 @@ def atomic_read_json(filepath: Path) -> Any:
     Безопасное чтение JSON: если файл битый — возвращает None.
     """
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
         return None
