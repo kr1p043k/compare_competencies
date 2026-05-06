@@ -23,6 +23,43 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src import config
 
+# ==================== ЗАМЕНА ЭМОДЗИ НА ТЕКСТ ====================
+EMOJI_TO_TEXT = {
+    '💻': '[Lang]',
+    '🔧': '[FW]',
+    '🗄️': '[DB]',
+    '🚀': '[DevOps]',
+    '☁️': '[Cloud]',
+    '📊': '[DS]',
+    '🎨': '[FE]',
+    '📱': '[Mobile]',
+    '🧪': '[QA]',
+    '🔒': '[Sec]',
+    '🤖': '[AI]',
+    '🏢': '[ERP]',
+    '🗺️': '[GIS]',
+    '🔌': '[HW]',
+    '🎮': '[Game]',
+    '📋': '[Mgmt]',
+    '💬': '[Soft]',
+    '📐': '[Math]',
+    '📖': '[Meth]',
+    '🧠': '[AdvML]',
+}
+
+
+def _safe_label(skill: str, taxonomy=None) -> str:
+    """Создаёт текстовую метку без эмодзи (для DejaVu Sans)."""
+    if taxonomy is None:
+        return skill
+    try:
+        icon = taxonomy.get_category_icon(skill)
+        text_icon = EMOJI_TO_TEXT.get(icon, '')
+        return f"{text_icon} {skill}" if text_icon else skill
+    except Exception:
+        return skill
+
+
 # ==================== КРАСИВЫЙ СТИЛЬ ДЛЯ ПРЕЗЕНТАЦИИ ====================
 sns.set_theme(style="whitegrid", palette="viridis", font_scale=1.4)
 plt.rcParams.update({
@@ -95,9 +132,7 @@ def load_ml_recommendations(profile: str) -> List[Tuple[str, float, str]]:
 
 
 def load_profile_evaluation(profile_name: str) -> Optional[Dict[str, Any]]:
-    """
-    Загружает результат evaluate_profile для заданного профиля из profiles_comparison_summary.json.
-    """
+    """Загружает результат evaluate_profile для заданного профиля."""
     summary_path = config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
     if not summary_path.exists():
         logger.warning(f"Файл {summary_path} не найден")
@@ -119,11 +154,11 @@ def plot_coverage_comparison(results: Dict[str, Any], save_path: Optional[Path] 
     market_cov = [results[p].get('market_coverage_score', 0) for p in profiles]
     skill_cov = [results[p].get('skill_coverage', 0) for p in profiles]
     readiness = [results[p].get('readiness_score', 0) for p in profiles]
-    real_coverage = [results[p].get('market_skill_coverage', 0) for p in profiles]  # новая метрика
+    real_coverage = [results[p].get('market_skill_coverage', 0) for p in profiles]
 
     fig, ax = plt.subplots(figsize=(16, 9))
     x = np.arange(len(profiles))
-    width = 0.2  # чуть уже, чтобы поместились 4 столбца
+    width = 0.2
 
     bars1 = ax.bar(x - 1.5*width, skill_cov, width, label='Покрытие навыков %', color='#2ca02c', alpha=0.9)
     bars2 = ax.bar(x - 0.5*width, market_cov, width, label='Общее покрытие рынка %', color='#9467bd', alpha=0.9)
@@ -137,7 +172,6 @@ def plot_coverage_comparison(results: Dict[str, Any], save_path: Optional[Path] 
     ax.set_ylim(0, 105)
     ax.legend(loc='upper right', fontsize=12)
 
-    # Подписи над столбцами
     for bar in bars1:
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%',
@@ -168,9 +202,7 @@ def plot_skill_comparison_radar(
     student_name: str,
     save_path: Optional[Path] = None
 ) -> plt.Figure:
-    """
-    Радарная диаграмма: навыки студента против топ-навыков рынка.
-    """
+    """Радарная диаграмма: навыки студента против топ-навыков рынка."""
     all_skills = list(dict.fromkeys(market_top[:12] + student_skills))
     if len(all_skills) > 15:
         all_skills = all_skills[:15]
@@ -206,9 +238,7 @@ def plot_skill_comparison_radar(
 
 
 def plot_ml_importance(profile: str, top_n: int = 10, save_path: Optional[Path] = None) -> plt.Figure:
-    """
-    Горизонтальный барплот важности недостающих навыков по ML-модели.
-    """
+    """Горизонтальный барплот важности недостающих навыков по ML-модели."""
     recs = load_ml_recommendations(profile)
     if not recs:
         fig, ax = plt.subplots()
@@ -264,10 +294,7 @@ def plot_weight_distribution(weights: Dict[str, float], title: str = "Топ-15 
 
 
 def plot_skills_heatmap(results: Dict[str, Any], top_n: int = 20, save_path: Optional[Path] = None) -> plt.Figure:
-    """
-    Тепловая карта покрытия топ-N рыночных навыков разными профилями.
-    results: словарь {profile_name: evaluation_dict}
-    """
+    """Тепловая карта покрытия топ-N рыночных навыков разными профилями."""
     skill_weights = load_skill_weights()
     if not skill_weights:
         fig, ax = plt.subplots()
@@ -282,7 +309,6 @@ def plot_skills_heatmap(results: Dict[str, Any], top_n: int = 20, save_path: Opt
     data = []
     for profile in profiles:
         eval_dict = results[profile]
-        # Извлекаем реальные навыки студента (теперь они есть в результате оценки)
         student_skills = eval_dict.get('student_skills', [])
         student_set = set(s.lower() for s in student_skills)
         row = [1 if skill.lower() in student_set else 0 for skill in top_skills]
@@ -304,60 +330,161 @@ def plot_skills_heatmap(results: Dict[str, Any], top_n: int = 20, save_path: Opt
     return fig
 
 
+def plot_skill_correlation_heatmap(
+    correlation_analyzer,
+    top_n: int = 15,  # уменьшено с 25
+    save_path: Optional[Path] = None
+) -> plt.Figure:
+    """
+    Тепловая карта совместной встречаемости навыков (Jaccard).
+    Навыки сгруппированы по категориям таксономии.
+    """
+    from src.analyzers.skill_taxonomy import SkillTaxonomy
+
+    skills, matrix = correlation_analyzer.get_correlation_labeled(top_n=top_n)
+
+    if len(skills) < 2:
+        fig, ax = plt.subplots()
+        ax.text(0.5, 0.5, "Недостаточно данных", ha="center", va="center")
+        if save_path:
+            plt.savefig(save_path)
+        plt.close(fig)
+        return fig
+
+    try:
+        taxonomy = SkillTaxonomy()
+    except Exception:
+        taxonomy = None
+
+    # Группируем навыки по категориям
+    if taxonomy:
+        cat_order = []
+        seen = set()
+        for s in skills:
+            cat = taxonomy.get_category_label(s)
+            if cat not in seen:
+                cat_order.append(cat)
+                seen.add(cat)
+        
+        # Сортируем: сначала по категории, потом по алфавиту
+        skill_cat = [(s, taxonomy.get_category_label(s), s) for s in skills]
+        skill_cat.sort(key=lambda x: (cat_order.index(x[1]) if x[1] in cat_order else 999, x[2]))
+        sorted_skills = [s for s, _, _ in skill_cat]
+        
+        # Перестраиваем матрицу в новом порядке
+        idx_map = {s: i for i, s in enumerate(skills)}
+        new_order = [idx_map[s] for s in sorted_skills]
+        matrix = matrix[new_order][:, new_order]
+        skills = sorted_skills
+
+    # Человекочитаемые метки
+    labels = [_safe_label(s, taxonomy) for s in skills]
+
+    # Размер ячейки — крупнее
+    cell_size = 0.55
+    fig, ax = plt.subplots(figsize=(top_n * cell_size + 3, top_n * cell_size + 2))
+
+    # Маска: показываем только связи > 0.2
+    mask = matrix < 0.2
+
+    sns.heatmap(
+        matrix,
+        annot=True,
+        fmt='.2f',
+        cmap='YlOrRd',
+        mask=mask,
+        xticklabels=labels,
+        yticklabels=labels,
+        vmin=0,
+        vmax=1.0,
+        cbar_kws={'label': 'Jaccard', 'shrink': 0.7},
+        ax=ax,
+        linewidths=1.0,
+        linecolor='white',
+        annot_kws={'fontsize': 10, 'fontweight': 'bold'}
+    )
+
+    ax.set_title(f"Совместная встречаемость топ-{top_n} навыков\n(сгруппированы по категориям, Jaccard ≥ 0.2)",
+                 pad=20, fontsize=14)
+    plt.xticks(rotation=45, ha='right', fontsize=10)
+    plt.yticks(rotation=0, fontsize=10)
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=200, bbox_inches='tight')
+        logger.info(f"✅ skill_correlation_heatmap сохранён → {save_path}")
+    plt.close(fig)
+    return fig
+
 def plot_cluster_insights(results: Dict[str, Any], output_dir: Path):
-    """
-    Для каждого профиля отображает ближайшие кластеры и покрытие навыков студента.
-    results: словарь {profile_name: evaluation_dict}
-    """
+    """Для каждого профиля отображает ближайшие кластеры и покрытие навыков."""
     for profile_name, eval_dict in results.items():
         cluster_ctx = eval_dict.get('cluster_context')
         if not cluster_ctx:
             continue
-            
+
         closest = cluster_ctx.get('closest_clusters', [])
         if not closest:
             continue
-            
-        # Получаем навыки студента (теперь они есть в результате)
+
         student_skills = set(s.lower() for s in eval_dict.get('student_skills', []))
         cluster_skills_map = cluster_ctx.get('skills', {})
         cluster_skills_set = set(cluster_skills_map.keys())
-        
-        cluster_ids = [f"Кластер {c['id']}" for c in closest]
+
+        # Имена кластеров — только категории, без навыков
+        cluster_names = []
+        for c in closest:
+            name = c.get('name', f"Cluster {c['id']}")
+            # Убираем всё после двоеточия (если есть)
+            if ':' in name:
+                name = name.split(':')[0].strip()
+            # Убираем эмодзи
+            for emoji, text in EMOJI_TO_TEXT.items():
+                name = name.replace(emoji, text)
+            cluster_names.append(name)
+
         similarities = [c['similarity'] * 100 for c in closest]
-        
-        # Покрытие: процент навыков студента, присутствующих в данном кластерном контексте
+
         if student_skills and cluster_skills_set:
             coverage = len(student_skills & cluster_skills_set) / len(student_skills) * 100
         else:
             coverage = 0.0
-        
-        fig, ax = plt.subplots(figsize=(10, 6))
+
+        fig, ax = plt.subplots(figsize=(10, 5))
         x = np.arange(len(closest))
-        width = 0.35
-        
-        bars1 = ax.bar(x - width/2, similarities, width, label='Сходство (%)', color='#1f77b4')
-        # Покрытие одинаково для всех кластеров, т.к. контекст общий, но можно показать один раз
-        ax.axhline(y=coverage, color='#2ca02c', linestyle='--', linewidth=2, label=f'Покрытие навыков студента ({coverage:.1f}%)')
-        
-        ax.set_title(f"Ближайшие кластеры вакансий — {profile_name}", pad=20)
+        width = 0.4
+
+        # Столбцы сходства
+        bars = ax.bar(x, similarities, width, color='#1f77b4', alpha=0.85, label='Близость к профилю')
+        ax.axhline(y=coverage, color='#2ca02c', linestyle='--', linewidth=2,
+                   label=f'Покрытие навыков: {coverage:.1f}%')
+
+        ax.set_title(f"Ближайшие кластеры вакансий — {profile_name}", pad=15, fontsize=14)
         ax.set_xticks(x)
-        ax.set_xticklabels(cluster_ids, rotation=45, ha='right')
-        ax.set_ylabel('Процент')
-        ax.legend()
-        
-        for bar in bars1:
+        ax.set_xticklabels(cluster_names, rotation=20, ha='right', fontsize=11)
+        ax.set_ylabel('Сходство (%)', fontsize=12)
+        ax.set_ylim(0, 105)
+        ax.legend(fontsize=11)
+
+        # Подписи значений над столбцами
+        for bar in bars:
             height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 1, f'{height:.1f}%',
-                    ha='center', va='bottom', fontsize=10)
-        
+            ax.text(bar.get_x() + bar.get_width()/2., height + 2, f'{height:.1f}%',
+                    ha='center', va='bottom', fontsize=12, fontweight='bold')
+
+        # Убираем верхнюю и правую границы для чистоты
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
         plt.tight_layout()
         save_path = output_dir / profile_name / f"cluster_insights_{profile_name}.png"
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=200, bbox_inches='tight')
         plt.close()
         logger.info(f"✅ cluster_insights сохранён → {save_path}")
 
-def save_all_charts(results: Dict[str, Any], output_dir: Path, use_ml: bool = True):
+
+def save_all_charts(results: Dict[str, Any], output_dir: Path, use_ml: bool = True,
+                    vacancies_skills_list: List[List[str]] = None):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"🚀 Генерация презентационных графиков в {output_dir}")
@@ -391,8 +518,22 @@ def save_all_charts(results: Dict[str, Any], output_dir: Path, use_ml: bool = Tr
                 fig.savefig(prof_dir / f"deficits_{profile_name}.png", dpi=300, bbox_inches="tight")
                 plt.close(fig)
 
+    # Корреляционная матрица навыков
+    if vacancies_skills_list:
+        try:
+            from src.analyzers.skill_correlation import SkillCorrelationAnalyzer
+            corr_analyzer = SkillCorrelationAnalyzer()
+            corr_analyzer.fit(vacancies_skills_list)
+            plot_skill_correlation_heatmap(
+                corr_analyzer,
+                top_n=25,
+                save_path=output_dir / "skill_correlation_heatmap.png"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось построить корреляционную матрицу: {e}")
+
     plot_skills_heatmap(results, top_n=20, save_path=output_dir / "skills_heatmap.png")
-    plot_cluster_insights(results, output_dir)   
+    plot_cluster_insights(results, output_dir)
     logger.info("✅ Все графики готовы для презентации")
 
 
@@ -400,9 +541,7 @@ def save_all_charts(results: Dict[str, Any], output_dir: Path, use_ml: bool = Tr
 # Утилиты для запуска ноутбуков и вывода контекстной информации
 # ----------------------------------------------------------------------
 def run_notebook(notebook_name: str, output_dir: Optional[Path] = None) -> bool:
-    """
-    Выполняет Jupyter ноутбук с помощью nbconvert и сохраняет результат.
-    """
+    """Выполняет Jupyter ноутбук с помощью nbconvert и сохраняет результат."""
     base_dir = Path(__file__).parent.parent.parent
     notebook_path = base_dir / "notebook_jypiter" / notebook_name
     if not notebook_path.exists():
@@ -442,7 +581,6 @@ def show_context_info() -> None:
     print("КОНТЕКСТНАЯ ИНФОРМАЦИЯ О ПРОЕКТЕ")
     print("=" * 80)
 
-    # Рыночные навыки
     market_file = config.DATA_PROCESSED_DIR / "competency_frequency.json"
     if market_file.exists():
         try:
@@ -456,7 +594,6 @@ def show_context_info() -> None:
     else:
         print("⚠️ Файл с рыночными навыками не найден. Сначала соберите данные.")
 
-    # Маппинг компетенций
     mapping_file = config.COMPETENCY_MAPPING_FILE
     if mapping_file.exists():
         try:
@@ -468,7 +605,6 @@ def show_context_info() -> None:
     else:
         print(f"⚠️ Файл маппинга не найден: {mapping_file}")
 
-    # Профили студентов
     students_dir = config.STUDENTS_DIR
     students = list(students_dir.glob("*_competency.json"))
     print(f"Профили студентов (JSON): {len(students)}")
@@ -481,7 +617,6 @@ def show_context_info() -> None:
         except Exception as e:
             print(f"  - Ошибка чтения {student_file.name}: {e}")
 
-    # Результаты анализа
     results_dir = config.DATA_DIR / "result"
     reports_found = 0
     if results_dir.exists():
@@ -492,7 +627,6 @@ def show_context_info() -> None:
                     reports_found += 1
     print(f"Готовые отчёты gap-анализа: {reports_found}")
 
-    # Рекомендуемые действия
     print("\n📋 РЕКОМЕНДАЦИИ ПО ЗАПУСКУ:")
     if not market_file.exists():
         print("  - Соберите рыночные данные: python main.py --it-sector --excel")
@@ -515,17 +649,14 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     show_context_info()
 
-    # Демонстрация графиков, если есть данные
     skill_weights = load_skill_weights()
     if not skill_weights:
         print("\n❌ skill_weights.json не найден. Невозможно построить графики.")
         sys.exit(1)
 
-    # Строим распределение весов
     fig1 = plot_weight_distribution(skill_weights)
     plt.show()
 
-    # Пытаемся собрать данные по профилям из сводного файла
     results_for_charts = {}
     summary_path = config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
     if summary_path.exists():
@@ -539,7 +670,6 @@ if __name__ == "__main__":
         fig2 = plot_coverage_comparison(results_for_charts)
         plt.show()
 
-    # ML-рекомендации для base
     recs = load_ml_recommendations("base")
     if recs:
         fig3 = plot_ml_importance("base", top_n=10)
@@ -549,7 +679,6 @@ if __name__ == "__main__":
         print("   Обучите модель командой:")
         print("   python -m src.predictors.ltr_recommendation_engine --load-raw --train")
 
-    # Предложение запустить ноутбуки
     run_nb = input("\nЗапустить ноутбуки анализа? (y/n): ").strip().lower()
     if run_nb == 'y':
         run_notebook("01_hh_analysis.ipynb")

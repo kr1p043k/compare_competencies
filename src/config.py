@@ -35,7 +35,7 @@ for dir_path in [DATA_RAW_DIR, DATA_PROCESSED_DIR, STUDENTS_DIR, LAST_UPLOADED_D
 
 # ====================== hh.ru API ======================
 HH_USER_AGENT = os.getenv("HH_USER_AGENT", "CompetencyAnalyzer (kok.yoko@gmx.com)")
-REQUEST_DELAY = float(os.getenv("REQUEST_DELAY", "0.5"))
+REQUEST_DELAY = float(os.getenv("REQUEST_DELAY", "0.1"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 RETRY_DELAY = float(os.getenv("RETRY_DELAY", "2"))
 # ====================== hh.ru OAuth ======================
@@ -66,3 +66,12 @@ DATA_EMBEDDINGS_DIR.mkdir(parents=True, exist_ok=True)
 EMBEDDINGS_CACHE_DIR = DATA_EMBEDDINGS_DIR / "cache"
 EMBEDDINGS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.80"))
+# ====================== BM25 ======================
+BM25_MAX_CORPUS_DOCS = int(os.getenv("BM25_MAX_CORPUS_DOCS", "200"))  # топ-N документов для BM25
+BM25_MIN_SCORE = float(os.getenv("BM25_MIN_SCORE", "0.005"))          # минимальный вес n-граммы
+
+# ====================== PCA для эмбеддингов ======================
+PCA_ENABLED = os.getenv("PCA_ENABLED", "true").lower() in ("true", "1", "yes")
+PCA_TARGET_DIM = int(os.getenv("PCA_TARGET_DIM", "256"))              # целевая размерность
+PCA_MIN_SAMPLES = int(os.getenv("PCA_MIN_SAMPLES", "100"))            # мин. навыков для PCA
+PCA_MIN_FEATURES = int(os.getenv("PCA_MIN_FEATURES", "128"))          # мин. размерность для PCA
