@@ -34,3 +34,5 @@ data/embeddings/market_embeddings_junior.pkl
 data/it_skills.backup.json
 data/result/hh_vacancies_detailed.json
 data/raw/
+.pre-commit-cache/
+.ruff_cache/
