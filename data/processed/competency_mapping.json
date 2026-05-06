@@ -87,7 +87,8 @@
   "BD-1.3": [
     "визуализация данных", "power bi", "tableau", "понижение размерности", "pca",
     "t-SNE", "UMAP", "графическое представление данных", "дашборды",
-    "matplotlib", "seaborn", "plotly"
+    "matplotlib", "seaborn", "plotly",
+    "ms excel", "ms office"
   ],
   "BD-1.4": [
     "feature selection", "feature engineering", "feature importance",
@@ -225,9 +226,9 @@
   ],
 
   "PL-1.1": [
-    "python", "python разработка",
-    "python programming", "скрипты Python", "ООП Python",
-    "git", "pytest", "debugging"
+    "python", "python разработка", "python programming", "скрипты Python", "ООП Python",
+    "git", "pytest", "debugging","gitlab",
+    "html", "css", "typescript", "php", "github", "figma"
   ],
   "PL-1.2": [
     "numpy", "pandas", "matplotlib", "seaborn", "scikit-learn", "pytorch", "tensorflow",
@@ -242,15 +243,16 @@
   "PL-1.4": [
     "docker", "ci/cd", "asyncio",
     "контейнеризация Python", "микросервисы Python", "FastAPI", "Celery",
-    "restful", "redis", "node.js", "flask", "django"
+    "restful", "redis", "node.js", "flask", "django",
+    "react", "vue", "angular", "graphql", "swagger", "gRPC", "flux"
   ],
   "PL-2.1": [
-    "java", "spring boot",
+    "java", "spring boot", "javascript",
     "java разработка", "enterprise java", "микросервисы на Java", "Hibernate",
     "maven", "gradle", "junit"
   ],
   "PL-2.2": [
-    "java big data", "apache spark java",
+    "java big data", "apache spark java", "javascript",
     "Hadoop Java", "Flink Java", "обработка потоков на Java"
   ],
   "PL-3.1": [
@@ -288,9 +290,9 @@
     "mlops", "devops", "ci/cd", "docker", "kubernetes", "terraform", "mlflow",
     "model serving", "промышленная разработка ии", "fastapi",
     "непрерывная поставка ML", "мониторинг моделей", "автоматизация развёртывания",
-    "restful", "apache kafka", "prometheus", "grafana", "elk stack", "ansible"
+    "restful", "apache kafka", "prometheus", "grafana", "elk stack", "ansible",
+    "bash", "администрирование linux", "gitlab ci/cd", "nginx"
   ],
-
   "AIS-1.1": [
     "моделирование угроз ии", "оценка рисков ии",
     "анализ уязвимостей ИИ", "угрозы безопасности ИИ", "threat modeling"
@@ -337,19 +339,23 @@
 
   "FC-1.1": [
     "новые алгоритмы мл", "research",
-    "исследования в ML", "разработка алгоритмов", "инновационные методы ML"
+    "исследования в ML", "разработка алгоритмов", "инновационные методы ML",
+    "machine learning research", "deep learning research", "ml research"
   ],
   "FC-1.2": [
     "новые архитектуры нейросетей", "deep learning research", "новые архитектуры",
-    "исследование DL", "разработка архитектур", "нейросетевые инновации"
+    "исследование DL", "разработка архитектур", "нейросетевые инновации",
+    "transformers", "diffusion models", "generative ai"
   ],
   "FC-1.3": [
     "ускорение обучения", "оптимизация обучения",
-    "ускорение сходимости", "эффективное обучение", "распределённый градиентный спуск"
+    "ускорение сходимости", "эффективное обучение", "распределённый градиентный спуск",
+    "mixed precision training", "distributed training", "gradient accumulation"
   ],
   "FC-1.4": [
     "распределённое обучение", "федеративное обучение",
-    "federated learning", "обучение на децентрализованных данных", "параллельное обучение"
+    "federated learning", "обучение на децентрализованных данных", "параллельное обучение",
+    "data parallelism", "model parallelism"
   ],
   "FC-2.1": [
     "llm research", "большие языковые модели",
@@ -358,39 +364,47 @@
   ],
   "FC-2.2": [
     "диффузионные модели", "генерация изображений",
-    "diffusion models", "DALL-E", "Midjourney"
+    "diffusion models", "DALL-E", "Midjourney", "stable diffusion"
   ],
   "FC-2.3": [
     "мультимодальные llm",
-    "мультимодальные трансформеры", "объединение модальностей", "видео-языковые модели"
+    "мультимодальные трансформеры", "объединение модальностей", "видео-языковые модели",
+    "clip", "imagebind", "flamingo"
   ],
   "FC-3.1": [
     "reinforcement learning", "обучение с подкреплением",
-    "RL", "Q-обучение", "глубокое обучение с подкреплением"
+    "RL", "Q-обучение", "глубокое обучение с подкреплением",
+    "q-learning", "policy gradient", "deep rl"
   ],
   "FC-3.2": [
     "агентные системы", "multi-agent",
-    "мультиагентное взаимодействие", "кооперативные агенты", "децентрализованный ИИ"
+    "мультиагентное взаимодействие", "кооперативные агенты", "децентрализованный ИИ",
+    "multi-agent rl", "autonomous agents"
   ],
   "FC-3.3": [
     "мультиагентные системы",
-    "многоагентное обучение", "распределённый ИИ", "коллективный интеллект"
+    "многоагентное обучение", "распределённый ИИ", "коллективный интеллект",
+    "swarm intelligence", "cooperative agents"
   ],
   "FC-4.3": [
     "гибридный ии", "нейросимволический ии",
-    "нейро-символьные системы", "интеграция знаний", "логический вывод + обучение"
+    "нейро-символьные системы", "интеграция знаний", "логический вывод + обучение",
+    "neuro-symbolic reasoning", "knowledge graphs"
   ],
   "FC-4.5": [
     "embodied ai", "вещественный ии", "робототехника",
-    "воплощённый ИИ", "роботы с ИИ", "физическое взаимодействие"
+    "воплощённый ИИ", "роботы с ИИ", "физическое взаимодействие",
+    "ros", "robotics simulation", "isaac sim"
   ],
   "FC-5.1": [
     "защита от злоупотреблений ии", "ai safety",
-    "безопасность ИИ", "предотвращение вредоносного использования", "этика разработки"
+    "безопасность ИИ", "предотвращение вредоносного использования", "этика разработки",
+    "responsible ai", "trustworthy ai", "ethical ai"
   ],
   "FC-5.3": [
     "уязвимости ии", "secure ai",
-    "атаки на модели", "защищённый ИИ", "adversarial robustness"
+    "атаки на модели", "защищённый ИИ", "adversarial robustness",
+    "adversarial training", "model robustness"
   ],
 
   "O-1.1": [
