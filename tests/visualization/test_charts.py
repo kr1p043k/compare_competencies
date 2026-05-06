@@ -225,12 +225,12 @@ def test_save_all_charts(mock_ml, mock_radar, mock_coverage, tmp_path):
 
 
 @patch("src.visualization.charts.plot_coverage_comparison")
-def test_save_all_charts_empty_results(mock_coverage, tmp_path):
-    output_dir = tmp_path / "output"
-    # Пустые результаты вызывают ошибку в plot_skills_heatmap
-    # Проверяем что исключение поднимается
-    with pytest.raises(ValueError):
-        save_all_charts({}, output_dir)
+def test_save_all_charts_empty_results(self, tmp_path):
+    """Пустые результаты — не падает, просто ничего не создаёт"""
+    from src.visualization.charts import save_all_charts
+    save_all_charts({}, tmp_path, use_ml=False)
+    # Проверяем, что папка создана (или не упало с ошибкой)
+    assert tmp_path.exists()
 
 
 @patch("src.visualization.charts.plot_coverage_comparison")

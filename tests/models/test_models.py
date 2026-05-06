@@ -40,6 +40,48 @@ def test_student_profile_with_embedding():
     assert student.embedding is not None
     assert len(student.embedding) == 384
 
+def test_profile_comparison_to_dict_for_json_no_best(sample_student):
+    """to_dict_for_json без best_evaluation"""
+    eval1 = ProfileEvaluation(
+        profile_name="test",
+        student=sample_student,
+        level="middle",
+        market_coverage_score=70.0,
+        skill_coverage=65.0,
+        domain_coverage_score=60.0,
+        readiness_score=68.0,
+    )
+    pc = ProfileComparison(evaluations=[eval1])
+    # Не вызываем compute_aggregates — best_evaluation = None
+    result = pc.to_dict_for_json()
+    assert result["total_profiles"] == 1
+    assert result["best_profile"]["profile_name"] == "test"
+
+def test_merge_skills_hierarchically_overlap():
+    """merge_skills_hierarchically с пересекающимися навыками"""
+    result = merge_skills_hierarchically(
+        ["python", "sql"],
+        ["sql", "docker"],
+        ["docker", "git", "python"],
+    )
+    assert result == ["python", "sql", "docker", "git"]
+
+def test_merge_skills_hierarchically_all_same():
+    """merge_skills_hierarchically с одинаковыми навыками"""
+    result = merge_skills_hierarchically(
+        ["python", "sql"],
+        ["python", "sql"],
+        ["python", "sql"],
+    )
+    assert result == ["python", "sql"]
+
+def test_student_profile_embedding_none():
+    """StudentProfile с embedding=None"""
+    student = StudentProfile(profile_name="test", skills=["python"])
+    assert student.embedding is None
+    rep = repr(student)
+    assert "emb=None" in rep
+
 
 # ==================== ProfileEvaluation ====================
 
@@ -252,7 +294,25 @@ class TestSkillMetrics:
         sm = SkillMetrics(skill="python", gap_j=0.5, demand_j=0.8, cluster_relevance=0.7)
         score = sm.score(level_weights={"junior": 1.0, "middle": 0.0, "senior": 0.0})
         assert 0.0 <= score <= 1.0
+    def test_skill_metrics_score_zero_weights(self):
+        """Строка 30-38: score с нулевыми весами"""
+        sm = SkillMetrics(skill="python", gap_j=0.5, demand_j=0.8, cluster_relevance=0.7)
+        score = sm.score(level_weights={"junior": 0.0, "middle": 0.0, "senior": 0.0})
+        assert score == 0.0
 
+    def test_skill_metrics_score_all_weights(self):
+        """Строка 30-38: score с равными весами"""
+        sm = SkillMetrics(
+            skill="python",
+            gap_j=0.5, gap_m=0.3, gap_s=0.1,
+            demand_j=0.8, demand_m=0.9, demand_s=0.9,
+            cluster_relevance=0.7,
+        )
+        score = sm.score(
+            level_weights={"junior": 0.33, "middle": 0.34, "senior": 0.33},
+            domain_bonus=0.5,
+        )
+        assert 0.0 <= score <= 2.0
 
 # ==================== DomainMetrics ====================
 
@@ -520,3 +580,199 @@ class TestVacancyCollection:
     def test_repr(self, sample_vacancies):
         coll = VacancyCollection(sample_vacancies, query="Python")
         assert "2 vacancies" in repr(coll)
+class TestVacancyExtended:
+    @pytest.fixture
+    def sample_api_data(self):
+        return {
+            "id": "123",
+            "name": "Python Developer",
+            "area": {"id": 1, "name": "Москва"},
+            "employer": {"id": "10", "name": "Test Corp", "url": "http://test.com"},
+            "key_skills": [{"name": "Python"}, {"name": "Django"}],
+            "description": "Some description",
+            "snippet": {"requirement": "req", "responsibility": "resp"},
+            "salary": {"from": 100000, "to": 150000, "currency": "RUB"},
+            "experience": {"id": "between3and6", "name": "3-6 лет"},
+            "published_at": "2024-01-01T00:00:00",
+        }
+
+    def test_vacancy_post_init_no_experience(self):
+        """Строка 39: __post_init__ без experience"""
+        area = Area(1, "MSK")
+        employer = Employer("1", "Corp")
+        vac = Vacancy(
+            id="1", name="Test", area=area, employer=employer,
+            experience=None,
+        )
+        assert vac.experience_level == "middle"
+
+    def test_from_api_with_invalid_skill(self, sample_api_data):
+        """Строки 96-100: невалидный навык пропускается"""
+        data = {**sample_api_data}
+        data["key_skills"] = [{"name": ""}, {"name": "  "}, {"name": "Python"}]
+        vac = Vacancy.from_api(data)
+        assert len(vac.key_skills) == 1
+        assert vac.key_skills[0].name == "Python"
+
+    def test_from_api_without_snippet(self, sample_api_data):
+        """Строка 117: без snippet"""
+        data = {**sample_api_data, "snippet": None}
+        vac = Vacancy.from_api(data)
+        assert vac.snippet is None
+
+    def test_from_api_without_salary(self, sample_api_data):
+        """Строка 122: без salary"""
+        data = {**sample_api_data, "salary": None}
+        vac = Vacancy.from_api(data)
+        assert vac.salary is None
+
+    def test_from_api_without_experience(self, sample_api_data):
+        """Строка 125: без experience"""
+        data = {**sample_api_data, "experience": None}
+        vac = Vacancy.from_api(data)
+        assert vac.experience is None
+        assert vac.experience_level == "middle"
+
+    def test_from_api_key_error_handling(self):
+        with pytest.raises(ValueError, match="Отсутствует название вакансии"):
+            Vacancy.from_api({"id": "1"})
+
+    def test_from_api_type_error_handling(self):
+        with pytest.raises(ValueError, match="Отсутствует название вакансии"):
+            Vacancy.from_api({"id": "1", "name": None, "area": None, "employer": None})
+
+    def test_get_all_text_with_description(self, sample_api_data):
+        """Строка 168: get_all_text с описанием"""
+        vac = Vacancy.from_api(sample_api_data)
+        text = vac.get_all_text()
+        assert "Python Developer" in text
+        assert "Some description" in text
+
+    def test_get_all_text_without_snippet(self):
+        """Строки 168-187: get_all_text без snippet"""
+        area = Area(1, "MSK")
+        employer = Employer("1", "Corp")
+        vac = Vacancy(
+            id="1", name="Test", area=area, employer=employer,
+            description="Description only",
+            snippet=None,
+        )
+        text = vac.get_all_text()
+        assert "Description only" in text
+
+    def test_has_skills_false(self):
+        """Строка 187: has_skills = False"""
+        area = Area(1, "MSK")
+        employer = Employer("1", "Corp")
+        vac = Vacancy(id="1", name="Test", area=area, employer=employer, key_skills=[])
+        assert vac.has_skills() is False
+
+    def test_vacancy_repr(self):
+        """Строка 234: __repr__"""
+        area = Area(1, "MSK")
+        employer = Employer("1", "Corp")
+        vac = Vacancy(id="1", name="Dev", area=area, employer=employer, key_skills=[KeySkill("Python")])
+        rep = repr(vac)
+        assert "Dev" in rep
+        assert "Corp" in rep
+
+    def test_vacancy_hash(self):
+        """Строка 236: __hash__"""
+        area = Area(1, "MSK")
+        employer = Employer("1", "Corp")
+        vac1 = Vacancy(id="1", name="A", area=area, employer=employer)
+        vac2 = Vacancy(id="1", name="B", area=area, employer=employer)
+        assert hash(vac1) == hash(vac2)
+
+    def test_vacancy_eq_different_id(self):
+        """Строка 236: __eq__ с разными ID"""
+        area = Area(1, "MSK")
+        employer = Employer("1", "Corp")
+        vac1 = Vacancy(id="1", name="A", area=area, employer=employer)
+        vac2 = Vacancy(id="2", name="A", area=area, employer=employer)
+        assert vac1 != vac2
+
+    def test_vacancy_eq_non_vacancy(self):
+        """Строка 236: __eq__ с не-Vacancy"""
+        area = Area(1, "MSK")
+        employer = Employer("1", "Corp")
+        vac = Vacancy(id="1", name="A", area=area, employer=employer)
+        assert vac != "not a vacancy"
+
+    # ==================== VacancyCollection ====================
+
+    def test_collection_len(self, sample_vacancies):
+        """Строка 285-287: __len__"""
+        from src.models.vacancy import VacancyCollection
+        coll = VacancyCollection(sample_vacancies)
+        assert len(coll) == 2
+
+    def test_collection_iter(self, sample_vacancies):
+        """Строка 285-287: __iter__"""
+        from src.models.vacancy import VacancyCollection
+        coll = VacancyCollection(sample_vacancies)
+        items = list(coll)
+        assert len(items) == 2
+
+    def test_collection_get_all_skills_empty(self):
+        """Строка 329: пустая коллекция"""
+        from src.models.vacancy import VacancyCollection
+        coll = VacancyCollection([])
+        skills = coll.get_all_skills()
+        assert skills == []
+
+    def test_collection_get_stats_by_level(self, sample_vacancies):
+        from src.models.vacancy import VacancyCollection
+        coll = VacancyCollection(sample_vacancies)
+        stats = coll.get_stats()
+        assert "by_level" in stats
+        # Фактические значения зависят от фикстуры
+        assert stats["by_level"]["middle"] >= 0
+
+    def test_collection_get_stats_avg_skills(self, sample_vacancies):
+        """Строка 337: среднее навыков на вакансию"""
+        from src.models.vacancy import VacancyCollection
+        coll = VacancyCollection(sample_vacancies)
+        stats = coll.get_stats()
+        assert "avg_skills_per_vacancy" in stats
+
+    def test_collection_add_duplicate(self, sample_vacancies):
+        """Строка 287-289: добавление дубликата"""
+        from src.models.vacancy import VacancyCollection
+        coll = VacancyCollection()
+        coll.add(sample_vacancies[0])
+        coll.add(sample_vacancies[0])  # дубликат
+        assert len(coll) == 1
+
+    def test_collection_repr_no_query(self, sample_vacancies):
+        """Строка 352: __repr__ без query"""
+        from src.models.vacancy import VacancyCollection
+        coll = VacancyCollection(sample_vacancies)
+        rep = repr(coll)
+        assert "2 vacancies" in rep
+
+    def test_collection_fetched_at_default(self, sample_vacancies):
+        """Строка 360: fetched_at по умолчанию"""
+        from src.models.vacancy import VacancyCollection
+        from datetime import datetime
+        coll = VacancyCollection(sample_vacancies)
+        assert isinstance(coll.fetched_at, datetime)
+
+    # ==================== Salary ====================
+
+    def test_salary_repr_range(self):
+        """Строка 382: __repr__ с диапазоном"""
+        s = Salary(from_amount=100000, to_amount=150000, currency="RUB")
+        assert "100000-150000 RUB" in repr(s)
+
+    def test_salary_repr_from_only(self):
+        s = Salary(from_amount=100000)
+        assert "от 100000 RUB" in repr(s)
+
+    def test_salary_repr_to_only(self):
+        s = Salary(to_amount=150000)
+        assert "до 150000 RUB" in repr(s)
+
+    def test_salary_repr_none(self):
+        s = Salary()
+        assert repr(s) == "Не указана"
