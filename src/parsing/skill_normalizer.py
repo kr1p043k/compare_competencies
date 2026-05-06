@@ -7,7 +7,7 @@ from typing import List, Dict, Optional, Set
 import logging
 from rapidfuzz import process, fuzz
 from src.parsing.utils import load_it_skills 
-
+from functools import lru_cache
 logger = logging.getLogger(__name__)
 
 class SkillNormalizer:
@@ -247,6 +247,7 @@ class SkillNormalizer:
         return cls._whitelist
 
     @staticmethod
+    @lru_cache(maxsize=None)
     def normalize(skill: str) -> str:
         if not skill:
             return ""

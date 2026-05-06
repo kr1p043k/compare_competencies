@@ -348,7 +348,6 @@ def interactive_config() -> Dict[str, Any]:
         max_pages = 50
         skip_details = False
         show_list = False
-        print("\nОграничение: 500 вакансий на одну позицию")
         apply_filter = input_yes_no("Применять фильтрацию по белому списку?", default=False)
         max_vacancies = 100000
     else:
