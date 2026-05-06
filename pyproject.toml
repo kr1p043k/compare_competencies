@@ -1,0 +1,18 @@
+[tool.bandit]
+exclude_dirs = ["tests", "notebooks", "data"]
+skips = ["B101", "B603"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = ["data/", "notebook_jypiter/", "tests/", "frontend/"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["N806"]
+"src/predictors/*.py" = ["N806", "N803"]
+"src/analyzers/vacancy_clustering.py" = ["N806"]
+"src/loaders_student/student_loader.py" = ["E402"]
