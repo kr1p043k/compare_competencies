@@ -1,21 +1,35 @@
-"""Конфигурация structlog с защитой от дублирования handler'ов."""
+"""Конфигурация structlog с маскированием чувствительных данных и защитой от дублирования handler'ов."""
 
 import logging
 import os
+import re
 
 import structlog
 
 from src.config import LOG_FILE
 
 
+class SecretsMasker:
+    """Заменяет API-ключи, токены и пароли на *** при логировании."""
+
+    _patterns = [
+        (re.compile(r"(api[_-]?key[=:]\s*)[^\s,}]+", re.IGNORECASE), r"\1***"),
+        (re.compile(r"(token[=:]\s*)[^\s,}]+", re.IGNORECASE), r"\1***"),
+        (re.compile(r"(secret[=:]\s*)[^\s,}]+", re.IGNORECASE), r"\1***"),
+        (re.compile(r"(password[=:]\s*)[^\s,}]+", re.IGNORECASE), r"\1***"),
+        (re.compile(r"(?:Ключ|Пароль|Токен|Секрет)[=:]\s*[^\s,}]+", re.IGNORECASE), "***"),
+    ]
+
+    @classmethod
+    def mask(cls, _, __, event_dict):
+        for pattern, replacement in cls._patterns:
+            for key, value in event_dict.items():
+                if isinstance(value, str):
+                    event_dict[key] = pattern.sub(replacement, value)
+        return event_dict
+
+
 def setup_structlog(console_level: int = None):
-    """
-    Настраивает structlog: JSON в файл, цветной вывод в консоль.
-
-    Args:
-        console_level: Уровень логирования для консоли (по умолчанию из LOG_LEVEL или INFO)
-    """
-
     root_logger = logging.getLogger()
     if root_logger.handlers:
         return
@@ -43,6 +57,7 @@ def setup_structlog(console_level: int = None):
             structlog.stdlib.filter_by_level,
             structlog.stdlib.add_logger_name,
             structlog.stdlib.add_log_level,
+            SecretsMasker.mask,  # <-- маскирование секретов
             structlog.stdlib.PositionalArgumentsFormatter(),
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.StackInfoRenderer(),
