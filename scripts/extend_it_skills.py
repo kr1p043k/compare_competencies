@@ -21,10 +21,11 @@
 
 import argparse
 import json
-import logging
 import sys
 from collections import Counter
 from pathlib import Path
+
+import structlog
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -35,8 +36,7 @@ from src.parsing.skill_validator import SkillValidator
 from src.parsing.utils import load_it_skills, read_json
 from src.parsing.vacancy_parser import VacancyParser
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(message)s", datefmt="%H:%M:%S")
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # =====================================================================
@@ -89,9 +89,11 @@ def extract_all_skills(vacancies: list[dict], min_frequency: int = 1) -> list[tu
             valid.append((skill, count))
 
     logger.info(
-        f"Извлечено {len(skill_counter)} уникальных → "
-        f"{len(filtered)} после фильтра (≥{min_frequency}) → "
-        f"{len(valid)} валидных"
+        "skills_extracted",
+        unique=len(skill_counter),
+        filtered=len(filtered),
+        min_frequency=min_frequency,
+        valid=len(valid),
     )
     return sorted(valid, key=lambda x: x[1], reverse=True)
 
@@ -195,11 +197,11 @@ def add_skills_to_whitelist(skills_to_add: set[str], output_path: Path, backup: 
     """Добавляет навыки в it_skills.json. Возвращает количество добавленных."""
     current = load_it_skills()
     if not current:
-        logger.error("Не удалось загрузить белый список")
+        logger.error("failed_to_load_whitelist")
         return 0
 
     if not skills_to_add:
-        logger.info("Не выбрано ни одного навыка")
+        logger.info("no_skills_selected")
         return 0
 
     if backup and output_path.exists():
@@ -207,16 +209,19 @@ def add_skills_to_whitelist(skills_to_add: set[str], output_path: Path, backup: 
 
         backup_path = output_path.with_suffix(".backup.json")
         shutil.copy(output_path, backup_path)
-        logger.info(f"Резервная копия: {backup_path}")
+        logger.info("backup_created", path=str(backup_path))
 
     updated = sorted(current | skills_to_add)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(updated, f, ensure_ascii=False, indent=2)
 
-    logger.info(f"✅ Белый список обновлён: {output_path}")
-    logger.info(f"   Было:     {len(current)}")
-    logger.info(f"   Добавлено: {len(skills_to_add)}")
-    logger.info(f"   Стало:    {len(updated)}")
+    logger.info(
+        "whitelist_updated",
+        path=str(output_path),
+        before=len(current),
+        added=len(skills_to_add),
+        after=len(updated),
+    )
     return len(skills_to_add)
 
 
@@ -231,11 +236,11 @@ def _make_bar(percent: float, width: int = 20) -> str:
 
 
 def _print_available_files():
-    logger.info("Доступные файлы вакансий:")
+    logger.info("available_vacancy_files")
     for p in config.DATA_RAW_DIR.glob("*.json"):
-        logger.info(f"  • data/raw/{p.name}")
+        logger.info("raw_file", name=f"data/raw/{p.name}")
     for p in config.DATA_RESULT_DIR.glob("*.json"):
-        logger.info(f"  • data/result/{p.name}")
+        logger.info("result_file", name=f"data/result/{p.name}")
 
 
 # =====================================================================
@@ -271,7 +276,6 @@ def main():
     )
     parser.add_argument("--min-frequency", "-f", type=int, default=1, help="Минимальная частота навыка (default: 1)")
 
-    # Режимы запуска
     parser.add_argument(
         "--interactive", "-i", action="store_true", help="Интерактивный режим: анализ + выбор навыков для добавления"
     )
@@ -279,7 +283,6 @@ def main():
         "--yes", "-y", action="store_true", help="Добавить все новые навыки автоматически (без подтверждения)"
     )
 
-    # Дополнительные отчёты (можно с любым режимом)
     parser.add_argument("--coverage", "-c", action="store_true", help="Показать покрытие категорий таксономии")
     parser.add_argument(
         "--dead", "-d", action="store_true", help="Показать навыки из белого списка без упоминаний в вакансиях"
@@ -288,49 +291,41 @@ def main():
 
     args = parser.parse_args()
 
-    # Проверка: --interactive и --yes вместе не имеют смысла
     if args.interactive and args.yes:
-        logger.error("Нельзя использовать --interactive и --yes одновременно")
+        logger.error("conflicting_flags_interactive_and_yes")
         sys.exit(1)
 
-    # Проверка файла
     if not args.vacancies.exists():
-        logger.error(f"Файл не найден: {args.vacancies}")
+        logger.error("vacancy_file_not_found", path=str(args.vacancies))
         _print_available_files()
         sys.exit(1)
 
-    # Таксономия
     try:
         taxonomy = SkillTaxonomy()
     except Exception:
         taxonomy = None
 
-    # Загружаем данные
     current_skills = load_it_skills()
     if not current_skills:
-        logger.error("Не удалось загрузить it_skills.json")
+        logger.error("failed_to_load_it_skills")
         sys.exit(1)
 
     vacancies = read_json(args.vacancies)
     if not vacancies:
-        logger.error("Не удалось загрузить вакансии")
+        logger.error("failed_to_load_vacancies")
         sys.exit(1)
 
-    logger.info(f"Белый список: {len(current_skills)} навыков")
-    logger.info(f"Вакансий: {len(vacancies)}")
+    logger.info("starting_analysis", whitelist=len(current_skills), vacancies=len(vacancies))
 
-    # Извлекаем навыки
     extracted = extract_all_skills(vacancies, min_frequency=args.min_frequency)
     extracted_dict = {skill: freq for skill, freq in extracted}
 
-    # Новые навыки — показываем всегда
     new_skills = {}
     for skill, freq in extracted_dict.items():
         if skill.lower() not in current_skills:
             new_skills[skill] = freq
     print_new_skills(new_skills, taxonomy)
 
-    # Дополнительные отчёты (по флагам)
     if args.coverage and taxonomy:
         coverage = analyze_coverage(current_skills, taxonomy)
         print_coverage(coverage)
@@ -339,13 +334,11 @@ def main():
         dead = find_dead_skills(current_skills, extracted_dict)
         print_dead_skills(dead)
 
-    # Определяем, нужно ли добавлять
     if not new_skills:
         print("\n✅ Белый список актуален — новых навыков нет.")
         return
 
     if args.yes:
-        # Автоматическое добавление
         added = add_skills_to_whitelist(
             skills_to_add=set(new_skills.keys()), output_path=args.output, backup=not args.no_backup
         )
@@ -356,7 +349,6 @@ def main():
             print("   rm -r data/embeddings/cache/")
 
     elif args.interactive:
-        # Интерактивный режим: пользователь выбирает
         selected = interactive_confirm(new_skills)
         if selected:
             added = add_skills_to_whitelist(skills_to_add=selected, output_path=args.output, backup=not args.no_backup)
@@ -369,7 +361,6 @@ def main():
             print("\nНичего не добавлено.")
 
     else:
-        # Режим анализа: просто информируем
         print("\n" + "-" * 70)
         print("📋 РЕЖИМ АНАЛИЗА — изменения не вносятся.")
         print("-" * 70)

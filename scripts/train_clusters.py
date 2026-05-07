@@ -5,10 +5,11 @@ train_clusters.py — Улучшенный скрипт обучения кла�
 
 import argparse
 import json
-import logging
 import sys
 from datetime import datetime
 from pathlib import Path
+
+import structlog
 
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -17,8 +18,7 @@ from src.analyzers.vacancy_clustering import VacancyClusterer
 from src.parsing.utils import read_json
 from src.parsing.vacancy_parser import VacancyParser
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(message)s", datefmt="%H:%M:%S")
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def prepare_vacancies_for_clustering(raw_vacancies: list) -> list:
@@ -72,8 +72,8 @@ def prepare_vacancies_for_clustering(raw_vacancies: list) -> list:
                 "skills": all_skills,
                 "experience": experience,
                 "id": vac.get("id", ""),
-                "name": vac.get("name", ""),  # <-- добавили
-                "key_skills": key_skills,  # <-- можно убрать в проде, но для отладки полезно
+                "name": vac.get("name", ""),
+                "key_skills": key_skills,
             }
         )
 
@@ -85,38 +85,41 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
     print("🚀 ЗАПУСК ОБУЧЕНИЯ КЛАСТЕРОВ ВАКАНСИЙ")
     print("=" * 80 + "\n")
 
-    # Приоритет: детальный файл, затем базовый
     detailed_file = config.DATA_RESULT_DIR / "hh_vacancies_detailed.json"
     basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
 
     if detailed_file.exists():
         vacancies_path = detailed_file
-        logger.info(f"Используем детальные вакансии из {vacancies_path}")
+        logger.info("using_detailed_vacancies", path=str(vacancies_path))
     elif basic_file.exists():
         vacancies_path = basic_file
-        logger.warning("Детальный файл не найден, используем базовый (навыков будет мало)")
+        logger.warning("detailed_file_not_found_using_basic")
     else:
-        logger.error("Нет файлов вакансий")
+        logger.error("no_vacancy_files_found")
         return False
 
     raw_vacancies = read_json(vacancies_path)
     if raw_vacancies is None:
-        logger.error(f"Не удалось загрузить вакансии из {vacancies_path}")
+        logger.error("failed_to_load_vacancies", path=str(vacancies_path))
         return False
 
-    logger.info(f"Загружено сырых вакансий: {len(raw_vacancies):,}")
+    logger.info("raw_vacancies_loaded", count=len(raw_vacancies))
 
     print("🔍 Извлечение навыков из вакансий...")
     all_vacancies = prepare_vacancies_for_clustering(raw_vacancies)
-    logger.info(f"Подготовлено вакансий: {len(all_vacancies)}")
+    logger.info("vacancies_prepared", count=len(all_vacancies))
 
-    # Диагностика пустых навыков
     empty = [v for v in all_vacancies if not v["skills"]]
     if empty:
-        logger.warning(f"Обнаружено {len(empty)} вакансий без навыков")
-        logger.info("Примеры пустых вакансий (первые 3):")
+        logger.warning("vacancies_without_skills", count=len(empty))
+        logger.info("empty_vacancies_sample")
         for v in empty[:3]:
-            logger.info(f"Вакансия ID={v['id']}, Название='{v['name']}', key_skills={v.get('key_skills', [])}")
+            logger.info(
+                "empty_vacancy_detail",
+                id=v["id"],
+                name=v["name"],
+                key_skills=v.get("key_skills", []),
+            )
 
     clusterer = VacancyClusterer(min_cluster_size=5)
 
@@ -135,11 +138,14 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
 
         level_vacancies = [v for v in all_vacancies if v.get("experience") == lvl]
         before_filter = len(level_vacancies)
-        # Фильтруем пустые
         level_vacancies = [v for v in level_vacancies if v["skills"]]
         after_filter = len(level_vacancies)
         if before_filter != after_filter:
-            logger.info(f"Уровень {lvl}: отфильтровано {before_filter - after_filter} пустых вакансий")
+            logger.info(
+                "empty_vacancies_filtered",
+                level=lvl,
+                filtered=before_filter - after_filter,
+            )
 
         n = len(level_vacancies)
         print(f"   Вакансий после фильтрации: {n:,}")
@@ -153,7 +159,6 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
             report["levels"][lvl] = {"status": "skipped", "reason": "too_few_samples", "count": n}
             continue
 
-        # Адаптивные параметры
         if lvl == "junior":
             clusterer.n_clusters = 5
             clusterer.min_clusters = 2
@@ -191,7 +196,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
                 "avg_skills_per_vacancy": round(avg_skills, 1),
             }
         except Exception as e:
-            logger.error(f"Ошибка при обучении {lvl}: {e}")
+            logger.error("cluster_training_failed", level=lvl, error=str(e))
             print(f"   ❌ Ошибка: {e}")
             report["levels"][lvl] = {"status": "failed", "error": str(e)}
 
