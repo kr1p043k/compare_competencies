@@ -36,3 +36,4 @@ data/result/hh_vacancies_detailed.json
 data/raw/
 .pre-commit-cache/
 .ruff_cache/
+data/result/test

@@ -3,11 +3,12 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
+from src import config
 from src.analyzers.domain_analyzer import DomainAnalyzer
 from src.analyzers.embedding_comparator import EmbeddingComparator
 from src.analyzers.gap_analyzer import GapAnalyzer
@@ -25,6 +26,7 @@ def pytest_configure(config):
     mock_model = MagicMock()
     mock_model.encode.return_value = np.random.rand(10, 384)
     mock_model.eval.return_value = mock_model
+    mock_model.get_sentence_embedding_dimension.return_value = 384
 
     mock_st = MagicMock()
     mock_st.SentenceTransformer = MagicMock(return_value=mock_model)
@@ -32,6 +34,35 @@ def pytest_configure(config):
 
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+
+# =====================================================================
+# ГЛОБАЛЬНЫЙ МОК ДИРЕКТОРИЙ — предотвращает создание файлов в data/
+# =====================================================================
+@pytest.fixture(autouse=True)
+def mock_all_data_dirs(tmp_path, monkeypatch):
+    """
+    Подменяет все директории data/ на временные,
+    чтобы тесты НЕ создавали файлы в реальных директориях.
+    """
+    dirs = {
+        "DATA_DIR": tmp_path / "data",
+        "DATA_RAW_DIR": tmp_path / "data" / "raw",
+        "DATA_PROCESSED_DIR": tmp_path / "data" / "processed",
+        "DATA_RESULT_DIR": tmp_path / "data" / "result",
+        "HISTORY_DIR": tmp_path / "data" / "history",
+        "MODELS_DIR": tmp_path / "data" / "models",
+        "STUDENTS_DIR": tmp_path / "data" / "students",
+        "EMBEDDINGS_CACHE_DIR": tmp_path / "data" / "embeddings" / "cache",
+        "DATA_EMBEDDINGS_DIR": tmp_path / "data" / "embeddings",
+    }
+
+    for attr, path in dirs.items():
+        if hasattr(config, attr):
+            path.mkdir(parents=True, exist_ok=True)
+            monkeypatch.setattr(config, attr, path)
+
+    yield
 
 
 @pytest.fixture(autouse=True)
@@ -165,7 +196,11 @@ def mock_embedder(monkeypatch):
 @pytest.fixture
 def profile_evaluator(sample_skill_weights):
     vacancies_skills = [["python", "sql"], ["fastapi", "docker"]]
-    return ProfileEvaluator(skill_weights=sample_skill_weights, vacancies_skills=vacancies_skills)
+    return ProfileEvaluator(
+        skill_weights=sample_skill_weights,
+        vacancies_skills=vacancies_skills,
+        vacancies_skills_dict=[{"skills": s} for s in vacancies_skills],
+    )
 
 
 @pytest.fixture
@@ -181,5 +216,4 @@ def domain_analyzer():
 @pytest.fixture
 def charts_module():
     import src.visualization.charts as charts
-
     return charts
