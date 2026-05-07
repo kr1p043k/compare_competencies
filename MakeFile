@@ -1,0 +1,50 @@
+.PHONY: help install install-dev lint format test train clusters rebuild run-api clean
+
+help:
+	@echo "Доступные команды:"
+	@echo "  make install      - установить зависимости"
+	@echo "  make install-dev  - установить включая dev"
+	@echo "  make lint         - проверить код ruff"
+	@echo "  make format       - автоформатирование"
+	@echo "  make test         - запустить тесты"
+	@echo "  make train        - обучить LTR-модель"
+	@echo "  make clusters     - обучить кластеры"
+	@echo "  make rebuild      - полная пересборка"
+	@echo "  make run-api      - запустить API сервер"
+	@echo "  make clean        - удалить кэши"
+
+install:
+	uv pip install -e .
+
+install-dev:
+	uv pip install -e ".[dev]"
+
+lint:
+	ruff check src/ scripts/ main.py
+	ruff format --check src/ scripts/ main.py
+
+format:
+	ruff check --fix src/ scripts/ main.py
+	ruff format src/ scripts/ main.py
+
+test:
+	pytest tests/ -v
+
+train:
+	python main.py --train-model
+
+clusters:
+	python scripts/train_clusters.py --level all
+
+rebuild:
+	python scripts/full_rebuild.py
+
+run-api:
+	uvicorn src.api:app --reload --port 8000
+
+clean:
+	rm -rf data/processed/parsed_skills.pkl
+	rm -rf data/embeddings/cache/*
+	rm -rf data/models/ltr_ranker_xgb_regressor.joblib
+	rm -rf data/processed/vacancy_clusters_*.pkl
+	echo "Кэши очищены"

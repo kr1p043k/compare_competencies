@@ -13,3 +13,4 @@ hdbscan
 pre-commit
 ruff
 fastapi
+uv

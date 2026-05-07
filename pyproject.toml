@@ -1,6 +1,48 @@
-[tool.bandit]
-exclude_dirs = ["tests", "notebooks", "data"]
-skips = ["B101", "B603"]
+[project]
+name = "competency_comparison"
+version = "2.0.0"
+description = "Сравнение компетенций с требованиями рынка труда hh.ru"
+requires-python = ">=3.11"
+
+dependencies = [
+    "requests",
+    "pandas",
+    "pydantic",
+    "matplotlib",
+    "seaborn",
+    "numpy",
+    "openpyxl",
+    "aiohttp>=3.8.0",
+    "scikit-learn>=1.3.0",
+    "sentence-transformers==3.4.1",
+    "torch>=2.5.0",
+    "rapidfuzz",
+    "rank-bm25",
+    "python-dotenv>=1.0.0",
+    "pymorphy3",
+    "xgboost>=2.0.0",
+    "shap>=0.45.0",
+    "joblib",
+    "chardet>=5.0.0",
+    "structlog",
+    "fastapi",
+    "uvicorn",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "aioresponses",
+    "jupyter",
+    "ipykernel",
+    "ipywidgets",
+    "streamlit",
+    "plotly",
+    "nltk",
+    "faiss-cpu",
+    "hdbscan",
+]
 
 [tool.ruff]
 line-length = 120
@@ -16,3 +58,7 @@ ignore = ["E501"]
 "src/predictors/*.py" = ["N806", "N803"]
 "src/analyzers/vacancy_clustering.py" = ["N806"]
 "src/loaders_student/student_loader.py" = ["E402"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "notebooks", "data"]
+skips = ["B101", "B603"]

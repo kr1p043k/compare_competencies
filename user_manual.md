@@ -564,6 +564,26 @@ ML-модель и рекомендации
 
   # Пропустить проверки (только в крайнем случае)
   git commit --no-verify -m "срочный фикс"
+
+Makefile: быстрые команды
+================================================================================
+
+В корне проекта есть файл `Makefile` с набором полезных команд.
+Для работы требуется утилита `make` (установлена по умолчанию в Linux/macOS,
+для Windows — установить через `choco install make`).
+
+  make help         Показать все доступные команды
+  make install      Установить prod-зависимости (через uv)
+  make install-dev  Установить все зависимости (+ dev)
+  make lint         Проверить код на ошибки (ruff)
+  make format       Автоформатирование кода (ruff)
+  make test         Запустить тесты (pytest)
+  make train        Обучить LTR-модель (python main.py --train-model)
+  make clusters     Обучить кластеры (python scripts/train_clusters.py --level all)
+  make rebuild      Полная пересборка проекта (scripts/full_rebuild.py)
+  make run-api      Запустить API сервер (uvicorn src.api:app --reload)
+  make clean        Удалить кэши и модели
+
 Поддержка
 ================================================================================
 
