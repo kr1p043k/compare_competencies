@@ -12,3 +12,4 @@ faiss-cpu
 hdbscan
 pre-commit
 ruff
+fastapi
