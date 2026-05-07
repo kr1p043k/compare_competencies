@@ -2,12 +2,12 @@
 Embedding Comparator с поддержкой уровней опыта и FAISS (опционально)
 """
 
-import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import joblib
 import numpy as np
+import structlog
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src import config
@@ -16,7 +16,7 @@ from src.parsing.embedding_loader import get_embedding_model
 if TYPE_CHECKING:
     from src.analyzers.vacancy_clustering import VacancyClusterer
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 try:
     import faiss
@@ -46,9 +46,9 @@ class EmbeddingComparator:
         self.vacancies_data: list[dict] = []
 
         if self.use_faiss:
-            logger.info("✅ FAISS доступен, будет использоваться для быстрого поиска")
+            logger.info("faiss_available")
         else:
-            logger.info("ℹ️ FAISS не установлен, используется sklearn cosine_similarity")
+            logger.info("faiss_unavailable")
 
     def _get_cache_path(self, name: str, level: str = "middle") -> Path:
         return self.cache_dir / f"{name}_{level}.pkl"
@@ -68,7 +68,7 @@ class EmbeddingComparator:
                 self.market_skills = loaded["skills"]
             else:
                 self.market_embeddings, self.market_skills = loaded
-            logger.info(f"✅ Загружен кэш embeddings для {level}")
+            logger.info("embeddings_cache_loaded", level=level)
 
             if self.use_faiss:
                 self._build_faiss_index()
@@ -77,7 +77,7 @@ class EmbeddingComparator:
         self.market_skills = all_market_skills
         self.market_embeddings = self.embed_skills(self.market_skills)
         joblib.dump({"embeddings": self.market_embeddings, "skills": self.market_skills}, cache_path)
-        logger.info(f"✅ Market embeddings сохранены для level={level}")
+        logger.info("market_embeddings_saved", level=level)
 
         if self.use_faiss:
             self._build_faiss_index()
@@ -89,7 +89,7 @@ class EmbeddingComparator:
         self.index = faiss.IndexFlatIP(dim)
         faiss.normalize_L2(self.market_embeddings)
         self.index.add(self.market_embeddings)
-        logger.info("✅ FAISS индекс построен")
+        logger.info("faiss_index_built")
 
     def compare_student_to_market(self, student_skills: list[str]) -> dict:
         if self.market_embeddings is None:
@@ -121,9 +121,9 @@ class EmbeddingComparator:
         total_weight = 0.0
 
         if not self.skill_weights:
-            logger.warning("EmbeddingComparator: skill_weights пусты, используется fallback (равные веса)")
+            logger.warning("skill_weights_empty")
         else:
-            logger.debug(f"EmbeddingComparator: используем {len(self.skill_weights)} весов для weighted_coverage")
+            logger.debug("skill_weights_count", count=len(self.skill_weights))
 
         # === ИСПРАВЛЕНИЕ: квадратичный штраф для слабых совпадений ===
         if self.skill_weights:

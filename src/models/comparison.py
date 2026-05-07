@@ -4,9 +4,12 @@
 
 from datetime import datetime
 
+import structlog
 from pydantic import BaseModel, Field
 
 from .student import ProfileEvaluation
+
+logger = structlog.get_logger(__name__)
 
 
 class GapResult(BaseModel):
@@ -20,6 +23,9 @@ class GapResult(BaseModel):
     cluster_relevance: float = 0.0
     demand: float = 0.0
     priority: str = "LOW"  # HIGH, MEDIUM, LOW
+
+    def __repr__(self):
+        return f"GapResult({self.skill}, priority={self.priority}, max_gap={self.max_gap:.3f})"
 
 
 class ComparisonReport(BaseModel):
@@ -60,6 +66,20 @@ class ComparisonReport(BaseModel):
 
     def to_dict(self) -> dict:
         """Удобный метод для сохранения в JSON"""
+        high_count = len(self.high_priority_gaps)
+        medium_count = len(self.medium_priority_gaps)
+        low_count = len(self.low_priority_gaps)
+
+        logger.debug(
+            "comparison_report_serialized",
+            profiles=self.total_profiles,
+            avg_readiness=round(self.average_readiness, 2),
+            high_priority_gaps=high_count,
+            medium_priority_gaps=medium_count,
+            low_priority_gaps=low_count,
+            total_recommendations=len(self.overall_recommendations),
+        )
+
         return {
             "timestamp": str(self.timestamp),
             "total_profiles": self.total_profiles,
@@ -93,3 +113,10 @@ class SkillGapSummary(BaseModel):
     medium_priority_count: int
     low_priority_count: int
     top_gaps: list[GapResult] = Field(default_factory=list)
+
+    def __repr__(self):
+        return (
+            f"SkillGapSummary({self.profile_name}, "
+            f"gaps={self.total_gaps}, "
+            f"H={self.high_priority_count}/M={self.medium_priority_count}/L={self.low_priority_count})"
+        )

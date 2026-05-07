@@ -1,14 +1,14 @@
 # src/parsing/hh_api_async.py
 
 import asyncio
-import logging
 import time
 
 import aiohttp
+import structlog
 
 from src import config
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class HeadHunterAPIAsync:
@@ -19,8 +19,8 @@ class HeadHunterAPIAsync:
         max_concurrent: int = 2,
         request_delay: float = None,
         batch_size: int = 50,
-        token: str = None,  # ✅ можно передать готовый токен
-        token_expires_at: float = 0,  # ✅ и время его истечения
+        token: str = None,
+        token_expires_at: float = 0,
     ):
         self.max_concurrent = max_concurrent
         self.request_delay = request_delay or 0.5
@@ -30,36 +30,32 @@ class HeadHunterAPIAsync:
         self.stats = {"success": 0, "403_errors": 0, "404_errors": 0, "429_errors": 0, "timeouts": 0, "other_errors": 0}
 
         # === АВТОРИЗАЦИЯ ===
-        self._token = token  # ✅ берём переданный токен
+        self._token = token
         self._token_expires_at = token_expires_at
         self._token_lock = asyncio.Lock()
 
     async def _ensure_token(self):
         """Проверяет и обновляет токен при необходимости."""
-        # Быстрая проверка
         if self._token and time.time() < self._token_expires_at:
             return
 
         async with self._token_lock:
-            # Повторная проверка
             if self._token and time.time() < self._token_expires_at:
                 return
 
             if not config.HH_CLIENT_ID or not config.HH_CLIENT_SECRET:
-                logger.warning("HH_CLIENT_ID или HH_CLIENT_SECRET не заданы.")
+                logger.warning("hh_credentials_not_set_async")
                 return
 
-            # ✅ Пробуем использовать токен из синхронного API
             from src.parsing.hh_api import HeadHunterAPI
 
             sync_api = HeadHunterAPI()
             if sync_api._token and time.time() < sync_api._token_expires_at:
                 self._token = sync_api._token
                 self._token_expires_at = sync_api._token_expires_at
-                logger.info("✅ Использован токен из синхронного API")
+                logger.info("token_reused_from_sync_api")
                 return
 
-            # Если нет — получаем новый
             await self._get_app_token()
 
     async def _get_app_token(self):
@@ -81,16 +77,15 @@ class HeadHunterAPIAsync:
                         self._token = token_data.get("access_token")
                         expires_in = token_data.get("expires_in", 86400)
                         self._token_expires_at = time.time() + expires_in - 60
-                        logger.info("✅ Токен приложения успешно получен (async)")
+                        logger.info("app_token_obtained_async")
                     else:
                         text = await resp.text()
-                        # ✅ Если 403 — не фатально, работаем без токена
                         if resp.status == 403:
-                            logger.warning("⚠️ 403 при получении токена — работаем без авторизации")
+                            logger.warning("token_403_working_without_auth")
                         else:
-                            logger.error(f"❌ Ошибка получения токена (async): {resp.status} - {text[:200]}")
+                            logger.error("token_request_failed_async", status=resp.status, response=text[:200])
         except Exception as e:
-            logger.error(f"❌ Исключение при получении токена (async): {e}")
+            logger.error("token_request_exception_async", error=str(e))
 
     def _get_headers(self) -> dict[str, str]:
         """Формирует заголовки с авторизацией если токен есть."""
@@ -129,60 +124,58 @@ class HeadHunterAPIAsync:
                     elif resp.status == 429:
                         self.stats["429_errors"] += 1
                         retry_after = int(resp.headers.get("Retry-After", 5))
-                        logger.warning(f"Rate limited. Ждём {retry_after}с...")
+                        logger.warning("rate_limited_async", retry_after=retry_after)
                         await asyncio.sleep(retry_after)
                         if retries < max_retries:
                             return await self._request(session, url, params, retries + 1, max_retries)
                         else:
-                            logger.error(f"Превышены попытки для {url}")
+                            logger.error("max_retries_exceeded_async", url=url)
                             return None
 
                     elif resp.status == 401:
-                        # Токен истёк — обновляем и пробуем снова
                         if retries < 1:
-                            logger.warning("401, обновляю токен и пробую снова (async)")
-                            await self._ensure_token()  # ✅ ИСПРАВЛЕНО: _ensure_token вместо _get_app_token (с локом)
+                            logger.warning("http_401_refreshing_token_async")
+                            await self._ensure_token()
                             return await self._request(session, url, params, retries + 1, max_retries)
                         else:
-                            logger.error("Повторный 401 после обновления токена (async)")
+                            logger.error("http_401_after_token_refresh_async")
                             return None
 
                     elif resp.status == 403:
                         self.stats["403_errors"] += 1
-                        # ✅ ИСПРАВЛЕНО: логируем vacancy_id только если он есть в url
                         try:
                             vacancy_id = url.rstrip("/").split("/")[-1]
-                            logger.debug(f"Вакансия {vacancy_id} недоступна (403)")
+                            logger.debug("vacancy_403_forbidden_async", vacancy_id=vacancy_id)
                         except Exception:
-                            logger.debug(f"403 для {url}")
+                            logger.debug("http_403_forbidden_async", url=url)
                         return None
 
                     elif resp.status == 404:
                         self.stats["404_errors"] += 1
-                        logger.debug(f"404: {url}")
+                        logger.debug("http_404_async", url=url)
                         return None
 
                     else:
                         self.stats["other_errors"] += 1
-                        logger.warning(f"HTTP {resp.status} для {url}")
+                        logger.warning("http_unexpected_status_async", status=resp.status, url=url)
                         return None
 
             except TimeoutError:
                 self.stats["timeouts"] += 1
-                logger.error(f"Timeout при запросе {url}")
+                logger.error("http_timeout_async", url=url)
                 if retries < max_retries:
                     wait_time = 2**retries
-                    logger.debug(f"Повторная попытка через {wait_time}с...")
+                    logger.debug("retrying_after_timeout_async", wait_time=wait_time)
                     await asyncio.sleep(wait_time)
                     return await self._request(session, url, params, retries + 1, max_retries)
                 return None
             except aiohttp.ClientError as e:
                 self.stats["other_errors"] += 1
-                logger.error(f"HTTP ошибка: {e}")
+                logger.error("http_client_error_async", error=str(e))
                 return None
             except Exception as e:
                 self.stats["other_errors"] += 1
-                logger.error(f"Неожиданная ошибка: {e}")
+                logger.error("http_unexpected_exception_async", error=str(e))
                 return None
 
     async def get_vacancy_details_async(self, session: aiohttp.ClientSession, vacancy_id: str) -> dict | None:
@@ -193,13 +186,12 @@ class HeadHunterAPIAsync:
     async def get_vacancies_details_batch(self, vacancy_ids: list[str]) -> list[dict]:
         """Загружает детали массива вакансий асинхронно с пакетной обработкой."""
         if not vacancy_ids:
-            logger.warning("Пустой список ID вакансий")
+            logger.warning("empty_vacancy_ids_batch")
             return []
 
-        # ✅ ИСПРАВЛЕНО: получаем токен перед началом загрузки (с локом)
         await self._ensure_token()
 
-        logger.info(f"Асинхронная загрузка {len(vacancy_ids)} деталей (max_concurrent={self.max_concurrent})...")
+        logger.info("async_batch_loading_started", total=len(vacancy_ids), max_concurrent=self.max_concurrent)
 
         all_results = []
         self.stats = {k: 0 for k in self.stats}
@@ -209,7 +201,7 @@ class HeadHunterAPIAsync:
         for i in range(0, len(vacancy_ids), self.batch_size):
             batch = vacancy_ids[i : i + self.batch_size]
             batch_num = i // self.batch_size + 1
-            logger.info(f"Пакет {batch_num}/{total_batches} ({len(batch)} вакансий)")
+            logger.info("processing_batch", batch=f"{batch_num}/{total_batches}", size=len(batch))
 
             async with aiohttp.ClientSession() as session:
                 tasks = [self.get_vacancy_details_async(session, vid) for vid in batch]
@@ -220,24 +212,35 @@ class HeadHunterAPIAsync:
                     if r is not None and not isinstance(r, Exception):
                         all_results.append(r)
                     elif isinstance(r, Exception):
-                        logger.debug(f"Пропущена вакансия из-за ошибки: {r}")
+                        logger.debug("vacancy_skipped_due_to_error", error=str(r))
 
-            logger.info(f"Прогресс: {len(all_results)}/{len(vacancy_ids)} вакансий")
+            logger.info("batch_progress", loaded=len(all_results), total=len(vacancy_ids))
             logger.debug(
-                f"Статистика пакета: успешно={self.stats['success']}, "
-                f"403={self.stats['403_errors']}, 404={self.stats['404_errors']}, "
-                f"429={self.stats['429_errors']}, таймауты={self.stats['timeouts']}"
+                "batch_stats",
+                success=self.stats["success"],
+                forbidden=self.stats["403_errors"],
+                not_found=self.stats["404_errors"],
+                rate_limited=self.stats["429_errors"],
+                timeouts=self.stats["timeouts"],
             )
 
             if i + self.batch_size < len(vacancy_ids):
                 await asyncio.sleep(1)
 
         success_rate = (len(all_results) / len(vacancy_ids)) * 100 if vacancy_ids else 0
-        logger.info(f"Загрузка завершена: {len(all_results)}/{len(vacancy_ids)} деталей ({success_rate:.1f}%)")
         logger.info(
-            f"Итоговая статистика: успешно={self.stats['success']}, "
-            f"403={self.stats['403_errors']}, 404={self.stats['404_errors']}, "
-            f"429={self.stats['429_errors']}, таймауты={self.stats['timeouts']}"
+            "async_batch_loading_completed",
+            loaded=len(all_results),
+            total=len(vacancy_ids),
+            success_rate=round(success_rate, 1),
+        )
+        logger.info(
+            "async_batch_final_stats",
+            success=self.stats["success"],
+            forbidden=self.stats["403_errors"],
+            not_found=self.stats["404_errors"],
+            rate_limited=self.stats["429_errors"],
+            timeouts=self.stats["timeouts"],
         )
 
         return all_results

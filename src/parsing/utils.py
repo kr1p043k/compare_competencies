@@ -10,10 +10,15 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import structlog
+
 if TYPE_CHECKING:
     from .vacancy_parser import VacancyParser
 
 from src import config
+
+logger = structlog.get_logger(__name__)
+
 
 # ----------------------------------------------------------------------
 # Базовые утилиты (логирование, чтение/запись JSON)
@@ -22,8 +27,8 @@ from src import config
 
 def setup_logging() -> None:
     """Настраивает логирование: вывод в консоль (INFO) и в файл (DEBUG)."""
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 
@@ -35,31 +40,29 @@ def setup_logging() -> None:
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
 
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
 
 
 def read_json(filepath: Path) -> Any:
     """Безопасно читает JSON-файл."""
-    logger = logging.getLogger(__name__)
-    logger.debug(f"Чтение JSON из {filepath}")
+    logger.debug("reading_json", path=str(filepath))
     try:
         with open(filepath, encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        logger.error(f"Ошибка чтения {filepath}: {e}")
+        logger.error("json_read_error", path=str(filepath), error=str(e))
         return None
 
 
 def write_json(data: Any, filepath: Path) -> None:
     """Безопасно записывает данные в JSON-файл."""
-    logger = logging.getLogger(__name__)
-    logger.debug(f"Запись JSON в {filepath}")
+    logger.debug("writing_json", path=str(filepath))
     try:
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        logger.error(f"Ошибка записи в {filepath}: {e}")
+        logger.error("json_write_error", path=str(filepath), error=str(e))
 
 
 # ----------------------------------------------------------------------
@@ -69,22 +72,21 @@ def write_json(data: Any, filepath: Path) -> None:
 
 def load_it_skills() -> set[str]:
     """Загружает список допустимых IT-навыков из data/it_skills.json."""
-    logger = logging.getLogger(__name__)
     skills_file = config.DATA_DIR / "it_skills.json"
     if not skills_file.exists():
-        logger.warning(f"Файл с IT-навыками не найден: {skills_file}. Фильтрация отключена.")
+        logger.warning("it_skills_file_not_found", path=str(skills_file))
         return set()
 
     try:
         skills_list = read_json(skills_file)
         if not isinstance(skills_list, list):
-            logger.error("Файл it_skills.json должен содержать список строк.")
+            logger.error("it_skills_invalid_format")
             return set()
         skills_set = {skill.strip().lower() for skill in skills_list if isinstance(skill, str)}
-        logger.info(f"Загружено {len(skills_set)} допустимых IT-навыков.")
+        logger.info("it_skills_loaded", count=len(skills_set))
         return skills_set
     except Exception as e:
-        logger.error(f"Ошибка при загрузке it_skills.json: {e}")
+        logger.error("it_skills_load_error", error=str(e))
         return set()
 
 
@@ -93,8 +95,7 @@ def filter_skills_by_whitelist(skills_dict: dict[str, int], whitelist: set[str])
     if not whitelist:
         return skills_dict.copy()
     filtered = {skill: count for skill, count in skills_dict.items() if skill.lower().strip() in whitelist}
-    logger = logging.getLogger(__name__)
-    logger.info(f"Фильтрация: осталось {len(filtered)} навыков из {len(skills_dict)}")
+    logger.info("whitelist_filter_applied", remaining=len(filtered), total=len(skills_dict))
     return filtered
 
 
@@ -118,18 +119,15 @@ def collect_vacancies_multiple(
     """
     all_vacancies = []
     seen_ids: set[str] = set()
-    logger = logging.getLogger("collector")
 
-    # Порог, после которого включаем разбивку по датам (например, 2000)
     chunk_threshold = 2000
     date_chunk_days = 5
 
     for query in queries:
         query_vacancies = []
         for area_id in area_ids:
-            logger.info(f"Поиск: '{query}', регион ID {area_id}")
+            logger.info("search_started", query=query, area_id=area_id)
 
-            # Пробный запрос с одной страницей, чтобы оценить количество
             _ = hh_api.search_vacancies(
                 text=query, area=area_id, period_days=period_days, max_pages=1, per_page=100, industry=industry
             )
@@ -137,7 +135,6 @@ def collect_vacancies_multiple(
             total_found = last_resp.get("found", 0) if last_resp else 0
 
             if total_found <= chunk_threshold or period_days <= date_chunk_days:
-                # Обычный сбор, если вакансий мало или период короткий
                 vacs = hh_api.search_vacancies(
                     text=query,
                     area=area_id,
@@ -156,9 +153,8 @@ def collect_vacancies_multiple(
                 if len(query_vacancies) >= max_vacancies_per_query:
                     break
             else:
-                # Разбиваем период на интервалы
                 chunks = date_chunks(period_days, date_chunk_days)
-                logger.info(f"Разбиваем запрос на {len(chunks)} интервалов (общий период {period_days} дней)")
+                logger.info("period_chunked", chunks=len(chunks), total_days=period_days)
                 for date_from, date_to in chunks:
                     vacs = hh_api.search_vacancies(
                         text=query,
@@ -183,9 +179,9 @@ def collect_vacancies_multiple(
             time.sleep(config.REQUEST_DELAY)
 
         all_vacancies.extend(query_vacancies[:max_vacancies_per_query])
-        logger.info(f"Для запроса '{query}' собрано {len(query_vacancies[:max_vacancies_per_query])} вакансий")
+        logger.info("query_completed", query=query, vacancies=len(query_vacancies[:max_vacancies_per_query]))
 
-    logger.info(f"Всего собрано уникальных вакансий: {len(all_vacancies)}")
+    logger.info("collection_completed", total_unique=len(all_vacancies))
     return all_vacancies
 
 
@@ -195,7 +191,7 @@ def load_queries_from_file(filepath: Path) -> list[str]:
         with open(filepath, encoding="utf-8") as f:
             return [line.strip() for line in f if line.strip()]
     except Exception as e:
-        logging.error(f"Ошибка чтения файла запросов {filepath}: {e}")
+        logger.error("queries_file_read_error", path=str(filepath), error=str(e))
         return []
 
 
@@ -271,7 +267,6 @@ def interactive_config() -> dict[str, Any]:
     if selected_mode == "11. Поиск по всему IT-сектору (industry=7)":
         print("\nРежим: Поиск по всему IT-сектору")
         positions = [
-            # Data & AI
             "Data Scientist",
             "Data Analyst",
             "Machine Learning Engineer",
@@ -279,7 +274,6 @@ def interactive_config() -> dict[str, Any]:
             "NLP Engineer",
             "Data Architect",
             "ETL Developer",
-            # Development
             "Python Developer",
             "Java Developer",
             "Frontend Developer",
@@ -288,26 +282,21 @@ def interactive_config() -> dict[str, Any]:
             "DevOps Engineer",
             "Embedded Developer",
             "Blockchain Developer",
-            # Mobile
             "iOS Developer",
             "Android Developer",
             "React Native Developer",
             "Flutter Developer",
-            # QA
             "QA Engineer",
             "Automation QA Engineer",
             "Performance QA Engineer",
-            # Security
             "Специалист по кибербезопасности",
             "Security Engineer",
             "DevSecOps Engineer",
-            # Infrastructure & Administration
             "SRE инженер",
             "Системный администратор",
             "Облачный инженер",
             "Сетевой инженер",
             "Администратор баз данных",
-            # Architecture & Management
             "Системный аналитик",
             "Бизнес-аналитик",
             "Архитектор программного обеспечения",
@@ -316,13 +305,10 @@ def interactive_config() -> dict[str, Any]:
             "Tech Lead",
             "Project Manager IT",
             "Scrum Master",
-            # Design
             "UX/UI дизайнер",
             "Product Designer",
-            # Game Development
             "Unity Developer",
             "Unreal Engine Developer",
-            # Other
             "Technical Writer",
             "MLops engineer",
         ]
@@ -344,7 +330,6 @@ def interactive_config() -> dict[str, Any]:
         is_it_sector = False
         queries = [query]
 
-    # Регионы
     region_options = [
         ("Москва", 1),
         ("Санкт-Петербург", 2),
@@ -367,7 +352,6 @@ def interactive_config() -> dict[str, Any]:
     if not area_ids:
         area_ids = [1]
 
-    # Параметры
     if is_it_sector:
         period = 30
         max_pages = 50
@@ -414,10 +398,8 @@ def normalize_skill_for_matching(skill: str) -> str:
     return normalized
 
 
-def extract_and_count_skills(
-    vacancies: list[dict[str, Any]], parser: VacancyParser
-) -> dict[str, Any]:  # теперь возвращает dict с frequencies + tfidf_weights
-    logger = logging.getLogger(__name__)
+def extract_and_count_skills(vacancies: list[dict[str, Any]], parser: VacancyParser) -> dict[str, Any]:
+    logger.info("extracting_skills_from_vacancies", count=len(vacancies))
 
     if not vacancies:
         return {"frequencies": {}, "tfidf_weights": {}}
@@ -425,7 +407,7 @@ def extract_and_count_skills(
     try:
         return parser.extract_skills_from_vacancies(vacancies)
     except Exception as e:
-        logger.error(f"Ошибка: {e}")
+        logger.error("skill_extraction_error", error=str(e))
         return {"frequencies": {}, "tfidf_weights": {}}
 
 
@@ -449,7 +431,6 @@ def map_to_competencies(skill_frequencies: dict[str, int], mapping: dict[str, li
             for comp in skill_to_comp[normalized_skill]:
                 comp_counter[comp] += freq
         else:
-            # Частичное совпадение
             found = False
             for keyword in skill_to_comp:
                 if keyword in normalized_skill or normalized_skill in keyword:
@@ -461,10 +442,13 @@ def map_to_competencies(skill_frequencies: dict[str, int], mapping: dict[str, li
             if not found and len(unmatched_skills) < 10:
                 unmatched_skills.append(skill)
 
-    logger = logging.getLogger(__name__)
-    logger.info(f"Сопоставлено навыков с компетенциями: {matched_skills} из {len(skill_frequencies)}")
+    logger.info(
+        "skills_mapped_to_competencies",
+        matched=matched_skills,
+        total=len(skill_frequencies),
+    )
     if unmatched_skills:
-        logger.info(f"Примеры несопоставленных навыков: {unmatched_skills[:5]}")
+        logger.info("unmatched_skills_sample", sample=unmatched_skills[:5])
     return comp_counter
 
 

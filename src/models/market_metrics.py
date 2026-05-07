@@ -1,4 +1,10 @@
+"""Метрики рынка для gap-анализа."""
+
 from dataclasses import dataclass
+
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -32,7 +38,18 @@ class SkillMetrics:
             + level_weights.get("senior", 0) * score_s
         )
 
-        return base_score * domain_factor
+        final_score = base_score * domain_factor
+
+        logger.debug(
+            "skill_scored",
+            skill=self.skill,
+            base_score=round(base_score, 4),
+            domain_bonus=round(domain_bonus, 4),
+            final_score=round(final_score, 4),
+            scores=dict(j=round(score_j, 3), m=round(score_m, 3), s=round(score_s, 3)),
+        )
+
+        return final_score
 
     def __post_init__(self):
         if not self.category:
@@ -43,6 +60,13 @@ class SkillMetrics:
                 self.category = "weak"
             else:
                 self.category = "missing"
+
+            logger.debug(
+                "skill_category_assigned",
+                skill=self.skill,
+                max_gap=round(max_gap, 3),
+                category=self.category,
+            )
 
 
 @dataclass
@@ -58,4 +82,13 @@ class DomainMetrics:
         self.user_has = len(set(s.lower() for s in self.required_skills) & user_skills)
         self.total_required = len(self.required_skills)
         self.coverage = self.user_has / self.total_required if self.total_required > 0 else 0.0
+
+        logger.debug(
+            "domain_coverage_computed",
+            domain=self.domain,
+            user_has=self.user_has,
+            total=self.total_required,
+            coverage=round(self.coverage, 4),
+        )
+
         return self.coverage

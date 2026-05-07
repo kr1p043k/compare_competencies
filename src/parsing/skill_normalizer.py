@@ -3,22 +3,22 @@
 Критично для качества skill_weights!
 """
 
-import logging
 import re
 from functools import cache
 
+import structlog
 from rapidfuzz import fuzz, process
 
 from src.parsing.utils import load_it_skills
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SkillNormalizer:
     # ================= СЛОВАРЬ СИНОНИМОВ =================
     SYNONYM_MAP = {
         # Языки
-        "python": ["python3", "python 3", "py3", "py"],
+        "python": ["python3", "python 3", "py3", "py", "python programming", "python разработка"],
         "javascript": ["js", "java script"],
         "typescript": ["ts", "type script"],
         "go": ["golang", "go lang"],
@@ -166,9 +166,9 @@ class SkillNormalizer:
             for canonical, variants in cls.SYNONYM_MAP.items():
                 for v in variants:
                     canon[v] = canonical
-                canon[canonical] = canonical  # каноник тоже маппится сам в себя
+                canon[canonical] = canonical
             cls._canonical_map = canon
-            logger.info(f"Построен канонический маппинг из {len(canon)} терминов")
+            logger.info("canonical_map_built", terms=len(canon))
         return cls._canonical_map
 
     # Версии и варианты (удаляются полностью)
@@ -265,7 +265,7 @@ class SkillNormalizer:
                     "c++",
                 ]
             )
-            logger.info(f"Whitelist загружен и дополнен: {len(cls._whitelist)} навыков")
+            logger.info("whitelist_loaded_and_extended", count=len(cls._whitelist))
         return cls._whitelist
 
     @staticmethod
@@ -297,10 +297,10 @@ class SkillNormalizer:
         matches = process.extract(text, whitelist, scorer=fuzz.WRatio, limit=SkillNormalizer.MAX_FUZZY_CANDIDATES)
         if matches and matches[0][1] >= SkillNormalizer.FUZZY_THRESHOLD:
             best = matches[0][0]
-            logger.debug(f"Fuzzy match: '{original}' → '{best}' (score={matches[0][1]})")
+            logger.debug("fuzzy_match", original=original, matched=best, score=matches[0][1])
             return best
 
-        logger.debug(f"No good fuzzy match for: '{original}' → '{text}'")
+        logger.debug("no_fuzzy_match", original=original, normalized=text)
         return text
 
     @classmethod

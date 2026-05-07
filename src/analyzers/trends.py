@@ -13,10 +13,11 @@ from pathlib import Path
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
+import structlog
 
 from src import config
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class TrendAnalyzer:
@@ -38,14 +39,14 @@ class TrendAnalyzer:
             validator = SkillValidator()
             filtered = {skill: freq for skill, freq in frequencies.items() if validator.validate(skill).is_valid}
             frequencies = filtered
-            logger.info(f"После фильтрации осталось {len(frequencies)} навыков")
+            logger.info("snapshot_filtered", skills_count=len(frequencies))
 
         timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
         filename = f"freq_{label or timestamp}.json"
         path = self.history_dir / filename
         with open(path, "w", encoding="utf-8") as f:
             json.dump(frequencies, f, ensure_ascii=False, indent=2)
-        logger.info(f"Снимок сохранён: {path}")
+        logger.info("snapshot_saved", path=str(path))
         return path
 
     def load_all_snapshots(self) -> list[tuple[datetime, Path, dict[str, float]]]:
@@ -62,7 +63,7 @@ class TrendAnalyzer:
                     data = json.load(f)
                 snapshots.append((dt, fpath, data))
             except Exception as e:
-                logger.warning(f"Не удалось загрузить {fpath.name}: {e}")
+                logger.warning("snapshot_load_failed", filename=fpath.name, error=str(e))
 
         snapshots.sort(key=lambda x: x[0])
         return snapshots
@@ -117,7 +118,7 @@ class TrendAnalyzer:
         if previous_snapshot is None:
             snapshots = self.load_all_snapshots()
             if len(snapshots) < 2:
-                logger.warning("Слишком мало снимков для анализа трендов")
+                logger.warning("not_enough_snapshots_for_trends")
                 return {"rising": [], "falling": []}
             prev_dt, _, prev_data = snapshots[-2]
             prev_label = prev_dt.strftime("%Y-%m-%d")
@@ -202,7 +203,7 @@ class TrendAnalyzer:
     ):
         """Линейный график изменения частот навыков по всем выбранным снимкам."""
         if not snapshots or len(snapshots) < 2:
-            logger.warning("Недостаточно снимков для графика")
+            logger.warning("not_enough_snapshots_for_plot")
             return None
 
         timeline = self.get_skill_timeline(skills, snapshots)
@@ -230,7 +231,7 @@ class TrendAnalyzer:
 
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
-            logger.info(f"✅ График временных рядов сохранён: {save_path}")
+            logger.info("timeline_plot_saved", path=str(save_path))
         plt.close(fig)
         return fig
 
@@ -241,7 +242,7 @@ class TrendAnalyzer:
         falling = trends["falling"][:top_n]
 
         if not rising and not falling:
-            logger.info("Нет значимых трендов для отображения (порог 3%)")
+            logger.info("no_significant_trends", threshold=3.0)
             return None
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, max(8, (len(rising) + len(falling)) * 0.4)))
@@ -290,7 +291,7 @@ class TrendAnalyzer:
 
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
-            logger.info(f"✅ График трендов сохранён: {save_path}")
+            logger.info("trending_plot_saved", path=str(save_path))
         plt.close(fig)
         return fig
 
@@ -319,11 +320,11 @@ if __name__ == "__main__":
     # === Загрузка текущего снимка ===
     if args.current:
         current_freq = TrendAnalyzer.load_file(args.current)
-        logger.info(f"Загружен текущий снимок: {args.current}")
+        logger.info("current_snapshot_loaded", path=str(args.current))
     else:
         freq_path = config.DATA_PROCESSED_DIR / "competency_frequency.json"
         if not freq_path.exists():
-            logger.error(f"Файл {freq_path} не найден. Сначала выполните сбор вакансий.")
+            logger.error("frequency_file_not_found", path=str(freq_path))
             sys.exit(1)
         current_freq = TrendAnalyzer.load_file(freq_path)
 
@@ -335,17 +336,21 @@ if __name__ == "__main__":
 
     # === Выбор снимков для анализа ===
     snapshots = analyzer.get_snapshots_for_analysis(args.history)
-    logger.info(f"Для анализа выбрано {len(snapshots)} снимков из {len(analyzer.load_all_snapshots())} доступных")
+    logger.info(
+        "snapshots_for_analysis",
+        selected=len(snapshots),
+        available=len(analyzer.load_all_snapshots()),
+    )
 
     # === Предыдущий снимок ===
     previous_snapshot = None
     if args.previous:
         previous_snapshot = TrendAnalyzer.load_file(args.previous)
-        logger.info(f"Загружен предыдущий снимок: {args.previous}")
+        logger.info("previous_snapshot_loaded", path=str(args.previous))
     elif len(snapshots) >= 2:
         # Берём предпоследний из выбранных (или самый последний исторический)
         previous_snapshot = snapshots[-2][2]
-        logger.info(f"Автоматически выбран предыдущий снимок: {snapshots[-2][0].strftime('%Y-%m-%d')}")
+        logger.info("previous_snapshot_auto_selected", date=snapshots[-2][0].strftime("%Y-%m-%d"))
 
     # === Вывод в консоль ===
     print("\n" + "=" * 70)

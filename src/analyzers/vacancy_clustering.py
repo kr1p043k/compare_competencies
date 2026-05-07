@@ -5,11 +5,11 @@
 а также HDBSCAN как fallback (с обработкой ошибок метрики).
 """
 
-import logging
 import pickle
 from typing import Any
 
 import numpy as np
+import structlog
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
@@ -18,7 +18,7 @@ from src import config
 from src.parsing.embedding_loader import get_embedding_model
 from src.parsing.skill_normalizer import SkillNormalizer
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 try:
     import hdbscan
@@ -26,7 +26,7 @@ try:
     HDBSCAN_AVAILABLE = True
 except ImportError:
     HDBSCAN_AVAILABLE = False
-    logger.info("HDBSCAN не установлен, будет использоваться только KMeans")
+    logger.info("hdbscan_unavailable_fallback_to_kmeans")
 
 
 class VacancyClusterer:
@@ -90,9 +90,13 @@ class VacancyClusterer:
         mean_vec = np.mean(embeddings, axis=0)
         std_vec = np.std(embeddings, axis=0)
         logger.info(
-            f"Эмбеддинги: shape={embeddings.shape}, mean={mean_vec[:3].tolist()}..., std={std_vec[:3].tolist()}..."
+            "embeddings_computed",
+            shape=embeddings.shape,
+            mean_sample=mean_vec[:3].tolist(),
+            std_sample=std_vec[:3].tolist(),
+            empty_skills=empty_skills_count,
+            total=len(vacancies),
         )
-        logger.info(f"Пустых навыков: {empty_skills_count} из {len(vacancies)}")
 
         # L2-нормализация
         norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
@@ -102,12 +106,12 @@ class VacancyClusterer:
 
     def fit(self, vacancies: list[dict], level: str = "all") -> "VacancyClusterer":
         if not vacancies:
-            logger.warning("Нет вакансий для кластеризации")
+            logger.warning("no_vacancies_for_clustering")
             return self
 
         n_samples = len(vacancies)
         if n_samples < 10:
-            logger.warning(f"Слишком мало вакансий ({n_samples}) для кластеризации уровня {level}")
+            logger.warning("too_few_vacancies_for_clustering", samples=n_samples, level=level)
             self.is_fitted = False
             return self
 
@@ -115,7 +119,7 @@ class VacancyClusterer:
         self.vacancy_skills = [v.get("skills", []) for v in vacancies]
 
         X = self._compute_embeddings(vacancies)
-        logger.info(f"Кластеризация {len(X)} вакансий уровня '{level}'...")
+        logger.info("clustering_started", samples=len(X), level=level)
 
         best_k = self.n_clusters
         best_score = -1
@@ -126,9 +130,11 @@ class VacancyClusterer:
         max_k = min(self.max_clusters, max(3, int(np.sqrt(n_samples))))
 
         logger.info(
-            f"Параметры KMeans: n_clusters={self.n_clusters}, "
-            f"min_clusters={self.min_clusters}, max_clusters={max_k}, "
-            f"random_state={self.random_state}"
+            "kmeans_params",
+            n_clusters=self.n_clusters,
+            min_clusters=self.min_clusters,
+            max_clusters=max_k,
+            random_state=self.random_state,
         )
 
         best_score = -1
@@ -145,14 +151,11 @@ class VacancyClusterer:
             labels = kmeans.fit_predict(X)
             if len(set(labels)) < 2:
                 continue
-            # Фильтр маленьких кластеров
-            # if np.any(counts < self.min_cluster_size):
-            #   continue
             try:
                 score = silhouette_score(X, labels, metric="euclidean")
             except Exception:
                 continue
-            logger.debug(f"K={k}, silhouette={score:.4f}")
+            logger.debug("kmeans_silhouette", k=k, silhouette=round(score, 4))
             if score > best_score:
                 best_score = score
                 best_k = k
@@ -161,17 +164,14 @@ class VacancyClusterer:
                 no_improve = 0
             else:
                 no_improve += 1
-            # early stopping
-            # if no_improve >= 3:
-            #   break
 
         if best_score < 0.1:
-            logger.warning(f"Очень низкий silhouette ({best_score:.3f}) — кластеры могут быть шумными")
+            logger.warning("low_silhouette_score", score=round(best_score, 3))
 
         # Если silhouette_score плохой, пробуем HDBSCAN с метрикой cosine
         use_hdbscan = False
         if best_score < 0.2 and self.use_hdbscan_fallback and n_samples >= self.min_cluster_size * 2:
-            logger.info(f"Silhouette score низкий ({best_score:.3f}), пробуем HDBSCAN с cosine...")
+            logger.info("trying_hdbscan_fallback", silhouette=round(best_score, 3))
             try:
                 clusterer = hdbscan.HDBSCAN(
                     min_cluster_size=self.min_cluster_size, metric="euclidean", core_dist_n_jobs=-1
@@ -197,16 +197,20 @@ class VacancyClusterer:
                         self.cluster_centers = np.vstack(centers)
                     else:
                         self.cluster_centers = None
-                    logger.info(f"HDBSCAN создал {n_clusters} кластеров (шум: {sum(labels == -1)})")
+                    logger.info(
+                        "hdbscan_clusters_created",
+                        clusters=n_clusters,
+                        noise=int(sum(labels == -1)),
+                    )
                 else:
-                    logger.warning("HDBSCAN не смог найти кластеры, используем KMeans")
+                    logger.warning("hdbscan_no_clusters_found")
             except Exception as e:
-                logger.warning(f"HDBSCAN не отработал: {e}. Fallback на KMeans.")
+                logger.warning("hdbscan_failed", error=str(e))
                 use_hdbscan = False  # принудительно переключаем на KMeans
 
         if not use_hdbscan:
             if best_model is None:
-                logger.warning("Не удалось подобрать KMeans, создаём один кластер")
+                logger.warning("no_kmeans_model_creating_single_cluster")
                 self.labels_ = np.zeros(n_samples, dtype=int)
                 self.cluster_centers = np.mean(X, axis=0).reshape(1, -1)
                 self.model = None
@@ -217,11 +221,19 @@ class VacancyClusterer:
                 self.labels_ = best_labels
                 self.cluster_centers = best_model.cluster_centers_
                 self.label_to_center_idx = {i: i for i in range(best_k)}
-            logger.info(f"Выбрано K={best_k} с silhouette_score={best_score:.3f}")
+            logger.info(
+                "kmeans_selected",
+                k=best_k,
+                silhouette=round(best_score, 3),
+            )
 
         self.is_fitted = True
         self._save_model(level)
-        logger.info(f"✅ Кластеризация завершена. Тип: {self.clusterer_type}, кластеров: {self.n_clusters_}")
+        logger.info(
+            "clustering_completed",
+            type=self.clusterer_type,
+            clusters=self.n_clusters_,
+        )
         return self
 
     @property
@@ -245,12 +257,12 @@ class VacancyClusterer:
         }
         with open(path, "wb") as f:
             pickle.dump(data, f)
-        logger.info(f"Модель кластеризации сохранена: {path}")
+        logger.info("cluster_model_saved", path=str(path))
 
     def load_model(self, level: str = "all") -> bool:
         path = config.DATA_PROCESSED_DIR / f"vacancy_clusters_{level}.pkl"
         if not path.exists():
-            logger.warning(f"Файл модели не найден: {path}")
+            logger.warning("cluster_model_file_not_found", path=str(path))
             return False
         with open(path, "rb") as f:
             data = pickle.load(f)  # nosec B301
@@ -264,7 +276,11 @@ class VacancyClusterer:
         self.min_cluster_size = data.get("min_cluster_size", 15)
         self.label_to_center_idx = data.get("label_to_center_idx", {})
         self.is_fitted = True
-        logger.info(f"Модель кластеризации загружена: {path} (тип: {self.clusterer_type})")
+        logger.info(
+            "cluster_model_loaded",
+            path=str(path),
+            type=self.clusterer_type,
+        )
         return True
 
     def find_closest_clusters(
@@ -350,46 +366,6 @@ class VacancyClusterer:
             "skills": context_skills,
             "total_skills_in_context": len(context_skills),
         }
-
-    def _generate_cluster_name(self, cluster_id: int) -> str:
-        """
-        Генерирует человекочитаемое имя кластера на основе таксономии навыков.
-        """
-        from src.analyzers.skill_taxonomy import SkillTaxonomy
-
-        taxonomy = SkillTaxonomy()
-        top_skills = self.get_top_skills_in_cluster(cluster_id, top_n=15)
-
-        if not top_skills:
-            return f"Empty Cluster {cluster_id}"
-
-        # Определяем доминирующую категорию
-        dominant = taxonomy.get_dominant_category(top_skills)
-        dominant_label = taxonomy.get_category_label_by_id(dominant)
-        dominant_icon = taxonomy.get_category_icon_by_id(dominant)
-
-        # Ключевые технологии из доминирующей категории
-        key_techs = [s for s in top_skills if taxonomy.get_category(s) == dominant][:3]
-
-        # Определяем вторичную категорию (если есть)
-        stats = taxonomy.get_category_stats(top_skills)
-        secondary = None
-        for cat, count in stats.items():
-            if cat != dominant and count >= 2:
-                secondary = taxonomy.get_category_label_by_id(cat)
-                break
-
-        # Формируем имя
-        if key_techs:
-            name = f"{dominant_icon} {dominant_label}: {', '.join(key_techs)}"
-        else:
-            name = f"{dominant_icon} {dominant_label}"
-
-        # Добавляем информацию о вторичной категории
-        if secondary:
-            name += f" + {secondary}"
-
-        return name
 
     def _generate_cluster_name(self, cluster_id: int) -> str:
         """

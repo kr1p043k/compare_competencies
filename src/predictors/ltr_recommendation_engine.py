@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import shap
+import structlog
 import xgboost as xgb
 from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.metrics.pairwise import cosine_similarity
@@ -22,7 +23,7 @@ from src.parsing.embedding_loader import get_embedding_model
 from src.parsing.skill_normalizer import SkillNormalizer
 from src.parsing.vacancy_parser import VacancyParser
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class LTRRecommendationEngine:
@@ -57,11 +58,11 @@ class LTRRecommendationEngine:
     # ====================== ОБУЧЕНИЕ ======================
     def fit(self, vacancies: list[dict]) -> "LTRRecommendationEngine":
         if len(vacancies) < 50:
-            logger.warning("Недостаточно вакансий для обучения модели")
+            logger.warning("insufficient_vacancies_for_training")
             self.is_fitted = False
             return self
 
-        logger.info(f"🚀 Обучение LTR-модели на {len(vacancies)} вакансиях...")
+        logger.info("ltr_training_started", vacancies=len(vacancies))
         np.random.seed(config.GLOBAL_RANDOM_SEED)
         # 1. Извлекаем частоты и hybrid weights (только для target!)
         extraction_result = self.vacancy_parser.extract_skills_from_vacancies(vacancies)
@@ -75,7 +76,7 @@ class LTRRecommendationEngine:
         # 3. Эмбеддинги
         all_skills = list(frequencies.keys())
         if len(all_skills) < 5:
-            logger.error("Слишком мало навыков для обучения")
+            logger.error("too_few_skills_for_training")
             self.is_fitted = False
             return self
 
@@ -98,10 +99,10 @@ class LTRRecommendationEngine:
         self.total_vacancies = len(vacancies)
 
         # 5. Генерация обучающей выборки С ВАРИАЦИЯМИ СТУДЕНТОВ
-        logger.info("Генерация примеров с разными студенческими профилями...")
+        logger.info("generating_training_samples")
         X_rows, y_rows = [], []
         market_emb = np.mean(list(self.skill_embeddings.values()), axis=0) if self.skill_embeddings else None
-        rng = np.random.RandomState(config.GLOBAL_RANDOM_SEED)  # ← СОЗДАТЬ ЗДЕСЬ, перед циклом
+        rng = np.random.RandomState(config.GLOBAL_RANDOM_SEED)
 
         for skill in all_skills:
             target = self.skill_metadata[skill]["target"]
@@ -149,8 +150,9 @@ class LTRRecommendationEngine:
 
         pred_test = self.model.predict(X_test)
         logger.info(
-            f"✅ Обучение завершено! R² = {r2_score(y_test, pred_test):.4f}, "
-            f"MAE = {mean_absolute_error(y_test, pred_test):.4f}"
+            "ltr_training_completed",
+            r2=round(r2_score(y_test, pred_test), 4),
+            mae=round(mean_absolute_error(y_test, pred_test), 4),
         )
 
         plt.figure(figsize=(12, 8))
@@ -169,7 +171,7 @@ class LTRRecommendationEngine:
             self.model_path,
         )
 
-        logger.info(f"Модель сохранена → {self.model_path}")
+        logger.info("model_saved", path=str(self.model_path))
         return self
 
     # ====================== ПРИЗНАКИ ======================
@@ -229,7 +231,7 @@ class LTRRecommendationEngine:
         self, student_skills: list[str], missing_skills: list[str]
     ) -> tuple[list[tuple[str, float, str]], np.ndarray | None, pd.DataFrame | None]:
         if not self.is_fitted or self.model is None:
-            logger.warning("Модель не обучена, возвращаю fallback")
+            logger.warning("model_not_trained_returning_fallback")
             return self._fallback_impacts(missing_skills), None, None
 
         student_emb = self._get_student_embedding(student_skills)
@@ -264,7 +266,7 @@ class LTRRecommendationEngine:
             explainer = shap.TreeExplainer(self.model)
             shap_values = explainer.shap_values(X)
         except Exception as e:
-            logger.warning(f"Не удалось вычислить SHAP: {e}")
+            logger.warning("shap_computation_failed", error=str(e))
             shap_values = None
 
         impacts = []
@@ -392,7 +394,7 @@ class LTRRecommendationEngine:
     def load_model(self, path: Path | None = None) -> "LTRRecommendationEngine":
         model_path = path or self.model_path
         if not model_path.exists():
-            logger.error(f"Файл модели не найден: {model_path}")
+            logger.error("model_file_not_found", path=str(model_path))
             return self
         data = joblib.load(model_path)
         self.model = data["model"]
@@ -401,7 +403,7 @@ class LTRRecommendationEngine:
         self.skill_embeddings = data.get("skill_embeddings", {})
         self.total_vacancies = data["total_vacancies"]
         self.is_fitted = True
-        logger.info(f"Модель загружена из {model_path}")
+        logger.info("model_loaded", path=str(model_path))
         return self
 
 
@@ -425,13 +427,13 @@ if __name__ == "__main__":
         if args.load_raw:
             raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
             if not raw_file.exists():
-                logger.error(f"Файл {raw_file} не найден")
+                logger.error("raw_file_not_found", path=str(raw_file))
                 sys.exit(1)
             with open(raw_file, encoding="utf-8") as f:
                 vacancies = json.load(f)
-            logger.info(f"Загружено {len(vacancies)} сырых вакансий")
+            logger.info("raw_vacancies_loaded", count=len(vacancies))
         else:
-            logger.warning("Использую синтетические вакансии")
+            logger.warning("using_synthetic_vacancies")
             vacancies = [
                 {
                     "key_skills": [{"name": "python"}, {"name": "sql"}],

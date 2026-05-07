@@ -9,12 +9,12 @@ import shutil
 import traceback
 
 import pandas as pd
+import structlog
 
 from src.config import DATA_RAW_DIR, LAST_UPLOADED_DIR, PROFILES_DISCIPLINES, STUDENTS_DIR
 from src.models.student import StudentProfile
-from src.utils import get_logger
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class StudentLoader:
@@ -27,7 +27,7 @@ class StudentLoader:
         """Загружает данные ученика по имени профиля (base, dc, top_dc)."""
         file_path = self.students_dir / f"{profile_name}_competency.json"
         if not file_path.exists():
-            logger.error(f"Файл {file_path} не найден")
+            logger.error("student_file_not_found", path=str(file_path))
             return None
 
         with open(file_path, encoding="utf-8") as f:
@@ -57,10 +57,10 @@ class StudentLoader:
 def generate_profiles_from_csv(
     csv_path: Path = DATA_RAW_DIR / "competency_matrix.csv", output_dir: Path = STUDENTS_DIR, save_copy: bool = True
 ) -> dict[str, list[str]]:
-    logger.info(f"Начало обработки CSV-файла: {csv_path}")
+    logger.info("csv_processing_started", path=str(csv_path))
 
     if not csv_path.exists():
-        logger.error(f"Файл {csv_path} не найден.")
+        logger.error("csv_file_not_found", path=str(csv_path))
         raise FileNotFoundError(f"CSV файл не найден: {csv_path}")
 
     # Чтение CSV
@@ -69,9 +69,9 @@ def generate_profiles_from_csv(
             df = pd.read_csv(csv_path, header=None, encoding="utf-8")
         except UnicodeDecodeError:
             df = pd.read_csv(csv_path, header=None, encoding="cp1251")
-        logger.debug(f"CSV загружен, форма: {df.shape}")
+        logger.debug("csv_loaded", shape=df.shape)
     except Exception:
-        logger.exception("Ошибка при чтении CSV")
+        logger.exception("csv_read_error")
         raise
 
     # Индикаторы компетенций (вторая строка)
@@ -86,7 +86,7 @@ def generate_profiles_from_csv(
         code = str(raw).split(" ", 1)[0]
         indicator_mapping[col_idx] = code
         col_idx += 1
-    logger.info(f"Найдено индикаторов компетенций: {len(indicator_mapping)}")
+    logger.info("indicators_found", count=len(indicator_mapping))
 
     # Данные дисциплин (строки с 3-й)
     disciplines_df = df.iloc[2:, :].copy()
@@ -117,21 +117,21 @@ def generate_profiles_from_csv(
     for profile_name, skills in profiles_skills.items():
         sorted_skills = sorted(skills)
         result[profile_name] = sorted_skills
-        logger.info(f"Профиль {profile_name}: получено {len(sorted_skills)} навыков")
+        logger.info("profile_skills_extracted", profile=profile_name, skills_count=len(sorted_skills))
 
         json_path = output_dir / f"{profile_name}_competency.json"
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump({"навыки": sorted_skills}, f, ensure_ascii=False, indent=2)
-        logger.debug(f"Сохранён JSON: {json_path}")
+        logger.debug("profile_json_saved", path=str(json_path))
 
     # Копия CSV (как было)
     if save_copy:
         LAST_UPLOADED_DIR.mkdir(parents=True, exist_ok=True)
         last_csv_path = LAST_UPLOADED_DIR / "competency_matrix.csv"
         shutil.copy2(csv_path, last_csv_path)
-        logger.info(f"Сохранена копия загруженного CSV: {last_csv_path}")
+        logger.info("csv_copy_saved", path=str(last_csv_path))
 
-    logger.info("Обработка CSV завершена успешно")
+    logger.info("csv_processing_completed")
     return result
 
 

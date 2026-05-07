@@ -4,16 +4,17 @@
 Исправленная версия с улучшенной фильтрацией и логированием.
 """
 
-import logging
 import re
 from collections import Counter
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+import structlog
+
 from src.parsing.utils import load_it_skills
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ValidationReason(Enum):
@@ -38,7 +39,7 @@ class ValidationResult:
     is_valid: bool
     reasons: list[ValidationReason] = None
     confidence: float = 0.0
-    normalized_skill: str = ""  # Нормализованная версия
+    normalized_skill: str = ""
 
     def __post_init__(self):
         if self.reasons is None:
@@ -114,7 +115,7 @@ class SkillValidator:
         "управление персоналом",
         "работа в команде",
         "работа с командой",
-        "команде",  # ЯЗЫКИ И ОБРАЗОВАНИЕ
+        "команде",
         "английского языка",
         "русского языка",
         "высшее образование",
@@ -455,8 +456,7 @@ class SkillValidator:
         "cleanarchitecture",
         "проактивность",
         "soft skills",
-        "hard skills"
-        # === ОДИНОЧНЫЕ СЛОВА - SOFT SKILLS ===
+        "hard skills",
         "лидерство",
         "лидер",
         "стратегия",
@@ -506,7 +506,6 @@ class SkillValidator:
         "авито",
         "юла",
         "ситимобил",
-        # имена и фамилии (часто встречаются в описаниях)
         "иван",
         "петр",
         "сергей",

@@ -1,14 +1,12 @@
-"""
-Типизированные модели для работы с вакансиями.
-Замена сырых Dict на структурированные классы.
-"""
+"""Типизированные модели для работы с вакансиями."""
 
-import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -241,6 +239,14 @@ class Vacancy:
         else:
             self.experience_level = "middle"
 
+        logger.debug(
+            "vacancy_created",
+            vacancy_id=self.id,
+            name=self.name,
+            level=self.experience_level,
+            skills_count=len(self.key_skills),
+        )
+
     @classmethod
     def from_api(cls, data: dict) -> "Vacancy":
         """
@@ -277,14 +283,24 @@ class Vacancy:
 
             # Парсим ключевые навыки
             key_skills = []
+            invalid_skills = 0
             for skill_data in data.get("key_skills", []):
                 try:
                     skill_name = skill_data.get("name", "").strip()
                     if skill_name:
                         key_skills.append(KeySkill(name=skill_name, id=skill_data.get("id")))
                 except ValueError as e:
-                    logger.warning(f"Невалидный навык в вакансии {vacancy_id}: {e}")
+                    logger.warning("invalid_skill_in_vacancy", vacancy_id=vacancy_id, error=str(e))
+                    invalid_skills += 1
                     continue
+
+            if invalid_skills > 0:
+                logger.debug(
+                    "some_skills_invalid",
+                    vacancy_id=vacancy_id,
+                    invalid=invalid_skills,
+                    valid=len(key_skills),
+                )
 
             # Парсим snippet
             snippet_data = data.get("snippet", {})
@@ -311,7 +327,7 @@ class Vacancy:
                 experience = Experience(id=experience_data.get("id", ""), name=experience_data.get("name", "Не указан"))
 
             # Создаём вакансию
-            return cls(
+            vacancy = cls(
                 id=vacancy_id,
                 name=name,
                 area=area,
@@ -325,7 +341,19 @@ class Vacancy:
                 raw_data=data,
             )
 
+            logger.debug(
+                "vacancy_parsed_from_api",
+                vacancy_id=vacancy_id,
+                name=name,
+                skills=len(key_skills),
+                has_description=bool(data.get("description")),
+                has_salary=salary is not None,
+            )
+
+            return vacancy
+
         except (KeyError, TypeError) as e:
+            logger.error("vacancy_parsing_failed", error=str(e), exc_info=True)
             raise ValueError(f"Невалидная структура вакансии: {e}") from e
 
     def get_all_text(self) -> str:
@@ -385,12 +413,16 @@ class VacancyCollection:
         """Добавляет вакансию (избегает дубликатов)"""
         if vacancy not in self.vacancies:
             self.vacancies.append(vacancy)
+            logger.debug("vacancy_added_to_collection", vacancy_id=vacancy.id, total=len(self.vacancies))
+        else:
+            logger.debug("vacancy_already_in_collection", vacancy_id=vacancy.id)
 
     def get_all_skills(self) -> list[KeySkill]:
         """Получает все уникальные навыки из всех вакансий"""
         skills_set = set()
         for vacancy in self.vacancies:
             skills_set.update(vacancy.key_skills)
+        logger.debug("unique_skills_collected", total=len(skills_set), vacancies=len(self.vacancies))
         return list(skills_set)
 
     def get_stats(self) -> dict[str, Any]:
@@ -405,13 +437,20 @@ class VacancyCollection:
             "senior": sum(1 for v in self.vacancies if v.experience_level == "senior"),
         }
 
-        return {
+        stats = {
             "total_vacancies": len(self),
             "vacancies_with_skills": vacancies_with_skills,
             "total_unique_skills": skills_count,
             "avg_skills_per_vacancy": skills_count / max(vacancies_with_skills, 1),
             "by_level": level_stats,
         }
+
+        logger.info(
+            "collection_stats",
+            **stats,
+        )
+
+        return stats
 
     def __repr__(self):
         return f"VacancyCollection({len(self)} vacancies, query='{self.query}')"

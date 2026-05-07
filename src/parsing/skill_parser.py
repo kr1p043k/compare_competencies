@@ -3,14 +3,15 @@
 Отвечает ТОЛЬКО за извлечение навыков, не за валидацию!
 """
 
-import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
 
+import structlog
+
 from src.models.vacancy import Vacancy
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SkillSource(Enum):
@@ -193,7 +194,6 @@ class SkillParser:
 
     def __init__(self):
         self.stats = ParsingStats()
-        self.logger = logging.getLogger(__name__)
 
     def parse_vacancy(self, vacancy: Vacancy) -> list[ExtractedSkill]:
         """Извлекает все навыки из вакансии"""
@@ -244,9 +244,9 @@ class SkillParser:
 
         text = text[:max_text_length]
         # === очистка HTML ===
-        text = re.sub(r"<[^>]+>", " ", text)  # удаляем все теги
-        text = re.sub(r"\s+", " ", text).strip()  # схлопываем пробелы
-        text = text.replace("strong", "")  # убираем остатки "strong"
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        text = text.replace("strong", "")
         self.stats.text_length_processed += len(text)
 
         skills = []

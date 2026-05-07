@@ -4,12 +4,13 @@ Singleton, загружается один раз при первом обращ
 """
 
 import json
-import logging
 from typing import Optional
+
+import structlog
 
 from src import config
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SkillTaxonomy:
@@ -33,7 +34,7 @@ class SkillTaxonomy:
         """Загружает таксономию из JSON-файла."""
         path = config.DATA_DIR / "skill_taxonomy.json"
         if not path.exists():
-            logger.warning(f"Файл таксономии не найден: {path}. Используется fallback 'other'.")
+            logger.warning("taxonomy_file_not_found", path=str(path))
             return
 
         try:
@@ -47,9 +48,13 @@ class SkillTaxonomy:
                 for skill in cat_data.get("skills", []):
                     self._skill_to_category[skill.lower().strip()] = cat_id
 
-            logger.info(f"Таксономия загружена: {len(categories)} категорий, {len(self._skill_to_category)} навыков")
+            logger.info(
+                "taxonomy_loaded",
+                categories_count=len(categories),
+                skills_count=len(self._skill_to_category),
+            )
         except Exception as e:
-            logger.error(f"Ошибка загрузки таксономии: {e}")
+            logger.error("taxonomy_load_error", error=str(e))
 
     def get_category(self, skill: str) -> str:
         """

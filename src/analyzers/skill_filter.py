@@ -3,11 +3,10 @@
 Исправленная версия с сохранением пропорций частот.
 """
 
-import logging
-
 import numpy as np
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SkillFilter:
@@ -17,6 +16,7 @@ class SkillFilter:
     """
 
     # GENERIC слова, которые ВСЕГДА исключаются
+    # Строки 24-68, заменить GENERIC_WORDS на:
     GENERIC_WORDS = {
         "frontend",
         "front-end",
@@ -42,14 +42,8 @@ class SkillFilter:
         "веб разработка",
         "базы данных",
         "database",
-        "sql",
-        "nosql",
-        "git",
         "svn",
         "version control",
-        "linux",
-        "windows",
-        "macos",
         "английский",
         "english",
         "язык",
@@ -76,7 +70,7 @@ class SkillFilter:
 
             reference_skills = load_it_skills()
         self.reference_skills = reference_skills
-        logger.info(f"SkillFilter инициализирован с {len(self.reference_skills)} reference навыками")
+        logger.info("skill_filter_initialized", reference_skills_count=len(self.reference_skills))
 
     def filter_weights(self, skill_weights: dict[str, float], min_weight: float = 0.01) -> dict[str, float]:
         """
@@ -103,8 +97,7 @@ class SkillFilter:
         removed_unknown = 0
         removed_low_weight = 0
 
-        logger.info("\n🔍 ФИЛЬТРАЦИЯ НАВЫКОВ:")
-        logger.info(f"  - Исходно: {len(skill_weights)} навыков")
+        logger.info("skill_filtering_started", total_skills=len(skill_weights))
 
         for skill, weight in skill_weights.items():
             skill_lower = skill.lower().strip()
@@ -138,11 +131,14 @@ class SkillFilter:
             # Все проверки пройдены - добавляем
             filtered[skill_lower] = weight
 
-        logger.info(f"  - Удалено generic: {removed_generic}")
-        logger.info(f"  - Удалено unknown: {removed_unknown}")
-        logger.info(f"  - Удалено low weight: {removed_low_weight}")
-        logger.info(f"  - Всего удалено: {removed_count}")
-        logger.info(f"  - ✓ Осталось: {len(filtered)} ЧИСТЫХ навыков")
+        logger.info(
+            "skill_filtering_completed",
+            removed_generic=removed_generic,
+            removed_unknown=removed_unknown,
+            removed_low_weight=removed_low_weight,
+            total_removed=removed_count,
+            remaining=len(filtered),
+        )
 
         return filtered
 
@@ -194,7 +190,7 @@ class SkillFilter:
             return skill_weights
 
         else:
-            logger.warning(f"Неизвестный метод нормализации: {method}")
+            logger.warning("unknown_normalization_method", method=method)
             return skill_weights
 
     def merge_with_reference(
@@ -216,14 +212,16 @@ class SkillFilter:
             Объединённый словарь весов
         """
         if not competency_freq:
-            logger.warning("competency_freq пуст, возвращаем skill_weights")
+            logger.warning("competency_freq_empty")
             return self.filter_weights(skill_weights)
 
         merged = {}
 
-        logger.info("\n🔗 ОБЪЕДИНЕНИЕ С COMPETENCY_FREQUENCY:")
-        logger.info(f"  - competency_freq источник: {len(competency_freq)} навыков")
-        logger.info(f"  - skill_weights источник: {len(skill_weights)} навыков")
+        logger.info(
+            "merging_with_competency_freq",
+            competency_freq_count=len(competency_freq),
+            skill_weights_count=len(skill_weights),
+        )
 
         # Найдём максимальный count для нормализации
         max_count = max(competency_freq.values()) if competency_freq.values() else 1
@@ -259,10 +257,13 @@ class SkillFilter:
                 merged[skill_clean] = round(weight, 4)
                 count_weights_used += 1
 
-        logger.info(f"  - Удалено generic слов: {generic_removed}")
-        logger.info(f"  - Добавлено из competency_freq: {len(competency_freq) - generic_removed}")
-        logger.info(f"    • с TF-IDF весами: {tfidf_weights_used}")
-        logger.info(f"    • с count весами: {count_weights_used}")
+        logger.info(
+            "merge_stats",
+            generic_removed=generic_removed,
+            from_competency_freq=len(competency_freq) - generic_removed,
+            with_tfidf_weights=tfidf_weights_used,
+            with_count_weights=count_weights_used,
+        )
 
         # Добавляем навыки, которые есть только в skill_weights
         skills_only_in_tfidf = set(skill_weights.keys()) - set(merged.keys())
@@ -270,9 +271,9 @@ class SkillFilter:
             skill_clean = skill.lower().strip()
             if skill_clean not in self.GENERIC_WORDS:
                 merged[skill_clean] = skill_weights[skill]
-                logger.debug(f"  + Добавлен из skill_weights: {skill_clean}")
+                logger.debug("skill_added_from_tfidf", skill=skill_clean)
 
-        logger.info(f"  - ✓ ИТОГО: {len(merged)} навыков")
+        logger.info("merge_total", total_skills=len(merged))
 
         return merged
 
@@ -286,21 +287,19 @@ class SkillFilter:
         """
         Финальная очистка весов с сохранением реальной важности навыков.
         """
-        logger.info("\n" + "=" * 80)
-        logger.info("ФИНАЛЬНАЯ ОЧИСТКА НАВЫКОВ (сохранение пропорций)")
-        logger.info("=" * 80)
+        logger.info("final_cleanup_started")
 
         if not skill_weights_raw:
-            logger.warning("skill_weights_raw пустой")
+            logger.warning("skill_weights_raw_empty")
             return {}
 
         # 1. Берём данные из competency_freq как основной источник частот
         if competency_freq and len(competency_freq) > 0:
-            logger.info(f"Используем реальные частоты из competency_frequency.json ({len(competency_freq)} навыков)")
+            logger.info("using_competency_freq", count=len(competency_freq))
             raw_freq = {k.lower().strip(): float(v) for k, v in competency_freq.items() if v > 0}
         else:
             raw_freq = {k.lower().strip(): float(v) for k, v in skill_weights_raw.items() if v > 0}
-            logger.info(f"Используем skill_weights_raw как источник ({len(raw_freq)} навыков)")
+            logger.info("using_skill_weights_raw", count=len(raw_freq))
 
         # 2. Убираем generic слова (оставляем без изменений)
         generic_removed = 0
@@ -308,7 +307,7 @@ class SkillFilter:
             if word in self.GENERIC_WORDS:
                 del raw_freq[word]
                 generic_removed += 1
-        logger.info(f"- Удалено generic слов: {generic_removed}")
+        logger.info("generic_words_removed", count=generic_removed)
 
         # 3. Фильтрация по reference (понижаем вес неизвестным, НО не удаляем)
         if use_reference and self.reference_skills:
@@ -324,7 +323,7 @@ class SkillFilter:
                     else:
                         filtered_by_ref[skill] = weight * 0.4  # совсем неизвестный, но сохраняем
             raw_freq = filtered_by_ref
-            logger.info(f"- После фильтрации по reference: {len(raw_freq)} навыков")
+            logger.info("after_reference_filter", count=len(raw_freq))
 
         # 4. ТОЛЬКО ТЕПЕРЬ удаляем длинные фразы (>6 слов)
         long_removed = 0
@@ -332,28 +331,40 @@ class SkillFilter:
             if len(word.split()) > 6:
                 del raw_freq[word]
                 long_removed += 1
-        logger.info(f"- Удалено длинных фраз (>6 слов): {long_removed}")
-        logger.info(f"- Осталось после очистки: {len(raw_freq)} навыков")
+        logger.info(
+            "long_phrases_removed",
+            removed=long_removed,
+            remaining=len(raw_freq),
+        )
 
         if not raw_freq:
-            logger.warning("После очистки не осталось навыков!")
+            logger.warning("no_skills_after_cleanup")
             return {}
 
         # 5. Нормализация с сохранением пропорций
         normalized = self.normalize_weights(raw_freq, method=normalize_method)
         if normalized:
             vals = list(normalized.values())
-            logger.info(f"✓ ИТОГО чистых навыков: {len(normalized)}")
-            logger.info(f"   Диапазон весов: [{min(vals):.4f}, {max(vals):.4f}]")
+            logger.info(
+                "cleanup_completed",
+                total=len(normalized),
+                min_weight=round(min(vals), 4),
+                max_weight=round(max(vals), 4),
+            )
         else:
-            logger.warning("⚠️ После фильтрации не осталось навыков!")
+            logger.warning("no_skills_after_normalization")
 
         # 6. Логируем топ-10
-        logger.info("ТОП-10 наиболее важных навыков рынка:")
+        logger.info("top_10_market_skills")
         top_skills = sorted(normalized.items(), key=lambda x: x[1], reverse=True)[:10]
         for skill, w in top_skills:
             original_weight = raw_freq.get(skill, 0)
-            logger.info(f"   {skill:30} → {w:.4f} (исходный вес: {original_weight:.2f})")
+            logger.info(
+                "top_skill",
+                skill=skill,
+                normalized_weight=round(w, 4),
+                original_weight=round(original_weight, 2),
+            )
 
         return normalized
 

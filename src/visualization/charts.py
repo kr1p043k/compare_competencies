@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import structlog
 
 # Добавляем корень проекта в путь для импорта config
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -78,7 +79,7 @@ plt.rcParams.update(
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "Arial", "sans-serif"]
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # ----------------------------------------------------------------------
@@ -90,9 +91,13 @@ def load_skill_weights() -> dict[str, float]:
     if path.exists():
         try:
             with open(path, encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            logger.info("skill_weights_loaded", path=str(path), count=len(data))
+            return data
         except Exception as e:
-            logger.warning(f"Не удалось загрузить {path}: {e}")
+            logger.warning("skill_weights_load_failed", path=str(path), error=str(e))
+    else:
+        logger.warning("skill_weights_file_not_found", path=str(path))
     return {}
 
 
@@ -102,9 +107,11 @@ def load_hybrid_weights() -> dict[str, float]:
     if path.exists():
         try:
             with open(path, encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            logger.info("hybrid_weights_loaded", path=str(path), count=len(data))
+            return data
         except Exception as e:
-            logger.warning(f"Не удалось загрузить {path}: {e}")
+            logger.warning("hybrid_weights_load_failed", path=str(path), error=str(e))
     return {}
 
 
@@ -127,9 +134,11 @@ def load_ml_recommendations(profile: str) -> list[tuple[str, float, str]]:
                     score = r.get("importance_score", r.get("importance", r.get("score", 0.0)))
                     explanation = r.get("explanation", r.get("why_important", ""))
                     recs.append((skill, score, explanation))
+                logger.info("ml_recommendations_loaded", profile=profile, count=len(recs))
                 return recs
             except Exception as e:
-                logger.warning(f"Ошибка загрузки ML-рекомендаций из {path}: {e}")
+                logger.warning("ml_recommendations_load_failed", path=str(path), error=str(e))
+    logger.info("no_ml_recommendations_found", profile=profile)
     return []
 
 
@@ -137,14 +146,19 @@ def load_profile_evaluation(profile_name: str) -> dict[str, Any] | None:
     """Загружает результат evaluate_profile для заданного профиля."""
     summary_path = config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
     if not summary_path.exists():
-        logger.warning(f"Файл {summary_path} не найден")
+        logger.warning("summary_file_not_found", path=str(summary_path))
         return None
     try:
         with open(summary_path, encoding="utf-8") as f:
             data = json.load(f)
-        return data.get("evaluations", {}).get(profile_name)
+        eval_data = data.get("evaluations", {}).get(profile_name)
+        if eval_data:
+            logger.info("profile_evaluation_loaded", profile=profile_name)
+        else:
+            logger.warning("profile_not_in_summary", profile=profile_name)
+        return eval_data
     except Exception as e:
-        logger.warning(f"Ошибка загрузки оценки профиля {profile_name}: {e}")
+        logger.warning("profile_evaluation_load_failed", profile=profile_name, error=str(e))
         return None
 
 
@@ -152,6 +166,7 @@ def load_profile_evaluation(profile_name: str) -> dict[str, Any] | None:
 # Основные графики (адаптированы под новую модель)
 # ----------------------------------------------------------------------
 def plot_coverage_comparison(results: dict[str, Any], save_path: Path | None = None) -> plt.Figure:
+    logger.info("plotting_coverage_comparison", profiles=len(results))
     profiles = list(results.keys())
     market_cov = [results[p].get("market_coverage_score", 0) for p in profiles]
     skill_cov = [results[p].get("skill_coverage", 0) for p in profiles]
@@ -174,54 +189,22 @@ def plot_coverage_comparison(results: dict[str, Any], save_path: Path | None = N
     ax.set_ylim(0, 105)
     ax.legend(loc="upper right", fontsize=12)
 
-    for bar in bars1:
-        height = bar.get_height()
-        ax.text(
-            bar.get_x() + bar.get_width() / 2.0,
-            height + 1,
-            f"{height:.1f}%",
-            ha="center",
-            va="bottom",
-            fontsize=10,
-            fontweight="bold",
-        )
-    for bar in bars2:
-        height = bar.get_height()
-        ax.text(
-            bar.get_x() + bar.get_width() / 2.0,
-            height + 1,
-            f"{height:.1f}%",
-            ha="center",
-            va="bottom",
-            fontsize=10,
-            fontweight="bold",
-        )
-    for bar in bars3:
-        height = bar.get_height()
-        ax.text(
-            bar.get_x() + bar.get_width() / 2.0,
-            height + 1,
-            f"{height:.1f}%",
-            ha="center",
-            va="bottom",
-            fontsize=10,
-            fontweight="bold",
-        )
-    for bar in bars4:
-        height = bar.get_height()
-        ax.text(
-            bar.get_x() + bar.get_width() / 2.0,
-            height + 1,
-            f"{height:.1f}%",
-            ha="center",
-            va="bottom",
-            fontsize=10,
-            fontweight="bold",
-        )
+    for bars in [bars1, bars2, bars3, bars4]:
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                height + 1,
+                f"{height:.1f}%",
+                ha="center",
+                va="bottom",
+                fontsize=10,
+                fontweight="bold",
+            )
 
     if save_path:
         plt.savefig(save_path)
-        logger.info(f"✅ coverage_comparison сохранён → {save_path}")
+        logger.info("coverage_comparison_saved", path=str(save_path))
     plt.close(fig)
     return fig
 
@@ -230,6 +213,9 @@ def plot_skill_comparison_radar(
     student_skills: list[str], market_top: list[str], student_name: str, save_path: Path | None = None
 ) -> plt.Figure:
     """Радарная диаграмма: навыки студента против топ-навыков рынка."""
+    logger.info(
+        "plotting_radar", student=student_name, student_skills=len(student_skills), market_skills=len(market_top)
+    )
     all_skills = list(dict.fromkeys(market_top[:12] + student_skills))
     if len(all_skills) > 15:
         all_skills = all_skills[:15]
@@ -259,13 +245,14 @@ def plot_skill_comparison_radar(
 
     if save_path:
         plt.savefig(save_path)
-        logger.info(f"✅ radar сохранён → {save_path}")
+        logger.info("radar_saved", path=str(save_path))
     plt.close(fig)
     return fig
 
 
 def plot_ml_importance(profile: str, top_n: int = 10, save_path: Path | None = None) -> plt.Figure:
     """Горизонтальный барплот важности недостающих навыков по ML-модели."""
+    logger.info("plotting_ml_importance", profile=profile, top_n=top_n)
     recs = load_ml_recommendations(profile)
     if not recs:
         fig, ax = plt.subplots()
@@ -279,6 +266,7 @@ def plot_ml_importance(profile: str, top_n: int = 10, save_path: Path | None = N
         )
         if save_path:
             plt.savefig(save_path)
+        logger.warning("no_ml_recommendations_for_plot", profile=profile)
         plt.close(fig)
         return fig
 
@@ -300,7 +288,7 @@ def plot_ml_importance(profile: str, top_n: int = 10, save_path: Path | None = N
 
     if save_path:
         plt.savefig(save_path)
-        logger.info(f"✅ ml_importance сохранён → {save_path}")
+        logger.info("ml_importance_saved", path=str(save_path))
     plt.close(fig)
     return fig
 
@@ -310,6 +298,7 @@ def plot_weight_distribution(
 ) -> plt.Figure:
     """Распределение весов навыков (горизонтальный барплот топ-15)."""
     if not weights:
+        logger.warning("no_weights_for_plot")
         fig, ax = plt.subplots()
         ax.text(0.5, 0.5, "Нет весов навыков", ha="center")
         plt.close(fig)
@@ -324,12 +313,14 @@ def plot_weight_distribution(
     ax.set_xlabel("Вес (нормализованный)")
     if save_path:
         plt.savefig(save_path)
+        logger.info("weight_distribution_saved", path=str(save_path))
     plt.close(fig)
     return fig
 
 
 def plot_skills_heatmap(results: dict[str, Any], top_n: int = 20, save_path: Path | None = None) -> plt.Figure:
     """Тепловая карта покрытия топ-N рыночных навыков разными профилями."""
+    logger.info("plotting_skills_heatmap", profiles=len(results), top_n=top_n)
     skill_weights = load_skill_weights()
     if not skill_weights:
         fig, ax = plt.subplots()
@@ -360,20 +351,21 @@ def plot_skills_heatmap(results: dict[str, Any], top_n: int = 20, save_path: Pat
 
     if save_path:
         plt.savefig(save_path, bbox_inches="tight")
-        logger.info(f"✅ heatmap сохранён → {save_path}")
+        logger.info("skills_heatmap_saved", path=str(save_path))
     plt.close(fig)
     return fig
 
 
 def plot_skill_correlation_heatmap(
     correlation_analyzer,
-    top_n: int = 15,  # уменьшено с 25
+    top_n: int = 15,
     save_path: Path | None = None,
 ) -> plt.Figure:
     """
     Тепловая карта совместной встречаемости навыков (Jaccard).
     Навыки сгруппированы по категориям таксономии.
     """
+    logger.info("plotting_correlation_heatmap", top_n=top_n)
     from src.analyzers.skill_taxonomy import SkillTaxonomy
 
     skills, matrix = correlation_analyzer.get_correlation_labeled(top_n=top_n)
@@ -391,7 +383,6 @@ def plot_skill_correlation_heatmap(
     except Exception:
         taxonomy = None
 
-    # Группируем навыки по категориям
     if taxonomy:
         cat_order = []
         seen = set()
@@ -401,25 +392,20 @@ def plot_skill_correlation_heatmap(
                 cat_order.append(cat)
                 seen.add(cat)
 
-        # Сортируем: сначала по категории, потом по алфавиту
         skill_cat = [(s, taxonomy.get_category_label(s), s) for s in skills]
         skill_cat.sort(key=lambda x: (cat_order.index(x[1]) if x[1] in cat_order else 999, x[2]))
         sorted_skills = [s for s, _, _ in skill_cat]
 
-        # Перестраиваем матрицу в новом порядке
         idx_map = {s: i for i, s in enumerate(skills)}
         new_order = [idx_map[s] for s in sorted_skills]
         matrix = matrix[new_order][:, new_order]
         skills = sorted_skills
 
-    # Человекочитаемые метки
     labels = [_safe_label(s, taxonomy) for s in skills]
 
-    # Размер ячейки — крупнее
     cell_size = 0.55
     fig, ax = plt.subplots(figsize=(top_n * cell_size + 3, top_n * cell_size + 2))
 
-    # Маска: показываем только связи > 0.2
     mask = matrix < 0.2
 
     sns.heatmap(
@@ -450,7 +436,7 @@ def plot_skill_correlation_heatmap(
 
     if save_path:
         plt.savefig(save_path, dpi=200, bbox_inches="tight")
-        logger.info(f"✅ skill_correlation_heatmap сохранён → {save_path}")
+        logger.info("correlation_heatmap_saved", path=str(save_path))
     plt.close(fig)
     return fig
 
@@ -460,24 +446,24 @@ def plot_cluster_insights(results: dict[str, Any], output_dir: Path):
     for profile_name, eval_dict in results.items():
         cluster_ctx = eval_dict.get("cluster_context")
         if not cluster_ctx:
+            logger.info("no_cluster_context_for_profile", profile=profile_name)
             continue
 
         closest = cluster_ctx.get("closest_clusters", [])
         if not closest:
             continue
 
+        logger.info("plotting_cluster_insights", profile=profile_name, clusters=len(closest))
+
         student_skills = set(s.lower() for s in eval_dict.get("student_skills", []))
         cluster_skills_map = cluster_ctx.get("skills", {})
         cluster_skills_set = set(cluster_skills_map.keys())
 
-        # Имена кластеров — только категории, без навыков
         cluster_names = []
         for c in closest:
             name = c.get("name", f"Cluster {c['id']}")
-            # Убираем всё после двоеточия (если есть)
             if ":" in name:
                 name = name.split(":")[0].strip()
-            # Убираем эмодзи
             for emoji, text in EMOJI_TO_TEXT.items():
                 name = name.replace(emoji, text)
             cluster_names.append(name)
@@ -493,7 +479,6 @@ def plot_cluster_insights(results: dict[str, Any], output_dir: Path):
         x = np.arange(len(closest))
         width = 0.4
 
-        # Столбцы сходства
         bars = ax.bar(x, similarities, width, color="#1f77b4", alpha=0.85, label="Близость к профилю")
         ax.axhline(y=coverage, color="#2ca02c", linestyle="--", linewidth=2, label=f"Покрытие навыков: {coverage:.1f}%")
 
@@ -504,7 +489,6 @@ def plot_cluster_insights(results: dict[str, Any], output_dir: Path):
         ax.set_ylim(0, 105)
         ax.legend(fontsize=11)
 
-        # Подписи значений над столбцами
         for bar in bars:
             height = bar.get_height()
             ax.text(
@@ -517,7 +501,6 @@ def plot_cluster_insights(results: dict[str, Any], output_dir: Path):
                 fontweight="bold",
             )
 
-        # Убираем верхнюю и правую границы для чистоты
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
 
@@ -525,7 +508,7 @@ def plot_cluster_insights(results: dict[str, Any], output_dir: Path):
         save_path = output_dir / profile_name / f"cluster_insights_{profile_name}.png"
         plt.savefig(save_path, dpi=200, bbox_inches="tight")
         plt.close()
-        logger.info(f"✅ cluster_insights сохранён → {save_path}")
+        logger.info("cluster_insights_saved", path=str(save_path))
 
 
 def save_all_charts(
@@ -533,7 +516,7 @@ def save_all_charts(
 ):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    logger.info(f"🚀 Генерация презентационных графиков в {output_dir}")
+    logger.info("generating_all_charts", output_dir=str(output_dir), profiles=len(results))
 
     plot_coverage_comparison(results, output_dir / "coverage_comparison.png")
     skill_weights = load_skill_weights()
@@ -564,8 +547,8 @@ def save_all_charts(
                 ax.invert_yaxis()
                 fig.savefig(prof_dir / f"deficits_{profile_name}.png", dpi=300, bbox_inches="tight")
                 plt.close(fig)
+                logger.info("deficits_saved", profile=profile_name, count=len(deficits))
 
-    # Корреляционная матрица навыков
     if vacancies_skills_list:
         try:
             from src.analyzers.skill_correlation import SkillCorrelationAnalyzer
@@ -576,11 +559,11 @@ def save_all_charts(
                 corr_analyzer, top_n=25, save_path=output_dir / "skill_correlation_heatmap.png"
             )
         except Exception as e:
-            logger.warning(f"Не удалось построить корреляционную матрицу: {e}")
+            logger.warning("correlation_heatmap_failed", error=str(e))
 
     plot_skills_heatmap(results, top_n=20, save_path=output_dir / "skills_heatmap.png")
     plot_cluster_insights(results, output_dir)
-    logger.info("✅ Все графики готовы для презентации")
+    logger.info("all_charts_generated")
 
 
 # ----------------------------------------------------------------------
@@ -591,7 +574,7 @@ def run_notebook(notebook_name: str, output_dir: Path | None = None) -> bool:
     base_dir = Path(__file__).parent.parent.parent
     notebook_path = base_dir / "notebook_jypiter" / notebook_name
     if not notebook_path.exists():
-        logger.error(f"Ноутбук не найден: {notebook_path}")
+        logger.error("notebook_not_found", path=str(notebook_path))
         return False
 
     if output_dir is None:
@@ -614,16 +597,16 @@ def run_notebook(notebook_name: str, output_dir: Path | None = None) -> bool:
             str(output_path),
             "--ExecutePreprocessor.timeout=600",
         ]
-        logger.info(f"Запуск выполнения ноутбука: {notebook_name}")
+        logger.info("running_notebook", name=notebook_name)
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
-            logger.info(f"Ноутбук {notebook_name} успешно выполнен. Результат: {output_path}")
+            logger.info("notebook_completed", name=notebook_name, output=str(output_path))
             return True
         else:
-            logger.error(f"Ошибка при выполнении {notebook_name}: {result.stderr}")
+            logger.error("notebook_failed", name=notebook_name, error=result.stderr[:200])
             return False
     except Exception as e:
-        logger.exception(f"Исключение при запуске ноутбука: {e}")
+        logger.exception("notebook_exception", error=str(e))
         return False
 
 
@@ -638,12 +621,15 @@ def show_context_info() -> None:
         try:
             with open(market_file, encoding="utf-8") as f:
                 market_skills = json.load(f)
+            logger.info("market_skills_summary", unique_skills=len(market_skills))
             print(f"Рыночные навыки (частота): {len(market_skills)} уникальных")
             top_skills = sorted(market_skills.items(), key=lambda x: x[1], reverse=True)[:5]
             print(f"Топ-5 востребованных: {', '.join([s for s, _ in top_skills])}")
         except Exception as e:
+            logger.warning("market_skills_load_failed", error=str(e))
             print(f"Не удалось загрузить рыночные навыки: {e}")
     else:
+        logger.warning("market_skills_file_not_found")
         print("⚠️ Файл с рыночными навыками не найден. Сначала соберите данные.")
 
     mapping_file = config.COMPETENCY_MAPPING_FILE
@@ -651,14 +637,18 @@ def show_context_info() -> None:
         try:
             with open(mapping_file, encoding="utf-8") as f:
                 mapping = json.load(f)
+            logger.info("competency_mapping_summary", competencies=len(mapping))
             print(f"Компетенций в маппинге: {len(mapping)}")
         except Exception as e:
+            logger.warning("competency_mapping_load_failed", error=str(e))
             print(f"Не удалось загрузить маппинг компетенций: {e}")
     else:
+        logger.warning("competency_mapping_file_not_found", path=str(mapping_file))
         print(f"⚠️ Файл маппинга не найден: {mapping_file}")
 
     students_dir = config.STUDENTS_DIR
     students = list(students_dir.glob("*_competency.json"))
+    logger.info("student_profiles_found", count=len(students))
     print(f"Профили студентов (JSON): {len(students)}")
     for student_file in students:
         try:
@@ -677,6 +667,7 @@ def show_context_info() -> None:
                 report_file = student_dir / f"full_recommendations_{student_dir.name}.json"
                 if report_file.exists():
                     reports_found += 1
+    logger.info("reports_summary", ready_reports=reports_found)
     print(f"Готовые отчёты gap-анализа: {reports_found}")
 
     print("\n📋 РЕКОМЕНДАЦИИ ПО ЗАПУСКУ:")
@@ -703,6 +694,7 @@ if __name__ == "__main__":
 
     skill_weights = load_skill_weights()
     if not skill_weights:
+        logger.error("no_skill_weights_for_demo")
         print("\n❌ skill_weights.json не найден. Невозможно построить графики.")
         sys.exit(1)
 

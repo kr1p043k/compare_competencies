@@ -2,18 +2,18 @@
 HeadHunterAPI - синхронный клиент для работы с API hh.ru
 """
 
-import logging
 import time
 from typing import Any
 
 import requests
+import structlog
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from src import config
 from src.models.vacancy import Vacancy
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class HeadHunterAPI:
@@ -48,9 +48,9 @@ class HeadHunterAPI:
         if config.HH_CLIENT_ID and config.HH_CLIENT_SECRET:
             self._get_app_token()
         else:
-            logger.warning("HH_CLIENT_ID или HH_CLIENT_SECRET не заданы. Запросы будут неавторизованными.")
+            logger.warning("hh_credentials_not_set")
 
-        logger.info(f"HeadHunterAPI инициализирован (MAX_RETRIES={config.MAX_RETRIES})")
+        logger.info("hh_api_initialized", max_retries=config.MAX_RETRIES)
 
     # -----------------------------------------------------------------------
     def _get_app_token(self):
@@ -66,18 +66,18 @@ class HeadHunterAPI:
             if resp.status_code == 200:
                 token_data = resp.json()
                 self._token = token_data.get("access_token")
-                expires_in = token_data.get("expires_in", 3600)  # обычно около 86400 для приложений, но страховка
+                expires_in = token_data.get("expires_in", 3600)
                 self._token_expires_at = time.time() + expires_in - 30
                 self.session.headers.update({"Authorization": f"Bearer {self._token}"})
-                logger.info("✅ Токен приложения успешно получен")
+                logger.info("app_token_obtained")
             else:
-                logger.error(f"❌ Ошибка получения токена: {resp.status_code} - {resp.text}")
+                logger.error("token_request_failed", status=resp.status_code, response=resp.text[:200])
         except Exception as e:
-            logger.error(f"❌ Исключение при получении токена: {e}")
+            logger.error("token_request_exception", error=str(e))
 
     def _ensure_token(self):
         if not self._token or time.time() > self._token_expires_at:
-            logger.info("Токен отсутствует или истёк, получаю новый...")
+            logger.info("token_missing_or_expired")
             self._get_app_token()
 
     # ======================================================================
@@ -101,7 +101,7 @@ class HeadHunterAPI:
         else:
             params["period"] = period_days
 
-        logger.info(f"Поиск вакансий: '{text}' (регион {area}, макс {max_pages} страниц)")
+        logger.info("search_vacancies_started", query=text, area=area, max_pages=max_pages)
         all_vacancies = []
         page = 0
         while page < max_pages:
@@ -109,27 +109,27 @@ class HeadHunterAPI:
             data = self._get(self.BASE_URL, params=params)
             self.last_response = data
             if not data or "items" not in data:
-                logger.error("Не удалось получить данные")
+                logger.error("failed_to_get_search_data")
                 break
             items = data["items"]
             if not items:
                 break
             all_vacancies.extend(items)
-            logger.info(f"Страница {page + 1}: получено {len(items)} вакансий (всего найдено: {data.get('found', 0)})")
+            logger.info("search_page_loaded", page=page + 1, items=len(items), total_found=data.get("found", 0))
             if page >= data.get("pages", 0) - 1:
                 break
             page += 1
             time.sleep(config.REQUEST_DELAY)
-        logger.info(f"Всего загружено {len(all_vacancies)} вакансий")
+        logger.info("search_vacancies_completed", total=len(all_vacancies))
         return all_vacancies
 
     def get_vacancy_details(self, vacancy_id):
         url = f"{self.BASE_URL_FULL}vacancies/{vacancy_id}"
         data = self._get(url)
         if data:
-            logger.debug(f"Успешно загружены детали вакансии {vacancy_id}")
+            logger.debug("vacancy_details_loaded", vacancy_id=vacancy_id)
         else:
-            logger.warning(f"Не удалось загрузить детали вакансии {vacancy_id}")
+            logger.warning("vacancy_details_failed", vacancy_id=vacancy_id)
         return data
 
     def get_vacancy_details_as_object(self, vacancy_id):
@@ -139,7 +139,7 @@ class HeadHunterAPI:
         try:
             return Vacancy.from_api(raw)
         except ValueError as e:
-            logger.warning(f"Невалидная вакансия {vacancy_id}: {e}")
+            logger.warning("invalid_vacancy", vacancy_id=vacancy_id, error=str(e))
             return None
 
     # -----------------------------------------------------------------------
@@ -150,52 +150,52 @@ class HeadHunterAPI:
             start_time = time.time()
             response = self.session.get(url, params=params, timeout=10)
             elapsed = time.time() - start_time
-            logger.debug(f"GET {url} - статус {response.status_code} ({elapsed:.2f}с)")
+            logger.debug("http_request", url=url, status=response.status_code, elapsed=round(elapsed, 2))
 
             if response.status_code == 200:
                 return response.json()
             elif response.status_code == 304:
-                logger.debug("304 Not Modified")
+                logger.debug("http_304_not_modified")
                 return None
             elif response.status_code == 404:
-                logger.warning(f"404: {url}")
+                logger.warning("http_404", url=url)
                 return None
             elif response.status_code == 401:
                 if not _is_retry_after_401:
-                    logger.warning("401, обновляю токен и пробую снова")
+                    logger.warning("http_401_refreshing_token")
                     self._get_app_token()
                     return self._get(url, params, retry_count, _is_retry_after_401=True)
                 else:
-                    logger.error("Повторный 401 после обновления токена")
+                    logger.error("http_401_after_token_refresh")
                     return None
             elif response.status_code == 403:
-                logger.error("403 Forbidden. Проверьте права приложения или IP.")
+                logger.error("http_403_forbidden")
                 return None
             elif response.status_code == 429:
                 retry_after = int(response.headers.get("Retry-After", 60))
                 if retry_count < 3:
-                    logger.warning(f"429. Попытка {retry_count + 1}/3, жду {retry_after}с")
+                    logger.warning("http_429_rate_limited", attempt=retry_count + 1, retry_after=retry_after)
                     time.sleep(retry_after)
                     return self._get(url, params, retry_count + 1)
                 else:
-                    logger.error("Превышено число попыток при 429")
+                    logger.error("http_429_max_retries_exceeded")
                     return None
             else:
-                logger.warning(f"Неожиданный статус: {response.status_code}")
+                logger.warning("http_unexpected_status", status=response.status_code)
                 return None
         except requests.exceptions.Timeout:
-            logger.error(f"Timeout: {url}")
+            logger.error("http_timeout", url=url)
             return None
         except requests.exceptions.ConnectionError:
-            logger.error(f"Connection error: {url}")
+            logger.error("http_connection_error", url=url)
             return None
         except Exception as e:
-            logger.error(f"Ошибка: {e}")
+            logger.error("http_request_exception", error=str(e))
             return None
 
     def close(self):
         self.session.close()
-        logger.info("Сессия закрыта")
+        logger.info("session_closed")
 
     def __enter__(self):
         return self

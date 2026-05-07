@@ -3,10 +3,11 @@
 Разделяет навыки на: junior, middle, senior
 """
 
-import logging
 from collections import defaultdict
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
 class SkillLevelAnalyzer:
@@ -24,7 +25,7 @@ class SkillLevelAnalyzer:
         }
 
     def analyze_vacancies(self, vacancies: list[dict]):
-        logger.info("Анализируем распределение навыков по уровням...")
+        logger.info("analyzing_skills_by_level")
         total_by_level = defaultdict(int)
 
         for vac in vacancies:
@@ -55,8 +56,11 @@ class SkillLevelAnalyzer:
                 skill_lower = skill.lower().strip()
                 self.skill_by_level[skill_lower][experience] += 1
 
-        logger.info(f"Распределение вакансий: {dict(total_by_level)}")
-        logger.info(f"Анализировано {len(self.skill_by_level)} уникальных навыков")
+        logger.info(
+            "skills_analyzed_by_level",
+            vacancies_distribution=dict(total_by_level),
+            unique_skills=len(self.skill_by_level),
+        )
 
     def get_skill_level(self, skill: str) -> str:
         """

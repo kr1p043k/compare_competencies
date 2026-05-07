@@ -5,10 +5,10 @@
 
 import hashlib
 import json
-import logging
 from typing import Any
 
 import numpy as np
+import structlog
 
 from src import config
 from src.analyzers.comparator import CompetencyComparator
@@ -19,7 +19,7 @@ from src.models.student import StudentProfile
 from src.parsing.embedding_loader import get_embedding_model
 from src.parsing.skill_normalizer import SkillNormalizer
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ProfileEvaluator:
@@ -60,7 +60,12 @@ class ProfileEvaluator:
             "middle": self.clusterer.load_model("middle"),
             "senior": self.clusterer.load_model("senior"),
         }
-        logger.info(f"Модели кластеризации загружены: {self.cluster_models_loaded}")
+        logger.info(
+            "cluster_models_loaded",
+            junior=self.cluster_models_loaded["junior"],
+            middle=self.cluster_models_loaded["middle"],
+            senior=self.cluster_models_loaded["senior"],
+        )
 
         # Кэширование
         self._cache = {}
@@ -112,7 +117,11 @@ class ProfileEvaluator:
         # Итоговое доменное покрытие (0-100%)
         domain_coverage_score = weighted_cov_sum * 100
 
-        logger.debug(f"Доминирующий домен: {dominant_name}, взвешенное доменное покрытие: {domain_coverage_score:.1f}%")
+        logger.debug(
+            "domain_coverage_calculated",
+            dominant_domain=dominant_name,
+            domain_coverage_score=round(domain_coverage_score, 1),
+        )
 
         # === 4. Бонусы от доменов ===
         skill_to_domain_bonus = {}
@@ -148,7 +157,8 @@ class ProfileEvaluator:
 
         if not final_scores and metrics:
             logger.warning(
-                f"Все рыночные навыки уже покрыты профилем {student.profile_name}. Fallback по cluster_relevance."
+                "all_market_skills_covered_fallback",
+                profile_name=student.profile_name,
             )
             fallback_candidates = [
                 (s, m)
@@ -182,14 +192,9 @@ class ProfileEvaluator:
                 weighted_cov += 0.5 * max_demand
             else:
                 missing_count += 1
-                # weighted_cov += 0.0
 
         # Навыковое покрытие (взвешенное по категориям)
         skill_coverage = weighted_cov / max_possible * 100 if max_possible > 0 else 0.0
-
-        # Доменное покрытие
-        avg_domain_cov = sum(d.coverage for d in domain_coverages.values()) / max(len(domain_coverages), 1)
-        domain_coverage_score = avg_domain_cov * 100
 
         # Общее покрытие рынка
         market_coverage_score = 0.60 * skill_coverage + 0.40 * domain_coverage_score
@@ -245,7 +250,7 @@ class ProfileEvaluator:
         if not self.use_clustering:
             return None
         if target_level not in self.cluster_models_loaded or not self.cluster_models_loaded[target_level]:
-            logger.info(f"Кластеризатор для уровня {target_level} не обучен, пропускаем")
+            logger.info("clusterer_not_trained_for_level", level=target_level)
             return None
 
         try:
@@ -261,13 +266,14 @@ class ProfileEvaluator:
                 profile_embedding=student_emb, level=target_level, top_k_clusters=5, top_k_skills_per_cluster=25
             )
             logger.info(
-                f"Кластерный контекст для {target_level}: "
-                f"{cluster_context['total_skills_in_context']} навыков из "
-                f"{len(cluster_context.get('closest_clusters', []))} кластеров"
+                "cluster_context_obtained",
+                level=target_level,
+                total_skills=cluster_context["total_skills_in_context"],
+                clusters_count=len(cluster_context.get("closest_clusters", [])),
             )
             return cluster_context
         except Exception as e:
-            logger.warning(f"Не удалось получить cluster_context: {e}")
+            logger.warning("cluster_context_failed", error=str(e))
             return None
 
     def _calculate_readiness(
@@ -291,13 +297,13 @@ class ProfileEvaluator:
         if target_level in self.comparators:
             return self.comparators[target_level]
 
-        logger.info(f"Создаём level-specific Embedding Comparator для {target_level}...")
+        logger.info("creating_level_comparator", level=target_level)
         comparator = CompetencyComparator(use_embeddings=True, level=target_level)
         success = comparator.fit_market(self.vacancies_skills)
         if success:
-            logger.info(f"  ✓ {target_level} comparator успешно обучен (embeddings)")
+            logger.info("level_comparator_trained", level=target_level)
         else:
-            logger.warning(f"  ⚠️ Не удалось обучить {target_level} comparator")
+            logger.warning("level_comparator_training_failed", level=target_level)
 
         self.comparators[target_level] = comparator
         return comparator

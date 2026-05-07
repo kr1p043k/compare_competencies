@@ -1,12 +1,12 @@
 # src/predictors/recommendation_engine.py
 import json
-import logging
 import time
 from typing import Any
 
 import numpy as np
 import pandas as pd
 import requests
+import structlog
 
 from src import config
 from src.analyzers.comparator import CompetencyComparator
@@ -16,7 +16,7 @@ from src.analyzers.skill_taxonomy import SkillTaxonomy
 from src.models.student import StudentProfile
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class RecommendationEngine:
@@ -42,27 +42,29 @@ class RecommendationEngine:
             if model_path.exists():
                 try:
                     self.ltr_engine.load_model(model_path)
-                    logger.info("✓ LTR-модель успешно загружена")
+                    logger.info("ltr_model_loaded")
                 except Exception as e:
-                    logger.warning(f"Не удалось загрузить LTR: {e}")
+                    logger.warning("ltr_model_load_failed", error=str(e))
                     self.ltr_engine = None
 
         self.cluster_weights = None
         self._load_templates()
-        logger.info(f"✓ RecommendationEngine инициализирован (LTR={self.use_ltr}, LLM={self.use_llm})")
+        logger.info("recommendation_engine_initialized", ltr=self.use_ltr, llm=self.use_llm)
 
     def set_cluster_context(self, weights: dict[str, float]) -> None:
         self.cluster_weights = weights
         if weights:
             logger.info(
-                f"Установлен кластерный контекст: {len(weights)} навыков, сумма весов {sum(weights.values()):.2f}"
+                "cluster_context_set",
+                skills_count=len(weights),
+                total_weight=round(sum(weights.values()), 2),
             )
         else:
-            logger.info("Кластерный контекст пуст (используются глобальные веса)")
+            logger.info("cluster_context_empty")
 
     def clear_cluster_context(self):
         self.cluster_weights = None
-        logger.info("Кластерный контекст сброшен")
+        logger.info("cluster_context_cleared")
 
     def _load_templates(self):
         templates_path = config.DATA_DIR / "templates" / "recommendation_templates.json"
@@ -74,10 +76,10 @@ class RecommendationEngine:
                 self.SOFT_SKILL_TEMPLATES = data.get("soft_skills", {})
                 self.HARD_LEARNING_PATHS = data.get("hard_paths", {})
                 self.SOFT_LEARNING_PATHS = data.get("soft_paths", {})
-                logger.info(f"Шаблоны загружены из {templates_path}")
+                logger.info("templates_loaded", path=str(templates_path))
                 return
             except Exception as e:
-                logger.warning(f"Ошибка загрузки шаблонов: {e}")
+                logger.warning("templates_load_error", error=str(e))
 
         self.HARD_SKILL_TEMPLATES = {
             "python": "Python — основной язык для бэкенда и data science.",
@@ -99,7 +101,7 @@ class RecommendationEngine:
 
     def fit(self, vacancies_skills: list[list[str]], skill_weights: dict[str, float]) -> None:
         if not vacancies_skills:
-            logger.warning("❌ Нет данных вакансий для обучения")
+            logger.warning("no_vacancy_data_for_training")
             return
         if not skill_weights:
             raise ValueError("skill_weights обязательны для fit")
@@ -110,7 +112,9 @@ class RecommendationEngine:
         self.is_fitted = True
 
         logger.info(
-            f"✓ RecommendationEngine обучен на {len(vacancies_skills)} вакансиях, веса для {len(skill_weights)} навыков"
+            "recommendation_engine_fitted",
+            vacancies=len(vacancies_skills),
+            skills=len(skill_weights),
         )
 
     def generate_recommendations(self, student: StudentProfile, user_type: str = "student") -> dict[str, Any]:
@@ -125,128 +129,185 @@ class RecommendationEngine:
         if not hasattr(self, "profile_evaluator"):
             raise RuntimeError("RecommendationEngine должен быть инициализирован с profile_evaluator")
 
-        # Получаем полную оценку от ProfileEvaluator
-        eval_result = self.profile_evaluator.evaluate_profile(student, user_type=user_type)
+        profile_name = student.profile_name
+        logger.info("generate_recommendations_started", profile=profile_name)
 
-        # === КЛАСТЕРНЫЙ КОНТЕКСТ ===
-        cluster_context = eval_result.get("cluster_context", {})
-        closest_clusters = cluster_context.get("closest_clusters", [])
-        cluster_skills_map = cluster_context.get("skills", {})
-        student_set = set(s.lower() for s in student.skills)
+        try:
+            # Шаг 1: получаем оценку профиля
+            eval_result = self.profile_evaluator.evaluate_profile(student, user_type=user_type)
 
-        # Формируем сводку ролей
-        closest_roles = []
-        for c in closest_clusters[:3]:
-            name = c.get("name", f"Кластер {c['id']}")
-            sim = c.get("similarity", 0)
+            if eval_result is None:
+                logger.error("eval_result_is_none", profile=profile_name)
+                return self._empty_recommendations()
 
-            # Навыки этого кластера
-            cluster_id = c["id"]
-            cluster_all_skills = set()
-            if hasattr(self.profile_evaluator, "clusterer") and self.profile_evaluator.clusterer:
-                try:
-                    cluster_all_skills = set(
-                        s.lower()
-                        for s in self.profile_evaluator.clusterer.get_top_skills_in_cluster(cluster_id, top_n=50)
-                    )
-                except Exception:
-                    cluster_all_skills = set(cluster_skills_map.keys())
-            else:
-                cluster_all_skills = set(cluster_skills_map.keys())
-
-            covered = len(student_set & cluster_all_skills)
-            total = len(cluster_all_skills)
-
-            closest_roles.append(
-                {
-                    "role": name,
-                    "semantic_similarity": round(sim * 100, 1),
-                    "similarity_explanation": (
-                        f"Ваш профиль семантически близок к этой роли на {sim * 100:.0f}%. "
-                        f"Это означает, что ваш набор навыков похож на требования вакансий "
-                        f"в этом кластере, но не гарантирует полного соответствия."
-                    ),
-                    "skills_covered": f"{covered}/{total}",
-                    "coverage_percent": round(covered / total * 100, 1) if total > 0 else 0,
-                    "coverage_explanation": (
-                        f"Вы уже знаете {covered} из {total} ключевых навыков этой роли "
-                        f"({round(covered / total * 100, 1) if total > 0 else 0}%). "
-                        f"Рекомендации ниже помогут закрыть пробелы."
-                    ),
-                }
+            logger.info(
+                "eval_result_received",
+                profile=profile_name,
+                keys=list(eval_result.keys()),
+                has_cluster_context="cluster_context" in eval_result,
+                has_skill_metrics="skill_metrics" in eval_result,
+                has_top_recommendations="top_recommendations" in eval_result,
             )
 
-        # === ФОРМИРОВАНИЕ РЕКОМЕНДАЦИЙ ===
-        recommendations = []
-        skill_metrics = eval_result.get("skill_metrics", {})
+            # Шаг 2: кластерный контекст
+            cluster_context = eval_result.get("cluster_context") or {}
+            closest_clusters = cluster_context.get("closest_clusters", [])
+            cluster_skills_map = cluster_context.get("skills", {})
+            student_set = set(s.lower() for s in student.skills)
 
-        for skill, score in eval_result.get("top_recommendations", []):
-            metric = skill_metrics.get(skill, {})
+            logger.info(
+                "cluster_context_parsed",
+                profile=profile_name,
+                closest_count=len(closest_clusters),
+                context_skills_count=len(cluster_skills_map),
+            )
 
-            rec = {
-                "rank": 0,
-                "skill": skill,
-                "importance_score": score,
-                "priority": "HIGH" if score > 0.7 else "MEDIUM" if score > 0.4 else "LOW",
-                "category": metric.get("category", "missing"),
-                "why_important": self._generate_explanation(skill, score, eval_result),
-                "how_to_learn": self._get_learning_path(skill, False, student),
-                "expected_timeframe": self._get_timeframe(skill),
-                "expected_outcome": self._get_role_outcome(skill, closest_roles),
-                "is_soft_skill": not self._is_hard_skill(skill),
-                "market_frequency_percent": score * 100,
-            }
-            recommendations.append(rec)
+            # Шаг 3: формируем роли
+            closest_roles = []
+            for c in closest_clusters[:3]:
+                name = c.get("name", f"Кластер {c['id']}")
+                sim = c.get("similarity", 0)
+                cluster_id = c["id"]
 
-        # Сортируем по важности
-        recommendations.sort(key=lambda x: x["importance_score"], reverse=True)
-        for idx, rec in enumerate(recommendations, 1):
-            rec["rank"] = idx
+                cluster_all_skills = set()
+                if hasattr(self.profile_evaluator, "clusterer") and self.profile_evaluator.clusterer:
+                    try:
+                        cluster_all_skills = set(
+                            s.lower()
+                            for s in self.profile_evaluator.clusterer.get_top_skills_in_cluster(cluster_id, top_n=50)
+                        )
+                    except Exception as e:
+                        logger.warning("cluster_skills_fetch_failed", cluster=cluster_id, error=str(e))
+                        cluster_all_skills = set(cluster_skills_map.keys())
+                else:
+                    cluster_all_skills = set(cluster_skills_map.keys())
 
-        top_recommendations = recommendations[:15]
+                covered = len(student_set & cluster_all_skills)
+                total = len(cluster_all_skills)
 
-        # === СОХРАНЕНИЕ LTR-РЕКОМЕНДАЦИЙ ===
-        profile_name = student.profile_name
-        ltr_file = config.DATA_DIR / "result" / profile_name / f"ltr_recommendations_{profile_name}.json"
-        ltr_file.parent.mkdir(parents=True, exist_ok=True)
-        ltr_data = {
-            "profile": profile_name,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "recommendations": [
-                {
-                    "skill": rec["skill"],
-                    "score": round(rec["importance_score"] * 100, 2),
-                    "explanation": rec["why_important"],
+                closest_roles.append(
+                    {
+                        "role": name,
+                        "semantic_similarity": round(sim * 100, 1),
+                        "similarity_explanation": (
+                            f"Ваш профиль семантически близок к этой роли на {sim * 100:.0f}%. "
+                            f"Это означает, что ваш набор навыков похож на требования вакансий "
+                            f"в этом кластере, но не гарантирует полного соответствия."
+                        ),
+                        "skills_covered": f"{covered}/{total}",
+                        "coverage_percent": round(covered / total * 100, 1) if total > 0 else 0,
+                        "coverage_explanation": (
+                            f"Вы уже знаете {covered} из {total} ключевых навыков этой роли "
+                            f"({round(covered / total * 100, 1) if total > 0 else 0}%). "
+                            f"Рекомендации ниже помогут закрыть пробелы."
+                        ),
+                    }
+                )
+
+            # Шаг 4: формируем рекомендации
+            recommendations = []
+            skill_metrics = eval_result.get("skill_metrics", {})
+            top_recs = eval_result.get("top_recommendations", [])
+
+            if not top_recs:
+                logger.warning("no_top_recommendations", profile=profile_name)
+
+            for skill, score in top_recs:
+                metric = skill_metrics.get(skill, {})
+                try:
+                    explanation = self._generate_explanation(skill, score, eval_result)
+                except Exception as e:
+                    logger.error("explanation_generation_failed", skill=skill, error=str(e))
+                    explanation = f"Навык '{skill}' востребован на рынке."
+
+                rec = {
+                    "rank": 0,
+                    "skill": skill,
+                    "importance_score": score,
+                    "priority": "HIGH" if score > 0.7 else "MEDIUM" if score > 0.4 else "LOW",
+                    "category": metric.get("category", "missing"),
+                    "why_important": explanation,
+                    "how_to_learn": self._get_learning_path(skill, False, student),
+                    "expected_timeframe": self._get_timeframe(skill),
+                    "expected_outcome": self._get_role_outcome(skill, closest_roles),
+                    "is_soft_skill": not self._is_hard_skill(skill),
+                    "market_frequency_percent": score * 100,
                 }
-                for rec in top_recommendations[:10]
-            ],
-        }
-        try:
-            atomic_write_json(ltr_data, ltr_file)
-            logger.info(f"✅ LTR-рекомендации сохранены: {ltr_file}")
-        except Exception as e:
-            logger.warning(f"Не удалось сохранить LTR-рекомендации: {e}")
+                recommendations.append(rec)
 
+            recommendations.sort(key=lambda x: x["importance_score"], reverse=True)
+            for idx, rec in enumerate(recommendations, 1):
+                rec["rank"] = idx
+
+            top_recommendations = recommendations[:15]
+
+            # Шаг 5: сохраняем LTR
+            ltr_file = config.DATA_DIR / "result" / profile_name / f"ltr_recommendations_{profile_name}.json"
+            ltr_file.parent.mkdir(parents=True, exist_ok=True)
+            ltr_data = {
+                "profile": profile_name,
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "recommendations": [
+                    {
+                        "skill": rec["skill"],
+                        "score": round(rec["importance_score"] * 100, 2),
+                        "explanation": rec["why_important"],
+                    }
+                    for rec in top_recommendations[:10]
+                ],
+            }
+            try:
+                atomic_write_json(ltr_data, ltr_file)
+            except Exception as e:
+                logger.warning("ltr_save_failed", profile=profile_name, error=str(e))
+
+            logger.info("generate_recommendations_completed", profile=profile_name, recs=len(top_recommendations))
+
+            return {
+                "summary": {
+                    "match_score": eval_result.get("market_coverage_score", 0),
+                    "confidence": eval_result.get("readiness_score", 0),
+                    "market_coverage_score": eval_result.get("market_coverage_score", 0),
+                    "skill_coverage": eval_result.get("skill_coverage", 0),
+                    "domain_coverage_score": eval_result.get("domain_coverage_score", 0),
+                    "readiness_score": eval_result.get("readiness_score", 0),
+                    "avg_gap": eval_result.get("avg_gap", 0),
+                    "coverage": eval_result.get("market_coverage_score", 0),
+                    "coverage_details": {
+                        "covered_skills_count": len(student_set & set(eval_result.get("skill_metrics", {}).keys())),
+                        "total_market_skills": len(eval_result.get("skill_metrics", {})),
+                    },
+                    "market_skill_coverage": eval_result.get("market_skill_coverage", 0.0),
+                },
+                "closest_roles": closest_roles,
+                "recommendations": top_recommendations,
+                "domain_coverage": eval_result.get("domain_coverage", {}),
+                "gaps": eval_result.get("gaps", {}),
+            }
+
+        except Exception as e:
+            logger.exception("generate_recommendations_crashed", profile=profile_name, error=str(e))
+            return self._empty_recommendations()
+
+    def _empty_recommendations(self) -> dict[str, Any]:
+        """Возвращает пустой результат рекомендаций при ошибке."""
         return {
             "summary": {
-                "match_score": eval_result["market_coverage_score"],
-                "confidence": eval_result["readiness_score"],
-                "market_coverage_score": eval_result["market_coverage_score"],
-                "skill_coverage": eval_result["skill_coverage"],
-                "domain_coverage_score": eval_result["domain_coverage_score"],
-                "readiness_score": eval_result["readiness_score"],
-                "avg_gap": eval_result.get("avg_gap", 0),
-                "coverage": eval_result["market_coverage_score"],
-                "coverage_details": {
-                    "covered_skills_count": len(student_set & set(eval_result.get("skill_metrics", {}).keys())),
-                    "total_market_skills": len(eval_result.get("skill_metrics", {})),
-                },
-                "market_skill_coverage": eval_result.get("market_skill_coverage", 0.0),
+                "match_score": 0,
+                "confidence": 0,
+                "market_coverage_score": 0,
+                "skill_coverage": 0,
+                "domain_coverage_score": 0,
+                "readiness_score": 0,
+                "avg_gap": 0,
+                "coverage": 0,
+                "coverage_details": {"covered_skills_count": 0, "total_market_skills": 0},
+                "market_skill_coverage": 0,
             },
-            "closest_roles": closest_roles,
-            "recommendations": top_recommendations,
-            "domain_coverage": eval_result.get("domain_coverage", {}),
-            "gaps": eval_result.get("gaps", {}),
+            "closest_roles": [],
+            "recommendations": [],
+            "domain_coverage": {},
+            "gaps": {},
         }
 
     def _get_role_outcome(self, skill: str, closest_roles: list[dict]) -> str:
@@ -282,12 +343,12 @@ class RecommendationEngine:
         cluster_rel = metric.get("cluster_relevance", 0)
         category = metric.get("category", "missing")
 
-        # Получаем ближайший кластер
-        cluster_context = eval_result.get("cluster_context", {})
+        # Получаем ближайший кластер — с защитой от None
+        cluster_context = eval_result.get("cluster_context") or {}
         closest = cluster_context.get("closest_clusters", [])
         top_cluster = closest[0] if closest else None
-        top_cluster_name = top_cluster["name"] if top_cluster else None
-        top_cluster_sim = top_cluster["similarity"] if top_cluster else 0
+        top_cluster_name = top_cluster.get("name") if top_cluster else None
+        top_cluster_sim = top_cluster.get("similarity", 0) if top_cluster else 0
 
         # Проверяем, входит ли навык в топ-навыки ближайшего кластера
         cluster_skills = cluster_context.get("skills", {})
@@ -611,13 +672,13 @@ class RecommendationEngine:
                     return data["result"]["alternatives"][0]["message"]["text"].strip()
                 elif resp.status_code == 429:
                     wait_time = delay * (attempt + 1)
-                    logger.warning(f"YandexGPT 429 (attempt {attempt + 1}), waiting {wait_time}s...")
+                    logger.warning("yandexgpt_rate_limited", attempt=attempt + 1, wait_time=wait_time)
                     time.sleep(wait_time)
                 else:
-                    logger.warning(f"YandexGPT error {resp.status_code}: {resp.text[:200]}")
+                    logger.warning("yandexgpt_error", status=resp.status_code, response=resp.text[:200])
                     return None
             except Exception as e:
-                logger.warning(f"YandexGPT exception (attempt {attempt + 1}): {e}")
+                logger.warning("yandexgpt_exception", attempt=attempt + 1, error=str(e))
                 if attempt < max_retries:
                     time.sleep(delay)
                 else:
@@ -705,21 +766,6 @@ class RecommendationEngine:
                 f"🟢 НИЗКИЙ приоритет: '{skill}'{category_str} "
                 f"полезен для расширения кругозора и специализированных задач."
             )
-
-    def _get_learning_path(self, skill: str, is_soft: bool, student_profile: StudentProfile | None = None) -> str:
-        skill_lower = skill.lower()
-        level = student_profile.target_level if student_profile else "middle"
-
-        if is_soft:
-            base = self.SOFT_LEARNING_PATHS.get(skill_lower, "Практикуйте навык постоянно.")
-        else:
-            base = self.HARD_LEARNING_PATHS.get(skill_lower, f"Изучите документацию '{skill}' и выполните проекты.")
-
-        if level == "junior":
-            base = "Сфокусируйтесь на основах: " + base
-        elif level == "senior":
-            base = "Углублённое изучение: " + base + " + архитектурные паттерны."
-        return base
 
     def _get_timeframe(self, skill: str) -> str:
         skill_lower = skill.lower()

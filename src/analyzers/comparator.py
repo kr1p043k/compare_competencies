@@ -1,12 +1,11 @@
-import logging
-
 import numpy as np
+import structlog
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src.analyzers.embedding_comparator import EmbeddingComparator
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class CompetencyComparator:
@@ -32,32 +31,32 @@ class CompetencyComparator:
             self.tfidf = TfidfVectorizer(
                 ngram_range=ngram_range, min_df=min_df, max_df=max_df, token_pattern=r"(?u)\b\w[\w-]*\b"
             )
-            logger.info("✅ TF-IDF Comparator инициализирован (legacy)")
+            logger.info("tfidf_comparator_initialized", mode="legacy")
 
     def set_skill_weights(self, weights: dict[str, float]) -> None:
         self.skill_weights = weights
         if self.embedding_comparator:
             self.embedding_comparator.skill_weights = weights
-        logger.info(f"CompetencyComparator.set_skill_weights: получено {len(weights)} навыков")
+        logger.info("skill_weights_received", count=len(weights))
         if weights:
             sample = list(weights.items())[:3]
-            logger.info(f"   Примеры: {sample}")
+            logger.info("skill_weights_sample", sample=sample)
         if self.embedding_comparator:
-            logger.info("   Проброшено в embedding_comparator")
+            logger.info("skill_weights_forwarded_to_embedding_comparator")
 
     def fit_market(self, vacancies_skills: list[list[str]]) -> bool:
         if not vacancies_skills:
-            logger.warning("Нет данных для fit_market")
+            logger.warning("no_data_for_fit_market")
             return False
 
         if self.use_embeddings and self.embedding_comparator:
             all_skills = [skill for vac in vacancies_skills for skill in vac]
             self.embedding_comparator.build_market_index(all_skills, level=self.level)
-            logger.info(f"✅ Market embeddings построены для {self.level} уровня")
+            logger.info("market_embeddings_built", level=self.level)
         else:
             corpus = [" ".join(skills) for skills in vacancies_skills]
             self.tfidf.fit(corpus)
-            logger.info("✅ TF-IDF fitted")
+            logger.info("tfidf_fitted")
 
         self.fitted = True
         self._vacancies_skills = vacancies_skills
@@ -104,10 +103,10 @@ class CompetencyComparator:
 
     def get_skill_weights(self) -> dict[str, float]:
         if self.use_embeddings:
-            logger.info("ℹ️  Embedding mode: get_skill_weights() не требуется")
+            logger.info("get_skill_weights_not_needed", mode="embeddings")
             return {}
         else:
-            logger.warning("get_skill_weights() для TF-IDF не реализован в текущей версии")
+            logger.warning("get_skill_weights_not_implemented", mode="tfidf")
             return {}
 
     def get_stats(self) -> dict:

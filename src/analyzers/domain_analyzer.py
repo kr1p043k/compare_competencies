@@ -1,7 +1,9 @@
 # src/analyzers/domain_analyzer.py
+import structlog
 
 from src.models.market_metrics import DomainMetrics
 
+logger = structlog.get_logger(__name__)
 # Предопределённые домены – можно вынести в JSON или БД
 DOMAIN_MAP = {
     "Backend": [
@@ -1536,6 +1538,7 @@ DOMAIN_MAP = {
 class DomainAnalyzer:
     def __init__(self, domain_map: dict[str, list[str]] = None):
         self.domain_map = domain_map or DOMAIN_MAP
+        self.logger = structlog.get_logger(__name__)
 
     def compute_domain_coverage(self, user_skills: list[str]) -> dict[str, DomainMetrics]:
         user_set = set(skill.lower().strip() for skill in user_skills)
@@ -1544,8 +1547,29 @@ class DomainAnalyzer:
         for domain_name, skills in self.domain_map.items():
             dm = DomainMetrics(domain=domain_name, required_skills=skills)
             dm.compute_coverage(user_set)
-            # importance можно сделать динамическим из рыночных данных, пока 1.0
             dm.importance = 1.0
             result[domain_name] = dm
+
+            # Детализация по каждому домену — только в DEBUG
+            self.logger.debug(
+                "Домен обработан",
+                domain=domain_name,
+                coverage=round(dm.coverage, 3),
+                user_has=dm.user_has,
+                total_required=dm.total_required,
+            )
+
+        # Сводка — INFO
+        top_domain = max(result.items(), key=lambda x: x[1].coverage)
+        avg_coverage = sum(d.coverage for d in result.values()) / len(result)
+
+        self.logger.info(
+            "Доменное покрытие рассчитано",
+            total_domains=len(result),
+            avg_coverage=round(avg_coverage, 3),
+            top_domain=top_domain[0],
+            top_coverage=round(top_domain[1].coverage, 3),
+            user_skills_count=len(user_skills),
+        )
 
         return result

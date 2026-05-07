@@ -3,14 +3,14 @@
 Строит матрицу корреляций (co-occurrence) для топ-N навыков.
 """
 
-import logging
 from collections import defaultdict
 
 import numpy as np
+import structlog
 
 from src.parsing.skill_normalizer import SkillNormalizer
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SkillCorrelationAnalyzer:
@@ -54,9 +54,10 @@ class SkillCorrelationAnalyzer:
                     self._cooccurrence[pair] += 1
 
         logger.info(
-            f"CorrelationAnalyzer обучен на {self._total_vacancies} вакансиях, "
-            f"{len(self._skill_freq)} навыков, "
-            f"{len(self._cooccurrence)} пар"
+            "correlation_analyzer_fitted",
+            total_vacancies=self._total_vacancies,
+            unique_skills=len(self._skill_freq),
+            unique_pairs=len(self._cooccurrence),
         )
 
     def get_top_skills(self, top_n: int = 30) -> list[str]:
