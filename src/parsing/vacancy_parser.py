@@ -71,6 +71,16 @@ class VacancyParser:
     # =========================================================================
     # КЭШ ЭМБЕДДИНГОВ
     # =========================================================================
+    def _get_model_version(self) -> str:
+        """Возвращает строку, идентифицирующую текущую модель эмбеддингов."""
+        try:
+            import sentence_transformers
+
+            lib_ver = sentence_transformers.__version__
+        except ImportError:
+            lib_ver = "unknown"
+        return f"{config.EMBEDDING_MODEL}_st{lib_ver}"
+
     def _get_skill_embeddings(self, skills: list[str]) -> dict[str, np.ndarray]:
         """Генерирует эмбеддинги для списка навыков с атомарным JSON-кэшированием."""
         if not skills:
@@ -84,21 +94,27 @@ class VacancyParser:
             try:
                 with open(cache_file, encoding="utf-8") as f:
                     data = json.load(f)
-                for skill in skills:
-                    if skill in data:
-                        cached[skill] = np.array(data[skill])
-                if len(cached) == len(skills):
-                    logger.info("embeddings_loaded_from_json_cache", count=len(cached))
-                    return cached
-                elif cached:
-                    logger.info("embeddings_partially_cached", loaded=len(cached), total=len(skills))
+                # проверка версии
+                if data.get("model_version") != self._get_model_version():
+                    logger.info("embedding_cache_version_mismatch – invalidating cache")
+                    cache_file.unlink()
+                else:
+                    embeddings = data["embeddings"]
+                    for skill in skills:
+                        if skill in embeddings:
+                            cached[skill] = np.array(embeddings[skill])
+                    if len(cached) == len(skills):
+                        logger.info(f"✅ Эмбеддинги загружены из JSON-кэша: {len(cached)} навыков")
+                        return cached
+                    elif cached:
+                        logger.info(f"Эмбеддинги частично из кэша: {len(cached)}/{len(skills)}")
             except Exception as e:
-                logger.warning("json_cache_load_failed", error=str(e))
+                logger.warning(f"Не удалось загрузить JSON-кэш: {e}")
 
         # Считаем недостающие
         missing = [s for s in skills if s not in cached]
         if missing:
-            logger.info("computing_embeddings", count=len(missing))
+            logger.info(f"Вычисление эмбеддингов для {len(missing)} навыков...")
             with torch.no_grad():
                 new_embs = self.embedding_model.encode(
                     missing, convert_to_numpy=True, show_progress_bar=True, batch_size=64
@@ -108,9 +124,13 @@ class VacancyParser:
             for skill, emb in zip(missing, new_embs, strict=False):
                 cached[skill] = emb
 
-            data_to_save = {skill: emb.tolist() for skill, emb in cached.items()}
+            # Сохраняем JSON с версией
+            data_to_save = {
+                "model_version": self._get_model_version(),
+                "embeddings": {skill: emb.tolist() for skill, emb in cached.items()},
+            }
             atomic_write_json(data_to_save, cache_file)
-            logger.info("json_cache_atomically_updated", count=len(cached))
+            logger.info(f"💾 JSON-кэш атомарно обновлён: {len(cached)} навыков")
 
         return cached
 
