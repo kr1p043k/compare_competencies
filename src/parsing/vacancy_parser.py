@@ -18,6 +18,7 @@ import torch
 from rank_bm25 import BM25Okapi
 
 from src import config
+from src.models.data_contracts import SkillExtractionResult
 from src.models.vacancy import Vacancy
 from src.parsing.embedding_loader import get_embedding_model
 from src.parsing.skill_normalizer import SkillNormalizer
@@ -218,7 +219,13 @@ class VacancyParser:
             f"{len(skill_embeddings)} с эмбеддингами"
         )
 
-        return {"frequencies": final_freq, "hybrid_weights": hybrid_weights, "skill_embeddings": skill_embeddings}
+        # Оборачиваем в строгую модель
+        result = SkillExtractionResult(
+            frequencies=final_freq,
+            hybrid_weights=hybrid_weights,
+            skill_embeddings={skill: emb.tolist() for skill, emb in skill_embeddings.items()},
+        )
+        return result.model_dump()
 
     # =========================================================================
     # ХЭШ КОРПУСА ДЛЯ КЭШИРОВАНИЯ BM25
@@ -234,9 +241,6 @@ class VacancyParser:
                 count += 1
         return f"{count}:{total_ids}"
 
-    # =========================================================================
-    # BM25 С ПРЕДВАРИТЕЛЬНОЙ ФИЛЬТРАЦИЕЙ И КЭШИРОВАНИЕМ
-    # =========================================================================
     # =========================================================================
     # BM25 С ПРЕДВАРИТЕЛЬНОЙ ФИЛЬТРАЦИЕЙ, КЭШИРОВАНИЕМ И КОНФИГОМ
     # =========================================================================
