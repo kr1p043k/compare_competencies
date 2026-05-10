@@ -270,7 +270,15 @@ def main():
 
         ltr_engine = LTRRecommendationEngine()
         ltr_engine.fit(training_vacancies)
-
+        if hasattr(ltr_engine, "last_metrics"):
+            m = ltr_engine.last_metrics
+            console_info(f"R²={m['r2']:.4f}, MAE={m['mae']:.4f}, NDCG@5={m['ndcg']:.4f}")
+        if not ltr_engine.is_fitted:
+            console_info("❌ Обучение не удалось (недостаточно навыков)")
+            return
+        if ltr_engine.is_fitted and hasattr(ltr_engine, "last_metrics"):
+            m = ltr_engine.last_metrics
+            console_info(f"R²={m['r2']:.4f}, MAE={m['mae']:.4f}, NDCG@5={m['ndcg']:.4f}")
         console_info("✅ Обучение LTR-модели завершено")
         console_info(f"Модель сохранена в: {ltr_engine.model_path}")
         return
