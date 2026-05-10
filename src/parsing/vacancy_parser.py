@@ -1,11 +1,10 @@
 """
 Парсер вакансий с поддержкой как старых dict, так и новых типизированных моделей.
-Оптимизированная версия: кэш npz, предфильтрация n-грамм, PCA, ленивая загрузка,
-кэширование корпуса BM25, однопроходная токенизация.
+Оптимизированная версия: JSON-кэш эмбеддингов, предфильтрация n-грамм, PCA,
+ленивая загрузка, кэширование корпуса BM25, однопроходная токенизация.
 """
 
 import json
-import logging
 import re
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -14,6 +13,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import pymorphy3
+import structlog
 import torch
 from rank_bm25 import BM25Okapi
 
@@ -24,9 +24,9 @@ from src.parsing.skill_normalizer import SkillNormalizer
 from src.parsing.skill_parser import SkillParser, SkillSource
 from src.parsing.skill_validator import SkillValidator
 from src.parsing.utils import filter_skills_by_whitelist, load_it_skills
-from src.utils import atomic_write_json, atomic_write_npz
+from src.utils import atomic_write_json
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class VacancyParser:
@@ -57,70 +57,59 @@ class VacancyParser:
     def embedding_model(self):
         """Ленивая загрузка модели эмбеддингов — только при первом обращении."""
         if self._embedding_model is None:
-            logger.info(f"🚀 Загрузка модели эмбеддингов: {config.EMBEDDING_MODEL}")
+            logger.info("loading_embedding_model", model=config.EMBEDDING_MODEL)
             try:
                 self._embedding_model = get_embedding_model()
                 self._embedding_model.eval()
-                logger.info("✅ Модель эмбеддингов успешно загружена")
+                logger.info("embedding_model_loaded")
             except Exception as e:
-                logger.error(f"❌ Не удалось загрузить модель эмбеддингов: {e}")
+                logger.error("embedding_model_load_failed", error=str(e))
                 self._embedding_model = None
         return self._embedding_model
 
     # =========================================================================
-    # КЭШ ЭМБЕДДИНГОВ (npz — в 5-10 раз быстрее JSON)
+    # КЭШ ЭМБЕДДИНГОВ
     # =========================================================================
     def _get_skill_embeddings(self, skills: list[str]) -> dict[str, np.ndarray]:
-        """Генерирует эмбеддинги для списка навыков с атомарным npz-кэшированием."""
+        """Генерирует эмбеддинги для списка навыков с атомарным JSON-кэшированием."""
         if not skills:
             return {}
 
-        cache_npz = config.EMBEDDINGS_CACHE_DIR / "skill_embeddings.npz"
-        cache_index = config.EMBEDDINGS_CACHE_DIR / "skill_embeddings_index.json"
-
+        cache_file = config.EMBEDDINGS_CACHE_DIR / "skill_embeddings.json"
         cached = {}
 
-        # Пытаемся загрузить из npz
-        if cache_npz.exists() and cache_index.exists():
+        # Пытаемся загрузить из JSON
+        if cache_file.exists():
             try:
-                with open(cache_index, encoding="utf-8") as f:
-                    index = json.load(f)
-                data = np.load(cache_npz)["embeddings"]
-
+                with open(cache_file, encoding="utf-8") as f:
+                    data = json.load(f)
                 for skill in skills:
-                    if skill in index:
-                        cached[skill] = data[index[skill]]
-
+                    if skill in data:
+                        cached[skill] = np.array(data[skill])
                 if len(cached) == len(skills):
-                    logger.info(f"✅ Эмбеддинги загружены из npz-кэша: {len(cached)} навыков")
+                    logger.info("embeddings_loaded_from_json_cache", count=len(cached))
                     return cached
                 elif cached:
-                    logger.info(f"Эмбеддинги частично из кэша: {len(cached)}/{len(skills)}")
+                    logger.info("embeddings_partially_cached", loaded=len(cached), total=len(skills))
             except Exception as e:
-                logger.warning(f"Не удалось загрузить npz-кэш: {e}")
+                logger.warning("json_cache_load_failed", error=str(e))
 
         # Считаем недостающие
         missing = [s for s in skills if s not in cached]
         if missing:
-            logger.info(f"Вычисление эмбеддингов для {len(missing)} навыков...")
+            logger.info("computing_embeddings", count=len(missing))
             with torch.no_grad():
                 new_embs = self.embedding_model.encode(
                     missing, convert_to_numpy=True, show_progress_bar=True, batch_size=64
                 )
 
             # Обновляем кэш атомарно
-            all_skills = list(cached.keys()) + missing
-            all_embs = np.vstack([np.stack(list(cached.values())), new_embs]) if cached else new_embs
-            new_index = {skill: i for i, skill in enumerate(all_skills)}
-
-            # Атомарная запись npz и index
-            atomic_write_npz({"embeddings": all_embs}, cache_npz)
-            atomic_write_json(new_index, cache_index)
-
-            logger.info(f"💾 npz-кэш атомарно обновлён: {len(all_skills)} навыков")
-
             for skill, emb in zip(missing, new_embs, strict=False):
                 cached[skill] = emb
+
+            data_to_save = {skill: emb.tolist() for skill, emb in cached.items()}
+            atomic_write_json(data_to_save, cache_file)
+            logger.info("json_cache_atomically_updated", count=len(cached))
 
         return cached
 
