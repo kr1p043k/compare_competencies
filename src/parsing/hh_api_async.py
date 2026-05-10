@@ -1,6 +1,7 @@
 # src/parsing/hh_api_async.py
 
 import asyncio
+import random
 import time
 
 import aiohttp
@@ -109,7 +110,7 @@ class HeadHunterAPIAsync:
         retries: int = 0,
         max_retries: int = 5,
     ) -> dict | None:
-        """Асинхронный GET-запрос с обработкой ошибок и авторизацией."""
+        """Асинхронный GET-запрос с обработкой ошибок, exponential backoff и авторизацией."""
         async with self.semaphore:
             await self._throttle()
 
@@ -121,27 +122,28 @@ class HeadHunterAPIAsync:
                         self.stats["success"] += 1
                         return await resp.json()
 
-                    elif resp.status == 429:
+                    # 429 – Too Many Requests
+                    if resp.status == 429:
                         self.stats["429_errors"] += 1
                         retry_after = int(resp.headers.get("Retry-After", 5))
-                        logger.warning("rate_limited_async", retry_after=retry_after)
+                        logger.warning("rate_limited_async", retry_after=retry_after, attempt=retries + 1)
                         await asyncio.sleep(retry_after)
                         if retries < max_retries:
                             return await self._request(session, url, params, retries + 1, max_retries)
-                        else:
-                            logger.error("max_retries_exceeded_async", url=url)
-                            return None
+                        logger.error("max_retries_exceeded_async", url=url)
+                        return None
 
-                    elif resp.status == 401:
+                    # 401 – токен истёк, обновим и попробуем ещё раз
+                    if resp.status == 401:
                         if retries < 1:
                             logger.warning("http_401_refreshing_token_async")
                             await self._ensure_token()
                             return await self._request(session, url, params, retries + 1, max_retries)
-                        else:
-                            logger.error("http_401_after_token_refresh_async")
-                            return None
+                        logger.error("http_401_after_token_refresh_async")
+                        return None
 
-                    elif resp.status == 403:
+                    # 403 – нет прав
+                    if resp.status == 403:
                         self.stats["403_errors"] += 1
                         try:
                             vacancy_id = url.rstrip("/").split("/")[-1]
@@ -150,24 +152,45 @@ class HeadHunterAPIAsync:
                             logger.debug("http_403_forbidden_async", url=url)
                         return None
 
-                    elif resp.status == 404:
+                    # 404 – не найдено
+                    if resp.status == 404:
                         self.stats["404_errors"] += 1
                         logger.debug("http_404_async", url=url)
                         return None
 
-                    else:
+                    # 5xx – временная ошибка сервера, стоит повторить
+                    if resp.status >= 500:
                         self.stats["other_errors"] += 1
-                        logger.warning("http_unexpected_status_async", status=resp.status, url=url)
+                        if retries < max_retries:
+                            backoff = min(2**retries, 30)  # экспоненциальная задержка
+                            jitter = random.uniform(0, 0.5)  # небольшой разброс
+                            wait_time = backoff + jitter
+                            logger.warning(
+                                "http_server_error_async",
+                                status=resp.status,
+                                attempt=retries + 1,
+                                wait=round(wait_time, 2),
+                            )
+                            await asyncio.sleep(wait_time)
+                            return await self._request(session, url, params, retries + 1, max_retries)
+                        logger.error("max_retries_exceeded_async", url=url, status=resp.status)
                         return None
+
+                    # Неизвестный статус
+                    self.stats["other_errors"] += 1
+                    logger.warning("http_unexpected_status_async", status=resp.status, url=url)
+                    return None
 
             except TimeoutError:
                 self.stats["timeouts"] += 1
-                logger.error("http_timeout_async", url=url)
                 if retries < max_retries:
-                    wait_time = 2**retries
-                    logger.debug("retrying_after_timeout_async", wait_time=wait_time)
+                    backoff = min(2**retries, 30)
+                    jitter = random.uniform(0, 0.5)
+                    wait_time = backoff + jitter
+                    logger.warning("http_timeout_async", url=url, attempt=retries + 1, wait=round(wait_time, 2))
                     await asyncio.sleep(wait_time)
                     return await self._request(session, url, params, retries + 1, max_retries)
+                logger.error("max_timeout_retries_exceeded", url=url)
                 return None
             except aiohttp.ClientError as e:
                 self.stats["other_errors"] += 1
