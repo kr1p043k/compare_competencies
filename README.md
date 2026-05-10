@@ -124,6 +124,7 @@
     │   ├── 📁 models                       # Pydantic/Dataclass модели данных
     │   │   ├── 📄 comparison.py            # Модели для сравнения профилей (ComparisonReport, GapResult)
     │   │   ├── 📄 competency.py            # Модель компетенции
+    │   │   ├── 📄 data_contracts.py        # Строгие контракты моделей
     │   │   ├── 📄 market_metrics.py        # Метрики рынка: SkillMetrics, DomainMetrics
     │   │   ├── 📄 student.py               # Модель студента (StudentProfile, ExperienceLevel)
     │   │   └── 📄 vacancy.py               # Модель вакансии (Vacancy, KeySkill, Salary...)
@@ -160,6 +161,7 @@
     ├── 📄 README.md                       # Документация проекта
     ├── 📄 requirements.txt                # Prod-зависимости
     ├── 📄 requirements-dev.txt            # dev-зависимости
+    ├── 📄 MakeFile
     └── 📄 user_manual.md                  # Руководство пользователя
 ```
 
