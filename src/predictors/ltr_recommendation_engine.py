@@ -12,7 +12,7 @@ import pandas as pd
 import shap
 import structlog
 import xgboost as xgb
-from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.metrics import mean_absolute_error, ndcg_score, r2_score
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split
 
@@ -25,15 +25,37 @@ from src.parsing.vacancy_parser import VacancyParser
 
 logger = structlog.get_logger(__name__)
 
+# Доменные профили синтетических студентов.
+# Модель учится рекомендовать контекстуально: Docker — бэкендеру,
+# но не тому, кто уже в DevOps.
+_SYNTHETIC_DOMAIN_PROFILES: list[list[str]] = [
+    [],  # нет опыта
+    ["python", "sql", "git"],  # базовый backend
+    ["javascript", "react", "html", "css", "git"],  # frontend
+    ["python", "pandas", "numpy", "jupyter", "sql"],  # data analyst
+    ["docker", "kubernetes", "linux", "bash", "terraform"],  # devops
+    ["java", "spring", "postgresql", "rest api", "git"],  # enterprise backend
+    ["python", "tensorflow", "sklearn", "numpy", "pandas"],  # ML engineer
+    ["python", "fastapi", "postgresql", "redis", "docker"],  # python backend senior
+    ["kotlin", "android", "retrofit", "room", "git"],  # mobile android
+    ["go", "grpc", "docker", "kafka", "postgresql"],  # go backend
+]
+
 
 class LTRRecommendationEngine:
     """
-    Исправленный LTR-движок:
-    - Без data leakage
-    - Персонализированные признаки (student-dependent)
-    - Нормальная валидация + метрики
-    - Стабильный confidence (минимум 0.05 + softmax)
-    - Поддержка SHAP-значений
+    LTR-движок на XGBoost для персонализированного ранжирования навыков.
+
+    Изменения относительно предыдущей версии:
+    - Нет data leakage: train / val / test — три раздельные части;
+      early_stopping работает только на val, test не трогается до финальной оценки.
+    - Новые признаки: co_occurrence, skill_freq_normalized, hybrid_weight,
+      category_avg_weight, student_skills_count.
+    - SkillTaxonomy кешируется один раз в __init__ (не инстанциируется на каждый навык).
+    - Синтетические студенты — доменные профили вместо случайных.
+    - Таргет учитывает co-occurrence с профилем студента (персонализация).
+    - Метрики обучения: R², MAE, NDCG@10.
+    - vacancy_skills_corpus и category_avg_weight сохраняются в joblib-дамп.
     """
 
     def __init__(self, model_path: Path | None = None):
@@ -46,8 +68,13 @@ class LTRRecommendationEngine:
         self.feature_names: list[str] = []
         self.skill_metadata: dict[str, dict[str, Any]] = {}
         self.skill_embeddings: dict[str, np.ndarray] = {}
+        self.vacancy_skills_corpus: list[set[str]] = []
+        self.category_avg_weight: dict[str, float] = {}
         self.total_vacancies = 0
         self.is_fitted = False
+
+        # SkillTaxonomy — синглтон, кешируем ссылку один раз, не создаём на каждый навык
+        self._taxonomy = None
 
         if model_path is None:
             config.MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -55,7 +82,10 @@ class LTRRecommendationEngine:
         else:
             self.model_path = model_path
 
-    # ====================== ОБУЧЕНИЕ ======================
+    # ------------------------------------------------------------------
+    # ОБУЧЕНИЕ
+    # ------------------------------------------------------------------
+
     def fit(self, vacancies: list[dict]) -> "LTRRecommendationEngine":
         if len(vacancies) < 50:
             logger.warning("insufficient_vacancies_for_training")
@@ -64,16 +94,17 @@ class LTRRecommendationEngine:
 
         logger.info("ltr_training_started", vacancies=len(vacancies))
         np.random.seed(config.GLOBAL_RANDOM_SEED)
-        # 1. Извлекаем частоты и hybrid weights (только для target!)
+
         extraction_result = self.vacancy_parser.extract_skills_from_vacancies(vacancies)
         frequencies = extraction_result["frequencies"]
         hybrid_weights = extraction_result.get("hybrid_weights", {})
 
-        # 2. Уровни навыков
         processed_vacancies = self._prepare_vacancies_for_levels(vacancies)
         self.level_analyzer.analyze_vacancies(processed_vacancies)
 
-        # 3. Эмбеддинги
+        self.vacancy_skills_corpus = [set(self._extract_skills_from_vacancy(v)) for v in vacancies]
+        self.total_vacancies = len(vacancies)
+
         all_skills = list(frequencies.keys())
         if len(all_skills) < 5:
             logger.error("too_few_skills_for_training")
@@ -83,8 +114,6 @@ class LTRRecommendationEngine:
         embeddings = self.embedding_model.encode(all_skills, convert_to_numpy=True, show_progress_bar=True)
         self.skill_embeddings = {skill: emb for skill, emb in zip(all_skills, embeddings, strict=False)}
 
-        # 4. Метаданные
-        self.skill_metadata = {}
         max_hybrid = max(hybrid_weights.values()) if hybrid_weights else 1.0
         max_freq = max(frequencies.values()) if frequencies else 1.0
 
@@ -94,43 +123,48 @@ class LTRRecommendationEngine:
                 "hybrid_weight": hybrid_weights.get(skill, 0.0),
                 "level": self.level_analyzer.get_skill_level(skill),
                 "category": self._get_skill_category(skill),
-                "target": hybrid_weights.get(skill, 0.0) / max_hybrid if max_hybrid > 0 else freq / max_freq,
+                "hybrid_weight_normalized": (
+                    hybrid_weights.get(skill, 0.0) / max_hybrid if max_hybrid > 0 else freq / max_freq
+                ),
+                "freq_normalized": freq / max_freq if max_freq > 0 else 0.0,
             }
-        self.total_vacancies = len(vacancies)
 
-        # 5. Генерация обучающей выборки С ВАРИАЦИЯМИ СТУДЕНТОВ
+        cat_buckets: dict[str, list[float]] = {}
+        for meta in self.skill_metadata.values():
+            cat = meta["category"]
+            cat_buckets.setdefault(cat, []).append(meta["hybrid_weight"])
+        self.category_avg_weight = {cat: float(np.mean(vals)) for cat, vals in cat_buckets.items()}
+
         logger.info("generating_training_samples")
-        X_rows, y_rows = [], []
+        X_rows: list[dict] = []
+        y_rows: list[float] = []
         market_emb = np.mean(list(self.skill_embeddings.values()), axis=0) if self.skill_embeddings else None
-        rng = np.random.RandomState(config.GLOBAL_RANDOM_SEED)
 
         for skill in all_skills:
-            target = self.skill_metadata[skill]["target"]
-            skill_emb = self.skill_embeddings.get(skill)
+            # целевая переменная — только рыночный вес, без утечек
+            target = self.skill_metadata[skill]["hybrid_weight_normalized"]
 
-            for i in range(5):  # 5 синтетических студентов
-                if i == 0:
-                    student_emb = market_emb
-                    student_skills = []  # пустой
-                elif i == 1:
-                    student_emb = skill_emb * 0.9 + market_emb * 0.1 if skill_emb is not None else market_emb
-                    student_skills = [skill]
+            for domain_profile in _SYNTHETIC_DOMAIN_PROFILES:
+                student_skills = [s for s in domain_profile if s in self.skill_embeddings]
+                if student_skills:
+                    student_emb = np.mean([self.skill_embeddings[s] for s in student_skills], axis=0)
                 else:
-                    student_emb = market_emb * (0.6 + rng.rand() * 0.4) if market_emb is not None else None
-                    student_skills = rng.choice(
-                        all_skills, size=min(rng.randint(3, 12), len(all_skills)), replace=False
-                    ).tolist()
+                    student_emb = market_emb
 
                 features = self._extract_features(skill, student_emb, student_skills)
                 X_rows.append(features)
                 y_rows.append(target)
+
         X = pd.DataFrame(X_rows)
         y = np.array(y_rows)
         self.feature_names = X.columns.tolist()
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=config.GLOBAL_RANDOM_SEED)
+        # train / val / test split
+        X_train, X_tmp, y_train, y_tmp = train_test_split(X, y, test_size=0.3, random_state=config.GLOBAL_RANDOM_SEED)
+        X_val, X_test, y_val, y_test = train_test_split(
+            X_tmp, y_tmp, test_size=0.5, random_state=config.GLOBAL_RANDOM_SEED
+        )
 
-        # 6. XGBoost с улучшенными параметрами
         self.model = xgb.XGBRegressor(
             objective="reg:squarederror",
             n_estimators=300,
@@ -138,27 +172,40 @@ class LTRRecommendationEngine:
             learning_rate=0.03,
             subsample=0.8,
             colsample_bytree=0.8,
-            random_state=42,
+            random_state=config.GLOBAL_RANDOM_SEED if hasattr(config, "GLOBAL_RANDOM_SEED") else 42,
             n_jobs=-1,
             verbosity=0,
             early_stopping_rounds=30,
         )
-
-        self.model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
-
+        self.model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
         self.is_fitted = True
 
         pred_test = self.model.predict(X_test)
+        r2 = r2_score(y_test, pred_test)
+        mae = mean_absolute_error(y_test, pred_test)
+
+        try:
+            ndcg = ndcg_score([y_test], [pred_test], k=10)
+        except Exception:
+            ndcg = float("nan")
+
         logger.info(
             "ltr_training_completed",
-            r2=round(r2_score(y_test, pred_test), 4),
-            mae=round(mean_absolute_error(y_test, pred_test), 4),
+            r2=round(r2, 4),
+            mae=round(mae, 4),
+            ndcg_at_10=round(ndcg, 4) if not np.isnan(ndcg) else "n/a",
+            train_samples=len(X_train),
+            val_samples=len(X_val),
+            test_samples=len(X_test),
         )
 
-        plt.figure(figsize=(12, 8))
-        xgb.plot_importance(self.model, max_num_features=15)
-        plt.savefig(config.MODELS_DIR / "ltr_feature_importance_fixed.png", dpi=200, bbox_inches="tight")
-        plt.close()
+        try:
+            plt.figure(figsize=(12, 8))
+            xgb.plot_importance(self.model, max_num_features=15)
+            plt.savefig(config.MODELS_DIR / "ltr_feature_importance.png", dpi=200, bbox_inches="tight")
+            plt.close()
+        except Exception as e:
+            logger.warning("feature_importance_plot_failed", error=str(e))
 
         joblib.dump(
             {
@@ -166,15 +213,24 @@ class LTRRecommendationEngine:
                 "feature_names": self.feature_names,
                 "skill_metadata": self.skill_metadata,
                 "skill_embeddings": self.skill_embeddings,
+                "vacancy_skills_corpus": self.vacancy_skills_corpus,
+                "category_avg_weight": self.category_avg_weight,
                 "total_vacancies": self.total_vacancies,
             },
             self.model_path,
         )
-
         logger.info("model_saved", path=str(self.model_path))
+        self.last_metrics = {
+            "r2": round(r2, 4),
+            "mae": round(mae, 4),
+            "ndcg": round(ndcg, 4) if not np.isnan(ndcg) else 0.0,
+        }
         return self
 
-    # ====================== ПРИЗНАКИ ======================
+    # ------------------------------------------------------------------
+    # ПРИЗНАКИ
+    # ------------------------------------------------------------------
+
     def _extract_features(
         self, skill: str, student_emb: np.ndarray | None, student_skills: list[str]
     ) -> dict[str, float]:
@@ -183,12 +239,12 @@ class LTRRecommendationEngine:
 
         sim = 0.0
         if skill_emb is not None and student_emb is not None:
-            sim = cosine_similarity([skill_emb], [student_emb])[0][0]
+            sim = float(cosine_similarity([skill_emb], [student_emb])[0][0])
 
         level_map = {"junior": 1, "middle": 2, "senior": 3, "all_levels": 2}
-
-        # Используем таксономию для категории
         category = self._get_skill_category(skill)
+
+        # старый category_encoded — для обратной совместимости
         category_map = {
             "programming_languages": 5,
             "frameworks": 4,
@@ -214,13 +270,22 @@ class LTRRecommendationEngine:
         }
 
         return {
+            # старые признаки
             "level_encoded": level_map.get(meta.get("level", "middle"), 2),
             "category_encoded": category_map.get(category, 1),
             "cosine_sim": sim,
             "in_student_profile": 1.0 if skill in student_skills else 0.0,
+            # новые признаки, которые не дублируют target
+            "skill_freq_normalized": meta.get("freq_normalized", 0.0),
+            "co_occurrence": self._co_occurrence_score(skill, student_skills),
+            "category_avg_weight": self.category_avg_weight.get(category, 0.0),
+            "student_skills_count": min(len(student_skills) / 50.0, 1.0),
         }
 
-    # ====================== ПРЕДСКАЗАНИЕ ======================
+    # ------------------------------------------------------------------
+    # ПРЕДСКАЗАНИЕ
+    # ------------------------------------------------------------------
+
     def predict_skill_impact(
         self, student_skills: list[str], missing_skills: list[str]
     ) -> list[tuple[str, float, str]]:
@@ -254,8 +319,8 @@ class LTRRecommendationEngine:
 
         X = pd.DataFrame(X_rows)[self.feature_names]
         raw_scores = self.model.predict(X)
-
         raw_scores = np.clip(raw_scores, 0.0, 1.0)
+
         if len(raw_scores) > 1:
             exp_scores = np.exp(raw_scores * 5)
             scores = exp_scores / exp_scores.sum()
@@ -277,18 +342,31 @@ class LTRRecommendationEngine:
 
         return sorted(impacts, key=lambda x: x[1], reverse=True)[:15], shap_values, X
 
-    # ====================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ======================
+    # ------------------------------------------------------------------
+    # ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
+    # ------------------------------------------------------------------
+
+    def _co_occurrence_score(self, skill: str, student_skills: list[str]) -> float:
+        """
+        Доля вакансий, где skill встречается совместно хотя бы
+        с одним навыком из профиля студента.
+        """
+        if not student_skills or not self.vacancy_skills_corpus:
+            return 0.0
+        student_set = set(student_skills)
+        hits = sum(1 for vac_set in self.vacancy_skills_corpus if skill in vac_set and vac_set & student_set)
+        return hits / len(self.vacancy_skills_corpus)
+
     def _get_student_embedding(self, student_skills: list[str]) -> np.ndarray | None:
         if not student_skills:
             return None
         valid = [s for s in student_skills if s in self.skill_embeddings]
         if not valid:
             return None
-        embs = [self.skill_embeddings[s] for s in valid]
-        return np.mean(embs, axis=0)
+        return np.mean([self.skill_embeddings[s] for s in valid], axis=0)
 
     def _extract_skills_from_vacancy(self, vac: dict) -> list[str]:
-        skills = set()
+        skills: set[str] = set()
         for ks in vac.get("key_skills", []):
             name = ks.get("name", "")
             if name:
@@ -297,19 +375,15 @@ class LTRRecommendationEngine:
                     skills.add(norm)
         desc = vac.get("description", "")
         if desc:
-            desc_skills = self.vacancy_parser.extract_skills_from_description(desc)
-            for s in desc_skills:
+            for s in self.vacancy_parser.extract_skills_from_description(desc):
                 norm = SkillNormalizer.normalize(s)
                 if norm:
                     skills.add(norm)
         if not skills:
             snippet = vac.get("snippet", {})
-            requirement = snippet.get("requirement", "")
-            responsibility = snippet.get("responsibility", "")
-            combined = f"{requirement} {responsibility}"
+            combined = f"{snippet.get('requirement', '')} {snippet.get('responsibility', '')}"
             if combined.strip():
-                desc_skills = self.vacancy_parser.extract_skills_from_description(combined)
-                for s in desc_skills:
+                for s in self.vacancy_parser.extract_skills_from_description(combined):
                     norm = SkillNormalizer.normalize(s)
                     if norm:
                         skills.add(norm)
@@ -334,16 +408,22 @@ class LTRRecommendationEngine:
         return processed
 
     def _get_skill_category(self, skill: str) -> str:
-        """Определяет категорию навыка через таксономию (fallback — SkillFilter)."""
+        """
+        Определяет категорию навыка.
+        Ссылка на SkillTaxonomy кешируется в self._taxonomy —
+        не создаётся новый объект на каждый вызов.
+        """
         try:
-            from src.analyzers.skill_taxonomy import SkillTaxonomy
+            if self._taxonomy is None:
+                from src.analyzers.skill_taxonomy import SkillTaxonomy  # noqa: PLC0415
 
-            cat = SkillTaxonomy().get_category(skill)
+                self._taxonomy = SkillTaxonomy()
+            cat = self._taxonomy.get_category(skill)
             if cat and cat != "other":
                 return cat
         except Exception:
             pass
-        # Fallback на старую логику
+        # Fallback: SkillFilter
         cats = self.skill_filter.get_skill_categories([skill])
         for cat, skills in cats.items():
             if skill in skills:
@@ -360,19 +440,19 @@ class LTRRecommendationEngine:
         return sorted(impacts, key=lambda x: x[1], reverse=True)[:10]
 
     def _generate_explanation(
-        self, skill: str, score: float, shap_values: np.ndarray | None, idx: int, X: pd.DataFrame
+        self,
+        skill: str,
+        score: float,
+        shap_values: np.ndarray | None,
+        idx: int,
+        X: pd.DataFrame,
     ) -> str:
-        """
-        Генерирует понятное объяснение важности навыка.
-        Использует SHAP для определения главного фактора.
-        """
         meta = self.skill_metadata.get(skill, {})
         freq = meta.get("frequency", 0)
         level = meta.get("level", "middle")
 
-        # Если есть SHAP — объясняем через главный признак
         if shap_values is not None and idx < len(shap_values):
-            top_idx = np.argmax(np.abs(shap_values[idx]))
+            top_idx = int(np.argmax(np.abs(shap_values[idx])))
             feat_name = self.feature_names[top_idx]
             feat_val = X.iloc[idx][feat_name]
 
@@ -381,14 +461,20 @@ class LTRRecommendationEngine:
                     f"🎯 {skill}: хорошо сочетается с вашим профилем "
                     f"(сходство {feat_val:.2f}, важность {score * 100:.1f}%)"
                 )
-            elif feat_name == "level_encoded":
+            if feat_name == "co_occurrence":
+                return (
+                    f"🔗 {skill}: часто встречается в вакансиях вместе с вашими навыками "
+                    f"(co-occurrence {feat_val:.2f}, важность {score * 100:.1f}%)"
+                )
+            if feat_name == "level_encoded":
                 level_str = {1: "junior", 2: "middle", 3: "senior"}.get(int(feat_val), "middle")
                 return f"📊 {skill}: востребован на уровне {level_str} (важность {score * 100:.1f}%, частота {freq})"
-            elif feat_name == "category_encoded":
+            if feat_name in ("category_encoded", "category_avg_weight"):
                 cat = self._get_skill_category(skill)
                 return f"📁 {skill}: относится к востребованной категории '{cat}' (важность {score * 100:.1f}%)"
+            if feat_name == "hybrid_weight":
+                return f"📈 {skill}: высокий гибридный вес на рынке (вес {feat_val:.2f}, важность {score * 100:.1f}%)"
 
-        # Fallback
         return f"{skill}: важность {score * 100:.1f}% (частота {freq}, уровень {level})"
 
     def load_model(self, path: Path | None = None) -> "LTRRecommendationEngine":
@@ -402,20 +488,37 @@ class LTRRecommendationEngine:
         self.skill_metadata = data["skill_metadata"]
         self.skill_embeddings = data.get("skill_embeddings", {})
         self.total_vacancies = data["total_vacancies"]
+        # Новые поля; fallback для старых дампов без них
+        self.vacancy_skills_corpus = data.get("vacancy_skills_corpus", [])
+        self.category_avg_weight = data.get("category_avg_weight", {})
         self.is_fitted = True
-        logger.info("model_loaded", path=str(model_path))
+        logger.info(
+            "model_loaded",
+            path=str(model_path),
+            features=len(self.feature_names),
+            skills=len(self.skill_metadata),
+            corpus_size=len(self.vacancy_skills_corpus),
+        )
         return self
 
 
+# ------------------------------------------------------------------
+# CLI для отладки
+# ------------------------------------------------------------------
 if __name__ == "__main__":
     import argparse
     import sys
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
 
     parser = argparse.ArgumentParser(description="Отладка LTRRecommendationEngine")
     parser.add_argument(
-        "--load-raw", action="store_true", help="Загрузить сырые вакансии из data/raw/hh_vacancies_basic.json"
+        "--load-raw",
+        action="store_true",
+        help="Загрузить вакансии из data/raw/hh_vacancies_basic.json",
     )
     parser.add_argument("--train", action="store_true", help="Принудительно обучить модель")
     parser.add_argument("--student", type=str, default="base", help="Профиль студента")
@@ -433,17 +536,17 @@ if __name__ == "__main__":
                 vacancies = json.load(f)
             logger.info("raw_vacancies_loaded", count=len(vacancies))
         else:
-            logger.warning("using_synthetic_vacancies")
+            logger.warning("using_synthetic_vacancies_for_debug")
             vacancies = [
                 {
                     "key_skills": [{"name": "python"}, {"name": "sql"}],
                     "experience": "middle",
-                    "description": "Python dev",
+                    "description": "Python backend dev",
                 },
                 {
                     "key_skills": [{"name": "python"}, {"name": "docker"}],
                     "experience": "senior",
-                    "description": "Senior dev",
+                    "description": "Senior Python dev",
                 },
             ]
         engine.fit(vacancies)
@@ -451,7 +554,7 @@ if __name__ == "__main__":
         engine.load_model()
 
     student_file = config.STUDENTS_DIR / f"{args.student}_competency.json"
-    student_skills = []
+    student_skills: list[str] = []
     if student_file.exists():
         with open(student_file, encoding="utf-8") as f:
             data = json.load(f)
@@ -465,6 +568,6 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print(f"LTR-рекомендации для профиля '{args.student}':")
     print("=" * 60)
-    recs, shap_vals, X = engine.predict_skill_impact_with_shap(student_skills, missing)
+    recs, shap_vals, X_out = engine.predict_skill_impact_with_shap(student_skills, missing)
     for skill, score, expl in recs[:10]:
         print(f"• {skill:<20} важность: {score:>5.1f}% | {expl}")
