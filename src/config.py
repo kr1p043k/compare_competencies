@@ -1,80 +1,190 @@
-import os
+"""
+Централизованная конфигурация приложения на основе pydantic-settings.
+Все переменные окружения загружаются и валидируются один раз при старте.
+Для обратной совместимости все настройки экспортируются как переменные уровня модуля.
+"""
+
 from pathlib import Path
 
-from dotenv import load_dotenv
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv()
 
-# ====================== YandexGPT API ======================
-YC_API_KEY = os.getenv("YC_API_KEY")
-YC_FOLDER_ID = os.getenv("YC_FOLDER_ID")
-YANDEXGPT_MODEL = os.getenv("YANDEXGPT_MODEL", "yandexgpt-lite")
+# ---------------------------------------------------------------------------
+# Модель настроек
+# ---------------------------------------------------------------------------
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+    )
 
-# ====================== Пути проекта ======================
-BASE_DIR = Path(__file__).parent.parent
+    # ---------- пути проекта ----------
+    BASE_DIR: Path = Path(__file__).parent.parent
 
-DATA_DIR = BASE_DIR / "data"
-DATA_RAW_DIR = DATA_DIR / "raw"
-DATA_PROCESSED_DIR = DATA_DIR / "processed"
-DATA_RESULT_DIR = DATA_DIR / "result"
-STUDENTS_DIR = DATA_DIR / "students"
-LAST_UPLOADED_DIR = DATA_DIR / "last_uploaded"
-COMPETENCY_MAPPING_FILE = DATA_PROCESSED_DIR / "competency_mapping.json"
-COMPETENCY_FREQ_PATH = DATA_PROCESSED_DIR / "competency_frequency.json"
-IT_SKILLS_PATH = DATA_DIR / "it_skills.json"
-MODELS_DIR = DATA_DIR / "models"
-HISTORY_DIR = DATA_DIR / "history"
-HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+    DATA_DIR: Path = Field(default_factory=lambda: Path("data"))
+    DATA_RAW_DIR: Path = Field(default_factory=lambda: Path("data/raw"))
+    DATA_PROCESSED_DIR: Path = Field(default_factory=lambda: Path("data/processed"))
+    DATA_RESULT_DIR: Path = Field(default_factory=lambda: Path("data/result"))
+    STUDENTS_DIR: Path = Field(default_factory=lambda: Path("data/students"))
+    LAST_UPLOADED_DIR: Path = Field(default_factory=lambda: Path("data/last_uploaded"))
+    COMPETENCY_MAPPING_FILE: Path = Field(default_factory=lambda: Path("data/processed/competency_mapping.json"))
+    COMPETENCY_FREQ_PATH: Path = Field(default_factory=lambda: Path("data/processed/competency_frequency.json"))
+    IT_SKILLS_PATH: Path = Field(default_factory=lambda: Path("data/it_skills.json"))
+    MODELS_DIR: Path = Field(default_factory=lambda: Path("data/models"))
+    HISTORY_DIR: Path = Field(default_factory=lambda: Path("data/history"))
 
-LOG_DIR = BASE_DIR / "logs"
-LOG_FILE = LOG_DIR / "app.log"
+    LOG_DIR: Path = Field(default_factory=lambda: Path("logs"))
+    LOG_FILE: Path = Field(default_factory=lambda: Path("logs/app.log"))
 
-IT_SKILLS_FILE = DATA_DIR / "it_skills.json"
+    DATA_EMBEDDINGS_DIR: Path = Field(default_factory=lambda: Path("data/embeddings"))
+    EMBEDDINGS_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/embeddings/cache"))
 
-for dir_path in [DATA_RAW_DIR, DATA_PROCESSED_DIR, STUDENTS_DIR, LAST_UPLOADED_DIR, LOG_DIR]:
-    dir_path.mkdir(parents=True, exist_ok=True)
+    # ---------- hh.ru API ----------
+    HH_USER_AGENT: str = "CompetencyAnalyzer (kok.yoko@gmx.com)"
+    REQUEST_DELAY: float = 0.5
+    MAX_RETRIES: int = 3
+    RETRY_DELAY: float = 2.0
 
-# ====================== hh.ru API ======================
-HH_USER_AGENT = os.getenv("HH_USER_AGENT", "CompetencyAnalyzer (kok.yoko@gmx.com)")
-REQUEST_DELAY = float(os.getenv("REQUEST_DELAY", "0.1"))
-MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
-RETRY_DELAY = float(os.getenv("RETRY_DELAY", "2"))
-# ====================== hh.ru OAuth ======================
-HH_CLIENT_ID = os.getenv("HH_CLIENT_ID")
-HH_CLIENT_SECRET = os.getenv("HH_CLIENT_SECRET")
-HH_ACCESS_TOKEN = None
-HH_TOKEN_EXPIRES_AT = 0
+    HH_CLIENT_ID: str | None = None
+    HH_CLIENT_SECRET: str | None = None
 
-# ====================== Параметры поиска по умолчанию ======================
-DEFAULT_AREA = int(os.getenv("DEFAULT_AREA", "1"))
-DEFAULT_PERIOD_DAYS = int(os.getenv("DEFAULT_PERIOD_DAYS", "30"))
-DEFAULT_MAX_PAGES = int(os.getenv("DEFAULT_MAX_PAGES", "20"))
-DEFAULT_PER_PAGE = int(os.getenv("DEFAULT_PER_PAGE", "100"))
+    # ---------- параметры поиска по умолчанию ----------
+    DEFAULT_AREA: int = 1
+    DEFAULT_PERIOD_DAYS: int = 30
+    DEFAULT_MAX_PAGES: int = 20
+    DEFAULT_PER_PAGE: int = 100
 
-# ====================== Профили дисциплин ======================
-PROFILES_DISCIPLINES = {
-    "base": [1, 2, 3, 4, 5, 6, 9, 10, 13],
-    "dc": [1, 2, 3, 4, 5, 6, 9, 10, 13, 14, 18, 20, 22, 24, 25],
-    "top_dc": [1, 2, 3, 4, 5, 6, 9, 10, 13, 14, 18, 20, 22, 24, 25, 7, 8, 11, 12, 19, 21, 23],
-}
+    # ---------- профили дисциплин ----------
+    PROFILES_DISCIPLINES: dict = {
+        "base": [1, 2, 3, 4, 5, 6, 9, 10, 13],
+        "dc": [1, 2, 3, 4, 5, 6, 9, 10, 13, 14, 18, 20, 22, 24, 25],
+        "top_dc": [1, 2, 3, 4, 5, 6, 9, 10, 13, 14, 18, 20, 22, 24, 25, 7, 8, 11, 12, 19, 21, 23],
+    }
 
-# ====================== Эмбеддинги ======================
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-mpnet-base-v2")
-EMBEDDING_DIM = 384
-HF_TOKEN = os.getenv("HF_TOKEN")
-DATA_EMBEDDINGS_DIR = DATA_DIR / "embeddings"
-DATA_EMBEDDINGS_DIR.mkdir(parents=True, exist_ok=True)
-EMBEDDINGS_CACHE_DIR = DATA_EMBEDDINGS_DIR / "cache"
-EMBEDDINGS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.80"))
-# ====================== BM25 ======================
-BM25_MAX_CORPUS_DOCS = int(os.getenv("BM25_MAX_CORPUS_DOCS", "200"))  # топ-N документов для BM25
-BM25_MIN_SCORE = float(os.getenv("BM25_MIN_SCORE", "0.005"))  # минимальный вес n-граммы
+    # ---------- YandexGPT ----------
+    YC_API_KEY: str | None = None
+    YC_FOLDER_ID: str | None = None
+    YANDEXGPT_MODEL: str = "yandexgpt-lite"
 
-# ====================== PCA для эмбеддингов ======================
-PCA_ENABLED = os.getenv("PCA_ENABLED", "true").lower() in ("true", "1", "yes")
-PCA_TARGET_DIM = int(os.getenv("PCA_TARGET_DIM", "256"))  # целевая размерность
-PCA_MIN_SAMPLES = int(os.getenv("PCA_MIN_SAMPLES", "100"))  # мин. навыков для PCA
-PCA_MIN_FEATURES = int(os.getenv("PCA_MIN_FEATURES", "128"))  # мин. размерность для PCA
-# ====================== Воспроизводимость ======================
-GLOBAL_RANDOM_SEED = int(os.getenv("GLOBAL_RANDOM_SEED", "42"))
+    # ---------- эмбеддинги ----------
+    EMBEDDING_MODEL: str = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+    EMBEDDING_DIM: int = 384
+    HF_TOKEN: str | None = None
+    SIMILARITY_THRESHOLD: float = 0.80
+
+    # ---------- BM25 ----------
+    BM25_MAX_CORPUS_DOCS: int = 200
+    BM25_MIN_SCORE: float = 0.005
+
+    # ---------- PCA ----------
+    PCA_ENABLED: bool = True
+    PCA_TARGET_DIM: int = 256
+    PCA_MIN_SAMPLES: int = 100
+    PCA_MIN_FEATURES: int = 128
+
+    # ---------- воспроизводимость ----------
+    GLOBAL_RANDOM_SEED: int = 42
+
+    # валидация путей относительно BASE_DIR
+    @field_validator(
+        "DATA_DIR",
+        "DATA_RAW_DIR",
+        "DATA_PROCESSED_DIR",
+        "DATA_RESULT_DIR",
+        "STUDENTS_DIR",
+        "LAST_UPLOADED_DIR",
+        "COMPETENCY_MAPPING_FILE",
+        "COMPETENCY_FREQ_PATH",
+        "IT_SKILLS_PATH",
+        "MODELS_DIR",
+        "HISTORY_DIR",
+        "LOG_DIR",
+        "LOG_FILE",
+        "DATA_EMBEDDINGS_DIR",
+        "EMBEDDINGS_CACHE_DIR",
+        mode="after",
+    )
+    @classmethod
+    def make_absolute(cls, v: Path, info) -> Path:
+        base = info.data.get("BASE_DIR", Path("."))
+        return base / v
+
+    # создание всех директорий при инициализации
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        dirs = [
+            self.DATA_RAW_DIR,
+            self.DATA_PROCESSED_DIR,
+            self.STUDENTS_DIR,
+            self.LAST_UPLOADED_DIR,
+            self.LOG_DIR,
+            self.MODELS_DIR,
+            self.HISTORY_DIR,
+            self.DATA_EMBEDDINGS_DIR,
+            self.EMBEDDINGS_CACHE_DIR,
+            self.DATA_RESULT_DIR,
+        ]
+        for d in dirs:
+            d.mkdir(parents=True, exist_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Синглтон настроек
+# ---------------------------------------------------------------------------
+settings = Settings()
+
+# ---------------------------------------------------------------------------
+# Экспорт всех параметров для обратной совместимости
+# ---------------------------------------------------------------------------
+BASE_DIR = settings.BASE_DIR
+DATA_DIR = settings.DATA_DIR
+DATA_RAW_DIR = settings.DATA_RAW_DIR
+DATA_PROCESSED_DIR = settings.DATA_PROCESSED_DIR
+DATA_RESULT_DIR = settings.DATA_RESULT_DIR
+STUDENTS_DIR = settings.STUDENTS_DIR
+LAST_UPLOADED_DIR = settings.LAST_UPLOADED_DIR
+COMPETENCY_MAPPING_FILE = settings.COMPETENCY_MAPPING_FILE
+COMPETENCY_FREQ_PATH = settings.COMPETENCY_FREQ_PATH
+IT_SKILLS_PATH = settings.IT_SKILLS_PATH
+MODELS_DIR = settings.MODELS_DIR
+HISTORY_DIR = settings.HISTORY_DIR
+LOG_DIR = settings.LOG_DIR
+LOG_FILE = settings.LOG_FILE
+DATA_EMBEDDINGS_DIR = settings.DATA_EMBEDDINGS_DIR
+EMBEDDINGS_CACHE_DIR = settings.EMBEDDINGS_CACHE_DIR
+
+HH_USER_AGENT = settings.HH_USER_AGENT
+REQUEST_DELAY = settings.REQUEST_DELAY
+MAX_RETRIES = settings.MAX_RETRIES
+RETRY_DELAY = settings.RETRY_DELAY
+HH_CLIENT_ID = settings.HH_CLIENT_ID
+HH_CLIENT_SECRET = settings.HH_CLIENT_SECRET
+
+DEFAULT_AREA = settings.DEFAULT_AREA
+DEFAULT_PERIOD_DAYS = settings.DEFAULT_PERIOD_DAYS
+DEFAULT_MAX_PAGES = settings.DEFAULT_MAX_PAGES
+DEFAULT_PER_PAGE = settings.DEFAULT_PER_PAGE
+
+PROFILES_DISCIPLINES = settings.PROFILES_DISCIPLINES
+
+YC_API_KEY = settings.YC_API_KEY
+YC_FOLDER_ID = settings.YC_FOLDER_ID
+YANDEXGPT_MODEL = settings.YANDEXGPT_MODEL
+
+EMBEDDING_MODEL = settings.EMBEDDING_MODEL
+EMBEDDING_DIM = settings.EMBEDDING_DIM
+HF_TOKEN = settings.HF_TOKEN
+SIMILARITY_THRESHOLD = settings.SIMILARITY_THRESHOLD
+
+BM25_MAX_CORPUS_DOCS = settings.BM25_MAX_CORPUS_DOCS
+BM25_MIN_SCORE = settings.BM25_MIN_SCORE
+
+PCA_ENABLED = settings.PCA_ENABLED
+PCA_TARGET_DIM = settings.PCA_TARGET_DIM
+PCA_MIN_SAMPLES = settings.PCA_MIN_SAMPLES
+PCA_MIN_FEATURES = settings.PCA_MIN_FEATURES
+
+GLOBAL_RANDOM_SEED = settings.GLOBAL_RANDOM_SEED
