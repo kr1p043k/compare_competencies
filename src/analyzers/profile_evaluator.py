@@ -15,6 +15,7 @@ from src.analyzers.comparator import CompetencyComparator
 from src.analyzers.domain_analyzer import DomainAnalyzer
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.vacancy_clustering import VacancyClusterer
+from src.models.data_contracts import ProfileEvaluationResult
 from src.models.student import StudentProfile
 from src.parsing.embedding_loader import get_embedding_model
 from src.parsing.skill_normalizer import SkillNormalizer
@@ -225,22 +226,24 @@ class ProfileEvaluator:
         # Добавляем статистику категорий
         skill_categories = {"strong": strong_count, "weak": weak_count, "missing": missing_count, "total": total_market}
 
-        return {
-            "market_coverage_score": round(market_coverage_score, 2),
-            "skill_coverage": round(skill_coverage, 2),
-            "domain_coverage_score": round(domain_coverage_score, 2),
-            "readiness_score": readiness_score,
-            "avg_gap": round(avg_gap * 100, 2),
-            "skill_metrics": {s: m.__dict__ for s, m in metrics.items()},
-            "domain_coverage": {d: dm.__dict__ for d, dm in domain_coverages.items()},
-            "cluster_context": cluster_context,
-            "top_recommendations": sorted(final_scores.items(), key=lambda x: x[1], reverse=True)[:15],
-            "gaps": gaps,
-            "level_weights_used": level_weights,
-            "student_skills": user_skills_list,
-            "market_skill_coverage": market_skill_coverage_pct,
-            "skill_categories": skill_categories,
-        }
+        # Собираем строгую модель
+        eval_result = ProfileEvaluationResult(
+            market_coverage_score=round(market_coverage_score, 2),
+            skill_coverage=round(skill_coverage, 2),
+            domain_coverage_score=round(domain_coverage_score, 2),
+            readiness_score=readiness_score,
+            avg_gap=round(avg_gap * 100, 2),
+            skill_metrics={s: m.__dict__ for s, m in metrics.items()},
+            domain_coverage={d: dm.__dict__ for d, dm in domain_coverages.items()},
+            cluster_context=cluster_context,
+            top_recommendations=sorted(final_scores.items(), key=lambda x: x[1], reverse=True)[:15],
+            gaps=gaps,
+            level_weights_used=level_weights,
+            student_skills=user_skills_list,
+            market_skill_coverage=market_skill_coverage_pct,
+            skill_categories=skill_categories,
+        )
+        return eval_result.model_dump()
 
     # ------------------------------------------------------------------
     # Вспомогательные методы нового API
