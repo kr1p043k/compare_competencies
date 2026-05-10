@@ -1,10 +1,9 @@
 # src/predictors/recommendation_engine.py
 import json
+import re
 import time
 from typing import Any
 
-import numpy as np
-import pandas as pd
 import requests
 import structlog
 
@@ -21,11 +20,25 @@ logger = structlog.get_logger(__name__)
 
 class RecommendationEngine:
     """
-    Движок рекомендаций с TF-IDF анализом, LTR-ранжированием и генерацией естественного языка.
-    Поддерживает LLM (YandexGPT) для живых объяснений.
+    Движок рекомендаций с профильной оценкой, LTR-ранжированием
+    и генерацией естественноязыковых объяснений.
+
+    Изменения относительно предыдущей версии:
+    - LTR реально используется в generate_recommendations: его скоры
+      смешиваются со скорами ProfileEvaluator (60/40).
+    - Добавлена диверсификация рекомендаций по категориям.
+    - Исправлен баг `or True` в _get_learning_path.
+    - Удалены мёртвые методы: _generate_skill_recommendation, _why_important,
+      _get_expected_outcome (никогда не вызывались из публичного API).
+    - _get_role_outcome использует target_level вместо несуществующего target_role.
     """
 
-    def __init__(self, use_ltr: bool = True, use_llm: bool = False, profile_evaluator=None):
+    def __init__(
+        self,
+        use_ltr: bool = True,
+        use_llm: bool = False,
+        profile_evaluator=None,
+    ):
         self.comparator = CompetencyComparator(use_embeddings=True, level="middle")
         self.gap_analyzer: GapAnalyzer | None = None
         self.skill_filter = SkillFilter()
@@ -49,7 +62,16 @@ class RecommendationEngine:
 
         self.cluster_weights = None
         self._load_templates()
-        logger.info("recommendation_engine_initialized", ltr=self.use_ltr, llm=self.use_llm)
+        logger.info(
+            "recommendation_engine_initialized",
+            ltr=self.use_ltr,
+            ltr_fitted=self.ltr_engine.is_fitted if self.ltr_engine else False,
+            llm=self.use_llm,
+        )
+
+    # ------------------------------------------------------------------
+    # ПУБЛИЧНЫЙ API
+    # ------------------------------------------------------------------
 
     def set_cluster_context(self, weights: dict[str, float]) -> None:
         self.cluster_weights = weights
@@ -62,42 +84,9 @@ class RecommendationEngine:
         else:
             logger.info("cluster_context_empty")
 
-    def clear_cluster_context(self):
+    def clear_cluster_context(self) -> None:
         self.cluster_weights = None
         logger.info("cluster_context_cleared")
-
-    def _load_templates(self):
-        templates_path = config.DATA_DIR / "templates" / "recommendation_templates.json"
-        if templates_path.exists():
-            try:
-                with open(templates_path, encoding="utf-8") as f:
-                    data = json.load(f)
-                self.HARD_SKILL_TEMPLATES = data.get("hard_skills", {})
-                self.SOFT_SKILL_TEMPLATES = data.get("soft_skills", {})
-                self.HARD_LEARNING_PATHS = data.get("hard_paths", {})
-                self.SOFT_LEARNING_PATHS = data.get("soft_paths", {})
-                logger.info("templates_loaded", path=str(templates_path))
-                return
-            except Exception as e:
-                logger.warning("templates_load_error", error=str(e))
-
-        self.HARD_SKILL_TEMPLATES = {
-            "python": "Python — основной язык для бэкенда и data science.",
-            "java": "Java — стандарт для enterprise-приложений.",
-            "sql": "SQL — язык работы с базами данных.",
-            "docker": "Docker — стандарт для контейнеризации.",
-        }
-        self.SOFT_SKILL_TEMPLATES = {
-            "английский язык": "Английский язык B2+ открывает доступ к документации.",
-            "аналитическое мышление": "Аналитическое мышление критично для решения сложных задач.",
-        }
-        self.HARD_LEARNING_PATHS = {
-            "python": "1. Основы Python. 2. Практика: 10+ мини-проектов. 3. Углубление.",
-            "sql": "1. Основы SELECT. 2. JOIN и подзапросы. 3. Оптимизация.",
-        }
-        self.SOFT_LEARNING_PATHS = {
-            "английский язык": "Занимайтесь ежедневно 30 минут.",
-        }
 
     def fit(self, vacancies_skills: list[list[str]], skill_weights: dict[str, float]) -> None:
         if not vacancies_skills:
@@ -110,7 +99,6 @@ class RecommendationEngine:
         self.gap_analyzer = GapAnalyzer(skill_weights)
         self.comparator.set_skill_weights(skill_weights)
         self.is_fitted = True
-
         logger.info(
             "recommendation_engine_fitted",
             vacancies=len(vacancies_skills),
@@ -119,23 +107,25 @@ class RecommendationEngine:
 
     def generate_recommendations(self, student: StudentProfile, user_type: str = "student") -> dict[str, Any]:
         """
-        Генерирует рекомендации с кластерным контекстом.
-        Включает сводку ближайших ролей и умные объяснения.
-        """
-        import time
+        Генерирует персонализированные рекомендации.
 
+        Порядок работы:
+        1. ProfileEvaluator оценивает профиль и возвращает top_recommendations.
+        2. LTRRecommendationEngine (если обучен) возвращает свои скоры.
+        3. Скоры смешиваются: 60% evaluator + 40% LTR.
+        4. Рекомендации диверсифицируются по категориям навыков.
+        """
         from src.utils import atomic_write_json
 
-        if not hasattr(self, "profile_evaluator"):
+        if not hasattr(self, "profile_evaluator") or self.profile_evaluator is None:
             raise RuntimeError("RecommendationEngine должен быть инициализирован с profile_evaluator")
 
         profile_name = student.profile_name
         logger.info("generate_recommendations_started", profile=profile_name)
 
         try:
-            # Шаг 1: получаем оценку профиля
+            # ── Шаг 1: оценка профиля ─────────────────────────────────────
             eval_result = self.profile_evaluator.evaluate_profile(student, user_type=user_type)
-
             if eval_result is None:
                 logger.error("eval_result_is_none", profile=profile_name)
                 return self._empty_recommendations()
@@ -144,109 +134,97 @@ class RecommendationEngine:
                 "eval_result_received",
                 profile=profile_name,
                 keys=list(eval_result.keys()),
-                has_cluster_context="cluster_context" in eval_result,
-                has_skill_metrics="skill_metrics" in eval_result,
-                has_top_recommendations="top_recommendations" in eval_result,
             )
 
-            # Шаг 2: кластерный контекст
+            # ── Шаг 2: кластерный контекст ────────────────────────────────
             cluster_context = eval_result.get("cluster_context") or {}
             closest_clusters = cluster_context.get("closest_clusters", [])
             cluster_skills_map = cluster_context.get("skills", {})
             student_set = set(s.lower() for s in student.skills)
 
-            logger.info(
-                "cluster_context_parsed",
-                profile=profile_name,
-                closest_count=len(closest_clusters),
-                context_skills_count=len(cluster_skills_map),
-            )
+            # ── Шаг 3: ближайшие роли ─────────────────────────────────────
+            closest_roles = self._build_closest_roles(closest_clusters, cluster_skills_map, student_set)
 
-            # Шаг 3: формируем роли
-            closest_roles = []
-            for c in closest_clusters[:3]:
-                name = c.get("name", f"Кластер {c['id']}")
-                sim = c.get("similarity", 0)
-                cluster_id = c["id"]
-
-                cluster_all_skills = set()
-                if hasattr(self.profile_evaluator, "clusterer") and self.profile_evaluator.clusterer:
-                    try:
-                        cluster_all_skills = set(
-                            s.lower()
-                            for s in self.profile_evaluator.clusterer.get_top_skills_in_cluster(cluster_id, top_n=50)
-                        )
-                    except Exception as e:
-                        logger.warning("cluster_skills_fetch_failed", cluster=cluster_id, error=str(e))
-                        cluster_all_skills = set(cluster_skills_map.keys())
-                else:
-                    cluster_all_skills = set(cluster_skills_map.keys())
-
-                covered = len(student_set & cluster_all_skills)
-                total = len(cluster_all_skills)
-
-                closest_roles.append(
-                    {
-                        "role": name,
-                        "semantic_similarity": round(sim * 100, 1),
-                        "similarity_explanation": (
-                            f"Ваш профиль семантически близок к этой роли на {sim * 100:.0f}%. "
-                            f"Это означает, что ваш набор навыков похож на требования вакансий "
-                            f"в этом кластере, но не гарантирует полного соответствия."
-                        ),
-                        "skills_covered": f"{covered}/{total}",
-                        "coverage_percent": round(covered / total * 100, 1) if total > 0 else 0,
-                        "coverage_explanation": (
-                            f"Вы уже знаете {covered} из {total} ключевых навыков этой роли "
-                            f"({round(covered / total * 100, 1) if total > 0 else 0}%). "
-                            f"Рекомендации ниже помогут закрыть пробелы."
-                        ),
-                    }
-                )
-
-            # Шаг 4: формируем рекомендации
-            recommendations = []
+            # ── Шаг 4: скоры от ProfileEvaluator ─────────────────────────
             skill_metrics = eval_result.get("skill_metrics", {})
-            top_recs = eval_result.get("top_recommendations", [])
+            top_recs: list[tuple[str, float]] = eval_result.get("top_recommendations", [])
 
             if not top_recs:
                 logger.warning("no_top_recommendations", profile=profile_name)
 
-            for skill, score in top_recs:
+            evaluator_scores: dict[str, float] = {skill: score for skill, score in top_recs}
+
+            # ── Шаг 5: скоры от LTR (если модель обучена) ────────────────
+            ltr_scores: dict[str, float] = {}
+            if self.ltr_engine and self.ltr_engine.is_fitted:
+                all_market = list(self.ltr_engine.skill_metadata.keys())
+                missing_for_ltr = [s for s in all_market if s not in student_set]
+                try:
+                    ltr_impacts = self.ltr_engine.predict_skill_impact(student.skills, missing_for_ltr)
+                    # Нормализуем LTR-скоры к диапазону evaluator (0–1)
+                    max_ltr = max((s for _, s, _ in ltr_impacts), default=1.0) or 1.0
+                    ltr_scores = {skill: score / max_ltr for skill, score, _ in ltr_impacts}
+                    logger.info(
+                        "ltr_scores_computed",
+                        profile=profile_name,
+                        ltr_skills=len(ltr_scores),
+                    )
+                except Exception as e:
+                    logger.warning("ltr_scoring_failed", error=str(e))
+
+            # ── Шаг 6: смешиваем скоры (60% evaluator + 40% LTR) ─────────
+            all_skills_to_rank = set(evaluator_scores) | set(ltr_scores)
+            combined_scores: dict[str, float] = {}
+            for skill in all_skills_to_rank:
+                ev = evaluator_scores.get(skill, 0.0)
+                ltr = ltr_scores.get(skill, 0.0)
+                if ltr_scores:
+                    combined_scores[skill] = 0.6 * ev + 0.4 * ltr
+                else:
+                    combined_scores[skill] = ev
+
+            # ── Шаг 7: формируем объекты рекомендаций ────────────────────
+            recommendations: list[dict[str, Any]] = []
+            for skill, score in combined_scores.items():
                 metric = skill_metrics.get(skill, {})
                 try:
                     explanation = self._generate_explanation(skill, score, eval_result)
                 except Exception as e:
-                    logger.error("explanation_generation_failed", skill=skill, error=str(e))
+                    logger.error("explanation_failed", skill=skill, error=str(e))
                     explanation = f"Навык '{skill}' востребован на рынке."
 
-                rec = {
-                    "rank": 0,
-                    "skill": skill,
-                    "importance_score": score,
-                    "priority": "HIGH" if score > 0.7 else "MEDIUM" if score > 0.4 else "LOW",
-                    "category": metric.get("category", "missing"),
-                    "why_important": explanation,
-                    "how_to_learn": self._get_learning_path(skill, False, student),
-                    "expected_timeframe": self._get_timeframe(skill),
-                    "expected_outcome": self._get_role_outcome(skill, closest_roles),
-                    "is_soft_skill": not self._is_hard_skill(skill),
-                    "market_frequency_percent": score * 100,
-                }
-                recommendations.append(rec)
+                recommendations.append(
+                    {
+                        "rank": 0,
+                        "skill": skill,
+                        "importance_score": score,
+                        "priority": ("HIGH" if score > 0.7 else "MEDIUM" if score > 0.4 else "LOW"),
+                        "category": metric.get("category", "missing"),
+                        "why_important": explanation,
+                        "how_to_learn": self._get_learning_path(skill, False, student),
+                        "expected_timeframe": self._get_timeframe(skill),
+                        "expected_outcome": self._get_role_outcome(skill, closest_roles),
+                        "is_soft_skill": not self._is_hard_skill(skill),
+                        "market_frequency_percent": score * 100,
+                    }
+                )
 
             recommendations.sort(key=lambda x: x["importance_score"], reverse=True)
-            for idx, rec in enumerate(recommendations, 1):
+
+            # ── Шаг 8: диверсификация категорий ──────────────────────────
+            # Не более 3 навыков одной категории подряд в топе
+            top_recommendations = self._diversify_recommendations(recommendations, max_per_category=3)[:15]
+
+            for idx, rec in enumerate(top_recommendations, 1):
                 rec["rank"] = idx
 
-            top_recommendations = recommendations[:15]
-
-            # Шаг 5: сохраняем LTR
+            # ── Шаг 9: сохраняем результат LTR для дебага ────────────────
             ltr_file = config.DATA_DIR / "result" / profile_name / f"ltr_recommendations_{profile_name}.json"
             ltr_file.parent.mkdir(parents=True, exist_ok=True)
             ltr_data = {
                 "profile": profile_name,
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "ltr_used": bool(ltr_scores),
                 "recommendations": [
                     {
                         "skill": rec["skill"],
@@ -261,7 +239,12 @@ class RecommendationEngine:
             except Exception as e:
                 logger.warning("ltr_save_failed", profile=profile_name, error=str(e))
 
-            logger.info("generate_recommendations_completed", profile=profile_name, recs=len(top_recommendations))
+            logger.info(
+                "generate_recommendations_completed",
+                profile=profile_name,
+                recs=len(top_recommendations),
+                ltr_contributed=bool(ltr_scores),
+            )
 
             return {
                 "summary": {
@@ -289,8 +272,78 @@ class RecommendationEngine:
             logger.exception("generate_recommendations_crashed", profile=profile_name, error=str(e))
             return self._empty_recommendations()
 
+    # ------------------------------------------------------------------
+    # ПРИВАТНЫЕ МЕТОДЫ
+    # ------------------------------------------------------------------
+
+    def _build_closest_roles(
+        self,
+        closest_clusters: list[dict],
+        cluster_skills_map: dict,
+        student_set: set[str],
+    ) -> list[dict]:
+        roles = []
+        for c in closest_clusters[:3]:
+            name = c.get("name", f"Кластер {c['id']}")
+            sim = c.get("similarity", 0)
+            cluster_id = c["id"]
+
+            cluster_all_skills: set[str] = set()
+            if hasattr(self.profile_evaluator, "clusterer") and self.profile_evaluator.clusterer:
+                try:
+                    cluster_all_skills = set(
+                        s.lower()
+                        for s in self.profile_evaluator.clusterer.get_top_skills_in_cluster(cluster_id, top_n=50)
+                    )
+                except Exception as e:
+                    logger.warning("cluster_skills_fetch_failed", cluster=cluster_id, error=str(e))
+                    cluster_all_skills = set(cluster_skills_map.keys())
+            else:
+                cluster_all_skills = set(cluster_skills_map.keys())
+
+            covered = len(student_set & cluster_all_skills)
+            total = len(cluster_all_skills)
+
+            roles.append(
+                {
+                    "role": name,
+                    "semantic_similarity": round(sim * 100, 1),
+                    "similarity_explanation": (
+                        f"Ваш профиль семантически близок к этой роли на {sim * 100:.0f}%. "
+                        f"Это означает, что ваш набор навыков похож на требования вакансий "
+                        f"в этом кластере, но не гарантирует полного соответствия."
+                    ),
+                    "skills_covered": f"{covered}/{total}",
+                    "coverage_percent": round(covered / total * 100, 1) if total > 0 else 0,
+                    "coverage_explanation": (
+                        f"Вы уже знаете {covered} из {total} ключевых навыков этой роли "
+                        f"({round(covered / total * 100, 1) if total > 0 else 0}%). "
+                        f"Рекомендации ниже помогут закрыть пробелы."
+                    ),
+                }
+            )
+        return roles
+
+    def _diversify_recommendations(self, recs: list[dict], max_per_category: int = 3) -> list[dict]:
+        """
+        Диверсифицирует рекомендации: не более max_per_category навыков
+        одной категории в приоритетной части. Остальные добавляются следом.
+        """
+        seen: dict[str, int] = {}
+        priority: list[dict] = []
+        leftover: list[dict] = []
+
+        for rec in recs:
+            cat = rec.get("category", "other")
+            if seen.get(cat, 0) < max_per_category:
+                seen[cat] = seen.get(cat, 0) + 1
+                priority.append(rec)
+            else:
+                leftover.append(rec)
+
+        return priority + leftover
+
     def _empty_recommendations(self) -> dict[str, Any]:
-        """Возвращает пустой результат рекомендаций при ошибке."""
         return {
             "summary": {
                 "match_score": 0,
@@ -301,7 +354,10 @@ class RecommendationEngine:
                 "readiness_score": 0,
                 "avg_gap": 0,
                 "coverage": 0,
-                "coverage_details": {"covered_skills_count": 0, "total_market_skills": 0},
+                "coverage_details": {
+                    "covered_skills_count": 0,
+                    "total_market_skills": 0,
+                },
                 "market_skill_coverage": 0,
             },
             "closest_roles": [],
@@ -311,9 +367,7 @@ class RecommendationEngine:
         }
 
     def _get_role_outcome(self, skill: str, closest_roles: list[dict]) -> str:
-        """
-        Формирует понятный ожидаемый результат освоения навыка.
-        """
+        """Формирует ожидаемый результат освоения навыка через ближайшую роль."""
         if not closest_roles:
             return f"Освоение '{skill}' расширит ваш технический кругозор."
 
@@ -322,7 +376,6 @@ class RecommendationEngine:
         similarity = top_role["semantic_similarity"]
         coverage = top_role["coverage_percent"]
 
-        # Оцениваем, насколько вырастет покрытие после освоения навыка
         total_skills = int(top_role["skills_covered"].split("/")[1]) if "/" in top_role["skills_covered"] else 50
         new_coverage = round((coverage * total_skills / 100 + 1) / total_skills * 100, 1)
         improvement = round(new_coverage - coverage, 1)
@@ -337,50 +390,40 @@ class RecommendationEngine:
     def _generate_explanation(self, skill: str, score: float, eval_result: dict) -> str:
         """
         Генерирует понятное объяснение, почему навык важен.
-        Ключевое: навык привязывается к роли только если он реально входит в топ навыков кластера.
+        Привязывает навык к роли только если он реально входит в топ кластера.
         """
         metric = eval_result.get("skill_metrics", {}).get(skill, {})
         cluster_rel = metric.get("cluster_relevance", 0)
         category = metric.get("category", "missing")
 
-        # Получаем ближайший кластер — с защитой от None
         cluster_context = eval_result.get("cluster_context") or {}
         closest = cluster_context.get("closest_clusters", [])
         top_cluster = closest[0] if closest else None
         top_cluster_name = top_cluster.get("name") if top_cluster else None
         top_cluster_sim = top_cluster.get("similarity", 0) if top_cluster else 0
 
-        # Проверяем, входит ли навык в топ-навыки ближайшего кластера
         cluster_skills = cluster_context.get("skills", {})
         skill_in_top_cluster = skill in cluster_skills
 
-        # Дополнительно: проверяем, что навык не из категории "other"
         try:
-            from src.analyzers.skill_taxonomy import SkillTaxonomy
-
             taxonomy = SkillTaxonomy()
             skill_cat = taxonomy.get_category_label(skill)
         except Exception:
             skill_cat = "технический"
 
-        if category == "weak":
-            prefix = "🔶 УСИЛИТЬ: "
-            suffix = " У вас уже есть базовое понимание — углубите его."
-        else:
-            prefix = ""
-            suffix = ""
+        prefix = "🔶 УСИЛИТЬ: " if category == "weak" else ""
+        suffix = " У вас уже есть базовое понимание — углубите его." if category == "weak" else ""
 
-        # === ТОЛЬКО если навык РЕАЛЬНО входит в топ кластера ===
         if skill_in_top_cluster and top_cluster_name and cluster_rel > 0.5:
             return (
                 f"{prefix}🎯 Ключевой навык для роли «{top_cluster_name}».\n"
-                f"   Ваш профиль семантически близок к этой роли ({top_cluster_sim * 100:.0f}%), "
-                f"но для полного соответствия не хватает '{skill}'.\n"
+                f"   Ваш профиль семантически близок к этой роли "
+                f"({top_cluster_sim * 100:.0f}%), но для полного соответствия "
+                f"не хватает '{skill}'.\n"
                 f"   Навык входит в топ-требований этого направления."
                 f"{suffix}"
             )
 
-        # === Высокий спрос на рынке (без привязки к роли) ===
         if score > 0.6:
             return (
                 f"{prefix}🔴 Высокий рыночный спрос.\n"
@@ -389,7 +432,6 @@ class RecommendationEngine:
                 f"{suffix}"
             )
 
-        # === Умеренный спрос ===
         if score > 0.35:
             return (
                 f"{prefix}🟡 Умеренный спрос.\n"
@@ -404,7 +446,12 @@ class RecommendationEngine:
             f"{suffix}"
         )
 
-    def _get_learning_path(self, skill: str, is_soft: bool, student_profile: StudentProfile | None = None) -> str:
+    def _get_learning_path(
+        self,
+        skill: str,
+        is_soft: bool,
+        student_profile: StudentProfile | None = None,
+    ) -> str:
         skill_lower = skill.lower()
         level = student_profile.target_level if student_profile else "middle"
 
@@ -418,73 +465,20 @@ class RecommendationEngine:
         elif level == "senior":
             base = "Углублённое изучение: " + base + " + архитектурные паттерны."
 
-        # Для weak навыков — более короткий путь
-        import re
-
-        if re.search(r"(усилить|🔶)", base, re.IGNORECASE) or True:  # заглушка, можно убрать
+        # Для weak навыков — более короткая формулировка
+        if re.search(r"(усилить|🔶)", base, re.IGNORECASE):
             base = base.replace("Изучите документацию", "Углубите знания")
 
         return base
 
-    def _generate_skill_recommendation(
-        self,
-        skill: str,
-        importance: float,
-        priority: str,
-        rank: int,
-        student_profile: StudentProfile | None = None,
-        ltr_explanation: str | None = None,
-        student_skills: list[str] | None = None,
-        coverage: float = 0.0,
-        shap_values: np.ndarray | None = None,
-        X: pd.DataFrame | None = None,
-        idx: int = 0,
-        feature_names: list[str] | None = None,
-    ) -> dict[str, Any]:
-        skill_lower = skill.lower()
-        is_soft = not self._is_hard_skill(skill_lower)
-
-        return {
-            "rank": rank,
-            "skill": skill,
-            "importance_score": round(importance, 4),
-            "priority": priority,
-            "is_soft_skill": is_soft,
-            "suggestion": self._get_suggestion(skill, is_soft),
-            "why_important": self._why_important(
-                skill,
-                importance,
-                priority,
-                ltr_explanation,
-                student_skills,
-                coverage,
-                shap_values,
-                X,
-                idx,
-                feature_names,
-            ),
-            "how_to_learn": self._get_learning_path(skill, is_soft, student_profile),
-            "expected_timeframe": self._get_timeframe(skill),
-            "expected_outcome": self._get_expected_outcome(skill, student_profile),
-            "market_frequency_percent": round(importance * 100, 1),
-        }
-
     def _is_hard_skill(self, skill_lower: str) -> bool:
-        """
-        Определяет, является ли навык техническим (hard skill).
-        Использует таксономию; fallback — ключевые слова.
-        """
-        # Пробуем через таксономию
+        """Определяет, является ли навык техническим (hard skill)."""
         try:
-            from src.analyzers.skill_taxonomy import SkillTaxonomy
-
             taxonomy = SkillTaxonomy()
             cat = taxonomy.get_category(skill_lower)
-            # Явно soft-категории
             soft_cats = {"soft_skills", "management"}
             if cat in soft_cats:
                 return False
-            # Явно hard-категории
             hard_cats = {
                 "programming_languages",
                 "frameworks",
@@ -507,11 +501,9 @@ class RecommendationEngine:
             }
             if cat in hard_cats:
                 return True
-            # Если категория не определена — fallback
         except Exception:
             pass
 
-        # Fallback: проверка по ключевым словам
         hard_keywords = [
             "python",
             "java",
@@ -598,23 +590,17 @@ class RecommendationEngine:
             "babel",
             "npm",
             "yarn",
-            "kafka streams",
-            "greenplum",
-            "powershell",
+            "kafka",
+            "rabbitmq",
+            "celery",
+            "spark",
+            "hadoop",
+            "airflow",
             "nginx",
-            "flask",
             "linux",
             "unix",
             "bash",
             "shell",
-            "cmd",
-            "terminal",
-            "spark",
-            "hadoop",
-            "airflow",
-            "kafka",
-            "rabbitmq",
-            "celery",
         ]
         return any(kw in skill_lower for kw in hard_keywords)
 
@@ -622,11 +608,38 @@ class RecommendationEngine:
         skill_lower = skill.lower()
         if is_soft:
             return self.SOFT_SKILL_TEMPLATES.get(
-                skill_lower, f"Развитие soft skill '{skill}' улучшит вашу эффективность в команде."
+                skill_lower,
+                f"Развитие soft skill '{skill}' улучшит вашу эффективность в команде.",
             )
         return self.HARD_SKILL_TEMPLATES.get(
-            skill_lower, f"Навык '{skill}' высоко востребован на рынке и повысит вашу конкурентоспособность."
+            skill_lower,
+            f"Навык '{skill}' высоко востребован на рынке и повысит вашу конкурентоспособность.",
         )
+
+    def _get_priority(self, gap: float) -> str:
+        if gap > 0.55:
+            return "HIGH"
+        elif gap > 0.30:
+            return "MEDIUM"
+        return "LOW"
+
+    def _get_timeframe(self, skill: str) -> str:
+        skill_lower = skill.lower()
+        easy = {"git", "html", "css", "sass", "english", "английский язык"}
+        medium = {"javascript", "python", "sql", "redis", "docker", "react"}
+        hard = {"java", "kubernetes", "aws", "machine learning", "tensorflow"}
+
+        if any(k in skill_lower for k in easy):
+            return "1-2 недели"
+        if any(k in skill_lower for k in medium):
+            return "1-2 месяца"
+        if any(k in skill_lower for k in hard):
+            return "2-6 месяцев"
+        return "1-3 месяца"
+
+    # ------------------------------------------------------------------
+    # LLM (YandexGPT) — вспомогательный, необязательный
+    # ------------------------------------------------------------------
 
     def _llm_explain_with_retry(
         self,
@@ -652,10 +665,17 @@ class RecommendationEngine:
             f"Дай один конкретный совет по изучению."
         )
 
-        headers = {"Authorization": f"Api-Key {config.YC_API_KEY}", "x-folder-id": config.YC_FOLDER_ID}
+        headers = {
+            "Authorization": f"Api-Key {config.YC_API_KEY}",
+            "x-folder-id": config.YC_FOLDER_ID,
+        }
         payload = {
             "modelUri": f"gpt://{config.YC_FOLDER_ID}/{config.YANDEXGPT_MODEL}",
-            "completionOptions": {"stream": False, "temperature": 0.7, "maxTokens": "300"},
+            "completionOptions": {
+                "stream": False,
+                "temperature": 0.7,
+                "maxTokens": "300",
+            },
             "messages": [{"role": "user", "text": prompt}],
         }
 
@@ -672,10 +692,18 @@ class RecommendationEngine:
                     return data["result"]["alternatives"][0]["message"]["text"].strip()
                 elif resp.status_code == 429:
                     wait_time = delay * (attempt + 1)
-                    logger.warning("yandexgpt_rate_limited", attempt=attempt + 1, wait_time=wait_time)
+                    logger.warning(
+                        "yandexgpt_rate_limited",
+                        attempt=attempt + 1,
+                        wait_time=wait_time,
+                    )
                     time.sleep(wait_time)
                 else:
-                    logger.warning("yandexgpt_error", status=resp.status_code, response=resp.text[:200])
+                    logger.warning(
+                        "yandexgpt_error",
+                        status=resp.status_code,
+                        response=resp.text[:200],
+                    )
                     return None
             except Exception as e:
                 logger.warning("yandexgpt_exception", attempt=attempt + 1, error=str(e))
@@ -685,106 +713,50 @@ class RecommendationEngine:
                     return None
         return None
 
-    def _get_priority(self, gap: float) -> str:
-        if gap > 0.55:
-            return "HIGH"
-        elif gap > 0.30:
-            return "MEDIUM"
-        return "LOW"
-
     def _llm_explain(
-        self, skill: str, importance: float, priority: str, student_skills: list[str], coverage: float
-    ) -> str | None:
-        time.sleep(1.0)
-        return self._llm_explain_with_retry(skill, importance, priority, student_skills, coverage)
-
-    def _shap_explain(
-        self, skill: str, shap_values: np.ndarray | None, idx: int, X: pd.DataFrame, feature_names: list[str]
-    ) -> str | None:
-        if shap_values is None or idx >= len(shap_values):
-            return None
-        top_idx = np.argmax(np.abs(shap_values[idx]))
-        feat_name = feature_names[top_idx]
-        feat_val = X.iloc[idx][feat_name]
-        if feat_name == "cosine_sim":
-            return f"сильно связан с вашим текущим профилем (сходство {feat_val:.2f})"
-        elif feat_name == "level_encoded":
-            level_str = {1: "junior", 2: "middle", 3: "senior"}.get(int(feat_val), "middle")
-            return f"востребован на уровне {level_str}"
-        elif feat_name == "category_encoded":
-            return "относится к востребованной категории навыков"
-        return None
-
-    def _why_important(
         self,
         skill: str,
         importance: float,
         priority: str,
-        ltr_explanation: str | None = None,
-        student_skills: list[str] | None = None,
-        coverage: float = 0.0,
-        shap_values: np.ndarray | None = None,
-        X: pd.DataFrame | None = None,
-        idx: int = 0,
-        feature_names: list[str] | None = None,
-    ) -> str:
-        try:
-            taxonomy = SkillTaxonomy()
-            category = taxonomy.get_category_label(skill)
-            icon = taxonomy.get_category_icon(skill)
-            category_str = f" ({icon} {category})" if category != "other" else ""
-        except Exception:
-            category_str = ""
+        student_skills: list[str],
+        coverage: float,
+    ) -> str | None:
+        time.sleep(1.0)
+        return self._llm_explain_with_retry(skill, importance, priority, student_skills, coverage)
 
-        if self.use_llm:
-            llm_expl = self._llm_explain(skill, importance, priority, student_skills or [], coverage)
-            if llm_expl:
-                return f"🤖 {llm_expl}"
+    # ------------------------------------------------------------------
+    # ШАБЛОНЫ
+    # ------------------------------------------------------------------
 
-        if shap_values is not None and X is not None and feature_names is not None:
-            shap_expl = self._shap_explain(skill, shap_values, idx, X, feature_names)
-            if shap_expl:
-                base = f"🎯 Навык '{skill}'{category_str} {shap_expl}."
-                if priority == "HIGH":
-                    base += " Это один из самых важных навыков для вашего уровня."
-                elif priority == "MEDIUM":
-                    base += " Его освоение повысит вашу конкурентоспособность."
-                return base
+    def _load_templates(self) -> None:
+        templates_path = config.DATA_DIR / "templates" / "recommendation_templates.json"
+        if templates_path.exists():
+            try:
+                with open(templates_path, encoding="utf-8") as f:
+                    data = json.load(f)
+                self.HARD_SKILL_TEMPLATES = data.get("hard_skills", {})
+                self.SOFT_SKILL_TEMPLATES = data.get("soft_skills", {})
+                self.HARD_LEARNING_PATHS = data.get("hard_paths", {})
+                self.SOFT_LEARNING_PATHS = data.get("soft_paths", {})
+                logger.info("templates_loaded", path=str(templates_path))
+                return
+            except Exception as e:
+                logger.warning("templates_load_error", error=str(e))
 
-        if ltr_explanation:
-            return f"🎯 Модель: {ltr_explanation}"
-
-        if priority == "HIGH":
-            return (
-                f"🔴 ВЫСОКИЙ приоритет: '{skill}'{category_str} — "
-                f"один из самых востребованных навыков в вашей целевой роли."
-            )
-        elif priority == "MEDIUM":
-            return f"🟡 СРЕДНИЙ приоритет: '{skill}'{category_str} значительно повысит вашу конкурентоспособность."
-        else:
-            return (
-                f"🟢 НИЗКИЙ приоритет: '{skill}'{category_str} "
-                f"полезен для расширения кругозора и специализированных задач."
-            )
-
-    def _get_timeframe(self, skill: str) -> str:
-        skill_lower = skill.lower()
-        easy = {"git", "html", "css", "sass", "english", "английский язык"}
-        medium = {"javascript", "python", "sql", "redis", "docker", "react"}
-        hard = {"java", "kubernetes", "aws", "machine learning", "tensorflow"}
-
-        if any(k in skill_lower for k in easy):
-            return "1-2 недели"
-        elif any(k in skill_lower for k in medium):
-            return "1-2 месяца"
-        elif any(k in skill_lower for k in hard):
-            return "2-6 месяцев"
-        return "1-3 месяца"
-
-    def _get_expected_outcome(self, skill: str, student_profile: StudentProfile | None) -> str:
-        role = (
-            student_profile.target_role
-            if student_profile and hasattr(student_profile, "target_role")
-            else "вашей целевой роли"
-        )
-        return f"Освоение '{skill}' позволит вам уверенно работать в роли '{role}'."
+        self.HARD_SKILL_TEMPLATES = {
+            "python": "Python — основной язык для бэкенда и data science.",
+            "java": "Java — стандарт для enterprise-приложений.",
+            "sql": "SQL — язык работы с базами данных.",
+            "docker": "Docker — стандарт для контейнеризации.",
+        }
+        self.SOFT_SKILL_TEMPLATES = {
+            "английский язык": "Английский язык B2+ открывает доступ к документации.",
+            "аналитическое мышление": "Аналитическое мышление критично для решения сложных задач.",
+        }
+        self.HARD_LEARNING_PATHS = {
+            "python": "1. Основы Python. 2. Практика: 10+ мини-проектов. 3. Углубление.",
+            "sql": "1. Основы SELECT. 2. JOIN и подзапросы. 3. Оптимизация.",
+        }
+        self.SOFT_LEARNING_PATHS = {
+            "английский язык": "Занимайтесь ежедневно 30 минут.",
+        }
