@@ -1,7 +1,10 @@
 """
 Embedding Comparator с поддержкой уровней опыта и FAISS (опционально)
+Атомарная запись кэша эмбеддингов + восстановление при порче.
 """
 
+import os
+import tempfile
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -30,7 +33,11 @@ except ImportError:
 
 class EmbeddingComparator:
     def __init__(
-        self, model_name: str = None, cache_dir: str = None, similarity_threshold: float = 0.75, use_faiss: bool = True
+        self,
+        model_name: str = None,
+        cache_dir: str = None,
+        similarity_threshold: float = 0.75,
+        use_faiss: bool = True,
     ):
         self.model = get_embedding_model(model_name)
         if cache_dir is None:
@@ -62,13 +69,18 @@ class EmbeddingComparator:
         return self.model.encode(skills, convert_to_numpy=True, show_progress_bar=False)
 
     def build_market_index(self, all_market_skills: list[str], level: str = "middle"):
+        """
+        Строит (или загружает) рыночный индекс эмбеддингов с атомарной записью.
+        При порче кэша автоматически удаляет битый файл и пересчитывает.
+        """
         cache_path = self._get_cache_path("market_embeddings", level)
 
+        # ── 1. Попытка загрузить существующий кэш ──────────────────────────
         if cache_path.exists():
             manifest_path = cache_path.with_suffix(".manifest.json")
-            # 1. Манифест существует – проверяем совместимость
-            if manifest_path.exists():
-                try:
+            try:
+                # Проверяем манифест на совместимость
+                if manifest_path.exists():
                     manifest = ArtifactManifest.load(cache_path)
                     if not manifest.is_compatible():
                         logger.info(
@@ -77,62 +89,54 @@ class EmbeddingComparator:
                             manifest_version=manifest.model_version,
                             current_version=ArtifactManifest._get_embedding_model_version(),
                         )
-                        cache_path.unlink()
-                        manifest_path.unlink()
-                    else:
-                        # совместимый кэш – загружаем
-                        loaded = joblib.load(cache_path)
-                        if isinstance(loaded, dict):
-                            self.market_embeddings = loaded["embeddings"]
-                            self.market_skills = loaded["skills"]
-                        else:
-                            self.market_embeddings, self.market_skills = loaded
-                        logger.info("embeddings_cache_loaded", level=level)
-                        if self.use_faiss:
-                            self._build_faiss_index()
-                        return
-                except Exception as e:
-                    logger.warning("market_cache_manifest_error", level=level, error=str(e))
-                    try:
-                        cache_path.unlink()
-                        manifest_path.unlink()
-                    except Exception:
-                        pass
-            else:
-                # 2. Манифеста нет, но кэш есть – создаём манифест для существующего кэша
-                logger.info("creating_manifest_for_existing_cache", level=level)
-                try:
-                    loaded = joblib.load(cache_path)
-                    if isinstance(loaded, dict):
-                        self.market_embeddings = loaded["embeddings"]
-                        self.market_skills = loaded["skills"]
-                    else:
-                        self.market_embeddings, self.market_skills = loaded
+                        raise ValueError("Model version mismatch")
 
-                    manifest = ArtifactManifest(
-                        artifact_path=cache_path,
-                        metrics={"num_skills": len(self.market_skills)},
-                    )
-                    manifest.save()
-                    logger.info("embeddings_cache_loaded_with_new_manifest", level=level)
-                    if self.use_faiss:
-                        self._build_faiss_index()
-                    return
-                except Exception as e:
-                    logger.warning("failed_to_create_manifest_for_existing_cache", error=str(e))
-                    # если не получилось, удаляем кэш и пересчитаем ниже
-                    with suppress(Exception):
-                        cache_path.unlink()
+                # Пытаемся загрузить сам кэш
+                loaded = joblib.load(cache_path)
+                if isinstance(loaded, dict):
+                    self.market_embeddings = loaded["embeddings"]
+                    self.market_skills = loaded["skills"]
+                else:
+                    self.market_embeddings, self.market_skills = loaded
 
-        # 3. Кэша нет или он удалён – пересчитываем
+                logger.info("embeddings_cache_loaded", level=level)
+                if self.use_faiss:
+                    self._build_faiss_index()
+                return
+
+            except Exception as e:
+                logger.warning(
+                    "market_cache_load_failed",
+                    level=level,
+                    error=str(e),
+                )
+                # Удаляем битый кэш и манифест, чтобы пересоздать
+                with suppress(Exception):
+                    cache_path.unlink()
+                with suppress(Exception):
+                    manifest_path.unlink()
+
+        # ── 2. Пересчитываем эмбеддинги и сохраняем атомарно ──────────────
         self.market_skills = all_market_skills
         self.market_embeddings = self.embed_skills(self.market_skills)
-        joblib.dump(
-            {"embeddings": self.market_embeddings, "skills": self.market_skills},
-            cache_path,
-        )
-        logger.info("market_embeddings_saved", level=level)
 
+        # Атомарная запись: пишем во временный файл, потом переименовываем
+        try:
+            fd, tmp_path = tempfile.mkstemp(dir=cache_path.parent, suffix=".pkl.tmp")
+            os.close(fd)
+            joblib.dump(
+                {"embeddings": self.market_embeddings, "skills": self.market_skills},
+                tmp_path,
+            )
+            os.replace(tmp_path, cache_path)  # атомарно на POSIX, почти атомарно на Windows
+            logger.info("market_embeddings_saved_atomically", level=level, path=str(cache_path))
+        except Exception as e:
+            logger.error("failed_to_save_market_embeddings", error=str(e))
+            with suppress(Exception):
+                os.unlink(tmp_path)
+            raise
+
+        # ── 3. Сохраняем манифест ──────────────────────────────────────────
         try:
             manifest = ArtifactManifest(
                 artifact_path=cache_path,
@@ -188,11 +192,10 @@ class EmbeddingComparator:
         else:
             logger.debug("skill_weights_count", count=len(self.skill_weights))
 
-        # === ИСПРАВЛЕНИЕ: квадратичный штраф для слабых совпадений ===
         if self.skill_weights:
             for mskill, weight in self.skill_weights.items():
                 raw_sim = best_sims_per_market.get(mskill, 0.0)
-                effective_sim = raw_sim**2  # ослабляет слабые совпадения
+                effective_sim = raw_sim**2
                 total_weighted += effective_sim * weight
                 total_weight += weight
         else:
