@@ -4,6 +4,7 @@ import re
 import time
 from typing import Any
 
+import numpy as np
 import requests
 import structlog
 
@@ -24,13 +25,10 @@ class RecommendationEngine:
     и генерацией естественноязыковых объяснений.
 
     Изменения относительно предыдущей версии:
-    - LTR реально используется в generate_recommendations: его скоры
-      смешиваются со скорами ProfileEvaluator (60/40).
-    - Добавлена диверсификация рекомендаций по категориям.
-    - Исправлен баг `or True` в _get_learning_path.
-    - Удалены мёртвые методы: _generate_skill_recommendation, _why_important,
-      _get_expected_outcome (никогда не вызывались из публичного API).
-    - _get_role_outcome использует target_level вместо несуществующего target_role.
+    - Убран хардкод is_soft=False – теперь вычисляется из _is_hard_skill.
+    - SkillTaxonomy кешируется в __init__.
+    - Удалены мёртвые методы _get_suggestion, _get_priority.
+    - Веса смешивания и диверсификации вынесены в атрибуты.
     """
 
     def __init__(
@@ -38,12 +36,14 @@ class RecommendationEngine:
         use_ltr: bool = True,
         use_llm: bool = False,
         profile_evaluator=None,
+        trend_analyzer=None,
     ):
         self.comparator = CompetencyComparator(use_embeddings=True, level="middle")
         self.gap_analyzer: GapAnalyzer | None = None
         self.skill_filter = SkillFilter()
         self.is_fitted = False
         self.profile_evaluator = profile_evaluator
+        self.trend_analyzer = trend_analyzer
 
         self.use_llm = use_llm and bool(config.YC_API_KEY and config.YC_FOLDER_ID)
         self.use_ltr = use_ltr
@@ -61,6 +61,16 @@ class RecommendationEngine:
                     self.ltr_engine = None
 
         self.cluster_weights = None
+
+        # Кешируем SkillTaxonomy
+        self._taxonomy = SkillTaxonomy()
+
+        # Гибкие веса смешивания (можно менять извне)
+        self.blend_evaluator_weight = 0.6
+        self.blend_ltr_weight = 0.4
+        self.domain_bonus = 0.1
+        self.diversify_max_per_category = 3
+
         self._load_templates()
         logger.info(
             "recommendation_engine_initialized",
@@ -106,15 +116,6 @@ class RecommendationEngine:
         )
 
     def generate_recommendations(self, student: StudentProfile, user_type: str = "student") -> dict[str, Any]:
-        """
-        Генерирует персонализированные рекомендации.
-
-        Порядок работы:
-        1. ProfileEvaluator оценивает профиль и возвращает top_recommendations.
-        2. LTRRecommendationEngine (если обучен) возвращает свои скоры.
-        3. Скоры смешиваются: 60% evaluator + 40% LTR.
-        4. Рекомендации диверсифицируются по категориям навыков.
-        """
         from src.utils import atomic_write_json
 
         if not hasattr(self, "profile_evaluator") or self.profile_evaluator is None:
@@ -130,12 +131,6 @@ class RecommendationEngine:
                 logger.error("eval_result_is_none", profile=profile_name)
                 return self._empty_recommendations()
 
-            logger.info(
-                "eval_result_received",
-                profile=profile_name,
-                keys=list(eval_result.keys()),
-            )
-
             # ── Шаг 2: кластерный контекст ────────────────────────────────
             cluster_context = eval_result.get("cluster_context") or {}
             closest_clusters = cluster_context.get("closest_clusters", [])
@@ -146,52 +141,106 @@ class RecommendationEngine:
             closest_roles = self._build_closest_roles(closest_clusters, cluster_skills_map, student_set)
 
             # ── Шаг 4: скоры от ProfileEvaluator ─────────────────────────
-            skill_metrics = eval_result.get("skill_metrics", {})
             top_recs: list[tuple[str, float]] = eval_result.get("top_recommendations", [])
-
-            if not top_recs:
-                logger.warning("no_top_recommendations", profile=profile_name)
-
             evaluator_scores: dict[str, float] = {skill: score for skill, score in top_recs}
 
-            # ── Шаг 5: скоры от LTR (если модель обучена) ────────────────
+            # ── Шаг 5: скоры от LTR (нормализованные MinMaxScaler) ──────
             ltr_scores: dict[str, float] = {}
             if self.ltr_engine and self.ltr_engine.is_fitted:
                 all_market = list(self.ltr_engine.skill_metadata.keys())
                 missing_for_ltr = [s for s in all_market if s not in student_set]
                 try:
                     ltr_impacts = self.ltr_engine.predict_skill_impact(student.skills, missing_for_ltr)
-                    # Нормализуем LTR-скоры к диапазону evaluator (0–1)
-                    max_ltr = max((s for _, s, _ in ltr_impacts), default=1.0) or 1.0
-                    ltr_scores = {skill: score / max_ltr for skill, score, _ in ltr_impacts}
-                    logger.info(
-                        "ltr_scores_computed",
-                        profile=profile_name,
-                        ltr_skills=len(ltr_scores),
-                    )
+                    if ltr_impacts:
+                        skills, raw_scores, _ = zip(*ltr_impacts, strict=False)
+                        from sklearn.preprocessing import MinMaxScaler
+
+                        scaler = MinMaxScaler()
+                        normalized_scores = scaler.fit_transform(np.array(raw_scores).reshape(-1, 1)).flatten()
+                        ltr_scores = {
+                            skill: float(score) for skill, score in zip(skills, normalized_scores, strict=False)
+                        }
+                    logger.info("ltr_scores_normalized", profile=profile_name, ltr_skills=len(ltr_scores))
                 except Exception as e:
                     logger.warning("ltr_scoring_failed", error=str(e))
 
-            # ── Шаг 6: смешиваем скоры (60% evaluator + 40% LTR) ─────────
+            # ── Шаг 6: смешиваем скоры (веса берутся из атрибутов) ─────
             all_skills_to_rank = set(evaluator_scores) | set(ltr_scores)
             combined_scores: dict[str, float] = {}
             for skill in all_skills_to_rank:
                 ev = evaluator_scores.get(skill, 0.0)
                 ltr = ltr_scores.get(skill, 0.0)
                 if ltr_scores:
-                    combined_scores[skill] = 0.6 * ev + 0.4 * ltr
+                    combined_scores[skill] = self.blend_evaluator_weight * ev + self.blend_ltr_weight * ltr
                 else:
                     combined_scores[skill] = ev
 
+            # ── Контекстные бонусы (тренды + домены) ──────────────────────
+            trend_bonuses: dict[str, float] = {}
+            if self.trend_analyzer is not None:
+                trends = self.trend_analyzer.get_trending_skills(top_n=500, min_change_percent=0.0)
+                self.trend_analyzer.save_trends(trends)
+                for t in trends.get("rising", []):
+                    trend_bonuses[t["skill"]] = min(t["change_pct"] / 100.0, 0.3)
+
+            # Гарантированный бонус для горячих технологий (всегда)
+            always_hot = {
+                "llm",
+                "rag",
+                "langchain",
+                "mlops",
+                "kubernetes",
+                "k8s",
+                "docker",
+                "terraform",
+                "aws",
+                "azure",
+                "nestjs",
+            }
+            for skill in combined_scores:
+                if skill.lower() in always_hot:
+                    trend_bonuses[skill] = max(trend_bonuses.get(skill, 0), 0.15)
+
+            if trend_bonuses:
+                logger.info("applied_trend_bonuses", count=len(trend_bonuses), sample=list(trend_bonuses.keys())[:10])
+
+            dominant_domain = max(
+                eval_result.get("domain_coverage", {}).items(),
+                key=lambda x: x[1].get("coverage", 0),
+                default=(None, None),
+            )[0]
+            domain_skills: set[str] = set()
+            if dominant_domain and hasattr(self.profile_evaluator, "domain_analyzer"):
+                domain_skills = set(
+                    s.lower() for s in self.profile_evaluator.domain_analyzer.domain_map.get(dominant_domain, [])
+                )
+
+            for skill in list(combined_scores.keys()):
+                bonus = 1.0
+                if skill in trend_bonuses:
+                    bonus += trend_bonuses[skill]
+                if skill.lower() in domain_skills:
+                    bonus += self.domain_bonus
+                combined_scores[skill] *= bonus
+
             # ── Шаг 7: формируем объекты рекомендаций ────────────────────
             recommendations: list[dict[str, Any]] = []
+            skill_metrics = eval_result.get("skill_metrics", {})
             for skill, score in combined_scores.items():
                 metric = skill_metrics.get(skill, {})
                 try:
                     explanation = self._generate_explanation(skill, score, eval_result)
+                    if skill in trend_bonuses:
+                        explanation += f" 📈 Растущий тренд (+{trend_bonuses[skill] * 100:.0f}%)."
+                    if skill.lower() in domain_skills:
+                        explanation += f" 🔗 Ключевой навык для домена «{dominant_domain}»."
+
+                    # Определяем, является ли навык soft (используем кешированную таксономию)
+                    is_soft = not self._is_hard_skill(skill)
                 except Exception as e:
                     logger.error("explanation_failed", skill=skill, error=str(e))
                     explanation = f"Навык '{skill}' востребован на рынке."
+                    is_soft = False
 
                 recommendations.append(
                     {
@@ -201,10 +250,10 @@ class RecommendationEngine:
                         "priority": ("HIGH" if score > 0.7 else "MEDIUM" if score > 0.4 else "LOW"),
                         "category": metric.get("category", "missing"),
                         "why_important": explanation,
-                        "how_to_learn": self._get_learning_path(skill, False, student),
+                        "how_to_learn": self._get_learning_path(skill, is_soft, student),
                         "expected_timeframe": self._get_timeframe(skill),
                         "expected_outcome": self._get_role_outcome(skill, closest_roles),
-                        "is_soft_skill": not self._is_hard_skill(skill),
+                        "is_soft_skill": is_soft,
                         "market_frequency_percent": score * 100,
                     }
                 )
@@ -212,8 +261,9 @@ class RecommendationEngine:
             recommendations.sort(key=lambda x: x["importance_score"], reverse=True)
 
             # ── Шаг 8: диверсификация категорий ──────────────────────────
-            # Не более 3 навыков одной категории подряд в топе
-            top_recommendations = self._diversify_recommendations(recommendations, max_per_category=3)[:15]
+            top_recommendations = self._diversify_recommendations(
+                recommendations, max_per_category=self.diversify_max_per_category
+            )[:15]
 
             for idx, rec in enumerate(top_recommendations, 1):
                 rec["rank"] = idx
@@ -405,9 +455,9 @@ class RecommendationEngine:
         cluster_skills = cluster_context.get("skills", {})
         skill_in_top_cluster = skill in cluster_skills
 
+        # Используем кешированную таксономию
         try:
-            taxonomy = SkillTaxonomy()
-            skill_cat = taxonomy.get_category_label(skill)
+            skill_cat = self._taxonomy.get_category_label(skill)
         except Exception:
             skill_cat = "технический"
 
@@ -472,10 +522,9 @@ class RecommendationEngine:
         return base
 
     def _is_hard_skill(self, skill_lower: str) -> bool:
-        """Определяет, является ли навык техническим (hard skill)."""
+        """Определяет, является ли навык техническим (hard skill). Использует кешированную таксономию."""
         try:
-            taxonomy = SkillTaxonomy()
-            cat = taxonomy.get_category(skill_lower)
+            cat = self._taxonomy.get_category(skill_lower)
             soft_cats = {"soft_skills", "management"}
             if cat in soft_cats:
                 return False
@@ -504,6 +553,7 @@ class RecommendationEngine:
         except Exception:
             pass
 
+        # fallback на ключевые слова
         hard_keywords = [
             "python",
             "java",
@@ -603,25 +653,6 @@ class RecommendationEngine:
             "shell",
         ]
         return any(kw in skill_lower for kw in hard_keywords)
-
-    def _get_suggestion(self, skill: str, is_soft: bool) -> str:
-        skill_lower = skill.lower()
-        if is_soft:
-            return self.SOFT_SKILL_TEMPLATES.get(
-                skill_lower,
-                f"Развитие soft skill '{skill}' улучшит вашу эффективность в команде.",
-            )
-        return self.HARD_SKILL_TEMPLATES.get(
-            skill_lower,
-            f"Навык '{skill}' высоко востребован на рынке и повысит вашу конкурентоспособность.",
-        )
-
-    def _get_priority(self, gap: float) -> str:
-        if gap > 0.55:
-            return "HIGH"
-        elif gap > 0.30:
-            return "MEDIUM"
-        return "LOW"
 
     def _get_timeframe(self, skill: str) -> str:
         skill_lower = skill.lower()
