@@ -49,15 +49,7 @@ class LTRRecommendationEngine:
     LTR-движок на XGBoost для персонализированного ранжирования навыков.
 
     Изменения относительно предыдущей версии:
-    - Нет data leakage: train / val / test — три раздельные части;
-      early_stopping работает только на val, test не трогается до финальной оценки.
-    - Новые признаки: co_occurrence, skill_freq_normalized, hybrid_weight,
-      category_avg_weight, student_skills_count.
-    - SkillTaxonomy кешируется один раз в __init__ (не инстанциируется на каждый навык).
-    - Синтетические студенты — доменные профили вместо случайных.
-    - Таргет учитывает co-occurrence с профилем студента (персонализация).
-    - Метрики обучения: R², MAE, NDCG@10.
-    - vacancy_skills_corpus и category_avg_weight сохраняются в joblib-дамп.
+    - Устойчивость к ошибкам matplotlib при сохранении графика важности.
     """
 
     def __init__(self, model_path: Path | None = None):
@@ -198,10 +190,14 @@ class LTRRecommendationEngine:
             test_samples=len(X_test),
         )
 
-        plt.figure(figsize=(12, 8))
-        xgb.plot_importance(self.model, max_num_features=15)
-        plt.savefig(config.MODELS_DIR / "ltr_feature_importance.png", dpi=200, bbox_inches="tight")
-        plt.close()
+        # Сохраняем график важности с защитой от ошибок
+        try:
+            plt.figure(figsize=(12, 8))
+            xgb.plot_importance(self.model, max_num_features=15)
+            plt.savefig(config.MODELS_DIR / "ltr_feature_importance.png", dpi=200, bbox_inches="tight")
+            plt.close()
+        except Exception as e:
+            logger.warning("failed_to_save_importance_plot", error=str(e))
 
         joblib.dump(
             {
@@ -259,7 +255,6 @@ class LTRRecommendationEngine:
         level_map = {"junior": 1, "middle": 2, "senior": 3, "all_levels": 2}
         category = self._get_skill_category(skill)
 
-        # старый category_encoded — для обратной совместимости
         category_map = {
             "programming_languages": 5,
             "frameworks": 4,
@@ -285,12 +280,10 @@ class LTRRecommendationEngine:
         }
 
         return {
-            # старые признаки
             "level_encoded": level_map.get(meta.get("level", "middle"), 2),
             "category_encoded": category_map.get(category, 1),
             "cosine_sim": sim,
             "in_student_profile": 1.0 if skill in student_skills else 0.0,
-            # новые признаки, которые не дублируют target
             "skill_freq_normalized": meta.get("freq_normalized", 0.0),
             "co_occurrence": self._co_occurrence_score(skill, student_skills),
             "category_avg_weight": self.category_avg_weight.get(category, 0.0),
@@ -362,10 +355,6 @@ class LTRRecommendationEngine:
     # ------------------------------------------------------------------
 
     def _co_occurrence_score(self, skill: str, student_skills: list[str]) -> float:
-        """
-        Доля вакансий, где skill встречается совместно хотя бы
-        с одним навыком из профиля студента.
-        """
         if not student_skills or not self.vacancy_skills_corpus:
             return 0.0
         student_set = set(student_skills)
@@ -423,14 +412,9 @@ class LTRRecommendationEngine:
         return processed
 
     def _get_skill_category(self, skill: str) -> str:
-        """
-        Определяет категорию навыка.
-        Ссылка на SkillTaxonomy кешируется в self._taxonomy —
-        не создаётся новый объект на каждый вызов.
-        """
         try:
             if self._taxonomy is None:
-                from src.analyzers.skill_taxonomy import SkillTaxonomy  # noqa: PLC0415
+                from src.analyzers.skill_taxonomy import SkillTaxonomy
 
                 self._taxonomy = SkillTaxonomy()
             cat = self._taxonomy.get_category(skill)
@@ -438,7 +422,6 @@ class LTRRecommendationEngine:
                 return cat
         except Exception:
             pass
-        # Fallback: SkillFilter
         cats = self.skill_filter.get_skill_categories([skill])
         for cat, skills in cats.items():
             if skill in skills:
@@ -487,8 +470,6 @@ class LTRRecommendationEngine:
             if feat_name in ("category_encoded", "category_avg_weight"):
                 cat = self._get_skill_category(skill)
                 return f"📁 {skill}: относится к востребованной категории '{cat}' (важность {score * 100:.1f}%)"
-            if feat_name == "hybrid_weight":
-                return f"📈 {skill}: высокий гибридный вес на рынке (вес {feat_val:.2f}, важность {score * 100:.1f}%)"
 
         return f"{skill}: важность {score * 100:.1f}% (частота {freq}, уровень {level})"
 
@@ -503,7 +484,6 @@ class LTRRecommendationEngine:
         self.skill_metadata = data["skill_metadata"]
         self.skill_embeddings = data.get("skill_embeddings", {})
         self.total_vacancies = data["total_vacancies"]
-        # Новые поля; fallback для старых дампов без них
         self.vacancy_skills_corpus = data.get("vacancy_skills_corpus", [])
         self.category_avg_weight = data.get("category_avg_weight", {})
         self.is_fitted = True
