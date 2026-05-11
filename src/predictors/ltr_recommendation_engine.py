@@ -1,5 +1,6 @@
 # src/predictors/ltr_recommendation_engine.py
 
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -19,6 +20,7 @@ from sklearn.model_selection import train_test_split
 from src import config
 from src.analyzers.skill_filter import SkillFilter
 from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
+from src.artifacts import ArtifactManifest
 from src.parsing.embedding_loader import get_embedding_model
 from src.parsing.skill_normalizer import SkillNormalizer
 from src.parsing.vacancy_parser import VacancyParser
@@ -141,16 +143,15 @@ class LTRRecommendationEngine:
         market_emb = np.mean(list(self.skill_embeddings.values()), axis=0) if self.skill_embeddings else None
 
         for skill in all_skills:
-            # целевая переменная — только рыночный вес, без утечек
             target = self.skill_metadata[skill]["hybrid_weight_normalized"]
 
             for domain_profile in _SYNTHETIC_DOMAIN_PROFILES:
                 student_skills = [s for s in domain_profile if s in self.skill_embeddings]
-                if student_skills:
-                    student_emb = np.mean([self.skill_embeddings[s] for s in student_skills], axis=0)
-                else:
-                    student_emb = market_emb
-
+                student_emb = (
+                    np.mean([self.skill_embeddings[s] for s in student_skills], axis=0)
+                    if student_skills
+                    else market_emb
+                )
                 features = self._extract_features(skill, student_emb, student_skills)
                 X_rows.append(features)
                 y_rows.append(target)
@@ -159,7 +160,6 @@ class LTRRecommendationEngine:
         y = np.array(y_rows)
         self.feature_names = X.columns.tolist()
 
-        # train / val / test split
         X_train, X_tmp, y_train, y_tmp = train_test_split(X, y, test_size=0.3, random_state=config.GLOBAL_RANDOM_SEED)
         X_val, X_test, y_val, y_test = train_test_split(
             X_tmp, y_tmp, test_size=0.5, random_state=config.GLOBAL_RANDOM_SEED
@@ -183,7 +183,6 @@ class LTRRecommendationEngine:
         pred_test = self.model.predict(X_test)
         r2 = r2_score(y_test, pred_test)
         mae = mean_absolute_error(y_test, pred_test)
-
         try:
             ndcg = ndcg_score([y_test], [pred_test], k=10)
         except Exception:
@@ -199,13 +198,10 @@ class LTRRecommendationEngine:
             test_samples=len(X_test),
         )
 
-        try:
-            plt.figure(figsize=(12, 8))
-            xgb.plot_importance(self.model, max_num_features=15)
-            plt.savefig(config.MODELS_DIR / "ltr_feature_importance.png", dpi=200, bbox_inches="tight")
-            plt.close()
-        except Exception as e:
-            logger.warning("feature_importance_plot_failed", error=str(e))
+        plt.figure(figsize=(12, 8))
+        xgb.plot_importance(self.model, max_num_features=15)
+        plt.savefig(config.MODELS_DIR / "ltr_feature_importance.png", dpi=200, bbox_inches="tight")
+        plt.close()
 
         joblib.dump(
             {
@@ -220,6 +216,25 @@ class LTRRecommendationEngine:
             self.model_path,
         )
         logger.info("model_saved", path=str(self.model_path))
+
+        # ── Сохранение манифеста ──
+        try:
+            data_hash = hashlib.sha256(
+                json.dumps([v.get("id", "") for v in vacancies[:200]], sort_keys=True).encode()
+            ).hexdigest()
+            manifest = ArtifactManifest(
+                artifact_path=self.model_path,
+                data_hash=data_hash,
+                metrics={
+                    "r2": round(r2, 4),
+                    "mae": round(mae, 4),
+                    "ndcg_at_10": round(ndcg, 4) if not np.isnan(ndcg) else 0.0,
+                },
+            )
+            manifest.save()
+        except Exception as e:
+            logger.warning("manifest_save_failed", error=str(e))
+
         self.last_metrics = {
             "r2": round(r2, 4),
             "mae": round(mae, 4),

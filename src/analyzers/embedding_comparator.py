@@ -2,6 +2,7 @@
 Embedding Comparator с поддержкой уровней опыта и FAISS (опционально)
 """
 
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -11,6 +12,7 @@ import structlog
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src import config
+from src.artifacts import ArtifactManifest
 from src.parsing.embedding_loader import get_embedding_model
 
 if TYPE_CHECKING:
@@ -61,23 +63,84 @@ class EmbeddingComparator:
 
     def build_market_index(self, all_market_skills: list[str], level: str = "middle"):
         cache_path = self._get_cache_path("market_embeddings", level)
+
         if cache_path.exists():
-            loaded = joblib.load(cache_path)
-            if isinstance(loaded, dict):
-                self.market_embeddings = loaded["embeddings"]
-                self.market_skills = loaded["skills"]
+            manifest_path = cache_path.with_suffix(".manifest.json")
+            # 1. Манифест существует – проверяем совместимость
+            if manifest_path.exists():
+                try:
+                    manifest = ArtifactManifest.load(cache_path)
+                    if not manifest.is_compatible():
+                        logger.info(
+                            "market_cache_invalidated_by_model",
+                            level=level,
+                            manifest_version=manifest.model_version,
+                            current_version=ArtifactManifest._get_embedding_model_version(),
+                        )
+                        cache_path.unlink()
+                        manifest_path.unlink()
+                    else:
+                        # совместимый кэш – загружаем
+                        loaded = joblib.load(cache_path)
+                        if isinstance(loaded, dict):
+                            self.market_embeddings = loaded["embeddings"]
+                            self.market_skills = loaded["skills"]
+                        else:
+                            self.market_embeddings, self.market_skills = loaded
+                        logger.info("embeddings_cache_loaded", level=level)
+                        if self.use_faiss:
+                            self._build_faiss_index()
+                        return
+                except Exception as e:
+                    logger.warning("market_cache_manifest_error", level=level, error=str(e))
+                    try:
+                        cache_path.unlink()
+                        manifest_path.unlink()
+                    except Exception:
+                        pass
             else:
-                self.market_embeddings, self.market_skills = loaded
-            logger.info("embeddings_cache_loaded", level=level)
+                # 2. Манифеста нет, но кэш есть – создаём манифест для существующего кэша
+                logger.info("creating_manifest_for_existing_cache", level=level)
+                try:
+                    loaded = joblib.load(cache_path)
+                    if isinstance(loaded, dict):
+                        self.market_embeddings = loaded["embeddings"]
+                        self.market_skills = loaded["skills"]
+                    else:
+                        self.market_embeddings, self.market_skills = loaded
 
-            if self.use_faiss:
-                self._build_faiss_index()
-            return
+                    manifest = ArtifactManifest(
+                        artifact_path=cache_path,
+                        metrics={"num_skills": len(self.market_skills)},
+                    )
+                    manifest.save()
+                    logger.info("embeddings_cache_loaded_with_new_manifest", level=level)
+                    if self.use_faiss:
+                        self._build_faiss_index()
+                    return
+                except Exception as e:
+                    logger.warning("failed_to_create_manifest_for_existing_cache", error=str(e))
+                    # если не получилось, удаляем кэш и пересчитаем ниже
+                    with suppress(Exception):
+                        cache_path.unlink()
 
+        # 3. Кэша нет или он удалён – пересчитываем
         self.market_skills = all_market_skills
         self.market_embeddings = self.embed_skills(self.market_skills)
-        joblib.dump({"embeddings": self.market_embeddings, "skills": self.market_skills}, cache_path)
+        joblib.dump(
+            {"embeddings": self.market_embeddings, "skills": self.market_skills},
+            cache_path,
+        )
         logger.info("market_embeddings_saved", level=level)
+
+        try:
+            manifest = ArtifactManifest(
+                artifact_path=cache_path,
+                metrics={"num_skills": len(self.market_skills)},
+            )
+            manifest.save()
+        except Exception as e:
+            logger.warning("market_cache_manifest_save_failed", error=str(e))
 
         if self.use_faiss:
             self._build_faiss_index()

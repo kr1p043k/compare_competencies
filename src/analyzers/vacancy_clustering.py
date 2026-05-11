@@ -15,6 +15,7 @@ from sklearn.metrics import silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src import config
+from src.artifacts import ArtifactManifest
 from src.parsing.embedding_loader import get_embedding_model
 from src.parsing.skill_normalizer import SkillNormalizer
 
@@ -257,7 +258,17 @@ class VacancyClusterer:
         }
         with open(path, "wb") as f:
             pickle.dump(data, f)
-        logger.info("cluster_model_saved", path=str(path))
+        logger.info(f"Модель кластеризации сохранена: {path}")
+
+        # Сохраняем манифест
+        try:
+            manifest = ArtifactManifest(
+                artifact_path=path,
+                metrics={"clusters": self.n_clusters_, "samples": len(self.vacancy_ids)},
+            )
+            manifest.save()
+        except Exception as e:
+            logger.warning("cluster_manifest_save_failed", error=str(e))
 
     def load_model(self, level: str = "all") -> bool:
         path = config.DATA_PROCESSED_DIR / f"vacancy_clusters_{level}.pkl"
