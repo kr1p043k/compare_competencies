@@ -290,7 +290,7 @@ def main():
         or args.industry is not None
         or args.it_sector
     )
-
+    trend_analyzer = None
     vacancies_to_process = []
     skill_freq = {}
     hybrid_weights = {}
@@ -367,6 +367,11 @@ def main():
             sys.exit(1)
 
         console_info(f"Извлечено {len(skill_freq)} уникальных навыков")
+        # Инициализация анализатора трендов (даже если нет сбора)
+        whitelist = load_it_skills()
+        skill_freq_for_trends = filter_skills_by_whitelist(skill_freq, whitelist) if whitelist else skill_freq
+        trend_analyzer = TrendAnalyzer(skill_freq_for_trends)
+        console_info(f"📈 Тренды загружены (исторических снимков: {len(trend_analyzer.load_all_snapshots())})")
 
         for vac in basic_vacancies:
             vac_skills = []
@@ -820,7 +825,7 @@ def main():
             )
 
             recommendation_engine = RecommendationEngine(
-                use_ltr=True, use_llm=args.use_llm, profile_evaluator=evaluator
+                use_ltr=True, use_llm=args.use_llm, profile_evaluator=evaluator, trend_analyzer=trend_analyzer
             )
             recommendation_engine.comparator = CompetencyComparator(
                 ngram_range=(1, 2),
