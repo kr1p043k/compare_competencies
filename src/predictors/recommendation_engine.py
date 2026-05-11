@@ -685,6 +685,11 @@ class RecommendationEngine:
         if not self.use_llm:
             return None
 
+        # Получаем API ключ из SecretStr
+        api_key = config.YC_API_KEY.get_secret_value() if config.YC_API_KEY else None
+        if not api_key or not config.YC_FOLDER_ID:
+            return None
+
         prompt = (
             f"Ты — карьерный консультант в IT. Студент владеет навыками: "
             f"{', '.join(student_skills[:10])} (показано до 10).\n"
@@ -697,7 +702,7 @@ class RecommendationEngine:
         )
 
         headers = {
-            "Authorization": f"Api-Key {config.YC_API_KEY}",
+            "Authorization": f"Api-Key {api_key}",
             "x-folder-id": config.YC_FOLDER_ID,
         }
         payload = {

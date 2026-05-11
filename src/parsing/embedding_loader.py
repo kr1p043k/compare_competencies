@@ -13,7 +13,9 @@ def get_embedding_model(model_name: str = None):
     if _embedding_model is None:
         model_name = model_name or config.EMBEDDING_MODEL
         logger.info("loading_embedding_model", model=model_name)
-        _embedding_model = SentenceTransformer(model_name, use_auth_token=config.HF_TOKEN if config.HF_TOKEN else None)
+        # Извлекаем секретное значение HF_TOKEN, если оно задано
+        token = config.HF_TOKEN.get_secret_value() if config.HF_TOKEN else None
+        _embedding_model = SentenceTransformer(model_name, use_auth_token=token)
         _embedding_model.eval()
         logger.info("embedding_model_loaded")
     return _embedding_model

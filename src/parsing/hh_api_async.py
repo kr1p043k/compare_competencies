@@ -44,6 +44,7 @@ class HeadHunterAPIAsync:
             if self._token and time.time() < self._token_expires_at:
                 return
 
+            # Проверяем наличие учётных данных как SecretStr
             if not config.HH_CLIENT_ID or not config.HH_CLIENT_SECRET:
                 logger.warning("hh_credentials_not_set_async")
                 return
@@ -62,29 +63,38 @@ class HeadHunterAPIAsync:
     async def _get_app_token(self):
         """Получает application access token."""
         url = "https://api.hh.ru/token"
+        # Извлекаем значения из SecretStr
+        client_id = config.HH_CLIENT_ID.get_secret_value() if config.HH_CLIENT_ID else None
+        client_secret = config.HH_CLIENT_SECRET.get_secret_value() if config.HH_CLIENT_SECRET else None
+        if not client_id or not client_secret:
+            logger.warning("hh_credentials_not_set_async_token")
+            return
+
         payload = {
             "grant_type": "client_credentials",
-            "client_id": config.HH_CLIENT_ID,
-            "client_secret": config.HH_CLIENT_SECRET,
+            "client_id": client_id,
+            "client_secret": client_secret,
         }
         headers = {"User-Agent": config.HH_USER_AGENT, "Content-Type": "application/x-www-form-urlencoded"}
 
         try:
             timeout = aiohttp.ClientTimeout(total=10)
-            async with aiohttp.ClientSession(timeout=timeout) as session:  # noqa: SIM117
-                async with session.post(url, data=payload, headers=headers) as resp:
-                    if resp.status == 200:
-                        token_data = await resp.json()
-                        self._token = token_data.get("access_token")
-                        expires_in = token_data.get("expires_in", 86400)
-                        self._token_expires_at = time.time() + expires_in - 60
-                        logger.info("app_token_obtained_async")
+            async with (
+                aiohttp.ClientSession(timeout=timeout) as session,
+                session.post(url, data=payload, headers=headers) as resp,
+            ):
+                if resp.status == 200:
+                    token_data = await resp.json()
+                    self._token = token_data.get("access_token")
+                    expires_in = token_data.get("expires_in", 86400)
+                    self._token_expires_at = time.time() + expires_in - 60
+                    logger.info("app_token_obtained_async")
+                else:
+                    text = await resp.text()
+                    if resp.status == 403:
+                        logger.warning("token_403_working_without_auth")
                     else:
-                        text = await resp.text()
-                        if resp.status == 403:
-                            logger.warning("token_403_working_without_auth")
-                        else:
-                            logger.error("token_request_failed_async", status=resp.status, response=text[:200])
+                        logger.error("token_request_failed_async", status=resp.status, response=text[:200])
         except Exception as e:
             logger.error("token_request_exception_async", error=str(e))
 

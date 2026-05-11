@@ -6,7 +6,7 @@
 
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -48,8 +48,8 @@ class Settings(BaseSettings):
     MAX_RETRIES: int = 3
     RETRY_DELAY: float = 2.0
 
-    HH_CLIENT_ID: str | None = None
-    HH_CLIENT_SECRET: str | None = None
+    HH_CLIENT_ID: SecretStr | None = None
+    HH_CLIENT_SECRET: SecretStr | None = None
 
     # ---------- параметры поиска по умолчанию ----------
     DEFAULT_AREA: int = 1
@@ -65,14 +65,14 @@ class Settings(BaseSettings):
     }
 
     # ---------- YandexGPT ----------
-    YC_API_KEY: str | None = None
+    YC_API_KEY: SecretStr | None = None
     YC_FOLDER_ID: str | None = None
     YANDEXGPT_MODEL: str = "yandexgpt-lite"
 
     # ---------- эмбеддинги ----------
     EMBEDDING_MODEL: str = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
     EMBEDDING_DIM: int = 384
-    HF_TOKEN: str | None = None
+    HF_TOKEN: SecretStr | None = None
     SIMILARITY_THRESHOLD: float = 0.80
 
     # ---------- BM25 ----------
@@ -160,8 +160,8 @@ HH_USER_AGENT = settings.HH_USER_AGENT
 REQUEST_DELAY = settings.REQUEST_DELAY
 MAX_RETRIES = settings.MAX_RETRIES
 RETRY_DELAY = settings.RETRY_DELAY
-HH_CLIENT_ID = settings.HH_CLIENT_ID
-HH_CLIENT_SECRET = settings.HH_CLIENT_SECRET
+HH_CLIENT_ID = settings.HH_CLIENT_ID  # Теперь SecretStr
+HH_CLIENT_SECRET = settings.HH_CLIENT_SECRET  # SecretStr
 
 DEFAULT_AREA = settings.DEFAULT_AREA
 DEFAULT_PERIOD_DAYS = settings.DEFAULT_PERIOD_DAYS
@@ -170,13 +170,13 @@ DEFAULT_PER_PAGE = settings.DEFAULT_PER_PAGE
 
 PROFILES_DISCIPLINES = settings.PROFILES_DISCIPLINES
 
-YC_API_KEY = settings.YC_API_KEY
+YC_API_KEY = settings.YC_API_KEY  # SecretStr
 YC_FOLDER_ID = settings.YC_FOLDER_ID
 YANDEXGPT_MODEL = settings.YANDEXGPT_MODEL
 
 EMBEDDING_MODEL = settings.EMBEDDING_MODEL
 EMBEDDING_DIM = settings.EMBEDDING_DIM
-HF_TOKEN = settings.HF_TOKEN
+HF_TOKEN = settings.HF_TOKEN  # SecretStr
 SIMILARITY_THRESHOLD = settings.SIMILARITY_THRESHOLD
 
 BM25_MAX_CORPUS_DOCS = settings.BM25_MAX_CORPUS_DOCS

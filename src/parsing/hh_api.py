@@ -56,10 +56,16 @@ class HeadHunterAPI:
     def _get_app_token(self):
         """Получает application access token через client_credentials flow"""
         url = "https://api.hh.ru/token"
+        # Извлекаем реальные значения из SecretStr
+        client_id = config.HH_CLIENT_ID.get_secret_value() if config.HH_CLIENT_ID else None
+        client_secret = config.HH_CLIENT_SECRET.get_secret_value() if config.HH_CLIENT_SECRET else None
+        if not client_id or not client_secret:
+            logger.warning("hh_credentials_not_set_token")
+            return
         payload = {
             "grant_type": "client_credentials",
-            "client_id": config.HH_CLIENT_ID,
-            "client_secret": config.HH_CLIENT_SECRET,
+            "client_id": client_id,
+            "client_secret": client_secret,
         }
         try:
             resp = self.session.post(url, data=payload, timeout=10)
