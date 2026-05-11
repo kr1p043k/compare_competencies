@@ -113,9 +113,12 @@ class TrendAnalyzer:
         prev_label: str = "предыдущий",
     ) -> dict[str, list[dict]]:
         """
-        Сравнивает текущий снимок с предыдущим.
+        Сравнивает текущий снимок с предыдущим (переданным или историческим).
         """
-        if previous_snapshot is None:
+        # Определяем предыдущий снимок
+        if previous_snapshot is not None:
+            prev_data = previous_snapshot
+        else:
             snapshots = self.load_all_snapshots()
             if len(snapshots) < 2:
                 logger.warning("not_enough_snapshots_for_trends")
@@ -123,7 +126,6 @@ class TrendAnalyzer:
             prev_dt, _, prev_data = snapshots[-2]
             prev_label = prev_dt.strftime("%Y-%m-%d")
 
-        prev_data = previous_snapshot
         rising, falling = [], []
 
         for skill, current_freq in self.current.items():
@@ -294,6 +296,16 @@ class TrendAnalyzer:
             logger.info("trending_plot_saved", path=str(save_path))
         plt.close(fig)
         return fig
+
+    def save_trends(self, trends: dict, tag: str = "latest") -> Path:
+        """Сохраняет результат анализа трендов в data/result/trends/trends_<tag>.json."""
+        output_dir = config.DATA_RESULT_DIR / "trends"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / f"trends_{tag}.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(trends, f, ensure_ascii=False, indent=2)
+        logger.info("trends_saved", path=str(path))
+        return path
 
 
 # ============================== CLI ==============================
