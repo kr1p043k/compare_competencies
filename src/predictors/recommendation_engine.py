@@ -66,12 +66,6 @@ class RecommendationEngine:
         # Кешируем SkillTaxonomy
         self._taxonomy = SkillTaxonomy()
 
-        # Гибкие веса смешивания (можно менять извне)
-        self.blend_evaluator_weight = 0.6
-        self.blend_ltr_weight = 0.4
-        self.domain_bonus = 0.1
-        self.diversify_max_per_category = 3
-
         self._load_templates()
         logger.info(
             "recommendation_engine_initialized",
@@ -172,7 +166,7 @@ class RecommendationEngine:
                 ev = evaluator_scores.get(skill, 0.0)
                 ltr = ltr_scores.get(skill, 0.0)
                 if ltr_scores:
-                    combined_scores[skill] = self.blend_evaluator_weight * ev + self.blend_ltr_weight * ltr
+                    combined_scores[skill] = config.BLEND_EVALUATOR_WEIGHT * ev + config.BLEND_LTR_WEIGHT * ltr
                 else:
                     combined_scores[skill] = ev
 
@@ -200,7 +194,7 @@ class RecommendationEngine:
             }
             for skill in combined_scores:
                 if skill.lower() in always_hot:
-                    trend_bonuses[skill] = max(trend_bonuses.get(skill, 0), 0.15)
+                    trend_bonuses[skill] = max(trend_bonuses.get(skill, 0), config.TREND_ALWAYS_HOT_BONUS)
 
             if trend_bonuses:
                 logger.info("applied_trend_bonuses", count=len(trend_bonuses), sample=list(trend_bonuses.keys())[:10])
@@ -221,7 +215,7 @@ class RecommendationEngine:
                 if skill in trend_bonuses:
                     bonus += trend_bonuses[skill]
                 if skill.lower() in domain_skills:
-                    bonus += self.domain_bonus
+                    bonus += config.DOMAIN_BONUS
                 combined_scores[skill] *= bonus
 
             # ── Шаг 7: формируем объекты рекомендаций ────────────────────
@@ -250,9 +244,9 @@ class RecommendationEngine:
                         "importance_score": score,
                         "priority": (
                             PriorityLevel.HIGH
-                            if score > 0.7
+                            if score > config.PRIORITY_HIGH_THRESHOLD
                             else PriorityLevel.MEDIUM
-                            if score > 0.4
+                            if score > config.PRIORITY_MEDIUM_THRESHOLD
                             else PriorityLevel.LOW
                         ),
                         "category": metric.get("category", SkillCategory.MISSING),
@@ -269,7 +263,7 @@ class RecommendationEngine:
 
             # ── Шаг 8: диверсификация категорий ──────────────────────────
             top_recommendations = self._diversify_recommendations(
-                recommendations, max_per_category=self.diversify_max_per_category
+                recommendations, max_per_category=config.DIVERSIFY_MAX_PER_CATEGORY
             )[:15]
 
             for idx, rec in enumerate(top_recommendations, 1):

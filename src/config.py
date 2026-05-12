@@ -130,6 +130,43 @@ class Settings(BaseSettings):
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
 
+        # ---------- Параметры рекомендаций и gap-анализа ----------
+
+    BLEND_EVALUATOR_WEIGHT: float = 0.6
+    BLEND_LTR_WEIGHT: float = 0.4
+    DOMAIN_BONUS: float = 0.1
+    DIVERSIFY_MAX_PER_CATEGORY: int = 3
+    PRIORITY_HIGH_THRESHOLD: float = 0.7
+    PRIORITY_MEDIUM_THRESHOLD: float = 0.4
+    TREND_ALWAYS_HOT_BONUS: float = 0.15
+
+    # readiness
+    READINESS_MARKET_WEIGHT: float = 0.50
+    READINESS_SKILL_WEIGHT: float = 0.20
+    READINESS_DOMAIN_WEIGHT: float = 0.15
+    READINESS_GAP_PENALTY_WEIGHT: float = 0.10
+
+    # категории навыков
+    SKILL_STRONG_GAP_THRESHOLD: float = 0.2
+    SKILL_WEAK_GAP_THRESHOLD: float = 0.6
+
+    # доменный анализ
+    DOMINANT_DOMAIN_WEIGHT: float = 0.5
+
+    # уровень анализа
+    LEVEL_WEIGHTS_MAP: dict = {
+        "student": {"junior": 0.60, "middle": 0.30, "senior": 0.10},
+        "junior": {"junior": 0.40, "middle": 0.40, "senior": 0.20},
+        "middle": {"junior": 0.20, "middle": 0.50, "senior": 0.30},
+    }
+
+    # gap-analyzer
+    GAP_ANALYZER_FALLBACK_MIN_GAP: float = 0.05
+    GAP_ANALYZER_FALLBACK_REDUCTION: float = 0.65
+
+    # tqdm
+    TQDM_DISABLE: bool = False
+
 
 # ---------------------------------------------------------------------------
 # Синглтон настроек
@@ -188,3 +225,22 @@ PCA_MIN_SAMPLES = settings.PCA_MIN_SAMPLES
 PCA_MIN_FEATURES = settings.PCA_MIN_FEATURES
 
 GLOBAL_RANDOM_SEED = settings.GLOBAL_RANDOM_SEED
+
+BLEND_EVALUATOR_WEIGHT = settings.BLEND_EVALUATOR_WEIGHT
+BLEND_LTR_WEIGHT = settings.BLEND_LTR_WEIGHT
+DOMAIN_BONUS = settings.DOMAIN_BONUS
+DIVERSIFY_MAX_PER_CATEGORY = settings.DIVERSIFY_MAX_PER_CATEGORY
+PRIORITY_HIGH_THRESHOLD = settings.PRIORITY_HIGH_THRESHOLD
+PRIORITY_MEDIUM_THRESHOLD = settings.PRIORITY_MEDIUM_THRESHOLD
+TREND_ALWAYS_HOT_BONUS = settings.TREND_ALWAYS_HOT_BONUS
+READINESS_MARKET_WEIGHT = settings.READINESS_MARKET_WEIGHT
+READINESS_SKILL_WEIGHT = settings.READINESS_SKILL_WEIGHT
+READINESS_DOMAIN_WEIGHT = settings.READINESS_DOMAIN_WEIGHT
+READINESS_GAP_PENALTY_WEIGHT = settings.READINESS_GAP_PENALTY_WEIGHT
+SKILL_STRONG_GAP_THRESHOLD = settings.SKILL_STRONG_GAP_THRESHOLD
+SKILL_WEAK_GAP_THRESHOLD = settings.SKILL_WEAK_GAP_THRESHOLD
+DOMINANT_DOMAIN_WEIGHT = settings.DOMINANT_DOMAIN_WEIGHT
+LEVEL_WEIGHTS_MAP = settings.LEVEL_WEIGHTS_MAP
+GAP_ANALYZER_FALLBACK_MIN_GAP = settings.GAP_ANALYZER_FALLBACK_MIN_GAP
+GAP_ANALYZER_FALLBACK_REDUCTION = settings.GAP_ANALYZER_FALLBACK_REDUCTION
+TQDM_DISABLE = settings.TQDM_DISABLE

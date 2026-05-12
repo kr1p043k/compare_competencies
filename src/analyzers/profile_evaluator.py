@@ -113,7 +113,11 @@ class ProfileEvaluator:
         other_count = len(domain_coverages) - 1 if len(domain_coverages) > 1 else 0
 
         for dom_name, dom in domain_coverages.items():
-            weight = 0.5 if dom_name == dominant_name else 0.5 / other_count if other_count > 0 else 0.5
+            if dom_name == dominant_name:
+                weight = config.DOMINANT_DOMAIN_WEIGHT
+            else:
+                remaining = 1 - config.DOMINANT_DOMAIN_WEIGHT
+                weight = remaining / other_count if other_count > 0 else config.DOMINANT_DOMAIN_WEIGHT
             weighted_cov_sum += dom.coverage * weight
 
         # Итоговое доменное покрытие (0-100%)
@@ -135,16 +139,12 @@ class ProfileEvaluator:
                     skill_to_domain_bonus[req_norm] = bonus
 
         # === 5. Веса уровней ===
-        level_weights = {
-            "student": {"junior": 0.60, "middle": 0.30, "senior": 0.10},
-            "junior": {"junior": 0.40, "middle": 0.40, "senior": 0.20},
-            "middle": {"junior": 0.20, "middle": 0.50, "senior": 0.30},
-        }.get(user_type, {"junior": 0.33, "middle": 0.34, "senior": 0.33})
+        level_weights = config.LEVEL_WEIGHTS_MAP.get(user_type, {"junior": 0.33, "middle": 0.34, "senior": 0.33})
 
         # === 6. Финальные скоры — ПРЯМАЯ ФИЛЬТРАЦИЯ ПО УЖЕ ИМЕЮЩИМСЯ НАВЫКАМ ===
         final_scores = {}
         user_skills_set = set(s.lower().strip() for s in user_skills_list)
-        min_gap_for_fallback = 0.05
+        min_gap_for_fallback = config.GAP_ANALYZER_FALLBACK_MIN_GAP
 
         for skill, metric in metrics.items():
             skill_norm = skill.lower().strip()
@@ -169,7 +169,8 @@ class ProfileEvaluator:
             ]
             for skill, metric in sorted(fallback_candidates, key=lambda x: x[1].cluster_relevance, reverse=True)[:15]:
                 bonus = skill_to_domain_bonus.get(skill.lower().strip(), 0.0)
-                final_scores[skill] = metric.score(level_weights, domain_bonus=bonus) * 0.65
+                base_score = metric.score(level_weights, domain_bonus=bonus)
+                final_scores[skill] = base_score * config.GAP_ANALYZER_FALLBACK_REDUCTION
 
         # === 7. Итоговые метрики (улучшенные) ===
         total_market = len(metrics)
@@ -186,10 +187,10 @@ class ProfileEvaluator:
             max_demand = max(m.demand_j, m.demand_m, m.demand_s)
             max_possible += max_demand
 
-            if max_gap < 0.2:
+            if max_gap < config.SKILL_STRONG_GAP_THRESHOLD:
                 strong_count += 1
                 weighted_cov += 1.0 * max_demand
-            elif max_gap < 0.6:
+            elif max_gap < config.SKILL_WEAK_GAP_THRESHOLD:
                 weak_count += 1
                 weighted_cov += 0.5 * max_demand
             else:
@@ -203,10 +204,10 @@ class ProfileEvaluator:
 
         # Готовность к уровню
         readiness = (
-            0.50 * market_coverage_score
-            + 0.20 * (strong_count / total_market * 100)
-            + 0.15 * (weak_count / total_market * 100)
-            + 0.15 * domain_coverage_score
+            config.READINESS_MARKET_WEIGHT * market_coverage_score
+            + config.READINESS_SKILL_WEIGHT * (strong_count / total_market * 100)
+            + config.READINESS_DOMAIN_WEIGHT * (weak_count / total_market * 100)
+            + config.READINESS_GAP_PENALTY_WEIGHT * domain_coverage_score
         )
 
         total_gap = sum((m.gap_j + m.gap_m + m.gap_s) / 3 for m in metrics.values())

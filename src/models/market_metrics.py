@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 import structlog
 
+from src import config
+
 from .enums import SkillCategory
 
 logger = structlog.get_logger(__name__)
@@ -56,12 +58,12 @@ class SkillMetrics:
     def __post_init__(self):
         if not self.category:
             max_gap = max(self.gap_j, self.gap_m, self.gap_s)
-            if max_gap < 0.2:
-                self.category = "strong"
-            elif max_gap < 0.6:
-                self.category = "weak"
+            if max_gap < config.SKILL_STRONG_GAP_THRESHOLD:
+                self.category = SkillCategory.STRONG
+            elif max_gap < config.SKILL_WEAK_GAP_THRESHOLD:
+                self.category = SkillCategory.WEAK
             else:
-                self.category = "missing"
+                self.category = SkillCategory.MISSING
 
             logger.debug(
                 "skill_category_assigned",
