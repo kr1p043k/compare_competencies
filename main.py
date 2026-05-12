@@ -28,6 +28,7 @@ from src.analyzers.profile_evaluator import ProfileEvaluator
 from src.analyzers.skill_filter import SkillFilter
 from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
 from src.analyzers.trends import TrendAnalyzer
+from src.artifacts import ArtifactManifest
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.logging_config import setup_structlog
 from src.models.enums import ComparisonLevel, ExperienceLevel
@@ -325,16 +326,30 @@ def main():
 
         cached_result = None
         if cache_path.exists():
-            try:
-                with open(cache_path, "rb") as f:
-                    cached = pickle.load(f)  # nosec B301
-                if cached.get("source_hash") == vacancies_hash:
-                    console_info("✅ Загружен кэш результатов парсинга навыков")
-                    cached_result = cached["result"]
-                else:
-                    console_info("Файл вакансий изменился, кэш недействителен")
-            except Exception as e:
-                console_info(f"⚠️  Не удалось загрузить кэш: {e}")
+            manifest_path = cache_path.with_suffix(".manifest.json")
+            # Проверяем манифест на совместимость версий
+            if manifest_path.exists():
+                try:
+                    manifest = ArtifactManifest.load(cache_path)
+                    if not manifest.is_compatible():
+                        logger.warning("parsed_skills_cache_incompatible_manifest")
+                        cache_path.unlink()
+                        manifest_path.unlink()
+                        cached_result = None
+                except Exception as e:
+                    logger.warning("parsed_skills_manifest_check_failed", error=str(e))
+            # Если манифест в порядке или его не было, пробуем загрузить кэш
+            if cached_result is None and cache_path.exists():
+                try:
+                    with open(cache_path, "rb") as f:
+                        cached = pickle.load(f)  # nosec B301
+                    if cached.get("source_hash") == vacancies_hash:
+                        console_info("✅ Загружен кэш результатов парсинга навыков")
+                        cached_result = cached["result"]
+                    else:
+                        console_info("Файл вакансий изменился, кэш недействителен")
+                except Exception as e:
+                    console_info(f"⚠️  Не удалось загрузить кэш: {e}")
 
         if cached_result is not None:
             result = cached_result

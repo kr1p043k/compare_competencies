@@ -478,6 +478,26 @@ class LTRRecommendationEngine:
         if not model_path.exists():
             logger.error("model_file_not_found", path=str(model_path))
             return self
+
+        # Проверка манифеста модели
+        manifest_path = model_path.with_suffix(".manifest.json")
+        if manifest_path.exists():
+            try:
+                manifest = ArtifactManifest.load(model_path)
+                if not manifest.is_compatible():
+                    logger.warning(
+                        "ltr_model_incompatible_manifest",
+                        path=str(model_path),
+                        manifest_version=manifest.model_version,
+                        current_version=ArtifactManifest._get_embedding_model_version(),
+                    )
+                else:
+                    logger.info("ltr_manifest_verified", metrics=manifest.metrics)
+            except Exception as e:
+                logger.warning("ltr_manifest_load_failed", error=str(e))
+        else:
+            logger.info("ltr_manifest_not_found_skipping_check", path=str(model_path))
+
         data = joblib.load(model_path)
         self.model = data["model"]
         self.feature_names = data["feature_names"]
