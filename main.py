@@ -51,7 +51,7 @@ from src.parsing.utils import (
 from src.parsing.vacancy_parser import VacancyParser
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 from src.predictors.recommendation_engine import RecommendationEngine
-from src.utils import atomic_write_json, load_competency_mapping
+from src.utils import atomic_write_json, load_competency_mapping, safe_read_json
 from src.visualization.charts import run_notebook, save_all_charts, show_context_info
 
 logger = structlog.get_logger("main")
@@ -120,6 +120,7 @@ def parse_arguments():
 
     parser.add_argument("--run-gap-analysis", action="store_true", default=False)
     parser.add_argument("--run-notebooks", action="store_true")
+    parser.add_argument("--status", action="store_true", help="Показать состояние файлов и моделей")
 
     parser.add_argument("--train-model", action="store_true", help="Обучить LTR-модель на текущих данных и выйти")
     parser.add_argument(
@@ -276,6 +277,58 @@ def get_file_hash(filepath: Path) -> str:
     return hash_sha.hexdigest()
 
 
+def show_status():
+    """Выводит сводку о наличии ключевых файлов и моделей."""
+    from src.artifacts import ArtifactManifest
+
+    console_info("📋 СТАТУС ПРОЕКТА")
+    # Файлы вакансий
+    for fname, desc in [
+        ("hh_vacancies_detailed.json", "Детальные вакансии"),
+        ("hh_vacancies_basic.json", "Базовые вакансии"),
+    ]:
+        path = config.DATA_PROCESSED_DIR / fname if "detailed" in fname else config.DATA_RAW_DIR / fname
+        if path.exists():
+            console_info(f"✅ {desc}: {path}")
+        else:
+            console_info(f"❌ {desc}: ОТСУТСТВУЕТ")
+    # Кэш парсинга
+    cache = config.PARSED_SKILLS_CACHE_PATH
+    if cache.exists():
+        console_info(f"✅ Кэш парсинга: {cache}")
+    else:
+        console_info("❌ Кэш парсинга: ОТСУТСТВУЕТ")
+    # Модель LTR
+    model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
+    if model_path.exists():
+        manifest = model_path.with_suffix(".manifest.json")
+        if manifest.exists():
+            try:
+                m = ArtifactManifest.load(model_path)
+                console_info(f"✅ LTR-модель: {model_path}, R²={m.metrics.get('r2', '?')}")
+            except Exception:
+                console_info(f"✅ LTR-модель: {model_path}, манифест повреждён")
+        else:
+            console_info(f"✅ LTR-модель: {model_path} (без манифеста)")
+    else:
+        console_info("❌ LTR-модель: ОТСУТСТВУЕТ")
+    # Кластеры
+    for lvl in ["junior", "middle", "senior"]:
+        cluster_file = config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{lvl}.pkl"
+        if cluster_file.exists():
+            console_info(f"✅ Кластеры {lvl}: {cluster_file}")
+        else:
+            console_info(f"❌ Кластеры {lvl}: ОТСУТСТВУЮТ")
+    # Профили студентов
+    for profile in ["base", "dc", "top_dc"]:
+        student_file = config.STUDENTS_DIR / f"{profile}_competency.json"
+        if student_file.exists():
+            console_info(f"✅ Профиль {profile}: {student_file}")
+        else:
+            console_info(f"❌ Профиль {profile}: ОТСУТСТВУЕТ")
+    console_info("")
+
+
 def main():
     setup_structlog()
     logger = structlog.get_logger("main")
@@ -284,6 +337,10 @@ def main():
     console_header("ПОЛНЫЙ ПАЙПЛАЙН: СБОР ВАКАНСИЙ + GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ")
     logger.info("pipeline_started", mode="train_model" if args.train_model else "full_pipeline")
 
+    # ====================== Статус (информация о моделях, файлах) ======================
+    if args.status:
+        show_status()
+        return
     # ====================== ОБУЧЕНИЕ LTR-МОДЕЛИ ======================
     if args.train_model:
         console_header("ОБУЧЕНИЕ LTR-МОДЕЛИ")
@@ -299,8 +356,10 @@ def main():
             console_info("❌ Файлы вакансий не найдены. Сначала выполните сбор.")
             sys.exit(1)
 
-        with open(raw_file, encoding="utf-8") as f:
-            training_vacancies = json.load(f)
+        training_vacancies = safe_read_json(raw_file)
+        if not training_vacancies:
+            console_info("❌ Не удалось прочитать или файл повреждён.")
+            sys.exit(1)
 
         console_info(f"Загружено {len(training_vacancies)} вакансий для обучения")
         logger.info("training_data_loaded", count=len(training_vacancies))
@@ -356,8 +415,10 @@ def main():
             sys.exit(1)
 
         console_info(f"Загружаем вакансии из {raw_file}...")
-        with open(raw_file, encoding="utf-8") as f:
-            basic_vacancies = json.load(f)
+        basic_vacancies = safe_read_json(raw_file)
+        if not basic_vacancies:
+            console_info("❌ Не удалось прочитать файл вакансий.")
+            sys.exit(1)
 
         parser = VacancyParser()
         cache_dir = config.DATA_PROCESSED_DIR
@@ -989,6 +1050,10 @@ def main():
                 print("=" * 70)
                 summ = full_rec.get("summary", {})
                 print(f"Match score: {summ.get('match_score', 0):.2f} | Готовность: {summ.get('confidence', 0):.2f}%")
+                if full_rec.get("trend_bonuses_count"):
+                    print(f"📈 Трендовые бонусы применены к {full_rec['trend_bonuses_count']} навыкам.")
+                if full_rec.get("dominant_domain_name"):
+                    print(f"📊 Доминирующий домен: {full_rec['dominant_domain_name']}.")
                 print(
                     f"Реальное покрытие рынка: {summ['market_skill_coverage']:.1f}% "
                     f"(студент знает {summ['coverage_details']['covered_skills_count']} "

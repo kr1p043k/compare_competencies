@@ -5,7 +5,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import structlog
+
 from src.config import COMPETENCY_MAPPING_FILE, LOG_FILE
+
+logger = structlog.get_logger(__name__)
 
 
 def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
@@ -62,4 +66,26 @@ def atomic_read_json(filepath: Path) -> Any:
         with open(filepath, encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
+        return None
+
+
+def safe_read_json(filepath: Path):
+    """Безопасно читает JSON-файл с проверкой размера, кодировки и структуры."""
+    if not filepath.exists():
+        return None
+    if filepath.stat().st_size == 0:
+        logger.error("empty_json_file", path=str(filepath))
+        return None
+    try:
+        with open(filepath, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            logger.error("invalid_json_structure", path=str(filepath), type=type(data).__name__)
+            return None
+        return data
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        logger.error("json_read_error", path=str(filepath), error=str(e))
+        return None
+    except Exception as e:
+        logger.error("json_read_unexpected_error", path=str(filepath), error=str(e))
         return None
