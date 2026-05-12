@@ -7,6 +7,7 @@ import hashlib
 import json
 import pickle
 import sys
+import time
 from pathlib import Path
 
 import structlog
@@ -43,7 +44,7 @@ student_profiles: dict[str, StudentProfile] = {}
 skill_weights: dict[str, float] = {}
 hybrid_weights: dict[str, float] = {}
 competency_mapping: dict[str, list[str]] = {}
-skill_freq: dict[str, int] = {}  # для отчётов о покрытии
+skill_freq: dict[str, int] = {}
 taxonomy: SkillTaxonomy | None = None
 current_skills_set: set[str] = set()
 
@@ -146,29 +147,29 @@ async def startup():
             combined = f"{desc} {req} {resp}"
             vac_skills = parser.extract_skills_from_description(combined)
 
-        experience = "middle"
+        experience = ExperienceLevel.MIDDLE
         if "experience" in vac:
             exp_obj = vac["experience"]
             if isinstance(exp_obj, dict):
                 exp_id = exp_obj.get("id", "").lower()
                 if "less1" in exp_id or "junior" in exp_id or "no_experience" in exp_id:
-                    experience = "junior"
+                    experience = ExperienceLevel.JUNIOR
                 elif "between1and3" in exp_id or "between3and6" in exp_id:
-                    experience = "middle"
+                    experience = ExperienceLevel.MIDDLE
                 elif "between6and10" in exp_id or "morethan10" in exp_id:
-                    experience = "senior"
+                    experience = ExperienceLevel.SENIOR
             elif isinstance(exp_obj, str):
                 exp_lower = exp_obj.lower()
                 if "junior" in exp_lower or "нет опыта" in exp_lower or "стажер" in exp_lower:
-                    experience = "junior"
+                    experience = ExperienceLevel.JUNIOR
                 elif "senior" in exp_lower or "более 6" in exp_lower:
-                    experience = "senior"
-        if experience == "middle":
+                    experience = ExperienceLevel.SENIOR
+        if experience == ExperienceLevel.MIDDLE:
             name = vac.get("name", "").lower()
             if "junior" in name or "младший" in name or "стажер" in name or "intern" in name:
-                experience = "junior"
+                experience = ExperienceLevel.JUNIOR
             elif "senior" in name or "старший" in name or "ведущий" in name:
-                experience = "senior"
+                experience = ExperienceLevel.SENIOR
         if vac_skills:
             level_vacancies_data.append(
                 {
@@ -259,7 +260,7 @@ async def startup():
     recommendation_engine.fit(vacancies_skills, skill_weights=hybrid_weights)
 
     # 9. Кластеры
-    for lvl in ["junior", "middle", "senior"]:
+    for lvl in ExperienceLevel:
         if not clusterer.load_model(lvl):
             logger.warning(f"Модель кластеров для {lvl} не найдена")
 
@@ -279,6 +280,26 @@ async def health():
     return {"status": "ok", "evaluator": evaluator is not None}
 
 
+@app.get("/health")
+async def health_check():
+    """Проверка живости сервера."""
+    return {"status": "healthy", "timestamp": time.time()}
+
+
+@app.get("/ready")
+async def ready_check():
+    """Проверка готовности всех компонентов."""
+    components = {
+        "evaluator": evaluator is not None,
+        "recommendation_engine": recommendation_engine is not None and recommendation_engine.is_fitted,
+        "clusterer": clusterer.is_fitted,
+        "trend_analyzer": trend_analyzer is not None,
+    }
+    ready = all(components.values())
+    status = "ready" if ready else "not ready"
+    return {"status": status, "components": components}
+
+
 @app.get("/api/recommendations/{profile}")
 async def get_recommendations(profile: str):
     if profile not in student_profiles:
@@ -296,7 +317,6 @@ async def get_top_skills(limit: int = Query(15, ge=1, le=50)):
 
 @app.get("/api/market/skill/{skill}")
 async def get_skill_info(skill: str):
-    """Информация о конкретном навыке: частота, вес, категория."""
     weight = skill_weights.get(skill, 0.0)
     freq = skill_freq.get(skill, 0)
     category = taxonomy.get_category_label(skill) if taxonomy else "unknown"
@@ -330,7 +350,6 @@ async def get_clusters(level: ExperienceLevel = ExperienceLevel.MIDDLE):
 
 @app.get("/api/clusters/summary")
 async def clusters_summary():
-    """Сводка по всем уровням (как check_clusters.py)."""
     result = {}
     for lvl in ExperienceLevel:
         clusterer.load_model(lvl)
@@ -373,7 +392,6 @@ async def compare_profiles():
 
 @app.get("/api/trends")
 async def get_trends(top_n: int = Query(15), min_change: float = Query(3.0)):
-    """Показывает растущие и падающие навыки по сравнению с предыдущим снимком."""
     try:
         trends = trend_analyzer.get_trending_skills(top_n=top_n, min_change_percent=min_change)
         return {"trends": trends}
@@ -383,7 +401,6 @@ async def get_trends(top_n: int = Query(15), min_change: float = Query(3.0)):
 
 @app.get("/api/taxonomy/coverage")
 async def taxonomy_coverage():
-    """Покрытие категорий таксономии (как extend_it_skills.py --coverage)."""
     if not taxonomy:
         raise HTTPException(status_code=503, detail="Таксономия не загружена")
     coverage = {}
@@ -402,7 +419,6 @@ async def taxonomy_coverage():
 
 @app.get("/api/skills/missing")
 async def missing_skills(min_frequency: int = Query(1)):
-    """Навыки из вакансий, отсутствующие в белом списке (как extend_it_skills.py)."""
     validator = SkillValidator(whitelist=None)
     extracted = {}
     for skill, freq in skill_freq.items():
@@ -414,7 +430,6 @@ async def missing_skills(min_frequency: int = Query(1)):
 
 @app.get("/api/skills/dead")
 async def dead_skills():
-    """Навыки из белого списка, не встретившиеся в вакансиях."""
     extracted_lower = {s.lower() for s in skill_freq}
     dead = sorted(s for s in current_skills_set if s.lower() not in extracted_lower)
     return {"dead_skills": dead}
@@ -422,7 +437,6 @@ async def dead_skills():
 
 @app.get("/api/status")
 async def get_status():
-    """Общее состояние загруженных данных и моделей."""
     return {
         "vacancies_loaded": len(skill_freq) > 0,
         "skill_weights_count": len(skill_weights),
