@@ -37,8 +37,7 @@
 ```plaintext
 └── 📁 competency_comparison                 # Корень проекта: сравнение компетенций с рынком
     ├── 📁 data                              # Все данные проекта
-    │   ├── 📁 embeddings                    # Кэш эмбеддингов навыков и вакансий
-    │   │   └── 📁 cache                     # Кэшированные эмбеддинги
+    │   ├── 📁 cahce                         # Кэш эмбеддингов навыков и вакансий
     │   ├── 📁 history                       # Исторические снимки частот навыков для анализа трендов
     │   ├── 📁 last_uploaded                 # Последняя загруженная матрица компетенций (CSV)
     │   │   └── 📄 competency_matrix.csv     # Матрица: дисциплины × компетенции
@@ -49,16 +48,10 @@
     │   │   ├── 📄 competency_frequency_mapped.json # Частоты, сопоставленные с учебными компетенциями
     │   │   ├── 📄 competency_mapping.json          # Маппинг: коды компетенций → рыночные навыки
     │   │   ├── 📄 skill_weights.json               # Очищенные веса навыков для gap-анализа
-    │   │   ├── 📄 profiles_comparison_summary.json # Сводка метрик по всем профилям
-    │   │   ├── 📄 cluster_training_report.json     # Отчёт об обучении кластеров
-    │   │   ├── 📄 parsed_skills.pkl                # Кэш результатов парсинга навыков
-    │   │   ├── 📄 vacancy_clusters_junior.pkl      # Модель кластеров для junior-вакансий
-    │   │   ├── 📄 vacancy_clusters_middle.pkl      # Модель кластеров для middle-вакансий
-    │   │   └── 📄 vacancy_clusters_senior.pkl      # Модель кластеров для senior-вакансий
+    │   │   └── 📄 hh_vacancies_detailed.json       # Детальные данные вакансий (с key_skills и описанием)
     │   ├── 📁 raw                           # Сырые данные (входные)
     │   │   ├── 📄 competency_matrix.csv            # Исходная матрица компетенций
     │   │   ├── 📄 hh_vacancies_basic.json          # Базовые данные вакансий (без деталей)
-    │   │   └── 📄 hh_vacancies_detailed.json       # Детальные данные вакансий (с key_skills и описанием)
     │   ├── 📁 result                        # Результаты анализа: отчёты и графики
     │   │   ├── 📁 base                            # Результаты для профиля base (junior)
     │   │   │   ├── 📄 full_recommendations_base.json  # Полные рекомендации с объяснениями
@@ -86,8 +79,8 @@
     │   │   │   └── 📄 skill_timeline.png               # Временные ряды топ-навыков
     │   │   ├── 📄 coverage_comparison.png              # Сравнение покрытия трёх профилей
     │   │   ├── 📄 skills_heatmap.png                   # Тепловая карта покрытия навыков
+    │   │   ├── 📄 profiles_comparison_summary.json # Сводка метрик по всем профилям
     │   │   ├── 📄 skill_correlation_heatmap.png        # Совместная встречаемость навыков
-    │   │   └── 📄 hh_vacancies_detailed.json          # Детальные вакансии (кэш для --skip-collection)
     │   ├── 📁 students                      # Профили студентов (учебные компетенции)
     │   │   ├── 📄 base_competency.json            # Навыки профиля base (junior)
     │   │   ├── 📄 dc_competency.json              # Навыки профиля dc (middle)
