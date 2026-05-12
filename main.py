@@ -51,7 +51,14 @@ from src.parsing.utils import (
 from src.parsing.vacancy_parser import VacancyParser
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 from src.predictors.recommendation_engine import RecommendationEngine
-from src.utils import atomic_write_json, load_competency_mapping, safe_read_competency_json, safe_read_json
+from src.utils import (
+    atomic_write_json,
+    load_competency_mapping,
+    safe_load_pickle,
+    safe_read_competency_json,
+    safe_read_json,
+    validate_safe_path,
+)
 from src.visualization.charts import run_notebook, save_all_charts, show_context_info
 
 logger = structlog.get_logger("main")
@@ -449,7 +456,7 @@ def main():
             if cached_result is None and cache_path.exists():
                 try:
                     with open(cache_path, "rb") as f:
-                        cached = pickle.load(f)  # nosec B301
+                        cached = safe_load_pickle(cache_path)
                     if cached.get("source_hash") == vacancies_hash:
                         console_info("✅ Загружен кэш результатов парсинга навыков")
                         cached_result = cached["result"]
@@ -627,7 +634,8 @@ def main():
                     args.max_vacancies_per_query = 100000
                     console_info("Режим: поиск по всему IT-сектору (40+ профессий)")
                 elif args.queries_file:
-                    args.queries = load_queries_from_file(Path(args.queries_file))
+                    safe_path = validate_safe_path(args.queries_file)
+                    args.queries = load_queries_from_file(safe_path)
                 else:
                     args.queries = [args.query]
 

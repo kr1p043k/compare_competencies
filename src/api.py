@@ -31,7 +31,7 @@ from src.parsing.skill_validator import SkillValidator
 from src.parsing.utils import filter_skills_by_whitelist, load_it_skills
 from src.parsing.vacancy_parser import VacancyParser
 from src.predictors.recommendation_engine import RecommendationEngine
-from src.utils import load_competency_mapping
+from src.utils import load_competency_mapping, safe_load_pickle
 
 logger = structlog.get_logger("api")
 
@@ -90,7 +90,7 @@ async def startup():
     if cache_path.exists():
         try:
             with open(cache_path, "rb") as f:
-                cached = pickle.load(f)  # nosec B301
+                cached = safe_load_pickle(cache_path)
             if cached.get("source_hash") == vacancies_hash:
                 result = cached["result"]
                 skill_freq_local = result["frequencies"]
