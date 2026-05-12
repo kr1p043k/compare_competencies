@@ -319,6 +319,8 @@ class RecommendationEngine:
                 "recommendations": top_recommendations,
                 "domain_coverage": eval_result.get("domain_coverage", {}),
                 "gaps": eval_result.get("gaps", {}),
+                "trend_bonuses_count": len(trend_bonuses),
+                "dominant_domain_name": dominant_domain,
             }
 
         except Exception as e:
