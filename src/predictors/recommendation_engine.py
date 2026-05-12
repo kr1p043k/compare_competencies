@@ -158,6 +158,8 @@ class RecommendationEngine:
                     logger.info("ltr_scores_normalized", profile=profile_name, ltr_skills=len(ltr_scores))
                 except Exception as e:
                     logger.warning("ltr_scoring_failed", error=str(e))
+            else:
+                logger.info("ltr_not_used_generating_without_ml", profile=profile_name)
 
             # ── Шаг 6: смешиваем скоры (веса берутся из атрибутов) ─────
             all_skills_to_rank = set(evaluator_scores) | set(ltr_scores)

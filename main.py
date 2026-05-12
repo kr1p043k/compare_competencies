@@ -307,6 +307,12 @@ def main():
 
         ltr_engine = LTRRecommendationEngine()
         ltr_engine.fit(training_vacancies)
+        model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
+        if model_path.exists():
+            console_info("⚠️  Существующая модель будет перезаписана.")
+            logger.warning("overwriting_existing_ltr_model", path=str(model_path))
+        else:
+            console_info("Новая модель будет обучена и сохранена.")
         if hasattr(ltr_engine, "last_metrics"):
             m = ltr_engine.last_metrics
             console_info(f"R²={m['r2']:.4f}, MAE={m['mae']:.4f}, NDCG@5={m['ndcg']:.4f}")
@@ -923,11 +929,9 @@ def main():
             console_header("ГЕНЕРАЦИЯ ПЕРСОНАЛИЗИРОВАННЫХ РЕКОМЕНДАЦИЙ")
 
             rec_engine = recommendation_engine
-            if rec_engine.ltr_engine is None:
-                rec_engine.ltr_engine = LTRRecommendationEngine()
-                model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
-                if model_path.exists():
-                    rec_engine.ltr_engine.load_model(model_path)
+            if rec_engine.ltr_engine is None or not rec_engine.ltr_engine.is_fitted:
+                console_info("⚠️ LTR-модель не загружена. Рекомендации будут построены только на основе анализа рынка.")
+                logger.warning("ltr_model_unavailable_recommendations_without_ml")
 
             all_recommendations = {}
             for profile_name, student in tqdm(profiles.items(), desc="Оценка профилей"):
