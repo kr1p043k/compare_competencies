@@ -51,7 +51,7 @@ from src.parsing.utils import (
 from src.parsing.vacancy_parser import VacancyParser
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 from src.predictors.recommendation_engine import RecommendationEngine
-from src.utils import atomic_write_json, load_competency_mapping, safe_read_json
+from src.utils import atomic_write_json, load_competency_mapping, safe_read_competency_json, safe_read_json
 from src.visualization.charts import run_notebook, save_all_charts, show_context_info
 
 logger = structlog.get_logger("main")
@@ -172,15 +172,12 @@ def validate_args(args) -> None:
 
 def load_student_competencies(profile_name: str):
     path = config.DATA_DIR / "students" / f"{profile_name}_competency.json"
-    if not path.exists():
-        path = config.DATA_DIR / "students" / f"{profile_name}.json"
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        return data.get("компетенции") or data.get("навыки") or data.get("codes") or []
-    except Exception as e:
-        logger.warning("student_profile_load_failed", profile=profile_name, error=str(e))
-        return []
+    codes = safe_read_competency_json(path)
+    if not codes:
+        # попробовать альтернативный файл (как было раньше)
+        alt_path = config.DATA_DIR / "students" / f"{profile_name}.json"
+        codes = safe_read_competency_json(alt_path)
+    return codes
 
 
 def calculate_expected_vacancies(args) -> int:
@@ -229,10 +226,20 @@ def load_vacancies_details(
             vacancy_ids = [v.get("id") if isinstance(v, dict) else v.id for v in basic_vacancies]
 
             start_time = time.time()
-            detailed_responses = api_async.get_vacancies_details_sync_validated(vacancy_ids)
-            detailed = [Vacancy.from_api(r.model_dump()) for r in detailed_responses]
-            elapsed = time.time() - start_time
 
+            if config.PYDANTIC_VALIDATION_ENABLED:
+                detailed_responses = api_async.get_vacancies_details_sync_validated(vacancy_ids)
+                detailed = [Vacancy.from_api(r.model_dump()) for r in detailed_responses]
+            else:
+                raw_detailed = api_async.get_vacancies_details_sync(vacancy_ids)
+                detailed = []
+                for raw_data in raw_detailed:
+                    try:
+                        detailed.append(Vacancy.from_api(raw_data))
+                    except ValueError:
+                        continue
+
+            elapsed = time.time() - start_time
             console_info(f"✓ Загружено {len(detailed)}/{len(vacancy_ids)} вакансий за {elapsed:.1f} сек")
             log.info("async_loading_completed", elapsed=round(elapsed, 1), loaded=len(detailed), total=len(vacancy_ids))
             return detailed
@@ -245,20 +252,18 @@ def load_vacancies_details(
     total = len(basic_vacancies)
     start_time = time.time()
 
-    for i, vac in tqdm(enumerate(basic_vacancies, 1), total=total, desc="Загрузка вакансий"):
+    for _, vac in tqdm(enumerate(basic_vacancies, 1), total=total, desc="Загрузка вакансий"):
         vac_id = vac.get("id") if isinstance(vac, dict) else vac.id
 
-        if i % 50 == 0:
-            elapsed = time.time() - start_time
-            rate = i / elapsed
-            remaining = (total - i) / rate if rate > 0 else 0
-            console_info(f"  Прогресс: {i}/{total} ({i * 100 // total}%) | осталось ~{remaining / 60:.1f} мин")
+        if config.PYDANTIC_VALIDATION_ENABLED:
+            try:
+                validated = hh_api.get_vacancy_details_validated(vac_id)
+                det = Vacancy.from_api(validated.model_dump())
+            except Exception:
+                det = None
+        else:
+            det = hh_api.get_vacancy_details_as_object(vac_id)
 
-        try:
-            validated = hh_api.get_vacancy_details_validated(vac_id)
-            det = Vacancy.from_api(validated.model_dump())
-        except Exception:
-            det = None
         if det:
             detailed.append(det)
         time.sleep(config.REQUEST_DELAY)
