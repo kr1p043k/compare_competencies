@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 import structlog
 
+from .enums import SkillCategory
+
 logger = structlog.get_logger(__name__)
 
 
@@ -19,7 +21,7 @@ class SkillMetrics:
     cluster_relevance: float = 0.0
     user_level: float = 0.0
     importance: float = 0.0  # новое: нормализованная важность (0-1)
-    category: str = "missing"  # новое: missing / weak / strong
+    category: SkillCategory = SkillCategory.MISSING  # новое: missing / weak / strong
 
     def score(self, level_weights: dict[str, float], domain_bonus: float = 0.0) -> float:
         alpha, beta, gamma = 0.5, 0.3, 0.2

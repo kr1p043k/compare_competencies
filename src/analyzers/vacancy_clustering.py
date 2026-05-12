@@ -16,6 +16,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from src import config
 from src.artifacts import ArtifactManifest
+from src.models.enums import ExperienceLevel
 from src.parsing.embedding_loader import get_embedding_model
 from src.parsing.skill_normalizer import SkillNormalizer
 
@@ -243,7 +244,7 @@ class VacancyClusterer:
             return 0
         return len(set(self.labels_)) - (1 if -1 in self.labels_ else 0)
 
-    def _save_model(self, level: str):
+    def _save_model(self, level: ExperienceLevel):
         path = config.DATA_PROCESSED_DIR / f"vacancy_clusters_{level}.pkl"
         data = {
             "model": self.model,

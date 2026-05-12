@@ -16,6 +16,7 @@ from src.analyzers.domain_analyzer import DomainAnalyzer
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.vacancy_clustering import VacancyClusterer
 from src.models.data_contracts import ProfileEvaluationResult
+from src.models.enums import ExperienceLevel
 from src.models.student import StudentProfile
 from src.parsing.embedding_loader import get_embedding_model
 from src.parsing.skill_normalizer import SkillNormalizer
@@ -57,9 +58,9 @@ class ProfileEvaluator:
 
         # Загружаем модели кластеризации при инициализации
         self.cluster_models_loaded = {
-            "junior": self.clusterer.load_model("junior"),
-            "middle": self.clusterer.load_model("middle"),
-            "senior": self.clusterer.load_model("senior"),
+            ExperienceLevel.JUNIOR: self.clusterer.load_model(ExperienceLevel.JUNIOR),
+            ExperienceLevel.MIDDLE: self.clusterer.load_model(ExperienceLevel.MIDDLE),
+            ExperienceLevel.SENIOR: self.clusterer.load_model(ExperienceLevel.SENIOR),
         }
         logger.info(
             "cluster_models_loaded",
@@ -88,7 +89,7 @@ class ProfileEvaluator:
         metrics = self.gap_analyzer_new.compute_metrics(user_skills_list, user_levels)
 
         # === 2. Cluster Context + Relevance ===
-        target_level = getattr(student, "target_level", "middle")
+        target_level = getattr(student, "target_level", ExperienceLevel.MIDDLE)
         cluster_context = self._get_cluster_context(student, target_level)
 
         for skill, metric in metrics.items():

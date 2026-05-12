@@ -30,6 +30,7 @@ from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
 from src.analyzers.trends import TrendAnalyzer
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.logging_config import setup_structlog
+from src.models.enums import ComparisonLevel, ExperienceLevel
 from src.models.student import StudentProfile, merge_skills_hierarchically
 from src.models.vacancy import Vacancy
 from src.parsing.hh_api import HeadHunterAPI
@@ -388,30 +389,30 @@ def main():
             vac_copy["extracted_skills"] = vac_skills
             vacancies_to_process.append(vac_copy)
 
-            experience = "middle"
+            experience = ExperienceLevel.MIDDLE
             if "experience" in vac:
                 exp_obj = vac["experience"]
                 if isinstance(exp_obj, dict):
                     exp_id = exp_obj.get("id", "").lower()
                     if "less1" in exp_id or "junior" in exp_id or "no_experience" in exp_id:
-                        experience = "junior"
+                        experience = ExperienceLevel.JUNIOR
                     elif "between1and3" in exp_id or "between3and6" in exp_id:
-                        experience = "middle"
+                        experience = ExperienceLevel.MIDDLE
                     elif "between6and10" in exp_id or "morethan10" in exp_id:
-                        experience = "senior"
+                        experience = ExperienceLevel.SENIOR
                 elif isinstance(exp_obj, str):
                     exp_lower = exp_obj.lower()
                     if "junior" in exp_lower or "нет опыта" in exp_lower or "стажер" in exp_lower:
-                        experience = "junior"
+                        experience = ExperienceLevel.JUNIOR
                     elif "senior" in exp_lower or "более 6" in exp_lower:
-                        experience = "senior"
+                        experience = ExperienceLevel.SENIOR
 
-            if experience == "middle":
+            if experience == ExperienceLevel.MIDDLE:
                 name = vac.get("name", "").lower()
                 if "junior" in name or "младший" in name or "стажер" in name or "intern" in name:
-                    experience = "junior"
+                    experience = ExperienceLevel.JUNIOR
                 elif "senior" in name or "старший" in name or "ведущий" in name:
-                    experience = "senior"
+                    experience = ExperienceLevel.SENIOR
 
             if vac_skills:
                 level_vacancies_data.append(
@@ -655,32 +656,32 @@ def main():
                 elif hasattr(vac, "extracted_skills") and vac.extracted_skills:
                     vac_skills = vac.extracted_skills
 
-                vac_experience = "middle"
+                vac_experience = ExperienceLevel.MIDDLE
                 if hasattr(vac, "experience") and vac.experience:
                     exp_obj = vac.experience
                     if hasattr(exp_obj, "id"):
                         exp_id = exp_obj.id.lower()
                         if "less1" in exp_id or "junior" in exp_id or "no_experience" in exp_id:
-                            vac_experience = "junior"
+                            vac_experience = ExperienceLevel.JUNIOR
                         elif "between1and3" in exp_id or "between3and6" in exp_id:
-                            vac_experience = "middle"
+                            vac_experience = ExperienceLevel.MIDDLE
                         elif "between6and10" in exp_id or "morethan10" in exp_id:
-                            vac_experience = "senior"
+                            vac_experience = ExperienceLevel.SENIOR
                     elif isinstance(exp_obj, str):
                         exp_lower = exp_obj.lower()
                         if "junior" in exp_lower or "нет опыта" in exp_lower or "стажер" in exp_lower:
-                            vac_experience = "junior"
+                            vac_experience = ExperienceLevel.JUNIOR
                         elif "senior" in exp_lower or "более 6" in exp_lower:
-                            vac_experience = "senior"
+                            vac_experience = ExperienceLevel.SENIOR
                         else:
-                            vac_experience = "middle"
+                            vac_experience = ExperienceLevel.MIDDLE
 
                 if vac_experience == "middle":
                     name = vac.name.lower() if hasattr(vac, "name") else ""
                     if "junior" in name or "младший" in name or "стажер" in name or "intern" in name:
-                        vac_experience = "junior"
+                        vac_experience = ExperienceLevel.JUNIOR
                     elif "senior" in name or "старший" in name or "ведущий" in name:
-                        vac_experience = "senior"
+                        vac_experience = ExperienceLevel.SENIOR
 
                 if vac_skills:
                     level_vacancies_data.append(
@@ -694,23 +695,23 @@ def main():
                     if isinstance(exp_obj, dict):
                         exp_id = exp_obj.get("id", "").lower()
                         if "less1" in exp_id or "junior" in exp_id or "no_experience" in exp_id:
-                            experience = "junior"
+                            experience = ExperienceLevel.JUNIOR
                         elif "between1and3" in exp_id or "between3and6" in exp_id:
-                            experience = "middle"
+                            experience = ExperienceLevel.MIDDLE
                         elif "between6and10" in exp_id or "morethan10" in exp_id:
-                            experience = "senior"
+                            experience = ExperienceLevel.SENIOR
                     elif isinstance(exp_obj, str):
                         exp_lower = exp_obj.lower()
                         if "junior" in exp_lower or "нет опыта" in exp_lower or "стажер" in exp_lower:
-                            experience = "junior"
+                            experience = ExperienceLevel.JUNIOR
                         elif "senior" in exp_lower or "более 6" in exp_lower:
-                            experience = "senior"
-                    if experience == "middle":
+                            experience = ExperienceLevel.SENIOR
+                    if experience == ExperienceLevel.MIDDLE:
                         name = vac.get("name", "").lower()
                         if "junior" in name or "младший" in name or "стажер" in name or "intern" in name:
-                            experience = "junior"
+                            experience = ExperienceLevel.JUNIOR
                         elif "senior" in name or "старший" in name or "ведущий" in name:
-                            experience = "senior"
+                            experience = ExperienceLevel.SENIOR
                     level_vacancies_data.append(
                         {"skills": vac_skills, "description": vac.get("description", ""), "experience": experience}
                     )
@@ -780,7 +781,11 @@ def main():
                     console_info(f"⚠️  Профиль {name} не загружен")
 
             profiles: dict[str, StudentProfile] = {}
-            profile_levels = {"base": "junior", "dc": "middle", "top_dc": "senior"}
+            profile_levels = {
+                "base": ExperienceLevel.JUNIOR,
+                "dc": ExperienceLevel.MIDDLE,
+                "top_dc": ExperienceLevel.SENIOR,
+            }
 
             for profile_name, target_level_str in profile_levels.items():
                 if profile_name not in all_codes:
@@ -811,7 +816,7 @@ def main():
                 )
 
             skill_weights_by_level = {}
-            for level in ["junior", "middle", "senior"]:
+            for level in ExperienceLevel:
                 skill_weights_by_level[level] = level_analyzer.get_weights_for_level(skill_weights, level)
 
             console_info("Оценка профилей...")
@@ -832,7 +837,7 @@ def main():
                 min_df=1,
                 max_df=0.95,
                 use_embeddings=True,
-                level="middle",
+                level=ComparisonLevel.MIDDLE,
                 similarity_threshold=0.80,
             )
             recommendation_engine.fit(vacancies_skills, skill_weights=hybrid_weights)

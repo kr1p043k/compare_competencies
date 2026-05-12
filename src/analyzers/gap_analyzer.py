@@ -4,6 +4,7 @@
 
 import structlog
 
+from src.models.enums import ExperienceLevel
 from src.models.market_metrics import SkillMetrics
 
 logger = structlog.get_logger(__name__)
@@ -20,8 +21,8 @@ class GapAnalyzer:
             all_weights.update(level_data)
         max_weight = max(all_weights.values()) if all_weights else 1.0
 
-        for level in ["junior", "middle", "senior"]:
-            level_key = level[0]
+        for level in ExperienceLevel:  # ← заменить ["junior","middle","senior"]
+            level_key = level[0]  # 'j', 'm', 's' — авто
             for skill, market_weight in self.skill_weights.get(level, {}).items():
                 if skill not in metrics:
                     user_lvl = user_levels.get(skill, 0.0)
@@ -29,7 +30,6 @@ class GapAnalyzer:
                         skill=skill, user_level=user_lvl, importance=round(market_weight / max_weight, 4)
                     )
                 gap = max(0.0, market_weight - user_levels.get(skill, 0.0))
-                # market_weight уже нормализован в [0, 1], log1p не даёт смыслового выигрыша
                 demand = market_weight
                 setattr(metrics[skill], f"gap_{level_key}", gap)
                 setattr(metrics[skill], f"demand_{level_key}", demand)

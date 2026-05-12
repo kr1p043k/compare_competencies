@@ -3,21 +3,14 @@
 """
 
 from datetime import datetime
-from enum import StrEnum
 from typing import Any
 
 import structlog
 from pydantic import BaseModel, Field
 
+from .enums import ExperienceLevel
+
 logger = structlog.get_logger(__name__)
-
-
-class ExperienceLevel(StrEnum):
-    """Уровни опыта"""
-
-    JUNIOR = "junior"
-    MIDDLE = "middle"
-    SENIOR = "senior"
 
 
 class StudentProfile(BaseModel):

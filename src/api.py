@@ -23,6 +23,7 @@ from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
 from src.analyzers.skill_taxonomy import SkillTaxonomy
 from src.analyzers.trends import TrendAnalyzer
 from src.analyzers.vacancy_clustering import VacancyClusterer
+from src.models.enums import ComparisonLevel, ExperienceLevel
 from src.models.student import StudentProfile, merge_skills_hierarchically
 from src.parsing.skill_normalizer import SkillNormalizer
 from src.parsing.skill_validator import SkillValidator
@@ -182,7 +183,7 @@ async def startup():
 
     # 6. Веса по уровням
     skill_weights_by_level = {}
-    for level in ["junior", "middle", "senior"]:
+    for level in ExperienceLevel:
         skill_weights_by_level[level] = level_analyzer.get_weights_for_level(skill_weights, level)
 
     # 7. Студенческие профили
@@ -212,7 +213,11 @@ async def startup():
                     break
         return list(skills)
 
-    profile_levels = {"base": "junior", "dc": "middle", "top_dc": "senior"}
+    profile_levels = {
+        "base": ExperienceLevel.JUNIOR,
+        "dc": ExperienceLevel.MIDDLE,
+        "top_dc": ExperienceLevel.SENIOR,
+    }
     for pname, target in profile_levels.items():
         codes = load_student_codes(pname)
         if pname == "top_dc":
@@ -248,7 +253,7 @@ async def startup():
         min_df=1,
         max_df=0.95,
         use_embeddings=True,
-        level="middle",
+        level=ComparisonLevel.MIDDLE,
         similarity_threshold=0.80,
     )
     recommendation_engine.fit(vacancies_skills, skill_weights=hybrid_weights)
@@ -306,7 +311,7 @@ async def get_skill_info(skill: str):
 
 
 @app.get("/api/clusters/{level}")
-async def get_clusters(level: str = "middle"):
+async def get_clusters(level: ExperienceLevel = ExperienceLevel.MIDDLE):
     if not clusterer.is_fitted:
         clusterer.load_model(level)
     if not clusterer.is_fitted:
@@ -327,7 +332,7 @@ async def get_clusters(level: str = "middle"):
 async def clusters_summary():
     """Сводка по всем уровням (как check_clusters.py)."""
     result = {}
-    for lvl in ["junior", "middle", "senior"]:
+    for lvl in ExperienceLevel:
         clusterer.load_model(lvl)
         if clusterer.is_fitted:
             result[lvl] = {
@@ -424,7 +429,7 @@ async def get_status():
         "taxonomy_loaded": taxonomy is not None,
         "whitelist_size": len(current_skills_set),
         "profiles_available": list(student_profiles.keys()),
-        "clusters": {lvl: clusterer.load_model(lvl) and clusterer.is_fitted for lvl in ["junior", "middle", "senior"]},
+        "clusters": {lvl: clusterer.load_model(lvl) and clusterer.is_fitted for lvl in ExperienceLevel},
         "trends_available": trend_analyzer is not None,
         "recommendation_engine_ready": recommendation_engine is not None and recommendation_engine.is_fitted,
     }

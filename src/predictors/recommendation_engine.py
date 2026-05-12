@@ -13,6 +13,7 @@ from src.analyzers.comparator import CompetencyComparator
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.skill_filter import SkillFilter
 from src.analyzers.skill_taxonomy import SkillTaxonomy
+from src.models.enums import PriorityLevel, SkillCategory, TrendType
 from src.models.student import StudentProfile
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
@@ -180,7 +181,7 @@ class RecommendationEngine:
             if self.trend_analyzer is not None:
                 trends = self.trend_analyzer.get_trending_skills(top_n=500, min_change_percent=0.0)
                 self.trend_analyzer.save_trends(trends)
-                for t in trends.get("rising", []):
+                for t in trends.get(TrendType.RISING, []):  # ← "rising" → TrendType.RISING
                     trend_bonuses[t["skill"]] = min(t["change_pct"] / 100.0, 0.3)
 
             # Гарантированный бонус для горячих технологий (всегда)
@@ -247,8 +248,14 @@ class RecommendationEngine:
                         "rank": 0,
                         "skill": skill,
                         "importance_score": score,
-                        "priority": ("HIGH" if score > 0.7 else "MEDIUM" if score > 0.4 else "LOW"),
-                        "category": metric.get("category", "missing"),
+                        "priority": (
+                            PriorityLevel.HIGH
+                            if score > 0.7
+                            else PriorityLevel.MEDIUM
+                            if score > 0.4
+                            else PriorityLevel.LOW
+                        ),
+                        "category": metric.get("category", SkillCategory.MISSING),
                         "why_important": explanation,
                         "how_to_learn": self._get_learning_path(skill, is_soft, student),
                         "expected_timeframe": self._get_timeframe(skill),
@@ -461,8 +468,8 @@ class RecommendationEngine:
         except Exception:
             skill_cat = "технический"
 
-        prefix = "🔶 УСИЛИТЬ: " if category == "weak" else ""
-        suffix = " У вас уже есть базовое понимание — углубите его." if category == "weak" else ""
+        prefix = "🔶 УСИЛИТЬ: " if category == SkillCategory.WEAK else ""
+        suffix = " У вас уже есть базовое понимание — углубите его." if category == SkillCategory.WEAK else ""
 
         if skill_in_top_cluster and top_cluster_name and cluster_rel > 0.5:
             return (

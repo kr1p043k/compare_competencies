@@ -16,6 +16,7 @@ import numpy as np
 import structlog
 
 from src import config
+from src.models.enums import TrendType
 
 logger = structlog.get_logger(__name__)
 
@@ -141,15 +142,15 @@ class TrendAnalyzer:
                 "prev_label": prev_label,
             }
             if change_pct >= min_change_percent:
-                entry["trend"] = "RISING"
+                entry["trend"] = TrendType.RISING
                 rising.append(entry)
             elif change_pct <= -min_change_percent:
-                entry["trend"] = "FALLING"
+                entry["trend"] = TrendType.FALLING
                 falling.append(entry)
 
         rising.sort(key=lambda x: x["change_pct"], reverse=True)
         falling.sort(key=lambda x: x["change_pct"])
-        return {"rising": rising[:top_n], "falling": falling[:top_n]}
+        return {TrendType.RISING: rising[:top_n], TrendType.FALLING: falling[:top_n]}
 
     def get_emerging_skills(self, min_weight: float = 0.01, top_n: int = 20) -> list[dict]:
         max_weight = max(self.current.values()) if self.current else 1.0
@@ -240,9 +241,8 @@ class TrendAnalyzer:
     def plot_trending(self, top_n: int = 15, save_path: Path | None = None, previous_snapshot: dict = None):
         """Горизонтальный бар-чарт растущих и падающих навыков."""
         trends = self.get_trending_skills(top_n=top_n, min_change_percent=3.0, previous_snapshot=previous_snapshot)
-        rising = trends["rising"][:top_n]
-        falling = trends["falling"][:top_n]
-
+        rising = trends[TrendType.RISING][:top_n]
+        falling = trends[TrendType.FALLING][:top_n]
         if not rising and not falling:
             logger.info("no_significant_trends", threshold=3.0)
             return None
@@ -374,16 +374,16 @@ if __name__ == "__main__":
     trends = analyzer.get_trending_skills(
         top_n=args.top, min_change_percent=args.min_change, previous_snapshot=previous_snapshot
     )
-    if trends["rising"]:
+    if trends[TrendType.RISING]:
         print("\n📈 РАСТУЩИЕ НАВЫКИ:")
-        for t in trends["rising"]:
+        for t in trends[TrendType.RISING]:
             print(f"  • {t['skill']:<35} +{t['change_pct']:.1f}% (было {t['prev_freq']}, стало {t['current_freq']})")
     else:
         print(f"\n📈 РАСТУЩИЕ НАВЫКИ: нет (изменения меньше {args.min_change}%)")
 
-    if trends["falling"]:
+    if trends[TrendType.FALLING]:
         print("\n📉 ПАДАЮЩИЕ НАВЫКИ:")
-        for t in trends["falling"]:
+        for t in trends[TrendType.FALLING]:
             print(f"  • {t['skill']:<35} {t['change_pct']:.1f}% (было {t['prev_freq']}, стало {t['current_freq']})")
     else:
         print(f"\n📉 ПАДАЮЩИЕ НАВЫКИ: нет (изменения меньше {args.min_change}%)")
