@@ -554,7 +554,7 @@ class VacancyParser:
                 desc = vac.get("description") or ""
                 if desc:
                     parts.append(self._strip_html(desc))
-                snippet = vac.get("snippet", {})
+                snippet = vac.get("snippet") or {}
                 req = snippet.get("requirement") or ""
                 resp = snippet.get("responsibility") or ""
                 if req:

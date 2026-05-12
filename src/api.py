@@ -141,7 +141,7 @@ async def startup():
             vac_skills = vac["extracted_skills"]
         else:
             desc = vac.get("description", "")
-            snip = vac.get("snippet", {})
+            snip = vac.get("snippet") or {}
             req = snip.get("requirement", "")
             resp = snip.get("responsibility", "")
             combined = f"{desc} {req} {resp}"

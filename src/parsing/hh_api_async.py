@@ -3,11 +3,17 @@
 import asyncio
 import random
 import time
+from typing import cast
 
 import aiohttp
 import structlog
 
 from src import config
+from src.models.hh_responses import (
+    VacancyDetailResponse,
+    parse_response,
+)
+from src.parsing.hh_api import HeadHunterAPI
 
 logger = structlog.get_logger(__name__)
 
@@ -18,9 +24,9 @@ class HeadHunterAPIAsync:
     def __init__(
         self,
         max_concurrent: int = 2,
-        request_delay: float = None,
+        request_delay: float | None = None,
         batch_size: int = 50,
-        token: str = None,
+        token: str | None = None,
         token_expires_at: float = 0,
     ):
         self.max_concurrent = max_concurrent
@@ -35,6 +41,16 @@ class HeadHunterAPIAsync:
         self._token_expires_at = token_expires_at
         self._token_lock = asyncio.Lock()
 
+    async def get_vacancy_details_validated(
+        self, session: aiohttp.ClientSession, vacancy_id: str
+    ) -> VacancyDetailResponse:
+        """Асинхронное получение деталей с валидацией."""
+        url = f"{self.BASE_URL}vacancies/{vacancy_id}"
+        raw = await self._request(session, url)
+        if raw is None:
+            raise ValueError(f"Vacancy {vacancy_id} not found or API error")
+        return cast(VacancyDetailResponse, parse_response(raw, VacancyDetailResponse))
+
     async def _ensure_token(self):
         """Проверяет и обновляет токен при необходимости."""
         if self._token and time.time() < self._token_expires_at:
@@ -48,8 +64,6 @@ class HeadHunterAPIAsync:
             if not config.HH_CLIENT_ID or not config.HH_CLIENT_SECRET:
                 logger.warning("hh_credentials_not_set_async")
                 return
-
-            from src.parsing.hh_api import HeadHunterAPI
 
             sync_api = HeadHunterAPI()
             if sync_api._token and time.time() < sync_api._token_expires_at:
@@ -215,6 +229,35 @@ class HeadHunterAPIAsync:
         """Получение деталей одной вакансии асинхронно."""
         url = f"{self.BASE_URL}vacancies/{vacancy_id}"
         return await self._request(session, url)
+
+    async def get_vacancies_details_batch_validated(self, vacancy_ids: list[str]) -> list[VacancyDetailResponse]:
+        """Загружает детали вакансий с Pydantic‑валидацией."""
+        if not vacancy_ids:
+            return []
+        await self._ensure_token()
+        logger.info("async_validated_batch_started", total=len(vacancy_ids))
+        all_results = []
+        async with aiohttp.ClientSession() as session:
+            tasks = [self.get_vacancy_details_validated(session, vid) for vid in vacancy_ids]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results:
+                if isinstance(r, VacancyDetailResponse):
+                    all_results.append(r)
+                elif isinstance(r, Exception):
+                    logger.debug("vacancy_validated_skipped", error=str(r))
+        logger.info("async_validated_batch_completed", loaded=len(all_results))
+        return all_results
+
+    def get_vacancies_details_sync_validated(self, vacancy_ids: list[str]) -> list[VacancyDetailResponse]:
+        """Синхронная обёртка для пакетной валидированной загрузки."""
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError("Event loop is closed")
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        return loop.run_until_complete(self.get_vacancies_details_batch_validated(vacancy_ids))
 
     async def get_vacancies_details_batch(self, vacancy_ids: list[str]) -> list[dict]:
         """Загружает детали массива вакансий асинхронно с пакетной обработкой."""

@@ -11,6 +11,10 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from src import config
+from src.models.hh_responses import (
+    VacancyDetailResponse,
+    parse_response,
+)
 from src.models.vacancy import Vacancy
 
 logger = structlog.get_logger(__name__)
@@ -51,6 +55,20 @@ class HeadHunterAPI:
             logger.warning("hh_credentials_not_set")
 
         logger.info("hh_api_initialized", max_retries=config.MAX_RETRIES)
+
+    def search_vacancies_validated(
+        self, text, area, period_days=30, max_pages=20, per_page=100, industry=None, date_from=None, date_to=None
+    ) -> list[dict]:
+        """Возвращает список словарей, как и раньше (для обратной совместимости)."""
+        # реализация та же, что в search_vacancies
+        return self.search_vacancies(text, area, period_days, max_pages, per_page, industry, date_from, date_to)
+
+    def get_vacancy_details_validated(self, vacancy_id) -> VacancyDetailResponse:
+        """Получает детали вакансии и возвращает валидированную модель."""
+        raw = self._get(f"{self.BASE_URL_FULL}vacancies/{vacancy_id}")
+        if raw is None:
+            raise ValueError(f"Vacancy {vacancy_id} not found or API error")
+        return parse_response(raw, VacancyDetailResponse)
 
     # -----------------------------------------------------------------------
     def _get_app_token(self):

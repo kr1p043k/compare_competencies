@@ -228,15 +228,9 @@ def load_vacancies_details(
             vacancy_ids = [v.get("id") if isinstance(v, dict) else v.id for v in basic_vacancies]
 
             start_time = time.time()
-            raw_detailed = api_async.get_vacancies_details_sync(vacancy_ids)
+            detailed_responses = api_async.get_vacancies_details_sync_validated(vacancy_ids)
+            detailed = [Vacancy.from_api(r.model_dump()) for r in detailed_responses]
             elapsed = time.time() - start_time
-
-            detailed = []
-            for raw_data in raw_detailed:
-                try:
-                    detailed.append(Vacancy.from_api(raw_data))
-                except ValueError:
-                    continue
 
             console_info(f"✓ Загружено {len(detailed)}/{len(vacancy_ids)} вакансий за {elapsed:.1f} сек")
             log.info("async_loading_completed", elapsed=round(elapsed, 1), loaded=len(detailed), total=len(vacancy_ids))
@@ -259,7 +253,11 @@ def load_vacancies_details(
             remaining = (total - i) / rate if rate > 0 else 0
             console_info(f"  Прогресс: {i}/{total} ({i * 100 // total}%) | осталось ~{remaining / 60:.1f} мин")
 
-        det = hh_api.get_vacancy_details_as_object(vac_id)
+        try:
+            validated = hh_api.get_vacancy_details_validated(vac_id)
+            det = Vacancy.from_api(validated.model_dump())
+        except Exception:
+            det = None
         if det:
             detailed.append(det)
         time.sleep(config.REQUEST_DELAY)
@@ -432,7 +430,7 @@ def main():
                 vac_skills = vac["extracted_skills"]
             else:
                 desc = vac.get("description", "")
-                snippet = vac.get("snippet", {})
+                snippet = vac.get("snippet") or {}
                 req = snippet.get("requirement", "")
                 resp = snippet.get("responsibility", "")
                 combined = f"{desc} {req} {resp}"

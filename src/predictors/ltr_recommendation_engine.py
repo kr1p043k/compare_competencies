@@ -384,7 +384,7 @@ class LTRRecommendationEngine:
                 if norm:
                     skills.add(norm)
         if not skills:
-            snippet = vac.get("snippet", {})
+            snippet = vac.get("snippet") or {}
             combined = f"{snippet.get('requirement', '')} {snippet.get('responsibility', '')}"
             if combined.strip():
                 for s in self.vacancy_parser.extract_skills_from_description(combined):
