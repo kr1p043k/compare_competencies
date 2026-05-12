@@ -5,6 +5,7 @@
 
 import hashlib
 import json
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -15,11 +16,13 @@ from src.analyzers.comparator import CompetencyComparator
 from src.analyzers.domain_analyzer import DomainAnalyzer
 from src.analyzers.gap_analyzer import GapAnalyzer
 from src.analyzers.vacancy_clustering import VacancyClusterer
+from src.artifacts import ArtifactManifest
 from src.models.data_contracts import ProfileEvaluationResult
 from src.models.enums import ExperienceLevel
 from src.models.student import StudentProfile
 from src.parsing.embedding_loader import get_embedding_model
 from src.parsing.skill_normalizer import SkillNormalizer
+from src.utils import atomic_read_json, atomic_write_json
 
 logger = structlog.get_logger(__name__)
 
@@ -259,13 +262,7 @@ class ProfileEvaluator:
             return None
 
         try:
-            embedding_model = get_embedding_model()
-            user_skills = student.skills
-            if not user_skills:
-                student_emb = np.zeros(embedding_model.get_sentence_embedding_dimension())
-            else:
-                embs = embedding_model.encode(user_skills, convert_to_numpy=True, show_progress_bar=False)
-                student_emb = np.mean(embs, axis=0)
+            student_emb = self._get_or_compute_student_embedding(student)
 
             cluster_context = self.clusterer.get_cluster_context(
                 profile_embedding=student_emb, level=target_level, top_k_clusters=5, top_k_skills_per_cluster=25
@@ -342,3 +339,43 @@ class ProfileEvaluator:
         skills_str = ",".join(sorted(set(s.lower() for s in student.skills)))
         data = f"{level}:{skills_str}"
         return hashlib.sha256(data.encode()).hexdigest()
+
+    def _compute_student_hash(self, student: StudentProfile) -> str:
+        skills_str = ",".join(sorted(set(s.lower() for s in student.skills)))
+        return hashlib.sha256(skills_str.encode()).hexdigest()
+
+    def _get_student_cache_path(self, student: StudentProfile) -> Path:
+        return config.STUDENT_EMB_CACHE_DIR / f"{student.profile_name}_embedding.json"
+
+    def _load_cached_embedding(self, student: StudentProfile) -> np.ndarray | None:
+        cache_path = self._get_student_cache_path(student)
+        data = atomic_read_json(cache_path)  # возвращает None при ошибке
+        if data and data.get("hash") == self._compute_student_hash(student):
+            return np.array(data["embedding"])
+        return None
+
+    def _save_embedding_cache(self, student: StudentProfile, embedding: np.ndarray) -> None:
+        cache_path = self._get_student_cache_path(student)
+        data = {"hash": self._compute_student_hash(student), "embedding": embedding.tolist()}
+        atomic_write_json(data, cache_path)
+        manifest = ArtifactManifest(
+            artifact_path=cache_path,
+            metrics={"dim": len(embedding)},
+        )
+        manifest.save()
+
+    def _get_or_compute_student_embedding(self, student: StudentProfile) -> np.ndarray:
+        cached = self._load_cached_embedding(student)
+        if cached is not None:
+            logger.debug("student_embedding_loaded_from_cache", profile=student.profile_name)
+            return cached
+
+        embedding_model = get_embedding_model()
+        if not student.skills:
+            dim = embedding_model.get_sentence_embedding_dimension()
+            emb = np.zeros(dim)
+        else:
+            embs = embedding_model.encode(student.skills, convert_to_numpy=True, show_progress_bar=False)
+            emb = np.mean(embs, axis=0)
+        self._save_embedding_cache(student, emb)
+        return emb

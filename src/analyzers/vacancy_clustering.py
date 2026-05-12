@@ -245,7 +245,7 @@ class VacancyClusterer:
         return len(set(self.labels_)) - (1 if -1 in self.labels_ else 0)
 
     def _save_model(self, level: ExperienceLevel):
-        path = config.DATA_PROCESSED_DIR / f"vacancy_clusters_{level}.pkl"
+        path = config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{level}.pkl"
         data = {
             "model": self.model,
             "clusterer_type": self.clusterer_type,
@@ -272,7 +272,7 @@ class VacancyClusterer:
             logger.warning("cluster_manifest_save_failed", error=str(e))
 
     def load_model(self, level: str = "all") -> bool:
-        path = config.DATA_PROCESSED_DIR / f"vacancy_clusters_{level}.pkl"
+        path = config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{level}.pkl"
         if not path.exists():
             logger.warning("cluster_model_file_not_found", path=str(path))
             return False

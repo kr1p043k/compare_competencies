@@ -702,7 +702,7 @@ if __name__ == "__main__":
     plt.show()
 
     results_for_charts = {}
-    summary_path = config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
+    summary_path = config.DATA_RESULT_DIR / "profiles_comparison_summary.json"
     if summary_path.exists():
         with open(summary_path, encoding="utf-8") as f:
             data = json.load(f)

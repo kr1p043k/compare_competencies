@@ -71,7 +71,7 @@ def console_header(msg: str):
 
 def save_detailed_vacancies(vacancies, log):
     """Сохраняет детальные вакансии в data/result/ для повторного использования."""
-    detailed_file = config.DATA_RESULT_DIR / "hh_vacancies_detailed.json"
+    detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     config.DATA_RESULT_DIR.mkdir(parents=True, exist_ok=True)
     data_to_save = []
     for v in vacancies:
@@ -288,7 +288,7 @@ def main():
     if args.train_model:
         console_header("ОБУЧЕНИЕ LTR-МОДЕЛИ")
 
-        detailed_file = config.DATA_RESULT_DIR / "hh_vacancies_detailed.json"
+        detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
         basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
         if detailed_file.exists():
             raw_file = detailed_file
@@ -344,7 +344,7 @@ def main():
     if args.skip_collection:
         console_header("ЗАГРУЗКА СУЩЕСТВУЮЩИХ ДАННЫХ")
 
-        detailed_file = config.DATA_RESULT_DIR / "hh_vacancies_detailed.json"
+        detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
         basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
         if detailed_file.exists():
             raw_file = detailed_file
@@ -362,7 +362,7 @@ def main():
         parser = VacancyParser()
         cache_dir = config.DATA_PROCESSED_DIR
         cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_path = cache_dir / "parsed_skills.pkl"
+        cache_path = config.PARSED_SKILLS_CACHE_PATH
         vacancies_hash = get_file_hash(raw_file)
 
         cached_result = None
@@ -405,6 +405,15 @@ def main():
             cache_data = {"source_hash": vacancies_hash, "result": result}
             with open(cache_path, "wb") as f:
                 pickle.dump(cache_data, f)
+                with open(cache_path, "wb") as f:
+                    pickle.dump(cache_data, f)
+                console_info("💾 Кэш результатов сохранён")
+                # Создаём манифест
+                manifest = ArtifactManifest(
+                    artifact_path=cache_path,
+                    metrics={"num_skills": len(skill_freq)},
+                )
+                manifest.save()
             console_info("💾 Кэш результатов сохранён")
 
         filter_engine = SkillFilter()

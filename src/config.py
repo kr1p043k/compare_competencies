@@ -10,9 +10,6 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-# ---------------------------------------------------------------------------
-# Модель настроек
-# ---------------------------------------------------------------------------
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -39,8 +36,12 @@ class Settings(BaseSettings):
     LOG_DIR: Path = Field(default_factory=lambda: Path("logs"))
     LOG_FILE: Path = Field(default_factory=lambda: Path("logs/app.log"))
 
-    DATA_EMBEDDINGS_DIR: Path = Field(default_factory=lambda: Path("data/embeddings"))
-    EMBEDDINGS_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/embeddings/cache"))
+    # ---------- директории кеша (единая точка) ----------
+    DATA_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache"))
+    EMBEDDINGS_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache/embeddings"))
+    VACANCY_CLUSTERS_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache/clusters"))
+    STUDENT_EMB_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache/students"))
+    PARSED_SKILLS_CACHE_PATH: Path = Field(default_factory=lambda: Path("data/cache/parsed_skills.pkl"))
 
     # ---------- hh.ru API ----------
     HH_USER_AGENT: str = "CompetencyAnalyzer (kok.yoko@gmx.com)"
@@ -88,50 +89,7 @@ class Settings(BaseSettings):
     # ---------- воспроизводимость ----------
     GLOBAL_RANDOM_SEED: int = 42
 
-    # валидация путей относительно BASE_DIR
-    @field_validator(
-        "DATA_DIR",
-        "DATA_RAW_DIR",
-        "DATA_PROCESSED_DIR",
-        "DATA_RESULT_DIR",
-        "STUDENTS_DIR",
-        "LAST_UPLOADED_DIR",
-        "COMPETENCY_MAPPING_FILE",
-        "COMPETENCY_FREQ_PATH",
-        "IT_SKILLS_PATH",
-        "MODELS_DIR",
-        "HISTORY_DIR",
-        "LOG_DIR",
-        "LOG_FILE",
-        "DATA_EMBEDDINGS_DIR",
-        "EMBEDDINGS_CACHE_DIR",
-        mode="after",
-    )
-    @classmethod
-    def make_absolute(cls, v: Path, info) -> Path:
-        base = info.data.get("BASE_DIR", Path("."))
-        return base / v
-
-    # создание всех директорий при инициализации
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        dirs = [
-            self.DATA_RAW_DIR,
-            self.DATA_PROCESSED_DIR,
-            self.STUDENTS_DIR,
-            self.LAST_UPLOADED_DIR,
-            self.LOG_DIR,
-            self.MODELS_DIR,
-            self.HISTORY_DIR,
-            self.DATA_EMBEDDINGS_DIR,
-            self.EMBEDDINGS_CACHE_DIR,
-            self.DATA_RESULT_DIR,
-        ]
-        for d in dirs:
-            d.mkdir(parents=True, exist_ok=True)
-
-        # ---------- Параметры рекомендаций и gap-анализа ----------
-
+    # ---------- Параметры рекомендаций и gap-анализа ----------
     BLEND_EVALUATOR_WEIGHT: float = 0.6
     BLEND_LTR_WEIGHT: float = 0.4
     DOMAIN_BONUS: float = 0.1
@@ -167,6 +125,53 @@ class Settings(BaseSettings):
     # tqdm
     TQDM_DISABLE: bool = False
 
+    # валидация путей относительно BASE_DIR
+    @field_validator(
+        "DATA_DIR",
+        "DATA_RAW_DIR",
+        "DATA_PROCESSED_DIR",
+        "DATA_RESULT_DIR",
+        "STUDENTS_DIR",
+        "LAST_UPLOADED_DIR",
+        "COMPETENCY_MAPPING_FILE",
+        "COMPETENCY_FREQ_PATH",
+        "IT_SKILLS_PATH",
+        "MODELS_DIR",
+        "HISTORY_DIR",
+        "LOG_DIR",
+        "LOG_FILE",
+        "DATA_CACHE_DIR",
+        "EMBEDDINGS_CACHE_DIR",
+        "VACANCY_CLUSTERS_CACHE_DIR",
+        "STUDENT_EMB_CACHE_DIR",
+        "PARSED_SKILLS_CACHE_PATH",
+        mode="after",
+    )
+    @classmethod
+    def make_absolute(cls, v: Path, info) -> Path:
+        base = info.data.get("BASE_DIR", Path("."))
+        return base / v
+
+    # создание всех директорий при инициализации
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        dirs = [
+            self.DATA_RAW_DIR,
+            self.DATA_PROCESSED_DIR,
+            self.STUDENTS_DIR,
+            self.LAST_UPLOADED_DIR,
+            self.LOG_DIR,
+            self.MODELS_DIR,
+            self.HISTORY_DIR,
+            self.DATA_RESULT_DIR,
+            self.DATA_CACHE_DIR,
+            self.EMBEDDINGS_CACHE_DIR,
+            self.VACANCY_CLUSTERS_CACHE_DIR,
+            self.STUDENT_EMB_CACHE_DIR,
+        ]
+        for d in dirs:
+            d.mkdir(parents=True, exist_ok=True)
+
 
 # ---------------------------------------------------------------------------
 # Синглтон настроек
@@ -190,15 +195,19 @@ MODELS_DIR = settings.MODELS_DIR
 HISTORY_DIR = settings.HISTORY_DIR
 LOG_DIR = settings.LOG_DIR
 LOG_FILE = settings.LOG_FILE
-DATA_EMBEDDINGS_DIR = settings.DATA_EMBEDDINGS_DIR
+
+DATA_CACHE_DIR = settings.DATA_CACHE_DIR
 EMBEDDINGS_CACHE_DIR = settings.EMBEDDINGS_CACHE_DIR
+VACANCY_CLUSTERS_CACHE_DIR = settings.VACANCY_CLUSTERS_CACHE_DIR
+STUDENT_EMB_CACHE_DIR = settings.STUDENT_EMB_CACHE_DIR
+PARSED_SKILLS_CACHE_PATH = settings.PARSED_SKILLS_CACHE_PATH
 
 HH_USER_AGENT = settings.HH_USER_AGENT
 REQUEST_DELAY = settings.REQUEST_DELAY
 MAX_RETRIES = settings.MAX_RETRIES
 RETRY_DELAY = settings.RETRY_DELAY
-HH_CLIENT_ID = settings.HH_CLIENT_ID  # Теперь SecretStr
-HH_CLIENT_SECRET = settings.HH_CLIENT_SECRET  # SecretStr
+HH_CLIENT_ID = settings.HH_CLIENT_ID
+HH_CLIENT_SECRET = settings.HH_CLIENT_SECRET
 
 DEFAULT_AREA = settings.DEFAULT_AREA
 DEFAULT_PERIOD_DAYS = settings.DEFAULT_PERIOD_DAYS
@@ -207,13 +216,13 @@ DEFAULT_PER_PAGE = settings.DEFAULT_PER_PAGE
 
 PROFILES_DISCIPLINES = settings.PROFILES_DISCIPLINES
 
-YC_API_KEY = settings.YC_API_KEY  # SecretStr
+YC_API_KEY = settings.YC_API_KEY
 YC_FOLDER_ID = settings.YC_FOLDER_ID
 YANDEXGPT_MODEL = settings.YANDEXGPT_MODEL
 
 EMBEDDING_MODEL = settings.EMBEDDING_MODEL
 EMBEDDING_DIM = settings.EMBEDDING_DIM
-HF_TOKEN = settings.HF_TOKEN  # SecretStr
+HF_TOKEN = settings.HF_TOKEN
 SIMILARITY_THRESHOLD = settings.SIMILARITY_THRESHOLD
 
 BM25_MAX_CORPUS_DOCS = settings.BM25_MAX_CORPUS_DOCS

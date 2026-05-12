@@ -41,7 +41,7 @@ class EmbeddingComparator:
     ):
         self.model = get_embedding_model(model_name)
         if cache_dir is None:
-            self.cache_dir = config.DATA_EMBEDDINGS_DIR
+            self.cache_dir = config.EMBEDDINGS_CACHE_DIR
         else:
             self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)

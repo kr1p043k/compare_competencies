@@ -68,7 +68,7 @@ async def startup():
     logger.info("Запуск API-сервера, инициализация движков...")
 
     # 1. Загрузка вакансий
-    detailed_file = config.DATA_RESULT_DIR / "hh_vacancies_detailed.json"
+    detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
     raw_file = detailed_file if detailed_file.exists() else basic_file
     if not raw_file.exists():
@@ -82,7 +82,7 @@ async def startup():
     parser = VacancyParser()
 
     # 2. Извлечение навыков (с кэшированием)
-    cache_path = config.DATA_PROCESSED_DIR / "parsed_skills.pkl"
+    cache_path = config.PARSED_SKILLS_CACHE_PATH
     vacancies_hash = hashlib.sha256(raw_file.read_bytes()).hexdigest()
     skill_freq_local = {}
     hybrid_weights_local = {}
@@ -106,6 +106,16 @@ async def startup():
         cache_data = {"source_hash": vacancies_hash, "result": result}
         with open(cache_path, "wb") as f:
             pickle.dump(cache_data, f)
+            with open(cache_path, "wb") as f:
+                pickle.dump(cache_data, f)
+            # Создаём манифест
+            from src.artifacts import ArtifactManifest
+
+            manifest = ArtifactManifest(
+                artifact_path=cache_path,
+                metrics={"num_skills": len(skill_freq)},
+            )
+            manifest.save()
         logger.info("Кэш парсинга сохранён")
 
     skill_freq = skill_freq_local

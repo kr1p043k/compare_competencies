@@ -231,20 +231,32 @@ class HeadHunterAPIAsync:
         return await self._request(session, url)
 
     async def get_vacancies_details_batch_validated(self, vacancy_ids: list[str]) -> list[VacancyDetailResponse]:
-        """Загружает детали вакансий с Pydantic‑валидацией."""
         if not vacancy_ids:
             return []
         await self._ensure_token()
         logger.info("async_validated_batch_started", total=len(vacancy_ids))
         all_results = []
-        async with aiohttp.ClientSession() as session:
-            tasks = [self.get_vacancy_details_validated(session, vid) for vid in vacancy_ids]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for r in results:
-                if isinstance(r, VacancyDetailResponse):
-                    all_results.append(r)
-                elif isinstance(r, Exception):
-                    logger.debug("vacancy_validated_skipped", error=str(r))
+        total = len(vacancy_ids)
+        batch_size = self.batch_size
+        for i in range(0, total, batch_size):
+            batch = vacancy_ids[i : i + batch_size]
+            async with aiohttp.ClientSession() as session:
+                tasks = [self.get_vacancy_details_validated(session, vid) for vid in batch]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for r in results:
+                    if isinstance(r, VacancyDetailResponse):
+                        all_results.append(r)
+                    elif isinstance(r, Exception):
+                        logger.debug("vacancy_validated_skipped", error=str(r))
+            # Прогресс
+            logger.info(
+                "async_validated_batch_progress",
+                done=len(all_results),
+                total=total,
+                percent=round(len(all_results) / total * 100, 1),
+            )
+            if i + batch_size < total:
+                await asyncio.sleep(1)
         logger.info("async_validated_batch_completed", loaded=len(all_results))
         return all_results
 
