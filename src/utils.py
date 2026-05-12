@@ -89,3 +89,30 @@ def safe_read_json(filepath: Path):
     except Exception as e:
         logger.error("json_read_unexpected_error", path=str(filepath), error=str(e))
         return None
+
+
+def safe_read_competency_json(filepath: Path) -> list[str]:
+    """
+    Безопасно читает JSON-файл компетенций студента.
+    Ожидает ключ 'компетенции', 'навыки' или 'codes'.
+    Возвращает список строк или пустой список при ошибке.
+    """
+    if not filepath.exists():
+        return []
+    if filepath.stat().st_size == 0:
+        logger.error("empty_competency_file", path=str(filepath))
+        return []
+    try:
+        with open(filepath, encoding="utf-8") as f:
+            data = json.load(f)
+        codes = data.get("компетенции") or data.get("навыки") or data.get("codes") or []
+        if not isinstance(codes, list):
+            logger.error("invalid_competency_structure", path=str(filepath))
+            return []
+        return codes
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        logger.error("competency_json_read_error", path=str(filepath), error=str(e))
+        return []
+    except Exception as e:
+        logger.error("competency_read_unexpected_error", path=str(filepath), error=str(e))
+        return []

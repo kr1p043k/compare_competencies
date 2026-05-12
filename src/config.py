@@ -125,6 +125,9 @@ class Settings(BaseSettings):
     # tqdm
     TQDM_DISABLE: bool = False
 
+    # Флаг Pydantic моделей для hh (false, если надо быстрее (ускориться % на 10))
+    PYDANTIC_VALIDATION_ENABLED: bool = True
+
     # валидация путей относительно BASE_DIR
     @field_validator(
         "DATA_DIR",
@@ -253,3 +256,4 @@ LEVEL_WEIGHTS_MAP = settings.LEVEL_WEIGHTS_MAP
 GAP_ANALYZER_FALLBACK_MIN_GAP = settings.GAP_ANALYZER_FALLBACK_MIN_GAP
 GAP_ANALYZER_FALLBACK_REDUCTION = settings.GAP_ANALYZER_FALLBACK_REDUCTION
 TQDM_DISABLE = settings.TQDM_DISABLE
+PYDANTIC_VALIDATION_ENABLED = settings.PYDANTIC_VALIDATION_ENABLED
