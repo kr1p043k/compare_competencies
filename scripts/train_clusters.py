@@ -201,7 +201,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
             report["levels"][lvl] = {"status": "failed", "error": str(e)}
 
     if save_report:
-        report_path = config.DATA_PROCESSED_DIR / "cluster_training_report.json"
+        report_path = config.VACANCY_CLUSTERS_CACHE_DIR / "cluster_training_report.json"
         config.DATA_PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
