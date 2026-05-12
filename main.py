@@ -134,6 +134,41 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def validate_args(args) -> None:
+    """Проверяет совместимость аргументов и выводит понятные ошибки."""
+    errors = []
+
+    # --train-model требует наличия файлов вакансий
+    if args.train_model:
+        detailed_ok = (config.DATA_RESULT_DIR / "hh_vacancies_detailed.json").exists()
+        basic_ok = (config.DATA_RAW_DIR / "hh_vacancies_basic.json").exists()
+        if not detailed_ok and not basic_ok:
+            errors.append(
+                "Для --train-model нужен файл вакансий (hh_vacancies_detailed.json или hh_vacancies_basic.json). "
+                "Сначала выполните сбор данных."
+            )
+
+    # --skip-collection и отсутствие выходных файлов
+    if args.skip_collection and not args.train_model:
+        detailed_exists = (config.DATA_RESULT_DIR / "hh_vacancies_detailed.json").exists()
+        basic_exists = (config.DATA_RAW_DIR / "hh_vacancies_basic.json").exists()
+        if not detailed_exists and not basic_exists:
+            errors.append(
+                "--skip-collection указан, но нет файлов вакансий. Сначала выполните сбор или уберите этот флаг."
+            )
+
+    # --use-llm без ключей
+    if args.use_llm and (not config.YC_API_KEY or not config.YC_FOLDER_ID):
+        errors.append("Для --use-llm необходимо задать YC_API_KEY и YC_FOLDER_ID в .env или переменных окружения.")
+
+    # Прочие проверки можно добавить при необходимости
+
+    if errors:
+        for msg in errors:
+            print(f"❌ Ошибка: {msg}")
+        sys.exit(1)
+
+
 def load_student_competencies(profile_name: str):
     path = config.DATA_DIR / "students" / f"{profile_name}_competency.json"
     if not path.exists():
@@ -247,7 +282,7 @@ def main():
     setup_structlog()
     logger = structlog.get_logger("main")
     args = parse_arguments()
-
+    validate_args(args)
     console_header("ПОЛНЫЙ ПАЙПЛАЙН: СБОР ВАКАНСИЙ + GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ")
     logger.info("pipeline_started", mode="train_model" if args.train_model else "full_pipeline")
 
