@@ -18,3 +18,4 @@ shap>=0.45.0
 joblib
 chardet>=5.0.0
 structlog
+tqdm

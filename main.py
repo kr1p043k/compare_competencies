@@ -12,6 +12,8 @@ import sys
 import time
 from pathlib import Path
 
+from tqdm import tqdm
+
 if __name__ == "__main__" and sys.platform == "win32":
     import io
 
@@ -213,7 +215,7 @@ def load_vacancies_details(
     total = len(basic_vacancies)
     start_time = time.time()
 
-    for i, vac in enumerate(basic_vacancies, 1):
+    for i, vac in tqdm(enumerate(basic_vacancies, 1), total=total, desc="Загрузка вакансий"):
         vac_id = vac.get("id") if isinstance(vac, dict) else vac.id
 
         if i % 50 == 0:
@@ -663,7 +665,7 @@ def main():
 
         console_info("Инициализация анализатора уровней...")
 
-        for vac in vacancies_to_process:
+        for vac in tqdm(vacancies_to_process, desc="Разбор вакансий по уровням"):
             if isinstance(vac, Vacancy):
                 vac_skills = []
                 if hasattr(vac, "key_skills") and vac.key_skills:
@@ -858,10 +860,12 @@ def main():
             recommendation_engine.fit(vacancies_skills, skill_weights=hybrid_weights)
 
             evaluations_new = {}
-            for profile_name, student in profiles.items():
-                console_info(f"  Оценка профиля {profile_name}...")
-                eval_result = evaluator.evaluate_profile(student, user_type="student")
-                evaluations_new[profile_name] = eval_result
+            with tqdm(total=len(profiles), desc="Оценка профилей") as pbar:
+                for profile_name, student in profiles.items():
+                    console_info(f"  Оценка профиля {profile_name}...")
+                    eval_result = evaluator.evaluate_profile(student, user_type="student")
+                    evaluations_new[profile_name] = eval_result
+                    pbar.update(1)
 
             # Вывод сводки метрик
             print(f"\n{'=' * 70}")
@@ -893,7 +897,7 @@ def main():
                     rec_engine.ltr_engine.load_model(model_path)
 
             all_recommendations = {}
-            for profile_name, student in profiles.items():
+            for profile_name, student in tqdm(profiles.items(), desc="Оценка профилей"):
                 try:
                     v2_result = evaluator.evaluate_profile(student, user_type="student")
 
