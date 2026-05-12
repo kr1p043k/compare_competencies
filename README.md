@@ -125,6 +125,8 @@
     │   │   ├── 📄 comparison.py            # Модели для сравнения профилей (ComparisonReport, GapResult)
     │   │   ├── 📄 competency.py            # Модель компетенции
     │   │   ├── 📄 data_contracts.py        # Строгие контракты моделей
+    │   │   ├── 📄 enums.py                 # Приведение к жестким типам
+    │   │   ├── 📄 hh_responses.py          # Модели для API hh
     │   │   ├── 📄 market_metrics.py        # Метрики рынка: SkillMetrics, DomainMetrics
     │   │   ├── 📄 student.py               # Модель студента (StudentProfile, ExperienceLevel)
     │   │   └── 📄 vacancy.py               # Модель вакансии (Vacancy, KeySkill, Salary...)
