@@ -377,14 +377,20 @@ if __name__ == "__main__":
     if trends[TrendType.RISING]:
         print("\n📈 РАСТУЩИЕ НАВЫКИ:")
         for t in trends[TrendType.RISING]:
-            print(f"  • {t['skill']:<35} +{t['change_pct']:.1f}% (было {t['prev_freq']}, стало {t['current_freq']})")
+            print(
+                f"  • {t['skill']:<38} {t['change_pct']:>+6.1f}% "
+                f"(было {t['prev_freq']:>4}, стало {t['current_freq']:>4})"
+            )
     else:
         print(f"\n📈 РАСТУЩИЕ НАВЫКИ: нет (изменения меньше {args.min_change}%)")
 
     if trends[TrendType.FALLING]:
         print("\n📉 ПАДАЮЩИЕ НАВЫКИ:")
         for t in trends[TrendType.FALLING]:
-            print(f"  • {t['skill']:<35} {t['change_pct']:.1f}% (было {t['prev_freq']}, стало {t['current_freq']})")
+            print(
+                f"  • {t['skill']:<38} {t['change_pct']:>+6.1f}% "
+                f"(было {t['prev_freq']:>4}, стало {t['current_freq']:>4})"
+            )
     else:
         print(f"\n📉 ПАДАЮЩИЕ НАВЫКИ: нет (изменения меньше {args.min_change}%)")
 
