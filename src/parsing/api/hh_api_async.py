@@ -66,7 +66,13 @@ class HeadHunterAPIAsync:
                 return
 
             sync_api = HeadHunterAPI()
-            if sync_api._token and time.time() < sync_api._token_expires_at:
+            # Безопасно проверяем наличие и валидность токена
+            if (
+                hasattr(sync_api, "_token")
+                and sync_api._token
+                and hasattr(sync_api, "_token_expires_at")
+                and time.time() < sync_api._token_expires_at
+            ):
                 self._token = sync_api._token
                 self._token_expires_at = sync_api._token_expires_at
                 logger.info("token_reused_from_sync_api")
