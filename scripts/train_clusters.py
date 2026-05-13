@@ -14,9 +14,9 @@ import structlog
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src import config
-from src.analyzers.vacancy_clustering import VacancyClusterer
+from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
+from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import read_json
-from src.parsing.vacancy_parser import VacancyParser
 
 logger = structlog.get_logger(__name__)
 
@@ -37,7 +37,7 @@ def prepare_vacancies_for_clustering(raw_vacancies: list) -> list:
         resp = snippet.get("responsibility", "") or ""
         text_skills = parser.extract_skills_from_description(f"{desc} {req} {resp}")
 
-        from src.parsing.skill_normalizer import SkillNormalizer
+        from src.parsing.skills.skill_normalizer import SkillNormalizer
 
         all_skills = SkillNormalizer.deduplicate(skills + text_skills)
 
@@ -85,7 +85,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
     print("🚀 ЗАПУСК ОБУЧЕНИЯ КЛАСТЕРОВ ВАКАНСИЙ")
     print("=" * 80 + "\n")
 
-    detailed_file = config.DATA_RESULT_DIR / "hh_vacancies_detailed.json"
+    detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
 
     if detailed_file.exists():

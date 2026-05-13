@@ -9,10 +9,10 @@ import requests
 import structlog
 
 from src import config
-from src.analyzers.comparator import CompetencyComparator
-from src.analyzers.gap_analyzer import GapAnalyzer
-from src.analyzers.skill_filter import SkillFilter
-from src.analyzers.skill_taxonomy import SkillTaxonomy
+from src.analyzers.comparison.comparator import CompetencyComparator
+from src.analyzers.gap.gap_analyzer import GapAnalyzer
+from src.analyzers.skills.skill_filter import SkillFilter
+from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.models.enums import PriorityLevel, SkillCategory, TrendType
 from src.models.student import StudentProfile
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
@@ -24,12 +24,6 @@ class RecommendationEngine:
     """
     Движок рекомендаций с профильной оценкой, LTR-ранжированием
     и генерацией естественноязыковых объяснений.
-
-    Изменения относительно предыдущей версии:
-    - Убран хардкод is_soft=False – теперь вычисляется из _is_hard_skill.
-    - SkillTaxonomy кешируется в __init__.
-    - Удалены мёртвые методы _get_suggestion, _get_priority.
-    - Веса смешивания и диверсификации вынесены в атрибуты.
     """
 
     def __init__(
@@ -65,6 +59,37 @@ class RecommendationEngine:
 
         # Кешируем SkillTaxonomy
         self._taxonomy = SkillTaxonomy()
+
+        # Загружаем список hard-навыков (если файла нет — пустой fallback)
+        hard_path = config.HARD_SKILLS_PATH
+        if hard_path.exists():
+            self._hard_keywords = set(json.loads(hard_path.read_text(encoding="utf-8")))
+        else:
+            logger.warning("hard_skills_file_not_found", path=str(hard_path))
+            self._hard_keywords = set()
+
+        # Загружаем список горячих навыков для трендов
+        hot_path = config.TREND_HOT_SKILLS_PATH
+        if hot_path.exists():
+            self._always_hot = set(json.loads(hot_path.read_text(encoding="utf-8")))
+            logger.info("hot_skills_loaded", count=len(self._always_hot))
+        else:
+            logger.warning("hot_skills_file_not_found", path=str(hot_path))
+            self._always_hot = set()
+
+        # Загружаем группы временных рамок
+        timeframe_path = config.TIMEFRAME_GROUPS_PATH
+        if timeframe_path.exists():
+            timeframe_data = json.loads(timeframe_path.read_text(encoding="utf-8"))
+            self._timeframe_easy = set(timeframe_data.get("easy", []))
+            self._timeframe_medium = set(timeframe_data.get("medium", []))
+            self._timeframe_hard = set(timeframe_data.get("hard", []))
+            logger.info("timeframe_groups_loaded")
+        else:
+            logger.warning("timeframe_groups_file_not_found", path=str(timeframe_path))
+            self._timeframe_easy = {"git", "html", "css", "sass", "english", "английский язык"}
+            self._timeframe_medium = {"javascript", "python", "sql", "redis", "docker", "react"}
+            self._timeframe_hard = {"java", "kubernetes", "aws", "machine learning", "tensorflow"}
 
         self._load_templates()
         logger.info(
@@ -161,7 +186,7 @@ class RecommendationEngine:
             else:
                 logger.info("ltr_not_used_generating_without_ml", profile=profile_name)
 
-            # ── Шаг 6: смешиваем скоры (веса берутся из атрибутов) ─────
+            # ── Шаг 6: смешиваем скоры ─────────────────────────────────
             all_skills_to_rank = set(evaluator_scores) | set(ltr_scores)
             combined_scores: dict[str, float] = {}
             for skill in all_skills_to_rank:
@@ -177,25 +202,12 @@ class RecommendationEngine:
             if self.trend_analyzer is not None:
                 trends = self.trend_analyzer.get_trending_skills(top_n=500, min_change_percent=0.0)
                 self.trend_analyzer.save_trends(trends)
-                for t in trends.get(TrendType.RISING, []):  # ← "rising" → TrendType.RISING
+                for t in trends.get(TrendType.RISING, []):
                     trend_bonuses[t["skill"]] = min(t["change_pct"] / 100.0, 0.3)
 
-            # Гарантированный бонус для горячих технологий (всегда)
-            always_hot = {
-                "llm",
-                "rag",
-                "langchain",
-                "mlops",
-                "kubernetes",
-                "k8s",
-                "docker",
-                "terraform",
-                "aws",
-                "azure",
-                "nestjs",
-            }
+            # Гарантированный бонус для горячих технологий (загружен из JSON)
             for skill in combined_scores:
-                if skill.lower() in always_hot:
+                if skill.lower() in self._always_hot:
                     trend_bonuses[skill] = max(trend_bonuses.get(skill, 0), config.TREND_ALWAYS_HOT_BONUS)
 
             if trend_bonuses:
@@ -232,7 +244,6 @@ class RecommendationEngine:
                     if skill.lower() in domain_skills:
                         explanation += f" 🔗 Ключевой навык для домена «{dominant_domain}»."
 
-                    # Определяем, является ли навык soft (используем кешированную таксономию)
                     is_soft = not self._is_hard_skill(skill)
                 except Exception as e:
                     logger.error("explanation_failed", skill=skill, error=str(e))
@@ -380,14 +391,9 @@ class RecommendationEngine:
         return roles
 
     def _diversify_recommendations(self, recs: list[dict], max_per_category: int = 3) -> list[dict]:
-        """
-        Диверсифицирует рекомендации: не более max_per_category навыков
-        одной категории в приоритетной части. Остальные добавляются следом.
-        """
         seen: dict[str, int] = {}
         priority: list[dict] = []
         leftover: list[dict] = []
-
         for rec in recs:
             cat = rec.get("category", "other")
             if seen.get(cat, 0) < max_per_category:
@@ -395,7 +401,6 @@ class RecommendationEngine:
                 priority.append(rec)
             else:
                 leftover.append(rec)
-
         return priority + leftover
 
     def _empty_recommendations(self) -> dict[str, Any]:
@@ -422,19 +427,15 @@ class RecommendationEngine:
         }
 
     def _get_role_outcome(self, skill: str, closest_roles: list[dict]) -> str:
-        """Формирует ожидаемый результат освоения навыка через ближайшую роль."""
         if not closest_roles:
             return f"Освоение '{skill}' расширит ваш технический кругозор."
-
         top_role = closest_roles[0]
         role_name = top_role["role"]
         similarity = top_role["semantic_similarity"]
         coverage = top_role["coverage_percent"]
-
         total_skills = int(top_role["skills_covered"].split("/")[1]) if "/" in top_role["skills_covered"] else 50
         new_coverage = round((coverage * total_skills / 100 + 1) / total_skills * 100, 1)
         improvement = round(new_coverage - coverage, 1)
-
         return (
             f"После освоения '{skill}' ваше покрытие навыков для роли "
             f"«{role_name}» вырастет с {coverage}% до {new_coverage}% (+{improvement}%). "
@@ -443,24 +444,17 @@ class RecommendationEngine:
         )
 
     def _generate_explanation(self, skill: str, score: float, eval_result: dict) -> str:
-        """
-        Генерирует понятное объяснение, почему навык важен.
-        Привязывает навык к роли только если он реально входит в топ кластера.
-        """
         metric = eval_result.get("skill_metrics", {}).get(skill, {})
         cluster_rel = metric.get("cluster_relevance", 0)
         category = metric.get("category", "missing")
-
         cluster_context = eval_result.get("cluster_context") or {}
         closest = cluster_context.get("closest_clusters", [])
         top_cluster = closest[0] if closest else None
         top_cluster_name = top_cluster.get("name") if top_cluster else None
         top_cluster_sim = top_cluster.get("similarity", 0) if top_cluster else 0
-
         cluster_skills = cluster_context.get("skills", {})
         skill_in_top_cluster = skill in cluster_skills
 
-        # Используем кешированную таксономию
         try:
             skill_cat = self._taxonomy.get_category_label(skill)
         except Exception:
@@ -478,7 +472,6 @@ class RecommendationEngine:
                 f"   Навык входит в топ-требований этого направления."
                 f"{suffix}"
             )
-
         if score > 0.6:
             return (
                 f"{prefix}🔴 Высокий рыночный спрос.\n"
@@ -486,7 +479,6 @@ class RecommendationEngine:
                 f"на рынке. Работодатели часто указывают его в требованиях."
                 f"{suffix}"
             )
-
         if score > 0.35:
             return (
                 f"{prefix}🟡 Умеренный спрос.\n"
@@ -494,7 +486,6 @@ class RecommendationEngine:
                 f"привлекательность для работодателей в смежных областях."
                 f"{suffix}"
             )
-
         return (
             f"{prefix}🟢 Дополнительное преимущество.\n"
             f"   '{skill}' полезен для расширения кругозора в категории '{skill_cat}'."
@@ -509,25 +500,21 @@ class RecommendationEngine:
     ) -> str:
         skill_lower = skill.lower()
         level = student_profile.target_level if student_profile else "middle"
-
         if is_soft:
             base = self.SOFT_LEARNING_PATHS.get(skill_lower, "Практикуйте навык постоянно.")
         else:
             base = self.HARD_LEARNING_PATHS.get(skill_lower, f"Изучите документацию '{skill}' и выполните проекты.")
-
         if level == "junior":
             base = "Сфокусируйтесь на основах: " + base
         elif level == "senior":
             base = "Углублённое изучение: " + base + " + архитектурные паттерны."
-
-        # Для weak навыков — более короткая формулировка
         if re.search(r"(усилить|🔶)", base, re.IGNORECASE):
             base = base.replace("Изучите документацию", "Углубите знания")
-
         return base
 
     def _is_hard_skill(self, skill_lower: str) -> bool:
-        """Определяет, является ли навык техническим (hard skill). Использует кешированную таксономию."""
+        """Определяет, является ли навык техническим (hard skill).
+        Использует кешированную таксономию и внешний список."""
         try:
             cat = self._taxonomy.get_category(skill_lower)
             soft_cats = {"soft_skills", "management"}
@@ -557,119 +544,15 @@ class RecommendationEngine:
                 return True
         except Exception:
             pass
-
-        # fallback на ключевые слова
-        hard_keywords = [
-            "python",
-            "java",
-            "javascript",
-            "typescript",
-            "c++",
-            "c#",
-            "go",
-            "rust",
-            "kotlin",
-            "swift",
-            "php",
-            "ruby",
-            "scala",
-            "sql",
-            "postgresql",
-            "mysql",
-            "mongodb",
-            "redis",
-            "elasticsearch",
-            "cassandra",
-            "oracle",
-            "mssql",
-            "docker",
-            "kubernetes",
-            "k8s",
-            "jenkins",
-            "git",
-            "gitlab",
-            "github",
-            "bitbucket",
-            "terraform",
-            "ansible",
-            "prometheus",
-            "grafana",
-            "aws",
-            "azure",
-            "gcp",
-            "yandex cloud",
-            "machine learning",
-            "deep learning",
-            "nlp",
-            "computer vision",
-            "data science",
-            "mlops",
-            "pandas",
-            "numpy",
-            "scikit-learn",
-            "tensorflow",
-            "pytorch",
-            "keras",
-            "react",
-            "vue",
-            "angular",
-            "django",
-            "flask",
-            "fastapi",
-            "spring",
-            "express",
-            "node.js",
-            "next",
-            "nuxt",
-            "rest api",
-            "restful",
-            "graphql",
-            "api",
-            "html",
-            "css",
-            "sass",
-            "scss",
-            "webpack",
-            "vite",
-            "redux",
-            "mobx",
-            "jest",
-            "pytest",
-            "cypress",
-            "playwright",
-            "selenium",
-            "figma",
-            "storybook",
-            "eslint",
-            "prettier",
-            "babel",
-            "npm",
-            "yarn",
-            "kafka",
-            "rabbitmq",
-            "celery",
-            "spark",
-            "hadoop",
-            "airflow",
-            "nginx",
-            "linux",
-            "unix",
-            "bash",
-            "shell",
-        ]
-        return any(kw in skill_lower for kw in hard_keywords)
+        return skill_lower in self._hard_keywords
 
     def _get_timeframe(self, skill: str) -> str:
         skill_lower = skill.lower()
-        easy = {"git", "html", "css", "sass", "english", "английский язык"}
-        medium = {"javascript", "python", "sql", "redis", "docker", "react"}
-        hard = {"java", "kubernetes", "aws", "machine learning", "tensorflow"}
-
-        if any(k in skill_lower for k in easy):
+        if any(k in skill_lower for k in self._timeframe_easy):
             return "1-2 недели"
-        if any(k in skill_lower for k in medium):
+        if any(k in skill_lower for k in self._timeframe_medium):
             return "1-2 месяца"
-        if any(k in skill_lower for k in hard):
+        if any(k in skill_lower for k in self._timeframe_hard):
             return "2-6 месяцев"
         return "1-3 месяца"
 
@@ -689,12 +572,9 @@ class RecommendationEngine:
     ) -> str | None:
         if not self.use_llm:
             return None
-
-        # Получаем API ключ из SecretStr
         api_key = config.YC_API_KEY.get_secret_value() if config.YC_API_KEY else None
         if not api_key or not config.YC_FOLDER_ID:
             return None
-
         prompt = (
             f"Ты — карьерный консультант в IT. Студент владеет навыками: "
             f"{', '.join(student_skills[:10])} (показано до 10).\n"
@@ -705,7 +585,6 @@ class RecommendationEngine:
             f"как он сочетается с уже имеющимися у студента.\n"
             f"Дай один конкретный совет по изучению."
         )
-
         headers = {
             "Authorization": f"Api-Key {api_key}",
             "x-folder-id": config.YC_FOLDER_ID,
@@ -719,7 +598,6 @@ class RecommendationEngine:
             },
             "messages": [{"role": "user", "text": prompt}],
         }
-
         for attempt in range(max_retries + 1):
             try:
                 resp = requests.post(
@@ -733,18 +611,10 @@ class RecommendationEngine:
                     return data["result"]["alternatives"][0]["message"]["text"].strip()
                 elif resp.status_code == 429:
                     wait_time = delay * (attempt + 1)
-                    logger.warning(
-                        "yandexgpt_rate_limited",
-                        attempt=attempt + 1,
-                        wait_time=wait_time,
-                    )
+                    logger.warning("yandexgpt_rate_limited", attempt=attempt + 1, wait_time=wait_time)
                     time.sleep(wait_time)
                 else:
-                    logger.warning(
-                        "yandexgpt_error",
-                        status=resp.status_code,
-                        response=resp.text[:200],
-                    )
+                    logger.warning("yandexgpt_error", status=resp.status_code, response=resp.text[:200])
                     return None
             except Exception as e:
                 logger.warning("yandexgpt_exception", attempt=attempt + 1, error=str(e))

@@ -17,19 +17,19 @@ from fastapi.middleware.cors import CORSMiddleware
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src import config
-from src.analyzers.comparator import CompetencyComparator
-from src.analyzers.profile_evaluator import ProfileEvaluator
-from src.analyzers.skill_filter import SkillFilter
-from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
-from src.analyzers.skill_taxonomy import SkillTaxonomy
-from src.analyzers.trends import TrendAnalyzer
-from src.analyzers.vacancy_clustering import VacancyClusterer
+from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
+from src.analyzers.comparison.comparator import CompetencyComparator
+from src.analyzers.gap.profile_evaluator import ProfileEvaluator
+from src.analyzers.skills.skill_filter import SkillFilter
+from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
+from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
+from src.analyzers.skills.trends import TrendAnalyzer
 from src.models.enums import ComparisonLevel, ExperienceLevel
 from src.models.student import StudentProfile, merge_skills_hierarchically
-from src.parsing.skill_normalizer import SkillNormalizer
-from src.parsing.skill_validator import SkillValidator
+from src.parsing.skills.skill_normalizer import SkillNormalizer
+from src.parsing.skills.skill_validator import SkillValidator
+from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import filter_skills_by_whitelist, load_it_skills
-from src.parsing.vacancy_parser import VacancyParser
 from src.predictors.recommendation_engine import RecommendationEngine
 from src.utils import load_competency_mapping, safe_load_pickle
 

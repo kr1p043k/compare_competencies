@@ -170,13 +170,14 @@ gap-анализ для профилей студентов. Включает ML
 После расширения обязательно очистите кэш:
 
   # Windows PowerShell
-  Remove-Item data/processed/parsed_skills.pkl -ErrorAction SilentlyContinue
-  Remove-Item -Recurse data/embeddings/cache/ -ErrorAction SilentlyContinue
+  Remove-Item data/cache/parsed_skills.pkl -ErrorAction SilentlyContinue
+  Remove-Item -Recurse data/cache/embeddings/ -ErrorAction SilentlyContinue
+  Remove-Item -Recurse data/cache/clusters/ -ErrorAction SilentlyContinue
 
   # Linux/macOS
-  rm -f data/processed/parsed_skills.pkl
-  rm -rf data/embeddings/cache/
-
+  rm -f data/cache/parsed_skills.pkl
+  rm -rf data/cache/embeddings/
+  rm -rf data/cache/clusters/
 
 Анализ трендов навыков
 ================================================================================
@@ -202,35 +203,48 @@ gap-анализ для профилей студентов. Включает ML
 Результаты работы
 ================================================================================
 
-Обработанные данные (data/processed/):
-  - competency_frequency.json          – частоты навыков
-  - skill_weights.json                 – веса навыков для gap-анализа
-  - profiles_comparison_summary.json   – сводка по профилям
-  - vacancy_clusters_*.pkl             – модели кластеров
+**Кэш и модели (`data/cache/`, `data/models/`)**
+- `data/cache/parsed_skills.pkl` – кэш извлечённых навыков (для очистки: `rm data/cache/parsed_skills.pkl`)
+- `data/cache/embeddings/` – рыночные эмбеддинги (для очистки: `rm -rf data/cache/embeddings/`)
+- `data/cache/clusters/` – модели кластеров вакансий
+  - `vacancy_clusters_junior.pkl`
+  - `vacancy_clusters_middle.pkl`
+  - `vacancy_clusters_senior.pkl`
+- `data/cache/students/` – кэш эмбеддингов студентов
+- `data/models/ltr_ranker_xgb_regressor.joblib` – обученная LTR-модель
+- `data/models/ltr_feature_importance.png` – важность признаков модели
 
-Результаты анализа (data/result/):
-  Для каждого профиля (base, dc, top_dc):
-    - full_recommendations_<имя>.json  – полные рекомендации
-    - radar_<имя>.png                  – радарная диаграмма
-    - ml_importance_<имя>.png          – важность навыков по ML
-    - cluster_insights_<имя>.png       – ближайшие кластеры
-    - deficits_<имя>.png               – топ дефицитов
+**Обработанные данные (`data/processed/`)**
+- `competency_frequency.json` – частоты навыков
+- `skill_weights.json` – веса навыков для gap-анализа
+- `profiles_comparison_summary.json` – сводка по профилям (перемещён в `data/result/`)
+- `hh_vacancies_detailed.json` – детальные вакансии
 
-  Общие графики:
-    - coverage_comparison.png          – сравнение покрытия профилей
-    - skills_heatmap.png               – тепловая карта покрытия
-    - skill_correlation_heatmap.png    – совместная встречаемость навыков
+**Справочники (`data/reference/`)**
+- `it_skills.json` – белый список навыков
+- `skill_taxonomy.json` – таксономия навыков
+- `domain_map.json` – доменная карта (15 доменов)
+- `hard_skills.json` – список жёстких навыков
+- `trend_hot_skills.json` – горячие навыки для трендов
+- `timeframe_groups.json` – группы для оценки времени изучения
+- `skill_blacklist.json`, `generic_words.json`, `filler_words.json` – фильтры навыков
 
-Модели (data/models/):
-  - ltr_ranker_xgb_regressor.joblib    – обученная LTR-модель
-  - ltr_feature_importance_fixed.png    – важность признаков модели
+**Результаты анализа (`data/result/`)**
+Для каждого профиля (`base`, `dc`, `top_dc`):
+- `full_recommendations_<имя>.json` – полные рекомендации
+- `radar_<имя>.png` – радарная диаграмма
+- `ml_importance_<имя>.png` – важность навыков по ML
+- `cluster_insights_<имя>.png` – ближайшие кластеры
+- `deficits_<имя>.png` – топ дефицитов
 
-Кластеры (папка data/processed/):
+Общие графики:
+- `coverage_comparison.png` – сравнение покрытия профилей
+- `skills_heatmap.png` – тепловая карта покрытия
+- `skill_correlation_heatmap.png` – совместная встречаемость навыков
 
-  - vacancy_clusters_junior.pkl
-  - vacancy_clusters_middle.pkl
-  - vacancy_clusters_senior.pkl
-
+Графики трендов (`data/result/trends/`):
+- `trending_skills.png` – растущие и падающие навыки
+- `skill_timeline.png` – временные ряды топ-10 навыков
 
 Метрики и их интерпретация
 ================================================================================

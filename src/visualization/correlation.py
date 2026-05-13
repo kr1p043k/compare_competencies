@@ -1,0 +1,105 @@
+"""Тепловая карта совместной встречаемости навыков."""
+
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import structlog
+
+from ._config import EMOJI_TO_TEXT
+
+logger = structlog.get_logger(__name__)
+
+
+def _safe_label(skill: str, taxonomy=None) -> str:
+    """Создаёт текстовую метку без эмодзи."""
+    if taxonomy is None:
+        return skill
+    try:
+        icon = taxonomy.get_category_icon(skill)
+        text_icon = EMOJI_TO_TEXT.get(icon, "")
+        return f"{text_icon} {skill}" if text_icon else skill
+    except Exception:
+        return skill
+
+
+def plot_skill_correlation_heatmap(
+    correlation_analyzer,
+    top_n: int = 15,
+    save_path: Path | None = None,
+) -> plt.Figure:
+    """Тепловая карта совместной встречаемости навыков (Jaccard)."""
+    logger.info("plotting_correlation_heatmap", top_n=top_n)
+    from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
+
+    skills, matrix = correlation_analyzer.get_correlation_labeled(top_n=top_n)
+
+    if len(skills) < 2:
+        fig, ax = plt.subplots()
+        ax.text(0.5, 0.5, "Недостаточно данных", ha="center", va="center")
+        if save_path:
+            plt.savefig(save_path)
+        plt.close(fig)
+        return fig
+
+    try:
+        taxonomy = SkillTaxonomy()
+    except Exception:
+        taxonomy = None
+
+    if taxonomy:
+        cat_order = []
+        seen = set()
+        for s in skills:
+            cat = taxonomy.get_category_label(s)
+            if cat not in seen:
+                cat_order.append(cat)
+                seen.add(cat)
+
+        skill_cat = [(s, taxonomy.get_category_label(s), s) for s in skills]
+        skill_cat.sort(key=lambda x: (cat_order.index(x[1]) if x[1] in cat_order else 999, x[2]))
+        sorted_skills = [s for s, _, _ in skill_cat]
+
+        idx_map = {s: i for i, s in enumerate(skills)}
+        new_order = [idx_map[s] for s in sorted_skills]
+        matrix = matrix[new_order][:, new_order]
+        skills = sorted_skills
+
+    labels = [_safe_label(s, taxonomy) for s in skills]
+
+    cell_size = 0.55
+    fig, ax = plt.subplots(figsize=(top_n * cell_size + 3, top_n * cell_size + 2))
+
+    mask = matrix < 0.2
+
+    sns.heatmap(
+        matrix,
+        annot=True,
+        fmt=".2f",
+        cmap="YlOrRd",
+        mask=mask,
+        xticklabels=labels,
+        yticklabels=labels,
+        vmin=0,
+        vmax=1.0,
+        cbar_kws={"label": "Jaccard", "shrink": 0.7},
+        ax=ax,
+        linewidths=1.0,
+        linecolor="white",
+        annot_kws={"fontsize": 10, "fontweight": "bold"},
+    )
+
+    ax.set_title(
+        f"Совместная встречаемость топ-{top_n} навыков\n(сгруппированы по категориям, Jaccard ≥ 0.2)",
+        pad=20,
+        fontsize=14,
+    )
+    plt.xticks(rotation=45, ha="right", fontsize=10)
+    plt.yticks(rotation=0, fontsize=10)
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=200, bbox_inches="tight")
+        logger.info("correlation_heatmap_saved", path=str(save_path))
+    plt.close(fig)
+    return fig

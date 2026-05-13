@@ -1,0 +1,5 @@
+{
+  "easy": ["git", "html", "css", "sass", "english", "английский язык"],
+  "medium": ["javascript", "python", "sql", "redis", "docker", "react"],
+  "hard": ["java", "kubernetes", "aws", "machine learning", "tensorflow"]
+}

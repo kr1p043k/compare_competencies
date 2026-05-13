@@ -29,19 +29,31 @@ class Settings(BaseSettings):
     LAST_UPLOADED_DIR: Path = Field(default_factory=lambda: Path("data/last_uploaded"))
     COMPETENCY_MAPPING_FILE: Path = Field(default_factory=lambda: Path("data/processed/competency_mapping.json"))
     COMPETENCY_FREQ_PATH: Path = Field(default_factory=lambda: Path("data/processed/competency_frequency.json"))
-    IT_SKILLS_PATH: Path = Field(default_factory=lambda: Path("data/it_skills.json"))
-    MODELS_DIR: Path = Field(default_factory=lambda: Path("data/models"))
-    HISTORY_DIR: Path = Field(default_factory=lambda: Path("data/history"))
 
     LOG_DIR: Path = Field(default_factory=lambda: Path("logs"))
     LOG_FILE: Path = Field(default_factory=lambda: Path("logs/app.log"))
 
-    # ---------- директории кеша (единая точка) ----------
+    # ---------- справочные данные (reference) ----------
+    REFERENCE_DIR: Path = Field(default_factory=lambda: Path("data/reference"))
+    IT_SKILLS_PATH: Path = Field(default_factory=lambda: Path("data/reference/it_skills.json"))
+    SKILL_TAXONOMY_PATH: Path = Field(default_factory=lambda: Path("data/reference/skill_taxonomy.json"))
+    DOMAIN_MAP_PATH: Path = Field(default_factory=lambda: Path("data/reference/domain_map.json"))
+    HARD_SKILLS_PATH: Path = Field(default_factory=lambda: Path("data/reference/hard_skills.json"))
+    TREND_HOT_SKILLS_PATH: Path = Field(default_factory=lambda: Path("data/reference/trend_hot_skills.json"))
+    TIMEFRAME_GROUPS_PATH: Path = Field(default_factory=lambda: Path("data/reference/timeframe_groups.json"))
+    SKILL_BLACKLIST_PATH: Path = Field(default_factory=lambda: Path("data/reference/skill_blacklist.json"))
+    GENERIC_WORDS_PATH: Path = Field(default_factory=lambda: Path("data/reference/generic_words.json"))
+    FILLER_WORDS_PATH: Path = Field(default_factory=lambda: Path("data/reference/filler_words.json"))
+
+    # ---------- директории кеша ----------
     DATA_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache"))
     EMBEDDINGS_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache/embeddings"))
     VACANCY_CLUSTERS_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache/clusters"))
     STUDENT_EMB_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache/students"))
     PARSED_SKILLS_CACHE_PATH: Path = Field(default_factory=lambda: Path("data/cache/parsed_skills.pkl"))
+
+    MODELS_DIR: Path = Field(default_factory=lambda: Path("data/models"))
+    HISTORY_DIR: Path = Field(default_factory=lambda: Path("data/history"))
 
     # ---------- hh.ru API ----------
     HH_USER_AGENT: str = "CompetencyAnalyzer (kok.yoko@gmx.com)"
@@ -52,7 +64,7 @@ class Settings(BaseSettings):
     HH_CLIENT_ID: SecretStr | None = None
     HH_CLIENT_SECRET: SecretStr | None = None
 
-    # ---------- параметры поиска по умолчанию ----------
+    # ---------- параметры поиска ----------
     DEFAULT_AREA: int = 1
     DEFAULT_PERIOD_DAYS: int = 30
     DEFAULT_MAX_PAGES: int = 20
@@ -98,34 +110,26 @@ class Settings(BaseSettings):
     PRIORITY_MEDIUM_THRESHOLD: float = 0.4
     TREND_ALWAYS_HOT_BONUS: float = 0.15
 
-    # readiness
     READINESS_MARKET_WEIGHT: float = 0.50
     READINESS_SKILL_WEIGHT: float = 0.20
     READINESS_DOMAIN_WEIGHT: float = 0.15
     READINESS_GAP_PENALTY_WEIGHT: float = 0.10
 
-    # категории навыков
     SKILL_STRONG_GAP_THRESHOLD: float = 0.2
     SKILL_WEAK_GAP_THRESHOLD: float = 0.6
 
-    # доменный анализ
     DOMINANT_DOMAIN_WEIGHT: float = 0.5
 
-    # уровень анализа
     LEVEL_WEIGHTS_MAP: dict = {
         "student": {"junior": 0.60, "middle": 0.30, "senior": 0.10},
         "junior": {"junior": 0.40, "middle": 0.40, "senior": 0.20},
         "middle": {"junior": 0.20, "middle": 0.50, "senior": 0.30},
     }
 
-    # gap-analyzer
     GAP_ANALYZER_FALLBACK_MIN_GAP: float = 0.05
     GAP_ANALYZER_FALLBACK_REDUCTION: float = 0.65
 
-    # tqdm
     TQDM_DISABLE: bool = False
-
-    # Флаг Pydantic моделей для hh (false, если надо быстрее (ускориться % на 10))
     PYDANTIC_VALIDATION_ENABLED: bool = True
 
     # валидация путей относительно BASE_DIR
@@ -138,7 +142,16 @@ class Settings(BaseSettings):
         "LAST_UPLOADED_DIR",
         "COMPETENCY_MAPPING_FILE",
         "COMPETENCY_FREQ_PATH",
+        "REFERENCE_DIR",
         "IT_SKILLS_PATH",
+        "SKILL_TAXONOMY_PATH",
+        "DOMAIN_MAP_PATH",
+        "HARD_SKILLS_PATH",
+        "TREND_HOT_SKILLS_PATH",
+        "TIMEFRAME_GROUPS_PATH",
+        "SKILL_BLACKLIST_PATH",
+        "GENERIC_WORDS_PATH",
+        "FILLER_WORDS_PATH",
         "MODELS_DIR",
         "HISTORY_DIR",
         "LOG_DIR",
@@ -155,7 +168,6 @@ class Settings(BaseSettings):
         base = info.data.get("BASE_DIR", Path("."))
         return base / v
 
-    # создание всех директорий при инициализации
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         dirs = [
@@ -167,6 +179,7 @@ class Settings(BaseSettings):
             self.MODELS_DIR,
             self.HISTORY_DIR,
             self.DATA_RESULT_DIR,
+            self.REFERENCE_DIR,
             self.DATA_CACHE_DIR,
             self.EMBEDDINGS_CACHE_DIR,
             self.VACANCY_CLUSTERS_CACHE_DIR,
@@ -237,6 +250,17 @@ PCA_MIN_SAMPLES = settings.PCA_MIN_SAMPLES
 PCA_MIN_FEATURES = settings.PCA_MIN_FEATURES
 
 GLOBAL_RANDOM_SEED = settings.GLOBAL_RANDOM_SEED
+
+REFERENCE_DIR = settings.REFERENCE_DIR
+IT_SKILLS_PATH = settings.IT_SKILLS_PATH
+SKILL_TAXONOMY_PATH = settings.SKILL_TAXONOMY_PATH
+DOMAIN_MAP_PATH = settings.DOMAIN_MAP_PATH
+HARD_SKILLS_PATH = settings.HARD_SKILLS_PATH
+TREND_HOT_SKILLS_PATH = settings.TREND_HOT_SKILLS_PATH
+TIMEFRAME_GROUPS_PATH = settings.TIMEFRAME_GROUPS_PATH
+SKILL_BLACKLIST_PATH = settings.SKILL_BLACKLIST_PATH
+GENERIC_WORDS_PATH = settings.GENERIC_WORDS_PATH
+FILLER_WORDS_PATH = settings.FILLER_WORDS_PATH
 
 BLEND_EVALUATOR_WEIGHT = settings.BLEND_EVALUATOR_WEIGHT
 BLEND_LTR_WEIGHT = settings.BLEND_LTR_WEIGHT

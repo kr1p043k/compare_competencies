@@ -366,7 +366,7 @@ def plot_skill_correlation_heatmap(
     Навыки сгруппированы по категориям таксономии.
     """
     logger.info("plotting_correlation_heatmap", top_n=top_n)
-    from src.analyzers.skill_taxonomy import SkillTaxonomy
+    from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 
     skills, matrix = correlation_analyzer.get_correlation_labeled(top_n=top_n)
 
@@ -551,7 +551,7 @@ def save_all_charts(
 
     if vacancies_skills_list:
         try:
-            from src.analyzers.skill_correlation import SkillCorrelationAnalyzer
+            from src.analyzers.skills.skill_correlation import SkillCorrelationAnalyzer
 
             corr_analyzer = SkillCorrelationAnalyzer()
             corr_analyzer.fit(vacancies_skills_list)

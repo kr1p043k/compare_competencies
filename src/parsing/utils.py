@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 if TYPE_CHECKING:
-    from .vacancy_parser import VacancyParser
+    from .skills.vacancy_parser import VacancyParser
 
 from src import config
 
@@ -72,7 +72,7 @@ def write_json(data: Any, filepath: Path) -> None:
 
 def load_it_skills() -> set[str]:
     """Загружает список допустимых IT-навыков из data/it_skills.json."""
-    skills_file = config.DATA_DIR / "it_skills.json"
+    skills_file = config.IT_SKILLS_PATH
     if not skills_file.exists():
         logger.warning("it_skills_file_not_found", path=str(skills_file))
         return set()

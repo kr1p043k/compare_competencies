@@ -1,0 +1,16 @@
+[
+  "python", "java", "javascript", "typescript", "c++", "c#", "go", "rust",
+  "kotlin", "swift", "php", "ruby", "scala", "sql", "postgresql", "mysql",
+  "mongodb", "redis", "elasticsearch", "cassandra", "oracle", "mssql",
+  "docker", "kubernetes", "k8s", "jenkins", "git", "gitlab", "github",
+  "bitbucket", "terraform", "ansible", "prometheus", "grafana", "aws",
+  "azure", "gcp", "yandex cloud", "machine learning", "deep learning",
+  "nlp", "computer vision", "data science", "mlops", "pandas", "numpy",
+  "scikit-learn", "tensorflow", "pytorch", "keras", "react", "vue",
+  "angular", "django", "flask", "fastapi", "spring", "express", "node.js",
+  "next", "nuxt", "rest api", "restful", "graphql", "api", "html", "css",
+  "sass", "scss", "webpack", "vite", "redux", "mobx", "jest", "pytest",
+  "cypress", "playwright", "selenium", "figma", "storybook", "eslint",
+  "prettier", "babel", "npm", "yarn", "kafka", "rabbitmq", "celery",
+  "spark", "hadoop", "airflow", "nginx", "linux", "unix", "bash", "shell"
+]

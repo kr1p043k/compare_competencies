@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import structlog
 
-from src.analyzers.vacancy_clustering import VacancyClusterer
+from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 
 logger = structlog.get_logger(__name__)
 

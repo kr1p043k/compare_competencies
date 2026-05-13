@@ -12,24 +12,21 @@ logger = structlog.get_logger(__name__)
 
 # Список файлов и папок, подлежащих удалению
 to_remove = [
-    DATA / "processed" / "parsed_skills.pkl",
+    DATA / "cache" / "parsed_skills.pkl",
     DATA / "processed" / "skill_weights.json",
-    DATA / "processed" / "vacancy_clusters_junior.pkl",
-    DATA / "processed" / "vacancy_clusters_middle.pkl",
-    DATA / "processed" / "vacancy_clusters_senior.pkl",
+    DATA / "cache" / "clusters" / "vacancy_clusters_junior.pkl",
+    DATA / "cache" / "clusters" / "vacancy_clusters_middle.pkl",
+    DATA / "cache" / "clusters" / "vacancy_clusters_senior.pkl",
     DATA / "models" / "ltr_ranker_xgb_regressor.joblib",
-    DATA / "embeddings" / "cache" / "skill_embeddings.json",
-    DATA / "embeddings" / "skill_embeddings.json",
-    DATA / "embeddings" / "vacancy_embeddings.json",
-    DATA / "embeddings" / "market_embeddings_junior.pkl",
-    DATA / "embeddings" / "market_embeddings_middle.pkl",
-    DATA / "embeddings" / "market_embeddings_senior.pkl",
+    DATA / "cache" / "embeddings" / "market_embeddings_junior.pkl",
+    DATA / "cache" / "embeddings" / "market_embeddings_middle.pkl",
+    DATA / "cache" / "embeddings" / "market_embeddings_senior.pkl",
 ]
 
 logger.info("full_rebuild_started")
 
-# Удаляем папку embeddings/cache целиком
-cache_dir = DATA / "embeddings" / "cache"
+# Удаляем папку cache/embeddings целиком (кэш эмбеддингов)
+cache_dir = DATA / "cache" / "embeddings"
 if cache_dir.exists():
     shutil.rmtree(cache_dir)
     logger.info("cache_directory_removed", path=str(cache_dir))
@@ -40,6 +37,12 @@ for f in to_remove:
         f.unlink()
         logger.info("file_removed", path=str(f))
         removed_count += 1
+
+# Также удаляем папку cache/clusters, если там остались другие файлы (манифесты)
+clusters_dir = DATA / "cache" / "clusters"
+if clusters_dir.exists():
+    shutil.rmtree(clusters_dir)
+    logger.info("clusters_directory_removed", path=str(clusters_dir))
 
 logger.info("cleanup_completed", files_removed=removed_count)
 print(f"Удалено {removed_count} файлов кэша и моделей.")

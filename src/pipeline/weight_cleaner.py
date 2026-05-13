@@ -1,0 +1,25 @@
+"""WeightCleaner — очищает hybrid_weights."""
+
+import json
+
+import structlog
+
+from src import config
+from src.analyzers.skills.skill_filter import SkillFilter
+
+logger = structlog.get_logger("weight_cleaner")
+
+
+class WeightCleaner:
+    def clean(self, hybrid_weights_raw: dict) -> dict:
+        filter_engine = SkillFilter()
+        comp_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency.json"
+        competency_freq = {}
+        if comp_freq_path.exists():
+            with open(comp_freq_path, encoding="utf-8") as f:
+                competency_freq = json.load(f)
+        hybrid_weights = filter_engine.get_clean_weights(
+            hybrid_weights_raw, competency_freq=competency_freq, use_reference=True
+        )
+        print(f"  📊 После фильтрации: {len(hybrid_weights)} навыков")
+        return hybrid_weights

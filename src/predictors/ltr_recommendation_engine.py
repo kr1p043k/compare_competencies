@@ -18,12 +18,12 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split
 
 from src import config
-from src.analyzers.skill_filter import SkillFilter
-from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
+from src.analyzers.skills.skill_filter import SkillFilter
+from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 from src.artifacts import ArtifactManifest
-from src.parsing.embedding_loader import get_embedding_model
-from src.parsing.skill_normalizer import SkillNormalizer
-from src.parsing.vacancy_parser import VacancyParser
+from src.parsing.api.embedding_loader import get_embedding_model
+from src.parsing.skills.skill_normalizer import SkillNormalizer
+from src.parsing.skills.vacancy_parser import VacancyParser
 
 logger = structlog.get_logger(__name__)
 
@@ -414,7 +414,7 @@ class LTRRecommendationEngine:
     def _get_skill_category(self, skill: str) -> str:
         try:
             if self._taxonomy is None:
-                from src.analyzers.skill_taxonomy import SkillTaxonomy
+                from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 
                 self._taxonomy = SkillTaxonomy()
             cat = self._taxonomy.get_category(skill)

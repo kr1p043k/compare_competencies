@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
-from .skill_normalizer import SkillNormalizer
-from .skill_parser import ExtractedSkill, SkillParser, SkillSource
-from .skill_validator import SkillValidator, ValidationReason
+from .skills.skill_normalizer import SkillNormalizer
+from .skills.skill_parser import ExtractedSkill, SkillParser, SkillSource
+from .skills.skill_validator import SkillValidator, ValidationReason
+from .skills.vacancy_parser import VacancyParser
 from .utils import (
     collect_vacancies_multiple,
     extract_and_count_skills,
@@ -18,7 +19,6 @@ from .utils import (
     setup_logging,
     write_json,
 )
-from .vacancy_parser import VacancyParser
 
 __all__ = [
     "VacancyParser",

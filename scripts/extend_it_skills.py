@@ -30,11 +30,11 @@ import structlog
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src import config
-from src.analyzers.skill_taxonomy import SkillTaxonomy
-from src.parsing.skill_normalizer import SkillNormalizer
-from src.parsing.skill_validator import SkillValidator
+from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
+from src.parsing.skills.skill_normalizer import SkillNormalizer
+from src.parsing.skills.skill_validator import SkillValidator
+from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import load_it_skills, read_json
-from src.parsing.vacancy_parser import VacancyParser
 
 logger = structlog.get_logger(__name__)
 
@@ -264,7 +264,7 @@ def main():
         "--vacancies",
         "-v",
         type=Path,
-        default=config.DATA_RESULT_DIR / "hh_vacancies_detailed.json",
+        default=config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json",
         help="JSON с вакансиями",
     )
     parser.add_argument(
@@ -272,7 +272,7 @@ def main():
         "-o",
         type=Path,
         default=config.IT_SKILLS_PATH,
-        help="Выходной файл (по умолчанию data/it_skills.json)",
+        help="Выходной файл (по умолчанию data/references/it_skills.json)",
     )
     parser.add_argument("--min-frequency", "-f", type=int, default=1, help="Минимальная частота навыка (default: 1)")
 
@@ -345,8 +345,8 @@ def main():
         if added > 0:
             print(f"\n✅ Добавлено {added} навыков.")
             print("⚠️  Очистите кэш перед следующим запуском:")
-            print("   rm data/processed/parsed_skills.pkl")
-            print("   rm -r data/embeddings/cache/")
+            print("   rm data/cache/parsed_skills.pkl")
+            print("   rm -r data/cache/embeddings/")
 
     elif args.interactive:
         selected = interactive_confirm(new_skills)
@@ -355,8 +355,8 @@ def main():
             if added > 0:
                 print(f"\n✅ Добавлено {added} навыков.")
                 print("⚠️  Очистите кэш перед следующим запуском:")
-                print("   rm data/processed/parsed_skills.pkl")
-                print("   rm -r data/embeddings/cache/")
+                print("   rm data/cache/parsed_skills.pkl")
+                print("   rm -r data/cache/embeddings/")
         else:
             print("\nНичего не добавлено.")
 

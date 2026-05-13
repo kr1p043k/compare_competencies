@@ -1,0 +1,43 @@
+"""Настройки стилей и константы для графиков."""
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+EMOJI_TO_TEXT = {
+    "💻": "[Lang]",
+    "🔧": "[FW]",
+    "🗄️": "[DB]",
+    "🚀": "[DevOps]",
+    "☁️": "[Cloud]",
+    "📊": "[DS]",
+    "🎨": "[FE]",
+    "📱": "[Mobile]",
+    "🧪": "[QA]",
+    "🔒": "[Sec]",
+    "🤖": "[AI]",
+    "🏢": "[ERP]",
+    "🗺️": "[GIS]",
+    "🔌": "[HW]",
+    "🎮": "[Game]",
+    "📋": "[Mgmt]",
+    "💬": "[Soft]",
+    "📐": "[Math]",
+    "📖": "[Meth]",
+    "🧠": "[AdvML]",
+}
+
+sns.set_theme(style="whitegrid", palette="viridis", font_scale=1.4)
+plt.rcParams.update(
+    {
+        "figure.figsize": (14, 9),
+        "axes.titlesize": 20,
+        "axes.labelsize": 16,
+        "xtick.labelsize": 14,
+        "ytick.labelsize": 14,
+        "font.family": "sans-serif",
+        "savefig.dpi": 300,
+        "savefig.bbox": "tight",
+        "savefig.pad_inches": 0.3,
+    }
+)
+plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "Arial", "sans-serif"]
