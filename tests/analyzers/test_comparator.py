@@ -3,12 +3,12 @@ import logging
 import sys
 import traceback
 from unittest.mock import MagicMock, patch
-
+import joblib
 import numpy as np
 import pytest
 
-from src.analyzers.comparator import CompetencyComparator
-from src.analyzers.embedding_comparator import EmbeddingComparator
+from src.analyzers.comparison.comparator import CompetencyComparator
+from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s", force=True)
 logger = logging.getLogger("test_comparator")
@@ -311,7 +311,7 @@ class TestEmbeddingComparatorFull:
     def test_faiss_available_check(self, monkeypatch):
         """Строки 22-23: проверка доступности FAISS"""
         # FAISS уже импортирован, проверяем флаг
-        from src.analyzers.embedding_comparator import FAISS_AVAILABLE
+        from src.analyzers.comparison.embedding_comparator import FAISS_AVAILABLE
 
         assert isinstance(FAISS_AVAILABLE, bool)
 
@@ -451,3 +451,216 @@ class TestCompetencyComparatorFull:
         coverage = comparator.weighted_coverage(student_skills, weights, use_hybrid=False)
         expected = (0.9 + 0.5 + 0.3) / (0.9 + 0.5 + 0.3 + 0.2)
         assert coverage == pytest.approx(expected)
+
+    # ======================== ПОКРЫТИЕ СТРОК 30-31 ============================
+    def test_init_loads_embedding_model(self):
+        """Проверяет, что при создании объекта загружается модель."""
+        fake_model = MagicMock()
+        with patch("src.analyzers.comparison.embedding_comparator.get_embedding_model",
+                   return_value=fake_model) as mock_get:
+            comp = EmbeddingComparator(use_faiss=False)
+            mock_get.assert_called_once_with(None)
+            assert comp.model is fake_model
+
+    # ======================== ПОКРЫТИЕ СТРОК 80-117 ============================
+    def test_build_market_index_loads_valid_cache(self, tmp_path):
+        """Строки 65-82: успешная загрузка существующего кэша."""
+        # Подготовим кэш
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        comp = EmbeddingComparator(cache_dir=str(cache_dir), use_faiss=False)
+        fake_model = MagicMock()
+        comp.model = fake_model
+
+        fake_emb = np.array([[0.1, 0.2], [0.3, 0.4]])
+        fake_skills = ["python", "java"]
+        cache_path = comp._get_cache_path("market_embeddings", "middle")
+        joblib.dump({"embeddings": fake_emb, "skills": fake_skills}, cache_path)
+
+        # Манифест пусть будет совместим – подменим его
+        with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest") as MockManifest:
+            mock_manifest = MockManifest.load.return_value
+            mock_manifest.is_compatible.return_value = True
+
+            comp.build_market_index([], level="middle")  # список не важен, загрузится из кэша
+
+        np.testing.assert_array_equal(comp.market_embeddings, fake_emb)
+        assert comp.market_skills == fake_skills
+
+    def test_build_market_index_invalidated_by_model(self, tmp_path):
+        """Строки 70-73: манифест несовместим -> пересчёт."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        comp = EmbeddingComparator(cache_dir=str(cache_dir), use_faiss=False)
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 2
+        fake_model.encode.return_value = np.array([[0.5, 0.6]])
+        comp.model = fake_model
+
+        # Сохраним старый кэш и манифест
+        cache_path = comp._get_cache_path("market_embeddings", "middle")
+        joblib.dump({"embeddings": np.array([[1.0, 2.0]]), "skills": ["old"]}, cache_path)
+        manifest_path = cache_path.with_suffix(".manifest.json")
+        manifest_path.write_text('{"model_version": "old", "metrics": {}}')
+
+        with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest") as MockManifest:
+            mock_manifest = MockManifest.load.return_value
+            mock_manifest.is_compatible.return_value = False   # триггер несовместимости
+            MockManifest._get_embedding_model_version.return_value = "new"
+
+            comp.build_market_index(["python"], level="middle")
+
+        # Должен был пересчитать заново
+        assert comp.market_skills == ["python"]
+        np.testing.assert_array_equal(comp.market_embeddings, np.array([[0.5, 0.6]]))
+
+    def test_build_market_index_corrupted_cache(self, tmp_path):
+        """Строки 84-88: битый кэш -> удаляется и пересоздаётся."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        comp = EmbeddingComparator(cache_dir=str(cache_dir), use_faiss=False)
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 2
+        fake_model.encode.return_value = np.array([[0.7, 0.8]])
+        comp.model = fake_model
+
+        cache_path = comp._get_cache_path("market_embeddings", "middle")
+        # Запишем битый файл (не pickle)
+        cache_path.write_text("trash")
+
+        comp.build_market_index(["python"], level="middle")
+        assert comp.market_skills == ["python"]
+
+    def test_build_market_index_atomic_write_failure(self, tmp_path):
+        """Строки 100-103: ошибка при атомарной записи -> исключение."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        comp = EmbeddingComparator(cache_dir=str(cache_dir), use_faiss=False)
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 2
+        fake_model.encode.return_value = np.array([[0.1, 0.2]])
+        comp.model = fake_model
+
+        with patch("joblib.dump", side_effect=IOError("disk full")):
+            with pytest.raises(IOError, match="disk full"):
+                comp.build_market_index(["python"], level="middle")
+
+    def test_build_market_index_manifest_save_failure(self, tmp_path):
+        """Строки 108-109: ошибка сохранения манифеста не роняет процесс."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        comp = EmbeddingComparator(cache_dir=str(cache_dir), use_faiss=False)
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 2
+        fake_model.encode.return_value = np.array([[0.1, 0.2]])
+        comp.model = fake_model
+
+        with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest") as MockManifest:
+            instance = MockManifest.return_value
+            instance.save.side_effect = Exception("no write access")
+            # Не должно упасть
+            comp.build_market_index(["python"], level="middle")
+            assert comp.market_skills == ["python"]
+
+    def test_build_market_index_with_faiss_index(self, tmp_path):
+        """Строки 80-81, 111: включение FAISS индекса после загрузки/создания."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        comp = EmbeddingComparator(cache_dir=str(cache_dir), use_faiss=True)
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 2
+        fake_model.encode.return_value = np.array([[0.1, 0.2]])
+        comp.model = fake_model
+
+        with patch("faiss.IndexFlatIP") as mock_index_class, \
+             patch("faiss.normalize_L2") as mock_norm:
+            mock_index = MagicMock()
+            mock_index_class.return_value = mock_index
+
+            comp.build_market_index(["python"], level="middle")
+
+            mock_index_class.assert_called_once_with(2)
+            mock_norm.assert_called_once_with(comp.market_embeddings)
+            mock_index.add.assert_called_once_with(comp.market_embeddings)
+
+    # ======================== ПОКРЫТИЕ СТРОК 133-137 ==========================
+    def test_compare_student_to_market_logs_empty_weights(self, mocker):
+        """Строки 133-134: предупреждение при пустых skill_weights."""
+        comp = EmbeddingComparator(use_faiss=False)
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 3
+        fake_model.encode.return_value = np.array([[0.1, 0.2, 0.3]])
+        comp.model = fake_model
+        comp.market_skills = ["python"]
+        comp.market_embeddings = np.array([[0.1, 0.2, 0.3]])
+        comp.skill_weights = {}
+
+        # Патчим логгер, чтобы проверить вызов warning
+        mock_warning = mocker.patch("src.analyzers.comparison.embedding_comparator.logger.warning")
+        comp.compare_student_to_market(["python"])
+        mock_warning.assert_called_once_with("skill_weights_empty")
+
+    def test_compare_student_to_market_logs_weights_count(self):
+        """Строки 135-137: отладка с количеством весов."""
+        comp = EmbeddingComparator(use_faiss=False)
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 3
+        fake_model.encode.return_value = np.array([[0.1, 0.2, 0.3]])
+        comp.model = fake_model
+        comp.market_skills = ["python"]
+        comp.market_embeddings = np.array([[0.1, 0.2, 0.3]])
+        comp.skill_weights = {"python": 0.9}
+
+        with patch("src.analyzers.comparison.embedding_comparator.logger") as mock_logger:
+            comp.compare_student_to_market(["python"])
+            mock_logger.debug.assert_called_with("skill_weights_count", count=1)
+
+    # ======================== ПОКРЫТИЕ СТРОК 145 и 154 ========================
+    def test_compare_student_to_market_weighted_calculation(self):
+        """Строка 145: вычисление с весами (effective_sim**2 * weight)."""
+        comp = EmbeddingComparator(use_faiss=False)
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 2
+        # student эмбеддинг: [1,0] даст cosine_sim с рыночным [1,0] = 1.0
+        fake_model.encode.side_effect = lambda skills, **kwargs: np.array([[1.0, 0.0]])
+        comp.model = fake_model
+        comp.market_skills = ["python", "java"]
+        comp.market_embeddings = np.array([[1.0, 0.0], [0.0, 1.0]])  # python, java
+        comp.skill_weights = {"python": 0.9, "java": 0.1}
+
+        result = comp.compare_student_to_market(["python"])
+        # python: sim=1 -> effective=1, weighted=1*0.9=0.9
+        # java: sim=0 -> effective=0, weighted=0*0.1=0
+        # total_weighted=0.9, total_weight=1.0, coverage=0.9
+        assert result["weighted_coverage"] == pytest.approx(0.9)
+
+    def test_compare_student_to_market_no_weights_calculation(self):
+        """Строка 154: вычисление без весов (сумма effective_sim / количество)."""
+        comp = EmbeddingComparator(use_faiss=False)
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 2
+        fake_model.encode.side_effect = lambda skills, **kwargs: np.array([[0.6, 0.8]])
+        comp.model = fake_model
+        comp.market_skills = ["python", "java"]
+        comp.market_embeddings = np.array([[0.6, 0.8], [0.0, 1.0]])
+        comp.skill_weights = {}   # без весов
+
+        result = comp.compare_student_to_market(["python"])
+        # python: sim=1.0 -> effective=1.0, java: sim=0.8 -> effective=0.64
+        # total_weighted = 1.0 + 0.64 = 1.64, total_weight = 2.0
+        # coverage = 1.64 / 2.0 = 0.82
+        assert result["weighted_coverage"] == pytest.approx(0.82)
+
+    # ======================== ПОКРЫТИЕ СТРОКИ 235 ==============================
+    def test_hybrid_compare_no_clusters_uses_global(self):
+        """Строка 235: если best_cluster is None -> hybrid_score = global_score."""
+        comp = EmbeddingComparator(use_faiss=False)
+        # Мокируем compare_student_to_market и compare_to_clusters
+        with patch.object(comp, "compare_student_to_market",
+                          return_value={"avg_similarity": 0.7, "weighted_coverage": 0.7}):
+            with patch.object(comp, "compare_to_clusters",
+                              return_value={"clusters": []}):
+                result = comp.hybrid_compare(["python"], {"python": 0.9})
+                assert result["global_score"] == 0.7
+                assert result["cluster_score"] is None
+                assert result["hybrid_score"] == 0.7   # строка 235

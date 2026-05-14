@@ -59,7 +59,7 @@ def test_embedding_comparator_build_index(embedding_comparator):
 
 def test_gap_analyzer_initialization():
     """GapAnalyzer нормально инициализируется с skill_weights_by_level"""
-    from src.analyzers.gap_analyzer import GapAnalyzer
+    from src.analyzers.gap.gap_analyzer import GapAnalyzer
 
     weights_by_level = {
         "junior": {"python": 0.8, "sql": 0.6, "git": 0.4},

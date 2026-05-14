@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from src.analyzers.skill_correlation import SkillCorrelationAnalyzer
+from src.analyzers.skills.skill_correlation import SkillCorrelationAnalyzer
 
 
 class TestSkillCorrelationAnalyzer:

@@ -3,24 +3,36 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 import numpy as np
 import pytest
+import time
 
 from src import config
-from src.analyzers.domain_analyzer import DomainAnalyzer
-from src.analyzers.embedding_comparator import EmbeddingComparator
-from src.analyzers.gap_analyzer import GapAnalyzer
-from src.analyzers.profile_evaluator import ProfileEvaluator
-from src.analyzers.skill_filter import SkillFilter
-from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
+from src.analyzers.comparison.domain_analyzer import DomainAnalyzer
+from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
+from src.analyzers.gap.gap_analyzer import GapAnalyzer
+from src.analyzers.gap.profile_evaluator import ProfileEvaluator
+from src.analyzers.skills.skill_filter import SkillFilter
+from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 from src.loaders_student.student_loader import StudentLoader
 from src.models.student import StudentProfile
 from src.models.vacancy import Area, Employer, KeySkill, Vacancy
-from src.parsing.skill_validator import SkillValidator
+from src.parsing.skills.skill_validator import SkillValidator
 
+@pytest.fixture(autouse=True)
+def mock_sleep():
+    """Автоматически подменяет time.sleep на заглушку во всех тестах, кроме помеченных @pytest.mark.no_sleep_mock"""
+    with patch("time.sleep", return_value=None) as mock:
+        yield mock
 
+@pytest.fixture(autouse=True)
+def mock_sleeps():
+    with patch("time.sleep", return_value=None), \
+         patch("asyncio.sleep", new_callable=AsyncMock):
+        yield
 def pytest_configure(config):
     """Глобальный мок SentenceTransformer для всех тестов."""
     mock_model = MagicMock()
@@ -211,9 +223,3 @@ def skill_level_analyzer():
 @pytest.fixture
 def domain_analyzer():
     return DomainAnalyzer()
-
-
-@pytest.fixture
-def charts_module():
-    import src.visualization.charts as charts
-    return charts

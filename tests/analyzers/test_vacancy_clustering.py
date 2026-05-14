@@ -4,7 +4,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from src.analyzers.vacancy_clustering import VacancyClusterer
+from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 
 
 class TestVacancyClusterer:
@@ -151,7 +151,7 @@ class TestVacancyClusterer:
         """Проверяем сохранение и загрузку модели"""
         import src.config as config
 
-        monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
+        monkeypatch.setattr(config, "VACANCY_CLUSTERS_CACHE_DIR", tmp_path)
 
         clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=4, use_hdbscan_fallback=False)
         clusterer.fit(sample_vacancies, level="test")
@@ -193,13 +193,13 @@ class TestVacancyClusteringFull:
 
     def test_hdbscan_not_available_constant(self):
         """Проверка константы HDBSCAN_AVAILABLE"""
-        from src.analyzers import vacancy_clustering
+        from src.analyzers.clustering import vacancy_clustering
 
         assert isinstance(vacancy_clustering.HDBSCAN_AVAILABLE, bool)
 
     def test_use_hdbscan_when_not_available(self):
         """Когда HDBSCAN_AVAILABLE=False, use_hdbscan_fallback форсируется в False"""
-        from src.analyzers.vacancy_clustering import HDBSCAN_AVAILABLE
+        from src.analyzers.clustering.vacancy_clustering import HDBSCAN_AVAILABLE
 
         clusterer = VacancyClusterer(use_hdbscan_fallback=True)
         assert clusterer.use_hdbscan_fallback == HDBSCAN_AVAILABLE
@@ -243,7 +243,7 @@ class TestVacancyClusteringFull:
         import src.config as config
 
         monkeypatch = pytest.MonkeyPatch()
-        monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
+        monkeypatch.setattr(config, "VACANCY_CLUSTERS_CACHE_DIR", tmp_path)
         clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=False)
         clusterer.fit(vacancies, level="test")
         model_path = tmp_path / "vacancy_clusters_test.pkl"
@@ -254,8 +254,8 @@ class TestVacancyClusteringFull:
     def test_hdbscan_creates_multiple_clusters(self):
         """Строки 177-216: HDBSCAN создаёт несколько кластеров (без сохранения)"""
         with (
-            patch("src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE", True),
-            patch("src.analyzers.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
+            patch("src.analyzers.clustering.vacancy_clustering.HDBSCAN_AVAILABLE", True),
+            patch("src.analyzers.clustering.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
         ):
                 mock_instance = mock_hdb.return_value
                 labels = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2, -1] * 2)
@@ -271,8 +271,8 @@ class TestVacancyClusteringFull:
     def test_hdbscan_no_clusters_found(self, vacancies):
         """Строки 177-216: HDBSCAN не нашёл кластеры → KMeans"""
         with (
-            patch("src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE", True),
-            patch("src.analyzers.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
+            patch("src.analyzers.clustering.vacancy_clustering.HDBSCAN_AVAILABLE", True),
+            patch("src.analyzers.clustering.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
         ):
                 mock_instance = mock_hdb.return_value
                 mock_instance.fit_predict.return_value = np.full(len(vacancies), -1)
@@ -284,8 +284,8 @@ class TestVacancyClusteringFull:
     def test_hdbscan_exception_fallback(self):
         """Строки 209-211: HDBSCAN выбрасывает исключение → KMeans"""
         with (
-            patch("src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE", True),
-            patch("src.analyzers.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
+            patch("src.analyzers.clustering.vacancy_clustering.HDBSCAN_AVAILABLE", True),
+            patch("src.analyzers.clustering.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
         ):
                 mock_hdb.side_effect = RuntimeError("HDBSCAN failed")
                 clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=True)
@@ -343,11 +343,11 @@ class TestVacancyClusteringFull:
         import src.config as config
 
         monkeypatch = pytest.MonkeyPatch()
-        monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
+        monkeypatch.setattr(config, "VACANCY_CLUSTERS_CACHE_DIR", tmp_path)
 
         with (
-            patch("src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE", True),
-            patch("src.analyzers.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
+            patch("src.analyzers.clustering.vacancy_clustering.HDBSCAN_AVAILABLE", True),
+            patch("src.analyzers.clustering.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
         ):
                 mock_instance = mock_hdb.return_value
                 labels = np.array([0] * 18 + [-1, -1])
@@ -395,7 +395,7 @@ class TestVacancyClusteringFull:
         import src.config as config
 
         monkeypatch = pytest.MonkeyPatch()
-        monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
+        monkeypatch.setattr(config, "VACANCY_CLUSTERS_CACHE_DIR", tmp_path)
         clusterer = VacancyClusterer()
         clusterer.clusterer_type = "hdbscan"
         clusterer.model = None  # HDBSCAN модель = None (не MagicMock!)
@@ -458,11 +458,11 @@ class TestVacancyClusteringFull:
         import src.config as config
 
         monkeypatch = pytest.MonkeyPatch()
-        monkeypatch.setattr(config, "DATA_PROCESSED_DIR", tmp_path)
+        monkeypatch.setattr(config, "VACANCY_CLUSTERS_CACHE_DIR", tmp_path)
 
         with (
-            patch("src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE", True),
-            patch("src.analyzers.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
+            patch("src.analyzers.clustering.vacancy_clustering.HDBSCAN_AVAILABLE", True),
+            patch("src.analyzers.clustering.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
         ):
                 mock_instance = mock_hdb.return_value
                 # Все точки в одном кластере
@@ -512,8 +512,8 @@ class TestVacancyClusteringFull:
     def test_hdbscan_fallback_on_low_silhouette(self):
         """Строка 206: KMeans silhouette < 0.2 → HDBSCAN → KMeans"""
         with (
-            patch("src.analyzers.vacancy_clustering.HDBSCAN_AVAILABLE", True),
-            patch("src.analyzers.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
+            patch("src.analyzers.clustering.vacancy_clustering.HDBSCAN_AVAILABLE", True),
+            patch("src.analyzers.clustering.vacancy_clustering.hdbscan.HDBSCAN") as mock_hdb,
         ):
                 mock_instance = mock_hdb.return_value
                 mock_instance.fit_predict.return_value = np.array([0, 0, 1, 1, 2, 2, 3, 3, 4, 4] * 2)

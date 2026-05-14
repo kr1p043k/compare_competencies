@@ -1,7 +1,7 @@
 # tests/analyzers/test_skill_level_analyzer.py
 import pytest
 
-from src.analyzers.skill_level_analyzer import SkillLevelAnalyzer
+from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 
 
 class TestSkillLevelAnalyzerFull:

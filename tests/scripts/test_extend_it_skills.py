@@ -10,6 +10,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 class TestExtendItSkills:
+    @pytest.fixture(autouse=True)
+    def reset_skill_taxonomy(self):
+        from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
+        SkillTaxonomy._instance = None
+        SkillTaxonomy._taxonomy = None
+        SkillTaxonomy._skill_to_category = {}
+        SkillTaxonomy._category_info = {}
+        yield
+        SkillTaxonomy._instance = None
+        SkillTaxonomy._taxonomy = None
+        SkillTaxonomy._skill_to_category = {}
+        SkillTaxonomy._category_info = {}
     @pytest.fixture
     def sample_vacancies(self):
         return [
@@ -57,10 +69,10 @@ class TestExtendItSkills:
     def test_analyze_coverage(self, sample_skills_file, monkeypatch):
         """Анализ покрытия категорий"""
         monkeypatch.setattr("src.parsing.utils.config.DATA_DIR", sample_skills_file.parent)
-        monkeypatch.setattr("src.analyzers.skill_taxonomy.config.DATA_DIR", sample_skills_file.parent.parent)
+        monkeypatch.setattr("src.config.DATA_DIR", sample_skills_file.parent.parent)
 
         from scripts.extend_it_skills import analyze_coverage
-        from src.analyzers.skill_taxonomy import SkillTaxonomy
+        from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 
         current_skills = {"python", "django", "fastapi"}
         taxonomy = SkillTaxonomy()
@@ -306,10 +318,10 @@ class TestExtendItSkills:
                 }
             }
         }))
-        monkeypatch.setattr("src.analyzers.skill_taxonomy.config.DATA_DIR", tmp_path)
+        monkeypatch.setattr("src.config.DATA_DIR", tmp_path)
 
         from scripts.extend_it_skills import print_new_skills
-        from src.analyzers.skill_taxonomy import SkillTaxonomy
+        from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 
         # Сбрасываем синглтон
         SkillTaxonomy._instance = None
@@ -322,25 +334,23 @@ class TestExtendItSkills:
         assert "python" in captured.out
 
     def test_analyze_coverage_with_data(self, tmp_path, monkeypatch):
-        """Строки 159, 161: анализ покрытия с данными"""
         tax_path = tmp_path / "skill_taxonomy.json"
         tax_path.write_text(json.dumps({
             "categories": {
                 "test_cat": {
                     "label": "Test",
                     "icon": "🧪",
-                    "skills": ["skill_a", "skill_b", "skill_c", "skill_d"]
+                    "skills": ["skill_a", "skill_b", "skill_c", "skill_d"]  # список, не множество
                 }
             }
         }))
-        monkeypatch.setattr("src.analyzers.skill_taxonomy.config.DATA_DIR", tmp_path)
+        monkeypatch.setattr("src.config.SKILL_TAXONOMY_PATH", tax_path)
 
         from scripts.extend_it_skills import analyze_coverage
-        from src.analyzers.skill_taxonomy import SkillTaxonomy
+        from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 
         SkillTaxonomy._instance = None
         taxonomy = SkillTaxonomy()
-
         coverage = analyze_coverage({"skill_a", "skill_b"}, taxonomy)
         assert "test_cat" in coverage
         assert coverage["test_cat"]["covered"] == 2
@@ -424,7 +434,7 @@ class TestExtendItSkills:
                 }
             }
         }))
-        monkeypatch.setattr("src.analyzers.skill_taxonomy.config.DATA_DIR", tmp_path)
+        monkeypatch.setattr("src.config.DATA_DIR", tmp_path)
         monkeypatch.setattr("scripts.extend_it_skills.load_it_skills", lambda: {"python", "django"})
 
         monkeypatch.setattr("sys.argv", [
@@ -434,7 +444,7 @@ class TestExtendItSkills:
             "--output", str(tmp_path / "it_skills.json"),
         ])
 
-        from src.analyzers.skill_taxonomy import SkillTaxonomy
+        from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
         SkillTaxonomy._instance = None
 
         from scripts.extend_it_skills import main
@@ -514,29 +524,89 @@ class TestExtendItSkills:
         approved = interactive_confirm(new_skills)
         assert approved == set()
 
-    def test_main_taxonomy_load_error(self, sample_vacancies_rich, tmp_path, monkeypatch, capsys):
-        """Строка 382: ошибка загрузки таксономии — работает без неё"""
-        vac_file = tmp_path / "test_vacancies.json"
-        vac_file.write_text(json.dumps(sample_vacancies_rich))
+    def test_print_new_skills_without_taxonomy(self, capsys):
+        """Строки 200-201: вывод без переданной таксономии."""
+        from scripts.extend_it_skills import print_new_skills
+        new = {"skill_a": 5}
+        print_new_skills(new, taxonomy=None)
+        captured = capsys.readouterr()
+        assert "skill_a" in captured.out
 
-        # Ломаем таксономию
-        tax_path = tmp_path / "skill_taxonomy.json"
-        tax_path.write_text("{invalid")
+    def test_print_dead_skills_long_list(self, capsys):
+        """Строки 208-212: обрезание длинного списка мёртвых навыков."""
+        from scripts.extend_it_skills import print_dead_skills
+        dead = [f"dead_{i}" for i in range(40)]
+        print_dead_skills(dead)
+        captured = capsys.readouterr()
+        assert "ещё" in captured.out and "10" in captured.out  # 40-30=10
 
-        # Патчим config так, чтобы SkillTaxonomy не падал, а load_it_skills работал
+    def test_main_interactive_and_yes_conflict(self, monkeypatch, capsys):
+        """Строки 305-306: конфликт флагов."""
         monkeypatch.setattr("sys.argv", [
-            "extend_it_skills.py",
-            "--vacancies", str(vac_file),
-            "--output", str(tmp_path / "it_skills.json"),
+            "extend_it_skills.py", "--interactive", "--yes"
         ])
-        monkeypatch.setattr("src.analyzers.skill_taxonomy.config.DATA_DIR", tmp_path)
-        monkeypatch.setattr("scripts.extend_it_skills.load_it_skills", lambda: {"python", "django"})
-
-        from src.analyzers.skill_taxonomy import SkillTaxonomy
-        SkillTaxonomy._instance = None
-
-        # Мокаем print_new_skills чтобы избежать вызова taxonomy.get_category
-        with patch("scripts.extend_it_skills.print_new_skills") as mock_print:
+        with pytest.raises(SystemExit):
             from scripts.extend_it_skills import main
             main()
-            mock_print.assert_called_once()
+
+    def test_main_taxonomy_load_error(self, sample_vacancies_rich, tmp_path, monkeypatch, capsys):
+        vac_file = tmp_path / "test_vacancies.json"
+        vac_file.write_text(json.dumps(sample_vacancies_rich))
+        tax_path = tmp_path / "skill_taxonomy.json"
+        tax_path.write_text("{invalid")
+        monkeypatch.setattr("src.config.SKILL_TAXONOMY_PATH", tax_path)
+        monkeypatch.setattr("sys.argv", [
+            "extend_it_skills.py", "--vacancies", str(vac_file),
+            "--output", str(tmp_path / "it_skills.json"),
+        ])
+        monkeypatch.setattr("scripts.extend_it_skills.load_it_skills", lambda: {"python", "django"})
+        from scripts.extend_it_skills import main
+        main()
+        captured = capsys.readouterr()
+        assert "РЕЖИМ АНАЛИЗА" in captured.out or "НОВЫЕ НАВЫКИ" in captured.out
+
+    def test_main_load_it_skills_failed(self, sample_vacancies_rich, tmp_path, monkeypatch):
+        vac_file = tmp_path / "test_vacancies.json"
+        vac_file.write_text(json.dumps(sample_vacancies_rich))
+        monkeypatch.setattr("sys.argv", [
+            "extend_it_skills.py", "--vacancies", str(vac_file),
+            "--output", str(tmp_path / "it_skills.json"),
+        ])
+        monkeypatch.setattr("scripts.extend_it_skills.load_it_skills", lambda: set())  # пустое множество
+        with pytest.raises(SystemExit):
+            from scripts.extend_it_skills import main
+            main()
+
+    def test_interactive_confirm_selective(self, monkeypatch):
+        """Строки 352-361: выборочное добавление (y/n)."""
+        from scripts.extend_it_skills import interactive_confirm
+        new_skills = {"a": 5, "b": 3}
+        inputs = iter(["y", "n"])
+        monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+        approved = interactive_confirm(new_skills)
+        assert "a" in approved
+        assert "b" not in approved
+
+    def test_main_yes_with_cache_cleanup_message(self, sample_vacancies_rich, tmp_path, monkeypatch, capsys):
+        """Строка 373: сообщение о необходимости очистки кэша."""
+        vac_file = tmp_path / "test_vacancies.json"
+        vac_file.write_text(json.dumps(sample_vacancies_rich))
+        output = tmp_path / "it_skills.json"
+        output.write_text(json.dumps(["python", "django"]))
+        monkeypatch.setattr("sys.argv", [
+            "extend_it_skills.py", "--yes", "--no-backup",
+            "--vacancies", str(vac_file), "--output", str(output),
+        ])
+        monkeypatch.setattr("scripts.extend_it_skills.load_it_skills", lambda: {"python", "django"})
+        monkeypatch.setattr("src.parsing.utils.config.DATA_DIR", tmp_path)
+        from scripts.extend_it_skills import main
+        main()
+        captured = capsys.readouterr()
+        assert "Очистите кэш" in captured.out
+
+    def test_print_dead_skills_empty(self, capsys):
+        """Строка 241: вывод при отсутствии мёртвых навыков."""
+        from scripts.extend_it_skills import print_dead_skills
+        print_dead_skills([])
+        captured = capsys.readouterr()
+        assert "Все навыки" in captured.out or "✅" in captured.out

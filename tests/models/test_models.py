@@ -3,7 +3,20 @@
 import numpy as np
 import pytest
 from pydantic import ValidationError
-
+from src.models.hh_responses import (
+    AreaResponse,
+    EmployerResponse,
+    SalaryResponse,
+    SnippetResponse,
+    ExperienceResponse,
+    KeySkillResponse,
+    VacancySearchItem,
+    VacancySearchResponse,
+    VacancyDetailResponse,
+    TokenResponse,
+    parse_response,
+)
+from unittest.mock import patch, MagicMock
 from src.models.comparison import ComparisonReport, GapResult
 from src.models.market_metrics import DomainMetrics, SkillMetrics
 from src.models.student import (
@@ -580,6 +593,7 @@ class TestVacancyCollection:
     def test_repr(self, sample_vacancies):
         coll = VacancyCollection(sample_vacancies, query="Python")
         assert "2 vacancies" in repr(coll)
+
 class TestVacancyExtended:
     @pytest.fixture
     def sample_api_data(self):
@@ -776,3 +790,259 @@ class TestVacancyExtended:
     def test_salary_repr_none(self):
         s = Salary()
         assert repr(s) == "Не указана"
+
+class TestHHResponses:
+    """Тесты для моделей ответов hh.ru и функции parse_response."""
+
+    # ----------------------------------------------------------------
+    # AreaResponse
+    # ----------------------------------------------------------------
+    def test_area_response_valid(self):
+        data = {"id": 1, "name": "Москва", "url": "https://api.hh.ru/areas/1"}
+        area = AreaResponse.model_validate(data)
+        assert area.id == 1
+        assert area.name == "Москва"
+        assert area.url == "https://api.hh.ru/areas/1"
+
+    def test_area_response_optional_url(self):
+        data = {"id": 2, "name": "Санкт-Петербург"}
+        area = AreaResponse.model_validate(data)
+        assert area.url is None
+
+    def test_area_response_missing_required(self):
+        with pytest.raises(ValidationError):
+            AreaResponse.model_validate({"name": "Москва"})  # нет id
+
+    # ----------------------------------------------------------------
+    # EmployerResponse
+    # ----------------------------------------------------------------
+    def test_employer_response_valid(self):
+        data = {
+            "id": "123",
+            "name": "Яндекс",
+            "url": "https://ya.ru",
+            "logo_urls": {"90": "logo.png"},
+            "trusted": True,
+        }
+        emp = EmployerResponse.model_validate(data)
+        assert emp.id == "123"
+        assert emp.name == "Яндекс"
+        assert emp.trusted is True
+
+    def test_employer_response_defaults(self):
+        data = {"name": "Компания"}
+        emp = EmployerResponse.model_validate(data)
+        assert emp.id is None
+        assert emp.url is None
+        assert emp.logo_urls is None
+        assert emp.trusted is False
+
+    # ----------------------------------------------------------------
+    # SalaryResponse
+    # ----------------------------------------------------------------
+    def test_salary_response_with_alias(self):
+        data = {"from": 100000, "to": 150000, "currency": "USD", "gross": True}
+        salary = SalaryResponse.model_validate(data)
+        assert salary.from_ == 100000
+        assert salary.to == 150000
+        assert salary.currency == "USD"
+        assert salary.gross is True
+
+    def test_salary_response_with_field_name(self):
+        # Проверим, что можно передать и по имени поля from_
+        data = {"from_": 100000, "to": 150000}
+        salary = SalaryResponse.model_validate(data)
+        assert salary.from_ == 100000
+
+    def test_salary_response_defaults(self):
+        data = {}
+        salary = SalaryResponse.model_validate(data)
+        assert salary.from_ is None
+        assert salary.to is None
+        assert salary.currency == "RUB"
+        assert salary.gross is False
+
+    # ----------------------------------------------------------------
+    # SnippetResponse
+    # ----------------------------------------------------------------
+    def test_snippet_response_valid(self):
+        data = {"requirement": "Знание Python", "responsibility": "Разработка бэкенда"}
+        snippet = SnippetResponse.model_validate(data)
+        assert snippet.requirement == "Знание Python"
+        assert snippet.responsibility == "Разработка бэкенда"
+
+    def test_snippet_response_empty(self):
+        snippet = SnippetResponse.model_validate({})
+        assert snippet.requirement is None
+        assert snippet.responsibility is None
+
+    # ----------------------------------------------------------------
+    # ExperienceResponse
+    # ----------------------------------------------------------------
+    def test_experience_response_valid(self):
+        data = {"id": "noExperience", "name": "Нет опыта"}
+        exp = ExperienceResponse.model_validate(data)
+        assert exp.id == "noExperience"
+        assert exp.name == "Нет опыта"
+
+    # ----------------------------------------------------------------
+    # KeySkillResponse
+    # ----------------------------------------------------------------
+    def test_key_skill_response_valid(self):
+        data = {"name": "Python"}
+        skill = KeySkillResponse.model_validate(data)
+        assert skill.name == "Python"
+
+    # ----------------------------------------------------------------
+    # VacancySearchItem
+    # ----------------------------------------------------------------
+    def test_vacancy_search_item_minimal(self):
+        data = {
+            "id": "123",
+            "name": "Программист",
+            "area": {"id": 1, "name": "Москва"},
+        }
+        item = VacancySearchItem.model_validate(data)
+        assert item.id == "123"
+        assert item.name == "Программист"
+        assert item.area.id == 1
+        assert item.employer is None
+        assert item.salary is None
+
+    def test_vacancy_search_item_full(self):
+        data = {
+            "id": "456",
+            "name": "Разработчик",
+            "area": {"id": 2, "name": "СПб"},
+            "employer": {"id": "1", "name": "ООО"},
+            "salary": {"from": 50000, "to": 70000},
+            "snippet": {"requirement": "Опыт"},
+            "experience": {"id": "between1And3", "name": "1-3 года"},
+            "published_at": "2024-01-15T12:00:00+0300",
+            "url": "https://hh.ru/vacancy/456",
+            "alternate_url": "https://hh.ru/vacancy/456",
+        }
+        item = VacancySearchItem.model_validate(data)
+        assert item.employer.name == "ООО"
+        assert item.salary.from_ == 50000
+        assert item.snippet.requirement == "Опыт"
+        assert item.experience.id == "between1And3"
+
+    def test_vacancy_search_item_extra_fields(self):
+        data = {
+            "id": "789",
+            "name": "Тест",
+            "area": {"id": 1, "name": "M"},
+            "some_unknown_field": 42,
+        }
+        item = VacancySearchItem.model_validate(data)
+        # Должно отработать без ошибок, extra="allow"
+        assert item.id == "789"
+
+    # ----------------------------------------------------------------
+    # VacancySearchResponse
+    # ----------------------------------------------------------------
+    def test_vacancy_search_response_valid(self):
+        data = {
+            "items": [
+                {"id": "1", "name": "Job", "area": {"id": 1, "name": "M"}},
+                {"id": "2", "name": "Job2", "area": {"id": 2, "name": "SPb"}},
+            ],
+            "found": 2,
+            "pages": 1,
+            "page": 0,
+            "per_page": 20,
+        }
+        resp = VacancySearchResponse.model_validate(data)
+        assert len(resp.items) == 2
+        assert resp.found == 2
+        assert resp.pages == 1
+
+    def test_vacancy_search_response_empty_items(self):
+        data = {
+            "items": [],
+            "found": 0,
+            "pages": 0,
+            "page": 0,
+            "per_page": 20,
+        }
+        resp = VacancySearchResponse.model_validate(data)
+        assert resp.items == []
+        assert resp.found == 0
+
+    # ----------------------------------------------------------------
+    # VacancyDetailResponse
+    # ----------------------------------------------------------------
+    def test_vacancy_detail_response_minimal(self):
+        data = {
+            "id": "999",
+            "name": "DevOps",
+            "area": {"id": 1, "name": "Москва"},
+        }
+        detail = VacancyDetailResponse.model_validate(data)
+        assert detail.id == "999"
+        assert detail.key_skills == []
+        assert detail.description is None
+
+    def test_vacancy_detail_response_with_skills(self):
+        data = {
+            "id": "888",
+            "name": "Data Scientist",
+            "area": {"id": 2, "name": "СПб"},
+            "key_skills": [{"name": "Python"}, {"name": "SQL"}],
+        }
+        detail = VacancyDetailResponse.model_validate(data)
+        assert len(detail.key_skills) == 2
+        assert detail.key_skills[0].name == "Python"
+
+    def test_vacancy_detail_response_extra_fields(self):
+        data = {
+            "id": "777",
+            "name": "QA",
+            "area": {"id": 3, "name": "Казань"},
+            "custom_tag": "важно",
+        }
+        detail = VacancyDetailResponse.model_validate(data)
+        assert detail.id == "777"
+
+    # ----------------------------------------------------------------
+    # TokenResponse
+    # ----------------------------------------------------------------
+    def test_token_response_valid(self):
+        data = {
+            "access_token": "abc123",
+            "token_type": "bearer",
+            "expires_in": 3600,
+        }
+        token = TokenResponse.model_validate(data)
+        assert token.access_token == "abc123"
+        assert token.token_type == "bearer"
+        assert token.expires_in == 3600
+
+    def test_token_response_defaults(self):
+        data = {"access_token": "token"}
+        token = TokenResponse.model_validate(data)
+        assert token.token_type == "bearer"
+        assert token.expires_in == 3600
+
+    # ----------------------------------------------------------------
+    # parse_response
+    # ----------------------------------------------------------------
+    def test_parse_response_success(self):
+        data = {"id": "1", "name": "Test", "area": {"id": 1, "name": "M"}}  # id – строка
+        result = parse_response(data, VacancyDetailResponse)
+        assert isinstance(result, VacancyDetailResponse)
+        assert result.id == "1"
+        assert result.name == "Test"
+
+    def test_parse_response_failure_logs_and_raises(self):
+        data = {"invalid": "data"}
+        with patch("structlog.get_logger") as mock_get_logger:
+            mock_logger = MagicMock()
+            mock_get_logger.return_value = mock_logger
+            with pytest.raises(ValidationError):
+                parse_response(data, VacancyDetailResponse)
+            mock_logger.warning.assert_called_once()
+            call_args = mock_logger.warning.call_args
+            assert call_args[0][0] == "response_validation_failed"
+            assert call_args[1]["model"] == "VacancyDetailResponse"

@@ -1,11 +1,18 @@
 # tests/parsing/test_utils.py
 import json
 import logging
+import pickle
 from collections import Counter
 from unittest.mock import MagicMock, patch
-from src.parsing.utils import interactive_config
+import pytest
+
 from src import config
-from src.parsing import utils
+from src.parsing import utils as parsing_utils
+from src import utils as base_utils
+
+# Чтобы существующие тесты продолжали работать без изменений,
+# назначаем utils = parsing_utils.
+utils = parsing_utils
 
 
 class TestReadWriteJson:
@@ -36,21 +43,17 @@ class TestReadWriteJson:
         assert loaded == data
 
     def test_write_json_handles_error(self, tmp_path):
-        # Создаём директорию вместо файла, чтобы вызвать ошибку записи
         filepath = tmp_path / "dir"
         filepath.mkdir()
         data = {"key": "value"}
-        # Не должно упасть, только залогировать ошибку
         utils.write_json(data, filepath)
 
 
 class TestSetupLogging:
     def test_setup_logging(self, tmp_path, monkeypatch):
-        # Подменяем LOG_FILE на временный
         monkeypatch.setattr(config, "LOG_FILE", tmp_path / "test.log")
         utils.setup_logging()
         logger = logging.getLogger()
-        # Проверяем, что хендлеры добавились
         assert any(isinstance(h, logging.FileHandler) for h in logger.handlers)
         assert any(isinstance(h, logging.StreamHandler) for h in logger.handlers)
 
@@ -60,19 +63,19 @@ class TestLoadItSkills:
         skills_file = tmp_path / "it_skills.json"
         skills_list = ["Python", "JavaScript", "  React  "]
         skills_file.write_text(json.dumps(skills_list), encoding="utf-8")
-        monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+        monkeypatch.setattr(config, "IT_SKILLS_PATH", tmp_path / "it_skills.json")
         result = utils.load_it_skills()
         assert result == {"python", "javascript", "react"}
 
     def test_load_it_skills_file_missing(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+        monkeypatch.setattr(config, "IT_SKILLS_PATH", tmp_path / "it_skills.json")
         result = utils.load_it_skills()
         assert result == set()
 
     def test_load_it_skills_not_a_list(self, tmp_path, monkeypatch):
         skills_file = tmp_path / "it_skills.json"
         skills_file.write_text('{"not": "list"}', encoding="utf-8")
-        monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+        monkeypatch.setattr(config, "IT_SKILLS_PATH", tmp_path / "it_skills.json")
         result = utils.load_it_skills()
         assert result == set()
 
@@ -94,7 +97,6 @@ class TestCollectVacanciesMultiple:
     def test_collect_vacancies_multiple(self):
         mock_hh_api = MagicMock()
         mock_hh_api.last_response = {"found": 10, "pages": 1}
-        # Возвращаем одни и те же данные для всех вызовов
         mock_hh_api.search_vacancies.return_value = [{"id": "1"}, {"id": "2"}]
         with patch("time.sleep", return_value=None):
             vacs = utils.collect_vacancies_multiple(
@@ -106,7 +108,6 @@ class TestCollectVacanciesMultiple:
                 industry=None,
                 max_vacancies_per_query=20,
             )
-        # Пробный запрос: 2 вакансии + основной запрос: те же 2 (дубликаты отфильтрованы) = 2 уникальных
         assert len(vacs) == 2
 
 
@@ -130,8 +131,6 @@ class TestSafePrint:
         assert "Hello" in captured.out
 
     def test_safe_print_unicode_error(self, capsys):
-        # Имитируем UnicodeEncodeError (зависит от окружения)
-        # Просто вызываем, чтобы убедиться, что не падает
         utils.safe_print("Hello")
 
 
@@ -156,7 +155,6 @@ class TestInputFunctions:
         monkeypatch.setattr("builtins.input", lambda _: "")
         assert utils.input_yes_no("prompt", default=True) is True
         assert utils.input_yes_no("prompt", default=False) is False
-
 
     def test_input_yes_no_yes(self, monkeypatch):
         for ans in ["y", "yes", "да"]:
@@ -190,7 +188,7 @@ class TestInteractiveConfig:
         mock_select.return_value = "10. Другое (ввести свой запрос)"
         mock_input.return_value = "Custom Query"
         mock_int.return_value = 15
-        mock_yes_no.side_effect = [True, False, True, True]  # достаточно значений
+        mock_yes_no.side_effect = [True, False, True, True]
         with patch("builtins.print"):
             cfg = utils.interactive_config()
         assert cfg["query"] == "Custom Query"
@@ -248,31 +246,6 @@ class TestExtractAndCountSkills:
         assert result == {"frequencies": {}, "tfidf_weights": {}}
 
 
-class TestMapToCompetencies:
-    def test_map_to_competencies(self):
-        skill_freq = {"python": 10, "sql": 5, "unknown": 2}
-        mapping = {"Programming": ["python", "java"], "Databases": ["sql", "postgresql"]}
-        counter = utils.map_to_competencies(skill_freq, mapping)
-        assert counter["Programming"] == 10
-        assert counter["Databases"] == 5
-        # 'unknown' не маппится
-
-    def test_map_to_competencies_partial_match(self):
-        skill_freq = {"python programming": 10}
-        mapping = {"Programming": ["python"]}
-        counter = utils.map_to_competencies(skill_freq, mapping)
-        assert counter["Programming"] == 10
-
-
-class TestPrintTopSkills:
-    def test_print_top_skills(self, capsys):
-        skill_freq = {"python": 100, "sql": 50}
-        utils.print_top_skills(skill_freq, top_n=2)
-        captured = capsys.readouterr()
-        assert "python" in captured.out
-        assert "100" in captured.out
-
-
 class TestPrintTopCompetencies:
     def test_print_top_competencies(self, capsys):
         counter = Counter({"Programming": 100, "Databases": 50})
@@ -282,52 +255,196 @@ class TestPrintTopCompetencies:
         assert "100" in captured.out
 
 
-class TestUtilsEdgeCases:
-    def test_read_json_permission_error(self, tmp_path):
-        """Строки 90-92: ошибка чтения JSON"""
-        filepath = tmp_path / "test.json"
-        filepath.write_text('{"key": "value"}', encoding="utf-8")
-        with patch("builtins.open", side_effect=PermissionError("Permission denied")):
-            result = utils.read_json(filepath)
-            assert result is None
+# --- дополнительные тесты для покрытия пропущенных строк ---
 
-    def test_date_chunks(self):
-        """Строки 473-479: разбивка периода на чанки"""
-        chunks = utils.date_chunks(20, chunk_size=5)
-        assert len(chunks) == 4
+def test_read_json_permission_error(tmp_path):
+    """Строки 90-92: ошибка чтения JSON"""
+    filepath = tmp_path / "test.json"
+    filepath.write_text('{"key": "value"}', encoding="utf-8")
+    with patch("builtins.open", side_effect=PermissionError("Permission denied")):
+        result = utils.read_json(filepath)
+        assert result is None
 
-    def test_date_chunks_short_period(self):
-        """Период меньше размера чанка"""
-        chunks = utils.date_chunks(3, chunk_size=5)
-        assert len(chunks) == 1
 
-    def test_collect_vacancies_multiple_large_found(self, monkeypatch):
-        """Строки 166, 168-192: разбивка по датам при >2000 вакансий"""
-        mock_hh_api = MagicMock()
-        mock_hh_api.last_response = {"found": 3000, "pages": 50}
-        mock_hh_api.search_vacancies.return_value = [{"id": f"{i}"} for i in range(10)]
-        monkeypatch.setattr(utils, "date_chunks", lambda days, chunk_size: [(100, 200), (200, 300)])
-        with patch("time.sleep", return_value=None):
-            vacs = utils.collect_vacancies_multiple(
-                mock_hh_api, queries=["Python"], area_ids=[1], period_days=60, max_pages=5, max_vacancies_per_query=5
-            )
-        assert len(vacs) == 5
+def test_date_chunks():
+    """Строки 473-479: разбивка периода на чанки"""
+    chunks = utils.date_chunks(20, chunk_size=5)
+    assert len(chunks) == 4
 
-    def test_interactive_config_region_parsing(self):
-        """Строки 219-220, 233-234: парсинг регионов"""
-        with (
-            patch("src.parsing.utils.select_from_list", return_value="1. Data Scientist"),
-            patch("src.parsing.utils.input_int", return_value=15),
-            patch("src.parsing.utils.input_yes_no", side_effect=[True, False, True, False]),
-            patch("builtins.input", return_value="1 2"),
-            patch("builtins.print"),
-        ):
-            cfg = utils.interactive_config()
-        assert len(cfg["area_ids"]) >= 1
 
-    def test_extract_and_count_skills_restore(self):
-        """Строка 343: восстановление после ошибки"""
-        mock_parser = MagicMock()
-        mock_parser.extract_skills_from_vacancies.side_effect = Exception("Boom")
-        result = utils.extract_and_count_skills([{"id": 1}], mock_parser)
-        assert result == {"frequencies": {}, "tfidf_weights": {}}
+def test_date_chunks_short_period():
+    """Период меньше размера чанка"""
+    chunks = utils.date_chunks(3, chunk_size=5)
+    assert len(chunks) == 1
+
+
+def test_collect_vacancies_multiple_large_found(monkeypatch):
+    """Строки 166, 168-192: разбивка по датам при >2000 вакансий"""
+    mock_hh_api = MagicMock()
+    mock_hh_api.last_response = {"found": 3000, "pages": 50}
+    mock_hh_api.search_vacancies.return_value = [{"id": f"{i}"} for i in range(10)]
+    monkeypatch.setattr(utils, "date_chunks", lambda days, chunk_size: [(100, 200), (200, 300)])
+    with patch("time.sleep", return_value=None):
+        vacs = utils.collect_vacancies_multiple(
+            mock_hh_api, queries=["Python"], area_ids=[1], period_days=60,
+            max_pages=5, max_vacancies_per_query=5
+        )
+    assert len(vacs) == 5
+
+
+def test_interactive_config_region_parsing():
+    """Строки 219-220, 233-234: парсинг регионов"""
+    with (
+        patch("src.parsing.utils.select_from_list", return_value="1. Data Scientist"),
+        patch("src.parsing.utils.input_int", return_value=15),
+        patch("src.parsing.utils.input_yes_no", side_effect=[True, False, True, False]),
+        patch("builtins.input", return_value="1 2"),
+        patch("builtins.print"),
+    ):
+        cfg = utils.interactive_config()
+    assert len(cfg["area_ids"]) >= 1
+
+
+def test_extract_and_count_skills_restore():
+    """Строка 343: восстановление после ошибки"""
+    mock_parser = MagicMock()
+    mock_parser.extract_skills_from_vacancies.side_effect = Exception("Boom")
+    result = utils.extract_and_count_skills([{"id": 1}], mock_parser)
+    assert result == {"frequencies": {}, "tfidf_weights": {}}
+
+
+def test_filter_skills_by_whitelist_empty_whitelist():
+    from src.parsing.utils import filter_skills_by_whitelist
+    d = {"python": 3, "java": 2}
+    assert filter_skills_by_whitelist(d, set()) == d
+
+
+def test_date_chunks_already_tested():
+    from src.parsing.utils import date_chunks
+    chunks = date_chunks(10, chunk_size=3)
+    assert len(chunks) == 4
+
+
+def test_print_top_skills(capsys):
+    from src.parsing.utils import print_top_skills
+    print_top_skills({"python": 10, "java": 5}, top_n=2)
+    captured = capsys.readouterr()
+    assert "python" in captured.out
+
+
+def test_map_to_competencies(mocker):
+    from src.parsing.utils import map_to_competencies
+    mocker.patch("src.parsing.utils.logger")
+    freq = {"python": 5, "sql": 3}
+    mapping = {"comp1": ["python"], "comp2": ["sql"]}
+    res = map_to_competencies(freq, mapping)
+    assert res["comp1"] == 5
+    assert res["comp2"] == 3
+
+
+def test_collect_vacancies_multiple_max_vacancies_limit():
+    """Строки 152, 154: ограничение max_vacancies_per_query"""
+    mock_hh_api = MagicMock()
+    mock_hh_api.last_response = {"found": 1000, "pages": 10}
+    mock_hh_api.search_vacancies.return_value = [{"id": str(i)} for i in range(100)]
+    with patch("time.sleep", return_value=None):
+        vacs = utils.collect_vacancies_multiple(
+            mock_hh_api, queries=["Python"], area_ids=[1], period_days=30,
+            max_pages=10, max_vacancies_per_query=50
+        )
+    assert len(vacs) <= 50
+
+
+def test_collect_vacancies_multiple_date_chunk_loop():
+    """Строки 177, 206-207: разбивка на чанки и выход при достижении лимита"""
+    mock_hh_api = MagicMock()
+    mock_hh_api.last_response = {"found": 3000, "pages": 50}
+    mock_hh_api.search_vacancies.return_value = [{"id": str(i)} for i in range(50)]
+    with patch("src.parsing.utils.date_chunks", return_value=[(100, 200), (200, 300)]), \
+         patch("time.sleep", return_value=None):
+        vacs = utils.collect_vacancies_multiple(
+            mock_hh_api, queries=["Python"], area_ids=[1], period_days=60,
+            max_pages=5, max_vacancies_per_query=30
+        )
+    assert len(vacs) == 30
+
+
+def test_load_queries_from_file_error(tmp_path):
+    """Строки 220-221: ошибка чтения файла запросов"""
+    filepath = tmp_path / "queries.txt"
+    with patch("builtins.open", side_effect=OSError("error")):
+        queries = utils.load_queries_from_file(filepath)
+        assert queries == []
+
+
+def test_interactive_config_region_selection_fallback():
+    """Строки 233-234: некорректный ввод региона → область по умолчанию"""
+    with patch("src.parsing.utils.select_from_list", return_value="1. Data Scientist"), \
+         patch("src.parsing.utils.input_int", return_value=30), \
+         patch("src.parsing.utils.input_yes_no", side_effect=[True, False, True, False]), \
+         patch("builtins.input", return_value="abc 1"), \
+         patch("builtins.print"):
+        cfg = utils.interactive_config()
+    assert 1 in cfg["area_ids"]
+
+
+def test_read_json_os_error(tmp_path):
+    """Ошибка открытия файла (PermissionError и т.п.)"""
+    filepath = tmp_path / "test.json"
+    filepath.write_text('{"key":"value"}', encoding="utf-8")
+    with patch("builtins.open", side_effect=OSError("Permission denied")):
+        result = utils.read_json(filepath)
+        assert result is None
+
+
+def test_collect_vacancies_multiple_date_limit():
+    """Строки 206-207: остановка при достижении лимита в цикле по датам"""
+    mock_hh_api = MagicMock()
+    mock_hh_api.last_response = {"found": 3000, "pages": 50}
+    mock_hh_api.search_vacancies.return_value = [{"id": str(i)} for i in range(50)]
+    with patch("src.parsing.utils.date_chunks", return_value=[(100, 200), (200, 300)]), \
+         patch("time.sleep", return_value=None):
+        vacs = utils.collect_vacancies_multiple(
+            mock_hh_api, queries=["Python"], area_ids=[1], period_days=60,
+            max_pages=5, max_vacancies_per_query=30
+        )
+    assert len(vacs) == 30
+
+
+def test_map_to_competencies_unmapped_skill():
+    """Ненайденный навык не попадает в результат (строка 353)"""
+    from src.parsing.utils import map_to_competencies
+    freq = {"python": 5, "unknown_skill": 3}
+    mapping = {"comp1": ["python"]}
+    res = map_to_competencies(freq, mapping)
+    assert "comp1" in res
+    assert "unknown_skill" not in res
+
+
+# --- тесты для функций из src.utils (base_utils) ---
+
+def test_validate_safe_path_inside(tmp_path):
+    """Путь внутри разрешённой директории"""
+    base = tmp_path
+    user_path = "subdir/file.txt"
+    result = base_utils.validate_safe_path(user_path, base_dir=base)
+    expected = (base / user_path).resolve()
+    assert result == expected
+
+
+def test_validate_safe_path_outside(tmp_path):
+    """Путь выходит за пределы – ошибка"""
+    base = tmp_path
+    user_path = "../outside.txt"
+    with pytest.raises(ValueError, match="выходит за пределы"):
+        base_utils.validate_safe_path(user_path, base_dir=base)
+
+
+def test_safe_load_pickle_success(tmp_path):
+    """Успешная загрузка pickle из разрешённой директории"""
+    data = {"key": "value"}
+    filepath = tmp_path / "test.pkl"
+    with open(filepath, "wb") as f:
+        pickle.dump(data, f)
+    result = base_utils.safe_load_pickle(filepath, allowed_dirs=[tmp_path])
+    assert result == data

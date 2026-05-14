@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src import config
-from src.parsing.hh_api import HeadHunterAPI
+from src.parsing.api.hh_api import HeadHunterAPI
 from src.parsing.utils import (
     collect_vacancies_multiple,
     extract_and_count_skills,
@@ -15,7 +15,7 @@ from src.parsing.utils import (
     print_top_skills,
     setup_logging,
 )
-from src.parsing.vacancy_parser import VacancyParser
+from src.parsing.skills.vacancy_parser import VacancyParser
 
 logger = logging.getLogger(__name__)
 

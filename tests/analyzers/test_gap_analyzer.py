@@ -1,7 +1,7 @@
 # tests/analyzers/test_gap_analyzer.py
 import pytest
 
-from src.analyzers.gap_analyzer import GapAnalyzer
+from src.analyzers.gap.gap_analyzer import GapAnalyzer
 
 
 class TestGapAnalyzerExtended:

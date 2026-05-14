@@ -1,10 +1,12 @@
 # tests/analyzers/test_profile_evaluator.py
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
+import json
+import numpy as np
 
 import pytest
 
-from src.analyzers.profile_evaluator import ProfileEvaluator
+from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.models.student import StudentProfile
 
 
@@ -152,7 +154,7 @@ class TestProfileEvaluatorExtended:
     def test_domain_analyzer_creates_coverage(
         self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
     ):
-        from src.analyzers.domain_analyzer import DomainAnalyzer
+        from src.analyzers.comparison.domain_analyzer import DomainAnalyzer
 
         evaluator = ProfileEvaluator(
             skill_weights={"python": 0.9},
@@ -604,3 +606,384 @@ class TestProfileEvaluatorFull:
         assert result["level_weights_used"]["junior"] == pytest.approx(0.60)
         assert result["level_weights_used"]["middle"] == pytest.approx(0.30)
         assert result["level_weights_used"]["senior"] == pytest.approx(0.10)
+
+    @pytest.fixture
+    def student(self):
+        return StudentProfile(
+            profile_name="test_student",
+            competencies=[],
+            skills=["python", "sql", "git"],
+            target_level="middle",
+            created_at=datetime.now(),
+        )
+
+    @pytest.fixture
+    def skill_weights_by_level(self):
+        return {
+            "junior": {"python": 0.8, "sql": 0.6},
+            "middle": {"python": 0.9, "sql": 0.7, "docker": 0.5},
+            "senior": {"python": 0.9, "docker": 0.9},
+        }
+
+    @pytest.fixture
+    def vacancies_skills(self):
+        return [["python", "sql"], ["docker"]]
+
+    @pytest.fixture
+    def vacancies_skills_dict(self):
+        return [{"skills": ["python", "sql"]}, {"skills": ["docker"]}]
+
+    # === строки 100 и 112 (конструктор) ===
+    def test_constructor_creates_gap_analyzer_and_cache_path(
+        self, skill_weights_by_level, vacancies_skills, vacancies_skills_dict, tmp_path, monkeypatch
+    ):
+        """Покрытие строк 100 (GapAnalyzer) и 112 (cache_path)."""
+        monkeypatch.setattr("src.config.DATA_PROCESSED_DIR", tmp_path)
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+            skill_weights_by_level=skill_weights_by_level,
+        )
+        # строка 100
+        assert evaluator.gap_analyzer_new is not None
+        # строка 112
+        assert evaluator._cache_path == tmp_path / "evaluation_cache.json"
+
+    def test_constructor_without_skill_weights_by_level(
+        self, vacancies_skills, vacancies_skills_dict
+    ):
+        """Проверка, что gap_analyzer_new = None, когда skill_weights_by_level не передан."""
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+        )
+        assert evaluator.gap_analyzer_new is None
+
+    # === строки 174-176 (цикл по required_skills в evaluate_profile) ===
+    def test_evaluate_profile_domain_bonus_loop(
+        self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict, mocker
+    ):
+        """Строки 174-176: цикл по required_skills для вычисления skill_to_domain_bonus."""
+        evaluator = ProfileEvaluator(
+            skill_weights=skill_weights_by_level["middle"],
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+            skill_weights_by_level=skill_weights_by_level,
+            use_clustering=False,
+        )
+        # Подменяем domain_analyzer, чтобы вернуть домены с required_skills
+        fake_domain = MagicMock()
+        fake_domain.coverage = 0.9
+        fake_domain.required_skills = ["python", "fastapi"]  # fastapi нет у студента
+        fake_coverages = {"Backend": fake_domain}
+
+        with patch.object(evaluator.domain_analyzer, "compute_domain_coverage", return_value=fake_coverages):
+            with patch.object(evaluator.gap_analyzer_new, "compute_metrics") as mock_metrics:
+                from src.models.market_metrics import SkillMetrics
+                metrics = {
+                    "python": SkillMetrics(skill="python", user_level=1.0),
+                    "fastapi": SkillMetrics(skill="fastapi", user_level=0.0),
+                }
+                for m in metrics.values():
+                    m.gap_j = 0.5; m.gap_m = 0.5; m.gap_s = 0.5
+                mock_metrics.return_value = metrics
+
+                result = evaluator.evaluate_profile(student)
+        # Должен отработать без ошибок, бонусы применены
+        assert "top_recommendations" in result
+
+    # === строки 264-279 (кэширование: _load_cache, _save_cache, _get_student_hash) ===
+    def test_cache_save_and_load_full(self, tmp_path, monkeypatch, skill_weights_by_level, vacancies_skills, vacancies_skills_dict):
+        """Строки 264-279: сохранение и загрузка кэша, хэширование студента."""
+        monkeypatch.setattr("src.config.DATA_PROCESSED_DIR", tmp_path)
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+            skill_weights_by_level=skill_weights_by_level,
+        )
+        # _save_cache (строка 271)
+        evaluator._cache = {"some": "data"}
+        evaluator._save_cache()
+        cache_file = tmp_path / "evaluation_cache.json"
+        assert cache_file.exists()
+        with open(cache_file) as f:
+            assert json.load(f) == {"some": "data"}
+
+        # _load_cache (строки 265-268)
+        evaluator2 = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+            skill_weights_by_level=skill_weights_by_level,
+        )
+        assert evaluator2._cache == {"some": "data"}
+
+        # _get_student_hash (строки 275-277)
+        student = StudentProfile(
+            profile_name="test", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+        )
+        h1 = evaluator._get_student_hash(student, "middle")
+        h2 = evaluator._get_student_hash(student, "middle")
+        assert h1 == h2
+        assert isinstance(h1, str)
+
+    def test_load_cache_exception(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
+        """Строка 267-268: исключение при загрузке кэша -> пустой кэш."""
+        monkeypatch.setattr("src.config.DATA_PROCESSED_DIR", tmp_path)
+        cache_file = tmp_path / "evaluation_cache.json"
+        cache_file.write_text("{invalid")
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+        )
+        assert evaluator._cache == {}
+
+    # === строки 280-288 (_compute_student_hash, _get_student_cache_path) ===
+    def test_compute_student_hash_and_cache_path(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
+        """Строки 280-288: compute_student_hash и get_student_cache_path."""
+        monkeypatch.setattr("src.config.STUDENT_EMB_CACHE_DIR", tmp_path)
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+        )
+        student = StudentProfile(
+            profile_name="john", competencies=[], skills=["python", "sql"], target_level="middle", created_at=datetime.now()
+        )
+        hash_val = evaluator._compute_student_hash(student)
+        assert isinstance(hash_val, str)
+        assert len(hash_val) == 64  # sha256 hex
+
+        cache_path = evaluator._get_student_cache_path(student)
+        assert cache_path == tmp_path / "john_embedding.json"
+
+    # === строки 290-297 (_load_cached_embedding) ===
+    def test_load_cached_embedding_valid(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
+        """Строки 290-297: загрузка валидного эмбеддинга из кэша."""
+        monkeypatch.setattr("src.config.STUDENT_EMB_CACHE_DIR", tmp_path)
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+        )
+        student = StudentProfile(
+            profile_name="jane", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+        )
+        hash_val = evaluator._compute_student_hash(student)
+        emb = np.array([1.0, 2.0, 3.0])
+        cache_path = evaluator._get_student_cache_path(student)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, "w") as f:
+            json.dump({"hash": hash_val, "embedding": emb.tolist()}, f)
+
+        loaded = evaluator._load_cached_embedding(student)
+        assert loaded is not None
+        np.testing.assert_array_equal(loaded, emb)
+
+    def test_load_cached_embedding_invalid_hash(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
+        """Строки 294-295: несовпадение хэша -> возврат None."""
+        monkeypatch.setattr("src.config.STUDENT_EMB_CACHE_DIR", tmp_path)
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+        )
+        student = StudentProfile(
+            profile_name="jane", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+        )
+        cache_path = evaluator._get_student_cache_path(student)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, "w") as f:
+            json.dump({"hash": "wrong", "embedding": [1,2,3]}, f)
+
+        loaded = evaluator._load_cached_embedding(student)
+        assert loaded is None
+
+    def test_load_cached_embedding_no_file(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
+        """Строка 290: файл не существует -> None."""
+        monkeypatch.setattr("src.config.STUDENT_EMB_CACHE_DIR", tmp_path)
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+        )
+        student = StudentProfile(
+            profile_name="nobody", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+        )
+        assert evaluator._load_cached_embedding(student) is None
+
+    # === строки 299-311 (_save_embedding_cache) и строка 348 (manifest.save) ===
+    def test_save_embedding_cache(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
+        """Строки 299-311, 348: сохранение эмбеддинга и вызов manifest.save()."""
+        monkeypatch.setattr("src.config.STUDENT_EMB_CACHE_DIR", tmp_path)
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+        )
+        student = StudentProfile(
+            profile_name="savvy", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+        )
+        emb = np.array([0.1, 0.2, 0.3])
+        with patch("src.analyzers.gap.profile_evaluator.ArtifactManifest") as MockManifest:
+            mock_manifest_instance = MockManifest.return_value
+            evaluator._save_embedding_cache(student, emb)
+
+            # Проверяем, что manifest создан и сохранён (строка 348)
+            MockManifest.assert_called_once()
+            mock_manifest_instance.save.assert_called_once()
+
+            # Проверяем содержимое файла
+            cache_path = evaluator._get_student_cache_path(student)
+            assert cache_path.exists()
+            with open(cache_path) as f:
+                data = json.load(f)
+            assert data["hash"] == evaluator._compute_student_hash(student)
+            np.testing.assert_array_equal(data["embedding"], emb.tolist())
+
+    # === строки 314-321 (_get_or_compute_student_embedding) ===
+    def test_get_or_compute_student_embedding_with_cache(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
+        """Строки 314-317: используется кэш."""
+        monkeypatch.setattr("src.config.STUDENT_EMB_CACHE_DIR", tmp_path)
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+        )
+        student = StudentProfile(
+            profile_name="cached_user", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
+        )
+        emb_cached = np.array([7.0, 8.0])
+        # Сохраняем кэш, мокая ArtifactManifest, чтобы избежать импорта sentence_transformers
+        with patch("src.analyzers.gap.profile_evaluator.ArtifactManifest"):
+            evaluator._save_embedding_cache(student, emb_cached)
+
+        with patch("src.analyzers.gap.profile_evaluator.get_embedding_model") as mock_get_model, \
+            patch("src.analyzers.gap.profile_evaluator.ArtifactManifest"):
+            result = evaluator._get_or_compute_student_embedding(student)
+            mock_get_model.assert_not_called()
+        np.testing.assert_array_equal(result, emb_cached)
+
+    def test_get_or_compute_student_embedding_no_cache(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
+        """Строки 318-321: кэша нет -> вычисление."""
+        monkeypatch.setattr("src.config.STUDENT_EMB_CACHE_DIR", tmp_path)
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+        )
+        student = StudentProfile(
+            profile_name="new_user", competencies=[], skills=["python", "sql"], target_level="middle", created_at=datetime.now()
+        )
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 128
+        fake_emb = np.random.rand(2, 128)
+        fake_model.encode.return_value = fake_emb
+
+        with patch("src.analyzers.gap.profile_evaluator.get_embedding_model", return_value=fake_model), \
+            patch("src.analyzers.gap.profile_evaluator.ArtifactManifest"):
+            result = evaluator._get_or_compute_student_embedding(student)
+        assert result.shape == (128,)
+        fake_model.encode.assert_called_once_with(student.skills, convert_to_numpy=True, show_progress_bar=False)
+
+    def test_get_or_compute_student_embedding_empty_skills(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
+        """Строки 351-355: нет навыков -> нулевой вектор."""
+        monkeypatch.setattr("src.config.STUDENT_EMB_CACHE_DIR", tmp_path)
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+        )
+        student = StudentProfile(
+            profile_name="empty_skills", competencies=[], skills=[], target_level="middle", created_at=datetime.now()
+        )
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 256
+
+        with patch("src.analyzers.gap.profile_evaluator.get_embedding_model", return_value=fake_model), \
+            patch("src.analyzers.gap.profile_evaluator.ArtifactManifest"):
+            result = evaluator._get_or_compute_student_embedding(student)
+        assert result.shape == (256,)
+        np.testing.assert_array_equal(result, np.zeros(256))
+
+    # === строки 368-381 (_get_cluster_context: разные ветки) ===
+    def test_get_cluster_context_disabled(self, student, vacancies_skills, vacancies_skills_dict):
+        """Строка 369: use_clustering=False -> возврат None."""
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+            use_clustering=False,
+        )
+        assert evaluator._get_cluster_context(student, "middle") is None
+
+    def test_get_cluster_context_model_not_loaded(self, student, vacancies_skills, vacancies_skills_dict):
+        """Строки 371-373: модель для уровня не загружена."""
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+            use_clustering=True,
+        )
+        evaluator.cluster_models_loaded = {"junior": False, "middle": False, "senior": False}
+        result = evaluator._get_cluster_context(student, "middle")
+        assert result is None
+
+    def test_get_cluster_context_exception(self, student, vacancies_skills, vacancies_skills_dict):
+        """Строки 376-381: исключение при получении контекста -> возврат None."""
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+            use_clustering=True,
+        )
+        evaluator.cluster_models_loaded = {"middle": True}
+        with patch.object(evaluator.clusterer, "get_cluster_context", side_effect=Exception("Boom")):
+            result = evaluator._get_cluster_context(student, "middle")
+        assert result is None
+
+    # === строки 299-311 (_get_or_create_comparator) ===
+    def test_get_or_create_comparator_creates_new(self, vacancies_skills):
+        """Строки 299-311: создание и тренировка компаратора."""
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=[{"skills": s} for s in vacancies_skills],
+        )
+        # Очищаем компараторы, чтобы гарантировать создание нового
+        evaluator.comparators = {}
+        with patch("src.analyzers.gap.profile_evaluator.CompetencyComparator") as MockComp:
+            mock_instance = MockComp.return_value
+            mock_instance.fit_market.return_value = True
+            comp = evaluator._get_or_create_comparator("middle")
+            assert comp is mock_instance
+            mock_instance.fit_market.assert_called_once_with(vacancies_skills)
+
+    def test_get_or_create_comparator_returns_cached(self, vacancies_skills):
+        """Строки 306: повторное использование уже созданного компаратора."""
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=[{"skills": s} for s in vacancies_skills],
+        )
+        fake_comp = MagicMock()
+        evaluator.comparators["middle"] = fake_comp
+        comp = evaluator._get_or_create_comparator("middle")
+        assert comp is fake_comp
+
+    # === строки 314-321 (_get_recommendation) ===
+    def test_get_recommendation_all_ranges(self, vacancies_skills, vacancies_skills_dict):
+        """Строки 314-321: проверка всех ветвей рекомендаций."""
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+        )
+        assert "✅" in evaluator._get_recommendation(85, "middle")
+        assert "📈" in evaluator._get_recommendation(65, "middle")
+        assert "⚠️" in evaluator._get_recommendation(45, "middle")
+        assert "❌" in evaluator._get_recommendation(30, "middle")

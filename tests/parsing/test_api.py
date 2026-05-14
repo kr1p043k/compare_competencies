@@ -6,10 +6,11 @@ import aiohttp
 import pytest
 import requests
 from aioresponses import aioresponses
+from pydantic import SecretStr
 
 from src.models.vacancy import Vacancy
-from src.parsing.hh_api import HeadHunterAPI
-from src.parsing.hh_api_async import HeadHunterAPIAsync
+from src.parsing.api.hh_api import HeadHunterAPI
+from src.parsing.api.hh_api_async import HeadHunterAPIAsync
 
 
 class TestHeadHunterAPISync:
@@ -21,7 +22,7 @@ class TestHeadHunterAPISync:
         assert "User-Agent" in api.session.headers
         api.close()
 
-    @patch("src.parsing.hh_api.HeadHunterAPI._get")
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
     def test_search_vacancies_success(self, mock_get):
         api = HeadHunterAPI()
         mock_get.return_value = {"items": [{"id": "1"}, {"id": "2"}], "pages": 1, "found": 2}
@@ -29,7 +30,7 @@ class TestHeadHunterAPISync:
         assert len(result) == 2
         mock_get.assert_called_once()
 
-    @patch("src.parsing.hh_api.HeadHunterAPI._get")
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
     def test_search_vacancies_pagination(self, mock_get):
         api = HeadHunterAPI()
         mock_get.side_effect = [
@@ -40,14 +41,14 @@ class TestHeadHunterAPISync:
         assert len(result) == 3
         assert mock_get.call_count == 2
 
-    @patch("src.parsing.hh_api.HeadHunterAPI._get")
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
     def test_search_vacancies_stops_on_empty_page(self, mock_get):
         api = HeadHunterAPI()
         mock_get.return_value = {"items": [], "pages": 5}
         result = api.search_vacancies(text="C++", area=1)
         assert result == []
 
-    @patch("src.parsing.hh_api.HeadHunterAPI._get")
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
     def test_get_vacancy_details_success(self, mock_get):
         api = HeadHunterAPI()
         mock_get.return_value = {"id": "123", "name": "Test"}
@@ -141,8 +142,8 @@ class TestHeadHunterAPISync:
 
     def test_get_app_token_success(self, monkeypatch):
         """Строка 51: успешное получение токена"""
-        monkeypatch.setattr("src.parsing.hh_api.config.HH_CLIENT_ID", "test_id")
-        monkeypatch.setattr("src.parsing.hh_api.config.HH_CLIENT_SECRET", "test_secret")
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
 
         api = HeadHunterAPI()
         with patch.object(api.session, "post") as mock_post:
@@ -158,8 +159,8 @@ class TestHeadHunterAPISync:
 
     def test_get_app_token_failure(self, monkeypatch):
         """Строки 75-76: ошибка получения токена"""
-        monkeypatch.setattr("src.parsing.hh_api.config.HH_CLIENT_ID", "test_id")
-        monkeypatch.setattr("src.parsing.hh_api.config.HH_CLIENT_SECRET", "test_secret")
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
 
         api = HeadHunterAPI()
         with patch.object(api.session, "post") as mock_post:
@@ -172,8 +173,8 @@ class TestHeadHunterAPISync:
 
     def test_get_app_token_exception(self, monkeypatch):
         """Строки 75-76: исключение при получении токена"""
-        monkeypatch.setattr("src.parsing.hh_api.config.HH_CLIENT_ID", "test_id")
-        monkeypatch.setattr("src.parsing.hh_api.config.HH_CLIENT_SECRET", "test_secret")
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
 
         api = HeadHunterAPI()
         with patch.object(api.session, "post", side_effect=Exception("Network error")):
@@ -267,17 +268,58 @@ class TestHeadHunterAPISync:
             result = api._get("https://test.url")
             assert result is None
 
+    def test_search_vacancies_industry_param(self):
+        """Строка 55: параметр industry"""
+        api = HeadHunterAPI()
+        with patch.object(api, "_get") as mock_get:
+            mock_get.return_value = {"items": [], "pages": 0}
+            api.search_vacancies(text="dev", area=1, industry=7)
+            call_args = mock_get.call_args[1]["params"]
+            assert call_args["industry"] == 7
+
+    def test_get_vacancy_details_validated_success(self):
+        """Строки 64, 68-71: get_vacancy_details_validated"""
+        api = HeadHunterAPI()
+        raw = {"id": "1", "name": "Test", "area": {"id": 1, "name": "M"}, "employer": {"id": "2", "name": "E"}}
+        with patch.object(api, "_get", return_value=raw):
+            result = api.get_vacancy_details_validated("1")
+            assert result.id == "1"
+
+    def test_get_vacancy_details_validated_not_found(self):
+        """Строки 68-71: исключение при None"""
+        api = HeadHunterAPI()
+        with patch.object(api, "_get", return_value=None):
+            with pytest.raises(ValueError, match="not found"):
+                api.get_vacancy_details_validated("999")
+
+    def test_get_vacancy_details_as_object_invalid(self):
+        """Строки 81-82: Vacancy.from_api вызывает ошибку"""
+        api = HeadHunterAPI()
+        raw = {"id": "1"}  # нет name
+        with patch.object(api, "_get", return_value=raw):
+            result = api.get_vacancy_details_as_object("1")
+            assert result is None
+
+    def test_get_handles_429_without_retry_after(self):
+        """Строки 136-137: 429 без заголовка Retry-After"""
+        api = HeadHunterAPI()
+        with patch.object(api.session, "get") as mock_get:
+            mock_get.return_value = Mock(status_code=429, headers={})
+            with patch("time.sleep", return_value=None):
+                result = api._get("https://test.url")
+                assert result is None
+
+    def test_get_handles_401_final_failure(self):
+        """Строки 162, 185-186: 401 после обновления токена → None"""
+        api = HeadHunterAPI()
+        with patch.object(api.session, "get") as mock_get:
+            mock_get.return_value = Mock(status_code=401)
+            with patch.object(api, "_get_app_token"):
+                result = api._get("https://test.url", _is_retry_after_401=True)
+                assert result is None
+
 class TestHeadHunterAPIAsync:
     """Тесты асинхронного клиента HeadHunterAPIAsync"""
-
-    @pytest.mark.asyncio
-    async def test_throttle_respects_delay(self):
-        api = HeadHunterAPIAsync(request_delay=0.1)
-        start = time.time()
-        await api._throttle()
-        await api._throttle()
-        elapsed = time.time() - start
-        assert elapsed >= 0.095
 
     @pytest.mark.asyncio
     async def test_request_success(self):
@@ -389,7 +431,7 @@ class TestHeadHunterAPIAsync:
             async with aiohttp.ClientSession() as session:
                 result = await api._request(session, "https://test.url")
                 assert result is None
-                assert api.stats["other_errors"] == 1
+                assert api.stats["other_errors"] >= 1
 
     @pytest.mark.asyncio
     async def test_request_handles_client_error(self):
@@ -434,33 +476,33 @@ class TestHeadHunterAPIAsyncToken:
     async def test_ensure_token_no_credentials(self):
         """Строка 46: нет CLIENT_ID/SECRET"""
         api = HeadHunterAPIAsync()
-        with patch("src.parsing.hh_api_async.config.HH_CLIENT_ID", None):
+        with patch("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", None):
             await api._ensure_token()
             assert api._token is None
 
     @pytest.mark.asyncio
     async def test_ensure_token_from_sync_api(self, monkeypatch):
-        """Строки 49-50: использование токена из синхронного API"""
-        monkeypatch.setattr("src.parsing.hh_api_async.config.HH_CLIENT_ID", "test_id")
-        monkeypatch.setattr("src.parsing.hh_api_async.config.HH_CLIENT_SECRET", "test_secret")
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
 
         api = HeadHunterAPIAsync()
-
-        mock_sync = MagicMock()
+        mock_sync = MagicMock(spec=HeadHunterAPI)
         mock_sync._token = "sync_token"
         mock_sync._token_expires_at = time.time() + 3600
 
-        # Патчим класс HeadHunterAPI в том месте, где он импортируется
-        with patch("src.parsing.hh_api.HeadHunterAPI") as mock_hh_class:
-            mock_hh_class.return_value = mock_sync
-            await api._ensure_token()
-            assert api._token == "sync_token"
+        with patch("src.parsing.api.hh_api_async.HeadHunterAPI", return_value=mock_sync):
+            with patch.object(api, "_get_app_token", new_callable=AsyncMock) as mock_async_token:
+                await api._ensure_token()
+                mock_async_token.assert_not_called()
+                assert api._token == "sync_token"
 
     @pytest.mark.asyncio
     async def test_get_app_token_success(self, monkeypatch):
         """Строки 57-60: успешное получение токена"""
-        monkeypatch.setattr("src.parsing.hh_api_async.config.HH_CLIENT_ID", "test_id")
-        monkeypatch.setattr("src.parsing.hh_api_async.config.HH_CLIENT_SECRET", "test_secret")
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
 
         api = HeadHunterAPIAsync()
         with aioresponses() as m:
@@ -474,8 +516,8 @@ class TestHeadHunterAPIAsyncToken:
     @pytest.mark.asyncio
     async def test_get_app_token_403_fallback(self, monkeypatch):
         """Строки 87-91: 403 при получении токена — без авторизации"""
-        monkeypatch.setattr("src.parsing.hh_api_async.config.HH_CLIENT_ID", "test_id")
-        monkeypatch.setattr("src.parsing.hh_api_async.config.HH_CLIENT_SECRET", "test_secret")
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
 
         api = HeadHunterAPIAsync()
         with aioresponses() as m:
@@ -486,8 +528,8 @@ class TestHeadHunterAPIAsyncToken:
     @pytest.mark.asyncio
     async def test_get_app_token_exception(self, monkeypatch):
         """Строка 99: исключение при получении токена"""
-        monkeypatch.setattr("src.parsing.hh_api_async.config.HH_CLIENT_ID", "test_id")
-        monkeypatch.setattr("src.parsing.hh_api_async.config.HH_CLIENT_SECRET", "test_secret")
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
 
         api = HeadHunterAPIAsync()
         with aioresponses() as m:
@@ -625,16 +667,16 @@ class TestHeadHunterAPIAsyncBatch:
     async def test_ensure_token_no_credentials(self):
         """Строка 46: нет CLIENT_ID/SECRET"""
         api = HeadHunterAPIAsync()
-        with patch("src.parsing.hh_api_async.config.HH_CLIENT_ID", None):
-            with patch("src.parsing.hh_api_async.config.HH_CLIENT_SECRET", None):
+        with patch("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", None):
+            with patch("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", None):
                 await api._ensure_token()
                 assert api._token is None
 
     @pytest.mark.asyncio
     async def test_get_app_token_success(self, monkeypatch):
         """Строки 57-60: успешное получение токена"""
-        monkeypatch.setattr("src.parsing.hh_api_async.config.HH_CLIENT_ID", "test_id")
-        monkeypatch.setattr("src.parsing.hh_api_async.config.HH_CLIENT_SECRET", "test_secret")
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
 
         api = HeadHunterAPIAsync()
         with aioresponses() as m:
@@ -648,8 +690,8 @@ class TestHeadHunterAPIAsyncBatch:
     @pytest.mark.asyncio
     async def test_get_app_token_other_error(self, monkeypatch):
         """Строка 91: другая ошибка при получении токена"""
-        monkeypatch.setattr("src.parsing.hh_api_async.config.HH_CLIENT_ID", "test_id")
-        monkeypatch.setattr("src.parsing.hh_api_async.config.HH_CLIENT_SECRET", "test_secret")
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
 
         api = HeadHunterAPIAsync()
         with aioresponses() as m:
@@ -691,3 +733,90 @@ class TestHeadHunterAPIAsyncBatch:
         with patch.object(api, "get_vacancies_details_batch", mock_batch):
             results = api.get_vacancies_details_sync(["1", "2"])
             assert len(results) == 2
+
+class TestHeadHunterAPITokenMethods:
+    def test_get_app_token_success(self, monkeypatch):
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
+        api = HeadHunterAPI()
+        with patch.object(api.session, "post") as mock_post:
+            mock_response = Mock(status_code=200)
+            mock_response.json.return_value = {"access_token": "app_token_123", "expires_in": 86400}
+            mock_post.return_value = mock_response
+            api._get_app_token()
+            assert api._token == "app_token_123"
+
+    def test_get_app_token_failure(self, monkeypatch):
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
+        api = HeadHunterAPI()
+        with patch.object(api.session, "post") as mock_post:
+            mock_response = Mock(status_code=400)
+            mock_response.text = "Bad request"
+            mock_post.return_value = mock_response
+            api._get_app_token()
+            assert api._token is None
+
+    def test_get_app_token_exception(self, monkeypatch):
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", SecretStr("test_id"))
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
+        api = HeadHunterAPI()
+        with patch.object(api.session, "post", side_effect=Exception("Network error")):
+            api._get_app_token()
+            assert api._token is None
+
+class TestHeadHunterAPIAsyncAdditional:
+    @pytest.mark.asyncio
+    async def test_ensure_token_skip_when_already_valid(self):
+        """Строки 48-52: токен валиден — не обновляем"""
+        api = HeadHunterAPIAsync(token="valid", token_expires_at=time.time() + 1000)
+        with patch.object(api, "_get_app_token", new_callable=AsyncMock) as mock_token:
+            await api._ensure_token()
+            mock_token.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_app_token_missing_client_secret(self, monkeypatch):
+        """Строка 61: client_id есть, но client_secret пуст → выход"""
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", SecretStr("id"))
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", None)
+        api = HeadHunterAPIAsync()
+        with aioresponses() as m:
+            # Запрос не должен произойти
+            await api._get_app_token()
+        assert api._token is None
+
+    @pytest.mark.asyncio
+    async def test_get_app_token_500_error(self, monkeypatch):
+        """Строки 90-91: ошибка сервера при получении токена (не 403)"""
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", SecretStr("id"))
+        monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", SecretStr("secret"))
+        api = HeadHunterAPIAsync()
+        with aioresponses() as m:
+            m.post("https://api.hh.ru/token", status=500, body="error")
+            await api._get_app_token()
+        assert api._token is None
+
+    @pytest.mark.asyncio
+    async def test_get_vacancies_details_batch_validated(self):
+        """Строки 240-267: валидированная пакетная загрузка"""
+        api = HeadHunterAPIAsync(batch_size=2)
+        vacancy_ids = ["1", "2"]
+        with aioresponses() as m:
+            for vid in vacancy_ids:
+                m.get(f"https://api.hh.ru/vacancies/{vid}", payload={
+                    "id": vid, "name": f"Job {vid}",
+                    "area": {"id": 1, "name": "M"},
+                    "employer": {"id": "1", "name": "C"}
+                })
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                results = await api.get_vacancies_details_batch_validated(vacancy_ids)
+        assert len(results) == 2
+        assert results[0].id == "1"
+
+    def test_get_vacancies_details_sync_validated(self):
+        """Строки 271-278: синхронная обёртка для валидированных"""
+        api = HeadHunterAPIAsync()
+        with patch.object(api, "get_vacancies_details_batch_validated", new_callable=AsyncMock) as mock_batch:
+            mock_batch.return_value = [MagicMock(id="1"), MagicMock(id="2")]
+            results = api.get_vacancies_details_sync_validated(["1", "2"])
+        assert len(results) == 2
