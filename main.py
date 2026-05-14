@@ -38,7 +38,7 @@ from src.utils import (
     safe_read_competency_json,
     safe_read_json,
 )
-from src.visualization.charts import run_notebook, save_all_charts, show_context_info
+from src.visualization.orchestration import run_notebook, save_all_charts, show_context_info
 
 logger = structlog.get_logger("main")
 

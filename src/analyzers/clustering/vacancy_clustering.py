@@ -416,7 +416,7 @@ class VacancyClusterer:
                 break
 
         # Формируем имя: иконка + категория
-        from src.visualization.charts import EMOJI_TO_TEXT
+        from src.visualization._config import EMOJI_TO_TEXT
 
         text_icon = EMOJI_TO_TEXT.get(dominant_icon, "")
         name = f"{text_icon} {dominant_label}" if text_icon else dominant_label
