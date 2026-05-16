@@ -11,7 +11,7 @@ from .enums import SkillCategory
 logger = structlog.get_logger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class SkillMetrics:
     skill: str
     gap_j: float = 0.0
@@ -73,7 +73,7 @@ class SkillMetrics:
             )
 
 
-@dataclass
+@dataclass(slots=True)
 class DomainMetrics:
     domain: str
     required_skills: list[str]
