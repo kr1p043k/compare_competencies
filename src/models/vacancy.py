@@ -9,7 +9,7 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class KeySkill:
     """
     Ключевой навык из API hh.ru
@@ -40,7 +40,7 @@ class KeySkill:
         return f"KeySkill('{self.name}')"
 
 
-@dataclass
+@dataclass(slots=True)
 class Snippet:
     """
     Краткая информация о вакансии (требования и обязанности)
@@ -67,7 +67,7 @@ class Snippet:
         return "\n".join(parts)
 
 
-@dataclass
+@dataclass(slots=True)
 class Salary:
     """
     Информация о заработной плате
@@ -98,7 +98,7 @@ class Salary:
         return "Не указана"
 
 
-@dataclass
+@dataclass(slots=True)
 class Area:
     """
     Регион (область)
@@ -123,7 +123,7 @@ class Area:
         return f"{self.name} (ID {self.id})"
 
 
-@dataclass
+@dataclass(slots=True)
 class Employer:
     """
     Работодатель
@@ -142,7 +142,7 @@ class Employer:
         return f"{self.name}"
 
 
-@dataclass
+@dataclass(slots=True)
 class Experience:
     """
     Требуемый опыт работы
@@ -185,7 +185,7 @@ class Experience:
         return f"Experience({self.get_level()}: {self.name})"
 
 
-@dataclass
+@dataclass(slots=True)
 class Vacancy:
     """
     ПОЛНАЯ модель вакансии с валидацией и типизацией
@@ -388,7 +388,7 @@ class Vacancy:
         return False
 
 
-@dataclass
+@dataclass(slots=True)
 class VacancyCollection:
     """
     Коллекция вакансий с полезными методами
