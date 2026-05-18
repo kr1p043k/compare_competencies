@@ -1,0 +1,151 @@
+PS C:\Users\aleyn\OneDrive\Рабочий стол\Новая папка\compare_competencies> uvicorn src.api:app --host 0.0.0.0 --port 8000 --reload
+INFO:     Will watch for changes in these directories: ['C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [28212] using StatReload
+2026-05-16 00:18:35 [info     ] hdbscan_unavailable_fallback_to_kmeans
+INFO:     Started server process [14784]
+INFO:     Waiting for application startup.
+2026-05-16 00:18:37 [info     ] Запуск API-сервера, инициализация движков...
+2026-05-16 00:18:37 [info     ] Загружено 79 вакансий         
+2026-05-16 00:18:37 [info     ] blacklist_loaded               count=221
+2026-05-16 00:18:37 [info     ] generic_words_loaded           count=250
+2026-05-16 00:18:37 [info     ] filler_words_loaded            count=19
+2026-05-16 00:18:37 [debug    ] reading_json                   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\reference\\it_skills.json'
+2026-05-16 00:18:37 [info     ] it_skills_loaded               count=933
+2026-05-16 00:18:37 [info     ] Загружен кэш парсинга навыков 
+2026-05-16 00:18:37 [debug    ] reading_json                   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\reference\\it_skills.json'
+2026-05-16 00:18:37 [info     ] it_skills_loaded               count=933
+2026-05-16 00:18:37 [info     ] skill_filter_initialized       reference_skills_count=933
+2026-05-16 00:18:37 [info     ] final_cleanup_started         
+2026-05-16 00:18:37 [info     ] using_competency_freq          count=101
+2026-05-16 00:18:37 [info     ] generic_words_removed          count=2
+2026-05-16 00:18:37 [info     ] after_reference_filter         count=99
+2026-05-16 00:18:37 [info     ] long_phrases_removed           remaining=99 removed=0
+2026-05-16 00:18:37 [info     ] cleanup_completed              max_weight=1.0 min_weight=0.1 total=99
+2026-05-16 00:18:37 [info     ] top_10_market_skills          
+2026-05-16 00:18:37 [info     ] top_skill                      normalized_weight=1.0 original_weight=450.0 skill=react
+2026-05-16 00:18:37 [info     ] top_skill                      normalized_weight=0.8759 original_weight=388.0 skill='работа с базами данных'
+2026-05-16 00:18:37 [info     ] top_skill                      normalized_weight=0.8619 original_weight=381.0 skill=nuxt.js
+2026-05-16 00:18:37 [info     ] top_skill                      normalized_weight=0.8439 original_weight=372.0 skill=bootstrap
+2026-05-16 00:18:37 [info     ] top_skill                      normalized_weight=0.5236 original_weight=212.0 skill=git
+2026-05-16 00:18:37 [info     ] top_skill                      normalized_weight=0.5136 original_weight=207.0 skill='rest api'
+2026-05-16 00:18:37 [info     ] top_skill                      normalized_weight=0.4555 original_weight=178.0 skill=docker
+2026-05-16 00:18:37 [info     ] top_skill                      normalized_weight=0.3574 original_weight=129.0 skill=vue
+2026-05-16 00:18:37 [info     ] top_skill                      normalized_weight=0.3414 original_weight=121.0 skill=postgresql
+2026-05-16 00:18:37 [info     ] top_skill                      normalized_weight=0.2894 original_weight=95.0 skill=redux
+2026-05-16 00:18:37 [info     ] taxonomy_loaded                categories_count=20 skills_count=791
+2026-05-16 00:18:37 [debug    ] reading_json                   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\reference\\it_skills.json'
+2026-05-16 00:18:37 [info     ] it_skills_loaded               count=933
+2026-05-16 00:18:37 [info     ] analyzing_skills_by_level     
+2026-05-16 00:18:37 [info     ] skills_analyzed_by_level       unique_skills=156 vacancies_distribution={'middle': 52, 'senior': 17, 'junior': 2}
+2026-05-16 00:18:37 [info     ] canonical_map_built            terms=251
+2026-05-16 00:18:37 [debug    ] reading_json                   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\reference\\it_skills.json'
+2026-05-16 00:18:37 [info     ] it_skills_loaded               count=933
+2026-05-16 00:18:37 [info     ] whitelist_loaded_and_extended  count=933
+2026-05-16 00:18:37 [debug    ] no_fuzzy_match                 normalized=gtest original=gtest
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched=neo4j original=neo4j score=88.88888888888889
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='развёртывание бд в k8s' original='развёртывание БД в K8s' score=97.67441860465115
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='визуально-языковые модели' original='визуально-языковые модели' score=91.30434782608697
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched=sql original='ms sql server' score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='понимание ролей' original='понимание ролей' score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched=c original=couchdb score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched=catboost original=boost score=90.0
+2026-05-16 00:18:37 [debug    ] no_fuzzy_match                 normalized='ms office' original='ms office'
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='управление рисками ии' original='управление рисками ИИ' score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched=c original='oracle db' score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='вызов языковых моделей' original='вызов языковых моделей' score=90.0
+2026-05-16 00:18:37 [debug    ] student_profile_created        competencies_count=31 has_embedding=False profile=base skills_count=239 target_level=junior
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='управление качеством данных' original='управление качеством данных' score=90.0
+2026-05-16 00:18:37 [debug    ] no_fuzzy_match                 normalized=maven original=maven
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='spring boot' original='spring boot' score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='apache kafka' original='apache kafka' score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='apache kafka' original='kafka streams' score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='f1 score' original='f1 score' score=93.33333333333333
+2026-05-16 00:18:37 [debug    ] student_profile_created        competencies_count=38 has_embedding=False profile=dc skills_count=292 target_level=middle
+2026-05-16 00:18:37 [debug    ] skills_merged_hierarchically   base_count=243 duplicates_removed=543 merged_count=468 middle_count=300 top_count=468
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched=mlp original='machine learning' score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='разработка технических заданий' original='разработка технических заданий' score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched=c original=ci/cd score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched=seq2seq original=seq2seq score=92.3076923076923
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched=reasoning original='neuro-symbolic reasoning' score=90.0
+2026-05-16 00:18:37 [debug    ] no_fuzzy_match                 normalized='distributed training' original='distributed training'
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='исследование dl' original='deep learning' score=90.0
+2026-05-16 00:18:37 [debug    ] no_fuzzy_match                 normalized='isaac sim' original='isaac sim'
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='управление ml-проектами' original='управление ML-проектами' score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='knowledge graph' original='knowledge graphs' score=96.7741935483871
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='управление проектами ии' original='управление проектами ии' score=90.0
+2026-05-16 00:18:37 [debug    ] fuzzy_match                    matched='random forest' original=restful score=90.0
+2026-05-16 00:18:37 [debug    ] no_fuzzy_match                 normalized='image processing' original='image processing'
+2026-05-16 00:18:37 [debug    ] no_fuzzy_match                 normalized='gradient accumulation' original='gradient accumulation'
+2026-05-16 00:18:38 [debug    ] fuzzy_match                    matched='архитектура систем ии' original='разработка архитектур' score=90.0
+2026-05-16 00:18:38 [debug    ] fuzzy_match                    matched='новые архитектуры нейросетей' original='новые архитектуры' score=90.0
+2026-05-16 00:18:38 [debug    ] fuzzy_match                    matched='разработка тз' original='разработка тз' score=90.0
+2026-05-16 00:18:38 [debug    ] fuzzy_match                    matched='gitlab ci/cd' original='gitlab ci/cd' score=95.65217391304348
+2026-05-16 00:18:38 [debug    ] fuzzy_match                    matched=precision original='mixed precision training' score=90.0
+2026-05-16 00:18:38 [debug    ] no_fuzzy_match                 normalized='object detection' original='object detection'
+2026-05-16 00:18:38 [debug    ] no_fuzzy_match                 normalized='elk stack' original='elk stack'
+2026-05-16 00:18:38 [debug    ] no_fuzzy_match                 normalized=debugging original=debugging
+2026-05-16 00:18:38 [debug    ] no_fuzzy_match                 normalized=yolo original=yolo
+2026-05-16 00:18:38 [debug    ] no_fuzzy_match                 normalized='robotics simulation' original='robotics simulation'
+2026-05-16 00:18:38 [debug    ] student_profile_created        competencies_count=54 has_embedding=False profile=top_dc skills_count=450 target_level=senior
+2026-05-16 00:18:38 [info     ] domain_map_loaded              domains=13 path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\reference\\domain_map.json'
+2026-05-16 00:18:38 [warning  ] cluster_model_file_not_found   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\cache\\clusters\\vacancy_clusters_junior.pkl'
+2026-05-16 00:18:38 [warning  ] cluster_model_file_not_found   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\cache\\clusters\\vacancy_clusters_middle.pkl'
+2026-05-16 00:18:38 [warning  ] cluster_model_file_not_found   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\cache\\clusters\\vacancy_clusters_senior.pkl'
+2026-05-16 00:18:38 [info     ] cluster_models_loaded          junior=False middle=False senior=False
+2026-05-16 00:18:38 [info     ] loading_embedding_model        model=sentence-transformers/paraphrase-multilingual-mpnet-base-v2
+C:\Users\aleyn\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\sentence_transformers\SentenceTransformer.py:195: FutureWarning: The `use_auth_token` argument is deprecated and will be removed in v4 of SentenceTransformers.
+  warnings.warn(
+2026-05-16 00:18:43 [info     ] embedding_model_loaded        
+2026-05-16 00:18:43 [info     ] faiss_unavailable             
+2026-05-16 00:18:43 [debug    ] reading_json                   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\reference\\it_skills.json'
+2026-05-16 00:18:43 [info     ] it_skills_loaded               count=933
+2026-05-16 00:18:43 [info     ] skill_filter_initialized       reference_skills_count=933
+2026-05-16 00:18:43 [info     ] blacklist_loaded               count=221
+2026-05-16 00:18:43 [info     ] generic_words_loaded           count=250
+2026-05-16 00:18:43 [info     ] filler_words_loaded            count=19
+2026-05-16 00:18:43 [debug    ] reading_json                   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\reference\\it_skills.json'
+2026-05-16 00:18:43 [info     ] it_skills_loaded               count=933
+2026-05-16 00:18:43 [debug    ] reading_json                   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\reference\\it_skills.json'
+2026-05-16 00:18:43 [info     ] it_skills_loaded               count=933
+2026-05-16 00:18:43 [info     ] skill_filter_initialized       reference_skills_count=933
+2026-05-16 00:18:43 [info     ] ltr_manifest_not_found_skipping_check path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\models\\ltr_ranker_xgb_regressor.joblib'
+2026-05-16 00:18:43 [info     ] model_loaded                   corpus_size=0 features=4 path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\models\\ltr_ranker_xgb_regressor.joblib' skills=2648
+2026-05-16 00:18:43 [info     ] ltr_model_loaded              
+2026-05-16 00:18:43 [info     ] hot_skills_loaded              count=11
+2026-05-16 00:18:43 [info     ] timeframe_groups_loaded       
+2026-05-16 00:18:43 [info     ] recommendation_engine_initialized llm=False ltr=True ltr_fitted=True
+2026-05-16 00:18:43 [info     ] faiss_unavailable             
+2026-05-16 00:18:43 [info     ] embeddings_cache_loaded       
+2026-05-16 00:18:43 [info     ] market_embeddings_built       
+2026-05-16 00:18:43 [info     ] skill_weights_received         count=99
+2026-05-16 00:18:43 [info     ] skill_weights_sample           sample=[('rest api', 0.5136), ('fastapi', 0.1813), ('docker', 0.4555)]
+2026-05-16 00:18:43 [info     ] skill_weights_forwarded_to_embedding_comparator
+2026-05-16 00:18:43 [info     ] recommendation_engine_fitted   skills=99 vacancies=71
+2026-05-16 00:18:43 [warning  ] cluster_model_file_not_found   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\cache\\clusters\\vacancy_clusters_junior.pkl'
+2026-05-16 00:18:43 [warning  ] Модель кластеров для junior не найдена
+2026-05-16 00:18:43 [warning  ] cluster_model_file_not_found   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\cache\\clusters\\vacancy_clusters_middle.pkl'
+2026-05-16 00:18:43 [warning  ] Модель кластеров для middle не найдена
+2026-05-16 00:18:43 [warning  ] cluster_model_file_not_found   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\cache\\clusters\\vacancy_clusters_senior.pkl'
+2026-05-16 00:18:43 [warning  ] Модель кластеров для senior не найдена
+2026-05-16 00:18:43 [debug    ] reading_json                   path='C:\\Users\\aleyn\\OneDrive\\Рабочий стол\\Новая папка\\compare_competencies\\data\\reference\\it_skills.json'
+2026-05-16 00:18:43 [info     ] it_skills_loaded               count=933
+2026-05-16 00:18:43 [info     ] whitelist_filter_applied       remaining=50 total=62
+2026-05-16 00:18:44 [info     ] API готов к работе            
+INFO:     Application startup complete.
+INFO:     127.0.0.1:52123 - "GET /api/vacancies?limit=12&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52125 - "GET /api/vacancies/stats/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52127 - "GET /api/results/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61291 - "GET /api/profiles/dc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59351 - "GET /api/results/recommendations/dc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64511 - "GET /api/results/images/dc/radar HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61182 - "GET /api/results/images/dc/ml_importance HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62105 - "GET /api/results/images/dc/cluster_insights HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50674 - "GET /api/results/images/dc/deficits HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54672 - "POST /api/pipeline/full-cycle?query=Data+Scientist&area_id=1&max_pages=5&period=30 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57990 - "GET /api/vacancies?limit=12&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49937 - "GET /api/vacancies?limit=12&offset=0&experience=middle HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64578 - "GET /api/vacancies?limit=12&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62103 - "GET /api/vacancies?limit=12&offset=0&experience=junior HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "GET /api/vacancies?limit=12&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50660 - "POST /api/scripts/full-rebuild HTTP/1.1" 404 Not Found

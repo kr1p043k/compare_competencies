@@ -1,0 +1,684 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+FastAPI backend для Competency Gap Analyzer.
+Заменяет Streamlit frontend, запускает CLI-команды и предоставляет REST API.
+"""
+import sys
+import subprocess
+import json
+import os
+import logging
+from pathlib import Path
+from typing import Dict, Any, Optional
+
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+import uvicorn
+
+# ============================================
+# 🔧 НАСТРОЙКА ПУТЕЙ
+# ============================================
+SRC_DIR = Path(__file__).parent.resolve()
+PROJECT_ROOT = SRC_DIR.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# Импортируем пути из config (теперь с правильными именами)
+try:
+    from src.config import (
+        DATA_DIR, DATA_PROCESSED_DIR, DATA_RAW_DIR, DATA_RESULT_DIR,
+        STUDENTS_DIR, MODELS_DIR, HISTORY_DIR, LAST_UPLOADED_DIR
+    )
+except ImportError:
+    # Fallback, если config не импортируется
+    DATA_DIR = PROJECT_ROOT / "data"
+    DATA_PROCESSED_DIR = DATA_DIR / "processed"
+    DATA_RAW_DIR = DATA_DIR / "raw"
+    DATA_RESULT_DIR = DATA_DIR / "result"
+    STUDENTS_DIR = DATA_DIR / "students"
+    MODELS_DIR = DATA_DIR / "models"
+    HISTORY_DIR = DATA_DIR / "history"
+    LAST_UPLOADED_DIR = DATA_DIR / "last_uploaded"
+
+# Алиасы для совместимости с остальным кодом
+PROCESSED_DIR = DATA_PROCESSED_DIR
+RAW_DIR = DATA_RAW_DIR
+RESULT_DIR = DATA_RESULT_DIR
+
+# Создаём директории
+for dir_path in [DATA_PROCESSED_DIR, STUDENTS_DIR, DATA_RAW_DIR, DATA_RESULT_DIR, MODELS_DIR, HISTORY_DIR]:
+    dir_path.mkdir(parents=True, exist_ok=True)
+
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Frontend статика
+FRONTEND_DIR = PROJECT_ROOT / "frontend"
+STATIC_DIR = FRONTEND_DIR / "static"
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+
+# ============================================
+# 🚀 СОЗДАНИЕ FASTAPI ПРИЛОЖЕНИЯ
+# ============================================
+app = FastAPI(
+    title="Competency Gap Analyzer API",
+    description="REST API для анализа соответствия учебных компетенций требованиям рынка труда (hh.ru)",
+    version="2.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
+)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Статические файлы (опциональный простой фронт)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+# ============================================
+# 📊 ЗАГРУЗКА ДАННЫХ
+# ============================================
+def load_market_competencies() -> Dict[str, int]:
+    """Загрузка рыночных компетенций из data/processed/competency_frequency_mapped.json."""
+    filepath = PROCESSED_DIR / "competency_frequency_mapped.json"
+    if filepath.exists():
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Ошибка загрузки market_competencies: {e}")
+    return {}
+
+
+def load_all_profiles() -> Dict[str, list]:
+    """Загрузка профилей студентов из data/students/."""
+    profiles = {}
+    for name in ['base', 'dc', 'top_dc']:
+        filepath = STUDENTS_DIR / f"{name}_competency.json"
+        if filepath.exists():
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    profiles[name] = data.get("навыки", [])
+            except Exception as e:
+                logger.error(f"Ошибка загрузки профиля {name}: {e}")
+                profiles[name] = []
+        else:
+            profiles[name] = []
+    return profiles
+
+
+def load_competency_descriptions() -> Dict[str, str]:
+    """Загрузка описаний компетенций из description_of_competency.txt."""
+    descriptions = {}
+    filepath = STUDENTS_DIR / "descriptiom_of_competency.txt"
+    if filepath.exists():
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                lines = f.read().splitlines()
+            for line in lines[1:]:
+                line = line.strip()
+                if '\t' in line:
+                    parts = line.split('\t', 1)
+                    if len(parts) == 2:
+                        descriptions[parts[0]] = parts[1]
+        except Exception as e:
+            logger.error(f"Ошибка загрузки описаний: {e}")
+    return descriptions
+
+
+# ============================================
+# 🚀 ЗАПУСК CLI-КОМАНД
+# ============================================
+async def run_command(cmd: list, timeout: int = 600, description: str = "") -> Dict[str, Any]:
+    """
+    Запуск команды через subprocess с принудительным UTF-8 для Windows.
+    Возвращает {"success": bool, "stdout": str, "stderr": str, "returncode": int, "description": str}
+    """
+    logger.info(f"Запуск команды: {' '.join(cmd)}")
+    
+    try:
+        # 🔧 Windows fix: устанавливаем PYTHONIOENCODING=utf-8 и PYTHONUTF8=1
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        env['PYTHONUTF8'] = '1'
+        
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=str(PROJECT_ROOT),
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            env=env
+        )
+        stdout, stderr = process.communicate(timeout=timeout)
+        
+        success = process.returncode == 0
+        if success:
+            logger.info(f"Команда выполнена успешно: {description}")
+        else:
+            logger.error(f"Ошибка выполнения ({process.returncode}): {description}")
+            if stderr:
+                logger.error(f"Stderr: {stderr[-1000:]}")
+        
+        return {
+            "success": success,
+            "description": description,
+            "stdout": stdout[-5000:] if stdout else "",
+            "stderr": stderr[-2000:] if stderr else "",
+            "returncode": process.returncode
+        }
+    except subprocess.TimeoutExpired:
+        process.kill()
+        logger.error(f"Таймаут команды: {description}")
+        return {
+            "success": False,
+            "description": description,
+            "stdout": "",
+            "stderr": f"Превышено времени выполнения ({timeout}с)",
+            "returncode": -1
+        }
+    except Exception as e:
+        logger.exception(f"Исключение при запуске: {description}")
+        return {
+            "success": False,
+            "description": description,
+            "stdout": "",
+            "stderr": str(e),
+            "returncode": -1
+        }
+
+
+# ============================================
+# 📡 API ЭНДПОИНТЫ
+# ============================================
+
+# ---------- 1. Информационные ----------
+@app.get("/api/health")
+async def health_check():
+    """Проверка работоспособности и состояния файлов."""
+    return {
+        "status": "ok",
+        "project_root": str(PROJECT_ROOT),
+        "directories": {
+            "data": str(DATA_DIR),
+            "processed": str(PROCESSED_DIR),
+            "students": str(STUDENTS_DIR),
+            "raw": str(RAW_DIR),
+            "result": str(RESULT_DIR),
+            "models": str(MODELS_DIR),
+        },
+        "modules": {
+            "main_py": (PROJECT_ROOT / "main.py").exists(),
+            "train_clusters": (PROJECT_ROOT / "scripts" / "train_clusters.py").exists(),
+            "check_clusters": (PROJECT_ROOT / "scripts" / "check_clusters.py").exists(),
+            "full_rebuild": (PROJECT_ROOT / "scripts" / "full_rebuild.py").exists(),
+            "extend_it_skills": (PROJECT_ROOT / "scripts" / "extend_it_skills.py").exists(),
+        },
+        "data_files": {
+            "market_competencies": (PROCESSED_DIR / "competency_frequency_mapped.json").exists(),
+            "competency_mapping": (PROCESSED_DIR / "competency_mapping.json").exists(),
+            "vacancies_basic": (RAW_DIR / "hh_vacancies_basic.json").exists(),
+            "vacancies_detailed": (RAW_DIR / "hh_vacancies_detailed.json").exists(),
+            "ltr_model": (MODELS_DIR / "ltr_ranker_xgb_regressor.joblib").exists(),
+        }
+    }
+
+
+# ---------- 2. Данные ----------
+@app.get("/api/market-competencies")
+async def get_market_competencies():
+    """Получить рыночные компетенции с частотами."""
+    data = load_market_competencies()
+    return {
+        "count": len(data),
+        "competencies": data,
+        "top_10": dict(sorted(data.items(), key=lambda x: x[1], reverse=True)[:10])
+    }
+
+
+@app.get("/api/profiles")
+async def get_profiles():
+    """Получить все профили студентов."""
+    profiles = load_all_profiles()
+    market = load_market_competencies()
+    
+    result = {}
+    for name, skills in profiles.items():
+        common = set(skills) & set(market.keys())
+        result[name] = {
+            "skills_count": len(skills),
+            "skills": sorted(skills),
+            "common_with_market": len(common),
+            "coverage_percent": round(len(common) / len(market) * 100, 1) if market else 0
+        }
+    
+    return result
+
+
+@app.get("/api/profiles/{name}")
+async def get_profile_detail(name: str):
+    """Детальная информация о профиле: метрики, gap, покрытие."""
+    try:
+        from src.analyzers.gap_analyzer import calculate_coverage_metrics, calculate_gap_analysis
+    except ImportError as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка импорта модулей: {e}")
+    
+    market = load_market_competencies()
+    profiles = load_all_profiles()
+    descriptions = load_competency_descriptions()
+    
+    if name not in profiles:
+        raise HTTPException(status_code=404, detail=f"Профиль '{name}' не найден. Доступны: {list(profiles.keys())}")
+    
+    skills = profiles[name]
+    metrics = calculate_coverage_metrics(skills, market)
+    gap = calculate_gap_analysis(skills, market)
+    
+    skills_with_desc = []
+    for skill in sorted(skills):
+        skills_with_desc.append({
+            "code": skill,
+            "description": descriptions.get(skill, ""),
+            "market_frequency": market.get(skill, 0)
+        })
+    
+    return {
+        "profile": name,
+        "metrics": {
+            "program_size": metrics['program_size'],
+            "market_size": metrics['market_size'],
+            "common_count": metrics['common_count'],
+            "coverage_percent": round(metrics['coverage'] * 100, 1),
+            "weighted_coverage_percent": round(metrics['weighted_coverage'] * 100, 1),
+            "coverage_details": metrics.get('coverage_details', {})
+        },
+        "gap": {
+            "total_missing": gap['total_missing'],
+            "high_demand": [
+                {"skill": s, "frequency": f} for s, f in gap['high_demand']
+            ],
+            "medium_demand": [
+                {"skill": s, "frequency": f} for s, f in gap['medium_demand']
+            ],
+            "low_demand": [
+                {"skill": s, "frequency": f} for s, f in gap['low_demand']
+            ]
+        },
+        "skills": skills_with_desc
+    }
+
+
+@app.get("/api/descriptions")
+async def get_descriptions():
+    """Получить описания всех компетенций."""
+    return load_competency_descriptions()
+
+
+# ---------- 3. Запуск пайплайнов ----------
+@app.post("/api/pipeline/step1-collect")
+async def step1_collect_vacancies(
+    query: str = Query("Data Scientist", description="Поисковый запрос"),
+    area_id: int = Query(1, description="ID региона (1=Москва, 2=СПб, 1006=Россия)"),
+    max_pages: int = Query(5, ge=1, le=20, description="Количество страниц (1-20)"),
+    period: int = Query(30, ge=1, le=90, description="Период в днях"),
+    it_sector: bool = Query(False, description="Поиск по всему IT-сектору"),
+    excel: bool = Query(False, description="Сохранить в Excel")
+):
+    """
+    Шаг 1: Сбор вакансий с hh.ru.
+    Соответствует: python main.py --query "..." --area-id ... --max-pages ...
+    """
+    cmd = [sys.executable, str(PROJECT_ROOT / "main.py")]
+    
+    if it_sector:
+        cmd.append("--it-sector")
+    else:
+        cmd.extend(["--query", query])
+        cmd.extend(["--area-id", str(area_id)])
+        cmd.extend(["--max-pages", str(max_pages)])
+        cmd.extend(["--period", str(period)])
+    
+    if excel:
+        cmd.append("--excel")
+    
+    cmd.extend(["--skip-details", "--no-filter"])
+    
+    return await run_command(cmd, description="Сбор вакансий")
+
+
+@app.post("/api/pipeline/step2-train-clusters")
+async def step2_train_clusters(
+    level: str = Query("all", description="Уровень: junior, middle, senior, all")
+):
+    """
+    Шаг 2: Обучение кластеров вакансий.
+    Соответствует: python scripts/train_clusters.py --level all
+    """
+    cmd = [
+        sys.executable,
+        str(PROJECT_ROOT / "scripts" / "train_clusters.py"),
+        "--level", level
+    ]
+    return await run_command(cmd, description=f"Обучение кластеров ({level})")
+
+
+@app.post("/api/pipeline/step3-train-model")
+async def step3_train_model():
+    """
+    Шаг 3: Обучение ML-модели ранжирования (LTR + XGBoost).
+    Соответствует: python main.py --train-model
+    """
+    cmd = [sys.executable, str(PROJECT_ROOT / "main.py"), "--train-model"]
+    return await run_command(cmd, timeout=900, description="Обучение ML-модели")
+
+
+@app.post("/api/pipeline/step4-gap-analysis")
+async def step4_gap_analysis():
+    """
+    Шаг 4: Gap-анализ и генерация рекомендаций.
+    Соответствует: python main.py --skip-collection --run-gap-analysis
+    """
+    cmd = [
+        sys.executable,
+        str(PROJECT_ROOT / "main.py"),
+        "--skip-collection",
+        "--run-gap-analysis"
+    ]
+    return await run_command(cmd, timeout=600, description="Gap-анализ")
+
+
+@app.post("/api/pipeline/full-cycle")
+async def full_cycle(
+    query: str = Query("Data Scientist"),
+    area_id: int = Query(1),
+    max_pages: int = Query(5),
+    period: int = Query(30),
+    it_sector: bool = Query(False)
+):
+    """
+    Полный цикл: Сбор → Кластеры → ML-модель → Gap-анализ.
+    Соответствует полному README Quick Start.
+    """
+    steps = {}
+    
+    # Шаг 1: Сбор вакансий
+    steps["step1_collect"] = await step1_collect_vacancies(
+        query=query, area_id=area_id, max_pages=max_pages,
+        period=period, it_sector=it_sector
+    )
+    if not steps["step1_collect"]["success"]:
+        return {"status": "failed_at_step1", "steps": steps}
+    
+    # Шаг 2: Кластеры
+    steps["step2_clusters"] = await step2_train_clusters("all")
+    if not steps["step2_clusters"]["success"]:
+        return {"status": "failed_at_step2", "steps": steps}
+    
+    # Шаг 3: ML-модель
+    steps["step3_model"] = await step3_train_model()
+    if not steps["step3_model"]["success"]:
+        return {"status": "failed_at_step3", "steps": steps}
+    
+    # Шаг 4: Gap-анализ
+    steps["step4_gap_analysis"] = await step4_gap_analysis()
+    
+    return {
+        "status": "completed" if steps["step4_gap_analysis"]["success"] else "completed_with_errors",
+        "steps": steps
+    }
+
+
+# ---------- 4. Результаты ----------
+@app.get("/api/results/recommendations/{profile}")
+async def get_recommendations(profile: str):
+    """Получить полные рекомендации для профиля."""
+    filepath = RESULT_DIR / profile / f"full_recommendations_{profile}.json"
+    if filepath.exists():
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Ошибка чтения: {e}")
+    raise HTTPException(
+        status_code=404,
+        detail=f"Рекомендации для '{profile}' не найдены. Доступны: base, dc, top_dc. Запустите gap-анализ."
+    )
+
+
+@app.get("/api/results/ltr-recommendations/{profile}")
+async def get_ltr_recommendations(profile: str):
+    """Получить LTR-рекомендации (топ-10) для профиля."""
+    filepath = RESULT_DIR / profile / f"ltr_recommendations_{profile}.json"
+    if filepath.exists():
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Ошибка чтения: {e}")
+    raise HTTPException(status_code=404, detail="LTR-рекомендации не найдены")
+
+
+@app.get("/api/results/summary")
+async def get_summary():
+    """Сводка сравнения всех профилей."""
+    filepath = PROCESSED_DIR / "profiles_comparison_summary.json"
+    if filepath.exists():
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Ошибка чтения: {e}")
+    raise HTTPException(status_code=404, detail="Сводка не найдена. Запустите gap-анализ.")
+
+
+@app.get("/api/results/images/{profile}/{image_type}")
+async def get_result_image(profile: str, image_type: str):
+    """
+    Получить изображение результата.
+    Типы: radar, ml_importance, cluster_insights, deficits
+    """
+    valid_types = ["radar", "ml_importance", "cluster_insights", "deficits"]
+    if image_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Тип изображения должен быть одним из: {valid_types}"
+        )
+    
+    filename = f"{image_type}_{profile}.png"
+    filepath = RESULT_DIR / profile / filename
+    
+    if filepath.exists():
+        return FileResponse(filepath, media_type="image/png")
+    
+    raise HTTPException(status_code=404, detail=f"Изображение {filename} не найдено")
+
+
+@app.get("/api/results/images/coverage-comparison")
+async def get_coverage_comparison():
+    """График сравнения покрытия профилей."""
+    filepath = RESULT_DIR / "coverage_comparison.png"
+    if filepath.exists():
+        return FileResponse(filepath, media_type="image/png")
+    raise HTTPException(status_code=404, detail="График не найден")
+
+
+@app.get("/api/results/images/skills-heatmap")
+async def get_skills_heatmap():
+    """Тепловая карта покрытия навыков."""
+    filepath = RESULT_DIR / "skills_heatmap.png"
+    if filepath.exists():
+        return FileResponse(filepath, media_type="image/png")
+    raise HTTPException(status_code=404, detail="График не найден")
+
+
+@app.get("/api/results/images/skill-correlation")
+async def get_skill_correlation():
+    """Тепловая карта корреляции навыков."""
+    filepath = RESULT_DIR / "skill_correlation_heatmap.png"
+    if filepath.exists():
+        return FileResponse(filepath, media_type="image/png")
+    raise HTTPException(status_code=404, detail="График не найден")
+
+
+# ---------- 5. Загрузка файлов ----------
+@app.post("/api/upload/profile")
+async def upload_profile(file: UploadFile = File(...)):
+    """Загрузить JSON-профиль студента."""
+    if not file.filename.endswith('.json'):
+        raise HTTPException(status_code=400, detail="Только JSON файлы")
+    
+    try:
+        content = await file.read()
+        data = json.loads(content.decode('utf-8'))
+        
+        if "навыки" not in data or not isinstance(data["навыки"], list):
+            raise HTTPException(
+                status_code=400,
+                detail="JSON должен содержать ключ 'навыки' со списком компетенций"
+            )
+        
+        filepath = STUDENTS_DIR / file.filename
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"Загружен профиль: {file.filename} ({len(data['навыки'])} навыков)")
+        
+        return {
+            "status": "ok",
+            "filename": file.filename,
+            "skills_count": len(data["навыки"])
+        }
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Некорректный JSON")
+    except Exception as e:
+        logger.exception("Ошибка загрузки профиля")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/upload/market")
+async def upload_market_data(file: UploadFile = File(...)):
+    """Загрузить рыночные данные (competency_frequency_mapped.json)."""
+    try:
+        content = await file.read()
+        data = json.loads(content.decode('utf-8'))
+        
+        filepath = PROCESSED_DIR / "competency_frequency_mapped.json"
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"Загружены рыночные данные: {len(data)} компетенций")
+        
+        return {
+            "status": "ok",
+            "competencies_count": len(data),
+            "top_5": dict(sorted(data.items(), key=lambda x: x[1], reverse=True)[:5])
+        }
+    except Exception as e:
+        logger.exception("Ошибка загрузки рыночных данных")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/generate-profiles")
+async def generate_profiles_from_csv():
+    """Сгенерировать профили из CSV матрицы компетенций."""
+    try:
+        from src.loaders.student_loader import generate_profiles_from_csv
+        
+        csv_path = RAW_DIR / "competency_matrix.csv"
+        if not csv_path.exists():
+            csv_path = LAST_UPLOADED_DIR / "competency_matrix.csv"
+        
+        if not csv_path.exists():
+            raise HTTPException(status_code=404, detail="CSV файл не найден")
+        
+        profiles = generate_profiles_from_csv(csv_path)
+        
+        logger.info(f"Сгенерированы профили: {list(profiles.keys())}")
+        
+        return {
+            "status": "ok",
+            "profiles": {
+                name: len(skills)
+                for name, skills in profiles.items()
+            }
+        }
+    except ImportError as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка импорта: {e}")
+    except Exception as e:
+        logger.exception("Ошибка генерации профилей")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------- 6. Служебные скрипты ----------
+@app.post("/api/scripts/check-clusters")
+async def check_clusters():
+    """
+    Проверка обученных кластеров вакансий.
+    Соответствует: python scripts/check_clusters.py
+    """
+    cmd = [sys.executable, str(PROJECT_ROOT / "scripts" / "check_clusters.py")]
+    return await run_command(cmd, description="Проверка кластеров")
+
+
+@app.post("/api/scripts/extend-skills")
+async def extend_skills(auto_confirm: bool = Query(False, description="Автоматически добавить все навыки")):
+    """
+    Расширение белого списка навыков.
+    Соответствует: python scripts/extend_it_skills.py [--yes]
+    """
+    cmd = [sys.executable, str(PROJECT_ROOT / "scripts" / "extend_it_skills.py")]
+    if auto_confirm:
+        cmd.append("--yes")
+    return await run_command(cmd, description="Расширение it_skills.json")
+
+
+@app.post("/api/scripts/full-rebuild")
+async def full_rebuild():
+    """
+    Полная пересборка проекта.
+    Соответствует: python scripts/full_rebuild.py
+    """
+    cmd = [sys.executable, str(PROJECT_ROOT / "scripts" / "full_rebuild.py")]
+    return await run_command(cmd, timeout=1800, description="Полная пересборка")
+
+
+# ---------- 7. Корневой эндпоинт ----------
+@app.get("/")
+async def root():
+    """Перенаправление на статический фронт или документацию API."""
+    index_path = STATIC_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    return {
+        "message": "Competency Gap Analyzer API",
+        "docs": "/api/docs",
+        "health": "/api/health"
+    }
+
+
+# ============================================
+# 🚀 ТОЧКА ВХОДА
+# ============================================
+if __name__ == "__main__":
+    uvicorn.run(
+        "src.api:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )

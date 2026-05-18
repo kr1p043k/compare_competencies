@@ -1,0 +1,763 @@
+    "response_url": null,
+    "sort_point_distance": null,
+    "published_at": "2026-05-17T11:03:55+0300",
+    "created_at": "2026-05-17T11:03:55+0300",
+    "archived": false,
+    "apply_alternate_url": "https://hh.ru/applicant/vacancy_response?vacancyId=132615091",
+    "show_contacts": true,
+    "is_boosted_vacancy": null,
+    "insider_interview": null,
+    "url": "https://api.hh.ru/vacancies/132615091?host=hh.ru",
+    "alternate_url": "https://hh.ru/vacancy/132615091",
+    "relations": [],
+    "employer": {
+      "id": "3808162",
+      "name": "Ракета",
+      "url": "https://api.hh.ru/employers/3808162",
+      "alternate_url": "https://hh.ru/employer/3808162",
+      "logo_urls": {
+        "original": "https://img.hhcdn.ru/employer-logo-original/1418104.png",
+        "90": "https://img.hhcdn.ru/employer-logo/7292065.png",
+        "240": "https://img.hhcdn.ru/employer-logo/7292066.png"
+      },
+      "vacancies_url": "https://api.hh.ru/vacancies?employer_id=3808162",
+      "country_id": 1,
+      "accredited_it_employer": true,
+      "trusted": true
+    },
+    "snippet": {
+      "requirement": "Готовность разобраться в сервисах компании, решать проблемы и проводить настройки. Умение диагностировать и устранять проблемы с ПО. Умение собрать ПК...",
+      "responsibility": "Поддерживать внутренних и внешних пользователей наших сервисов. Устанавливать новые рабочие места и проводить их демонтаж, диагностировать и обслуживать ПК, оргтехнику. "
+    },
+    "contacts": {
+      "name": null,
+      "phones": []
+    },
+    "accept_temporary": false,
+    "fly_in_fly_out_duration": [],
+    "work_format": [
+      {
+        "id": "ON_SITE",
+        "name": "На месте работодателя"
+      },
+      {
+        "id": "HYBRID",
+        "name": "Гибрид"
+      }
+    ],
+    "working_hours": [
+      {
+        "id": "HOURS_8",
+        "name": "8 часов"
+      }
+    ],
+    "work_schedule_by_days": [
+      {
+        "id": "FIVE_ON_TWO_OFF",
+        "name": "5/2"
+      }
+    ],
+    "accept_labor_contract": true,
+    "civil_law_contracts": [],
+    "night_shifts": false,
+    "professional_roles": [
+      {
+        "id": "121",
+        "name": "Специалист технической поддержки"
+      }
+    ],
+    "accept_incomplete_resumes": false,
+    "experience": {
+      "id": "between1And3",
+      "name": "От 1 года до 3 лет"
+    },
+    "employment_form": {
+      "id": "FULL",
+      "name": "Полная"
+    },
+    "internship": false,
+    "adv_response_url": null,
+    "is_adv_vacancy": false,
+    "adv_context": null
+  },
+  {
+    "id": "133007118",
+    "premium": false,
+    "name": "Проект-менеджер (проекты по SEO и разработке сайтов)",
+    "department": null,
+    "has_test": false,
+    "response_letter_required": false,
+    "area": {
+      "id": "3",
+      "name": "Екатеринбург",
+      "url": "https://api.hh.ru/areas/3"
+    },
+    "salary": {
+      "from": 80000,
+      "to": 130000,
+      "currency": "RUR",
+      "gross": false
+    },
+    "salary_range": {
+      "from": 80000,
+      "to": 130000,
+      "currency": "RUR",
+      "gross": false,
+      "mode": {
+        "id": "MONTH",
+        "name": "За месяц"
+      },
+      "frequency": {
+        "id": "TWICE_PER_MONTH",
+        "name": "Два раза в месяц"
+      }
+    },
+    "type": {
+      "id": "open",
+      "name": "Открытая"
+    },
+    "address": {
+      "city": "Екатеринбург",
+      "street": "проспект Ленина",
+      "building": "5Л",
+      "lat": 56.836894,
+      "lng": 60.582742,
+      "description": null,
+      "raw": "Екатеринбург, проспект Ленина, 5Л",
+      "metro": null,
+      "metro_stations": [],
+      "id": "5558893"
+    },
+    "response_url": null,
+    "sort_point_distance": null,
+    "published_at": "2026-05-15T16:15:54+0300",
+    "created_at": "2026-05-15T16:15:54+0300",
+    "archived": false,
+    "apply_alternate_url": "https://hh.ru/applicant/vacancy_response?vacancyId=133007118",
+    "show_contacts": false,
+    "is_boosted_vacancy": null,
+    "insider_interview": null,
+    "url": "https://api.hh.ru/vacancies/133007118?host=hh.ru",
+    "alternate_url": "https://hh.ru/vacancy/133007118",
+    "relations": [],
+    "employer": {
+      "id": "1226602",
+      "name": "Реванта",
+      "url": "https://api.hh.ru/employers/1226602",
+      "alternate_url": "https://hh.ru/employer/1226602",
+      "logo_urls": {
+        "original": "https://img.hhcdn.ru/employer-logo-original/1405318.png",
+        "90": "https://img.hhcdn.ru/employer-logo/7240940.png",
+        "240": "https://img.hhcdn.ru/employer-logo/7240941.png"
+      },
+      "vacancies_url": "https://api.hh.ru/vacancies?employer_id=1226602",
+      "country_id": 1,
+      "accredited_it_employer": false,
+      "trusted": true
+    },
+    "snippet": {
+      "requirement": "Опыт в руководстве digital проектами от 2 лет (IT, digital-агентства, веб-студии). Понимание процессов веб-разработки: этапы создания сайта...",
+      "responsibility": "Сбор требований, постановка задач для разработчиков, дизайнеров и <highlighttext>тестировщиков</highlighttext>. Поиск возможностей для upsell (допродажи услуг: SEO, контекстная реклама, доработка сайта). "
+    },
+    "contacts": null,
+    "accept_temporary": true,
+    "fly_in_fly_out_duration": [],
+    "work_format": [
+      {
+        "id": "REMOTE",
+        "name": "Удалённо"
+      }
+    ],
+    "working_hours": [
+      {
+        "id": "HOURS_8",
+        "name": "8 часов"
+      }
+    ],
+    "work_schedule_by_days": [
+      {
+        "id": "FIVE_ON_TWO_OFF",
+        "name": "5/2"
+      }
+    ],
+    "accept_labor_contract": false,
+    "civil_law_contracts": [
+      {
+        "id": "SELF_EMPLOYED",
+        "name": "с самозанятым"
+      },
+      {
+        "id": "INDIVIDUAL_ENTREPRENEUR",
+        "name": "с ИП"
+      },
+      {
+        "id": "INDIVIDUAL_PERSON",
+        "name": "с физлицом"
+      }
+    ],
+    "night_shifts": false,
+    "professional_roles": [
+      {
+        "id": "68",
+        "name": "Менеджер по маркетингу, интернет-маркетолог"
+      }
+    ],
+    "accept_incomplete_resumes": false,
+    "experience": {
+      "id": "between1And3",
+      "name": "От 1 года до 3 лет"
+    },
+    "employment_form": {
+      "id": "FULL",
+      "name": "Полная"
+    },
+    "internship": false,
+    "adv_response_url": null,
+    "is_adv_vacancy": false,
+    "adv_context": null
+  },
+  {
+    "id": "133142790",
+    "premium": false,
+    "name": "Стажер PHP-разработчик",
+    "department": null,
+    "has_test": false,
+    "response_letter_required": false,
+    "area": {
+      "id": "3",
+      "name": "Екатеринбург",
+      "url": "https://api.hh.ru/areas/3"
+    },
+    "salary": null,
+    "salary_range": null,
+    "type": {
+      "id": "open",
+      "name": "Открытая"
+    },
+    "address": {
+      "city": "Екатеринбург",
+      "street": "улица Татищева",
+      "building": "20/2",
+      "lat": 56.835993,
+      "lng": 60.563913,
+      "description": null,
+      "raw": "Екатеринбург, улица Татищева, 20/2",
+      "metro": null,
+      "metro_stations": [],
+      "id": "13908208"
+    },
+    "response_url": null,
+    "sort_point_distance": null,
+    "published_at": "2026-05-15T15:11:09+0300",
+    "created_at": "2026-05-15T15:11:09+0300",
+    "archived": false,
+    "apply_alternate_url": "https://hh.ru/applicant/vacancy_response?vacancyId=133142790",
+    "show_contacts": true,
+    "is_boosted_vacancy": null,
+    "insider_interview": null,
+    "url": "https://api.hh.ru/vacancies/133142790?host=hh.ru",
+    "alternate_url": "https://hh.ru/vacancy/133142790",
+    "relations": [],
+    "employer": {
+      "id": "3808162",
+      "name": "Ракета",
+      "url": "https://api.hh.ru/employers/3808162",
+      "alternate_url": "https://hh.ru/employer/3808162",
+      "logo_urls": {
+        "original": "https://img.hhcdn.ru/employer-logo-original/1418104.png",
+        "90": "https://img.hhcdn.ru/employer-logo/7292065.png",
+        "240": "https://img.hhcdn.ru/employer-logo/7292066.png"
+      },
+      "vacancies_url": "https://api.hh.ru/vacancies?employer_id=3808162",
+      "country_id": 1,
+      "accredited_it_employer": true,
+      "trusted": true
+    },
+    "snippet": {
+      "requirement": "Заинтересованность развиваться в программировании. — Базовые знания PHP, ООП, Git. — Опыт написания SQL-запросов и понимание, как они работают (MySQL). — ",
+      "responsibility": "Это цифровая платформа для организации деловых поездок. Ракета интегрирована со всеми глобальными системами поиска авиабилетов, крупными поставщиками жд-билетов и..."
+    },
+    "contacts": {
+      "name": null,
+      "phones": []
+    },
+    "accept_temporary": false,
+    "fly_in_fly_out_duration": [],
+    "work_format": [
+      {
+        "id": "ON_SITE",
+        "name": "На месте работодателя"
+      }
+    ],
+    "working_hours": [
+      {
+        "id": "HOURS_8",
+        "name": "8 часов"
+      }
+    ],
+    "work_schedule_by_days": [
+      {
+        "id": "FIVE_ON_TWO_OFF",
+        "name": "5/2"
+      }
+    ],
+    "accept_labor_contract": false,
+    "civil_law_contracts": [],
+    "night_shifts": false,
+    "professional_roles": [
+      {
+        "id": "96",
+        "name": "Программист, разработчик"
+      }
+    ],
+    "accept_incomplete_resumes": false,
+    "experience": {
+      "id": "noExperience",
+      "name": "Нет опыта"
+    },
+    "employment_form": {
+      "id": "FULL",
+      "name": "Полная"
+    },
+    "internship": true,
+    "adv_response_url": null,
+    "is_adv_vacancy": false,
+    "adv_context": null
+  },
+  {
+    "id": "132155376",
+    "premium": false,
+    "name": "Инженер-испытатель шкафного оборудования (НКУ)",
+    "department": null,
+    "has_test": false,
+    "response_letter_required": false,
+    "area": {
+      "id": "3",
+      "name": "Екатеринбург",
+      "url": "https://api.hh.ru/areas/3"
+    },
+    "salary": null,
+    "salary_range": null,
+    "type": {
+      "id": "open",
+      "name": "Открытая"
+    },
+    "address": {
+      "city": "Екатеринбург",
+      "street": "Волгоградская улица",
+      "building": "194А",
+      "lat": 56.814779,
+      "lng": 60.558011,
+      "description": null,
+      "raw": "Екатеринбург, Волгоградская улица, 194А",
+      "metro": {
+        "station_name": "Геологическая",
+        "line_name": "Север-Юг",
+        "station_id": "48.267",
+        "line_id": "48",
+        "lat": 56.826715,
+        "lng": 60.603754,
+        "hex_color": "0A6F20"
+      },
+      "metro_stations": [
+        {
+          "station_name": "Геологическая",
+          "line_name": "Север-Юг",
+          "station_id": "48.267",
+          "line_id": "48",
+          "lat": 56.826715,
+          "lng": 60.603754,
+          "hex_color": "0A6F20"
+        },
+        {
+          "station_name": "Динамо",
+          "line_name": "Север-Юг",
+          "station_id": "48.265",
+          "line_id": "48",
+          "lat": 56.847818,
+          "lng": 60.599406,
+          "hex_color": "0A6F20"
+        },
+        {
+          "station_name": "Площадь 1905 года",
+          "line_name": "Север-Юг",
+          "station_id": "48.266",
+          "line_id": "48",
+          "lat": 56.837982,
+          "lng": 60.59734,
+          "hex_color": "0A6F20"
+        },
+        {
+          "station_name": "Чкаловская",
+          "line_name": "Север-Юг",
+          "station_id": "48.269",
+          "line_id": "48",
+          "lat": 56.808502,
+          "lng": 60.610698,
+          "hex_color": "0A6F20"
+        }
+      ],
+      "id": "22805840"
+    },
+    "response_url": null,
+    "sort_point_distance": null,
+    "published_at": "2026-05-15T14:55:27+0300",
+    "created_at": "2026-05-15T14:55:27+0300",
+    "archived": false,
+    "apply_alternate_url": "https://hh.ru/applicant/vacancy_response?vacancyId=132155376",
+    "branding": {
+      "type": "MAKEUP",
+      "tariff": null
+    },
+    "show_logo_in_search": true,
+    "show_contacts": true,
+    "is_boosted_vacancy": null,
+    "insider_interview": null,
+    "url": "https://api.hh.ru/vacancies/132155376?host=hh.ru",
+    "alternate_url": "https://hh.ru/vacancy/132155376",
+    "relations": [],
+    "employer": {
+      "id": "48478",
+      "name": "Прософт-Системы",
+      "url": "https://api.hh.ru/employers/48478",
+      "alternate_url": "https://hh.ru/employer/48478",
+      "logo_urls": {
+        "original": "https://img.hhcdn.ru/employer-logo-original/1442176.png",
+        "90": "https://img.hhcdn.ru/employer-logo/7388328.png",
+        "240": "https://img.hhcdn.ru/employer-logo/7388329.png"
+      },
+      "vacancies_url": "https://api.hh.ru/vacancies?employer_id=48478",
+      "country_id": 1,
+      "accredited_it_employer": true,
+      "trusted": true
+    },
+    "snippet": {
+      "requirement": "Высшее техническое образование. Понимание принципов построения систем электропитания оборудования НКУ (применение инверторных установок, выпрямителей, АВР, ИБП). Понимание принципов работы систем...",
+      "responsibility": "Техническая поддержка по внедренным решениям инженеров-<highlighttext>тестировщиков</highlighttext> на участке тестирования НКУ. Взаимодействие с заказчиком/проектировщиком по согласованию технических решений или..."
+    },
+    "contacts": {
+      "name": null,
+      "phones": []
+    },
+    "accept_temporary": false,
+    "fly_in_fly_out_duration": [],
+    "work_format": [
+      {
+        "id": "ON_SITE",
+        "name": "На месте работодателя"
+      }
+    ],
+    "working_hours": [
+      {
+        "id": "HOURS_8",
+        "name": "8 часов"
+      }
+    ],
+    "work_schedule_by_days": [
+      {
+        "id": "FIVE_ON_TWO_OFF",
+        "name": "5/2"
+      }
+    ],
+    "accept_labor_contract": true,
+    "civil_law_contracts": [],
+    "night_shifts": false,
+    "professional_roles": [
+      {
+        "id": "40",
+        "name": "Другое"
+      }
+    ],
+    "accept_incomplete_resumes": false,
+    "experience": {
+      "id": "between1And3",
+      "name": "От 1 года до 3 лет"
+    },
+    "employment_form": {
+      "id": "FULL",
+      "name": "Полная"
+    },
+    "internship": false,
+    "adv_response_url": null,
+    "is_adv_vacancy": false,
+    "adv_context": null
+  },
+  {
+    "id": "132033401",
+    "premium": false,
+    "name": "Программист 1С (направление Розница)",
+    "department": null,
+    "has_test": false,
+    "response_letter_required": false,
+    "area": {
+      "id": "3",
+      "name": "Екатеринбург",
+      "url": "https://api.hh.ru/areas/3"
+    },
+    "salary": {
+      "from": 160000,
+      "to": null,
+      "currency": "RUR",
+      "gross": false
+    },
+    "salary_range": {
+      "from": 160000,
+      "to": null,
+      "currency": "RUR",
+      "gross": false,
+      "mode": {
+        "id": "MONTH",
+        "name": "За месяц"
+      },
+      "frequency": {
+        "id": "TWICE_PER_MONTH",
+        "name": "Два раза в месяц"
+      }
+    },
+    "type": {
+      "id": "open",
+      "name": "Открытая"
+    },
+    "address": {
+      "city": "Берёзовский",
+      "street": "Уральская улица",
+      "building": "150",
+      "lat": 56.897138,
+      "lng": 60.775224,
+      "description": null,
+      "raw": "Берёзовский, Уральская улица, 150",
+      "metro": null,
+      "metro_stations": [],
+      "id": "16101910"
+    },
+    "response_url": null,
+    "sort_point_distance": null,
+    "published_at": "2026-05-12T11:02:14+0300",
+    "created_at": "2026-05-12T11:02:14+0300",
+    "archived": false,
+    "apply_alternate_url": "https://hh.ru/applicant/vacancy_response?vacancyId=132033401",
+    "show_contacts": true,
+    "is_boosted_vacancy": null,
+    "insider_interview": null,
+    "url": "https://api.hh.ru/vacancies/132033401?host=hh.ru",
+    "alternate_url": "https://hh.ru/vacancy/132033401",
+    "relations": [],
+    "employer": {
+      "id": "10818481",
+      "name": "АйТиНавигатор",
+      "url": "https://api.hh.ru/employers/10818481",
+      "alternate_url": "https://hh.ru/employer/10818481",
+      "logo_urls": {
+        "original": "https://img.hhcdn.ru/employer-logo-original-round/6591184.jpeg",
+        "90": "https://img.hhcdn.ru/employer-logo-round/6591185.jpeg",
+        "240": "https://img.hhcdn.ru/employer-logo-round/6591186.jpeg"
+      },
+      "vacancies_url": "https://api.hh.ru/vacancies?employer_id=10818481",
+      "country_id": 1,
+      "accredited_it_employer": true,
+      "trusted": true
+    },
+    "snippet": {
+      "requirement": "Навыки программирования на платформе «1С: Предприятие 8.3», разработка на управляемых формах. Разработка отчетов средствами СКД, знание методов оптимизации...",
+      "responsibility": "Разработка по поступающим задачам в конфигурациях 1С: Альфа-Авто, 1С: УНФ."
+    },
+    "contacts": {
+      "name": null,
+      "phones": []
+    },
+    "accept_temporary": false,
+    "fly_in_fly_out_duration": [],
+    "work_format": [
+      {
+        "id": "ON_SITE",
+        "name": "На месте работодателя"
+      },
+      {
+        "id": "REMOTE",
+        "name": "Удалённо"
+      },
+      {
+        "id": "HYBRID",
+        "name": "Гибрид"
+      }
+    ],
+    "working_hours": [
+      {
+        "id": "HOURS_8",
+        "name": "8 часов"
+      }
+    ],
+    "work_schedule_by_days": [
+      {
+        "id": "FIVE_ON_TWO_OFF",
+        "name": "5/2"
+      }
+    ],
+    "accept_labor_contract": true,
+    "civil_law_contracts": [],
+    "night_shifts": false,
+    "professional_roles": [
+      {
+        "id": "96",
+        "name": "Программист, разработчик"
+      }
+    ],
+    "accept_incomplete_resumes": false,
+    "experience": {
+      "id": "between3And6",
+      "name": "От 3 до 6 лет"
+    },
+    "employment_form": {
+      "id": "FULL",
+      "name": "Полная"
+    },
+    "internship": false,
+    "adv_response_url": null,
+    "is_adv_vacancy": false,
+    "adv_context": null
+  },
+  {
+    "id": "132971565",
+    "premium": false,
+    "name": "Специалист технической поддержки",
+    "department": null,
+    "has_test": false,
+    "response_letter_required": false,
+    "area": {
+      "id": "3",
+      "name": "Екатеринбург",
+      "url": "https://api.hh.ru/areas/3"
+    },
+    "salary": {
+      "from": 50000,
+      "to": null,
+      "currency": "RUR",
+      "gross": false
+    },
+    "salary_range": {
+      "from": 50000,
+      "to": null,
+      "currency": "RUR",
+      "gross": false,
+      "mode": {
+        "id": "MONTH",
+        "name": "За месяц"
+      },
+      "frequency": null
+    },
+    "type": {
+      "id": "open",
+      "name": "Открытая"
+    },
+    "address": {
+      "city": "Екатеринбург",
+      "street": "улица Братьев Быковых",
+      "building": "28",
+      "lat": 56.851348,
+      "lng": 60.601032,
+      "description": null,
+      "raw": "Екатеринбург, улица Братьев Быковых, 28",
+      "metro": {
+        "station_name": "Динамо",
+        "line_name": "Север-Юг",
+        "station_id": "48.265",
+        "line_id": "48",
+        "lat": 56.847818,
+        "lng": 60.599406,
+        "hex_color": "0A6F20"
+      },
+      "metro_stations": [
+        {
+          "station_name": "Динамо",
+          "line_name": "Север-Юг",
+          "station_id": "48.265",
+          "line_id": "48",
+          "lat": 56.847818,
+          "lng": 60.599406,
+          "hex_color": "0A6F20"
+        }
+      ],
+      "id": "16059587"
+    },
+    "response_url": null,
+    "sort_point_distance": null,
+    "published_at": "2026-05-12T08:05:27+0300",
+    "created_at": "2026-05-12T08:05:27+0300",
+    "archived": false,
+    "apply_alternate_url": "https://hh.ru/applicant/vacancy_response?vacancyId=132971565",
+    "show_contacts": true,
+    "is_boosted_vacancy": null,
+    "insider_interview": null,
+    "url": "https://api.hh.ru/vacancies/132971565?host=hh.ru",
+    "alternate_url": "https://hh.ru/vacancy/132971565",
+    "relations": [],
+    "employer": {
+      "id": "5153615",
+      "name": "Альянс АйТи Технолоджи",
+      "url": "https://api.hh.ru/employers/5153615",
+      "alternate_url": "https://hh.ru/employer/5153615",
+      "logo_urls": {
+        "original": "https://img.hhcdn.ru/employer-logo-original-round/6414796.png",
+        "90": "https://img.hhcdn.ru/employer-logo-round/6414797.png",
+        "240": "https://img.hhcdn.ru/employer-logo-round/6414798.png"
+      },
+      "vacancies_url": "https://api.hh.ru/vacancies?employer_id=5153615",
+      "country_id": 1,
+      "accredited_it_employer": true,
+      "trusted": true
+    },
+    "snippet": {
+      "requirement": "Развитые коммуникативные навыки (грамотная устная речь, вежливое общение). Умение работать с большим количеством информации. Стрессоустойчивость.",
+      "responsibility": "CRM «Арника» — для салонов красоты и СПА. МИС SQNS — медицинская информационная система для медицинских организаций, стоматологий и клиник.  "
+    },
+    "contacts": {
+      "name": null,
+      "phones": []
+    },
+    "accept_temporary": false,
+    "fly_in_fly_out_duration": [],
+    "work_format": [
+      {
+        "id": "ON_SITE",
+        "name": "На месте работодателя"
+      },
+      {
+        "id": "HYBRID",
+        "name": "Гибрид"
+      }
+    ],
+    "working_hours": [
+      {
+        "id": "HOURS_8",
+        "name": "8 часов"
+      }
+    ],
+    "work_schedule_by_days": [
+      {
+        "id": "FIVE_ON_TWO_OFF",
+        "name": "5/2"
+      }
+    ],
+    "accept_labor_contract": false,
+    "civil_law_contracts": [],
+    "night_shifts": false,
+    "professional_roles": [
+      {
+        "id": "121",
+        "name": "Специалист технической поддержки"
+      }
+    ],
+    "accept_incomplete_resumes": true,
+    "experience": {
+      "id": "between1And3",
+      "name": "От 1 года до 3 лет"
+    },
+    "employment_form": {
+      "id": "FULL",
+      "name": "Полная"
+    },
+    "internship": false,
+    "adv_response_url": null,
+    "is_adv_vacancy": false,
+    "adv_context": null
+  },

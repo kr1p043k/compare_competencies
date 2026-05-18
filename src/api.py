@@ -8,11 +8,18 @@ import json
 import pickle
 import sys
 import time
+import subprocess
+import asyncio
+import shutil
+from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 import structlog
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -47,6 +54,7 @@ competency_mapping: dict[str, list[str]] = {}
 skill_freq: dict[str, int] = {}
 taxonomy: SkillTaxonomy | None = None
 current_skills_set: set[str] = set()
+basic_vacancies: list = []  # Список всех вакансий
 
 app = FastAPI(title="Competency Analyzer API", version="2.0")
 
@@ -58,12 +66,184 @@ app.add_middleware(
 )
 
 
+# ============================================
+# МОДЕЛИ ДЛЯ ПАЙПЛАЙНА
+# ============================================
+
+class PipelineAction(str, Enum):
+    FULL_CYCLE = "full-cycle"
+    REBUILD = "rebuild"
+    TRAIN_CLUSTERS = "train-clusters"
+    TRAIN_MODEL = "train-model"
+    GAP_ANALYSIS = "gap-analysis"
+
+
+class PipelineResponse(BaseModel):
+    status: str
+    message: str
+    command: Optional[str] = None
+    exit_code: Optional[int] = None
+    output: Optional[str] = None
+
+
+class PipelineTaskStatus(BaseModel):
+    task_id: str
+    status: str  # pending, running, completed, failed
+    message: str
+    started_at: Optional[float] = None
+    completed_at: Optional[float] = None
+    output: Optional[str] = None
+
+
+# Хранилище статусов фоновых задач
+pipeline_tasks: dict[str, PipelineTaskStatus] = {}
+
+
+# ============================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ============================================
+
+async def run_command(cmd: list[str], cwd: Path | None = None) -> tuple[int, str, str]:
+    """Асинхронно выполняет команду и возвращает код возврата, stdout, stderr"""
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=str(cwd) if cwd else None
+    )
+    stdout, stderr = await process.communicate()
+    return process.returncode, stdout.decode('utf-8', errors='replace'), stderr.decode('utf-8', errors='replace')
+
+
+async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
+    """Запускает задачу пайплайна в фоне"""
+    base_dir = Path(__file__).parent.parent
+    
+    # Обновляем статус задачи
+    pipeline_tasks[task_id] = PipelineTaskStatus(
+        task_id=task_id,
+        status="running",
+        message=f"Running {action.value}...",
+        started_at=time.time()
+    )
+    
+    try:
+        if action == PipelineAction.REBUILD:
+            rebuild_script = base_dir / "scripts" / "full_rebuild.py"
+            if not rebuild_script.exists():
+                raise FileNotFoundError(f"full_rebuild.py not found at {rebuild_script}")
+            
+            cmd = ["python", str(rebuild_script)]
+            returncode, stdout, stderr = await run_command(cmd, base_dir)
+            
+            if returncode != 0:
+                raise RuntimeError(f"Rebuild failed: {stderr[:500]}")
+            
+            pipeline_tasks[task_id] = PipelineTaskStatus(
+                task_id=task_id,
+                status="completed",
+                message="Full rebuild completed successfully",
+                started_at=pipeline_tasks[task_id].started_at,
+                completed_at=time.time(),
+                output=stdout[-2000:] if stdout else stderr[-2000:]
+            )
+        
+        elif action == PipelineAction.FULL_CYCLE:
+            cmd = ["python", str(base_dir / "main.py")]
+            
+            skip_collection = kwargs.get('skip_collection', False)
+            run_gap_analysis = kwargs.get('run_gap_analysis', True)
+            regions = kwargs.get('regions', '0')
+            
+            if skip_collection:
+                cmd.append("--skip-collection")
+            
+            if run_gap_analysis:
+                cmd.append("--run-gap-analysis")
+            
+            if regions != "0":
+                cmd.extend(["--regions", regions])
+            
+            returncode, stdout, stderr = await run_command(cmd, base_dir)
+            
+            status = "completed" if returncode == 0 else "failed"
+            message = "Pipeline execution completed" if returncode == 0 else f"Pipeline failed with code {returncode}"
+            
+            pipeline_tasks[task_id] = PipelineTaskStatus(
+                task_id=task_id,
+                status=status,
+                message=message,
+                started_at=pipeline_tasks[task_id].started_at,
+                completed_at=time.time(),
+                output=stdout[-2000:] if stdout else stderr[-2000:]
+            )
+        
+        elif action == PipelineAction.TRAIN_CLUSTERS:
+            cmd = ["python", str(base_dir / "scripts" / "train_clusters.py"), "--level", "all"]
+            returncode, stdout, stderr = await run_command(cmd, base_dir)
+            
+            status = "completed" if returncode == 0 else "failed"
+            message = "Cluster training completed" if returncode == 0 else f"Cluster training failed with code {returncode}"
+            
+            pipeline_tasks[task_id] = PipelineTaskStatus(
+                task_id=task_id,
+                status=status,
+                message=message,
+                started_at=pipeline_tasks[task_id].started_at,
+                completed_at=time.time(),
+                output=stdout[-2000:] if stdout else stderr[-2000:]
+            )
+        
+        elif action == PipelineAction.TRAIN_MODEL:
+            cmd = ["python", str(base_dir / "main.py"), "--train-model"]
+            returncode, stdout, stderr = await run_command(cmd, base_dir)
+            
+            status = "completed" if returncode == 0 else "failed"
+            message = "Model training completed" if returncode == 0 else f"Model training failed with code {returncode}"
+            
+            pipeline_tasks[task_id] = PipelineTaskStatus(
+                task_id=task_id,
+                status=status,
+                message=message,
+                started_at=pipeline_tasks[task_id].started_at,
+                completed_at=time.time(),
+                output=stdout[-2000:] if stdout else stderr[-2000:]
+            )
+        
+        elif action == PipelineAction.GAP_ANALYSIS:
+            cmd = ["python", str(base_dir / "main.py"), "--skip-collection", "--run-gap-analysis"]
+            returncode, stdout, stderr = await run_command(cmd, base_dir)
+            
+            status = "completed" if returncode == 0 else "failed"
+            message = "Gap analysis completed" if returncode == 0 else f"Gap analysis failed with code {returncode}"
+            
+            pipeline_tasks[task_id] = PipelineTaskStatus(
+                task_id=task_id,
+                status=status,
+                message=message,
+                started_at=pipeline_tasks[task_id].started_at,
+                completed_at=time.time(),
+                output=stdout[-2000:] if stdout else stderr[-2000:]
+            )
+    
+    except Exception as e:
+        logger.error(f"Pipeline task failed: {e}")
+        pipeline_tasks[task_id] = PipelineTaskStatus(
+            task_id=task_id,
+            status="failed",
+            message=str(e),
+            started_at=pipeline_tasks[task_id].started_at if task_id in pipeline_tasks else time.time(),
+            completed_at=time.time(),
+            output=str(e)
+        )
+
+
 @app.on_event("startup")
 async def startup():
     """Загружает все необходимые данные и модели."""
     global evaluator, recommendation_engine, trend_analyzer
     global student_profiles, skill_weights, hybrid_weights, competency_mapping
-    global skill_freq, taxonomy, current_skills_set
+    global skill_freq, taxonomy, current_skills_set, basic_vacancies
 
     logger.info("Запуск API-сервера, инициализация движков...")
 
@@ -106,16 +286,6 @@ async def startup():
         cache_data = {"source_hash": vacancies_hash, "result": result}
         with open(cache_path, "wb") as f:
             pickle.dump(cache_data, f)
-            with open(cache_path, "wb") as f:
-                pickle.dump(cache_data, f)
-            # Создаём манифест
-            from src.artifacts import ArtifactManifest
-
-            manifest = ArtifactManifest(
-                artifact_path=cache_path,
-                metrics={"num_skills": len(skill_freq)},
-            )
-            manifest.save()
         logger.info("Кэш парсинга сохранён")
 
     skill_freq = skill_freq_local
@@ -282,8 +452,9 @@ async def startup():
     logger.info("API готов к работе")
 
 
-# ---------- Эндпоинты ----------
-
+# ============================================
+# БАЗОВЫЕ ЭНДПОИНТЫ
+# ============================================
 
 @app.get("/api/health")
 async def health():
@@ -310,6 +481,24 @@ async def ready_check():
     return {"status": status, "components": components}
 
 
+@app.get("/api/status")
+async def get_status():
+    return {
+        "vacancies_loaded": len(skill_freq) > 0,
+        "skill_weights_count": len(skill_weights),
+        "taxonomy_loaded": taxonomy is not None,
+        "whitelist_size": len(current_skills_set),
+        "profiles_available": list(student_profiles.keys()),
+        "clusters": {lvl: clusterer.load_model(lvl) and clusterer.is_fitted for lvl in ExperienceLevel},
+        "trends_available": trend_analyzer is not None,
+        "recommendation_engine_ready": recommendation_engine is not None and recommendation_engine.is_fitted,
+    }
+
+
+# ============================================
+# ПРОФИЛИ И РЕКОМЕНДАЦИИ
+# ============================================
+
 @app.get("/api/recommendations/{profile}")
 async def get_recommendations(profile: str):
     if profile not in student_profiles:
@@ -318,6 +507,44 @@ async def get_recommendations(profile: str):
     full_rec = recommendation_engine.generate_recommendations(student)
     return full_rec
 
+
+@app.get("/api/profiles/compare")
+async def compare_profiles():
+    evaluations = {}
+    for pname, student in student_profiles.items():
+        try:
+            eval_result = evaluator.evaluate_profile(student)
+            evaluations[pname] = {
+                "market_coverage_score": eval_result.get("market_coverage_score"),
+                "skill_coverage": eval_result.get("skill_coverage"),
+                "domain_coverage_score": eval_result.get("domain_coverage_score"),
+                "readiness_score": eval_result.get("readiness_score"),
+                "real_coverage": eval_result.get("market_skill_coverage"),
+            }
+        except Exception as e:
+            logger.error(f"Ошибка оценки {pname}: {e}")
+            evaluations[pname] = {"error": str(e)}
+    return {"profiles": evaluations}
+
+
+@app.get("/api/profiles/{profile}")
+async def get_profile(profile: str):
+    if profile not in student_profiles:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+    student = student_profiles[profile]
+    return {
+        "profile_name": student.profile_name,
+        "target_level": student.target_level,
+        "skills_count": len(student.skills),
+        "skills": student.skills[:50],
+        "competencies_count": len(student.competencies),
+        "competencies": student.competencies[:50]
+    }
+
+
+# ============================================
+# РЫНОЧНЫЕ НАВЫКИ
+# ============================================
 
 @app.get("/api/market/top-skills")
 async def get_top_skills(limit: int = Query(15, ge=1, le=50)):
@@ -339,6 +566,20 @@ async def get_skill_info(skill: str):
         "icon": icon,
     }
 
+
+@app.get("/api/market-competencies")
+async def get_market_competencies():
+    """Возвращает рыночные компетенции"""
+    top_skills = sorted(skill_weights.items(), key=lambda x: x[1], reverse=True)[:100]
+    return {
+        "skills": [{"skill": s, "weight": w} for s, w in top_skills],
+        "total": len(skill_weights)
+    }
+
+
+# ============================================
+# КЛАСТЕРЫ
+# ============================================
 
 @app.get("/api/clusters/{level}")
 async def get_clusters(level: ExperienceLevel = ExperienceLevel.MIDDLE):
@@ -381,24 +622,9 @@ async def clusters_summary():
     return result
 
 
-@app.get("/api/profiles/compare")
-async def compare_profiles():
-    evaluations = {}
-    for pname, student in student_profiles.items():
-        try:
-            eval_result = evaluator.evaluate_profile(student)
-            evaluations[pname] = {
-                "market_coverage_score": eval_result.get("market_coverage_score"),
-                "skill_coverage": eval_result.get("skill_coverage"),
-                "domain_coverage_score": eval_result.get("domain_coverage_score"),
-                "readiness_score": eval_result.get("readiness_score"),
-                "real_coverage": eval_result.get("market_skill_coverage"),
-            }
-        except Exception as e:
-            logger.error(f"Ошибка оценки {pname}: {e}")
-            evaluations[pname] = {"error": str(e)}
-    return {"profiles": evaluations}
-
+# ============================================
+# ТРЕНДЫ
+# ============================================
 
 @app.get("/api/trends")
 async def get_trends(top_n: int = Query(15), min_change: float = Query(3.0)):
@@ -408,6 +634,10 @@ async def get_trends(top_n: int = Query(15), min_change: float = Query(3.0)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
+
+# ============================================
+# ТАКСОНОМИЯ
+# ============================================
 
 @app.get("/api/taxonomy/coverage")
 async def taxonomy_coverage():
@@ -427,6 +657,10 @@ async def taxonomy_coverage():
     return {"coverage": coverage}
 
 
+# ============================================
+# НАВЫКИ (MISSING/DEAD)
+# ============================================
+
 @app.get("/api/skills/missing")
 async def missing_skills(min_frequency: int = Query(1)):
     validator = SkillValidator(whitelist=None)
@@ -445,15 +679,523 @@ async def dead_skills():
     return {"dead_skills": dead}
 
 
-@app.get("/api/status")
-async def get_status():
+# ============================================
+# РЕЗУЛЬТАТЫ И ИЗОБРАЖЕНИЯ
+# ============================================
+
+@app.get("/api/results/summary")
+async def get_results_summary():
+    """Возвращает сводку результатов анализа"""
+    summary_path = config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
+    if summary_path.exists():
+        try:
+            with open(summary_path, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
     return {
-        "vacancies_loaded": len(skill_freq) > 0,
-        "skill_weights_count": len(skill_weights),
-        "taxonomy_loaded": taxonomy is not None,
-        "whitelist_size": len(current_skills_set),
-        "profiles_available": list(student_profiles.keys()),
-        "clusters": {lvl: clusterer.load_model(lvl) and clusterer.is_fitted for lvl in ExperienceLevel},
-        "trends_available": trend_analyzer is not None,
-        "recommendation_engine_ready": recommendation_engine is not None and recommendation_engine.is_fitted,
+        "message": "Результаты анализа не найдены. Запустите gap-анализ.",
+        "profiles": list(student_profiles.keys())
+    }
+
+
+@app.get("/api/results/recommendations/{profile}")
+async def get_recommendations_result(profile: str):
+    """Возвращает рекомендации для профиля"""
+    if profile not in student_profiles:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+    
+    result_path = config.DATA_DIR / "result" / profile / f"full_recommendations_{profile}.json"
+    if result_path.exists():
+        try:
+            with open(result_path, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    return {
+        "profile": profile,
+        "message": "Рекомендации не найдены. Запустите gap-анализ.",
+        "recommendations": []
+    }
+
+
+@app.get("/api/results/images/{profile}/{image_type}")
+async def get_profile_image(profile: str, image_type: str):
+    """Получить изображение визуализации для профиля"""
+    safe_types = ["radar", "ml_importance", "cluster_insights", "deficits"]
+    
+    if image_type not in safe_types:
+        raise HTTPException(status_code=400, detail="Invalid image type")
+    
+    image_path = config.DATA_DIR / "result" / profile / f"{image_type}_{profile}.png"
+    
+    if not image_path.exists():
+        image_path = config.DATA_DIR / "result" / f"{image_type}_{profile}.png"
+    
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail=f"Image not found: {image_type}_{profile}.png")
+    
+    return FileResponse(image_path, media_type="image/png")
+
+
+@app.get("/api/results/images/coverage-comparison")
+async def get_coverage_comparison_image():
+    """Получить изображение сравнения покрытия профилей"""
+    image_path = config.DATA_DIR / "result" / "coverage_comparison.png"
+    
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Coverage comparison image not found")
+    
+    return FileResponse(image_path, media_type="image/png")
+
+
+@app.get("/api/results/images/skills-heatmap")
+async def get_skills_heatmap_image():
+    """Получить изображение тепловой карты навыков"""
+    image_path = config.DATA_DIR / "result" / "skills_heatmap.png"
+    
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Skills heatmap image not found")
+    
+    return FileResponse(image_path, media_type="image/png")
+
+
+@app.get("/api/results/images/skill-correlation")
+async def get_skill_correlation_image():
+    """Получить изображение корреляции навыков"""
+    image_path = config.DATA_DIR / "result" / "skill_correlation_heatmap.png"
+    
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Skill correlation image not found")
+    
+    return FileResponse(image_path, media_type="image/png")
+
+
+# ============================================
+# ПАЙПЛАЙН И ПЕРЕСТРОЕНИЕ
+# ============================================
+
+@app.post("/api/pipeline/{action}", response_model=PipelineResponse)
+async def run_pipeline_action_sync(
+    action: PipelineAction,
+    background_tasks: BackgroundTasks,
+    skip_collection: bool = Query(False, description="Пропустить сбор вакансий"),
+    run_gap_analysis: bool = Query(True, description="Запустить gap-анализ после обучения"),
+    regions: str = Query("0", description="Регионы для сбора вакансий (через запятую)")
+):
+    """
+    Запуск различных действий пайплайна:
+    - full-cycle: полный цикл (сбор данных -> обработка -> кластеризация -> обучение -> gap-анализ)
+    - rebuild: полная пересборка (очистка кэшей + полный цикл)
+    - train-clusters: только обучение кластеров
+    - train-model: только обучение LTR-модели
+    - gap-analysis: только gap-анализ
+    """
+    base_dir = Path(__file__).parent.parent
+    
+    if action == PipelineAction.REBUILD:
+        # Запускаем full_rebuild.py
+        rebuild_script = base_dir / "scripts" / "full_rebuild.py"
+        if not rebuild_script.exists():
+            raise HTTPException(status_code=404, detail=f"full_rebuild.py not found at {rebuild_script}")
+        
+        cmd = ["python", str(rebuild_script)]
+        returncode, stdout, stderr = await run_command(cmd, base_dir)
+        
+        if returncode != 0:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Rebuild failed: {stderr[:500]}"
+            )
+        
+        return PipelineResponse(
+            status="success" if returncode == 0 else "failed",
+            message="Full rebuild completed",
+            command=" ".join(cmd),
+            exit_code=returncode,
+            output=stdout[-1000:] if stdout else stderr[-1000:]
+        )
+    
+    elif action == PipelineAction.FULL_CYCLE:
+        # Запускаем main.py с соответствующими параметрами в фоне
+        task_id = f"{action.value}_{int(time.time())}"
+        
+        background_tasks.add_task(
+            run_pipeline_task,
+            action,
+            task_id,
+            skip_collection=skip_collection,
+            run_gap_analysis=run_gap_analysis,
+            regions=regions
+        )
+        
+        return PipelineResponse(
+            status="started",
+            message=f"Pipeline {action.value} started in background",
+            command=f"python main.py --skip-collection={skip_collection} --run-gap-analysis={run_gap_analysis}",
+            exit_code=None,
+            output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status."
+        )
+    
+    elif action == PipelineAction.TRAIN_CLUSTERS:
+        cmd = ["python", str(base_dir / "scripts" / "train_clusters.py"), "--level", "all"]
+        returncode, stdout, stderr = await run_command(cmd, base_dir)
+        
+        return PipelineResponse(
+            status="success" if returncode == 0 else "failed",
+            message="Cluster training completed" if returncode == 0 else f"Cluster training failed with code {returncode}",
+            command=" ".join(cmd),
+            exit_code=returncode,
+            output=stdout[-1000:] if stdout else stderr[-1000:]
+        )
+    
+    elif action == PipelineAction.TRAIN_MODEL:
+        cmd = ["python", str(base_dir / "main.py"), "--train-model"]
+        returncode, stdout, stderr = await run_command(cmd, base_dir)
+        
+        return PipelineResponse(
+            status="success" if returncode == 0 else "failed",
+            message="Model training completed" if returncode == 0 else f"Model training failed with code {returncode}",
+            command=" ".join(cmd),
+            exit_code=returncode,
+            output=stdout[-1000:] if stdout else stderr[-1000:]
+        )
+    
+    elif action == PipelineAction.GAP_ANALYSIS:
+        cmd = ["python", str(base_dir / "main.py"), "--skip-collection", "--run-gap-analysis"]
+        returncode, stdout, stderr = await run_command(cmd, base_dir)
+        
+        return PipelineResponse(
+            status="success" if returncode == 0 else "failed",
+            message="Gap analysis completed" if returncode == 0 else f"Gap analysis failed with code {returncode}",
+            command=" ".join(cmd),
+            exit_code=returncode,
+            output=stdout[-1000:] if stdout else stderr[-1000:]
+        )
+    
+    return PipelineResponse(
+        status="error",
+        message=f"Unknown action: {action}",
+        exit_code=-1
+    )
+
+
+@app.get("/api/pipeline/task/{task_id}")
+async def get_pipeline_task_status(task_id: str):
+    """Получить статус фоновой задачи пайплайна"""
+    if task_id not in pipeline_tasks:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    
+    return pipeline_tasks[task_id]
+
+
+@app.get("/api/pipeline/tasks")
+async def list_pipeline_tasks(limit: int = Query(10, ge=1, le=50)):
+    """Список последних задач пайплайна"""
+    tasks = list(pipeline_tasks.values())
+    tasks.reverse()  # Последние сверху
+    return {"tasks": tasks[:limit], "total": len(tasks)}
+
+
+@app.get("/api/pipeline/status")
+async def get_pipeline_status():
+    """Проверяет статус различных компонентов пайплайна"""
+    base_dir = Path(__file__).parent.parent
+    
+    # Проверяем существование ключевых артефактов
+    clusters_exist = {
+        "junior": (base_dir / "data" / "cache" / "clusters" / "vacancy_clusters_junior.pkl").exists(),
+        "middle": (base_dir / "data" / "cache" / "clusters" / "vacancy_clusters_middle.pkl").exists(),
+        "senior": (base_dir / "data" / "cache" / "clusters" / "vacancy_clusters_senior.pkl").exists(),
+    }
+    
+    model_exists = (base_dir / "data" / "models" / "ltr_ranker_xgb_regressor.joblib").exists()
+    
+    recommendations_exist = {
+        "base": (base_dir / "data" / "result" / "base" / "full_recommendations_base.json").exists(),
+        "dc": (base_dir / "data" / "result" / "dc" / "full_recommendations_dc.json").exists(),
+        "top_dc": (base_dir / "data" / "result" / "top_dc" / "full_recommendations_top_dc.json").exists(),
+    }
+    
+    skill_weights_exist = (base_dir / "data" / "processed" / "skill_weights.json").exists()
+    
+    return {
+        "clusters": clusters_exist,
+        "clusters_all_ready": all(clusters_exist.values()),
+        "ltr_model": model_exists,
+        "recommendations": recommendations_exist,
+        "recommendations_all_ready": all(recommendations_exist.values()),
+        "skill_weights": skill_weights_exist,
+        "scripts": {
+            "full_rebuild": (base_dir / "scripts" / "full_rebuild.py").exists(),
+            "train_clusters": (base_dir / "scripts" / "train_clusters.py").exists(),
+        }
+    }
+
+
+@app.post("/api/pipeline/rebuild")
+async def pipeline_rebuild(background_tasks: BackgroundTasks):
+    """Короткий алиас для полной пересборки (запускается в фоне)"""
+    base_dir = Path(__file__).parent.parent
+    rebuild_script = base_dir / "scripts" / "full_rebuild.py"
+    
+    if not rebuild_script.exists():
+        raise HTTPException(status_code=404, detail=f"full_rebuild.py not found at {rebuild_script}")
+    
+    task_id = f"rebuild_{int(time.time())}"
+    
+    background_tasks.add_task(
+        run_pipeline_task,
+        PipelineAction.REBUILD,
+        task_id
+    )
+    
+    return {
+        "status": "started",
+        "message": "Full rebuild started in background",
+        "task_id": task_id,
+        "check_url": f"/api/pipeline/task/{task_id}"
+    }
+
+
+@app.post("/api/pipeline/refresh-cache")
+async def refresh_cache():
+    """Очищает кэши и перезапускает пайплайн"""
+    base_dir = Path(__file__).parent.parent
+    
+    # Очищаем кэши
+    cache_dirs = [
+        base_dir / "data" / "cache" / "embeddings",
+        base_dir / "data" / "cache" / "clusters",
+    ]
+    
+    removed = []
+    for cache_dir in cache_dirs:
+        if cache_dir.exists():
+            shutil.rmtree(cache_dir)
+            removed.append(str(cache_dir))
+            cache_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Очищаем parsed_skills.pkl
+    parsed_skills = base_dir / "data" / "cache" / "parsed_skills.pkl"
+    if parsed_skills.exists():
+        parsed_skills.unlink()
+        removed.append(str(parsed_skills))
+    
+    return {
+        "status": "success",
+        "message": "Cache cleared",
+        "removed": removed,
+        "next_step": "Run POST /api/pipeline/full-cycle?skip_collection=false to rebuild"
+    }
+
+
+@app.post("/api/pipeline/reload-api")
+async def reload_api():
+    """Перезагружает данные API (без перезапуска сервера)"""
+    try:
+        # Перезагружаем данные в фоне
+        import asyncio
+        asyncio.create_task(reload_api_data())
+        return {
+            "status": "started",
+            "message": "API data reload started. Check /api/status for completion."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def reload_api_data():
+    """Фоновая перезагрузка данных API"""
+    global evaluator, recommendation_engine, trend_analyzer, student_profiles
+    global skill_weights, hybrid_weights, competency_mapping, skill_freq, taxonomy, current_skills_set, basic_vacancies
+    
+    logger.info("Reloading API data...")
+    try:
+        # Повторяем инициализацию из startup
+        await startup()
+        logger.info("API data reloaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to reload API data: {e}")
+
+
+# ============================================
+# ВАКАНСИИ
+# ============================================
+
+@app.get("/api/vacancies")
+async def get_vacancies(
+    limit: int = Query(50, ge=1, le=500, description="Количество вакансий"),
+    offset: int = Query(0, ge=0, description="Смещение для пагинации"),
+    experience: str | None = Query(None, description="Фильтр по опыту: junior, middle, senior"),
+    search: str | None = Query(None, description="Поиск по названию")
+):
+    """Получить список вакансий с фильтрами"""
+    global basic_vacancies
+    
+    filtered = basic_vacancies.copy()
+
+    if experience:
+        exp_lower = experience.lower()
+        filtered = [
+            v for v in filtered
+            if (isinstance(v.get("experience"), dict) and
+                exp_lower in v["experience"].get("id", "").lower()) or
+               (isinstance(v.get("experience"), str) and
+                exp_lower in v["experience"].lower()) or
+               exp_lower in v.get("name", "").lower()
+        ]
+
+    if search:
+        search_lower = search.lower()
+        filtered = [
+            v for v in filtered
+            if search_lower in v.get("name", "").lower() or
+               search_lower in v.get("description", "").lower()
+        ]
+
+    total = len(filtered)
+    items = filtered[offset:offset + limit]
+
+    formatted_items = []
+    for vac in items:
+        skills = []
+        if "extracted_skills" in vac:
+            skills = vac["extracted_skills"][:10]
+
+        exp = "middle"
+        if "experience" in vac:
+            exp_obj = vac["experience"]
+            if isinstance(exp_obj, dict):
+                exp_id = exp_obj.get("id", "").lower()
+                if "junior" in exp_id or "less1" in exp_id or "no_experience" in exp_id:
+                    exp = "junior"
+                elif "senior" in exp_id or "morethan10" in exp_id:
+                    exp = "senior"
+
+        salary_from = None
+        salary_to = None
+        salary_currency = "RUR"
+        if "salary" in vac and vac["salary"]:
+            sal = vac["salary"]
+            salary_from = sal.get("from")
+            salary_to = sal.get("to")
+            salary_currency = sal.get("currency", "RUR")
+
+        employer_name = "Не указано"
+        employer_logo = None
+        if "employer" in vac and vac["employer"]:
+            emp = vac["employer"]
+            employer_name = emp.get("name", "Не указано")
+            if "logo_urls" in emp and emp["logo_urls"]:
+                employer_logo = emp["logo_urls"].get("240") or emp["logo_urls"].get("90")
+
+        formatted_items.append({
+            "id": vac.get("id"),
+            "name": vac.get("name", "Без названия"),
+            "experience": exp,
+            "salary_from": salary_from,
+            "salary_to": salary_to,
+            "salary_currency": salary_currency,
+            "employer_name": employer_name,
+            "employer_logo": employer_logo,
+            "area": vac.get("area", {}).get("name", "Не указано") if isinstance(vac.get("area"), dict) else "Не указано",
+            "published_at": vac.get("published_at"),
+            "alternate_url": vac.get("alternate_url"),
+            "skills": skills,
+            "snippet": vac.get("snippet", {})
+        })
+
+    return {
+        "items": formatted_items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": offset + limit < total
+    }
+
+
+@app.get("/api/vacancies/{vacancy_id}")
+async def get_vacancy_detail(vacancy_id: str):
+    """Получить детальную информацию о вакансии"""
+    global basic_vacancies
+    
+    for vac in basic_vacancies:
+        if vac.get("id") == vacancy_id:
+            skills = []
+            if "extracted_skills" in vac:
+                skills = vac["extracted_skills"]
+
+            return {
+                "id": vac.get("id"),
+                "name": vac.get("name"),
+                "description": vac.get("description", ""),
+                "experience": vac.get("experience"),
+                "salary": vac.get("salary"),
+                "employer": vac.get("employer"),
+                "area": vac.get("area"),
+                "published_at": vac.get("published_at"),
+                "alternate_url": vac.get("alternate_url"),
+                "skills": skills,
+                "schedule": vac.get("schedule"),
+                "employment": vac.get("employment"),
+                "key_skills": vac.get("key_skills", []),
+                "snippet": vac.get("snippet")
+            }
+
+    raise HTTPException(status_code=404, detail="Вакансия не найдена")
+
+
+@app.get("/api/vacancies/stats/summary")
+async def get_vacancies_stats():
+    """Получить статистику по вакансиям"""
+    global basic_vacancies
+    
+    total = len(basic_vacancies)
+    junior = 0
+    middle = 0
+    senior = 0
+    salaries = []
+
+    for vac in basic_vacancies:
+        exp = "middle"
+        if "experience" in vac:
+            exp_obj = vac["experience"]
+            if isinstance(exp_obj, dict):
+                exp_id = exp_obj.get("id", "").lower()
+                if "junior" in exp_id or "less1" in exp_id:
+                    exp = "junior"
+                elif "senior" in exp_id or "morethan10" in exp_id:
+                    exp = "senior"
+
+        if exp == "junior":
+            junior += 1
+        elif exp == "senior":
+            senior += 1
+        else:
+            middle += 1
+
+        if "salary" in vac and vac["salary"]:
+            sal = vac["salary"]
+            if sal.get("from"):
+                salaries.append(sal["from"])
+            if sal.get("to"):
+                salaries.append(sal["to"])
+
+    avg_salary = sum(salaries) / len(salaries) if salaries else 0
+
+    return {
+        "total": total,
+        "by_experience": {
+            "junior": junior,
+            "middle": middle,
+            "senior": senior
+        },
+        "salary": {
+            "average": round(avg_salary, 0),
+            "min": min(salaries) if salaries else 0,
+            "max": max(salaries) if salaries else 0,
+            "count": len(salaries)
+        }
     }
