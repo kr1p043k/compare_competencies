@@ -8,18 +8,22 @@ import json
 import pickle
 import sys
 import time
-import subprocess
 import asyncio
 import shutil
+import uuid
+from contextlib import asynccontextmanager
 from enum import Enum
 from pathlib import Path
 from typing import Optional
 
 import structlog
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, Field, field_validator
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -42,7 +46,14 @@ from src.utils import load_competency_mapping, safe_load_pickle
 
 logger = structlog.get_logger("api")
 
-# Глобальные движки (инициализируются при старте)
+# ============================================
+# КОНФИГУРАЦИЯ ЛИМИТЕРА
+# ============================================
+limiter = Limiter(key_func=get_remote_address)
+
+# ============================================
+# ГЛОБАЛЬНЫЕ ДВИЖКИ (инициализируются при старте)
+# ============================================
 evaluator: ProfileEvaluator | None = None
 recommendation_engine: RecommendationEngine | None = None
 clusterer: VacancyClusterer = VacancyClusterer()
@@ -55,8 +66,35 @@ skill_freq: dict[str, int] = {}
 taxonomy: SkillTaxonomy | None = None
 current_skills_set: set[str] = set()
 basic_vacancies: list = []  # Список всех вакансий
+_regions_cache: list[str] = []  # Кэш списка регионов
+_regions_cache_time: float = 0
 
-app = FastAPI(title="Competency Analyzer API", version="2.0")
+# ============================================
+# LIFESPAN
+# ============================================
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Управление жизненным циклом приложения"""
+    await startup()
+    yield
+    # Shutdown логика
+    logger.info("API shutting down...")
+    # Здесь можно добавить сохранение состояния, закрытие соединений и т.д.
+
+app = FastAPI(
+    title="Competency Analyzer API", 
+    version="2.0",
+    lifespan=lifespan
+)
+
+# ============================================
+# MIDDLEWARE
+# ============================================
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, lambda request, exc: JSONResponse(
+    status_code=429,
+    content={"detail": "Too many requests. Please try again later."}
+))
 
 app.add_middleware(
     CORSMiddleware,
@@ -65,6 +103,137 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Middleware для request ID и структурированного логирования
+@app.middleware("http")
+async def add_request_id_middleware(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+    
+    # Логируем входящий запрос
+    logger.info(
+        "Incoming request",
+        request_id=request_id,
+        method=request.method,
+        path=request.url.path,
+        client_ip=request.client.host if request.client else "unknown"
+    )
+    
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    
+    # Добавляем request ID в заголовки ответа
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Process-Time"] = str(process_time)
+    
+    # Логируем завершение запроса
+    logger.info(
+        "Request completed",
+        request_id=request_id,
+        status_code=response.status_code,
+        process_time=process_time
+    )
+    
+    return response
+
+# ============================================
+# ГЛОБАЛЬНЫЙ EXCEPTION HANDLER
+# ============================================
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.error(
+        "Unhandled exception",
+        request_id=request_id,
+        error=str(exc),
+        error_type=type(exc).__name__,
+        exc_info=True
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "request_id": request_id,
+            "error_type": type(exc).__name__
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.warning(
+        "HTTP exception",
+        request_id=request_id,
+        status_code=exc.status_code,
+        detail=exc.detail
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.detail,
+            "request_id": request_id
+        }
+    )
+
+# ============================================
+# DEPENDENCY INJECTION
+# ============================================
+def get_evaluator() -> ProfileEvaluator:
+    if evaluator is None:
+        raise HTTPException(status_code=503, detail="Profile evaluator not initialized")
+    return evaluator
+
+def get_recommendation_engine() -> RecommendationEngine:
+    if recommendation_engine is None:
+        raise HTTPException(status_code=503, detail="Recommendation engine not initialized")
+    return recommendation_engine
+
+def get_clusterer() -> VacancyClusterer:
+    return clusterer
+
+def get_trend_analyzer() -> TrendAnalyzer:
+    if trend_analyzer is None:
+        raise HTTPException(status_code=503, detail="Trend analyzer not initialized")
+    return trend_analyzer
+
+def get_taxonomy() -> SkillTaxonomy | None:
+    return taxonomy
+
+def get_basic_vacancies() -> list:
+    if not basic_vacancies:
+        raise HTTPException(status_code=503, detail="Vacancy data not loaded yet")
+    return basic_vacancies
+
+def get_student_profiles() -> dict[str, StudentProfile]:
+    return student_profiles
+
+def get_skill_weights() -> dict[str, float]:
+    return skill_weights
+
+def get_skill_freq() -> dict[str, int]:
+    return skill_freq
+
+def get_hybrid_weights() -> dict[str, float]:
+    return hybrid_weights
+
+def validate_regions(regions: list[str]) -> list[str]:
+    """Проверяет, что переданные регионы существуют"""
+    global _regions_cache
+    
+    if not _regions_cache:
+        raise HTTPException(status_code=503, detail="Regions data not loaded yet")
+    
+    if "Все регионы" in regions:
+        return regions
+    
+    invalid_regions = [r for r in regions if r not in _regions_cache]
+    if invalid_regions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid regions: {', '.join(invalid_regions)}. Use /api/regions to get valid regions."
+        )
+    
+    return regions
 
 # ============================================
 # МОДЕЛИ ДЛЯ ПАЙПЛАЙНА
@@ -94,10 +263,139 @@ class PipelineTaskStatus(BaseModel):
     completed_at: Optional[float] = None
     output: Optional[str] = None
 
+class FullPipelineRequest(BaseModel):
+    student_profile: StudentProfile
+    regions: list[str] = Field(default=["Все регионы"], description="Список регионов для фильтрации")
+    whitelist_skills: list[str] = Field(default_factory=list, description="Белый список навыков")
+    level: ComparisonLevel = ComparisonLevel.MIDDLE
+    use_custom_matrix: bool = False
+    include_explanations: bool = Field(default=True, description="Включать ли объяснения в результаты")
+    
+    @field_validator('regions')
+    @classmethod
+    def validate_regions_list(cls, v):
+        if not v:
+            raise ValueError('At least one region must be specified')
+        return v
+    
+    @field_validator('whitelist_skills')
+    @classmethod
+    def validate_whitelist(cls, v):
+        # Убираем дубликаты и пустые строки
+        cleaned = list(dict.fromkeys([s.strip() for s in v if s and s.strip()]))
+        return cleaned
 
 # Хранилище статусов фоновых задач
 pipeline_tasks: dict[str, PipelineTaskStatus] = {}
 
+# ============================================
+# МОДЕЛИ ДЛЯ РЕГИОНОВ
+# ============================================
+
+class RegionsResponse(BaseModel):
+    regions: list[str]
+    total: int
+    default: str = "Все регионы"
+
+
+# ============================================
+# HEALTH CHECK
+# ============================================
+
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "ok",
+        "version": "2.0",
+        "evaluator": evaluator is not None,
+        "recommendation_engine": recommendation_engine is not None
+    }
+
+@app.get("/ready")
+async def ready_check():
+    """Проверка готовности всех компонентов."""
+    components = {
+        "evaluator": evaluator is not None,
+        "recommendation_engine": recommendation_engine is not None and recommendation_engine.is_fitted,
+        "clusterer": clusterer.is_fitted,
+        "trend_analyzer": trend_analyzer is not None,
+    }
+    ready = all(components.values())
+    status = "ready" if ready else "not ready"
+    return {"status": status, "components": components}
+
+@app.get("/api/status")
+async def get_status(
+    profiles: dict[str, StudentProfile] = Depends(get_student_profiles),
+    clusterer_instance: VacancyClusterer = Depends(get_clusterer),
+    trend_analyzer_instance: TrendAnalyzer = Depends(get_trend_analyzer),
+    engine: RecommendationEngine = Depends(get_recommendation_engine),
+    taxonomy_instance: SkillTaxonomy | None = Depends(get_taxonomy),
+    weights: dict[str, float] = Depends(get_skill_weights)
+):
+    return {
+        "vacancies_loaded": len(basic_vacancies) > 0,
+        "skill_weights_count": len(weights),
+        "taxonomy_loaded": taxonomy_instance is not None,
+        "whitelist_size": len(current_skills_set),
+        "profiles_available": list(profiles.keys()),
+        "clusters": {lvl: clusterer_instance.load_model(lvl) and clusterer_instance.is_fitted for lvl in ExperienceLevel},
+        "trends_available": trend_analyzer_instance is not None,
+        "recommendation_engine_ready": engine is not None and engine.is_fitted,
+    }
+
+# ============================================
+# ЭНДПОИНТЫ ДЛЯ РЕГИОНОВ
+# ============================================
+
+@app.get("/api/regions", response_model=RegionsResponse)
+@limiter.limit("60/minute")
+async def get_regions(
+    request: Request,
+    vacancies: list = Depends(get_basic_vacancies)
+):
+    """Возвращает список всех доступных регионов/городов из загруженных вакансий"""
+    global _regions_cache, _regions_cache_time
+    
+    # Используем кэш на 5 минут
+    current_time = time.time()
+    if _regions_cache and (current_time - _regions_cache_time) < 300:
+        return RegionsResponse(
+            regions=_regions_cache,
+            total=len(_regions_cache),
+            default="Все регионы"
+        )
+    
+    try:
+        regions_set = set()
+        
+        for vac in vacancies:
+            # Вариант 1: Поле area.name (самый частый)
+            if isinstance(vac.get("area"), dict):
+                area_name = vac["area"].get("name")
+                if area_name:
+                    regions_set.add(area_name)
+            
+            # Вариант 2: Поле region
+            region = vac.get("region") or vac.get("area_name")
+            if isinstance(region, str) and region:
+                regions_set.add(region)
+        
+        regions_list = sorted({r.strip() for r in regions_set if r and str(r).strip()})
+        
+        # Обновляем кэш
+        _regions_cache = regions_list
+        _regions_cache_time = current_time
+        
+        return RegionsResponse(
+            regions=regions_list,
+            total=len(regions_list),
+            default="Все регионы"
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка при получении регионов: {e}")
+        raise HTTPException(status_code=500, detail="Не удалось извлечь список регионов")
 
 # ============================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -237,8 +535,88 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             output=str(e)
         )
 
+# ============================================
+# ЭНДПОИНТ С ФИЛЬТРАЦИЕЙ ПО ГОРОДУ
+# ============================================
 
-@app.on_event("startup")
+@app.post("/api/pipeline/full-cycle")
+@limiter.limit("5/minute")
+async def run_full_pipeline(
+    request: Request,
+    full_request: FullPipelineRequest, 
+    background_tasks: BackgroundTasks
+):
+    """Запуск полного анализа компетенций с фильтрацией по регионам"""
+    
+    # Валидация регионов
+    validated_regions = validate_regions(full_request.regions)
+    
+    task_id = f"pipeline_{int(time.time())}"
+    
+    logger.info(
+        f"Запуск пайплайна для регионов: {validated_regions}",
+        request_id=getattr(request.state, "request_id", "unknown")
+    )
+    
+    # Передаём выбранные регионы дальше
+    regions_str = ",".join(validated_regions) if "Все регионы" not in validated_regions else None
+    
+    # Здесь можно добавить whitelist обработку
+    if full_request.whitelist_skills:
+        logger.info(f"Применён whitelist навыков: {len(full_request.whitelist_skills)}")
+    
+    # Запуск в фоне
+    background_tasks.add_task(
+        run_pipeline_task,
+        PipelineAction.FULL_CYCLE,
+        task_id,
+        regions=regions_str
+    )
+    
+    return {
+        "task_id": task_id,
+        "status": "started",
+        "regions": validated_regions,
+        "message": "Анализ запущен",
+        "include_explanations": full_request.include_explanations
+    }
+
+
+# Дополнительный эндпоинт для отладки — получить вакансии по выбранному городу
+@app.get("/api/vacancies/by-region")
+@limiter.limit("30/minute")
+async def get_vacancies_by_region(
+    request: Request,
+    region: str = Query(..., description="Название региона (например: Москва)"),
+    limit: int = Query(50, ge=1, le=500),
+    vacancies: list = Depends(get_basic_vacancies)
+):
+    """Возвращает вакансии по выбранному региону (для проверки фильтра)"""
+    
+    filtered = []
+    for vac in vacancies:
+        area_name = None
+        if isinstance(vac.get("area"), dict):
+            area_name = vac["area"].get("name")
+        elif vac.get("region"):
+            area_name = vac.get("region")
+        
+        if area_name and region.lower() in area_name.lower():
+            filtered.append(vac)
+            if len(filtered) >= limit:
+                break
+    
+    return {
+        "region": region,
+        "count": len(filtered),
+        "limit": limit,
+        "vacancies": filtered[:limit]
+    }
+
+# ============================================
+# STARTUP FUNCTION
+# ============================================
+
 async def startup():
     """Загружает все необходимые данные и модели."""
     global evaluator, recommendation_engine, trend_analyzer
@@ -451,69 +829,36 @@ async def startup():
 
     logger.info("API готов к работе")
 
-
-# ============================================
-# БАЗОВЫЕ ЭНДПОИНТЫ
-# ============================================
-
-@app.get("/api/health")
-async def health():
-    return {"status": "ok", "evaluator": evaluator is not None}
-
-
-@app.get("/health")
-async def health_check():
-    """Проверка живости сервера."""
-    return {"status": "healthy", "timestamp": time.time()}
-
-
-@app.get("/ready")
-async def ready_check():
-    """Проверка готовности всех компонентов."""
-    components = {
-        "evaluator": evaluator is not None,
-        "recommendation_engine": recommendation_engine is not None and recommendation_engine.is_fitted,
-        "clusterer": clusterer.is_fitted,
-        "trend_analyzer": trend_analyzer is not None,
-    }
-    ready = all(components.values())
-    status = "ready" if ready else "not ready"
-    return {"status": status, "components": components}
-
-
-@app.get("/api/status")
-async def get_status():
-    return {
-        "vacancies_loaded": len(skill_freq) > 0,
-        "skill_weights_count": len(skill_weights),
-        "taxonomy_loaded": taxonomy is not None,
-        "whitelist_size": len(current_skills_set),
-        "profiles_available": list(student_profiles.keys()),
-        "clusters": {lvl: clusterer.load_model(lvl) and clusterer.is_fitted for lvl in ExperienceLevel},
-        "trends_available": trend_analyzer is not None,
-        "recommendation_engine_ready": recommendation_engine is not None and recommendation_engine.is_fitted,
-    }
-
-
 # ============================================
 # ПРОФИЛИ И РЕКОМЕНДАЦИИ
 # ============================================
 
 @app.get("/api/recommendations/{profile}")
-async def get_recommendations(profile: str):
-    if profile not in student_profiles:
+@limiter.limit("30/minute")
+async def get_recommendations(
+    request: Request,
+    profile: str,
+    engine: RecommendationEngine = Depends(get_recommendation_engine),
+    profiles: dict[str, StudentProfile] = Depends(get_student_profiles)
+):
+    if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
-    student = student_profiles[profile]
-    full_rec = recommendation_engine.generate_recommendations(student)
+    student = profiles[profile]
+    full_rec = engine.generate_recommendations(student)
     return full_rec
 
 
 @app.get("/api/profiles/compare")
-async def compare_profiles():
+@limiter.limit("20/minute")
+async def compare_profiles(
+    request: Request,
+    eval_instance: ProfileEvaluator = Depends(get_evaluator),
+    profiles: dict[str, StudentProfile] = Depends(get_student_profiles)
+):
     evaluations = {}
-    for pname, student in student_profiles.items():
+    for pname, student in profiles.items():
         try:
-            eval_result = evaluator.evaluate_profile(student)
+            eval_result = eval_instance.evaluate_profile(student)
             evaluations[pname] = {
                 "market_coverage_score": eval_result.get("market_coverage_score"),
                 "skill_coverage": eval_result.get("skill_coverage"),
@@ -528,10 +873,15 @@ async def compare_profiles():
 
 
 @app.get("/api/profiles/{profile}")
-async def get_profile(profile: str):
-    if profile not in student_profiles:
+@limiter.limit("60/minute")
+async def get_profile(
+    request: Request,
+    profile: str,
+    profiles: dict[str, StudentProfile] = Depends(get_student_profiles)
+):
+    if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
-    student = student_profiles[profile]
+    student = profiles[profile]
     return {
         "profile_name": student.profile_name,
         "target_level": student.target_level,
@@ -547,20 +897,32 @@ async def get_profile(profile: str):
 # ============================================
 
 @app.get("/api/market/top-skills")
-async def get_top_skills(limit: int = Query(15, ge=1, le=50)):
-    top = sorted(skill_weights.items(), key=lambda x: x[1], reverse=True)[:limit]
+@limiter.limit("60/minute")
+async def get_top_skills(
+    request: Request,
+    limit: int = Query(15, ge=1, le=50),
+    weights: dict[str, float] = Depends(get_skill_weights)
+):
+    top = sorted(weights.items(), key=lambda x: x[1], reverse=True)[:limit]
     return {"skills": [{"skill": s, "weight": round(w, 4)} for s, w in top]}
 
 
 @app.get("/api/market/skill/{skill}")
-async def get_skill_info(skill: str):
-    weight = skill_weights.get(skill, 0.0)
-    freq = skill_freq.get(skill, 0)
-    category = taxonomy.get_category_label(skill) if taxonomy else "unknown"
-    icon = taxonomy.get_category_icon(skill) if taxonomy else ""
+@limiter.limit("60/minute")
+async def get_skill_info(
+    request: Request,
+    skill: str,
+    weights: dict[str, float] = Depends(get_skill_weights),
+    freq: dict[str, int] = Depends(get_skill_freq),
+    taxonomy_instance: SkillTaxonomy | None = Depends(get_taxonomy)
+):
+    weight = weights.get(skill, 0.0)
+    freq_val = freq.get(skill, 0)
+    category = taxonomy_instance.get_category_label(skill) if taxonomy_instance else "unknown"
+    icon = taxonomy_instance.get_category_icon(skill) if taxonomy_instance else ""
     return {
         "skill": skill,
-        "frequency": freq,
+        "frequency": freq_val,
         "weight": round(weight, 4),
         "category": category,
         "icon": icon,
@@ -568,12 +930,16 @@ async def get_skill_info(skill: str):
 
 
 @app.get("/api/market-competencies")
-async def get_market_competencies():
+@limiter.limit("30/minute")
+async def get_market_competencies(
+    request: Request,
+    weights: dict[str, float] = Depends(get_skill_weights)
+):
     """Возвращает рыночные компетенции"""
-    top_skills = sorted(skill_weights.items(), key=lambda x: x[1], reverse=True)[:100]
+    top_skills = sorted(weights.items(), key=lambda x: x[1], reverse=True)[:100]
     return {
         "skills": [{"skill": s, "weight": w} for s, w in top_skills],
-        "total": len(skill_weights)
+        "total": len(weights)
     }
 
 
@@ -582,39 +948,48 @@ async def get_market_competencies():
 # ============================================
 
 @app.get("/api/clusters/{level}")
-async def get_clusters(level: ExperienceLevel = ExperienceLevel.MIDDLE):
-    if not clusterer.is_fitted:
-        clusterer.load_model(level)
-    if not clusterer.is_fitted:
+@limiter.limit("30/minute")
+async def get_clusters(
+    request: Request,
+    level: ExperienceLevel = ExperienceLevel.MIDDLE,
+    clusterer_instance: VacancyClusterer = Depends(get_clusterer)
+):
+    if not clusterer_instance.is_fitted:
+        clusterer_instance.load_model(level)
+    if not clusterer_instance.is_fitted:
         raise HTTPException(status_code=503, detail="Модели кластеров не загружены")
     clusters = []
-    for cid in range(clusterer.n_clusters_):
+    for cid in range(clusterer_instance.n_clusters_):
         clusters.append(
             {
                 "id": cid,
-                "name": clusterer._generate_cluster_name(cid),
-                "top_skills": clusterer.get_top_skills_in_cluster(cid, top_n=5),
+                "name": clusterer_instance._generate_cluster_name(cid),
+                "top_skills": clusterer_instance.get_top_skills_in_cluster(cid, top_n=5),
             }
         )
     return {"level": level, "clusters": clusters}
 
 
 @app.get("/api/clusters/summary")
-async def clusters_summary():
+@limiter.limit("20/minute")
+async def clusters_summary(
+    request: Request,
+    clusterer_instance: VacancyClusterer = Depends(get_clusterer)
+):
     result = {}
     for lvl in ExperienceLevel:
-        clusterer.load_model(lvl)
-        if clusterer.is_fitted:
+        clusterer_instance.load_model(lvl)
+        if clusterer_instance.is_fitted:
             result[lvl] = {
-                "clusters": clusterer.n_clusters_,
-                "type": clusterer.clusterer_type,
+                "clusters": clusterer_instance.n_clusters_,
+                "type": clusterer_instance.clusterer_type,
                 "top_clusters": [
                     {
                         "id": cid,
-                        "name": clusterer._generate_cluster_name(cid),
-                        "top_skills": clusterer.get_top_skills_in_cluster(cid, top_n=5),
+                        "name": clusterer_instance._generate_cluster_name(cid),
+                        "top_skills": clusterer_instance.get_top_skills_in_cluster(cid, top_n=5),
                     }
-                    for cid in range(clusterer.n_clusters_)
+                    for cid in range(clusterer_instance.n_clusters_)
                 ],
             }
         else:
@@ -627,9 +1002,15 @@ async def clusters_summary():
 # ============================================
 
 @app.get("/api/trends")
-async def get_trends(top_n: int = Query(15), min_change: float = Query(3.0)):
+@limiter.limit("30/minute")
+async def get_trends(
+    request: Request,
+    top_n: int = Query(15),
+    min_change: float = Query(3.0),
+    trend_analyzer_instance: TrendAnalyzer = Depends(get_trend_analyzer)
+):
     try:
-        trends = trend_analyzer.get_trending_skills(top_n=top_n, min_change_percent=min_change)
+        trends = trend_analyzer_instance.get_trending_skills(top_n=top_n, min_change_percent=min_change)
         return {"trends": trends}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -640,16 +1021,20 @@ async def get_trends(top_n: int = Query(15), min_change: float = Query(3.0)):
 # ============================================
 
 @app.get("/api/taxonomy/coverage")
-async def taxonomy_coverage():
-    if not taxonomy:
+@limiter.limit("20/minute")
+async def taxonomy_coverage(
+    request: Request,
+    taxonomy_instance: SkillTaxonomy | None = Depends(get_taxonomy)
+):
+    if not taxonomy_instance:
         raise HTTPException(status_code=503, detail="Таксономия не загружена")
     coverage = {}
-    for cat_id in taxonomy.get_all_categories():
-        cat_skills = set(s.lower() for s in taxonomy.get_skills_in_category(cat_id))
+    for cat_id in taxonomy_instance.get_all_categories():
+        cat_skills = set(s.lower() for s in taxonomy_instance.get_skills_in_category(cat_id))
         covered = cat_skills & current_skills_set
         coverage[cat_id] = {
-            "label": taxonomy.get_category_label_by_id(cat_id),
-            "icon": taxonomy.get_category_icon_by_id(cat_id),
+            "label": taxonomy_instance.get_category_label_by_id(cat_id),
+            "icon": taxonomy_instance.get_category_icon_by_id(cat_id),
             "total": len(cat_skills),
             "covered": len(covered),
             "percent": round(len(covered) / len(cat_skills) * 100, 1) if cat_skills else 0,
@@ -662,19 +1047,28 @@ async def taxonomy_coverage():
 # ============================================
 
 @app.get("/api/skills/missing")
-async def missing_skills(min_frequency: int = Query(1)):
+@limiter.limit("30/minute")
+async def missing_skills(
+    request: Request,
+    min_frequency: int = Query(1),
+    freq: dict[str, int] = Depends(get_skill_freq)
+):
     validator = SkillValidator(whitelist=None)
     extracted = {}
-    for skill, freq in skill_freq.items():
-        if skill.lower() not in current_skills_set and freq >= min_frequency and validator.validate(skill).is_valid:
-            extracted[skill] = freq
+    for skill, freq_val in freq.items():
+        if skill.lower() not in current_skills_set and freq_val >= min_frequency and validator.validate(skill).is_valid:
+            extracted[skill] = freq_val
     sorted_skills = sorted(extracted.items(), key=lambda x: x[1], reverse=True)
     return {"missing_skills": [{"skill": s, "frequency": f} for s, f in sorted_skills]}
 
 
 @app.get("/api/skills/dead")
-async def dead_skills():
-    extracted_lower = {s.lower() for s in skill_freq}
+@limiter.limit("30/minute")
+async def dead_skills(
+    request: Request,
+    freq: dict[str, int] = Depends(get_skill_freq)
+):
+    extracted_lower = {s.lower() for s in freq}
     dead = sorted(s for s in current_skills_set if s.lower() not in extracted_lower)
     return {"dead_skills": dead}
 
@@ -684,7 +1078,11 @@ async def dead_skills():
 # ============================================
 
 @app.get("/api/results/summary")
-async def get_results_summary():
+@limiter.limit("30/minute")
+async def get_results_summary(
+    request: Request,
+    profiles: dict[str, StudentProfile] = Depends(get_student_profiles)
+):
     """Возвращает сводку результатов анализа"""
     summary_path = config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
     if summary_path.exists():
@@ -695,14 +1093,19 @@ async def get_results_summary():
             raise HTTPException(status_code=500, detail=str(e))
     return {
         "message": "Результаты анализа не найдены. Запустите gap-анализ.",
-        "profiles": list(student_profiles.keys())
+        "profiles": list(profiles.keys())
     }
 
 
 @app.get("/api/results/recommendations/{profile}")
-async def get_recommendations_result(profile: str):
+@limiter.limit("30/minute")
+async def get_recommendations_result(
+    request: Request,
+    profile: str,
+    profiles: dict[str, StudentProfile] = Depends(get_student_profiles)
+):
     """Возвращает рекомендации для профиля"""
-    if profile not in student_profiles:
+    if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
     
     result_path = config.DATA_DIR / "result" / profile / f"full_recommendations_{profile}.json"
@@ -721,7 +1124,12 @@ async def get_recommendations_result(profile: str):
 
 
 @app.get("/api/results/images/{profile}/{image_type}")
-async def get_profile_image(profile: str, image_type: str):
+@limiter.limit("60/minute")
+async def get_profile_image(
+    request: Request,
+    profile: str,
+    image_type: str
+):
     """Получить изображение визуализации для профиля"""
     safe_types = ["radar", "ml_importance", "cluster_insights", "deficits"]
     
@@ -740,7 +1148,8 @@ async def get_profile_image(profile: str, image_type: str):
 
 
 @app.get("/api/results/images/coverage-comparison")
-async def get_coverage_comparison_image():
+@limiter.limit("30/minute")
+async def get_coverage_comparison_image(request: Request):
     """Получить изображение сравнения покрытия профилей"""
     image_path = config.DATA_DIR / "result" / "coverage_comparison.png"
     
@@ -751,7 +1160,8 @@ async def get_coverage_comparison_image():
 
 
 @app.get("/api/results/images/skills-heatmap")
-async def get_skills_heatmap_image():
+@limiter.limit("30/minute")
+async def get_skills_heatmap_image(request: Request):
     """Получить изображение тепловой карты навыков"""
     image_path = config.DATA_DIR / "result" / "skills_heatmap.png"
     
@@ -762,7 +1172,8 @@ async def get_skills_heatmap_image():
 
 
 @app.get("/api/results/images/skill-correlation")
-async def get_skill_correlation_image():
+@limiter.limit("30/minute")
+async def get_skill_correlation_image(request: Request):
     """Получить изображение корреляции навыков"""
     image_path = config.DATA_DIR / "result" / "skill_correlation_heatmap.png"
     
@@ -777,7 +1188,9 @@ async def get_skill_correlation_image():
 # ============================================
 
 @app.post("/api/pipeline/{action}", response_model=PipelineResponse)
+@limiter.limit("5/minute")
 async def run_pipeline_action_sync(
+    request: Request,
     action: PipelineAction,
     background_tasks: BackgroundTasks,
     skip_collection: bool = Query(False, description="Пропустить сбор вакансий"),
@@ -882,7 +1295,11 @@ async def run_pipeline_action_sync(
 
 
 @app.get("/api/pipeline/task/{task_id}")
-async def get_pipeline_task_status(task_id: str):
+@limiter.limit("60/minute")
+async def get_pipeline_task_status(
+    request: Request,
+    task_id: str
+):
     """Получить статус фоновой задачи пайплайна"""
     if task_id not in pipeline_tasks:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
@@ -891,7 +1308,11 @@ async def get_pipeline_task_status(task_id: str):
 
 
 @app.get("/api/pipeline/tasks")
-async def list_pipeline_tasks(limit: int = Query(10, ge=1, le=50)):
+@limiter.limit("30/minute")
+async def list_pipeline_tasks(
+    request: Request,
+    limit: int = Query(10, ge=1, le=50)
+):
     """Список последних задач пайплайна"""
     tasks = list(pipeline_tasks.values())
     tasks.reverse()  # Последние сверху
@@ -899,7 +1320,8 @@ async def list_pipeline_tasks(limit: int = Query(10, ge=1, le=50)):
 
 
 @app.get("/api/pipeline/status")
-async def get_pipeline_status():
+@limiter.limit("30/minute")
+async def get_pipeline_status(request: Request):
     """Проверяет статус различных компонентов пайплайна"""
     base_dir = Path(__file__).parent.parent
     
@@ -935,7 +1357,11 @@ async def get_pipeline_status():
 
 
 @app.post("/api/pipeline/rebuild")
-async def pipeline_rebuild(background_tasks: BackgroundTasks):
+@limiter.limit("2/minute")
+async def pipeline_rebuild(
+    request: Request,
+    background_tasks: BackgroundTasks
+):
     """Короткий алиас для полной пересборки (запускается в фоне)"""
     base_dir = Path(__file__).parent.parent
     rebuild_script = base_dir / "scripts" / "full_rebuild.py"
@@ -960,7 +1386,8 @@ async def pipeline_rebuild(background_tasks: BackgroundTasks):
 
 
 @app.post("/api/pipeline/refresh-cache")
-async def refresh_cache():
+@limiter.limit("5/minute")
+async def refresh_cache(request: Request):
     """Очищает кэши и перезапускает пайплайн"""
     base_dir = Path(__file__).parent.parent
     
@@ -992,11 +1419,11 @@ async def refresh_cache():
 
 
 @app.post("/api/pipeline/reload-api")
-async def reload_api():
+@limiter.limit("3/minute")
+async def reload_api(request: Request):
     """Перезагружает данные API (без перезапуска сервера)"""
     try:
         # Перезагружаем данные в фоне
-        import asyncio
         asyncio.create_task(reload_api_data())
         return {
             "status": "started",
@@ -1025,16 +1452,18 @@ async def reload_api_data():
 # ============================================
 
 @app.get("/api/vacancies")
+@limiter.limit("60/minute")
 async def get_vacancies(
+    request: Request,
     limit: int = Query(50, ge=1, le=500, description="Количество вакансий"),
     offset: int = Query(0, ge=0, description="Смещение для пагинации"),
     experience: str | None = Query(None, description="Фильтр по опыту: junior, middle, senior"),
-    search: str | None = Query(None, description="Поиск по названию")
+    search: str | None = Query(None, description="Поиск по названию"),
+    vacancies: list = Depends(get_basic_vacancies)
 ):
     """Получить список вакансий с фильтрами"""
-    global basic_vacancies
     
-    filtered = basic_vacancies.copy()
+    filtered = vacancies.copy()
 
     if experience:
         exp_lower = experience.lower()
@@ -1117,11 +1546,15 @@ async def get_vacancies(
 
 
 @app.get("/api/vacancies/{vacancy_id}")
-async def get_vacancy_detail(vacancy_id: str):
+@limiter.limit("60/minute")
+async def get_vacancy_detail(
+    request: Request,
+    vacancy_id: str,
+    vacancies: list = Depends(get_basic_vacancies)
+):
     """Получить детальную информацию о вакансии"""
-    global basic_vacancies
     
-    for vac in basic_vacancies:
+    for vac in vacancies:
         if vac.get("id") == vacancy_id:
             skills = []
             if "extracted_skills" in vac:
@@ -1148,17 +1581,20 @@ async def get_vacancy_detail(vacancy_id: str):
 
 
 @app.get("/api/vacancies/stats/summary")
-async def get_vacancies_stats():
+@limiter.limit("30/minute")
+async def get_vacancies_stats(
+    request: Request,
+    vacancies: list = Depends(get_basic_vacancies)
+):
     """Получить статистику по вакансиям"""
-    global basic_vacancies
     
-    total = len(basic_vacancies)
+    total = len(vacancies)
     junior = 0
     middle = 0
     senior = 0
     salaries = []
 
-    for vac in basic_vacancies:
+    for vac in vacancies:
         exp = "middle"
         if "experience" in vac:
             exp_obj = vac["experience"]
