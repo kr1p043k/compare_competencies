@@ -34,3 +34,20 @@ omit = [
     "src/logging_config.py",
     "src/predictors/skill_forecast.py",
 ]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+show_error_codes = true
+warn_unused_ignores = true
+
+# Third-party stubs
+ignore_missing_imports = true
+[[tool.mypy.overrides]]
+module = [
+    "pandas", "numpy", "matplotlib.*", "seaborn", "sklearn.*",
+    "tqdm", "joblib", "pymorphy3", "rank_bm25", "requests",
+    "hdbscan", "shap", "fastapi.*", "pydantic.*", "slowapi.*",
+    "structlog",
+]
+ignore_missing_imports = true
