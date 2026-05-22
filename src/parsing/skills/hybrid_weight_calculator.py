@@ -1,4 +1,4 @@
-"""Гибридные веса BM25 + Embeddings (с PCA, graceful degradation)."""
+"""Гибридные веса BM25 + Embeddings (с PCA, graceful degradation, merge BM25-only)."""
 
 import numpy as np
 import structlog
@@ -22,21 +22,20 @@ class HybridWeightCalculator:
 
         if self.cache.model is None:
             logger.warning("Эмбеддинги недоступны — только BM25")
-            return self._minmax(bm25_weights)
+            return self._norm(bm25_weights)
 
         try:
             skills = list(bm25_weights.keys())
             emb_dict = self.cache.get_embeddings(skills)
         except Exception:
-            return self._minmax(bm25_weights)
+            return self._norm(bm25_weights)
 
         if len(emb_dict) < 10:
-            return bm25_weights
+            return self._norm(bm25_weights)
 
         skill_list = list(emb_dict.keys())
         embs = np.array([emb_dict[s] for s in skill_list], dtype=np.float32)
 
-        # PCA
         if config.PCA_ENABLED and len(embs) > config.PCA_MIN_SAMPLES and embs.shape[1] > config.PCA_MIN_FEATURES:
             from sklearn.decomposition import PCA
 
@@ -49,19 +48,30 @@ class HybridWeightCalculator:
         embs = torch.nn.functional.normalize(embs, p=2, dim=1)
         sim = torch.matmul(embs, embs.T).mean(dim=1).cpu().numpy()
 
-        bm25_vals = np.array([bm25_weights.get(s, 0.0) for s in skill_list])
-        bm25_norm = (bm25_vals - bm25_vals.min()) / (bm25_vals.max() - bm25_vals.min() + 1e-8)
         sem_norm = (sim - sim.min()) / (sim.max() - sim.min() + 1e-8)
 
-        hybrid = {}
-        alpha, beta = 0.65, 0.35
-        for i, skill in enumerate(skill_list):
-            hybrid[skill] = round(float(alpha * bm25_norm[i] + beta * sem_norm[i]), 4)
+        alpha = getattr(config, "HYBRID_BM25_WEIGHT", 0.65)
+        beta = getattr(config, "HYBRID_SEM_WEIGHT", 0.35)
+        total = alpha + beta
+        alpha, beta = alpha / total, beta / total
 
-        logger.info(f"Гибридные веса готовы: {len(hybrid)} навыков")
+        hybrid = {}
+        for i, skill in enumerate(skill_list):
+            hybrid[skill] = round(float(alpha * bm25_weights[skill] + beta * sem_norm[i]), 4)
+
+        bm25_only = 0
+        for skill, w in bm25_weights.items():
+            if skill not in hybrid:
+                hybrid[skill] = w
+                bm25_only += 1
+
+        logger.info(f"Гибридные веса готовы: {len(hybrid)} навыков (bm25_only={bm25_only})")
         return hybrid
 
-    def _minmax(self, w):
+    @staticmethod
+    def _norm(w: dict[str, float]) -> dict[str, float]:
         vals = np.array(list(w.values()))
         vmin, vmax = vals.min(), vals.max()
-        return {s: round((w[s] - vmin) / (vmax - vmin), 4) for s in w} if vmax > vmin else w
+        if vmax > vmin:
+            return {s: round((w[s] - vmin) / (vmax - vmin), 4) for s in w}
+        return w

@@ -1,4 +1,4 @@
-"""Парсер вакансий (фасад) с гибридными весами и кэшированием."""
+﻿"""РџР°СЂСЃРµСЂ РІР°РєР°РЅСЃРёР№ (С„Р°СЃР°Рґ) СЃ РіРёР±СЂРёРґРЅС‹РјРё РІРµСЃР°РјРё Рё РєСЌС€РёСЂРѕРІР°РЅРёРµРј."""
 
 import re
 from collections import Counter
@@ -31,7 +31,7 @@ class VacancyParser:
         self.embedding_cache = SkillEmbeddingCache()
         self.hybrid_calc = HybridWeightCalculator(self.bm25_ranker, self.embedding_cache)
 
-    # --------------------- публичные методы -------------------------
+    # --------------------- РїСѓР±Р»РёС‡РЅС‹Рµ РјРµС‚РѕРґС‹ -------------------------
     def extract_skills_from_description(self, description: str) -> list[str]:
         if not description:
             return []
@@ -59,28 +59,27 @@ class VacancyParser:
             unique = list(dict.fromkeys([s for s in normalized if s]))
             for skill in unique:
                 skill_freq[skill] += 1
-        logger.info(f"Уникальных навыков: {len(skill_freq)}")
+        logger.info("Уникальных навыков", count=len(skill_freq))
 
-        # Шаг 3: параллельная валидация
-        all_skills = list(skill_freq.keys())
-        valid_skills = []
-        if len(all_skills) > 200:
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                results = executor.map(self.skill_validator.validate, all_skills)
-                for skill, result in zip(all_skills, results, strict=False):
-                    if result.is_valid:
-                        valid_skills.append(skill)
-        else:
-            for skill in all_skills:
-                if self.skill_validator.validate(skill).is_valid:
-                    valid_skills.append(skill)
-        final_freq = {skill: skill_freq[skill] for skill in valid_skills}
-        logger.info(f"После валидации: {len(final_freq)}")
-
-        # Шаг 4: гибридные веса (внутри вызовет BM25)
+        # Шаг 3: гибридные веса (BM25 + embeddings)
         hybrid_weights = self.hybrid_calc.calculate(vacancies)
 
-        # Шаг 5: эмбеддинги для валидных навыков
+        return {"frequencies": dict(skill_freq), "hybrid_weights": hybrid_weights}
+
+    def extract_from_detailed(self, detailed_vacancies: list[dict]) -> dict[str, float]:
+        self._validate_vacancies(detailed_vacancies)
+        skill_freq = {}
+        for vac in detailed_vacancies:
+            skills = self._extract_from_description(vac.get("description", ""))
+            for s in skills:
+                skill_freq[s] = skill_freq.get(s, 0) + 1
+        final_freq = self._validate_skills(skill_freq)
+        logger.info("РџРѕСЃР»Рµ РІР°Р»РёРґР°С†РёРё", count=len(final_freq))
+
+        # РЁР°Рі 4: РіРёР±СЂРёРґРЅС‹Рµ РІРµСЃР° (РІРЅСѓС‚СЂРё РІС‹Р·РѕРІРµС‚ BM25)
+        hybrid_weights = self.hybrid_calc.calculate(vacancies)
+
+        # РЁР°Рі 5: СЌРјР±РµРґРґРёРЅРіРё РґР»СЏ РІР°Р»РёРґРЅС‹С… РЅР°РІС‹РєРѕРІ
         skill_embeddings = self.embedding_cache.get_embeddings(list(final_freq.keys()))
 
         result = SkillExtractionResult(
@@ -90,12 +89,12 @@ class VacancyParser:
         )
         return result.model_dump()
 
-    # --------------------- утилиты сохранения и вывода -------------------------
+    # --------------------- СѓС‚РёР»РёС‚С‹ СЃРѕС…СЂР°РЅРµРЅРёСЏ Рё РІС‹РІРѕРґР° -------------------------
     def save_raw_vacancies(self, vacancies, filename="hh_vacancies.json"):
         filepath = config.DATA_RAW_DIR / filename
         data = [v.raw_data if isinstance(v, Vacancy) else v for v in vacancies]
         atomic_write_json(data, filepath)
-        logger.info(f"Сохранено: {filepath}")
+        logger.info("РЎРѕС…СЂР°РЅРµРЅРѕ", path=str(filepath))
 
     def save_processed_frequencies(self, frequencies, filename="competency_frequency.json", apply_filter=True):
         if apply_filter:
@@ -104,7 +103,7 @@ class VacancyParser:
                 frequencies = filter_skills_by_whitelist(frequencies, whitelist)
         filepath = config.DATA_PROCESSED_DIR / filename
         atomic_write_json(frequencies, filepath)
-        logger.info(f"Частоты сохранены: {filepath}")
+        logger.info("Р§Р°СЃС‚РѕС‚С‹ СЃРѕС…СЂР°РЅРµРЅС‹", path=str(filepath))
 
     @staticmethod
     def _strip_html(text):
@@ -119,8 +118,8 @@ class VacancyParser:
     # =========================================================================
     def aggregate_to_dataframe(self, vacancies: list[dict] | list[Vacancy]) -> pd.DataFrame:
         """
-        Агрегирует данные в DataFrame для Excel.
-        Навыки собираются из key_skills + текстового парсера (объединение).
+        РђРіСЂРµРіРёСЂСѓРµС‚ РґР°РЅРЅС‹Рµ РІ DataFrame РґР»СЏ Excel.
+        РќР°РІС‹РєРё СЃРѕР±РёСЂР°СЋС‚СЃСЏ РёР· key_skills + С‚РµРєСЃС‚РѕРІРѕРіРѕ РїР°СЂСЃРµСЂР° (РѕР±СЉРµРґРёРЅРµРЅРёРµ).
         """
         rows = []
 
@@ -132,7 +131,7 @@ class VacancyParser:
                 employer_name = vac.employer.name
                 area_name = vac.area.name
                 vac_id = vac.id
-                salary = str(vac.salary) if vac.salary else "Не указана"
+                salary = str(vac.salary) if vac.salary else "РќРµ СѓРєР°Р·Р°РЅР°"
                 parsed_skills = self.skill_parser.parse_vacancy(vac)
                 text_skill_names = [s.text for s in parsed_skills if s.text]
                 description = vac.description or ""
@@ -147,7 +146,7 @@ class VacancyParser:
                 area = vac.get("area", {}) or {}
                 area_name = area.get("name", "Unknown")
                 vac_id = vac.get("id")
-                salary = "Не указана"
+                salary = "РќРµ СѓРєР°Р·Р°РЅР°"
                 description = vac.get("description", "") or ""
                 snippet = vac.get("snippet", {}) or {}
                 snippet_req = snippet.get("requirement", "") or ""
@@ -177,13 +176,13 @@ class VacancyParser:
         return pd.DataFrame(rows)
 
     def save_to_excel(self, df: pd.DataFrame, filename: str):
-        """Сохраняет DataFrame в Excel"""
+        """РЎРѕС…СЂР°РЅСЏРµС‚ DataFrame РІ Excel"""
         filepath = config.DATA_RESULT_DIR / filename
         df.to_excel(filepath, index=False, engine="openpyxl")
-        logger.info(f"Excel файл сохранён в {filepath}")
+        logger.info("Excel С„Р°Р№Р» СЃРѕС…СЂР°РЅС‘РЅ", path=str(filepath))
 
     def print_vacancies_list(self, vacancies: list[dict] | list[Vacancy]):
-        """Выводит список вакансий (навыки: key_skills + текстовое извлечение)"""
+        """Р’С‹РІРѕРґРёС‚ СЃРїРёСЃРѕРє РІР°РєР°РЅСЃРёР№ (РЅР°РІС‹РєРё: key_skills + С‚РµРєСЃС‚РѕРІРѕРµ РёР·РІР»РµС‡РµРЅРёРµ)"""
         for i, vac in enumerate(vacancies[:20], 1):
             key_skill_names = []
             text_skill_names = []
@@ -219,4 +218,4 @@ class VacancyParser:
 
             print(f"{i}. {vac_name} @ {employer_name} ({area_name})")
             if all_skills:
-                print(f"   Навыки: {', '.join(all_skills[:5])}")
+                print(f"   РќР°РІС‹РєРё: {', '.join(all_skills[:5])}")

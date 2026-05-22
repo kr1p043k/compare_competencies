@@ -1,5 +1,6 @@
 """BM25 ранкер с предфильтрацией и кэшированием."""
 
+import json
 import re
 
 import numpy as np
@@ -14,264 +15,36 @@ from src.parsing.utils import load_it_skills
 logger = structlog.get_logger(__name__)
 
 
+_DEFAULT_STOP_LEMMAS = {
+    "в","без","до","из","к","на","по","о","от","перед","при","через","с","у","за","над","об","под","про","для",
+    "и","да","или","либо","не","ни","как","так","то","что","чтобы","если","хотя","пока","когда","где","который",
+    "этот","тот","мой","твой","свой","наш","ваш","весь","всякий","любой",
+    "the","be","to","of","and","a","in","that","have","i","it","for","not","on","with","he","as","you","do","at",
+    "this","but","his","by","from","they","we","say","her","she","or","an","will","my","one","all","would","there",
+    "their","what","so","up","out","if","about","who","get","which","go","me","when","make","can","like","time",
+    "no","just","him","know","take","person","into","year","your","good","some","could","them","see","other","than",
+    "then","now","look","only","come","its","over","think","also","back","after","use","two","how","our","work",
+    "first","well","way","even","new","want","because","any","these","give","day","most","us","is","was","are",
+    "been","has","had","were","said","did","may","am",
+}
+
+
 class BM25Ranker:
     def __init__(self):
         self._morph = pymorphy3.MorphAnalyzer()
         self._cached_corpus = None
         self._corpus_hash = None
-        self._stop_lemmas = self._build_stop_lemmas()
+        self._stop_lemmas = self._load_stop_lemmas()
 
-    def _build_stop_lemmas(self):
-        return {
-            "в",
-            "без",
-            "до",
-            "из",
-            "к",
-            "на",
-            "по",
-            "о",
-            "от",
-            "перед",
-            "при",
-            "через",
-            "с",
-            "у",
-            "за",
-            "над",
-            "об",
-            "под",
-            "про",
-            "для",
-            "и",
-            "да",
-            "или",
-            "либо",
-            "не",
-            "ни",
-            "как",
-            "так",
-            "то",
-            "что",
-            "чтобы",
-            "если",
-            "хотя",
-            "пока",
-            "когда",
-            "где",
-            "который",
-            "этот",
-            "тот",
-            "мой",
-            "твой",
-            "свой",
-            "наш",
-            "ваш",
-            "весь",
-            "всякий",
-            "любой",
-            "человек",
-            "год",
-            "раз",
-            "дело",
-            "жизнь",
-            "день",
-            "время",
-            "работа",
-            "сила",
-            "рука",
-            "слово",
-            "место",
-            "часть",
-            "город",
-            "страна",
-            "опыт",
-            "знание",
-            "умение",
-            "владение",
-            "навык",
-            "разработка",
-            "программирование",
-            "язык",
-            "технология",
-            "система",
-            "решение",
-            "задача",
-            "проект",
-            "команда",
-            "компания",
-            "клиент",
-            "сервер",
-            "поддержка",
-            "сопровождение",
-            "настройка",
-            "обеспечение",
-            "анализ",
-            "тестирование",
-            "отладка",
-            "документация",
-            "обучение",
-            "мониторинг",
-            "управление",
-            "процесс",
-            "функция",
-            "модуль",
-            "архитектура",
-            "инфраструктура",
-            "платформа",
-            "среда",
-            "код",
-            "данные",
-            "алгоритм",
-            "модель",
-            "метод",
-            "подход",
-            "практика",
-            "стандарт",
-            "версия",
-            "релиз",
-            "сборка",
-            "деплой",
-            "интеграция",
-            "миграция",
-            "контроль",
-            "планирование",
-            "оценка",
-            "риск",
-            "качество",
-            "производительность",
-            "масштабирование",
-            "безопасность",
-            "сеть",
-            "база",
-            "хранилище",
-            "облако",
-            "кластер",
-            "контейнер",
-            "виртуализация",
-            "оркестрация",
-            "автоматизация",
-            "интерфейс",
-            "пользователь",
-            "администратор",
-            "разработчик",
-            "специалист",
-            "инженер",
-            "аналитик",
-            "менеджер",
-            "руководитель",
-            "the",
-            "be",
-            "to",
-            "of",
-            "and",
-            "a",
-            "in",
-            "that",
-            "have",
-            "i",
-            "it",
-            "for",
-            "not",
-            "on",
-            "with",
-            "he",
-            "as",
-            "you",
-            "do",
-            "at",
-            "this",
-            "but",
-            "his",
-            "by",
-            "from",
-            "they",
-            "we",
-            "say",
-            "her",
-            "she",
-            "or",
-            "an",
-            "will",
-            "my",
-            "one",
-            "all",
-            "would",
-            "there",
-            "their",
-            "what",
-            "so",
-            "up",
-            "out",
-            "if",
-            "about",
-            "who",
-            "get",
-            "which",
-            "go",
-            "me",
-            "when",
-            "make",
-            "can",
-            "like",
-            "time",
-            "no",
-            "just",
-            "him",
-            "know",
-            "take",
-            "person",
-            "into",
-            "year",
-            "your",
-            "good",
-            "some",
-            "could",
-            "them",
-            "see",
-            "other",
-            "than",
-            "then",
-            "now",
-            "look",
-            "only",
-            "come",
-            "its",
-            "over",
-            "think",
-            "also",
-            "back",
-            "after",
-            "use",
-            "two",
-            "how",
-            "our",
-            "work",
-            "first",
-            "well",
-            "way",
-            "even",
-            "new",
-            "want",
-            "because",
-            "any",
-            "these",
-            "give",
-            "day",
-            "most",
-            "us",
-            "is",
-            "was",
-            "are",
-            "been",
-            "has",
-            "had",
-            "were",
-            "said",
-            "did",
-            "may",
-            "am",
-        }
+    def _load_stop_lemmas(self) -> set[str]:
+        path = getattr(config, "STOP_LEMMAS_PATH", None) or config.REFERENCE_DIR / "stop_lemmas.json"
+        if path.exists():
+            try:
+                with open(path, encoding="utf-8") as f:
+                    return set(json.load(f))
+            except Exception as e:
+                logger.warning("stop_lemmas_load_failed_using_defaults", path=str(path), error=str(e))
+        return _DEFAULT_STOP_LEMMAS
 
     def _compute_corpus_hash(self, vacancies: list) -> str:  # <-- переименован
         total_ids = 0
@@ -282,6 +55,62 @@ class BM25Ranker:
                 total_ids += int(vid) if str(vid).isdigit() else hash(str(vid))
                 count += 1
         return f"{count}:{total_ids}"
+
+    def _extract_vacancy_text(self, vac) -> str:
+        parts = []
+        if isinstance(vac, dict):
+            desc = vac.get("description") or ""
+            if desc:
+                parts.append(re.sub(r"<[^>]+>", " ", desc))
+            snippet = vac.get("snippet") or {}
+            req = snippet.get("requirement") or ""
+            resp = snippet.get("responsibility") or ""
+            if req:
+                parts.append(re.sub(r"<[^>]+>", " ", req))
+            if resp:
+                parts.append(re.sub(r"<[^>]+>", " ", resp))
+            key_skills = " ".join(s.get("name", "") for s in vac.get("key_skills", []))
+            if key_skills:
+                parts.append(key_skills)
+        else:
+            if hasattr(vac, "description") and vac.description:
+                parts.append(re.sub(r"<[^>]+>", " ", vac.description))
+            key_skills = " ".join(s.name for s in (vac.key_skills if hasattr(vac, "key_skills") else []))
+            if key_skills:
+                parts.append(key_skills)
+        return " ".join(p.strip() for p in parts if p and p.strip())
+
+    def _lemmatize(self, text: str) -> list[str]:
+        words = re.findall(r"(?u)\b\w[\w\+\-\#\.]+\b", text.lower())
+        if not words:
+            return []
+        lemmas = []
+        for w in words:
+            if any("а" <= c <= "я" or c == "ё" for c in w):
+                try:
+                    lemmas.append(self._morph.parse(w)[0].normal_form)
+                except Exception:
+                    lemmas.append(w)
+            else:
+                lemmas.append(w)
+        return lemmas
+
+    def _build_vacancy_skills(self, lemmas: list[str], whitelist: set, whitelist_words: set, whitelist_phrases: set) -> list[str]:
+        doc_skills = []
+        for n in range(1, 4):
+            for i in range(len(lemmas) - n + 1):
+                ngram_words = lemmas[i : i + n]
+                ngram = " ".join(ngram_words)
+                if n == 1 and ngram not in whitelist_words:
+                    continue
+                if n > 1 and ngram not in whitelist_phrases:
+                    continue
+                if any(lemma in self._stop_lemmas for lemma in ngram_words):
+                    continue
+                norm = SkillNormalizer.normalize(ngram)
+                if norm and norm in whitelist:
+                    doc_skills.append(norm)
+        return doc_skills
 
     def calculate_weights(self, vacancies: list) -> dict[str, float]:
         ch = self._compute_corpus_hash(vacancies)
@@ -298,86 +127,36 @@ class BM25Ranker:
         whitelist_words = {s for s in whitelist if " " not in s}
         whitelist_phrases = {s for s in whitelist if " " in s}
 
-        tokenized_corpus = []
-        all_ngrams = set()
+        corpus_docs = []
+        all_skills = set()
 
         for vac in vacancies:
-            parts = []
-            if isinstance(vac, dict):
-                desc = vac.get("description") or ""
-                if desc:
-                    parts.append(re.sub(r"<[^>]+>", " ", desc))
-                snippet = vac.get("snippet") or {}
-                req = snippet.get("requirement") or ""
-                resp = snippet.get("responsibility") or ""
-                if req:
-                    parts.append(re.sub(r"<[^>]+>", " ", req))
-                if resp:
-                    parts.append(re.sub(r"<[^>]+>", " ", resp))
-                key_skills = " ".join(s.get("name", "") for s in vac.get("key_skills", []))
-                if key_skills:
-                    parts.append(key_skills)
-            else:
-                if hasattr(vac, "description") and vac.description:
-                    parts.append(re.sub(r"<[^>]+>", " ", vac.description))
-                key_skills = " ".join(s.name for s in (vac.key_skills if hasattr(vac, "key_skills") else []))
-                if key_skills:
-                    parts.append(key_skills)
-
-            text = " ".join(p.strip() for p in parts if p and p.strip())
+            text = self._extract_vacancy_text(vac)
             if not text:
                 continue
 
-            words = re.findall(r"(?u)\b\w[\w\+\-\#\.]+\b", text.lower())
-            if not words:
+            lemmas = self._lemmatize(text)
+            if not lemmas:
                 continue
 
-            lemmas = []
-            for w in words:
-                if any("а" <= c <= "я" or c == "ё" for c in w):
-                    try:
-                        lemmas.append(self._morph.parse(w)[0].normal_form)
-                    except Exception:
-                        lemmas.append(w)
-                else:
-                    lemmas.append(w)
+            doc_skills = self._build_vacancy_skills(lemmas, whitelist, whitelist_words, whitelist_phrases)
+            if doc_skills:
+                doc_skills_dedup = list(dict.fromkeys(doc_skills))
+                corpus_docs.append(doc_skills_dedup)
+                all_skills.update(doc_skills_dedup)
 
-            for n in range(1, 4):
-                for i in range(len(lemmas) - n + 1):
-                    ngram_words = lemmas[i : i + n]
-                    ngram = " ".join(ngram_words)
-                    if n == 1 and ngram not in whitelist_words:
-                        continue
-                    if n > 1 and ngram not in whitelist_phrases:
-                        continue
-                    if any(lemma in self._stop_lemmas for lemma in ngram_words):
-                        continue
-                    norm = SkillNormalizer.normalize(ngram)
-                    if norm and norm in whitelist:
-                        all_ngrams.add(norm)
-                        tokenized_corpus.append([norm])
-
-        if not tokenized_corpus:
+        if not corpus_docs:
             logger.warning("Нет валидных n-грамм для BM25")
             return {}
 
-        # дедупликация и ограничение
-        unique_docs = []
-        seen = set()
-        for doc in tokenized_corpus:
-            k = tuple(doc)
-            if k not in seen:
-                seen.add(k)
-                unique_docs.append(doc)
-
         total = len(vacancies)
         max_docs = max(200, min(2000, total // 10))
-        if len(unique_docs) > max_docs:
-            unique_docs = [unique_docs[i] for i in np.argsort([len(d) for d in unique_docs])[-max_docs:]]
+        if len(corpus_docs) > max_docs:
+            corpus_docs = [corpus_docs[i] for i in np.argsort([len(d) for d in corpus_docs])[-max_docs:]]
 
-        bm25 = BM25Okapi(unique_docs)
+        bm25 = BM25Okapi(corpus_docs)
         weights = {}
-        for term in all_ngrams:
+        for term in all_skills:
             try:
                 scores = bm25.get_scores([term])
                 if len(scores) == 0:
@@ -388,7 +167,14 @@ class BM25Ranker:
             except ZeroDivisionError:
                 continue
 
-        logger.info(f"BM25 готов: {len(weights)} навыков")
+        if weights:
+            vals = np.array(list(weights.values()))
+            vmin, vmax = vals.min(), vals.max()
+            if vmax > vmin:
+                for k in weights:
+                    weights[k] = round((weights[k] - vmin) / (vmax - vmin), 4)
+
+        logger.info("BM25 готов", skill_count=len(weights))
         self._cached_corpus = weights
         self._corpus_hash = ch
         return weights
