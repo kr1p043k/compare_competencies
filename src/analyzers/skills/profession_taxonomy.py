@@ -2,11 +2,91 @@
 from pathlib import Path
 
 import structlog
+from pydantic import BaseModel, Field, ValidationError
 
 from src import config
 from src.models.market_metrics import DomainMetrics
 
 logger = structlog.get_logger(__name__)
+
+
+class ProfessionSchema(BaseModel):
+    domains: list[str] = Field(default_factory=list)
+    hh_queries: list[str] = Field(default_factory=list)
+    aliases: list[str] = Field(default_factory=list)
+    competency_codes: list[str] = Field(default_factory=list)
+
+
+class ProfileTargetSchema(BaseModel):
+    target_profession: str = ""
+    target_domains: list[str] = Field(default_factory=list)
+
+
+class ProfessionTaxonomySchema(BaseModel):
+    professions: dict[str, ProfessionSchema] = Field(default_factory=dict)
+    profile_targets: dict[str, ProfileTargetSchema] = Field(default_factory=dict)
+
+
+class TaxonomyValidator:
+    @staticmethod
+    def validate_profession_taxonomy(data: dict, path: str = "") -> list[str]:
+        issues = []
+        if not isinstance(data, dict):
+            issues.append(f"taxonomy должен быть dict, получен {type(data).__name__}")
+            return issues
+        try:
+            validated = ProfessionTaxonomySchema(**data)
+        except ValidationError as e:
+            issues.append(f"Структурная ошибка {path}: {e}")
+            return issues
+        all_domains = set()
+        for pname, prof in validated.professions.items():
+            for d in prof.domains:
+                all_domains.add(d)
+        return issues
+
+    @staticmethod
+    def validate_domain_map(data: dict, known_domains: set[str], path: str = "") -> list[str]:
+        issues = []
+        if not isinstance(data, dict):
+            issues.append(f"domain_map должен быть dict, получен {type(data).__name__}")
+            return issues
+        for dname, skills in data.items():
+            if not isinstance(skills, list):
+                issues.append(f"Домен '{dname}': навыки должны быть списком")
+            if dname not in known_domains:
+                pass
+        return issues
+
+    @staticmethod
+    def validate_krm_mapping(data: dict, known_codes: set[str], path: str = "") -> list[str]:
+        issues = []
+        if not isinstance(data, dict):
+            issues.append(f"krm_mapping должен быть dict, получен {type(data).__name__}")
+            return issues
+        for code, skills in data.items():
+            if not isinstance(skills, list):
+                issues.append(f"Код '{code}': навыки должны быть списком")
+        for code in known_codes:
+            if code not in data:
+                issues.append(f"КРМ-код '{code}' указан в taxonomy, но отсутствует в krm_mapping")
+        return issues
+
+    @staticmethod
+    def validate_cross_references(
+        taxonomy: dict, domain_map: dict, krm_mapping: dict
+    ) -> list[str]:
+        issues = []
+        known_domains = set(domain_map.keys())
+        known_krm_codes = set(krm_mapping.keys())
+        for pname, pinfo in taxonomy.get("professions", {}).items():
+            for d in pinfo.get("domains", []):
+                if d not in known_domains:
+                    issues.append(f"Профессия '{pname}': домен '{d}' не найден в domain_map")
+            for code in pinfo.get("competency_codes", []):
+                if code not in known_krm_codes:
+                    issues.append(f"Профессия '{pname}': КРМ-код '{code}' не найден в krm_mapping")
+        return issues
 
 
 class ProfessionTaxonomy:
@@ -28,29 +108,59 @@ class ProfessionTaxonomy:
         self._load()
 
     def _load(self):
-        if not self.taxonomy_path.exists():
+        self._taxonomy = {"professions": {}, "profile_targets": {}}
+        self._domain_map = {}
+        self._krm_mapping = {}
+
+        if self.taxonomy_path.exists():
+            with open(self.taxonomy_path, encoding="utf-8") as f:
+                self._taxonomy = json.load(f)
+            logger.info("taxonomy_loaded", professions=len(self._taxonomy.get("professions", {})))
+        else:
             logger.error("taxonomy_file_not_found", path=str(self.taxonomy_path))
-            self._taxonomy = {"professions": {}, "profile_targets": {}}
-            return
-        with open(self.taxonomy_path, encoding="utf-8") as f:
-            self._taxonomy = json.load(f)
-        logger.info("taxonomy_loaded", professions=len(self._taxonomy.get("professions", {})))
 
-        if not self.domain_map_path.exists():
+        if self.domain_map_path.exists():
+            with open(self.domain_map_path, encoding="utf-8") as f:
+                self._domain_map = json.load(f)
+            logger.info("domain_map_loaded", domains=len(self._domain_map))
+        else:
             logger.error("domain_map_not_found", path=str(self.domain_map_path))
-            self._domain_map = {}
-            return
-        with open(self.domain_map_path, encoding="utf-8") as f:
-            self._domain_map = json.load(f)
-        logger.info("domain_map_loaded", domains=len(self._domain_map))
 
-        if not self.krm_mapping_path.exists():
+        if self.krm_mapping_path.exists():
+            with open(self.krm_mapping_path, encoding="utf-8") as f:
+                self._krm_mapping = json.load(f)
+            logger.info("krm_mapping_loaded", codes=len(self._krm_mapping))
+        else:
             logger.warning("krm_mapping_not_found", path=str(self.krm_mapping_path))
-            self._krm_mapping = {}
-            return
-        with open(self.krm_mapping_path, encoding="utf-8") as f:
-            self._krm_mapping = json.load(f)
-        logger.info("krm_mapping_loaded", codes=len(self._krm_mapping))
+
+        self._validate()
+
+    def _validate(self):
+        issues: list[str] = []
+        issues += TaxonomyValidator.validate_profession_taxonomy(
+            self._taxonomy, str(self.taxonomy_path)
+        )
+        known_domains = set()
+        for pinfo in self._taxonomy.get("professions", {}).values():
+            known_domains.update(pinfo.get("domains", []))
+        issues += TaxonomyValidator.validate_domain_map(
+            self._domain_map, known_domains, str(self.domain_map_path)
+        )
+        known_codes = set()
+        for pinfo in self._taxonomy.get("professions", {}).values():
+            known_codes.update(pinfo.get("competency_codes", []))
+        issues += TaxonomyValidator.validate_krm_mapping(
+            self._krm_mapping, known_codes, str(self.krm_mapping_path)
+        )
+        issues += TaxonomyValidator.validate_cross_references(
+            self._taxonomy, self._domain_map, self._krm_mapping
+        )
+        for issue in issues:
+            logger.warning("taxonomy_validation", issue=issue)
+        if issues:
+            logger.warning("taxonomy_validation_complete", total_issues=len(issues))
+        else:
+            logger.info("taxonomy_validation_ok")
 
     @property
     def professions(self) -> list[str]:
