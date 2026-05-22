@@ -5,13 +5,13 @@ main.py — Stage-based пайплайн анализа вакансий и ге
 """
 
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
 
 if __name__ == "__main__" and sys.platform == "win32":
     import io
-
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
@@ -57,7 +57,7 @@ def convert_float32(obj):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
-    parser.add_argument("--query", "-q", type=str, default="Python developer")
+    parser.add_argument("--query", "-q", type=str, default="Python Developer")
     parser.add_argument("--area-id", "-a", type=int, default=1)
     parser.add_argument("--max-pages", "-p", type=int, default=10)
     parser.add_argument("--period", "-d", type=int, default=30)
@@ -176,14 +176,17 @@ def print_recommendations(profiles, all_recommendations):
     for profile_name, full_rec in all_recommendations.items():
         if not full_rec:
             continue
-        print(f"\n📌 РЕКОМЕНДАЦИИ ДЛЯ ПРОФИЛЯ '{profile_name}'")
+        target_prof = full_rec.get("target_profession", "не задана")
+        print(f"\n📌 РЕКОМЕНДАЦИИ ДЛЯ ПРОФИЛЯ '{profile_name}' (цель: {target_prof})")
         print("=" * 70)
         summ = full_rec.get("summary", {})
         print(f"Match score: {summ.get('match_score', 0):.2f} | Готовность: {summ.get('confidence', 0):.2f}%")
+        prof_cov = summ.get('profession_coverage', 0)
+        print(f"Покрытие по профессии: {prof_cov:.1f}%")
         if full_rec.get("trend_bonuses_count"):
-            print(f"📈 Трендовые бонусы применены к {full_rec['trend_bonuses_count']} навыкам.")
+            print(f"Трендовые бонусы применены к {full_rec['trend_bonuses_count']} навыкам.")
         if full_rec.get("dominant_domain_name"):
-            print(f"📊 Доминирующий домен: {full_rec['dominant_domain_name']}.")
+            print(f"Доминирующий домен: {full_rec['dominant_domain_name']}.")
         print(
             f"Реальное покрытие рынка: {summ['market_skill_coverage']:.1f}% "
             f"(студент знает {summ['coverage_details']['covered_skills_count']} "
@@ -319,6 +322,12 @@ def main():
     # Stage 3: Очистка весов
     cleaner = WeightCleaner()
     hybrid_weights = cleaner.clean(hybrid_weights_raw)
+
+    # Сохраняем веса на диск для save_all_charts()
+    skill_weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
+    with open(skill_weights_path, "w", encoding="utf-8") as f:
+        json.dump(hybrid_weights, f, ensure_ascii=False, indent=2)
+    logger.info("skill_weights_saved", path=str(skill_weights_path), count=len(hybrid_weights))
 
     # Stage 4: Подготовка уровней
     builder = LevelBuilder()

@@ -25,7 +25,6 @@ parsed_skills.pkl
 vacancy_clusters_middle.pkl
 vacancy_clusters_junior.pkl
 vacancy_clusters_senior.pkl
-data/.xslx
 cluster_training_report.json
 market_embeddings_senior.pkl
 market_embeddings_middle.pkl
@@ -36,3 +35,4 @@ data/raw/
 .pre-commit-cache/
 .ruff_cache/
 data/result/test
+data/.hh_token_cache.json

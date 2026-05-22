@@ -56,10 +56,16 @@ commands = [
 ]
 
 # Выполняем все команды по очереди
+CMD_TIMEOUT = 1800  # 30 минут на команду
 for cmd in commands:
     logger.info("running_command", command=" ".join(cmd))
     print(f"\n>>> Запуск: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=BASE)
+    try:
+        result = subprocess.run(cmd, cwd=BASE, timeout=CMD_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        logger.error("command_timeout", command=" ".join(cmd), timeout=CMD_TIMEOUT)
+        print(f"Таймаут ({CMD_TIMEOUT}с) при выполнении: {cmd}")
+        sys.exit(1)
     if result.returncode != 0:
         logger.error("command_failed", command=" ".join(cmd), returncode=result.returncode)
         print(f"Ошибка при выполнении: {cmd}")
