@@ -1,0 +1,281 @@
+{
+  "description": "Таксономия IT-профессий: профессия → домены → навыки",
+  "source": "КРМ-для ОП.xlsx, domain_map.json, it_skills.json",
+  "professions": {
+    "Data Scientist": {
+      "domains": ["Data Science"],
+      "hh_queries": ["Data Scientist", "Data Science"],
+      "aliases": ["data scientist", "data science specialist"],
+      "competency_codes": []
+    },
+    "Data Analyst": {
+      "domains": ["Data Science"],
+      "hh_queries": ["Data Analyst", "Data Analysis"],
+      "aliases": ["data analyst", "analyst"],
+      "competency_codes": []
+    },
+    "Machine Learning Engineer": {
+      "domains": ["Data Science", "AI/ML Research & Advanced"],
+      "hh_queries": ["Machine Learning Engineer", "ML Engineer"],
+      "aliases": ["ml engineer", "machine learning engineer"],
+      "competency_codes": []
+    },
+    "Computer Vision Engineer": {
+      "domains": ["Data Science", "AI/ML Research & Advanced"],
+      "hh_queries": ["Computer Vision Engineer", "CV Engineer"],
+      "aliases": ["computer vision engineer", "cv engineer"],
+      "competency_codes": []
+    },
+    "NLP Engineer": {
+      "domains": ["Data Science", "AI/ML Research & Advanced"],
+      "hh_queries": ["NLP Engineer"],
+      "aliases": ["nlp engineer"],
+      "competency_codes": []
+    },
+    "Data Architect": {
+      "domains": ["Data Science", "Backend"],
+      "hh_queries": ["Data Architect"],
+      "aliases": ["data architect"],
+      "competency_codes": []
+    },
+    "ETL Developer": {
+      "domains": ["Data Science", "Backend"],
+      "hh_queries": ["ETL Developer"],
+      "aliases": ["etl developer", "data engineer"],
+      "competency_codes": []
+    },
+    "Python Developer": {
+      "domains": ["Backend"],
+      "hh_queries": ["Python Developer"],
+      "aliases": ["python developer", "python programmer"],
+      "competency_codes": ["ППК-Р1", "ППК-Р2", "ППК-Р3", "ППК-Р4", "ИП-1", "ИП-2"]
+    },
+    "Java Developer": {
+      "domains": ["Backend"],
+      "hh_queries": ["Java Developer"],
+      "aliases": ["java developer", "java programmer"],
+      "competency_codes": ["ППК-Р1", "ППК-Р2", "ППК-Р3", "ППК-Р4", "ИП-1", "ИП-2"]
+    },
+    "Frontend Developer": {
+      "domains": ["Frontend"],
+      "hh_queries": ["Frontend Developer"],
+      "aliases": ["frontend developer", "frontend programmer"],
+      "competency_codes": ["ППК-Р1", "ППК-Р2", "ППК-Р3"]
+    },
+    "Backend Developer": {
+      "domains": ["Backend"],
+      "hh_queries": ["Backend Developer"],
+      "aliases": ["backend developer"],
+      "competency_codes": ["ППК-Р1", "ППК-Р2", "ППК-Р3", "ППК-Р4", "ИП-1", "ИП-2"]
+    },
+    "Fullstack Developer": {
+      "domains": ["Backend", "Frontend"],
+      "hh_queries": ["Fullstack Developer"],
+      "aliases": ["fullstack developer"],
+      "competency_codes": ["ППК-Р1", "ППК-Р2", "ППК-Р3", "ППК-Р4"]
+    },
+    "DevOps Engineer": {
+      "domains": ["DevOps & Infrastructure"],
+      "hh_queries": ["DevOps Engineer"],
+      "aliases": ["devops engineer", "devops"],
+      "competency_codes": []
+    },
+    "Embedded Developer": {
+      "domains": ["Embedded & Systems"],
+      "hh_queries": ["Embedded Developer"],
+      "aliases": ["embedded developer", "embedded engineer"],
+      "competency_codes": ["ИП-ДРР-1"]
+    },
+    "Blockchain Developer": {
+      "domains": ["Backend"],
+      "hh_queries": ["Blockchain Developer"],
+      "aliases": ["blockchain developer"],
+      "competency_codes": []
+    },
+    "iOS Developer": {
+      "domains": ["Mobile Development"],
+      "hh_queries": ["iOS Developer"],
+      "aliases": ["ios developer", "swift developer"],
+      "competency_codes": []
+    },
+    "Android Developer": {
+      "domains": ["Mobile Development"],
+      "hh_queries": ["Android Developer"],
+      "aliases": ["android developer", "kotlin developer"],
+      "competency_codes": []
+    },
+    "React Native Developer": {
+      "domains": ["Mobile Development", "Frontend"],
+      "hh_queries": ["React Native Developer"],
+      "aliases": ["react native developer"],
+      "competency_codes": []
+    },
+    "Flutter Developer": {
+      "domains": ["Mobile Development", "Frontend"],
+      "hh_queries": ["Flutter Developer"],
+      "aliases": ["flutter developer"],
+      "competency_codes": []
+    },
+    "QA Engineer": {
+      "domains": ["QA / Testing"],
+      "hh_queries": ["QA Engineer"],
+      "aliases": ["qa engineer", "tester"],
+      "competency_codes": ["ППК-Р2", "ИТ-1", "ИТ-2", "ИТ-3"]
+    },
+    "Automation QA Engineer": {
+      "domains": ["QA / Testing"],
+      "hh_queries": ["Automation QA Engineer"],
+      "aliases": ["automation qa engineer", "qa automation"],
+      "competency_codes": ["ППК-Р2", "ИТ-1", "ИТ-2", "ИТ-3", "ИТ-4"]
+    },
+    "Performance QA Engineer": {
+      "domains": ["QA / Testing"],
+      "hh_queries": ["Performance QA Engineer"],
+      "aliases": ["performance qa engineer", "performance tester"],
+      "competency_codes": ["ИТ-5", "ИТ-6"]
+    },
+    "Специалист по кибербезопасности": {
+      "domains": ["Cybersecurity"],
+      "hh_queries": ["Специалист по кибербезопасности", "Кибербезопасность"],
+      "aliases": ["cybersecurity specialist", "infosec"],
+      "competency_codes": []
+    },
+    "Security Engineer": {
+      "domains": ["Cybersecurity"],
+      "hh_queries": ["Security Engineer"],
+      "aliases": ["security engineer"],
+      "competency_codes": []
+    },
+    "DevSecOps Engineer": {
+      "domains": ["Cybersecurity", "DevOps & Infrastructure"],
+      "hh_queries": ["DevSecOps Engineer"],
+      "aliases": ["devsecops engineer"],
+      "competency_codes": []
+    },
+    "SRE инженер": {
+      "domains": ["DevOps & Infrastructure"],
+      "hh_queries": ["SRE инженер", "SRE engineer"],
+      "aliases": ["sre engineer", "site reliability engineer"],
+      "competency_codes": []
+    },
+    "Системный администратор": {
+      "domains": ["DevOps & Infrastructure"],
+      "hh_queries": ["Системный администратор"],
+      "aliases": ["system administrator", "sysadmin"],
+      "competency_codes": []
+    },
+    "Облачный инженер": {
+      "domains": ["DevOps & Infrastructure"],
+      "hh_queries": ["Облачный инженер", "Cloud Engineer"],
+      "aliases": ["cloud engineer"],
+      "competency_codes": []
+    },
+    "Сетевой инженер": {
+      "domains": ["DevOps & Infrastructure"],
+      "hh_queries": ["Сетевой инженер", "Network Engineer"],
+      "aliases": ["network engineer"],
+      "competency_codes": []
+    },
+    "Администратор баз данных": {
+      "domains": ["Backend"],
+      "hh_queries": ["Администратор баз данных", "DBA"],
+      "aliases": ["dba", "database administrator"],
+      "competency_codes": ["ППК-Р4"]
+    },
+    "Системный аналитик": {
+      "domains": ["Soft Skills & Management", "Backend"],
+      "hh_queries": ["Системный аналитик", "System Analyst"],
+      "aliases": ["system analyst", "systems analyst"],
+      "competency_codes": ["БСА-1", "БСА-2", "БСА-3", "БСА-4", "БСА-5", "БСА-ДСА-1", "БСА-ДСА-2"]
+    },
+    "Бизнес-аналитик": {
+      "domains": ["Soft Skills & Management"],
+      "hh_queries": ["Бизнес-аналитик", "Business Analyst"],
+      "aliases": ["business analyst"],
+      "competency_codes": ["БСА-1", "БСА-3", "БСА-4", "БСА-5"]
+    },
+    "Архитектор программного обеспечения": {
+      "domains": ["Backend"],
+      "hh_queries": ["Архитектор программного обеспечения", "Software Architect"],
+      "aliases": ["software architect"],
+      "competency_codes": ["АР-1", "АР-2", "АР-3", "ППК-Р5"]
+    },
+    "Solution Architect": {
+      "domains": ["Backend", "Soft Skills & Management"],
+      "hh_queries": ["Solution Architect"],
+      "aliases": ["solution architect"],
+      "competency_codes": ["АР-1", "АР-2", "АР-3", "ППК-Р5", "ППК-У1", "ППК-У2"]
+    },
+    "Team Lead": {
+      "domains": ["Soft Skills & Management", "Backend"],
+      "hh_queries": ["Team Lead"],
+      "aliases": ["team lead", "tech lead"],
+      "competency_codes": ["ППК-Р5", "ППК-Р6", "ППК-У1", "ППК-У2"]
+    },
+    "Tech Lead": {
+      "domains": ["Soft Skills & Management", "Backend"],
+      "hh_queries": ["Tech Lead"],
+      "aliases": ["tech lead", "technical lead"],
+      "competency_codes": ["ППК-Р5", "ППК-Р6", "АР-1"]
+    },
+    "Project Manager IT": {
+      "domains": ["Soft Skills & Management"],
+      "hh_queries": ["Project Manager IT", "IT Project Manager"],
+      "aliases": ["project manager", "it project manager"],
+      "competency_codes": ["ППК-Р5", "ППК-У1", "ППК-У2"]
+    },
+    "Scrum Master": {
+      "domains": ["Soft Skills & Management"],
+      "hh_queries": ["Scrum Master"],
+      "aliases": ["scrum master", "agile coach"],
+      "competency_codes": ["ППК-Р5", "ППК-У1"]
+    },
+    "UX/UI дизайнер": {
+      "domains": ["Frontend"],
+      "hh_queries": ["UX/UI дизайнер", "UX UI Designer"],
+      "aliases": ["ux designer", "ui designer", "product designer"],
+      "competency_codes": []
+    },
+    "Product Designer": {
+      "domains": ["Frontend"],
+      "hh_queries": ["Product Designer"],
+      "aliases": ["product designer"],
+      "competency_codes": []
+    },
+    "Unity Developer": {
+      "domains": ["Game Development"],
+      "hh_queries": ["Unity Developer"],
+      "aliases": ["unity developer", "unity programmer"],
+      "competency_codes": []
+    },
+    "Unreal Engine Developer": {
+      "domains": ["Game Development"],
+      "hh_queries": ["Unreal Engine Developer"],
+      "aliases": ["unreal engine developer", "ue developer"],
+      "competency_codes": []
+    },
+    "Technical Writer": {
+      "domains": ["Soft Skills & Management"],
+      "hh_queries": ["Technical Writer"],
+      "aliases": ["technical writer", "tech writer"],
+      "competency_codes": []
+    }
+  },
+  "profile_targets": {
+    "base": {
+      "target_profession": "Data Scientist",
+      "target_domains": ["Data Science"],
+      "description": "Бакалавр Data Science — начальный уровень"
+    },
+    "dc": {
+      "target_profession": "Data Scientist",
+      "target_domains": ["Data Science"],
+      "description": "Специалист Data Science — средний уровень"
+    },
+    "top_dc": {
+      "target_profession": "Data Scientist",
+      "target_domains": ["Data Science"],
+      "description": "Топ-специалист Data Science — продвинутый уровень"
+    }
+  }
+}
