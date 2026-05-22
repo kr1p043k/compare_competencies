@@ -1,7 +1,4 @@
-"""
-Оценка профилей студентов на основе уровня опыта и gap-анализа.
-Гибридная версия: новый API (для main.py) + кэширование.
-"""
+"""Оценка профилей с привязкой к целевой профессии и доменам."""
 
 import hashlib
 import json
@@ -16,6 +13,7 @@ from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.comparison.domain_analyzer import DomainAnalyzer
 from src.analyzers.gap.gap_analyzer import GapAnalyzer
+from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 from src.artifacts import ArtifactManifest
 from src.models.data_contracts import ProfileEvaluationResult
 from src.models.enums import ExperienceLevel
@@ -28,8 +26,6 @@ logger = structlog.get_logger(__name__)
 
 
 class ProfileEvaluator:
-    """Оценка профилей с использованием единой модели SkillMetrics + Domain Coverage + Cluster Context."""
-
     def __init__(
         self,
         skill_weights: dict[str, float],
@@ -39,7 +35,6 @@ class ProfileEvaluator:
         use_clustering: bool = True,
         skill_weights_by_level: dict[str, dict[str, float]] | None = None,
         readiness_weights: tuple[float, float, float] = (0.5, 0.3, 0.2),
-        # Legacy параметры (для совместимости, если понадобятся)
         level_difficulty: dict[str, float] | None = None,
     ):
         self.skill_weights = skill_weights
@@ -52,14 +47,12 @@ class ProfileEvaluator:
         self.domain_analyzer = DomainAnalyzer()
         self.readiness_weights = readiness_weights
 
-        # Для новой единой модели
         self.skill_weights_by_level = skill_weights_by_level or {}
         if self.skill_weights_by_level:
             self.gap_analyzer_new = GapAnalyzer(self.skill_weights_by_level)
         else:
             self.gap_analyzer_new = None
 
-        # Загружаем модели кластеризации при инициализации
         self.cluster_models_loaded = {
             ExperienceLevel.JUNIOR: self.clusterer.load_model(ExperienceLevel.JUNIOR),
             ExperienceLevel.MIDDLE: self.clusterer.load_model(ExperienceLevel.MIDDLE),
@@ -72,15 +65,17 @@ class ProfileEvaluator:
             senior=self.cluster_models_loaded["senior"],
         )
 
-        # Кэширование
         self._cache = {}
         self._cache_path = config.DATA_PROCESSED_DIR / "evaluation_cache.json"
         self._load_cache()
 
-    # ------------------------------------------------------------------
-    # НОВЫЙ ОСНОВНОЙ МЕТОД (используется в main.py)
-    # ------------------------------------------------------------------
-    def evaluate_profile(self, student: StudentProfile, user_type: str = "student") -> dict[str, Any]:
+    def evaluate_profile(
+        self,
+        student: StudentProfile,
+        user_type: str = "student",
+        target_domains: list[str] | None = None,
+        taxonomy: ProfessionTaxonomy | None = None,
+    ) -> dict[str, Any]:
         if not self.gap_analyzer_new:
             raise RuntimeError("skill_weights_by_level не были переданы в конструктор")
 
@@ -88,8 +83,34 @@ class ProfileEvaluator:
         user_levels = {skill: 1.0 for skill in user_skills_list}
         user_skills_set = set(s.lower().strip() for s in user_skills_list)
 
+        # === Фильтрация навыков по целевой профессии/домену ===
+        domain_skill_count = 0
+        if target_domains and taxonomy:
+            domain_skills: set[str] = set()
+            for dom in target_domains:
+                domain_skills.update(taxonomy.get_domain_skills(dom))
+            # Фильтруем metrics только до навыков целевого домена
+            # (gap_analyzer уже посчитал по всем — будем фильтровать постфактум)
+            logger.info(
+                "domain_skills_selected",
+                target_domains=target_domains,
+                domain_skill_count=len(domain_skills),
+            )
+        else:
+            domain_skills = set()
+
         # === 1. Skill-level метрики ===
         metrics = self.gap_analyzer_new.compute_metrics(user_skills_list, user_levels)
+
+        # Если задана целевая профессия — фильтруем метрики до её доменов
+        if domain_skills:
+            metrics = {s: m for s, m in metrics.items() if s.lower().strip() in domain_skills}
+            domain_skill_count = len(domain_skills)
+            logger.info(
+                "metrics_filtered_by_domain",
+                remaining_skills=len(metrics),
+                total_domain_skills=len(domain_skills),
+            )
 
         # === 2. Cluster Context + Relevance ===
         target_level = getattr(student, "target_level", ExperienceLevel.MIDDLE)
@@ -101,17 +122,15 @@ class ProfileEvaluator:
             else:
                 metric.cluster_relevance = 0.15 * getattr(metric, "cluster_relevance", 0.0)
 
-        # === 3. Domain-level coverage (с весом доминирующего домена) ===
+        # === 3. Domain-level coverage ===
         domain_coverages = self.domain_analyzer.compute_domain_coverage(user_skills_list)
 
-        # Определяем доминирующий домен студента
         if domain_coverages:
             dominant_domain = max(domain_coverages.items(), key=lambda x: x[1].coverage)
             dominant_name = dominant_domain[0]
         else:
             dominant_name = None
 
-        # Взвешенное покрытие: доминирующий домен получает вес 0.5
         weighted_cov_sum = 0.0
         other_count = len(domain_coverages) - 1 if len(domain_coverages) > 1 else 0
 
@@ -123,16 +142,48 @@ class ProfileEvaluator:
                 weight = remaining / other_count if other_count > 0 else config.DOMINANT_DOMAIN_WEIGHT
             weighted_cov_sum += dom.coverage * weight
 
-        # Итоговое доменное покрытие (0-100%)
         domain_coverage_score = weighted_cov_sum * 100
 
+        # === 4. Покрытие по целевой профессии (взвешенное по доменам) ===
+        profession_coverage = 0.0
+        profession_coverage_detail = {}
+        if target_domains and taxonomy:
+            profession_coverages = {}
+            for dom in target_domains:
+                dom_skills = taxonomy.get_domain_skills(dom)
+                if dom_skills:
+                    user_has = len(set(s.lower() for s in dom_skills) & user_skills_set)
+                    cov = user_has / len(dom_skills)
+                    profession_coverages[dom] = cov
+            prof_weight = 1.0 / len(profession_coverages) if profession_coverages else 0
+            for dom, cov in profession_coverages.items():
+                profession_coverage += cov * prof_weight
+                profession_coverage_detail[dom] = round(cov * 100, 2)
+            profession_coverage *= 100
+
         logger.debug(
-            "domain_coverage_calculated",
-            dominant_domain=dominant_name,
-            domain_coverage_score=round(domain_coverage_score, 1),
+            "profession_coverage_calculated",
+            target_domains=target_domains,
+            profession_coverage=round(profession_coverage, 1),
+            detail=profession_coverage_detail,
         )
 
-        # === 4. Бонусы от доменов ===
+        # === 4b. KRM competency coverage ===
+        krm_coverage = {}
+        if taxonomy:
+            target_prof = getattr(student, "target_profession", "") or ""
+            if target_prof and target_prof in taxonomy.professions:
+                krm_coverage = taxonomy.compute_krm_coverage(target_prof, user_skills_list)
+                logger.info(
+                    "krm_coverage_calculated",
+                    profession=target_prof,
+                    codes=len(krm_coverage),
+                    avg_coverage=round(
+                        sum(v["coverage"] for v in krm_coverage.values()) / len(krm_coverage) if krm_coverage else 0, 4
+                    ),
+                )
+
+        # === 5. Domain bonuses ===
         skill_to_domain_bonus = {}
         for _dom_name, dom in domain_coverages.items():
             for req_skill in dom.required_skills:
@@ -141,17 +192,15 @@ class ProfileEvaluator:
                 if req_norm not in skill_to_domain_bonus or bonus > skill_to_domain_bonus[req_norm]:
                     skill_to_domain_bonus[req_norm] = bonus
 
-        # === 5. Веса уровней ===
+        # === 6. Level weights ===
         level_weights = config.LEVEL_WEIGHTS_MAP.get(user_type, {"junior": 0.33, "middle": 0.34, "senior": 0.33})
 
-        # === 6. Финальные скоры — ПРЯМАЯ ФИЛЬТРАЦИЯ ПО УЖЕ ИМЕЮЩИМСЯ НАВЫКАМ ===
+        # === 7. Final scores ===
         final_scores = {}
-        user_skills_set = set(s.lower().strip() for s in user_skills_list)
         min_gap_for_fallback = config.GAP_ANALYZER_FALLBACK_MIN_GAP
 
         for skill, metric in metrics.items():
             skill_norm = skill.lower().strip()
-            # Пропускаем уже освоенные навыки
             if skill_norm in user_skills_set:
                 continue
 
@@ -175,10 +224,9 @@ class ProfileEvaluator:
                 base_score = metric.score(level_weights, domain_bonus=bonus)
                 final_scores[skill] = base_score * config.GAP_ANALYZER_FALLBACK_REDUCTION
 
-        # === 7. Итоговые метрики (улучшенные) ===
+        # === 8. Итоговые метрики ===
         total_market = len(metrics)
 
-        # Категоризация навыков
         strong_count = 0
         weak_count = 0
         missing_count = 0
@@ -199,13 +247,10 @@ class ProfileEvaluator:
             else:
                 missing_count += 1
 
-        # Навыковое покрытие (взвешенное по категориям)
         skill_coverage = weighted_cov / max_possible * 100 if max_possible > 0 else 0.0
 
-        # Общее покрытие рынка
         market_coverage_score = 0.60 * skill_coverage + 0.40 * domain_coverage_score
 
-        # Готовность к уровню
         readiness = (
             config.READINESS_MARKET_WEIGHT * market_coverage_score
             + config.READINESS_SKILL_WEIGHT * (strong_count / total_market * 100)
@@ -218,7 +263,6 @@ class ProfileEvaluator:
 
         readiness_score = round(max(0.0, min(100.0, readiness)), 2)
 
-        # Реальное покрытие (доля навыков студента от рынка)
         user_skills_norm = {SkillNormalizer.normalize(s) for s in user_skills_list}
         all_market_skills = list(metrics.keys())
         covered_market = sum(1 for s in all_market_skills if s in user_skills_norm)
@@ -226,20 +270,19 @@ class ProfileEvaluator:
             round(covered_market / len(all_market_skills) * 100, 2) if all_market_skills else 0.0
         )
 
-        gaps = {s: m.__dict__ for s, m in metrics.items() if max(m.gap_j, m.gap_m, m.gap_s) > 0.15}
+        from dataclasses import asdict
+        gaps = {s: asdict(m) for s, m in metrics.items() if max(m.gap_j, m.gap_m, m.gap_s) > 0.15}
 
-        # Добавляем статистику категорий
         skill_categories = {"strong": strong_count, "weak": weak_count, "missing": missing_count, "total": total_market}
 
-        # Собираем строгую модель
         eval_result = ProfileEvaluationResult(
             market_coverage_score=round(market_coverage_score, 2),
             skill_coverage=round(skill_coverage, 2),
             domain_coverage_score=round(domain_coverage_score, 2),
             readiness_score=readiness_score,
             avg_gap=round(avg_gap * 100, 2),
-            skill_metrics={s: m.__dict__ for s, m in metrics.items()},
-            domain_coverage={d: dm.__dict__ for d, dm in domain_coverages.items()},
+            skill_metrics={s: asdict(m) for s, m in metrics.items()},
+            domain_coverage={d: asdict(dm) for d, dm in domain_coverages.items()},
             cluster_context=cluster_context,
             top_recommendations=sorted(final_scores.items(), key=lambda x: x[1], reverse=True)[:15],
             gaps=gaps,
@@ -248,13 +291,14 @@ class ProfileEvaluator:
             market_skill_coverage=market_skill_coverage_pct,
             skill_categories=skill_categories,
         )
-        return eval_result.model_dump()
+        eval_result.profession_coverage = round(profession_coverage, 2)
+        eval_result.profession_coverage_detail = profession_coverage_detail
+        eval_result.domain_skill_count = domain_skill_count or total_market
+        eval_result.krm_coverage = krm_coverage
+        result = eval_result.model_dump()
+        return result
 
-    # ------------------------------------------------------------------
-    # Вспомогательные методы нового API
-    # ------------------------------------------------------------------
     def _get_cluster_context(self, student: StudentProfile, target_level: str) -> dict | None:
-        """Получить кластерный контекст, если модель загружена."""
         if not self.use_clustering:
             return None
         if target_level not in self.cluster_models_loaded or not self.cluster_models_loaded[target_level]:
@@ -278,23 +322,6 @@ class ProfileEvaluator:
             logger.warning("cluster_context_failed", error=str(e))
             return None
 
-    def _calculate_readiness(
-        self, market_coverage_score: float, skill_coverage: float, domain_coverage_score: float, avg_gap: float
-    ) -> float:
-        """Новая readiness — полностью согласована с новыми метриками"""
-        w_market = 0.50
-        w_skill = 0.20
-        w_domain = 0.20
-        w_gap_penalty = 0.10
-
-        readiness = (
-            w_market * market_coverage_score
-            + w_skill * skill_coverage
-            + w_domain * domain_coverage_score
-            - w_gap_penalty * (avg_gap * 100)
-        )
-        return round(max(0.0, min(100.0, readiness)), 2)
-
     def _get_or_create_comparator(self, target_level: str, level_analyzer=None) -> CompetencyComparator:
         if target_level in self.comparators:
             return self.comparators[target_level]
@@ -312,17 +339,14 @@ class ProfileEvaluator:
 
     def _get_recommendation(self, readiness_score: float, target_level: str) -> str:
         if readiness_score >= 80:
-            return f"✅ Готов к {target_level} уровню"
+            return f"Готов к {target_level} уровню"
         elif readiness_score >= 60:
-            return f"📈 Неплохо для {target_level}, но есть пробелы"
+            return f"Неплохо для {target_level}, но есть пробелы"
         elif readiness_score >= 40:
-            return f"⚠️ Нужно подготовиться к {target_level}"
+            return f"Нужно подготовиться к {target_level}"
         else:
-            return f"❌ Недостаточно готов к {target_level}"
+            return f"Недостаточно готов к {target_level}"
 
-    # ------------------------------------------------------------------
-    # Кэширование
-    # ------------------------------------------------------------------
     def _load_cache(self):
         if self._cache_path.exists():
             try:
@@ -349,7 +373,7 @@ class ProfileEvaluator:
 
     def _load_cached_embedding(self, student: StudentProfile) -> np.ndarray | None:
         cache_path = self._get_student_cache_path(student)
-        data = atomic_read_json(cache_path)  # возвращает None при ошибке
+        data = atomic_read_json(cache_path)
         if data and data.get("hash") == self._compute_student_hash(student):
             return np.array(data["embedding"])
         return None

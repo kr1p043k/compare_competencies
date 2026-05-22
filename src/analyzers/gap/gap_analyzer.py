@@ -12,18 +12,18 @@ logger = structlog.get_logger(__name__)
 
 class GapAnalyzer:
     def __init__(self, skill_weights_by_level: dict[str, dict[str, float]]):
-        self.skill_weights = skill_weights_by_level
+        self.skill_weights_by_level = skill_weights_by_level
 
     def compute_metrics(self, user_skills: list[str], user_levels: dict[str, float]) -> dict[str, SkillMetrics]:
         metrics: dict[str, SkillMetrics] = {}
         all_weights = {}
-        for level_data in self.skill_weights.values():
+        for level_data in self.skill_weights_by_level.values():
             all_weights.update(level_data)
         max_weight = max(all_weights.values()) if all_weights else 1.0
 
-        for level in ExperienceLevel:  # ← заменить ["junior","middle","senior"]
-            level_key = level[0]  # 'j', 'm', 's' — авто
-            for skill, market_weight in self.skill_weights.get(level, {}).items():
+        for level in ExperienceLevel:
+            level_key = level[0]
+            for skill, market_weight in self.skill_weights_by_level.get(level, {}).items():
                 if skill not in metrics:
                     user_lvl = user_levels.get(skill, 0.0)
                     metrics[skill] = SkillMetrics(
@@ -42,7 +42,7 @@ class GapAnalyzer:
             "metrics_computed",
             total_skills=len(metrics),
             avg_gap=round(avg_gap, 4),
-            levels_available=list(self.skill_weights.keys()),
+            levels_available=list(self.skill_weights_by_level.keys()),
         )
 
         # Детализация по топ-5 навыкам с наибольшим gap
@@ -63,3 +63,6 @@ class GapAnalyzer:
 
     def set_weights_by_level(self, weights_by_level: dict[str, dict[str, float]]):
         self.skill_weights_by_level = weights_by_level
+
+    def get_weights_by_level(self) -> dict[str, dict[str, float]]:
+        return self.skill_weights_by_level
