@@ -94,7 +94,7 @@ class VacancyParser:
         filepath = config.DATA_RAW_DIR / filename
         data = [v.raw_data if isinstance(v, Vacancy) else v for v in vacancies]
         atomic_write_json(data, filepath)
-        logger.info("РЎРѕС…СЂР°РЅРµРЅРѕ", path=str(filepath))
+        logger.info("Сохранено", path=str(filepath))
 
     def save_processed_frequencies(self, frequencies, filename="competency_frequency.json", apply_filter=True):
         if apply_filter:
