@@ -23,6 +23,7 @@ from src import config
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.logging_config import setup_structlog
 from src.models.enums import ExperienceLevel
+from src.models.data_contracts import PipelineContext
 from src.models.student import StudentProfile, merge_skills_hierarchically
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.pipeline.data_source import DataSource
@@ -82,7 +83,7 @@ def parse_arguments():
         "--use-llm",
         action="store_true",
         default=False,
-        help="Использовать LLM (YandexGPT) для живыхобъяснений рекомендаций",
+        help="Использовать LLM (YandexGPT) для живых объяснений рекомендаций",
     )
     parser.add_argument(
         "--skip-collection", action="store_true", help="Пропустить сбор вакансий,использовать существующие файлы"
@@ -351,14 +352,14 @@ def main():
     if args.run_gap_analysis:
         console_header("GAP-АНАЛИЗ И ГЕНЕРАЦИЯ РЕКОМЕНДАЦИЙ")
         try:
-            data = {
-                "skill_freq": skill_freq,
-                "hybrid_weights": hybrid_weights,
-                "vacancies_skills": vacancies_skills,
-                "level_vacancies_data": level_data,
-                "trend_analyzer": trend_analyzer,
-            }
-            runner = GapRunner(profiles, data, args)
+            ctx = PipelineContext(
+                skill_freq=skill_freq,
+                hybrid_weights=hybrid_weights,
+                vacancies_skills=vacancies_skills,
+                level_vacancies_data=level_data,
+                trend_analyzer=trend_analyzer,
+            )
+            runner = GapRunner(profiles, ctx, args)
             evaluations, recommendations = runner.run()
             if recommendations:
                 print_recommendations(profiles, recommendations)

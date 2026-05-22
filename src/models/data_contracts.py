@@ -8,6 +8,19 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class PipelineContext(BaseModel):
+    """Типизированный контекст пайплайна вместо сырого dict."""
+
+    skill_freq: dict[str, int] = Field(default_factory=dict)
+    hybrid_weights: dict[str, float] = Field(default_factory=dict)
+    vacancies_skills: list[list[str]] = Field(default_factory=list)
+    level_vacancies_data: list[dict[str, Any]] = Field(default_factory=list)
+    trend_analyzer: Any = None
+
+    class Config:
+        arbitrary_types_allowed = True
+
+
 class SkillExtractionResult(BaseModel):
     """Результат извлечения навыков из вакансий (плоский словарь)."""
 
@@ -30,7 +43,7 @@ class ProfileEvaluationResult(BaseModel):
     skill_metrics: dict[str, Any] = Field(default_factory=dict)
     domain_coverage: dict[str, Any] = Field(default_factory=dict)
     cluster_context: dict[str, Any] | None = None
-    top_recommendations: list[tuple] = Field(default_factory=list)  # список кортежей (skill, score)
+    top_recommendations: list[tuple[str, float]] = Field(default_factory=list)
     gaps: dict[str, Any] = Field(default_factory=dict)
     level_weights_used: dict[str, float] | None = None
     student_skills: list[str] = Field(default_factory=list)
@@ -41,7 +54,7 @@ class ProfileEvaluationResult(BaseModel):
     domain_skill_count: int = 0
     target_profession: str = ""
     target_domains: list[str] = Field(default_factory=list)
-    krm_coverage: dict[str, dict] = Field(default_factory=dict)
+    krm_coverage: dict[str, dict[str, float]] = Field(default_factory=dict)
 
     class Config:
         arbitrary_types_allowed = True
