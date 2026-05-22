@@ -1,4 +1,4 @@
-"""Оркестрация построения всех графиков, запуск ноутбуков, контекстная информация."""
+"""Оркестрация построения всех графиков с учётом таксономии профессий."""
 
 import json
 import subprocess
@@ -14,7 +14,12 @@ from src import config
 from ._utils import load_ml_recommendations, load_skill_weights
 from .clusters import plot_cluster_insights
 from .correlation import plot_skill_correlation_heatmap
-from .coverage import plot_coverage_comparison, plot_skills_heatmap
+from .coverage import (
+    plot_coverage_comparison,
+    plot_domain_skill_gaps,
+    plot_profession_coverage,
+    plot_skills_heatmap,
+)
 from .importance import plot_ml_importance, plot_weight_distribution
 from .radar import plot_skill_comparison_radar
 
@@ -31,7 +36,11 @@ def save_all_charts(
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info("generating_all_charts", output_dir=str(output_dir), profiles=len(results))
 
+    # Основные графики покрытия
     plot_coverage_comparison(results, output_dir / "coverage_comparison.png")
+    plot_profession_coverage(results, output_dir / "profession_coverage.png")
+    plot_domain_skill_gaps(results, output_dir / "domain_skill_gaps.png")
+
     skill_weights = load_skill_weights()
     market_top = list(skill_weights.keys())[:15] if skill_weights else []
 
@@ -83,7 +92,6 @@ def save_all_charts(
 
 
 def run_notebook(notebook_name: str, output_dir: Path | None = None) -> bool:
-    """Выполняет Jupyter ноутбук с помощью nbconvert."""
     base_dir = Path(__file__).parent.parent.parent
     notebook_path = base_dir / "notebooks" / notebook_name
     if not notebook_path.exists():
@@ -124,7 +132,6 @@ def run_notebook(notebook_name: str, output_dir: Path | None = None) -> bool:
 
 
 def show_context_info() -> None:
-    """Выводит в консоль сводную информацию о текущих данных."""
     print("\n" + "=" * 80)
     print("КОНТЕКСТНАЯ ИНФОРМАЦИЯ О ПРОЕКТЕ")
     print("=" * 80)
@@ -143,7 +150,7 @@ def show_context_info() -> None:
             print(f"Не удалось загрузить рыночные навыки: {e}")
     else:
         logger.warning("market_skills_file_not_found")
-        print("⚠️ Файл с рыночными навыками не найден. Сначала собериte данные.")
+        print("Файл с рыночными навыками не найден. Сначала соберите данные.")
 
     mapping_file = config.COMPETENCY_MAPPING_FILE
     if mapping_file.exists():
@@ -157,7 +164,22 @@ def show_context_info() -> None:
             print(f"Не удалось загрузить маппинг компетенций: {e}")
     else:
         logger.warning("competency_mapping_file_not_found", path=str(mapping_file))
-        print(f"⚠️ Файл маппинга не найден: {mapping_file}")
+        print(f"Файл маппинга не найден: {mapping_file}")
+
+    taxonomy_file = config.PROFESSION_TAXONOMY_PATH
+    if taxonomy_file.exists():
+        try:
+            with open(taxonomy_file, encoding="utf-8") as f:
+                tax = json.load(f)
+            profs = tax.get("professions", {})
+            targets = tax.get("profile_targets", {})
+            print(f"Таксономия профессий: {len(profs)} профессий")
+            for pname, cfg in targets.items():
+                print(f"  - {pname} → {cfg.get('target_profession', '?')} ({cfg.get('target_domains', [])})")
+        except Exception as e:
+            print(f"Не удалось загрузить таксономию: {e}")
+    else:
+        print(f"Файл таксономии не найден: {taxonomy_file}")
 
     students_dir = config.STUDENTS_DIR
     students = list(students_dir.glob("*_competency.json"))
@@ -183,7 +205,7 @@ def show_context_info() -> None:
     logger.info("reports_summary", ready_reports=reports_found)
     print(f"Готовые отчёты gap-анализа: {reports_found}")
 
-    print("\n📋 РЕКОМЕНДАЦИИ ПО ЗАПУСКУ:")
+    print("\nРЕКОМЕНДАЦИИ ПО ЗАПУСКУ:")
     if not market_file.exists():
         print("  - Соберите рыночные данные: python main.py --it-sector --excel")
     elif not mapping_file.exists():
@@ -230,7 +252,7 @@ if __name__ == "__main__":
         fig3 = plot_ml_importance("base", top_n=10)
         plt.show()
     else:
-        print("\nℹ️  ML-рекомендации для 'base' не найдены.")
+        print("\nML-рекомендации для 'base' не найдены.")
         print("   Обучите модель командой:")
         print("   python -m src.predictors.ltr_recommendation_engine --load-raw --train")
 
