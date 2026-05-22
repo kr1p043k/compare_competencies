@@ -1,7 +1,7 @@
 import json
 import pytest
 
-from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
+from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy, TaxonomyValidator
 from src.models.market_metrics import DomainMetrics
 
 
@@ -94,8 +94,8 @@ class TestProfessionTaxonomy:
             krm_mapping_path=tmp_path / "nonexistent.json",
         )
         assert pt._taxonomy == {"professions": {}, "profile_targets": {}}
-        assert pt._domain_map is None
-        assert pt._krm_mapping is None
+        assert pt._domain_map == {}
+        assert pt._krm_mapping == {}
         assert pt.professions == []
 
     def test_init_missing_domain_map_only(self, tmp_path, taxonomy_files):
@@ -472,3 +472,61 @@ class TestProfessionTaxonomy:
                 domain_map_path=tmp_path / "nope.json",
                 krm_mapping_path=tmp_path / "nope.json",
             )
+
+
+# ========================================================================
+# TaxonomyValidator
+# ========================================================================
+
+class TestTaxonomyValidator:
+
+    def test_validate_profession_taxonomy_ok(self):
+        data = {
+            "professions": {
+                "Dev": {"domains": ["Backend"], "competency_codes": []},
+            },
+            "profile_targets": {},
+        }
+        issues = TaxonomyValidator.validate_profession_taxonomy(data)
+        assert issues == []
+
+    def test_validate_profession_taxonomy_bad_type(self):
+        issues = TaxonomyValidator.validate_profession_taxonomy("not a dict")
+        assert len(issues) == 1
+
+    def test_validate_domain_map_ok(self):
+        issues = TaxonomyValidator.validate_domain_map({"Backend": ["py"]}, {"Backend"})
+        assert issues == []
+
+    def test_validate_domain_map_not_dict(self):
+        issues = TaxonomyValidator.validate_domain_map("bad", set())
+        assert len(issues) == 1
+
+    def test_validate_domain_map_skills_not_list(self):
+        issues = TaxonomyValidator.validate_domain_map({"Backend": "not a list"}, {"Backend"})
+        assert len(issues) == 1
+
+    def test_validate_krm_mapping_ok(self):
+        issues = TaxonomyValidator.validate_krm_mapping({"ППК-Р1": ["py"]}, {"ППК-Р1"})
+        assert issues == []
+
+    def test_validate_krm_mapping_missing_code(self):
+        issues = TaxonomyValidator.validate_krm_mapping({}, {"ППК-Р1"})
+        assert any("ППК-Р1" in i for i in issues)
+
+    def test_validate_cross_references_missing_domain(self):
+        tax = {"professions": {"Dev": {"domains": ["GhostDomain"], "competency_codes": []}}}
+        issues = TaxonomyValidator.validate_cross_references(tax, {}, {})
+        assert any("GhostDomain" in i for i in issues)
+
+    def test_validate_cross_references_missing_krm_code(self):
+        tax = {"professions": {"Dev": {"domains": [], "competency_codes": ["MISSING"]}}}
+        issues = TaxonomyValidator.validate_cross_references(tax, {}, {})
+        assert any("MISSING" in i for i in issues)
+
+    def test_validate_cross_references_clean(self):
+        tax = {"professions": {"Dev": {"domains": ["Backend"], "competency_codes": ["ППК-Р1"]}}}
+        issues = TaxonomyValidator.validate_cross_references(
+            tax, {"Backend": ["py"]}, {"ППК-Р1": ["py"]}
+        )
+        assert issues == []
