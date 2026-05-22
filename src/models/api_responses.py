@@ -97,7 +97,7 @@ class ClustersByLevelResponse(BaseModel):
 
 
 class TrendsResponse(BaseModel):
-    trends: list[dict[str, Any]]
+    trends: dict[str, list[dict[str, Any]]]
 
 
 class CategoryCoverage(BaseModel):
