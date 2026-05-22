@@ -7,6 +7,7 @@ from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
+from src.models.data_contracts import PipelineContext
 from src.models.enums import ComparisonLevel, ExperienceLevel
 from src.predictors.recommendation_engine import RecommendationEngine
 
@@ -14,22 +15,22 @@ logger = structlog.get_logger("gap_runner")
 
 
 class GapRunner:
-    def __init__(self, profiles: dict, data: dict, args):
+    def __init__(self, profiles: dict, ctx: PipelineContext | dict, args):
         self.profiles = profiles
-        self.data = data
+        self.ctx = PipelineContext(**ctx) if isinstance(ctx, dict) else ctx
         self.args = args
         self.evaluator = None
         self.recommendation_engine = None
         self.taxonomy = ProfessionTaxonomy()
 
     def run(self) -> tuple[dict, dict]:
-        skill_weights = self.data["hybrid_weights"] or self.data["skill_freq"]
-        if not self.data["skill_freq"] or not self.data["vacancies_skills"] or not skill_weights:
+        skill_weights = self.ctx.hybrid_weights or self.ctx.skill_freq
+        if not self.ctx.skill_freq or not self.ctx.vacancies_skills or not skill_weights:
             logger.warning("gap_runner_skipped", reason="missing required data")
             return {}, {}
 
         level_analyzer = SkillLevelAnalyzer()
-        level_analyzer.analyze_vacancies(self.data["level_vacancies_data"])
+        level_analyzer.analyze_vacancies(self.ctx.level_vacancies_data)
 
         skill_weights_by_level = {}
         for level in ExperienceLevel:
@@ -37,8 +38,8 @@ class GapRunner:
 
         self.evaluator = ProfileEvaluator(
             skill_weights=skill_weights,
-            vacancies_skills=self.data["vacancies_skills"],
-            vacancies_skills_dict=self.data["level_vacancies_data"],
+            vacancies_skills=self.ctx.vacancies_skills,
+            vacancies_skills_dict=self.ctx.level_vacancies_data,
             hybrid_weights=skill_weights,
             skill_weights_by_level=skill_weights_by_level,
         )
@@ -47,7 +48,7 @@ class GapRunner:
             use_ltr=True,
             use_llm=self.args.use_llm,
             profile_evaluator=self.evaluator,
-            trend_analyzer=self.data["trend_analyzer"],
+            trend_analyzer=self.ctx.trend_analyzer,
         )
         self.recommendation_engine.comparator = CompetencyComparator(
             ngram_range=(1, 2),
@@ -57,7 +58,7 @@ class GapRunner:
             level=ComparisonLevel.MIDDLE,
             similarity_threshold=0.80,
         )
-        self.recommendation_engine.fit(self.data["vacancies_skills"], skill_weights=skill_weights)
+        self.recommendation_engine.fit(self.ctx.vacancies_skills, skill_weights=skill_weights)
 
         evaluations_new = self._evaluate_profiles()
         self._print_summary(evaluations_new)

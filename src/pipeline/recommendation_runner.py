@@ -4,6 +4,7 @@ import structlog
 from tqdm import tqdm
 
 from src.analyzers.comparison.comparator import CompetencyComparator
+from src.models.data_contracts import PipelineContext
 from src.models.enums import ComparisonLevel
 from src.predictors.recommendation_engine import RecommendationEngine
 
@@ -13,19 +14,19 @@ logger = structlog.get_logger("recommendation_runner")
 class RecommendationRunner:
     """Инициализирует движок и генерирует рекомендации."""
 
-    def __init__(self, profiles: dict, data: dict, args):
+    def __init__(self, profiles: dict, ctx: PipelineContext | dict, args):
         self.profiles = profiles
-        self.data = data
+        self.ctx = PipelineContext(**ctx) if isinstance(ctx, dict) else ctx
         self.args = args
         self.engine = None
 
     def initialize_engine(self, evaluator):
-        hybrid_weights = self.data.get("hybrid_weights", {})
+        hybrid_weights = self.ctx.hybrid_weights
         self.engine = RecommendationEngine(
             use_ltr=True,
             use_llm=self.args.use_llm,
             profile_evaluator=evaluator,
-            trend_analyzer=self.data.get("trend_analyzer"),
+            trend_analyzer=self.ctx.trend_analyzer,
         )
         self.engine.comparator = CompetencyComparator(
             ngram_range=(1, 2),
@@ -35,7 +36,7 @@ class RecommendationRunner:
             level=ComparisonLevel.MIDDLE,
             similarity_threshold=0.80,
         )
-        self.engine.fit(self.data.get("vacancies_skills", []), skill_weights=hybrid_weights)
+        self.engine.fit(self.ctx.vacancies_skills, skill_weights=hybrid_weights)
 
     def run(self, evaluations: dict) -> dict:
         if self.engine is None:
