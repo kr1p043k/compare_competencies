@@ -1,8 +1,7 @@
-﻿"""РџР°СЂСЃРµСЂ РІР°РєР°РЅСЃРёР№ (С„Р°СЃР°Рґ) СЃ РіРёР±СЂРёРґРЅС‹РјРё РІРµСЃР°РјРё Рё РєСЌС€РёСЂРѕРІР°РЅРёРµРј."""
+﻿"""Парсер вакансий (фасад) с гибридными весами и кэшированием."""
 
 import re
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import pandas as pd
@@ -31,7 +30,7 @@ class VacancyParser:
         self.embedding_cache = SkillEmbeddingCache()
         self.hybrid_calc = HybridWeightCalculator(self.bm25_ranker, self.embedding_cache)
 
-    # --------------------- РїСѓР±Р»РёС‡РЅС‹Рµ РјРµС‚РѕРґС‹ -------------------------
+    # --------------------- публичные методы -------------------------
     def extract_skills_from_description(self, description: str) -> list[str]:
         if not description:
             return []
@@ -74,12 +73,12 @@ class VacancyParser:
             for s in skills:
                 skill_freq[s] = skill_freq.get(s, 0) + 1
         final_freq = self._validate_skills(skill_freq)
-        logger.info("РџРѕСЃР»Рµ РІР°Р»РёРґР°С†РёРё", count=len(final_freq))
+        logger.info("После валидации", count=len(final_freq))
 
-        # РЁР°Рі 4: РіРёР±СЂРёРґРЅС‹Рµ РІРµСЃР° (РІРЅСѓС‚СЂРё РІС‹Р·РѕРІРµС‚ BM25)
+        # Шаг 4: гибридные веса (внутри вызовет BM25)
         hybrid_weights = self.hybrid_calc.calculate(vacancies)
 
-        # РЁР°Рі 5: СЌРјР±РµРґРґРёРЅРіРё РґР»СЏ РІР°Р»РёРґРЅС‹С… РЅР°РІС‹РєРѕРІ
+        # Шаг 5: эмбеддинги для валидных навыков
         skill_embeddings = self.embedding_cache.get_embeddings(list(final_freq.keys()))
 
         result = SkillExtractionResult(
@@ -89,7 +88,7 @@ class VacancyParser:
         )
         return result.model_dump()
 
-    # --------------------- СѓС‚РёР»РёС‚С‹ СЃРѕС…СЂР°РЅРµРЅРёСЏ Рё РІС‹РІРѕРґР° -------------------------
+    # --------------------- утилиты сохранения и вывода -------------------------
     def save_raw_vacancies(self, vacancies, filename="hh_vacancies.json"):
         filepath = config.DATA_RAW_DIR / filename
         data = [v.raw_data if isinstance(v, Vacancy) else v for v in vacancies]
@@ -103,7 +102,7 @@ class VacancyParser:
                 frequencies = filter_skills_by_whitelist(frequencies, whitelist)
         filepath = config.DATA_PROCESSED_DIR / filename
         atomic_write_json(frequencies, filepath)
-        logger.info("Р§Р°СЃС‚РѕС‚С‹ СЃРѕС…СЂР°РЅРµРЅС‹", path=str(filepath))
+        logger.info("Частоты сохранены", path=str(filepath))
 
     @staticmethod
     def _strip_html(text):
@@ -118,8 +117,8 @@ class VacancyParser:
     # =========================================================================
     def aggregate_to_dataframe(self, vacancies: list[dict] | list[Vacancy]) -> pd.DataFrame:
         """
-        РђРіСЂРµРіРёСЂСѓРµС‚ РґР°РЅРЅС‹Рµ РІ DataFrame РґР»СЏ Excel.
-        РќР°РІС‹РєРё СЃРѕР±РёСЂР°СЋС‚СЃСЏ РёР· key_skills + С‚РµРєСЃС‚РѕРІРѕРіРѕ РїР°СЂСЃРµСЂР° (РѕР±СЉРµРґРёРЅРµРЅРёРµ).
+        Агрегирует данные в DataFrame для Excel.
+        Навыки собираются из key_skills + текстового парсера (объединение).
         """
         rows = []
 
@@ -131,7 +130,7 @@ class VacancyParser:
                 employer_name = vac.employer.name
                 area_name = vac.area.name
                 vac_id = vac.id
-                salary = str(vac.salary) if vac.salary else "РќРµ СѓРєР°Р·Р°РЅР°"
+                salary = str(vac.salary) if vac.salary else "Не указана"
                 parsed_skills = self.skill_parser.parse_vacancy(vac)
                 text_skill_names = [s.text for s in parsed_skills if s.text]
                 description = vac.description or ""
@@ -146,7 +145,7 @@ class VacancyParser:
                 area = vac.get("area", {}) or {}
                 area_name = area.get("name", "Unknown")
                 vac_id = vac.get("id")
-                salary = "РќРµ СѓРєР°Р·Р°РЅР°"
+                salary = "Не указана"
                 description = vac.get("description", "") or ""
                 snippet = vac.get("snippet", {}) or {}
                 snippet_req = snippet.get("requirement", "") or ""
@@ -176,13 +175,13 @@ class VacancyParser:
         return pd.DataFrame(rows)
 
     def save_to_excel(self, df: pd.DataFrame, filename: str):
-        """РЎРѕС…СЂР°РЅСЏРµС‚ DataFrame РІ Excel"""
+        """Сохраняет DataFrame в Excel"""
         filepath = config.DATA_RESULT_DIR / filename
         df.to_excel(filepath, index=False, engine="openpyxl")
-        logger.info("Excel С„Р°Р№Р» СЃРѕС…СЂР°РЅС‘РЅ", path=str(filepath))
+        logger.info("Excel файл сохранён", path=str(filepath))
 
     def print_vacancies_list(self, vacancies: list[dict] | list[Vacancy]):
-        """Р’С‹РІРѕРґРёС‚ СЃРїРёСЃРѕРє РІР°РєР°РЅСЃРёР№ (РЅР°РІС‹РєРё: key_skills + С‚РµРєСЃС‚РѕРІРѕРµ РёР·РІР»РµС‡РµРЅРёРµ)"""
+        """Выводит список вакансий (навыки: key_skills + текстовое извлечение)"""
         for i, vac in enumerate(vacancies[:20], 1):
             key_skill_names = []
             text_skill_names = []
@@ -218,4 +217,4 @@ class VacancyParser:
 
             print(f"{i}. {vac_name} @ {employer_name} ({area_name})")
             if all_skills:
-                print(f"   РќР°РІС‹РєРё: {', '.join(all_skills[:5])}")
+                print(f"   Навыки: {', '.join(all_skills[:5])}")
