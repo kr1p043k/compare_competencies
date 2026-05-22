@@ -154,7 +154,7 @@ class VacancyClusterer:
             if len(set(labels)) < 2:
                 continue
             try:
-                score = silhouette_score(x, labels, metric="euclidean")
+                score = silhouette_score(x, labels, metric="cosine")
             except Exception:
                 continue
             logger.debug("kmeans_silhouette", k=k, silhouette=round(score, 4))
