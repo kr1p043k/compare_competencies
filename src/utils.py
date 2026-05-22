@@ -41,9 +41,16 @@ def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
     return logger
 
 
-def load_competency_mapping():
-    with open(COMPETENCY_MAPPING_FILE, encoding="utf-8") as f:
-        return json.load(f)
+def load_competency_mapping() -> dict[str, list[str]]:
+    if not COMPETENCY_MAPPING_FILE.exists():
+        logger.warning("competency_mapping_file_not_found", path=str(COMPETENCY_MAPPING_FILE))
+        return {}
+    try:
+        with open(COMPETENCY_MAPPING_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        logger.error("competency_mapping_load_failed", path=str(COMPETENCY_MAPPING_FILE), error=str(e))
+        return {}
 
 
 def atomic_write_json(data: Any, filepath: Path) -> None:
