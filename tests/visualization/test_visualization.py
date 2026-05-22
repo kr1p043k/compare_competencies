@@ -403,6 +403,47 @@ class TestOrchestration:
         assert "john" in captured.out
         assert "1" in captured.out  # количество профилей
 
+class TestCoverageExtended:
+    def test_plot_profession_coverage_with_data(self, tmp_path):
+        results = {
+            "student1": {
+                "market_coverage_score": 72.0,
+                "skill_coverage": 65.0,
+                "domain_coverage_score": 60.0,
+                "readiness_score": 68.0,
+                "market_skill_coverage": 45.5,
+                "student_skills": ["python", "sql", "git"],
+                "target_profession": "Backend Developer",
+                "profession_coverage_detail": {"Backend": 75.0, "Database": 50.0},
+            }
+        }
+        from src.visualization.coverage import plot_profession_coverage
+        with patch("matplotlib.pyplot.savefig") as mock_save:
+            fig = plot_profession_coverage(results, save_path=tmp_path / "prof.png")
+            assert isinstance(fig, plt.Figure)
+            mock_save.assert_called_once()
+
+    def test_plot_profession_coverage_no_data(self, tmp_path):
+        from src.visualization.coverage import plot_profession_coverage
+        with patch("matplotlib.pyplot.savefig") as mock_save:
+            fig = plot_profession_coverage({}, save_path=tmp_path / "prof.png")
+            assert isinstance(fig, plt.Figure)
+            mock_save.assert_called_once()
+
+    def test_plot_domain_skill_gaps(self, tmp_path):
+        results = {
+            "student1": {
+                "skill_categories": {"strong": 5, "weak": 3, "missing": 2, "total": 10},
+                "student_skills": ["python"],
+            }
+        }
+        from src.visualization.coverage import plot_domain_skill_gaps
+        with patch("matplotlib.pyplot.savefig") as mock_save:
+            fig = plot_domain_skill_gaps(results, save_path=tmp_path / "gaps.png")
+            assert isinstance(fig, plt.Figure)
+            mock_save.assert_called_once()
+
+
 class TestExtendedCoverage:
     """Тесты для покрытия оставшихся строк визуализации."""
 
@@ -519,7 +560,7 @@ class TestExtendedCoverage:
         monkeypatch.setattr("src.visualization.orchestration.config.DATA_DIR", tmp_path)
         show_context_info()
         captured = capsys.readouterr()
-        assert "⚠️" in captured.out
+        assert "Файл с рыночными навыками не найден" in captured.out
 
     def test_plot_cluster_insights_with_skills(self, sample_results, tmp_path):
         """Покрытие ветки с навыками студента (строки 25, 37, 47)."""
@@ -648,7 +689,7 @@ class TestExtendedCoverage:
         monkeypatch.setattr("src.visualization.orchestration.config.DATA_DIR", tmp_path)
         show_context_info()
         captured = capsys.readouterr()
-        assert "⚠️" in captured.out
+        assert "Файл с рыночными навыками не найден" in captured.out
 
     def test_show_context_info_market_file_error(self, capsys, monkeypatch, tmp_path):
         freq_file = tmp_path / "competency_frequency.json"
@@ -730,3 +771,83 @@ class TestExtendedCoverage:
         # Проверим, что файл deficits создался
         deficit_file = tmp_path / "student1" / "deficits_student1.png"
         assert deficit_file.exists()
+
+    def test_run_notebook_with_output_dir(self, tmp_path):
+        import src.visualization.orchestration as orch
+        original_file = orch.__file__
+        try:
+            base_dir = tmp_path / "project"
+            base_dir.mkdir()
+            notebooks_dir = base_dir / "notebooks"
+            notebooks_dir.mkdir()
+            (notebooks_dir / "test_nb.ipynb").write_text("{}")
+            orch.__file__ = str(base_dir / "src" / "visualization" / "orchestration.py")
+            out_dir = tmp_path / "output"
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 0
+                assert run_notebook("test_nb.ipynb", output_dir=out_dir) is True
+                assert out_dir.exists()
+        finally:
+            orch.__file__ = original_file
+
+    def test_run_notebook_exception_in_subprocess(self, tmp_path):
+        import src.visualization.orchestration as orch
+        original_file = orch.__file__
+        try:
+            base_dir = tmp_path / "project2"
+            base_dir.mkdir()
+            notebooks_dir = base_dir / "notebooks"
+            notebooks_dir.mkdir()
+            (notebooks_dir / "test.ipynb").write_text("{}")
+            orch.__file__ = str(base_dir / "src" / "visualization" / "orchestration.py")
+            with patch("subprocess.run", side_effect=Exception("subprocess error")):
+                result = run_notebook("test.ipynb")
+                assert result is False
+        finally:
+            orch.__file__ = original_file
+
+    def test_show_context_info_taxonomy_error(self, capsys, monkeypatch, tmp_path):
+        freq_file = tmp_path / "competency_frequency.json"
+        freq_file.write_text(json.dumps({"python": 10}))
+        mapping_file = tmp_path / "mapping.json"
+        mapping_file.write_text(json.dumps({"comp1": "desc"}))
+        taxonomy_file = tmp_path / "taxonomy.json"
+        taxonomy_file.write_text("{invalid")
+        monkeypatch.setattr("src.visualization.orchestration.config.DATA_PROCESSED_DIR", tmp_path)
+        monkeypatch.setattr("src.visualization.orchestration.config.COMPETENCY_MAPPING_FILE", mapping_file)
+        monkeypatch.setattr("src.visualization.orchestration.config.PROFESSION_TAXONOMY_PATH", taxonomy_file)
+        monkeypatch.setattr("src.visualization.orchestration.config.STUDENTS_DIR", tmp_path)
+        monkeypatch.setattr("src.visualization.orchestration.config.DATA_DIR", tmp_path)
+        show_context_info()
+        captured = capsys.readouterr()
+        assert "Не удалось загрузить таксономию" in captured.out
+
+    def test_show_context_info_taxonomy_not_found(self, capsys, monkeypatch, tmp_path):
+        freq_file = tmp_path / "competency_frequency.json"
+        freq_file.write_text(json.dumps({"python": 10}))
+        mapping_file = tmp_path / "mapping.json"
+        mapping_file.write_text(json.dumps({"comp1": "desc"}))
+        monkeypatch.setattr("src.visualization.orchestration.config.DATA_PROCESSED_DIR", tmp_path)
+        monkeypatch.setattr("src.visualization.orchestration.config.COMPETENCY_MAPPING_FILE", mapping_file)
+        monkeypatch.setattr("src.visualization.orchestration.config.PROFESSION_TAXONOMY_PATH", tmp_path / "nonexistent.json")
+        monkeypatch.setattr("src.visualization.orchestration.config.STUDENTS_DIR", tmp_path)
+        monkeypatch.setattr("src.visualization.orchestration.config.DATA_DIR", tmp_path)
+        show_context_info()
+        captured = capsys.readouterr()
+        assert "Файл таксономии не найден" in captured.out
+
+    def test_show_context_info_no_reports(self, capsys, monkeypatch, tmp_path):
+        freq_file = tmp_path / "competency_frequency.json"
+        freq_file.write_text(json.dumps({"python": 10}))
+        mapping_file = tmp_path / "mapping.json"
+        mapping_file.write_text(json.dumps({"comp1": "desc"}))
+        students_dir = tmp_path / "students"
+        students_dir.mkdir()
+        (students_dir / "john_competency.json").write_text(json.dumps({"навыки": ["py"]}))
+        monkeypatch.setattr("src.visualization.orchestration.config.DATA_PROCESSED_DIR", tmp_path)
+        monkeypatch.setattr("src.visualization.orchestration.config.COMPETENCY_MAPPING_FILE", mapping_file)
+        monkeypatch.setattr("src.visualization.orchestration.config.STUDENTS_DIR", students_dir)
+        monkeypatch.setattr("src.visualization.orchestration.config.DATA_DIR", tmp_path)
+        show_context_info()
+        captured = capsys.readouterr()
+        assert "Запустите gap-анализ" in captured.out

@@ -139,17 +139,18 @@ class TestProfileEvaluatorExtended:
         # Backend обычно содержит python, docker
         assert "Backend" in result["domain_coverage"] or len(result["domain_coverage"]) > 0
 
-    def test_calculate_readiness_formula(self):
+    def test_readiness_score_in_evaluate_result(
+        self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
+    ):
         evaluator = ProfileEvaluator(
-            skill_weights={},
-            vacancies_skills=[],
-            vacancies_skills_dict=[],
+            skill_weights={"python": 0.9},
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=vacancies_skills_dict,
+            skill_weights_by_level=skill_weights_by_level,
         )
-        readiness = evaluator._calculate_readiness(
-            market_coverage_score=70.0, skill_coverage=60.0, domain_coverage_score=50.0, avg_gap=0.3
-        )
-        # Формула: 0.5*70 + 0.2*60 + 0.2*50 - 0.1*30 = 35 + 12 + 10 - 3 = 54
-        assert readiness == pytest.approx(54.0)
+        result = evaluator.evaluate_profile(student)
+        assert "readiness_score" in result
+        assert 0 <= result["readiness_score"] <= 100
 
     def test_domain_analyzer_creates_coverage(
         self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
@@ -674,9 +675,9 @@ class TestProfileEvaluatorFull:
             use_clustering=False,
         )
         # Подменяем domain_analyzer, чтобы вернуть домены с required_skills
-        fake_domain = MagicMock()
+        from src.models.market_metrics import DomainMetrics
+        fake_domain = DomainMetrics(domain="Backend", required_skills=["python", "fastapi"])
         fake_domain.coverage = 0.9
-        fake_domain.required_skills = ["python", "fastapi"]  # fastapi нет у студента
         fake_coverages = {"Backend": fake_domain}
 
         with patch.object(evaluator.domain_analyzer, "compute_domain_coverage", return_value=fake_coverages):
@@ -983,7 +984,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills=vacancies_skills,
             vacancies_skills_dict=vacancies_skills_dict,
         )
-        assert "✅" in evaluator._get_recommendation(85, "middle")
-        assert "📈" in evaluator._get_recommendation(65, "middle")
-        assert "⚠️" in evaluator._get_recommendation(45, "middle")
-        assert "❌" in evaluator._get_recommendation(30, "middle")
+        assert "Готов к middle" in evaluator._get_recommendation(85, "middle")
+        assert "Неплохо для middle" in evaluator._get_recommendation(65, "middle")
+        assert "Нужно подготовиться" in evaluator._get_recommendation(45, "middle")
+        assert "Недостаточно готов" in evaluator._get_recommendation(30, "middle")

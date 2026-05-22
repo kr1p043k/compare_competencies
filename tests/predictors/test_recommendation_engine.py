@@ -193,7 +193,7 @@ class TestGenerateRecommendations:
     def test_generate_with_user_type(self, mock_profile_evaluator, sample_student_profile):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         engine.generate_recommendations(sample_student_profile, user_type="junior")
-        mock_profile_evaluator.evaluate_profile.assert_called_with(sample_student_profile, user_type="junior")
+        mock_profile_evaluator.evaluate_profile.assert_called_with(sample_student_profile, user_type="junior", target_domains=None, taxonomy=None)
 
     def test_generate_empty_recommendations(self, mock_profile_evaluator, sample_student_profile):
         mock_profile_evaluator.evaluate_profile.return_value = {

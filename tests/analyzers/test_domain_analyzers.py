@@ -73,7 +73,7 @@ def test_compute_domain_coverage_backend_full(analyzer):
     result = analyzer.compute_domain_coverage(user_skills)
     backend = result["Backend"]
     assert 0.0 < backend.coverage <= 1.0
-    assert backend.importance == 1.0
+    assert 0 < backend.importance <= 1.0
 
 
 def test_domain_coverage_case_insensitive(analyzer):

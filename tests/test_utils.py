@@ -126,3 +126,57 @@ class TestSafeLoadPickle:
         filepath.write_text("not a pickle")
         result = utils.safe_load_pickle(filepath, allowed_dirs=[tmp_path])
         assert result is None
+
+
+class TestUtilsExtended:
+    def test_load_competency_mapping_file_not_exists(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("src.utils.COMPETENCY_MAPPING_FILE", tmp_path / "nonexistent.json")
+        assert utils.load_competency_mapping() == {}
+
+    def test_load_competency_mapping_json_decode_error(self, tmp_path, monkeypatch):
+        path = tmp_path / "mapping.json"
+        path.write_text("{invalid")
+        monkeypatch.setattr("src.utils.COMPETENCY_MAPPING_FILE", path)
+        assert utils.load_competency_mapping() == {}
+
+    def test_safe_read_json_file_not_exists(self, tmp_path):
+        assert utils.safe_read_json(tmp_path / "nonexistent.json") is None
+
+    def test_safe_read_json_decode_error(self, tmp_path):
+        path = tmp_path / "bad.json"
+        path.write_text("{invalid")
+        assert utils.safe_read_json(path) is None
+
+    def test_safe_read_json_unexpected_exception(self, tmp_path):
+        path = tmp_path / "bad.json"
+        path.write_text('["ok"]')
+        with patch("json.load", side_effect=Exception("unexpected")):
+            assert utils.safe_read_json(path) is None
+
+    def test_safe_read_competency_json_empty_file(self, tmp_path):
+        path = tmp_path / "empty.json"
+        path.write_text("")
+        assert utils.safe_read_competency_json(path) == []
+
+    def test_safe_read_competency_json_decode_error(self, tmp_path):
+        path = tmp_path / "bad.json"
+        path.write_text("{invalid")
+        assert utils.safe_read_competency_json(path) == []
+
+    def test_safe_read_competency_json_unexpected_exception(self, tmp_path):
+        path = tmp_path / "bad.json"
+        path.write_text('{"компетенции": ["C1"]}')
+        with patch("json.load", side_effect=Exception("unexpected")):
+            assert utils.safe_read_competency_json(path) == []
+
+    def test_safe_load_pickle_default_dirs(self, tmp_path):
+        import pickle
+        data = {"key": "value"}
+        path = tmp_path / "test.pkl"
+        with open(path, "wb") as f:
+            pickle.dump(data, f)
+        with patch("src.utils.DATA_CACHE_DIR", path.parent), \
+             patch("src.utils.DATA_PROCESSED_DIR", path.parent), \
+             patch("src.utils.MODELS_DIR", path.parent):
+            result = utils.safe_load_pickle(path)
+        assert result == data

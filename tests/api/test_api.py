@@ -8,9 +8,11 @@ from fastapi.testclient import TestClient
 sys.modules['shap'] = MagicMock()
 sys.modules['cv2'] = MagicMock()
 
-with patch.dict(sys.modules, {'sentence_transformers': MagicMock()}):
-    from src.api import app
-    from src.models.student import StudentProfile
+# Mock sentence_transformers BEFORE importing src.api to prevent real import
+_sent_original = sys.modules.get('sentence_transformers')
+sys.modules['sentence_transformers'] = MagicMock()
+from src.api import app
+from src.models.student import StudentProfile
 
 client = TestClient(app)
 
@@ -20,17 +22,28 @@ def _profile():
 
 
 @pytest.fixture(autouse=True)
-def mock_globals(monkeypatch):
+def mock_globals():
     """Подменяет глобальные переменные src.api на моки перед каждым тестом."""
-    monkeypatch.setattr('src.api.evaluator', MagicMock())
-    monkeypatch.setattr('src.api.recommendation_engine', MagicMock(is_fitted=True))
-    monkeypatch.setattr('src.api.clusterer', MagicMock(is_fitted=True))
-    monkeypatch.setattr('src.api.trend_analyzer', MagicMock())
-    monkeypatch.setattr('src.api.skill_weights', {"python": 0.9, "sql": 0.7})
-    monkeypatch.setattr('src.api.skill_freq', {"python": 100, "sql": 80})
-    monkeypatch.setattr('src.api.taxonomy', MagicMock())
-    monkeypatch.setattr('src.api.current_skills_set', {"python", "sql"})
-    monkeypatch.setattr('src.api.student_profiles', {"base": _profile()})
+    import src.api as _api
+    _originals = {}
+    _mocks = {
+        'evaluator': MagicMock(),
+        'recommendation_engine': MagicMock(is_fitted=True),
+        'clusterer': MagicMock(is_fitted=True),
+        'trend_analyzer': MagicMock(),
+        'skill_weights': {"python": 0.9, "sql": 0.7},
+        'skill_freq': {"python": 100, "sql": 80},
+        'taxonomy': MagicMock(),
+        'current_skills_set': {"python", "sql"},
+        'basic_vacancies': [{"id": 1}],
+        'student_profiles': {"base": _profile()},
+    }
+    for name, mock in _mocks.items():
+        _originals[name] = getattr(_api, name, None)
+        setattr(_api, name, mock)
+    yield
+    for name, original in _originals.items():
+        setattr(_api, name, original)
 
 
 class TestHealth:

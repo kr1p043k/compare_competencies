@@ -627,9 +627,9 @@ class TestTrendAnalyzerPlots:
 
 class TestTrendAnalyzerCLI:
     def test_get_emerging_skills_with_cloud_keywords(self):
-        freq = {"python": 200, "sql": 150, "aws_lambda": 5, "azure_functions": 3, "llm_integration": 4, "k8s_operator": 6}
+        freq = {"python": 200, "sql": 150, "aws-lambda": 5, "azure-functions": 3, "llm-integration": 4, "k8s-operator": 6}
         analyzer = TrendAnalyzer(freq)
-        emerging = analyzer.get_emerging_skills(min_weight=0.03, top_n=20)
+        emerging = analyzer.get_emerging_skills(min_weight=0.04, top_n=20)
         for e in emerging:
             if any(kw in e["skill"] for kw in ["aws", "azure", "llm", "k8s"]):
                 assert e["potential"] == "RISING"
@@ -719,3 +719,40 @@ class TestTrendAnalyzerCLI:
         trends = analyzer.get_trending_skills(min_change_percent=1.0, previous_snapshot=prev)
         assert len(trends["rising"]) == 0
         assert len(trends["falling"]) == 0
+
+
+class TestTrendAnalyzerExtended:
+    def test_save_trends(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("src.analyzers.skills.trends.config.DATA_RESULT_DIR", tmp_path)
+        analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
+        trends = {"rising": [{"skill": "python", "change_pct": 10.0}], "falling": []}
+        path = analyzer.save_trends(trends, tag="test")
+        assert path.exists()
+        import json
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert "rising" in data
+
+    def test_get_trending_skills_auto_previous_from_snapshots(self, tmp_path):
+        freq = {"python": 120, "docker": 80}
+        prev = {"python": 100, "docker": 60}
+        analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
+        with open(tmp_path / "freq_2024-01-01.json", "w") as f:
+            json.dump(prev, f)
+        with open(tmp_path / "freq_2024-06-01.json", "w") as f:
+            json.dump(freq, f)
+        trends = analyzer.get_trending_skills(top_n=5, min_change_percent=5.0)
+        assert len(trends["rising"]) > 0
+        for r in trends["rising"]:
+            assert r["prev_label"] == "2024-01-01"
+
+    def test_plot_timeline_empty_points_skip(self, tmp_path):
+        freq = {"python": 120}
+        analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
+        dt1 = datetime(2024, 1, 1)
+        dt2 = datetime(2024, 2, 1)
+        snapshots = [(dt1, Path("f1.json"), {}), (dt2, Path("f2.json"), freq)]
+        from unittest.mock import patch
+        with patch("matplotlib.pyplot.savefig"), patch("matplotlib.pyplot.close"):
+            result = analyzer.plot_timeline(["nonexistent", "python"], snapshots=snapshots)
+            assert result is not None

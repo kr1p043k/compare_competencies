@@ -15,7 +15,7 @@ class TestGapAnalyzerExtended:
 
     def test_init_with_empty_weights(self):
         ga = GapAnalyzer({})
-        assert ga.skill_weights == {}
+        assert ga.skill_weights_by_level == {}
 
     def test_compute_metrics_returns_skills(self, sample_weights_by_level):
         ga = GapAnalyzer(sample_weights_by_level)
@@ -69,10 +69,6 @@ class TestGapAnalyzerExtended:
 
     def test_set_weights_by_level_after_init(self, sample_weights_by_level):
         ga = GapAnalyzer(sample_weights_by_level)
-        # skill_weights хранит позиционный аргумент
-        assert ga.skill_weights == sample_weights_by_level
-        # skill_weights_by_level ещё не установлен
-        assert not hasattr(ga, "skill_weights_by_level")
         # Устанавливаем явно
         ga.set_weights_by_level(sample_weights_by_level)
         assert ga.skill_weights_by_level == sample_weights_by_level

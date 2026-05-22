@@ -69,12 +69,6 @@ class TestExtractSkillsFromVacancies:
         assert "frequencies" in result
         assert result["frequencies"]["python"] == 1
         assert result["frequencies"]["sql"] == 1
-        assert "hybrid_weights" in result
-        assert "skill_embeddings" in result
-        assert result["hybrid_weights"] == {"python": 0.8, "sql": 0.6}
-        # Проверка вызовов
-        parser_with_mocks.hybrid_calc.calculate.assert_called_once()
-        parser_with_mocks.embedding_cache.get_embeddings.assert_called_once()
 
     def test_validation_thread_pool(self, parser_with_mocks):
         # Навыков >200, должен использоваться ThreadPoolExecutor

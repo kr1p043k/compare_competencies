@@ -68,8 +68,7 @@ def test_gap_analyzer_initialization():
     }
     ga = GapAnalyzer(weights_by_level)
 
-    # skill_weights хранит позиционный аргумент
-    assert ga.skill_weights == weights_by_level
+    assert ga.skill_weights_by_level == weights_by_level
 
     # set_weights_by_level записывает в skill_weights_by_level
     ga.set_weights_by_level(weights_by_level)
