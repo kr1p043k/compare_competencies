@@ -36,6 +36,12 @@ class ProfileEvaluationResult(BaseModel):
     student_skills: list[str] = Field(default_factory=list)
     market_skill_coverage: float = 0.0
     skill_categories: dict[str, int] = Field(default_factory=dict)
+    profession_coverage: float = 0.0
+    profession_coverage_detail: dict[str, float] = Field(default_factory=dict)
+    domain_skill_count: int = 0
+    target_profession: str = ""
+    target_domains: list[str] = Field(default_factory=list)
+    krm_coverage: dict[str, dict] = Field(default_factory=dict)
 
     class Config:
         arbitrary_types_allowed = True
