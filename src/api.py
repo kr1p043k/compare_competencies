@@ -96,9 +96,10 @@ app.add_exception_handler(RateLimitExceeded, lambda request, exc: JSONResponse(
     content={"detail": "Too many requests. Please try again later."}
 ))
 
+allowed_origins = config.ALLOWED_ORIGINS.split(",") if config.ALLOWED_ORIGINS != "*" else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -394,7 +395,7 @@ async def get_regions(
         )
         
     except Exception as e:
-        logger.error(f"Ошибка при получении регионов: {e}")
+        logger.error("Ошибка при получении регионов", error=str(e))
         raise HTTPException(status_code=500, detail="Не удалось извлечь список регионов")
 
 # ============================================
@@ -525,7 +526,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             )
     
     except Exception as e:
-        logger.error(f"Pipeline task failed: {e}")
+        logger.error("Ошибка выполнения задачи пайплайна", error=str(e))
         pipeline_tasks[task_id] = PipelineTaskStatus(
             task_id=task_id,
             status="failed",
@@ -563,7 +564,7 @@ async def run_full_pipeline(
     
     # Здесь можно добавить whitelist обработку
     if full_request.whitelist_skills:
-        logger.info(f"Применён whitelist навыков: {len(full_request.whitelist_skills)}")
+        logger.info("Применён whitelist навыков", count=len(full_request.whitelist_skills))
     
     # Запуск в фоне
     background_tasks.add_task(
@@ -635,7 +636,7 @@ async def startup():
 
     with open(raw_file, encoding="utf-8") as f:
         basic_vacancies = json.load(f)
-    logger.info(f"Загружено {len(basic_vacancies)} вакансий")
+    logger.info("Загружено вакансий", count=len(basic_vacancies))
 
     parser = VacancyParser()
 
@@ -655,7 +656,7 @@ async def startup():
                 hybrid_weights_local = result.get("hybrid_weights", {})
                 logger.info("Загружен кэш парсинга навыков")
         except Exception as e:
-            logger.warning(f"Не удалось загрузить кэш: {e}")
+            logger.warning("Не удалось загрузить кэш", error=str(e))
 
     if not skill_freq_local:
         result = parser.extract_skills_from_vacancies(basic_vacancies)
@@ -820,7 +821,7 @@ async def startup():
     # 9. Кластеры
     for lvl in ExperienceLevel:
         if not clusterer.load_model(lvl):
-            logger.warning(f"Модель кластеров для {lvl} не найдена")
+            logger.warning("Модель кластеров не найдена", level=str(lvl))
 
     # 10. Тренды
     whitelist_set = load_it_skills()
@@ -867,7 +868,7 @@ async def compare_profiles(
                 "real_coverage": eval_result.get("market_skill_coverage"),
             }
         except Exception as e:
-            logger.error(f"Ошибка оценки {pname}: {e}")
+            logger.error("Ошибка оценки профиля", profile=pname, error=str(e))
             evaluations[pname] = {"error": str(e)}
     return {"profiles": evaluations}
 
@@ -947,29 +948,6 @@ async def get_market_competencies(
 # КЛАСТЕРЫ
 # ============================================
 
-@app.get("/api/clusters/{level}")
-@limiter.limit("30/minute")
-async def get_clusters(
-    request: Request,
-    level: ExperienceLevel = ExperienceLevel.MIDDLE,
-    clusterer_instance: VacancyClusterer = Depends(get_clusterer)
-):
-    if not clusterer_instance.is_fitted:
-        clusterer_instance.load_model(level)
-    if not clusterer_instance.is_fitted:
-        raise HTTPException(status_code=503, detail="Модели кластеров не загружены")
-    clusters = []
-    for cid in range(clusterer_instance.n_clusters_):
-        clusters.append(
-            {
-                "id": cid,
-                "name": clusterer_instance._generate_cluster_name(cid),
-                "top_skills": clusterer_instance.get_top_skills_in_cluster(cid, top_n=5),
-            }
-        )
-    return {"level": level, "clusters": clusters}
-
-
 @app.get("/api/clusters/summary")
 @limiter.limit("20/minute")
 async def clusters_summary(
@@ -995,6 +973,29 @@ async def clusters_summary(
         else:
             result[lvl] = {"error": "not_fitted"}
     return result
+
+
+@app.get("/api/clusters/{level}")
+@limiter.limit("30/minute")
+async def get_clusters(
+    request: Request,
+    level: ExperienceLevel = ExperienceLevel.MIDDLE,
+    clusterer_instance: VacancyClusterer = Depends(get_clusterer)
+):
+    if not clusterer_instance.is_fitted:
+        clusterer_instance.load_model(level)
+    if not clusterer_instance.is_fitted:
+        raise HTTPException(status_code=503, detail="Модели кластеров не загружены")
+    clusters = []
+    for cid in range(clusterer_instance.n_clusters_):
+        clusters.append(
+            {
+                "id": cid,
+                "name": clusterer_instance._generate_cluster_name(cid),
+                "top_skills": clusterer_instance.get_top_skills_in_cluster(cid, top_n=5),
+            }
+        )
+    return {"level": level, "clusters": clusters}
 
 
 # ============================================
@@ -1045,6 +1046,133 @@ async def taxonomy_coverage(
 # ============================================
 # НАВЫКИ (MISSING/DEAD)
 # ============================================
+
+
+
+# === Profession Taxonomy Endpoints ===
+
+@app.get("/api/taxonomy/professions")
+@limiter.limit("60/minute")
+async def get_professions(request: Request):
+    """Список всех профессий из таксономии."""
+    try:
+        from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
+        taxonomy = ProfessionTaxonomy()
+        professions = []
+        for name in taxonomy.professions:
+            info = taxonomy.get_profession_info(name)
+            professions.append({
+                "name": name,
+                "domains": info.get("domains", []),
+                "competency_codes": info.get("competency_codes", []),
+                "hh_queries": info.get("hh_queries", []),
+                "aliases": info.get("aliases", []),
+            })
+        return {"professions": professions, "total": len(professions)}
+    except Exception as e:
+        logger.error("get_professions_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/taxonomy/profession/{profession_name}")
+@limiter.limit("60/minute")
+async def get_profession_detail(request: Request, profession_name: str):
+    """Детали профессии: домены, навыки, КРМ-компетенции."""
+    try:
+        from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
+        taxonomy = ProfessionTaxonomy()
+        info = taxonomy.get_profession_info(profession_name)
+        if not info:
+            raise HTTPException(status_code=404, detail=f"Profession '{profession_name}' not found")
+        
+        skills = list(taxonomy.get_profession_skills(profession_name))
+        krm_codes = taxonomy.get_profession_competency_codes(profession_name)
+        krm_skills = {}
+        for code in krm_codes:
+            krm_skills[code] = taxonomy.get_competency_skills(code)
+        
+        return {
+            "name": profession_name,
+            "domains": info.get("domains", []),
+            "skill_count": len(skills),
+            "skills": skills[:100],  # limit response size
+            "competency_codes": krm_codes,
+            "krm_competencies": {code: {"skill_count": len(s), "skills": s[:20]} for code, s in krm_skills.items()},
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_profession_detail_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/taxonomy/profession/{profession_name}/krm-coverage")
+@limiter.limit("30/minute")
+async def get_profession_krm_coverage(request: Request, profession_name: str, skills: str = ""):
+    """Покрытие КРМ-компетенций профессии для заданных навыков."""
+    try:
+        from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
+        taxonomy = ProfessionTaxonomy()
+        user_skills = [s.strip() for s in skills.split(",") if s.strip()] if skills else []
+        
+        coverage = taxonomy.compute_krm_coverage(profession_name, user_skills)
+        if not coverage:
+            raise HTTPException(status_code=404, detail=f"No KRM data for '{profession_name}'")
+        
+        return {
+            "profession": profession_name,
+            "user_skills": user_skills,
+            "competency_coverage": coverage,
+            "avg_coverage": round(
+                sum(v["coverage"] for v in coverage.values()) / len(coverage) if coverage else 0, 4
+            ),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_krm_coverage_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/profiles/{profile}/profession-evaluation")
+@limiter.limit("30/minute")
+async def get_profile_profession_evaluation(request: Request, profile: str):
+    """Оценка профиля по профессии с КРМ-покрытием."""
+    try:
+        if profile not in student_profiles:
+            raise HTTPException(status_code=404, detail=f"Profile '{profile}' not found")
+        
+        from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
+        
+        taxonomy = ProfessionTaxonomy()
+        profile_config = taxonomy.get_profile_target(profile)
+        if not profile_config:
+            raise HTTPException(status_code=404, detail=f"No profession target for '{profile}'")
+        
+        student = student_profiles[profile]
+        
+        result = evaluator.evaluate_profile(
+            student,
+            user_type="student",
+            target_domains=profile_config.get("target_domains", []),
+            taxonomy=taxonomy,
+        )
+        
+        return {
+            "profile": profile,
+            "target_profession": profile_config.get("target_profession", ""),
+            "target_domains": profile_config.get("target_domains", []),
+            "profession_coverage": result.get("profession_coverage", 0),
+            "krm_coverage": result.get("krm_coverage", {}),
+            "readiness_score": result.get("readiness_score", 0),
+            "skill_coverage": result.get("skill_coverage", 0),
+            "domain_coverage_score": result.get("domain_coverage_score", 0),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_profile_profession_evaluation_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/skills/missing")
 @limiter.limit("30/minute")
@@ -1444,7 +1572,7 @@ async def reload_api_data():
         await startup()
         logger.info("API data reloaded successfully")
     except Exception as e:
-        logger.error(f"Failed to reload API data: {e}")
+        logger.error("Ошибка перезагрузки API", error=str(e))
 
 
 # ============================================
