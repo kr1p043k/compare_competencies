@@ -25,6 +25,43 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+from src.models.api_responses import (
+    CacheRefreshResponse,
+    CategoryCoverage,
+    ClusterSummaryResponse,
+    ClustersByLevelResponse,
+    DeadSkillsResponse,
+    HealthResponse,
+    KRMCompetency,
+    KRMCoverageResponse,
+    MarketCompetenciesResponse,
+    MissingSkillsResponse,
+    PipelineSimpleResponse,
+    PipelineStatusResponse,
+    PipelineTaskListResponse,
+    PipelineTaskStatus,
+    ProfessionDetailResponse,
+    ProfessionEvalResponse,
+    ProfessionItem,
+    ProfessionsResponse,
+    ProfilesCompareResponse,
+    ProfiledEval,
+    ProfileShort,
+    ReadyResponse,
+    RegionsResponse,
+    SkillInfoResponse,
+    SkillItem,
+    StatusResponse,
+    TaxonomyCoverageResponse,
+    TopSkillsResponse,
+    TrendsResponse,
+    VacanciesByRegionResponse,
+    VacanciesResponse,
+    VacancyDetailResponse,
+    VacancyItem,
+    VacancyStatsResponse,
+)
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src import config
@@ -256,14 +293,6 @@ class PipelineResponse(BaseModel):
     output: Optional[str] = None
 
 
-class PipelineTaskStatus(BaseModel):
-    task_id: str
-    status: str  # pending, running, completed, failed
-    message: str
-    started_at: Optional[float] = None
-    completed_at: Optional[float] = None
-    output: Optional[str] = None
-
 class FullPipelineRequest(BaseModel):
     student_profile: StudentProfile
     regions: list[str] = Field(default=["Все регионы"], description="Список регионов для фильтрации")
@@ -290,20 +319,10 @@ class FullPipelineRequest(BaseModel):
 pipeline_tasks: dict[str, PipelineTaskStatus] = {}
 
 # ============================================
-# МОДЕЛИ ДЛЯ РЕГИОНОВ
-# ============================================
-
-class RegionsResponse(BaseModel):
-    regions: list[str]
-    total: int
-    default: str = "Все регионы"
-
-
-# ============================================
 # HEALTH CHECK
 # ============================================
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 async def health_check():
     return {
         "status": "ok",
@@ -312,7 +331,7 @@ async def health_check():
         "recommendation_engine": recommendation_engine is not None
     }
 
-@app.get("/ready")
+@app.get("/ready", response_model=ReadyResponse)
 async def ready_check():
     """Проверка готовности всех компонентов."""
     components = {
@@ -325,7 +344,7 @@ async def ready_check():
     status = "ready" if ready else "not ready"
     return {"status": status, "components": components}
 
-@app.get("/api/status")
+@app.get("/api/status", response_model=StatusResponse)
 async def get_status(
     profiles: dict[str, StudentProfile] = Depends(get_student_profiles),
     clusterer_instance: VacancyClusterer = Depends(get_clusterer),
@@ -540,7 +559,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
 # ЭНДПОИНТ С ФИЛЬТРАЦИЕЙ ПО ГОРОДУ
 # ============================================
 
-@app.post("/api/pipeline/full-cycle")
+@app.post("/api/pipeline/full-cycle", response_model=PipelineSimpleResponse)
 @limiter.limit("5/minute")
 async def run_full_pipeline(
     request: Request,
@@ -584,7 +603,7 @@ async def run_full_pipeline(
 
 
 # Дополнительный эндпоинт для отладки — получить вакансии по выбранному городу
-@app.get("/api/vacancies/by-region")
+@app.get("/api/vacancies/by-region", response_model=VacanciesByRegionResponse)
 @limiter.limit("30/minute")
 async def get_vacancies_by_region(
     request: Request,
@@ -834,7 +853,7 @@ async def startup():
 # ПРОФИЛИ И РЕКОМЕНДАЦИИ
 # ============================================
 
-@app.get("/api/recommendations/{profile}")
+@app.get("/api/recommendations/{profile}", response_model=dict)
 @limiter.limit("30/minute")
 async def get_recommendations(
     request: Request,
@@ -849,7 +868,7 @@ async def get_recommendations(
     return full_rec
 
 
-@app.get("/api/profiles/compare")
+@app.get("/api/profiles/compare", response_model=ProfilesCompareResponse)
 @limiter.limit("20/minute")
 async def compare_profiles(
     request: Request,
@@ -873,7 +892,7 @@ async def compare_profiles(
     return {"profiles": evaluations}
 
 
-@app.get("/api/profiles/{profile}")
+@app.get("/api/profiles/{profile}", response_model=ProfileShort)
 @limiter.limit("60/minute")
 async def get_profile(
     request: Request,
@@ -897,7 +916,7 @@ async def get_profile(
 # РЫНОЧНЫЕ НАВЫКИ
 # ============================================
 
-@app.get("/api/market/top-skills")
+@app.get("/api/market/top-skills", response_model=TopSkillsResponse)
 @limiter.limit("60/minute")
 async def get_top_skills(
     request: Request,
@@ -908,7 +927,7 @@ async def get_top_skills(
     return {"skills": [{"skill": s, "weight": round(w, 4)} for s, w in top]}
 
 
-@app.get("/api/market/skill/{skill}")
+@app.get("/api/market/skill/{skill}", response_model=SkillInfoResponse)
 @limiter.limit("60/minute")
 async def get_skill_info(
     request: Request,
@@ -930,8 +949,8 @@ async def get_skill_info(
     }
 
 
-@app.get("/api/market-competencies")
-@limiter.limit("30/minute")
+@app.get("/api/market-competencies", response_model=MarketCompetenciesResponse)
+@limiter.limit("60/minute")
 async def get_market_competencies(
     request: Request,
     weights: dict[str, float] = Depends(get_skill_weights)
@@ -948,7 +967,7 @@ async def get_market_competencies(
 # КЛАСТЕРЫ
 # ============================================
 
-@app.get("/api/clusters/summary")
+@app.get("/api/clusters/summary", response_model=ClusterSummaryResponse, response_model_exclude_none=True)
 @limiter.limit("20/minute")
 async def clusters_summary(
     request: Request,
@@ -975,8 +994,8 @@ async def clusters_summary(
     return result
 
 
-@app.get("/api/clusters/{level}")
-@limiter.limit("30/minute")
+@app.get("/api/clusters/{level}", response_model=ClustersByLevelResponse)
+@limiter.limit("60/minute")
 async def get_clusters(
     request: Request,
     level: ExperienceLevel = ExperienceLevel.MIDDLE,
@@ -1002,8 +1021,8 @@ async def get_clusters(
 # ТРЕНДЫ
 # ============================================
 
-@app.get("/api/trends")
-@limiter.limit("30/minute")
+@app.get("/api/trends", response_model=TrendsResponse)
+@limiter.limit("60/minute")
 async def get_trends(
     request: Request,
     top_n: int = Query(15),
@@ -1021,7 +1040,7 @@ async def get_trends(
 # ТАКСОНОМИЯ
 # ============================================
 
-@app.get("/api/taxonomy/coverage")
+@app.get("/api/taxonomy/coverage", response_model=TaxonomyCoverageResponse)
 @limiter.limit("20/minute")
 async def taxonomy_coverage(
     request: Request,
@@ -1051,7 +1070,7 @@ async def taxonomy_coverage(
 
 # === Profession Taxonomy Endpoints ===
 
-@app.get("/api/taxonomy/professions")
+@app.get("/api/taxonomy/professions", response_model=ProfessionsResponse)
 @limiter.limit("60/minute")
 async def get_professions(request: Request):
     """Список всех профессий из таксономии."""
@@ -1074,7 +1093,7 @@ async def get_professions(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/taxonomy/profession/{profession_name}")
+@app.get("/api/taxonomy/profession/{profession_name}", response_model=ProfessionDetailResponse)
 @limiter.limit("60/minute")
 async def get_profession_detail(request: Request, profession_name: str):
     """Детали профессии: домены, навыки, КРМ-компетенции."""
@@ -1106,7 +1125,7 @@ async def get_profession_detail(request: Request, profession_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/taxonomy/profession/{profession_name}/krm-coverage")
+@app.get("/api/taxonomy/profession/{profession_name}/krm-coverage", response_model=KRMCoverageResponse)
 @limiter.limit("30/minute")
 async def get_profession_krm_coverage(request: Request, profession_name: str, skills: str = ""):
     """Покрытие КРМ-компетенций профессии для заданных навыков."""
@@ -1134,7 +1153,7 @@ async def get_profession_krm_coverage(request: Request, profession_name: str, sk
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/profiles/{profile}/profession-evaluation")
+@app.get("/api/profiles/{profile}/profession-evaluation", response_model=ProfessionEvalResponse)
 @limiter.limit("30/minute")
 async def get_profile_profession_evaluation(request: Request, profile: str):
     """Оценка профиля по профессии с КРМ-покрытием."""
@@ -1174,7 +1193,7 @@ async def get_profile_profession_evaluation(request: Request, profile: str):
         logger.error("get_profile_profession_evaluation_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/skills/missing")
+@app.get("/api/skills/missing", response_model=MissingSkillsResponse)
 @limiter.limit("30/minute")
 async def missing_skills(
     request: Request,
@@ -1190,7 +1209,7 @@ async def missing_skills(
     return {"missing_skills": [{"skill": s, "frequency": f} for s, f in sorted_skills]}
 
 
-@app.get("/api/skills/dead")
+@app.get("/api/skills/dead", response_model=DeadSkillsResponse)
 @limiter.limit("30/minute")
 async def dead_skills(
     request: Request,
@@ -1205,7 +1224,7 @@ async def dead_skills(
 # РЕЗУЛЬТАТЫ И ИЗОБРАЖЕНИЯ
 # ============================================
 
-@app.get("/api/results/summary")
+@app.get("/api/results/summary", response_model=dict)
 @limiter.limit("30/minute")
 async def get_results_summary(
     request: Request,
@@ -1225,7 +1244,7 @@ async def get_results_summary(
     }
 
 
-@app.get("/api/results/recommendations/{profile}")
+@app.get("/api/results/recommendations/{profile}", response_model=dict)
 @limiter.limit("30/minute")
 async def get_recommendations_result(
     request: Request,
@@ -1422,7 +1441,7 @@ async def run_pipeline_action_sync(
     )
 
 
-@app.get("/api/pipeline/task/{task_id}")
+@app.get("/api/pipeline/task/{task_id}", response_model=PipelineTaskStatus)
 @limiter.limit("60/minute")
 async def get_pipeline_task_status(
     request: Request,
@@ -1435,7 +1454,7 @@ async def get_pipeline_task_status(
     return pipeline_tasks[task_id]
 
 
-@app.get("/api/pipeline/tasks")
+@app.get("/api/pipeline/tasks", response_model=PipelineTaskListResponse)
 @limiter.limit("30/minute")
 async def list_pipeline_tasks(
     request: Request,
@@ -1447,7 +1466,7 @@ async def list_pipeline_tasks(
     return {"tasks": tasks[:limit], "total": len(tasks)}
 
 
-@app.get("/api/pipeline/status")
+@app.get("/api/pipeline/status", response_model=dict)
 @limiter.limit("30/minute")
 async def get_pipeline_status(request: Request):
     """Проверяет статус различных компонентов пайплайна"""
@@ -1484,7 +1503,7 @@ async def get_pipeline_status(request: Request):
     }
 
 
-@app.post("/api/pipeline/rebuild")
+@app.post("/api/pipeline/rebuild", response_model=PipelineSimpleResponse)
 @limiter.limit("2/minute")
 async def pipeline_rebuild(
     request: Request,
@@ -1513,7 +1532,7 @@ async def pipeline_rebuild(
     }
 
 
-@app.post("/api/pipeline/refresh-cache")
+@app.post("/api/pipeline/refresh-cache", response_model=CacheRefreshResponse)
 @limiter.limit("5/minute")
 async def refresh_cache(request: Request):
     """Очищает кэши и перезапускает пайплайн"""
@@ -1546,7 +1565,7 @@ async def refresh_cache(request: Request):
     }
 
 
-@app.post("/api/pipeline/reload-api")
+@app.post("/api/pipeline/reload-api", response_model=PipelineSimpleResponse)
 @limiter.limit("3/minute")
 async def reload_api(request: Request):
     """Перезагружает данные API (без перезапуска сервера)"""
@@ -1579,7 +1598,7 @@ async def reload_api_data():
 # ВАКАНСИИ
 # ============================================
 
-@app.get("/api/vacancies")
+@app.get("/api/vacancies", response_model=VacanciesResponse)
 @limiter.limit("60/minute")
 async def get_vacancies(
     request: Request,
@@ -1673,7 +1692,7 @@ async def get_vacancies(
     }
 
 
-@app.get("/api/vacancies/{vacancy_id}")
+@app.get("/api/vacancies/{vacancy_id}", response_model=VacancyDetailResponse)
 @limiter.limit("60/minute")
 async def get_vacancy_detail(
     request: Request,
@@ -1708,7 +1727,7 @@ async def get_vacancy_detail(
     raise HTTPException(status_code=404, detail="Вакансия не найдена")
 
 
-@app.get("/api/vacancies/stats/summary")
+@app.get("/api/vacancies/stats/summary", response_model=VacancyStatsResponse)
 @limiter.limit("30/minute")
 async def get_vacancies_stats(
     request: Request,
