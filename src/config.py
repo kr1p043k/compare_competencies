@@ -38,12 +38,15 @@ class Settings(BaseSettings):
     IT_SKILLS_PATH: Path = Field(default_factory=lambda: Path("data/reference/it_skills.json"))
     SKILL_TAXONOMY_PATH: Path = Field(default_factory=lambda: Path("data/reference/skill_taxonomy.json"))
     DOMAIN_MAP_PATH: Path = Field(default_factory=lambda: Path("data/reference/domain_map.json"))
+    PROFESSION_TAXONOMY_PATH: Path = Field(default_factory=lambda: Path("data/reference/profession_taxonomy.json"))
+    KRM_MAPPING_PATH: Path = Field(default_factory=lambda: Path("data/reference/krm_competency_mapping.json"))
     HARD_SKILLS_PATH: Path = Field(default_factory=lambda: Path("data/reference/hard_skills.json"))
     TREND_HOT_SKILLS_PATH: Path = Field(default_factory=lambda: Path("data/reference/trend_hot_skills.json"))
     TIMEFRAME_GROUPS_PATH: Path = Field(default_factory=lambda: Path("data/reference/timeframe_groups.json"))
     SKILL_BLACKLIST_PATH: Path = Field(default_factory=lambda: Path("data/reference/skill_blacklist.json"))
     GENERIC_WORDS_PATH: Path = Field(default_factory=lambda: Path("data/reference/generic_words.json"))
     FILLER_WORDS_PATH: Path = Field(default_factory=lambda: Path("data/reference/filler_words.json"))
+    STOP_LEMMAS_PATH: Path = Field(default_factory=lambda: Path("data/reference/stop_lemmas.json"))
 
     # ---------- директории кеша ----------
     DATA_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache"))
@@ -54,6 +57,9 @@ class Settings(BaseSettings):
 
     MODELS_DIR: Path = Field(default_factory=lambda: Path("data/models"))
     HISTORY_DIR: Path = Field(default_factory=lambda: Path("data/history"))
+
+    # ---------- CORS ----------
+    ALLOWED_ORIGINS: str = "*"
 
     # ---------- hh.ru API ----------
     HH_USER_AGENT: str = "CompetencyAnalyzer (kok.yoko@gmx.com)"
@@ -146,12 +152,15 @@ class Settings(BaseSettings):
         "IT_SKILLS_PATH",
         "SKILL_TAXONOMY_PATH",
         "DOMAIN_MAP_PATH",
+        "PROFESSION_TAXONOMY_PATH",
+        "KRM_MAPPING_PATH",
         "HARD_SKILLS_PATH",
         "TREND_HOT_SKILLS_PATH",
         "TIMEFRAME_GROUPS_PATH",
         "SKILL_BLACKLIST_PATH",
         "GENERIC_WORDS_PATH",
         "FILLER_WORDS_PATH",
+        "STOP_LEMMAS_PATH",
         "MODELS_DIR",
         "HISTORY_DIR",
         "LOG_DIR",
@@ -218,6 +227,7 @@ VACANCY_CLUSTERS_CACHE_DIR = settings.VACANCY_CLUSTERS_CACHE_DIR
 STUDENT_EMB_CACHE_DIR = settings.STUDENT_EMB_CACHE_DIR
 PARSED_SKILLS_CACHE_PATH = settings.PARSED_SKILLS_CACHE_PATH
 
+ALLOWED_ORIGINS = settings.ALLOWED_ORIGINS
 HH_USER_AGENT = settings.HH_USER_AGENT
 REQUEST_DELAY = settings.REQUEST_DELAY
 MAX_RETRIES = settings.MAX_RETRIES
@@ -255,12 +265,15 @@ REFERENCE_DIR = settings.REFERENCE_DIR
 IT_SKILLS_PATH = settings.IT_SKILLS_PATH
 SKILL_TAXONOMY_PATH = settings.SKILL_TAXONOMY_PATH
 DOMAIN_MAP_PATH = settings.DOMAIN_MAP_PATH
+PROFESSION_TAXONOMY_PATH = settings.PROFESSION_TAXONOMY_PATH
+KRM_MAPPING_PATH = settings.KRM_MAPPING_PATH
 HARD_SKILLS_PATH = settings.HARD_SKILLS_PATH
 TREND_HOT_SKILLS_PATH = settings.TREND_HOT_SKILLS_PATH
 TIMEFRAME_GROUPS_PATH = settings.TIMEFRAME_GROUPS_PATH
 SKILL_BLACKLIST_PATH = settings.SKILL_BLACKLIST_PATH
 GENERIC_WORDS_PATH = settings.GENERIC_WORDS_PATH
 FILLER_WORDS_PATH = settings.FILLER_WORDS_PATH
+STOP_LEMMAS_PATH = settings.STOP_LEMMAS_PATH
 
 BLEND_EVALUATOR_WEIGHT = settings.BLEND_EVALUATOR_WEIGHT
 BLEND_LTR_WEIGHT = settings.BLEND_LTR_WEIGHT
