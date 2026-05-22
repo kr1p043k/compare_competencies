@@ -135,7 +135,14 @@ class RecommendationEngine:
             skills=len(skill_weights),
         )
 
-    def generate_recommendations(self, student: StudentProfile, user_type: str = "student") -> dict[str, Any]:
+    def generate_recommendations(
+        self,
+        student: StudentProfile,
+        user_type: str = "student",
+        precomputed_eval: dict[str, Any] | None = None,
+        target_domains: list[str] | None = None,
+        taxonomy: Any | None = None,
+    ) -> dict[str, Any]:
         from src.utils import atomic_write_json
 
         if not hasattr(self, "profile_evaluator") or self.profile_evaluator is None:
@@ -145,8 +152,16 @@ class RecommendationEngine:
         logger.info("generate_recommendations_started", profile=profile_name)
 
         try:
-            # ── Шаг 1: оценка профиля ─────────────────────────────────────
-            eval_result = self.profile_evaluator.evaluate_profile(student, user_type=user_type)
+            # ── Шаг 1: оценка профиля (с поддержкой предвычисленного результата) ──
+            if precomputed_eval is not None:
+                eval_result = precomputed_eval
+            else:
+                eval_result = self.profile_evaluator.evaluate_profile(
+                    student,
+                    user_type=user_type,
+                    target_domains=target_domains,
+                    taxonomy=taxonomy,
+                )
             if eval_result is None:
                 logger.error("eval_result_is_none", profile=profile_name)
                 return self._empty_recommendations()
@@ -310,6 +325,7 @@ class RecommendationEngine:
                 ltr_contributed=bool(ltr_scores),
             )
 
+            profession_coverage = eval_result.get("profession_coverage", 0)
             return {
                 "summary": {
                     "match_score": eval_result.get("market_coverage_score", 0),
@@ -318,6 +334,7 @@ class RecommendationEngine:
                     "skill_coverage": eval_result.get("skill_coverage", 0),
                     "domain_coverage_score": eval_result.get("domain_coverage_score", 0),
                     "readiness_score": eval_result.get("readiness_score", 0),
+                    "profession_coverage": profession_coverage,
                     "avg_gap": eval_result.get("avg_gap", 0),
                     "coverage": eval_result.get("market_coverage_score", 0),
                     "coverage_details": {
@@ -326,6 +343,7 @@ class RecommendationEngine:
                     },
                     "market_skill_coverage": eval_result.get("market_skill_coverage", 0.0),
                 },
+                "profession_coverage_detail": eval_result.get("profession_coverage_detail", {}),
                 "closest_roles": closest_roles,
                 "recommendations": top_recommendations,
                 "domain_coverage": eval_result.get("domain_coverage", {}),
