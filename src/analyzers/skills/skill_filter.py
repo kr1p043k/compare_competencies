@@ -16,60 +16,31 @@ class SkillFilter:
     """
 
     # GENERIC слова, которые ВСЕГДА исключаются
-    # Строки 24-68, заменить GENERIC_WORDS на:
-    GENERIC_WORDS = {
-        "frontend",
-        "front-end",
-        "front end",
-        "frontend разработка",
-        "front-end разработка",
-        "backend",
-        "back-end",
-        "back end",
-        "backend разработка",
-        "back-end разработка",
-        "fullstack",
-        "full-stack",
-        "full stack",
-        "fullstack разработка",
-        "разработка",
-        "программирование",
-        "кодинг",
-        "coding",
-        "web",
-        "веб",
-        "web разработка",
-        "веб разработка",
-        "базы данных",
-        "database",
-        "svn",
-        "version control",
-        "английский",
-        "english",
-        "язык",
-        "разработки",
-        "и др",
-        "и другие",
-        "знание",
-        "опыт",
-        "умение",
-        "требуется",
-        "core",
-        "net",
-        "crm",
-        "erp",
-    }
+    # Загружаются из внешнего JSON-файла, указанного в GENERIC_WORDS_PATH (config)
 
-    def __init__(self, reference_skills: set[str] = None):
+    def __init__(self, reference_skills: set[str] = None, generic_words_path: str = None):
         """
         Args:
             reference_skills: Набор эталонных навыков. Если не передан, загружается из it_skills.json.
+            generic_words_path: Путь к JSON-файлу со стоп-словами навыков.
         """
         if reference_skills is None:
             from src.parsing.utils import load_it_skills
 
             reference_skills = load_it_skills()
         self.reference_skills = reference_skills
+        self.GENERIC_WORDS = self._load_generic_words(generic_words_path)
+
+    @staticmethod
+    def _load_generic_words(path: str = None) -> set[str]:
+        from src import config as cfg
+        p = path or cfg.GENERIC_WORDS_PATH
+        try:
+            with open(p, encoding="utf-8") as f:
+                import json
+                return set(json.load(f))
+        except Exception:
+            return set()
         logger.info("skill_filter_initialized", reference_skills_count=len(self.reference_skills))
 
     def filter_weights(self, skill_weights: dict[str, float], min_weight: float = 0.01) -> dict[str, float]:

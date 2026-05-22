@@ -160,9 +160,12 @@ class TrendAnalyzer:
             norm_weight = weight / max_weight
             if 0 < norm_weight < min_weight:
                 potential = "STABLE"
-                if any(kw in skill.lower() for kw in ["ai", "llm", "gpt", "mlops", "langchain", "rag"]) or any(
-                    kw in skill.lower() for kw in ["cloud", "aws", "azure", "k8s", "kubernetes"]
-                ):
+                import re as _re
+                skill_lower = skill.lower()
+                emerging_kw_pat = _re.compile(
+                    r"\b(ai|llm|gpt|mlops|langchain|rag|cloud|aws|azure|k8s|kubernetes)\b"
+                )
+                if emerging_kw_pat.search(skill_lower):
                     potential = "RISING"
                 emerging.append(
                     {"skill": skill, "weight": weight, "normalized": round(norm_weight, 4), "potential": potential}
