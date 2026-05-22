@@ -54,6 +54,8 @@ class LevelBuilder:
                     )
             else:
                 vac_skills = [s["name"] for s in vac.get("key_skills", [])]
+                if not vac_skills:
+                    vac_skills = vac.get("extracted_skills", [])
                 if vac_skills:
                     experience = ExperienceLevel.MIDDLE
                     exp_obj = vac.get("experience", {})
@@ -80,5 +82,6 @@ class LevelBuilder:
                     levels.append(
                         {"skills": vac_skills, "description": vac.get("description", ""), "experience": experience}
                     )
+                    skills.append(vac_skills)
         print(f"  Подготовлено {len(levels)} вакансий для анализа уровней")
         return levels, skills
