@@ -23,11 +23,12 @@ class DomainAnalyzer:
     def compute_domain_coverage(self, user_skills: list[str]) -> dict[str, DomainMetrics]:
         user_set = set(skill.lower().strip() for skill in user_skills)
         result = {}
+        total_domains = len(self.domain_map)
 
         for domain_name, skills in self.domain_map.items():
             dm = DomainMetrics(domain=domain_name, required_skills=skills)
             dm.compute_coverage(user_set)
-            dm.importance = 1.0
+            dm.importance = 1.0 / max(total_domains, 1)
             result[domain_name] = dm
 
             # Детализация по каждому домену — только в DEBUG
