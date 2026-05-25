@@ -5,9 +5,9 @@
 а также HDBSCAN как fallback (с обработкой ошибок метрики).
 """
 
-import pickle
 from typing import Any
 
+import joblib
 import numpy as np
 import structlog
 from sklearn.cluster import KMeans
@@ -42,6 +42,7 @@ class VacancyClusterer:
         random_state: int = 42,
         use_hdbscan_fallback: bool = True,
         min_cluster_size: int = 5,
+        skill_weights: dict[str, float] | None = None,
     ):
         self.n_clusters = n_clusters
         self.min_clusters = min_clusters
@@ -49,6 +50,7 @@ class VacancyClusterer:
         self.random_state = random_state
         self.use_hdbscan_fallback = use_hdbscan_fallback and HDBSCAN_AVAILABLE
         self.min_cluster_size = min_cluster_size
+        self.skill_weights = skill_weights or {}
 
         self.model = None
         self.clusterer_type = "kmeans"
@@ -62,45 +64,58 @@ class VacancyClusterer:
     def _compute_embeddings(self, vacancies: list[dict]) -> np.ndarray:
         embedding_model = get_embedding_model()
         dim = embedding_model.get_sentence_embedding_dimension()
+
+        has_weights = bool(self.skill_weights)
+
+        # Step 1: normalise all skills
+        cleaned_per_vacancy = []
+        all_skill_set: set[str] = set()
+        for skills in self.vacancy_skills:
+            clean = [s for s in (SkillNormalizer.normalize(s) for s in skills) if s]
+            cleaned_per_vacancy.append(clean)
+            all_skill_set.update(clean)
+
+        # Step 2: batch-embed all unique skills at once
+        unique_skills = sorted(all_skill_set)
+        if unique_skills:
+            skill_embs = embedding_model.encode(unique_skills, convert_to_numpy=True, show_progress_bar=False)
+            skill_to_emb = dict(zip(unique_skills, skill_embs, strict=False))
+        else:
+            skill_to_emb = {}
+
+        # Step 3: weighted mean-pool per vacancy (BM25/hybrid weights or uniform)
         vacancy_embs = []
         empty_skills_count = 0
-
-        for skills in self.vacancy_skills:
-            if not skills:
-                # Пустая вакансия – нулевой вектор
-                vacancy_embs.append(np.zeros(dim))
-                empty_skills_count += 1
-                continue
-
-            # Нормализуем навыки
-            clean_skills = [SkillNormalizer.normalize(s) for s in skills]
-            clean_skills = [s for s in clean_skills if s]  # убираем пустые строки
-
+        for clean_skills in cleaned_per_vacancy:
             if not clean_skills:
                 vacancy_embs.append(np.zeros(dim))
                 empty_skills_count += 1
                 continue
 
-            # Эмбеддинг для каждого навыка отдельно, затем среднее
-            embs = embedding_model.encode(clean_skills, convert_to_numpy=True, show_progress_bar=False)
-            emb = np.mean(embs, axis=0)  # можно также 0.7*mean + 0.3*max
-            vacancy_embs.append(emb)
+            embs_list = [skill_to_emb[s] for s in clean_skills if s in skill_to_emb]
+            if not embs_list:
+                vacancy_embs.append(np.zeros(dim))
+                empty_skills_count += 1
+                continue
+
+            if has_weights:
+                weights = np.array([self.skill_weights.get(s, 0.01) for s in clean_skills if s in skill_to_emb])
+            else:
+                weights = np.ones(len(embs_list))
+            weighted = np.average(embs_list, axis=0, weights=weights)
+            vacancy_embs.append(weighted)
 
         embeddings = np.vstack(vacancy_embs)
 
-        # Диагностика
-        mean_vec = np.mean(embeddings, axis=0)
-        std_vec = np.std(embeddings, axis=0)
         logger.info(
             "embeddings_computed",
             shape=embeddings.shape,
-            mean_sample=mean_vec[:3].tolist(),
-            std_sample=std_vec[:3].tolist(),
+            unique_skills=len(unique_skills),
             empty_skills=empty_skills_count,
             total=len(vacancies),
+            weighted=has_weights,
         )
 
-        # L2-нормализация
         norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
         embeddings = embeddings / norms
@@ -166,15 +181,19 @@ class VacancyClusterer:
                 no_improve = 0
             else:
                 no_improve += 1
+            if no_improve >= 5:
+                logger.debug("early_stop_silhouette", k=k, no_improve=no_improve)
+                break
 
         if best_score < 0.1:
             logger.warning("low_silhouette_score", score=round(best_score, 3))
 
-        # Если silhouette_score плохой, пробуем HDBSCAN с метрикой cosine
+        # Если silhouette_score плохой, пробуем HDBSCAN (cosine)
         use_hdbscan = False
         if best_score < 0.2 and self.use_hdbscan_fallback and n_samples >= self.min_cluster_size * 2:
             logger.info("trying_hdbscan_fallback", silhouette=round(best_score, 3))
             try:
+                # euclidean на L2-нормализованных векторах эквивалентен cosine
                 clusterer = hdbscan.HDBSCAN(
                     min_cluster_size=self.min_cluster_size, metric="euclidean", core_dist_n_jobs=-1
                 )
@@ -245,7 +264,7 @@ class VacancyClusterer:
         return len(set(self.labels_)) - (1 if -1 in self.labels_ else 0)
 
     def _save_model(self, level: ExperienceLevel):
-        path = config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{level}.pkl"
+        path = config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{level}.joblib"
         data = {
             "model": self.model,
             "clusterer_type": self.clusterer_type,
@@ -256,9 +275,9 @@ class VacancyClusterer:
             "n_clusters": self.n_clusters_,
             "min_cluster_size": self.min_cluster_size,
             "label_to_center_idx": self.label_to_center_idx,
+            "skill_weights": self.skill_weights,
         }
-        with open(path, "wb") as f:
-            pickle.dump(data, f)
+        joblib.dump(data, path)
         logger.info(f"Модель кластеризации сохранена: {path}")
 
         # Сохраняем манифест
@@ -271,13 +290,30 @@ class VacancyClusterer:
         except Exception as e:
             logger.warning("cluster_manifest_save_failed", error=str(e))
 
+    def _migrate_pkl_to_joblib(self, level: str) -> None:
+        path_pkl = config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{level}.pkl"
+        path_joblib = path_pkl.with_suffix(".joblib")
+        try:
+            data = joblib.load(path_pkl)
+            joblib.dump(data, path_joblib)
+            path_pkl.unlink()
+            logger.info("migrated_pkl_to_joblib", level=level, path=str(path_joblib))
+        except Exception as e:
+            logger.error("pkl_migration_failed", level=level, error=str(e))
+
     def load_model(self, level: str = "all") -> bool:
-        path = config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{level}.pkl"
+        path = config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{level}.joblib"
         if not path.exists():
-            logger.warning("cluster_model_file_not_found", path=str(path))
-            return False
-        with open(path, "rb") as f:
-            data = pickle.load(f)  # nosec B301
+            path_old = path.with_suffix(".pkl")
+            if path_old.exists():
+                logger.warning("detected_old_pkl_format_migrating", path=str(path_old))
+                self._migrate_pkl_to_joblib(level)
+                if not path.exists():
+                    return False
+            else:
+                logger.warning("cluster_model_file_not_found", path=str(path))
+                return False
+        data = joblib.load(path)
         self.model = data["model"]
         self.clusterer_type = data.get("clusterer_type", "kmeans")
         self.labels_ = data["labels"]
@@ -287,6 +323,7 @@ class VacancyClusterer:
         self.n_clusters = data["n_clusters"]
         self.min_cluster_size = data.get("min_cluster_size", 15)
         self.label_to_center_idx = data.get("label_to_center_idx", {})
+        self.skill_weights = data.get("skill_weights", {})
         self.is_fitted = True
         logger.info(
             "cluster_model_loaded",
