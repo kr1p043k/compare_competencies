@@ -13,11 +13,13 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from src import config
+from src.errors import ApiError, RateLimitError, VacancyNotFoundError
 from src.models.hh_responses import (
     VacancyDetailResponse,
     parse_response,
 )
 from src.models.vacancy import Vacancy
+from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 
@@ -228,7 +230,8 @@ class HeadHunterAPI:
             return None
 
     # -----------------------------------------------------------------------
-    def _get(self, url, params=None, retry_count=0, _is_retry_after_401=False):
+    def _get_result(self, url, params=None, retry_count=0, _is_retry_after_401=False) -> Result[dict, ApiError]:
+        """GET-запрос с явным Result[T, E] — все ошибки типизированы."""
         if not _is_retry_after_401:
             self._ensure_token()
         try:
@@ -238,21 +241,20 @@ class HeadHunterAPI:
             logger.debug("http_request", url=url, status=response.status_code, elapsed=round(elapsed, 2))
 
             if response.status_code == 200:
-                return response.json()
+                return Ok(response.json())
             elif response.status_code == 304:
                 logger.debug("http_304_not_modified")
-                return None
+                return Err(ApiError(message="Not modified", status_code=304, endpoint=url))
             elif response.status_code == 404:
                 logger.warning("http_404", url=url)
-                return None
+                return Err(VacancyNotFoundError(message=f"Resource not found: {url}", detail=url))
             elif response.status_code == 401:
                 if not _is_retry_after_401:
                     logger.warning("http_401_refreshing_token")
                     self._get_app_token()
-                    return self._get(url, params, retry_count, _is_retry_after_401=True)
-                else:
-                    logger.error("http_401_after_token_refresh")
-                    return None
+                    return self._get_result(url, params, retry_count, _is_retry_after_401=True)
+                logger.error("http_401_after_token_refresh")
+                return Err(ApiError(message="Unauthorized after token refresh", status_code=401, endpoint=url))
             elif response.status_code == 403:
                 err_text = response.text[:300]
                 if "token-revoked" in err_text or "token_expired" in err_text:
@@ -263,32 +265,35 @@ class HeadHunterAPI:
                     if not _is_retry_after_401:
                         self._get_app_token()
                         if self._token:
-                            return self._get(url, params, retry_count, _is_retry_after_401=True)
+                            return self._get_result(url, params, retry_count, _is_retry_after_401=True)
                     logger.error("token_refresh_failed")
-                    return None
+                    return Err(ApiError(message="Token refresh failed", status_code=403, endpoint=url))
                 logger.error("http_403_forbidden", response=err_text)
-                return None
+                return Err(ApiError(message=f"Forbidden: {err_text}", status_code=403, endpoint=url))
             elif response.status_code == 429:
                 retry_after = int(response.headers.get("Retry-After", 60))
                 if retry_count < 3:
                     logger.warning("http_429_rate_limited", attempt=retry_count + 1, retry_after=retry_after)
                     time.sleep(retry_after)
-                    return self._get(url, params, retry_count + 1)
-                else:
-                    logger.error("http_429_max_retries_exceeded")
-                    return None
+                    return self._get_result(url, params, retry_count + 1)
+                logger.error("http_429_max_retries_exceeded")
+                return Err(RateLimitError(message="Max retries exceeded for 429", status_code=429, endpoint=url, retry_after=retry_after))
             else:
                 logger.warning("http_unexpected_status", status=response.status_code, response=response.text[:500])
-                return None
+                return Err(ApiError(message=f"Unexpected status {response.status_code}", status_code=response.status_code, endpoint=url))
         except requests.exceptions.Timeout:
             logger.error("http_timeout", url=url)
-            return None
+            return Err(ApiError(message=f"Timeout: {url}", endpoint=url))
         except requests.exceptions.ConnectionError:
             logger.error("http_connection_error", url=url)
-            return None
+            return Err(ApiError(message=f"Connection error: {url}", endpoint=url))
         except Exception as e:
             logger.error("http_request_exception", error=str(e))
-            return None
+            return Err(ApiError(message=str(e), endpoint=url))
+
+    def _get(self, url, params=None, retry_count=0, _is_retry_after_401=False):
+        """Legacy: обёртка над _get_result для обратной совместимости."""
+        return self._get_result(url, params, retry_count, _is_retry_after_401).ok()
 
     def close(self):
         self.session.close()

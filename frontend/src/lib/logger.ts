@@ -1,8 +1,9 @@
 const LOG_ENDPOINT = "/api/log";
 
 function sendLog(level: string, message: string, data?: Record<string, unknown>) {
+  const f = fetchOriginal ?? globalThis.fetch;
   try {
-    fetch(LOG_ENDPOINT, {
+    f(LOG_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ level, message, data, timestamp: new Date().toISOString() }),

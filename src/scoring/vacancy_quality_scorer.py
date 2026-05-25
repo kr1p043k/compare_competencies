@@ -8,7 +8,9 @@ from typing import Any
 
 import structlog
 
+from src.errors import ScorerError
 from src.models.vacancy import Vacancy
+from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 
@@ -119,6 +121,21 @@ class VacancyQualityScorer:
             "|".join(f"(?:{p})" for p in PROMO_KEYWORDS),
             re.IGNORECASE,
         )
+
+    def score_result(self, vacancy: Vacancy) -> Result[QualityScore, ScorerError]:
+        try:
+            return Ok(self.score(vacancy))
+        except Exception as exc:
+            return Err(ScorerError(message=str(exc), detail=f"vacancy={vacancy.id}"))
+
+    def filter_vacancies_result(
+        self, vacancies: list[Any]
+    ) -> Result[tuple[list[Any], list[Any], dict[str, Any]], ScorerError]:
+        try:
+            clean, spam, report = self.filter_vacancies(vacancies)
+            return Ok((clean, spam, report))
+        except Exception as exc:
+            return Err(ScorerError(message=str(exc), detail=f"total={len(vacancies)}"))
 
     def score(self, vacancy: Vacancy) -> QualityScore:
         flags = []

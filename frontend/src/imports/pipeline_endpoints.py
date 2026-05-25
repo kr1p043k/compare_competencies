@@ -12,7 +12,7 @@ from .pipeline_runner import PipelineRunner
 
 # Инициализация runner (путь к корню проекта)
 # ВАЖНО: Измените этот путь на актуальный путь к вашему проекту
-BASE_DIR = Path(__file__).parent.parent.parent
+BASE_DIR = Path(__file__).parent.parent.parent.parent
 pipeline_runner = PipelineRunner(BASE_DIR)
 
 

@@ -1,4 +1,4 @@
-"""Result[T, E] / Either pattern для явной обработки ошибок без исключений."""
+"""Result[T, E] / Either pattern for explicit error handling without exceptions."""
 
 from __future__ import annotations
 
@@ -6,10 +6,14 @@ from typing import Generic, TypeVar
 
 T = TypeVar("T")
 E = TypeVar("E")
+U = TypeVar("U")
+F = TypeVar("F")
 
 
 class Result(Generic[T, E]):
-    """Базовый класс для Ok/Err. Используйте Ok(value) или Err(error)."""
+    """Base class for Ok/Err. Use Ok(value) or Err(error)."""
+
+    __slots__ = ()
 
     def is_ok(self) -> bool:
         return isinstance(self, Ok)
@@ -25,17 +29,66 @@ class Result(Generic[T, E]):
 
     def ok(self) -> T | None:
         if isinstance(self, Ok):
-            return self._value  # type: ignore[no-any-return]
+            return self._value
         return None
 
     def err(self) -> E | None:
         if isinstance(self, Err):
-            return self._error  # type: ignore[no-any-return]
+            return self._error
         return None
+
+    def map(self, fn):
+        if isinstance(self, Ok):
+            return Ok(fn(self._value))
+        return self
+
+    def map_err(self, fn):
+        if isinstance(self, Err):
+            return Err(fn(self._error))
+        return self
+
+    def and_then(self, fn):
+        if isinstance(self, Ok):
+            return fn(self._value)
+        return self
+
+    def or_else(self, fn):
+        if isinstance(self, Err):
+            return fn(self._error)
+        return self
+
+    def expect(self, msg: str) -> T:
+        if isinstance(self, Ok):
+            return self._value
+        raise RuntimeError(f"{msg}: {self._error}")
+
+    def __eq__(self, other):
+        if not isinstance(other, Result):
+            return NotImplemented
+        if isinstance(self, Ok) and isinstance(other, Ok):
+            return self._value == other._value
+        if isinstance(self, Err) and isinstance(other, Err):
+            return self._error == other._error
+        return False
+
+    def __ne__(self, other):
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return result
+        return not result
+
+    def __hash__(self):
+        if isinstance(self, Ok):
+            return hash(("Ok", self._value))
+        return hash(("Err", self._error))
+
+    def __bool__(self) -> bool:
+        return isinstance(self, Ok)
 
 
 class Ok(Result[T, E]):
     __slots__ = ("_value",)
+    __match_args__ = ("_value",)
 
     def __init__(self, value: T) -> None:
         self._value = value
@@ -52,6 +105,7 @@ class Ok(Result[T, E]):
 
 class Err(Result[T, E]):
     __slots__ = ("_error",)
+    __match_args__ = ("_error",)
 
     def __init__(self, error: E) -> None:
         self._error = error

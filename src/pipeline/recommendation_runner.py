@@ -3,6 +3,7 @@
 import structlog
 from tqdm import tqdm
 
+from src import Err, Ok, RecommendationError, Result
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.models.data_contracts import PipelineContext
 from src.models.enums import ComparisonLevel
@@ -20,27 +21,32 @@ class RecommendationRunner:
         self.args = args
         self.engine = None
 
-    def initialize_engine(self, evaluator):
-        hybrid_weights = self.ctx.hybrid_weights
-        self.engine = RecommendationEngine(
-            use_ltr=True,
-            use_llm=self.args.use_llm,
-            profile_evaluator=evaluator,
-            trend_analyzer=self.ctx.trend_analyzer,
-        )
-        self.engine.comparator = CompetencyComparator(
-            ngram_range=(1, 2),
-            min_df=1,
-            max_df=0.95,
-            use_embeddings=True,
-            level=ComparisonLevel.MIDDLE,
-            similarity_threshold=0.80,
-        )
-        self.engine.fit(self.ctx.vacancies_skills, skill_weights=hybrid_weights)
+    def initialize_engine(self, evaluator) -> Result[None, RecommendationError]:
+        try:
+            hybrid_weights = self.ctx.hybrid_weights
+            self.engine = RecommendationEngine(
+                use_ltr=True,
+                use_llm=self.args.use_llm,
+                profile_evaluator=evaluator,
+                trend_analyzer=self.ctx.trend_analyzer,
+            )
+            self.engine.comparator = CompetencyComparator(
+                ngram_range=(1, 2),
+                min_df=1,
+                max_df=0.95,
+                use_embeddings=True,
+                level=ComparisonLevel.MIDDLE,
+                similarity_threshold=0.80,
+            )
+            self.engine.fit(self.ctx.vacancies_skills, skill_weights=hybrid_weights)
+            return Ok(None)
+        except Exception as e:
+            logger.error("engine_initialization_failed", error=str(e))
+            return Err(RecommendationError(message=f"Ошибка инициализации движка: {e}", profile="all"))
 
-    def run(self, evaluations: dict) -> dict:
+    def run(self, evaluations: dict) -> Result[dict, RecommendationError]:
         if self.engine is None:
-            raise RuntimeError("Сначала вызовите initialize_engine()")
+            return Err(RecommendationError(message="Движок не инициализирован", profile="all"))
         recs = {}
         for pname, student in tqdm(self.profiles.items(), desc="Генерация рекомендаций"):
             try:
@@ -57,7 +63,7 @@ class RecommendationRunner:
                 recs[pname] = full_rec
             except Exception as e:
                 logger.error("recommendation_generation_failed", profile=pname, error=str(e))
-        return recs
+        return Ok(recs)
 
     def _build_skill_context(self, eval_result):
         ctx = {}

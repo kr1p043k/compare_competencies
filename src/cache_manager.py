@@ -1,0 +1,88 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+import joblib
+import structlog
+
+from src import CacheError, Err, Ok, Result
+
+logger = structlog.get_logger("cache_manager")
+
+
+class CacheManager:
+    def __init__(self, cache_dir: Path | str):
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def _path(self, key: str) -> Path:
+        safe = key.replace("/", "_").replace("\\", "_").replace("..", "_")
+        return self.cache_dir / f"{safe}.joblib"
+
+    def save(self, key: str, data: Any) -> Result[None, CacheError]:
+        path = self._path(key)
+        try:
+            joblib.dump(data, path)
+            return Ok(None)
+        except Exception as e:
+            return Err(CacheError(message=f"Save failed: {e}", cache_path=str(path)))
+
+    def load(self, key: str) -> Result[Any, CacheError]:
+        path = self._path(key)
+        if not path.exists():
+            return Err(CacheError(message="Cache miss", cache_path=str(path)))
+        try:
+            data = joblib.load(path)
+            return Ok(data)
+        except Exception as e:
+            return Err(CacheError(message=f"Load failed: {e}", cache_path=str(path)))
+
+    def invalidate(self, key: str) -> Result[bool, CacheError]:
+        path = self._path(key)
+        if not path.exists():
+            return Ok(False)
+        try:
+            path.unlink()
+            return Ok(True)
+        except Exception as e:
+            return Err(CacheError(message=f"Invalidate failed: {e}", cache_path=str(path)))
+
+    def exists(self, key: str) -> bool:
+        return self._path(key).exists()
+
+    def clear_all(self) -> Result[int, CacheError]:
+        count = 0
+        for p in self.cache_dir.glob("*.joblib"):
+            try:
+                p.unlink()
+                count += 1
+            except Exception as e:
+                logger.warning("cache_cleanup_failed", path=str(p), error=str(e))
+        return Ok(count)
+
+
+class JsonCacheManager(CacheManager):
+    def _path(self, key: str) -> Path:
+        safe = key.replace("/", "_").replace("\\", "_").replace("..", "_")
+        return self.cache_dir / f"{safe}.json"
+
+    def save(self, key: str, data: Any) -> Result[None, CacheError]:
+        path = self._path(key)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            return Ok(None)
+        except Exception as e:
+            return Err(CacheError(message=f"JSON save failed: {e}", cache_path=str(path)))
+
+    def load(self, key: str) -> Result[Any, CacheError]:
+        path = self._path(key)
+        if not path.exists():
+            return Err(CacheError(message="Cache miss", cache_path=str(path)))
+        try:
+            with open(path, encoding="utf-8") as f:
+                return Ok(json.load(f))
+        except Exception as e:
+            return Err(CacheError(message=f"JSON load failed: {e}", cache_path=str(path)))

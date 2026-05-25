@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import structlog
 
-from src import config
+from src import Err, Ok, config, timed_block
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.logging_config import setup_structlog
 from src.models.enums import ExperienceLevel
@@ -44,6 +44,17 @@ from src.visualization.orchestration import run_notebook, save_all_charts, show_
 
 logger = structlog.get_logger("main")
 
+PIPELINE_PROGRESS_FILE = Path(__file__).parent / "data" / "cache" / "pipeline_progress.json"
+
+
+def _write_pipeline_progress(pct: int, message: str):
+    try:
+        PIPELINE_PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(PIPELINE_PROGRESS_FILE, "w", encoding="utf-8") as f:
+            json.dump({"pct": pct, "message": message}, f, ensure_ascii=False)
+    except Exception:
+        pass
+
 
 def convert_float32(obj):
     import numpy as np
@@ -59,9 +70,9 @@ def convert_float32(obj):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
-    parser.add_argument("--query", "-q", type=str, default="Разработчик")
-    parser.add_argument("--area-id", "-a", type=int, default=10)
-    parser.add_argument("--max-pages", "-p", type=int, default=20)
+    parser.add_argument("--query", "-q", type=str, default="Python Разработчик")
+    parser.add_argument("--area-id", "-a", type=int, default=1)
+    parser.add_argument("--max-pages", "-p", type=int, default=10)
     parser.add_argument("--period", "-d", type=int, default=30)
     parser.add_argument("--show-vacancies", "-v", action="store_true")
     parser.add_argument("--skip-details", "-s", action="store_true")
@@ -325,56 +336,72 @@ def main():
 
     # ------------------- Основной пайплайн -------------------
     # Stage 1: Данные
-    source = HhDataSource(args)
-    vacancies, parser = source.get_vacancies()
-    raw_file = None
-    if args.skip_collection:
-        raw_file = source._find_file()
+    _write_pipeline_progress(5, "Сбор вакансий с hh.ru...")
+    with timed_block("Stage1.data_collection"):
+        source = HhDataSource(args)
+        vacancies, parser = source.get_vacancies()
+        raw_file = None
+        if args.skip_collection:
+            raw_file = source._find_file()
 
+    _write_pipeline_progress(15, "Оценка качества и маркировка спама...")
     # Stage 1b: Качественная оценка и маркировка спама (без фильтрации)
-    scorer = VacancyQualityScorer()
-    spam_count = 0
-    scores = []
-    for v in vacancies:
-        s = scorer.score(v)
-        scores.append(s)
-        if s.is_spam:
-            spam_count += 1
-            reason = "; ".join(f.reason for f in s.flags)
-            if hasattr(v, "raw_data") and isinstance(v.raw_data, dict):
-                v.raw_data["is_spam"] = True
-                v.raw_data["spam_reason"] = reason
-    quality_report = scorer._build_report(scores, len(vacancies))
-    scorer.print_report(quality_report)
+    with timed_block("Stage1b.quality_scoring"):
+        scorer = VacancyQualityScorer()
+        spam_count = 0
+        scores = []
+        for v in vacancies:
+            s = scorer.score(v)
+            scores.append(s)
+            if s.is_spam:
+                spam_count += 1
+                reason = "; ".join(f.reason for f in s.flags)
+                if hasattr(v, "raw_data") and isinstance(v.raw_data, dict):
+                    v.raw_data["is_spam"] = True
+                    v.raw_data["spam_reason"] = reason
+        quality_report = scorer._build_report(scores, len(vacancies))
+        scorer.print_report(quality_report)
 
-    # пересохраняем JSON с пометками о спаме
-    from src.pipeline.helpers import save_detailed_vacancies
-    save_detailed_vacancies(vacancies, logger)
+        # пересохраняем JSON с пометками о спаме
+        from src.pipeline.helpers import save_detailed_vacancies
+        save_detailed_vacancies(vacancies, logger)
 
-    spam_path = config.DATA_RESULT_DIR / "spam_vacancies_report.json"
-    with open(spam_path, "w", encoding="utf-8") as f:
-        json.dump(quality_report, f, ensure_ascii=False, indent=2)
-    logger.info(
-        "spam_report_saved",
-        path=str(spam_path),
-        spam_count=quality_report["spam_count"],
-        clean_count=quality_report["clean_count"],
-        total=len(vacancies),
-    )
+        spam_path = config.DATA_RESULT_DIR / "spam_vacancies_report.json"
+        with open(spam_path, "w", encoding="utf-8") as f:
+            json.dump(quality_report, f, ensure_ascii=False, indent=2)
+        logger.info(
+            "spam_report_saved",
+            path=str(spam_path),
+            spam_count=quality_report["spam_count"],
+            clean_count=quality_report["clean_count"],
+            total=len(vacancies),
+        )
 
-    # Excel с информацией о спаме
-    if args.excel and vacancies:
-        df = parser.aggregate_to_dataframe(vacancies, quality_report)
-        excel_name = f"vacancies_{args.query.replace(' ', '_')}.xlsx"
-        parser.save_to_excel(df, excel_name)
+        # Excel с информацией о спаме (все вакансии)
+        if args.excel and vacancies:
+            df = parser.aggregate_to_dataframe(vacancies, quality_report)
+            excel_name = f"vacancies_{args.query.replace(' ', '_')}.xlsx"
+            parser.save_to_excel(df, excel_name)
 
     # Stage 2: Навыки
+    _write_pipeline_progress(25, "Извлечение навыков из вакансий...")
     extractor = SkillExtractor(args)
-    skill_freq, hybrid_weights_raw, trend_analyzer = extractor.extract(vacancies, parser, raw_file)
+    match extractor.extract(vacancies, parser, raw_file):
+        case Ok((skill_freq, hybrid_weights_raw, trend_analyzer)):
+            pass
+        case Err(err):
+            logger.error("skill_extraction_failed", error=str(err))
+            return
 
     # Stage 3: Очистка весов
+    _write_pipeline_progress(45, "Очистка весов навыков...")
     cleaner = WeightCleaner()
-    hybrid_weights = cleaner.clean(hybrid_weights_raw)
+    match cleaner.clean(hybrid_weights_raw):
+        case Ok(hybrid_weights):
+            pass
+        case Err(err):
+            logger.error("weight_cleaning_failed", error=str(err))
+            return
 
     # Сохраняем веса на диск для save_all_charts()
     skill_weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
@@ -383,8 +410,14 @@ def main():
     logger.info("skill_weights_saved", path=str(skill_weights_path), count=len(hybrid_weights))
 
     # Stage 4: Подготовка уровней
+    _write_pipeline_progress(60, "Построение уровней компетенций...")
     builder = LevelBuilder()
-    level_data, vacancies_skills = builder.build(vacancies, parser)
+    match builder.build(vacancies, parser):
+        case Ok((level_data, vacancies_skills)):
+            pass
+        case Err(err):
+            logger.error("level_building_failed", error=str(err))
+            return
 
     # Профили студентов
     competency_mapping = load_competency_mapping()
@@ -402,29 +435,29 @@ def main():
     # Stage 5: Gap-анализ и рекомендации
     evaluations = None
     if args.run_gap_analysis:
+        _write_pipeline_progress(75, "GAP-анализ и генерация рекомендаций...")
         console_header("GAP-АНАЛИЗ И ГЕНЕРАЦИЯ РЕКОМЕНДАЦИЙ")
-        try:
-            ctx = PipelineContext(
-                skill_freq=skill_freq,
-                hybrid_weights=hybrid_weights,
-                vacancies_skills=vacancies_skills,
-                level_vacancies_data=level_data,
-                trend_analyzer=trend_analyzer,
-            )
-            runner = GapRunner(profiles, ctx, args)
-            evaluations, recommendations = runner.run()
-            if recommendations:
-                print_recommendations(profiles, recommendations)
-                console_header("GAP-АНАЛИЗ УСПЕШНО ЗАВЕРШЁН")
-        except Exception as e:
-            logger.exception("gap_analysis_failed", error=str(e))
-            import traceback
-
-            traceback.print_exc()
-            return
+        ctx = PipelineContext(
+            skill_freq=skill_freq,
+            hybrid_weights=hybrid_weights,
+            vacancies_skills=vacancies_skills,
+            level_vacancies_data=level_data,
+            trend_analyzer=trend_analyzer,
+        )
+        runner = GapRunner(profiles, ctx, args)
+        match runner.run():
+            case Ok((evals, recs)):
+                evaluations = evals
+                if recs:
+                    print_recommendations(profiles, recs)
+                    console_header("GAP-АНАЛИЗ УСПЕШНО ЗАВЕРШЁН")
+            case Err(err):
+                logger.error("gap_analysis_failed", error=str(err))
+                return
 
     show_context_info()
 
+    _write_pipeline_progress(95, "Генерация графиков...")
     if evaluations:
         console_header("ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ")
         output_viz_dir = config.DATA_DIR / "result"

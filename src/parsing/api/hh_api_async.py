@@ -9,11 +9,13 @@ import aiohttp
 import structlog
 
 from src import config
+from src.errors import ApiError, RateLimitError, VacancyNotFoundError
 from src.models.hh_responses import (
     VacancyDetailResponse,
     parse_response,
 )
 from src.parsing.api.hh_api import HeadHunterAPI
+from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 
@@ -132,15 +134,15 @@ class HeadHunterAPIAsync:
             await asyncio.sleep(self.request_delay - elapsed)
         self.last_request_time = time.time()
 
-    async def _request(
+    async def _request_result(
         self,
         session: aiohttp.ClientSession,
         url: str,
         params: dict | None = None,
         retries: int = 0,
         max_retries: int = 5,
-    ) -> dict | None:
-        """Асинхронный GET-запрос с обработкой ошибок, exponential backoff и авторизацией."""
+    ) -> Result[dict, ApiError]:
+        """Асинхронный GET с Result[T, E] — все ошибки типизированы."""
         async with self.semaphore:
             await self._throttle()
 
@@ -150,66 +152,50 @@ class HeadHunterAPIAsync:
                 ) as resp:
                     if resp.status == 200:
                         self.stats["success"] += 1
-                        return await resp.json()
+                        return Ok(await resp.json())
 
-                    # 429 – Too Many Requests
                     if resp.status == 429:
                         self.stats["429_errors"] += 1
                         retry_after = int(resp.headers.get("Retry-After", 5))
                         logger.warning("rate_limited_async", retry_after=retry_after, attempt=retries + 1)
                         await asyncio.sleep(retry_after)
                         if retries < max_retries:
-                            return await self._request(session, url, params, retries + 1, max_retries)
+                            return await self._request_result(session, url, params, retries + 1, max_retries)
                         logger.error("max_retries_exceeded_async", url=url)
-                        return None
+                        return Err(RateLimitError(message="Max retries exceeded", endpoint=url, retry_after=retry_after))
 
-                    # 401 – токен истёк, обновим и попробуем ещё раз
                     if resp.status == 401:
                         if retries < 1:
                             logger.warning("http_401_refreshing_token_async")
                             await self._ensure_token()
-                            return await self._request(session, url, params, retries + 1, max_retries)
+                            return await self._request_result(session, url, params, retries + 1, max_retries)
                         logger.error("http_401_after_token_refresh_async")
-                        return None
+                        return Err(ApiError(message="Unauthorized after token refresh", status_code=401, endpoint=url))
 
-                    # 403 – нет прав
                     if resp.status == 403:
                         self.stats["403_errors"] += 1
-                        try:
-                            vacancy_id = url.rstrip("/").split("/")[-1]
-                            logger.debug("vacancy_403_forbidden_async", vacancy_id=vacancy_id)
-                        except Exception:
-                            logger.debug("http_403_forbidden_async", url=url)
-                        return None
+                        return Err(ApiError(message="Forbidden", status_code=403, endpoint=url))
 
-                    # 404 – не найдено
                     if resp.status == 404:
                         self.stats["404_errors"] += 1
                         logger.debug("http_404_async", url=url)
-                        return None
+                        return Err(VacancyNotFoundError(message=f"Not found: {url}", detail=url))
 
-                    # 5xx – временная ошибка сервера, стоит повторить
                     if resp.status >= 500:
                         self.stats["other_errors"] += 1
                         if retries < max_retries:
-                            backoff = min(2**retries, 30)  # экспоненциальная задержка
-                            jitter = random.uniform(0, 0.5)  # небольшой разброс
+                            backoff = min(2**retries, 30)
+                            jitter = random.uniform(0, 0.5)
                             wait_time = backoff + jitter
-                            logger.warning(
-                                "http_server_error_async",
-                                status=resp.status,
-                                attempt=retries + 1,
-                                wait=round(wait_time, 2),
-                            )
+                            logger.warning("http_server_error_async", status=resp.status, attempt=retries + 1, wait=round(wait_time, 2))
                             await asyncio.sleep(wait_time)
-                            return await self._request(session, url, params, retries + 1, max_retries)
+                            return await self._request_result(session, url, params, retries + 1, max_retries)
                         logger.error("max_retries_exceeded_async", url=url, status=resp.status)
-                        return None
+                        return Err(ApiError(message=f"Server error {resp.status} max retries", status_code=resp.status, endpoint=url))
 
-                    # Неизвестный статус
                     self.stats["other_errors"] += 1
                     logger.warning("http_unexpected_status_async", status=resp.status, url=url)
-                    return None
+                    return Err(ApiError(message=f"Unexpected status {resp.status}", status_code=resp.status, endpoint=url))
 
             except TimeoutError:
                 self.stats["timeouts"] += 1
@@ -219,17 +205,28 @@ class HeadHunterAPIAsync:
                     wait_time = backoff + jitter
                     logger.warning("http_timeout_async", url=url, attempt=retries + 1, wait=round(wait_time, 2))
                     await asyncio.sleep(wait_time)
-                    return await self._request(session, url, params, retries + 1, max_retries)
+                    return await self._request_result(session, url, params, retries + 1, max_retries)
                 logger.error("max_timeout_retries_exceeded", url=url)
-                return None
+                return Err(ApiError(message=f"Timeout max retries: {url}", endpoint=url))
             except aiohttp.ClientError as e:
                 self.stats["other_errors"] += 1
                 logger.error("http_client_error_async", error=str(e))
-                return None
+                return Err(ApiError(message=str(e), endpoint=url))
             except Exception as e:
                 self.stats["other_errors"] += 1
                 logger.error("http_unexpected_exception_async", error=str(e))
-                return None
+                return Err(ApiError(message=str(e), endpoint=url))
+
+    async def _request(
+        self,
+        session: aiohttp.ClientSession,
+        url: str,
+        params: dict | None = None,
+        retries: int = 0,
+        max_retries: int = 5,
+    ) -> dict | None:
+        """Legacy: обёртка над _request_result для обратной совместимости."""
+        return (await self._request_result(session, url, params, retries, max_retries)).ok()
 
     async def get_vacancy_details_async(self, session: aiohttp.ClientSession, vacancy_id: str) -> dict | None:
         """Получение деталей одной вакансии асинхронно."""

@@ -17,7 +17,15 @@ from sklearn.metrics import mean_absolute_error, ndcg_score, r2_score
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split
 
-from src import config
+from src import (
+    ModelError,
+    ModelNotFoundError,
+    ModelTrainingError,
+    Ok,
+    Err,
+    Result,
+    config,
+)
 from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 from src.artifacts import ArtifactManifest
@@ -80,11 +88,13 @@ class LTRRecommendationEngine:
     # ОБУЧЕНИЕ
     # ------------------------------------------------------------------
 
-    def fit(self, vacancies: list[dict]) -> "LTRRecommendationEngine":
+    def fit(self, vacancies: list[dict]) -> Result["LTRRecommendationEngine", ModelError]:
         if len(vacancies) < 50:
             logger.warning("insufficient_vacancies_for_training")
-            self.is_fitted = False
-            return self
+            return Err(ModelTrainingError(
+                message="Недостаточно вакансий для обучения",
+                n_samples=len(vacancies),
+            ))
 
         logger.info("ltr_training_started", vacancies=len(vacancies))
         np.random.seed(config.GLOBAL_RANDOM_SEED)
@@ -102,8 +112,10 @@ class LTRRecommendationEngine:
         all_skills = list(frequencies.keys())
         if len(all_skills) < 5:
             logger.error("too_few_skills_for_training")
-            self.is_fitted = False
-            return self
+            return Err(ModelTrainingError(
+                message="Слишком мало навыков для обучения LTR-модели",
+                n_samples=len(all_skills),
+            ))
 
         embeddings = self.embedding_model.encode(all_skills, convert_to_numpy=True, show_progress_bar=True)
         self.skill_embeddings = {skill: emb for skill, emb in zip(all_skills, embeddings, strict=False)}
@@ -236,7 +248,7 @@ class LTRRecommendationEngine:
             "mae": round(mae, 4),
             "ndcg": round(ndcg, 4) if not np.isnan(ndcg) else 0.0,
         }
-        return self
+        return Ok(self)
 
     # ------------------------------------------------------------------
     # ПРИЗНАКИ
@@ -479,11 +491,15 @@ class LTRRecommendationEngine:
 
         return f"{skill}: важность {score * 100:.1f}% (частота {freq}, уровень {level})"
 
-    def load_model(self, path: Path | None = None) -> "LTRRecommendationEngine":
+    def load_model(self, path: Path | None = None) -> Result["LTRRecommendationEngine", ModelError]:
         model_path = path or self.model_path
         if not model_path.exists():
             logger.error("model_file_not_found", path=str(model_path))
-            return self
+            return Err(ModelNotFoundError(
+                message="Файл LTR-модели не найден",
+                model_name="ltr_ranker_xgb_regressor",
+                path=str(model_path),
+            ))
 
         # Проверка манифеста модели
         manifest_path = model_path.with_suffix(".manifest.json")
@@ -504,7 +520,15 @@ class LTRRecommendationEngine:
         else:
             logger.info("ltr_manifest_not_found_skipping_check", path=str(model_path))
 
-        data = joblib.load(model_path)
+        try:
+            data = joblib.load(model_path)
+        except Exception as e:
+            logger.error("model_load_failed", error=str(e))
+            return Err(ModelError(
+                message=f"Ошибка загрузки LTR-модели: {e}",
+                model_name="ltr_ranker_xgb_regressor",
+            ))
+
         self.model = data["model"]
         self.feature_names = data["feature_names"]
         self.skill_metadata = data["skill_metadata"]
@@ -520,7 +544,7 @@ class LTRRecommendationEngine:
             skills=len(self.skill_metadata),
             corpus_size=len(self.vacancy_skills_corpus),
         )
-        return self
+        return Ok(self)
 
 
 # ------------------------------------------------------------------
@@ -570,9 +594,19 @@ if __name__ == "__main__":
                     "description": "Senior Python dev",
                 },
             ]
-        engine.fit(vacancies)
+        match engine.fit(vacancies):
+            case Ok(_):
+                logger.info("ltr_training_successful")
+            case Err(err):
+                logger.error("ltr_training_failed", error=str(err))
+                sys.exit(1)
     else:
-        engine.load_model()
+        match engine.load_model():
+            case Ok(_):
+                logger.info("ltr_model_loaded_successfully")
+            case Err(err):
+                logger.error("ltr_model_load_failed", error=str(err))
+                sys.exit(1)
 
     student_file = config.STUDENTS_DIR / f"{args.student}_competency.json"
     student_skills: list[str] = []

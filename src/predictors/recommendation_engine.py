@@ -9,7 +9,7 @@ import requests
 import structlog
 from sklearn.preprocessing import MinMaxScaler
 
-from src import config
+from src import Err, Ok, config
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.gap.gap_analyzer import GapAnalyzer
 from src.analyzers.skills.skill_filter import SkillFilter
@@ -49,12 +49,12 @@ class RecommendationEngine:
             self.ltr_engine = LTRRecommendationEngine()
             model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
             if model_path.exists():
-                try:
-                    self.ltr_engine.load_model(model_path)
-                    logger.info("ltr_model_loaded")
-                except Exception as e:
-                    logger.warning("ltr_model_load_failed", error=str(e))
-                    self.ltr_engine = None
+                match self.ltr_engine.load_model(model_path):
+                    case Ok(_):
+                        logger.info("ltr_model_loaded")
+                    case Err(err):
+                        logger.warning("ltr_model_load_failed", error=str(err))
+                        self.ltr_engine = None
 
         self.cluster_weights = None
 
