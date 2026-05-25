@@ -9,6 +9,7 @@ interface PipelineStep {
   status: "running" | "success" | "error" | "completed";
   message: string;
   progress: number;
+  subProgress?: number;
   maxPages?: number;
   periodDays?: number;
 }
@@ -35,17 +36,28 @@ export function PipelineProgress({ currentStep }: PipelineProgressProps) {
   }, [elapsed]);
 
   const progressPct = currentStep?.progress ?? 0;
+  const subPct = currentStep?.subProgress ?? 0;
   const estimatedText = useMemo(() => {
-    if (progressPct <= 0) return null;
-    const pct = progressPct / 100;
-    const total = Math.round(elapsed / pct);
-    const remaining = Math.max(0, total - elapsed);
+    if (progressPct <= 0 || elapsed < 10) return null;
+    if (subPct > 0 && subPct >= 5) {
+      const rate = Math.max(subPct, 5) / elapsed;
+      const rem = Math.max(0, (100 - subPct) / rate);
+      if (rem < 10) return null;
+      if (rem > 3600) return null;
+      if (rem < 60) return `~${Math.round(rem)} сек`;
+      return `~${Math.floor(rem / 60)} мин ${Math.round(rem % 60)} сек`;
+    }
+    const STEP_ESTIMATES: Record<number, number> = {
+      1: 180, 2: 120, 3: 180, 4: 300,
+    };
+    const estimate = STEP_ESTIMATES[currentStep?.step ?? 1] ?? 180;
+    const remaining = Math.max(0, estimate - elapsed);
     if (remaining < 15) return null;
     if (remaining < 60) return `~${remaining} сек`;
     const m = Math.floor(remaining / 60);
     const s = remaining % 60;
     return `~${m} мин ${s} сек`;
-  }, [elapsed, progressPct]);
+  }, [elapsed, progressPct, currentStep?.step, subPct]);
 
   if (!currentStep) return null;
 
@@ -76,6 +88,8 @@ export function PipelineProgress({ currentStep }: PipelineProgressProps) {
         return "bg-gray-400";
     }
   };
+
+  const showSubBar = subPct > 0 && currentStep.status === "running";
 
   return (
     <motion.div
@@ -111,7 +125,7 @@ export function PipelineProgress({ currentStep }: PipelineProgressProps) {
             </div>
           </div>
 
-          {/* Progress Bar */}
+          {/* Progress Bars */}
           <div className="space-y-3">
             <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
               <motion.div
@@ -121,6 +135,20 @@ export function PipelineProgress({ currentStep }: PipelineProgressProps) {
                 transition={{ duration: 0.5, ease: "easeOut" }}
               />
             </div>
+
+            {showSubBar && (
+              <div className="space-y-1">
+                <div className="relative h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <motion.div
+                    className="absolute inset-y-0 left-0 bg-blue-400 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${subPct}%` }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  />
+                </div>
+                <p className="text-xs text-gray-400 text-right">{subPct}%</p>
+              </div>
+            )}
 
             {/* Steps Indicator */}
             <div className="flex justify-between items-center pt-2">
