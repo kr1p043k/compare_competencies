@@ -30,9 +30,10 @@ market_embeddings_senior.pkl
 market_embeddings_middle.pkl
 market_embeddings_junior.pkl
 data/it_skills.backup.json
-data/result/hh_vacancies_detailed.json
 data/raw/
+*.xlsx
+*.xslx
 .pre-commit-cache/
 .ruff_cache/
-data/result/test
 data/.hh_token_cache.json
+.mypy_cache/
