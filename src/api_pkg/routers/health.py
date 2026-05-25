@@ -1,0 +1,157 @@
+"""Health, readiness, status, regions и логи."""
+
+import json
+import os
+import time
+from datetime import datetime
+from pathlib import Path
+
+import structlog
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
+from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
+from src.analyzers.skills.trends import TrendAnalyzer
+from src.models.api_responses import (
+    HealthResponse,
+    ReadyResponse,
+    RegionsResponse,
+    StatusResponse,
+)
+from src.models.enums import ExperienceLevel
+from src.models.student import StudentProfile
+from src.predictors.recommendation_engine import RecommendationEngine
+
+from src.api_pkg import deps
+
+logger = structlog.get_logger("api")
+
+router = APIRouter(tags=["monitoring"])
+
+limiter = Limiter(key_func=get_remote_address)
+
+
+class LogEntry(BaseModel):
+    level: str = "info"
+    message: str
+    data: dict | None = None
+    timestamp: str | None = None
+
+
+_LOG_FILE = Path(__file__).parent.parent.parent.parent / "frontend" / "logs" / "app.log"
+
+
+@router.post("/api/log")
+async def write_log(entry: LogEntry):
+    _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(
+        {
+            "time": entry.timestamp or datetime.now().isoformat(),
+            "level": entry.level,
+            "message": entry.message,
+            "data": entry.data,
+        },
+        ensure_ascii=False,
+    )
+    try:
+        with open(_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+    return {"ok": True}
+
+
+@router.get("/health", response_model=HealthResponse)
+@router.get("/api/health", response_model=HealthResponse)
+async def health_check():
+    return {
+        "status": "ok",
+        "version": "2.0",
+        "evaluator": deps.evaluator is not None,
+        "recommendation_engine": deps.recommendation_engine is not None,
+    }
+
+
+@router.get("/ready", response_model=ReadyResponse)
+async def ready_check():
+    """Проверка готовности всех компонентов."""
+    components = {
+        "evaluator": deps.evaluator is not None,
+        "recommendation_engine": deps.recommendation_engine is not None
+        and deps.recommendation_engine.is_fitted,
+        "clusterer": deps.clusterer.is_fitted,
+        "trend_analyzer": deps.trend_analyzer is not None,
+    }
+    ready = all(components.values())
+    status = "ready" if ready else "not ready"
+    return {"status": status, "components": components}
+
+
+@router.get("/api/status", response_model=StatusResponse)
+async def get_status(
+    profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
+    clusterer_instance: VacancyClusterer = Depends(deps.get_clusterer),
+    trend_analyzer_instance: TrendAnalyzer = Depends(deps.get_trend_analyzer),
+    engine: RecommendationEngine = Depends(deps.get_recommendation_engine),
+    taxonomy_instance: SkillTaxonomy | None = Depends(deps.get_taxonomy),
+    weights: dict[str, float] = Depends(deps.get_skill_weights),
+):
+    return {
+        "vacancies_loaded": len(deps.basic_vacancies) > 0,
+        "skill_weights_count": len(weights),
+        "taxonomy_loaded": taxonomy_instance is not None,
+        "whitelist_size": len(deps.current_skills_set),
+        "profiles_available": list(profiles.keys()),
+        "clusters": {
+            lvl: clusterer_instance.load_model(lvl) and clusterer_instance.is_fitted
+            for lvl in ExperienceLevel
+        },
+        "trends_available": trend_analyzer_instance is not None,
+        "recommendation_engine_ready": engine is not None and engine.is_fitted,
+    }
+
+
+@router.get("/api/regions", response_model=RegionsResponse)
+@limiter.limit("60/minute")
+async def get_regions(
+    request: Request,
+    vacancies: list = Depends(deps.get_basic_vacancies),
+):
+    """Возвращает список всех доступных регионов/городов из загруженных вакансий"""
+    current_time = time.time()
+    if deps._regions_cache and (current_time - deps._regions_cache_time) < 300:
+        return RegionsResponse(
+            regions=deps._regions_cache,
+            total=len(deps._regions_cache),
+            default="Все регионы",
+        )
+
+    try:
+        regions_set = set()
+        for vac in vacancies:
+            if isinstance(vac.get("area"), dict):
+                area_name = vac["area"].get("name")
+                if area_name:
+                    regions_set.add(area_name)
+            region = vac.get("region") or vac.get("area_name")
+            if isinstance(region, str) and region:
+                regions_set.add(region)
+
+        regions_list = sorted({r.strip() for r in regions_set if r and str(r).strip()})
+        deps._regions_cache = regions_list
+        deps._regions_cache_time = current_time
+
+        return RegionsResponse(
+            regions=regions_list,
+            total=len(regions_list),
+            default="Все регионы",
+        )
+
+    except Exception as e:
+        logger.error("Ошибка при получении регионов", error=str(e))
+        raise HTTPException(
+            status_code=500, detail="Не удалось извлечь список регионов"
+        )

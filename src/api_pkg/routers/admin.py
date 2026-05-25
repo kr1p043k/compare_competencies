@@ -1,0 +1,287 @@
+"""Admin: whitelist management, student profiles, pipeline, Excel export."""
+
+import json
+import shutil
+from datetime import datetime
+from typing import Any
+
+import structlog
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+from src import config
+from src.parsing.utils import load_it_skills
+
+from src.api_pkg import deps
+
+logger = structlog.get_logger("api")
+
+router = APIRouter(tags=["admin"])
+limiter = Limiter(key_func=get_remote_address)
+
+
+class WhitelistAddRequest(BaseModel):
+    skills: list[str]
+
+
+class WhitelistRemoveRequest(BaseModel):
+    skills: list[str]
+
+
+class WhitelistBackupResponse(BaseModel):
+    status: str
+    message: str
+    backup_path: str | None = None
+    total_skills: int = 0
+
+
+IT_SKILLS_PATH = config.DATA_DIR / "reference" / "it_skills.json"
+
+
+def _load_whitelist() -> list[str]:
+    return sorted(load_it_skills())
+
+
+def _save_whitelist(skills: list[str]):
+    IT_SKILLS_PATH.write_text(
+        json.dumps(sorted(set(skills)), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    deps.current_skills_set = set(skills)
+
+
+# ---------- Whitelist ----------
+
+
+@router.get("/api/admin/whitelist")
+@limiter.limit("30/minute")
+async def get_whitelist(request: Request):
+    skills = _load_whitelist()
+    return {"skills": skills, "total": len(skills)}
+
+
+@router.post("/api/admin/whitelist/add")
+@limiter.limit("10/minute")
+async def whitelist_add(request: Request, body: WhitelistAddRequest):
+    current = set(_load_whitelist())
+    before = len(current)
+    current.update(body.skills)
+    if len(current) == before:
+        return {
+            "status": "ok",
+            "message": "No new skills to add",
+            "added": 0,
+            "total": len(current),
+        }
+    _save_whitelist(list(current))
+    logger.info("Whitelist extended", added=len(current) - before, total=len(current))
+    return {
+        "status": "ok",
+        "message": f"Added {len(current) - before} skills",
+        "added": len(current) - before,
+        "total": len(current),
+    }
+
+
+@router.post("/api/admin/whitelist/remove")
+@limiter.limit("10/minute")
+async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
+    current = set(_load_whitelist())
+    before = len(current)
+    current -= set(body.skills)
+    if len(current) == before:
+        return {
+            "status": "ok",
+            "message": "No skills removed",
+            "removed": 0,
+            "total": len(current),
+        }
+    _save_whitelist(list(current))
+    logger.info("Whitelist trimmed", removed=before - len(current), total=len(current))
+    return {
+        "status": "ok",
+        "message": f"Removed {before - len(current)} skills",
+        "removed": before - len(current),
+        "total": len(current),
+    }
+
+
+@router.post("/api/admin/whitelist/backup", response_model=WhitelistBackupResponse)
+@limiter.limit("5/minute")
+async def whitelist_backup(request: Request):
+    backup_dir = config.DATA_DIR / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = backup_dir / f"it_skills_backup_{ts}.json"
+    shutil.copy2(IT_SKILLS_PATH, backup_path)
+    skills = _load_whitelist()
+    return WhitelistBackupResponse(
+        status="ok",
+        message=f"Backup saved to {backup_path.name}",
+        backup_path=str(backup_path),
+        total_skills=len(skills),
+    )
+
+
+# ---------- Student profiles ----------
+
+
+@router.get("/api/admin/students")
+@limiter.limit("30/minute")
+async def list_students(request: Request):
+    students_dir = config.DATA_DIR / "students"
+    if not students_dir.exists():
+        return {"students": [], "total": 0}
+    files = sorted(students_dir.iterdir())
+    students = []
+    for f in files:
+        if f.suffix in (".json",):
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+                skills = (
+                    data.get("competencias_actuales")
+                    or data.get("навыки")
+                    or data.get("skills")
+                    or []
+                )
+                students.append(
+                    {
+                        "filename": f.name,
+                        "skills_count": len(skills) if isinstance(skills, list) else 0,
+                        "modified": datetime.fromtimestamp(
+                            f.stat().st_mtime
+                        ).isoformat(),
+                    }
+                )
+            except Exception:
+                students.append({"filename": f.name, "skills_count": 0, "modified": ""})
+    return {"students": students, "total": len(students)}
+
+
+# ---------- Pipeline trigger ----------
+
+
+class PipelineTriggerRequest(BaseModel):
+    action: str = "full-cycle"
+    regions: str = "0"
+    skip_collection: bool = False
+    run_gap_analysis: bool = True
+
+
+@router.post("/api/admin/pipeline/trigger")
+@limiter.limit("2/minute")
+async def admin_trigger_pipeline(
+    request: Request, body: PipelineTriggerRequest, background_tasks: BackgroundTasks
+):
+    from src.api_pkg.routers.pipeline import PipelineAction, run_pipeline_task
+
+    action_map = {
+        "full-cycle": PipelineAction.FULL_CYCLE,
+        "rebuild": PipelineAction.REBUILD,
+        "train-clusters": PipelineAction.TRAIN_CLUSTERS,
+        "train-model": PipelineAction.TRAIN_MODEL,
+        "gap-analysis": PipelineAction.GAP_ANALYSIS,
+    }
+    action = action_map.get(body.action)
+    if not action:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown action: {body.action}. Valid: {', '.join(action_map.keys())}",
+        )
+    task_id = f"{action.value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    background_tasks.add_task(
+        run_pipeline_task,
+        action,
+        task_id,
+        skip_collection=body.skip_collection,
+        run_gap_analysis=body.run_gap_analysis,
+        regions=body.regions,
+    )
+    return {
+        "status": "started",
+        "task_id": task_id,
+        "check_url": f"/api/pipeline/task/{task_id}",
+    }
+
+
+# ---------- Excel export ----------
+
+
+def _format_experience(exp: Any) -> str:
+    if isinstance(exp, dict):
+        eid = exp.get("id", "")
+        ename = exp.get("name", "")
+        if eid == "noExperience":
+            return "не требуется"
+        return f"требуется: {ename}"
+    if isinstance(exp, str):
+        return exp
+    return ""
+
+
+@router.get("/api/admin/export/excel")
+@limiter.limit("3/minute")
+async def export_excel(request: Request):
+    import json
+    import pandas as pd
+
+    detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
+    basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+    raw_file = detailed_file if detailed_file.exists() else basic_file
+    if not raw_file.exists():
+        raise HTTPException(status_code=404, detail="No vacancy data found")
+
+    with open(raw_file, encoding="utf-8") as f:
+        vacancies = json.load(f)
+
+    rows = []
+    for vac in vacancies:
+        name = vac.get("name", "")
+        employer = vac.get("employer", {})
+        employer_name = employer.get("name", "") if isinstance(employer, dict) else ""
+        area = vac.get("area", {})
+        area_name = area.get("name", "") if isinstance(area, dict) else ""
+        salary = vac.get("salary") or {}
+        salary_from = salary.get("from") if isinstance(salary, dict) else None
+        salary_to = salary.get("to") if isinstance(salary, dict) else None
+        skills = vac.get("extracted_skills", []) or vac.get("key_skills", [])
+        if isinstance(skills, list):
+            skill_names = [s.get("name", str(s)) if isinstance(s, dict) else str(s) for s in skills if s]
+            skills_str = ", ".join(skill_names[:15])
+        else:
+            skills_str = ""
+
+        exp_text = _format_experience(vac.get("experience"))
+        vid = str(vac.get("id", ""))
+        is_spam_flag = vac.get("is_spam", False)
+        spam_reason = vac.get("spam_reason", "") or ""
+        is_spam = "Да" if is_spam_flag else "Нет"
+
+        rows.append({
+            "ID": vid,
+            "Название": name,
+            "Работодатель": employer_name,
+            "Город": area_name,
+            "Зарплата от": salary_from,
+            "Зарплата до": salary_to,
+            "Опыт": exp_text,
+            "Спам": is_spam,
+            "Причина спама": spam_reason,
+            "Навыки": skills_str,
+            "Ссылка": vac.get("alternate_url", ""),
+        })
+
+    df = pd.DataFrame(rows)
+    excel_path = config.DATA_DIR / "result" / "vacancies_export.xlsx"
+    df.to_excel(excel_path, index=False, engine="openpyxl")
+
+    if not excel_path.exists():
+        raise HTTPException(status_code=500, detail="Excel export failed")
+
+    return FileResponse(
+        str(excel_path),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="vacancies_export.xlsx",
+    )
