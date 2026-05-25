@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Label } from "./components/ui/label";
 import {
   Card,
   CardContent,
@@ -7,7 +8,6 @@ import {
   CardTitle,
 } from "./components/ui/card";
 import { Button } from "./components/ui/button";
-import { Label } from "./components/ui/label";
 import {
   Select,
   SelectContent,
@@ -16,80 +16,130 @@ import {
   SelectValue,
 } from "./components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
-import { Badge } from "./components/ui/badge";
-import { RegionCombobox } from "./components/RegionCombobox";
 import { GapAnalysisVisualizer } from "./components/GapAnalysisVisualizer";
 import { Footer } from "./components/Footer";
 import { VacanciesList } from "./components/VacanciesList";
-import { PipelineProgress } from "./components/PipelineProgress";
 import { AnalysisTab } from "./components/AnalysisTab";
+import { PipelineProgress } from "./components/PipelineProgress";
+import { DataViewer } from "./components/DataViewer";
+import { RecommendationsReport } from "./components/RecommendationsReport";
+import { initApiLogger } from "../lib/logger";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Database,
   Sparkles,
   FileText,
-  Loader2,
   BarChart3,
   Zap,
   Award,
   Briefcase,
-  Rocket,
   TrendingUp,
   Target,
-  LogIn,
-  User,
+  Info,
+  AlertCircle,
 } from "lucide-react";
-
-const REGIONS = [
-  { id: 0, name: "Вся Россия" },
-  { id: 1, name: "Москва" },
-  { id: 2, name: "Санкт-Петербург" },
-  { id: 3, name: "Екатеринбург" },
-  { id: 4, name: "Новосибирск" },
-  { id: 5, name: "Нижний Новгород" },
-  { id: 6, name: "Казань" },
-  { id: 7, name: "Самара" },
-  { id: 8, name: "Ростов-на-Дону" },
-  { id: 9, name: "Уфа" },
-  { id: 10, name: "Красноярск" },
-];
 
 const API = "/api";
 
+interface PipelineStep {
+  step: number;
+  total: number;
+  status: "running" | "success" | "error" | "completed";
+  message: string;
+  progress: number;
+  maxPages?: number;
+  periodDays?: number;
+}
+
 export default function App() {
-  const [regions, setRegions] = useState("0");
+  useEffect(() => { initApiLogger(); }, []);
   const [profile, setProfile] = useState("base");
   const [status, setStatus] = useState<{
     type: "success" | "error" | "info" | null;
     message: string;
   }>({ type: null, message: "" });
   const [loading, setLoading] = useState(false);
-  const [pipelineStep, setPipelineStep] = useState<{
-    step: number;
-    total: number;
-    status: "running" | "success" | "error" | "completed";
-    message: string;
-    progress: number;
-  } | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userName, setUserName] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<any>(null);
+  const [analysisData, setAnalysisData] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState("vacancies");
+
+  const handleProfileChange = (newProfile: string) => {
+    setProfile(newProfile);
+    setLastResult(null);
+    setAnalysisData(null);
+  };
+  const [pipelineStep, setPipelineStep] = useState<PipelineStep | null>(null);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
+  const [pipelineQuery, setPipelineQuery] = useState("");
+  const [pipelineRegions, setPipelineRegions] = useState("");
+  const [pipelineMaxPages, setPipelineMaxPages] = useState(20);
+  const [pipelinePeriod, setPipelinePeriod] = useState(30);
+  const pipelineTaskRef = useRef<string | null>(null);
+  const pipelineLoadingRef = useRef(false);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const startPipeline = (regionIds: string, profession: string, maxPages?: number, periodDays?: number) => {
+    if (pipelineTaskRef.current || pipelineLoadingRef.current) return;
+    pipelineLoadingRef.current = true;
+    setPipelineLoading(true);
+    setPipelineQuery(profession);
+    setPipelineRegions(regionIds);
+    const mp = maxPages || 20;
+    const pd = periodDays || 30;
+    setPipelineMaxPages(mp);
+    setPipelinePeriod(pd);
+    setPipelineStep({ step: 1, total: 4, status: "running", message: "Запуск сбора...", progress: 5, maxPages: mp, periodDays: pd });
+    const params = new URLSearchParams({ regions: regionIds, max_pages: String(mp), period: String(pd) });
+    if (profession) params.set("query", profession);
+    fetch(`/api/pipeline/full-cycle?${params}`, { method: "POST" })
+      .then(r => r.ok ? r.json() : Promise.reject("Не удалось запустить"))
+      .then(data => {
+        const m = data.output?.match(/Task ID: (\S+?)\.?\s/);
+        if (!m) throw new Error("Не получен ID задачи");
+        pipelineTaskRef.current = m[1];
+        pollTimerRef.current = setTimeout(pollPipeline, 1000);
+      })
+      .catch(e => {
+        setPipelineStep({ step: 0, total: 1, status: "error", message: String(e), progress: 0 });
+        setPipelineLoading(false);
+        pipelineLoadingRef.current = false;
+      });
+  };
+
+  const pollPipeline = () => {
+    const taskId = pipelineTaskRef.current;
+    if (!taskId) { setPipelineLoading(false); pipelineLoadingRef.current = false; return; }
+    fetch(`/api/pipeline/task/${taskId}`)
+      .then(r => r.ok ? r.json() : Promise.reject("Ошибка статуса"))
+      .then(s => {
+        const step = Math.min(s.step || 1, 4);
+        setPipelineStep({
+          step,
+          total: 4,
+          status: s.status === "completed" ? "completed" : s.status === "failed" ? "error" : "running",
+          message: s.message || "Выполняется...",
+          progress: s.status === "completed" ? 100 : Math.min(step * 25, 95),
+        });
+        if (s.status === "completed" || s.status === "failed") {
+          setPipelineLoading(false);
+          pipelineTaskRef.current = null;
+          pipelineLoadingRef.current = false;
+          return;
+        }
+        pollTimerRef.current = setTimeout(pollPipeline, 3000);
+      })
+      .catch(() => {
+        setPipelineLoading(false);
+        pipelineTaskRef.current = null;
+        pipelineLoadingRef.current = false;
+      });
+  };
+
+  useEffect(() => () => { if (pollTimerRef.current) clearTimeout(pollTimerRef.current); }, []);
 
   function showStatus(type: "success" | "error" | "info", message: string) {
     setStatus({ type, message });
     setTimeout(() => setStatus({ type: null, message: "" }), 5000);
-  }
-
-  function handleSSOLogin() {
-    // Заглушка для SSO ЮФУ
-    showStatus("info", "SSO аутентификация ЮФУ находится в разработке");
-    // В будущем здесь будет редирект на SSO:
-    // window.location.href = "https://sso.sfedu.ru/oauth/authorize?...";
-  }
-
-  function handleLogout() {
-    setIsAuthenticated(false);
-    setUserName(null);
-    showStatus("info", "Вы вышли из системы");
   }
 
   async function apiCall(endpoint: string, method = "GET", body: any = null) {
@@ -103,6 +153,7 @@ export default function App() {
       if (body) opts.body = JSON.stringify(body);
       const res = await fetch(`${API}${endpoint}`, opts);
       const data = await res.json();
+      setLastResult(data);
       showStatus(
         res.ok ? "success" : "error",
         res.ok ? "✓ Готово" : "✗ Ошибка"
@@ -119,8 +170,9 @@ export default function App() {
     apiCall(`/profiles/${profile}`);
   }
 
-  function loadRecommendations() {
-    apiCall(`/results/recommendations/${profile}`);
+  async function loadRecommendations() {
+    const data = await apiCall(`/results/recommendations/${profile}`);
+    if (data) setAnalysisData(data);
   }
 
   function loadMarket() {
@@ -131,61 +183,17 @@ export default function App() {
     apiCall("/results/summary");
   }
 
-  function loadHealth() {
-    apiCall("/health");
-  }
-
-  async function runPipelineWithProgress() {
+  async function loadHealth() {
     try {
       setLoading(true);
-      setPipelineStep(null);
-
-      const params = new URLSearchParams({ regions });
-
-      const response = await fetch(`${API}/pipeline/full-cycle?${params}`, {
-        method: "POST",
-        headers: {
-          Accept: "text/event-stream",
-        },
-      });
-
-      if (!response.ok || !response.body) {
-        showStatus("error", "Не удалось запустить пайплайн");
-        setLoading(false);
-        return;
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const jsonStr = line.slice(6);
-            try {
-              const data = JSON.parse(jsonStr);
-              setPipelineStep(data);
-
-              if (data.status === "completed") {
-                showStatus("success", "Пайплайн завершен!");
-                setTimeout(() => window.location.reload(), 2000);
-              } else if (data.status === "error") {
-                showStatus("error", "Ошибка выполнения пайплайна");
-              }
-            } catch (e) {
-              console.error("Failed to parse SSE data:", e);
-            }
-          }
-        }
-      }
+      showStatus("info", "Выполнение...");
+      const res = await fetch("/health");
+      const data = await res.json();
+      setLastResult(data);
+      showStatus(res.ok ? "success" : "error", res.ok ? "✓ Готово" : `✗ ${data.detail || "Ошибка"}`);
+      return data;
     } catch (e: any) {
-      showStatus("error", `Ошибка: ${e.message}`);
+      showStatus("error", `✗ ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -211,34 +219,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Auth Button */}
-            <div>
-              {isAuthenticated ? (
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg">
-                    <User className="size-4 text-gray-600" />
-                    <span className="text-sm font-medium text-gray-900">
-                      {userName || "Студент ЮФУ"}
-                    </span>
-                  </div>
-                  <Button
-                    onClick={handleLogout}
-                    variant="outline"
-                    className="border-gray-300"
-                  >
-                    Выйти
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  onClick={handleSSOLogin}
-                  className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                >
-                  <LogIn className="size-4 mr-2" />
-                  Войти в профиль ЮФУ
-                </Button>
-              )}
-            </div>
+
           </div>
         </div>
       </header>
@@ -270,7 +251,7 @@ export default function App() {
         </AnimatePresence>
 
         {/* Tabs */}
-        <Tabs defaultValue="vacancies" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="inline-flex h-12 items-center justify-center rounded-lg bg-gray-100 p-1">
             <TabsTrigger
               value="vacancies"
@@ -294,13 +275,6 @@ export default function App() {
               Визуализация
             </TabsTrigger>
             <TabsTrigger
-              value="pipeline"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
-            >
-              <Zap className="size-4" />
-              Пайплайн
-            </TabsTrigger>
-            <TabsTrigger
               value="analysis"
               className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
             >
@@ -309,93 +283,22 @@ export default function App() {
             </TabsTrigger>
           </TabsList>
 
+          {/* Pipeline progress (above tabs, persists across tab switches) */}
+          {pipelineStep && (
+            <div className="mb-4">
+              <PipelineProgress currentStep={pipelineStep} />
+            </div>
+          )}
+
           {/* Vacancies Tab */}
           <TabsContent value="vacancies">
-            <VacanciesList />
-          </TabsContent>
-
-          {/* Pipeline Tab */}
-          <TabsContent value="pipeline" className="space-y-6">
-            {pipelineStep && <PipelineProgress currentStep={pipelineStep} />}
-
-            <Card className="border border-gray-200 shadow-sm">
-              <CardHeader className="border-b border-gray-200 bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-lg">
-                    <Rocket className="size-5 text-white" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl font-semibold text-gray-900">
-                      Пайплайн анализа
-                    </CardTitle>
-                    <CardDescription className="text-sm text-gray-600">
-                      Полный цикл сбора данных и ML-анализа
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-6 space-y-6">
-                {/* Region selector */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-900">
-                    Регион сбора вакансий
-                  </Label>
-                  <RegionCombobox
-                    regions={REGIONS}
-                    value={regions}
-                    onChange={setRegions}
-                  />
-                </div>
-
-                {/* Main button */}
-                <Button
-                  onClick={runPipelineWithProgress}
-                  disabled={loading}
-                  className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm"
-                  size="lg"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 size-5 animate-spin" />
-                      Выполнение полного цикла...
-                    </>
-                  ) : (
-                    <>
-                      <Rocket className="mr-2 size-5" />
-                      Запустить полный цикл анализа
-                    </>
-                  )}
-                </Button>
-
-                {/* Info */}
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h4 className="text-sm font-semibold text-gray-900 mb-2">
-                    Что включает полный цикл?
-                  </h4>
-                  <ul className="space-y-1 text-sm text-gray-700">
-                    <li className="flex items-start gap-2">
-                      <span className="text-blue-600 font-semibold">1.</span>
-                      <span>Сбор IT-вакансий с hh.ru</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-blue-600 font-semibold">2.</span>
-                      <span>Обучение кластеров вакансий</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-blue-600 font-semibold">3.</span>
-                      <span>Обучение ML-модели ранжирования</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-blue-600 font-semibold">4.</span>
-                      <span>GAP-анализ и генерация рекомендаций</span>
-                    </li>
-                  </ul>
-                  <p className="mt-3 text-xs text-gray-600">
-                    ⏱️ Ожидаемое время выполнения: 10-15 минут
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <VacanciesList
+              pipelineStep={pipelineStep}
+              pipelineLoading={pipelineLoading}
+              onStartPipeline={(regionIds, profession, maxPages, periodDays) => startPipeline(regionIds, profession, maxPages, periodDays)}
+              pipelineMaxPages={pipelineMaxPages}
+              pipelinePeriod={pipelinePeriod}
+            />
           </TabsContent>
 
           {/* Data Tab */}
@@ -421,7 +324,7 @@ export default function App() {
                   <Label className="text-sm font-medium text-gray-900">
                     Профиль компетенций
                   </Label>
-                  <Select value={profile} onValueChange={setProfile}>
+                  <Select value={profile} onValueChange={handleProfileChange}>
                     <SelectTrigger className="h-11 bg-white border-gray-300">
                       <SelectValue />
                     </SelectTrigger>
@@ -435,13 +338,13 @@ export default function App() {
                       <SelectItem value="dc">
                         <div className="flex items-center gap-2">
                           <Award className="size-4 text-purple-600" />
-                          <span>DATA CENTER (middle)</span>
+                          <span>DATA SCIENTIST (middle)</span>
                         </div>
                       </SelectItem>
                       <SelectItem value="top_dc">
                         <div className="flex items-center gap-2">
                           <Award className="size-4 text-pink-600" />
-                          <span>TOP DATA CENTER (senior)</span>
+                          <span>TOP DATA SCIENTIST (senior)</span>
                         </div>
                       </SelectItem>
                     </SelectContent>
@@ -493,6 +396,26 @@ export default function App() {
                     Проверка
                   </Button>
                 </div>
+
+                {lastResult && (() => {
+                  const d = lastResult as Record<string, unknown>;
+                  if (d.recommendations || d.closest_roles) {
+                    return <RecommendationsReport data={lastResult as any} />;
+                  }
+                  const msg = d.message as string | undefined;
+                  if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {
+                    return (
+                      <Card className="border-2 border-amber-200 bg-amber-50/50">
+                        <CardContent className="pt-6 text-center py-12">
+                          <AlertCircle className="size-12 text-amber-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold text-amber-800 mb-2">{msg}</h3>
+                          <p className="text-sm text-amber-600">Запустите анализ компетенций через вкладку «Анализ»</p>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+                  return <DataViewer data={lastResult} />;
+                })()}
               </CardContent>
             </Card>
           </TabsContent>
@@ -506,7 +429,11 @@ export default function App() {
           <TabsContent value="analysis">
             <AnalysisTab
               selectedProfile={profile}
-              onProfileChange={setProfile}
+              onProfileChange={handleProfileChange}
+              pipelineQuery={pipelineQuery}
+              pipelineRegions={pipelineRegions}
+              analysisData={analysisData}
+              onDataLoaded={(data) => { setAnalysisData(data); setLastResult(data); }}
             />
           </TabsContent>
         </Tabs>
