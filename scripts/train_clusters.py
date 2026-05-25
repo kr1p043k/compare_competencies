@@ -121,7 +121,14 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
                 key_skills=v.get("key_skills", []),
             )
 
-    clusterer = VacancyClusterer(min_cluster_size=5)
+    # Загружаем BM25/hybrid веса для взвешивания эмбеддингов
+    weights_file = config.DATA_PROCESSED_DIR / "skill_weights.json"
+    hybrid_weights = {}
+    if weights_file.exists():
+        hybrid_weights = read_json(weights_file)
+        logger.info("skill_weights_loaded", count=len(hybrid_weights))
+
+    clusterer = VacancyClusterer(min_cluster_size=5, skill_weights=hybrid_weights)
 
     levels_to_train = ["junior", "middle", "senior"] if level == "all" else [level.lower()]
 
