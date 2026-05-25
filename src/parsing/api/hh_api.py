@@ -163,7 +163,8 @@ class HeadHunterAPI:
 
     # ======================================================================
     def search_vacancies(
-        self, text, area, period_days=30, max_pages=20, per_page=100, industry=None, date_from=None, date_to=None
+        self, text, area, period_days=30, max_pages=20, per_page=100, industry=None, date_from=None, date_to=None,
+        since_id: int | None = None,
     ):
         params = {
             "text": text,
@@ -176,6 +177,9 @@ class HeadHunterAPI:
         }
         if industry:
             params["industry"] = industry
+        if since_id is not None:
+            params["vacancy_id_gt"] = since_id
+            logger.info("search_vacancies_since_id", since_id=since_id)
         if date_from is not None and date_to is not None:
             params["date_from"] = date_from
             params["date_to"] = date_to
