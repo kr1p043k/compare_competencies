@@ -1,7 +1,6 @@
 """Health, readiness, status, regions и логи."""
 
 import json
-import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -34,6 +33,17 @@ router = APIRouter(tags=["monitoring"])
 limiter = Limiter(key_func=get_remote_address)
 
 
+@router.get("/")
+async def root():
+    return {
+        "service": "Compare Competencies API",
+        "version": "2.0",
+        "docs": "/docs",
+        "health": "/health",
+        "status": "/api/status",
+    }
+
+
 class LogEntry(BaseModel):
     level: str = "info"
     message: str
@@ -46,21 +56,21 @@ _LOG_FILE = Path(__file__).parent.parent.parent.parent / "frontend" / "logs" / "
 
 @router.post("/api/log")
 async def write_log(entry: LogEntry):
-    _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(
-        {
-            "time": entry.timestamp or datetime.now().isoformat(),
-            "level": entry.level,
-            "message": entry.message,
-            "data": entry.data,
-        },
-        ensure_ascii=False,
-    )
     try:
+        _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        line = json.dumps(
+            {
+                "time": entry.timestamp or datetime.now().isoformat(),
+                "level": entry.level,
+                "message": entry.message,
+                "data": entry.data,
+            },
+            ensure_ascii=False,
+        )
         with open(_LOG_FILE, "a", encoding="utf-8") as f:
             f.write(line + "\n")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("log_write_failed", error=str(e))
     return {"ok": True}
 
 

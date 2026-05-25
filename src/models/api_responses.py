@@ -185,6 +185,14 @@ class PipelineTaskStatus(BaseModel):
     completed_at: float | None = None
     output: str | None = None
     step: int = 0
+    sub_progress: int | None = None
+
+
+class GapProgressResponse(BaseModel):
+    pct: float = 0.0
+    message: str = ""
+    stage: str = ""
+    exists: bool = False
 
 
 class PipelineTaskListResponse(BaseModel):
