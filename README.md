@@ -255,13 +255,19 @@
 6. **Графики и отчёты**
    Пайплайн генерирует графики в `data/result/`: радарные диаграммы, важность навыков, тепловые карты, покрытие доменов.
 
-7. **Запустите фронтенд (опционально)**
+7. **Запустите backend**
+   ```bash
+   uvicorn src.api_pkg.app:app --host 0.0.0.0 --port 8000 --reload
+   ```
+   API будет доступен на `http://localhost:8000`, документация: `http://localhost:8000/docs`.
+
+8. **Запустите фронтенд (опционально)**
    ```bash
    cd frontend
    npm install
-   npm run dev
+   npx vite
    ```
-   Приложение на `http://localhost:3001` (Vite proxy → backend :8000).
+   Приложение на `http://localhost:3000` (Vite proxy → backend :8000).
 
 ## 📦 Зависимости
 
