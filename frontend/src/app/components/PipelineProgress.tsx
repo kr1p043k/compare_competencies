@@ -1,5 +1,6 @@
+import { useMemo, useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { CheckCircle2, Loader2, XCircle, Rocket } from "lucide-react";
+import { CheckCircle2, Loader2, XCircle, Rocket, Clock } from "lucide-react";
 import { Card, CardContent } from "./ui/card";
 
 interface PipelineStep {
@@ -8,6 +9,8 @@ interface PipelineStep {
   status: "running" | "success" | "error" | "completed";
   message: string;
   progress: number;
+  maxPages?: number;
+  periodDays?: number;
 }
 
 interface PipelineProgressProps {
@@ -15,6 +18,35 @@ interface PipelineProgressProps {
 }
 
 export function PipelineProgress({ currentStep }: PipelineProgressProps) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!currentStep || currentStep.status !== "running") { setElapsed(0); return; }
+    const t0 = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [currentStep?.step, currentStep?.status]);
+
+  const elapsedText = useMemo(() => {
+    if (elapsed < 60) return `${elapsed} сек`;
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    return `${m} мин ${s} сек`;
+  }, [elapsed]);
+
+  const progressPct = currentStep?.progress ?? 0;
+  const estimatedText = useMemo(() => {
+    if (progressPct <= 0) return null;
+    const pct = progressPct / 100;
+    const total = Math.round(elapsed / pct);
+    const remaining = Math.max(0, total - elapsed);
+    if (remaining < 15) return null;
+    if (remaining < 60) return `~${remaining} сек`;
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    return `~${m} мин ${s} сек`;
+  }, [elapsed, progressPct]);
+
   if (!currentStep) return null;
 
   const getStatusIcon = () => {
@@ -128,6 +160,19 @@ export function PipelineProgress({ currentStep }: PipelineProgressProps) {
             </div>
           </div>
 
+          {/* Elapsed time */}
+          {currentStep.status === "running" && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-4 flex items-center gap-2 text-sm text-slate-500"
+            >
+              <Clock className="size-4" />
+              Прошло: {elapsedText}
+              {estimatedText && <span className="text-slate-400">· Осталось: {estimatedText}</span>}
+            </motion.div>
+          )}
+
           {/* Status Message */}
           {currentStep.status === "error" && (
             <motion.div
@@ -149,8 +194,7 @@ export function PipelineProgress({ currentStep }: PipelineProgressProps) {
             >
               <p className="text-sm text-green-800 flex items-center gap-2">
                 <CheckCircle2 className="size-5" />
-                <strong>Успешно!</strong> Все данные обновлены. Обновите
-                страницу для просмотра результатов.
+                <strong>Успешно!</strong> Все данные обновлены.
               </p>
             </motion.div>
           )}

@@ -3,18 +3,15 @@ import { motion } from "motion/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Badge } from "./ui/badge";
 import {
   Search,
   Download,
-  Upload,
   FileSpreadsheet,
-  TrendingUp,
-  Award,
+  FileText,
   Target,
-  AlertCircle,
-  CheckCircle2,
   BookOpen,
+  MapPin,
+  Briefcase,
 } from "lucide-react";
 import { RecommendationsReport } from "./RecommendationsReport";
 import { MetricsExplanation } from "./MetricsExplanation";
@@ -22,11 +19,18 @@ import { MetricsExplanation } from "./MetricsExplanation";
 interface AnalysisTabProps {
   selectedProfile: string;
   onProfileChange: (profile: string) => void;
+  pipelineQuery?: string;
+  pipelineRegions?: string;
+  analysisData?: any;
+  onDataLoaded?: (data: any) => void;
+  loading?: boolean;
 }
 
-export function AnalysisTab({ selectedProfile, onProfileChange }: AnalysisTabProps) {
+export function AnalysisTab({ selectedProfile, onProfileChange, pipelineQuery, pipelineRegions, analysisData, onDataLoaded, loading: externalLoading }: AnalysisTabProps) {
   const [loading, setLoading] = useState(false);
-  const [analysisData, setAnalysisData] = useState<any>(null);
+  const [localData, setLocalData] = useState<any>(null);
+  const effectiveLoading = loading || externalLoading;
+  const effectiveData = analysisData ?? localData;
 
   const handleMarketSearch = async () => {
     setLoading(true);
@@ -34,7 +38,8 @@ export function AnalysisTab({ selectedProfile, onProfileChange }: AnalysisTabPro
       const response = await fetch(`/api/results/recommendations/${selectedProfile}`);
       if (response.ok) {
         const data = await response.json();
-        setAnalysisData(data);
+        setLocalData(data);
+        onDataLoaded?.(data);
       }
     } catch (error) {
       console.error("Failed to load analysis:", error);
@@ -45,20 +50,45 @@ export function AnalysisTab({ selectedProfile, onProfileChange }: AnalysisTabPro
 
   const handleDownloadExcel = async () => {
     try {
-      const response = await fetch(`/api/export/excel/${selectedProfile}`);
+      const response = await fetch(`/api/admin/export/excel`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `analysis_${selectedProfile}_${new Date().toISOString().split("T")[0]}.xlsx`;
+        a.download = `vacancies_${new Date().toISOString().split("T")[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else if (response.status === 429) {
+        alert("Слишком частые запросы. Подождите 20 секунд.");
+      } else {
+        const d = await response.json().catch(() => ({}));
+        alert(d.detail || "Ошибка выгрузки Excel");
+      }
+    } catch (error) {
+      console.error("Failed to download Excel:", error);
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    try {
+      const response = await fetch(`/api/results/recommendations/${selectedProfile}`);
+      if (response.ok) {
+        const data = await response.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `analysis_report_${selectedProfile}_${new Date().toISOString().split("T")[0]}.json`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       }
     } catch (error) {
-      console.error("Failed to download Excel:", error);
+      console.error("Failed to download analysis report:", error);
     }
   };
 
@@ -84,6 +114,28 @@ export function AnalysisTab({ selectedProfile, onProfileChange }: AnalysisTabPro
         <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
           Полный анализ рынка труда и персональные рекомендации по развитию навыков
         </p>
+        {(pipelineQuery || pipelineRegions) && (
+          <div className="flex flex-wrap justify-center gap-2 text-sm text-slate-500">
+            {pipelineQuery && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
+                <Briefcase className="size-3.5" />
+                Запрос: {pipelineQuery}
+              </span>
+            )}
+            {pipelineRegions && pipelineRegions !== "0" && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
+                <MapPin className="size-3.5" />
+                Города: {pipelineRegions.split(",").length}
+              </span>
+            )}
+            {pipelineRegions === "0" && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
+                <MapPin className="size-3.5" />
+                Весь рынок
+              </span>
+            )}
+          </div>
+        )}
       </motion.div>
 
       {/* Profile Selection */}
@@ -106,18 +158,18 @@ export function AnalysisTab({ selectedProfile, onProfileChange }: AnalysisTabPro
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="base">Базовый профиль (Junior)</SelectItem>
-                    <SelectItem value="dc">Профиль ЦК (Middle)</SelectItem>
-                    <SelectItem value="top_dc">Топ ЦК (Senior)</SelectItem>
+                    <SelectItem value="dc">DATA SCIENTIST (Middle)</SelectItem>
+                    <SelectItem value="top_dc">TOP DATA SCIENTIST (Senior)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <Button
                 onClick={handleMarketSearch}
-                disabled={loading}
+                disabled={effectiveLoading}
                 className="h-11 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-8"
               >
                 <Search className="size-4 mr-2" />
-                Поиск по всему рынку
+                Загрузить результаты
               </Button>
             </div>
           </CardContent>
@@ -139,8 +191,8 @@ export function AnalysisTab({ selectedProfile, onProfileChange }: AnalysisTabPro
                   <FileSpreadsheet className="size-5 text-white" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg">Excel отчёт</CardTitle>
-                  <CardDescription>Скачать полный отчёт по анализу</CardDescription>
+                  <CardTitle className="text-lg">Excel вакансий</CardTitle>
+                  <CardDescription>Скачать список вакансий с навыками</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -156,57 +208,32 @@ export function AnalysisTab({ selectedProfile, onProfileChange }: AnalysisTabPro
             </CardContent>
           </Card>
 
-          {/* Whitelist Expansion */}
-          <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/20 dark:to-sky-950/20">
+          {/* Analysis Report */}
+          <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-600 rounded-lg">
-                  <TrendingUp className="size-5 text-white" />
+                  <FileText className="size-5 text-white" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg">Белые списки</CardTitle>
-                  <CardDescription>Расширение базы навыков</CardDescription>
+                  <CardTitle className="text-lg">Отчёт по анализу</CardTitle>
+                  <CardDescription>Скачать результаты gap-анализа</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
               <Button
+                onClick={handleDownloadReport}
                 variant="outline"
                 className="w-full border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                disabled
               >
-                <Award className="size-4 mr-2" />
-                Расширить белые списки
-                <Badge variant="secondary" className="ml-2">Скоро</Badge>
+                <Download className="size-4 mr-2" />
+                Скачать отчёт
               </Button>
             </CardContent>
           </Card>
 
-          {/* Student Competencies Upload */}
-          <Card className="border-2 border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-fuchsia-50 dark:from-purple-950/20 dark:to-fuchsia-950/20">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-600 rounded-lg">
-                  <Upload className="size-5 text-white" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Компетенции студентов</CardTitle>
-                  <CardDescription>Загрузить профили студентов</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Button
-                variant="outline"
-                className="w-full border-purple-300 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/50"
-                disabled
-              >
-                <Upload className="size-4 mr-2" />
-                Подгрузить компетенции
-                <Badge variant="secondary" className="ml-2">Скоро</Badge>
-              </Button>
-            </CardContent>
-          </Card>
+
         </div>
       </motion.div>
 
@@ -214,10 +241,10 @@ export function AnalysisTab({ selectedProfile, onProfileChange }: AnalysisTabPro
       <MetricsExplanation />
 
       {/* Analysis Results */}
-      {analysisData && <RecommendationsReport data={analysisData} />}
+      {effectiveData && <RecommendationsReport data={effectiveData} />}
 
       {/* No Data State */}
-      {!analysisData && !loading && (
+      {!effectiveData && !effectiveLoading && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -229,7 +256,7 @@ export function AnalysisTab({ selectedProfile, onProfileChange }: AnalysisTabPro
                 Нет данных анализа
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
-                Выберите профиль и нажмите "Поиск по всему рынку"
+                Выберите профиль и нажмите "Загрузить результаты"
               </p>
             </CardContent>
           </Card>

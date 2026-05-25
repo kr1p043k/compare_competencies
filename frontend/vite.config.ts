@@ -35,10 +35,15 @@ export default defineConfig({
     host: true,           // Слушать все сетевые интерфейсы (0.0.0.0)
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',  // Прокси на FastAPI бэкенд
+        target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
-      }
+      },
+      '/health': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
     }
   },
 

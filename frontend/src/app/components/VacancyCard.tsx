@@ -16,6 +16,7 @@ import {
   DollarSign,
   Star,
   TrendingUp,
+  AlertTriangle,
 } from "lucide-react";
 
 interface Vacancy {
@@ -31,6 +32,8 @@ interface Vacancy {
   published_at: string;
   alternate_url: string;
   skills: string[];
+  is_spam?: boolean;
+  spam_reason?: string;
   snippet?: {
     requirement?: string;
     responsibility?: string;
@@ -115,6 +118,16 @@ export function VacancyCard({ vacancy, onViewDetails }: VacancyCardProps) {
                   <Briefcase className="size-3 mr-1" />
                   {expLevel.label}
                 </Badge>
+                {vacancy.is_spam && (
+                  <Badge
+                    variant="destructive"
+                    className="bg-red-500/90 text-white border-0 shadow-md"
+                    title={vacancy.spam_reason || ""}
+                  >
+                    <AlertTriangle className="size-3 mr-1" />
+                    Спам
+                  </Badge>
+                )}
                 {salary && (
                   <motion.div
                     className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-lg"

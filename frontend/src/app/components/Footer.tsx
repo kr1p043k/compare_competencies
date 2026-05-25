@@ -98,7 +98,7 @@ export function Footer() {
               <Code className="size-4" />
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-500">
-              © 2025 Competency Gap Analyzer. Все права защищены.
+              © 2026 Competency Gap Analyzer. Все права защищены.
             </p>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import {
@@ -11,7 +12,33 @@ import {
   CheckCircle2,
   AlertCircle,
   Zap,
+  ChevronDown,
+  ChevronUp,
+  Layers,
 } from "lucide-react";
+
+interface DomainEntry {
+  domain: string;
+  required_skills: string[];
+  user_has: number;
+  total_required: number;
+  coverage: number;
+  importance: number;
+}
+
+interface GapEntry {
+  skill: string;
+  gap_j: number;
+  gap_m: number;
+  gap_s: number;
+  demand_j: number;
+  demand_m: number;
+  demand_s: number;
+  cluster_relevance: number;
+  user_level: number;
+  importance: number;
+  category: string;
+}
 
 interface RecommendationData {
   summary: {
@@ -50,10 +77,107 @@ interface RecommendationData {
     is_soft_skill: boolean;
     market_frequency_percent: number;
   }>;
+  domain_coverage?: Record<string, DomainEntry>;
+  gaps?: Record<string, GapEntry>;
 }
 
 interface RecommendationsReportProps {
   data: RecommendationData;
+}
+
+export const INITIAL_SKILLS = 12;
+
+function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
+  const [expanded, setExpanded] = useState(false);
+  const skills = entry.required_skills || [];
+  const show = expanded ? skills : skills.slice(0, INITIAL_SKILLS);
+  const remaining = skills.length - INITIAL_SKILLS;
+
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-slate-50 to-white">
+        <div className="flex items-center gap-3">
+          <Layers className="size-5 text-slate-600" />
+          <h4 className="font-bold text-slate-900">{entry.domain || name}</h4>
+        </div>
+        <div className="flex items-center gap-4 text-sm">
+          <span className="text-slate-600">
+            <span className={`font-semibold ${entry.user_has > 0 ? "text-green-600" : "text-red-500"}`}>{entry.user_has}</span>
+            <span className="text-slate-400"> / {entry.total_required}</span>
+          </span>
+          <span className={`font-semibold ${entry.coverage >= 0.3 ? "text-green-600" : entry.coverage >= 0.1 ? "text-orange-500" : "text-red-500"}`}>
+            {(entry.coverage * 100).toFixed(1)}%
+          </span>
+        </div>
+      </div>
+      <div className="px-5 pb-4">
+        <div className="flex flex-wrap gap-1.5">
+          {show.map((sk) => (
+            <Badge key={sk} variant="outline" className="text-xs bg-white">{sk}</Badge>
+          ))}
+        </div>
+        {remaining > 0 && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
+          >
+            {expanded ? (
+              <><ChevronUp className="size-3.5" />Свернуть</>
+            ) : (
+              <><ChevronDown className="size-3.5" />Ещё {remaining} навыков</>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
+  const [expanded, setExpanded] = useState(false);
+  const gapAvg = (entry.gap_j + entry.gap_m + entry.gap_s) / 3;
+  const gapColor = gapAvg > 0.7 ? "text-red-600" : gapAvg > 0.4 ? "text-orange-500" : "text-yellow-600";
+
+  return (
+    <div className="border border-slate-200 rounded-lg px-4 py-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <span className="font-medium text-slate-900">{entry.skill || skill}</span>
+          <span className="ml-2 text-xs text-slate-400">{entry.category}</span>
+        </div>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-slate-500">gap: <span className={`font-semibold ${gapColor}`}>{(gapAvg * 100).toFixed(0)}%</span></span>
+          <span className="text-slate-500">demand: <span className="font-semibold text-blue-600">{((entry.demand_j + entry.demand_m + entry.demand_s) / 3 * 100).toFixed(0)}%</span></span>
+        </div>
+      </div>
+      {expanded && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-slate-500 italic">
+            gap — разрыв между текущим уровнем и требуемым (0% = нет разрыва),
+            demand — востребованность навыка на рынке,
+            user_level — ваш текущий уровень владения,
+            importance — общая важность навыка для карьеры
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600">
+            <div title="Разрыв на уровне Junior">gap_j: {(entry.gap_j * 100).toFixed(0)}%</div>
+            <div title="Разрыв на уровне Middle">gap_m: {(entry.gap_m * 100).toFixed(0)}%</div>
+            <div title="Разрыв на уровне Senior">gap_s: {(entry.gap_s * 100).toFixed(0)}%</div>
+            <div title="Востребованность на уровне Junior">demand_j: {(entry.demand_j * 100).toFixed(0)}%</div>
+            <div title="Востребованность на уровне Middle">demand_m: {(entry.demand_m * 100).toFixed(0)}%</div>
+            <div title="Востребованность на уровне Senior">demand_s: {(entry.demand_s * 100).toFixed(0)}%</div>
+            <div title="Ваш текущий уровень">user_level: {(entry.user_level * 100).toFixed(0)}%</div>
+            <div title="Общая важность навыка">importance: {(entry.importance * 100).toFixed(0)}%</div>
+          </div>
+        </div>
+      )}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="mt-1 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
+      >
+        {expanded ? <><ChevronUp className="size-3" />свернуть</> : <><ChevronDown className="size-3" />подробнее</>}
+      </button>
+    </div>
+  );
 }
 
 export function RecommendationsReport({ data }: RecommendationsReportProps) {
@@ -303,6 +427,62 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Domain Coverage */}
+      {data.domain_coverage && Object.keys(data.domain_coverage).length > 0 && (
+        <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
+            <CardTitle className="flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg">
+                <Layers className="size-5 text-white" />
+              </div>
+              Покрытие доменов
+            </CardTitle>
+            <CardDescription>
+              Какие домены навыков покрыты вашим профилем
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-3">
+            {Object.entries(data.domain_coverage).map(([name, entry]) => (
+              <motion.div
+                key={name}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <DomainCard name={name} entry={entry} />
+              </motion.div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Gaps */}
+      {data.gaps && Object.keys(data.gaps).length > 0 && (
+        <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
+            <CardTitle className="flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-rose-500 to-pink-600 rounded-lg">
+                <AlertCircle className="size-5 text-white" />
+              </div>
+              Пробелы (Gaps)
+            </CardTitle>
+            <CardDescription>
+              Навыки, по которым у вас наибольшие пробелы
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-2">
+            {Object.entries(data.gaps).map(([skill, entry]) => (
+              <motion.div
+                key={skill}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <GapsCard skill={skill} entry={entry} />
+              </motion.div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </motion.div>
   );
 }
