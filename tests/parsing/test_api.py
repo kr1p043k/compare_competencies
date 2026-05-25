@@ -120,6 +120,25 @@ class TestHeadHunterAPISync:
             assert len(result) == 1
             mock_get.assert_called_once()
 
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
+    def test_search_vacancies_since_id(self, mock_get):
+        api = HeadHunterAPI()
+        mock_get.return_value = {"items": [{"id": "2"}], "pages": 1, "found": 1}
+        result = api.search_vacancies(text="Python", area=1, since_id=1)
+        assert len(result) == 1
+        call_kwargs = mock_get.call_args[1]
+        assert call_kwargs["params"].get("vacancy_id_gt") == 1
+
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
+    def test_search_vacancies_with_date_range(self, mock_get):
+        api = HeadHunterAPI()
+        mock_get.return_value = {"items": [{"id": "1"}], "pages": 1, "found": 1}
+        result = api.search_vacancies(text="Python", area=1, date_from="2024-01-01", date_to="2024-01-31")
+        assert len(result) == 1
+        call_kwargs = mock_get.call_args[1]
+        assert call_kwargs["params"].get("date_from") == "2024-01-01"
+        assert call_kwargs["params"].get("date_to") == "2024-01-31"
+
     def test_get_handles_304_not_modified(self):
         api = HeadHunterAPI()
         with patch.object(api.session, "get") as mock_get:
