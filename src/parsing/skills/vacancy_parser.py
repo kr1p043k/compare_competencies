@@ -115,11 +115,24 @@ class VacancyParser:
     # =========================================================================
     # EXCEL
     # =========================================================================
-    def aggregate_to_dataframe(self, vacancies: list[dict] | list[Vacancy]) -> pd.DataFrame:
+    def aggregate_to_dataframe(
+        self,
+        vacancies: list[dict] | list[Vacancy],
+        quality_report: dict[str, Any] | None = None,
+    ) -> pd.DataFrame:
         """
         Агрегирует данные в DataFrame для Excel.
         Навыки собираются из key_skills + текстового парсера (объединение).
+        Если передан quality_report, добавляет колонки "Спам" и "Причина спама".
         """
+        spam_map: dict[str, dict] = {}
+        if quality_report:
+            for entry in quality_report.get("spam_vacancies", []):
+                spam_map[entry["id"]] = {
+                    "is_spam": "Да" if entry["score"] < 0.5 else "Нет",
+                    "reason": "; ".join(f["reason"] for f in entry["flags"]),
+                }
+
         rows = []
 
         for vac in vacancies:
@@ -160,17 +173,21 @@ class VacancyParser:
             except Exception:
                 pass
 
-            rows.append(
-                {
-                    "Вакансия": vac_name,
-                    "Компания": employer_name,
-                    "Регион": area_name,
-                    "ID": vac_id,
-                    "Зарплата": salary,
-                    "Навыков": len(all_skills),
-                    "Навыки": ", ".join(all_skills),
-                }
-            )
+            row = {
+                "Вакансия": vac_name,
+                "Компания": employer_name,
+                "Регион": area_name,
+                "ID": vac_id,
+                "Зарплата": salary,
+                "Навыков": len(all_skills),
+                "Навыки": ", ".join(all_skills),
+            }
+
+            if quality_report and vac_id in spam_map:
+                row["Спам"] = spam_map[vac_id]["is_spam"]
+                row["Причина спама"] = spam_map[vac_id]["reason"]
+
+            rows.append(row)
 
         return pd.DataFrame(rows)
 
