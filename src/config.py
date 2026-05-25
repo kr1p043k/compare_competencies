@@ -6,7 +6,7 @@
 
 from pathlib import Path
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -53,13 +53,16 @@ class Settings(BaseSettings):
     EMBEDDINGS_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache/embeddings"))
     VACANCY_CLUSTERS_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache/clusters"))
     STUDENT_EMB_CACHE_DIR: Path = Field(default_factory=lambda: Path("data/cache/students"))
-    PARSED_SKILLS_CACHE_PATH: Path = Field(default_factory=lambda: Path("data/cache/parsed_skills.pkl"))
+    PARSED_SKILLS_CACHE_PATH: Path = Field(default_factory=lambda: Path("data/cache/parsed_skills.joblib"))
 
     MODELS_DIR: Path = Field(default_factory=lambda: Path("data/models"))
     HISTORY_DIR: Path = Field(default_factory=lambda: Path("data/history"))
 
     # ---------- CORS ----------
     ALLOWED_ORIGINS: str = "*"
+
+    # ---------- безопасность ----------
+    MAX_REQUEST_SIZE: int = 10 * 1024 * 1024  # 10 MB
 
     # ---------- hh.ru API ----------
     HH_USER_AGENT: str = "CompetencyAnalyzer (kok.yoko@gmx.com)"
@@ -89,8 +92,7 @@ class Settings(BaseSettings):
     YANDEXGPT_MODEL: str = "yandexgpt-lite"
 
     # ---------- эмбеддинги ----------
-    EMBEDDING_MODEL: str = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
-    EMBEDDING_DIM: int = 384
+    EMBEDDING_MODEL: str = "paraphrase-multilingual-mpnet-base-v2"
     HF_TOKEN: SecretStr | None = None
     SIMILARITY_THRESHOLD: float = 0.80
 
@@ -177,8 +179,8 @@ class Settings(BaseSettings):
         base = info.data.get("BASE_DIR", Path("."))
         return base / v
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    @model_validator(mode="after")
+    def _ensure_dirs(self):
         dirs = [
             self.DATA_RAW_DIR,
             self.DATA_PROCESSED_DIR,
@@ -196,6 +198,7 @@ class Settings(BaseSettings):
         ]
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +231,7 @@ STUDENT_EMB_CACHE_DIR = settings.STUDENT_EMB_CACHE_DIR
 PARSED_SKILLS_CACHE_PATH = settings.PARSED_SKILLS_CACHE_PATH
 
 ALLOWED_ORIGINS = settings.ALLOWED_ORIGINS
+MAX_REQUEST_SIZE = settings.MAX_REQUEST_SIZE
 HH_USER_AGENT = settings.HH_USER_AGENT
 REQUEST_DELAY = settings.REQUEST_DELAY
 MAX_RETRIES = settings.MAX_RETRIES
@@ -247,7 +251,6 @@ YC_FOLDER_ID = settings.YC_FOLDER_ID
 YANDEXGPT_MODEL = settings.YANDEXGPT_MODEL
 
 EMBEDDING_MODEL = settings.EMBEDDING_MODEL
-EMBEDDING_DIM = settings.EMBEDDING_DIM
 HF_TOKEN = settings.HF_TOKEN
 SIMILARITY_THRESHOLD = settings.SIMILARITY_THRESHOLD
 

@@ -1,9 +1,9 @@
 """SkillExtractor — извлекает навыки из вакансий или загружает из кэша."""
 
 import json
-import pickle
 from pathlib import Path
 
+import joblib
 import structlog
 
 from src import config
@@ -17,7 +17,7 @@ from src.parsing.utils import (
     print_top_competencies,
     print_top_skills,
 )
-from src.utils import load_competency_mapping, safe_load_pickle
+from src.utils import load_competency_mapping
 
 logger = structlog.get_logger("skill_extractor")
 
@@ -38,7 +38,7 @@ class SkillExtractor:
         cached_result = None
         if cache_path.exists() and vacancies_hash:
             self._check_manifest(cache_path)
-            cached = safe_load_pickle(cache_path)
+            cached = joblib.load(cache_path)
             if cached and cached.get("source_hash") == vacancies_hash:
                 self._console_info("✅ Загружен кэш результатов парсинга навыков")
                 cached_result = cached["result"]
@@ -53,8 +53,7 @@ class SkillExtractor:
             hybrid_weights_raw = result.get("hybrid_weights", {})
             # Сохраняем кэш
             cache_data = {"source_hash": vacancies_hash, "result": result}
-            with open(cache_path, "wb") as f:
-                pickle.dump(cache_data, f)
+            joblib.dump(cache_data, cache_path)
             self._console_info("💾 Кэш результатов сохранён")
             manifest = ArtifactManifest(artifact_path=cache_path, metrics={"num_skills": len(skill_freq)})
             manifest.save()
