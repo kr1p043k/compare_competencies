@@ -12,7 +12,7 @@ logger = structlog.get_logger(__name__)
 
 # Список файлов и папок, подлежащих удалению
 to_remove = [
-    DATA / "cache" / "parsed_skills.pkl",
+    DATA / "cache" / "parsed_skills.joblib",
     DATA / "processed" / "skill_weights.json",
     DATA / "cache" / "clusters" / "vacancy_clusters_junior.pkl",
     DATA / "cache" / "clusters" / "vacancy_clusters_middle.pkl",

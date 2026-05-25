@@ -184,6 +184,7 @@ class PipelineTaskStatus(BaseModel):
     started_at: float | None = None
     completed_at: float | None = None
     output: str | None = None
+    step: int = 0
 
 
 class PipelineTaskListResponse(BaseModel):

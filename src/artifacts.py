@@ -5,7 +5,7 @@
 
 Формат имени файла:
   some_model.joblib           → some_model.manifest.json
-  market_embeddings_middle.pkl → market_embeddings_middle.manifest.json
+  market_embeddings_middle.joblib → market_embeddings_middle.manifest.json
 """
 
 import json

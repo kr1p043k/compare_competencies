@@ -105,29 +105,6 @@ class TestValidateSafePath:
             utils.validate_safe_path(user, base_dir=base)
 
 
-class TestSafeLoadPickle:
-    def test_success(self, tmp_path):
-        import pickle
-        data = {"key": "value"}
-        filepath = tmp_path / "test.pkl"
-        with open(filepath, "wb") as f:
-            pickle.dump(data, f)
-        result = utils.safe_load_pickle(filepath, allowed_dirs=[tmp_path])
-        assert result == data
-
-    def test_outside_dir_returns_none(self, tmp_path):
-        filepath = tmp_path / "test.pkl"
-        filepath.touch()
-        result = utils.safe_load_pickle(filepath, allowed_dirs=[tmp_path / "other"])
-        assert result is None
-
-    def test_corrupted_file_returns_none(self, tmp_path):
-        filepath = tmp_path / "bad.pkl"
-        filepath.write_text("not a pickle")
-        result = utils.safe_load_pickle(filepath, allowed_dirs=[tmp_path])
-        assert result is None
-
-
 class TestUtilsExtended:
     def test_load_competency_mapping_file_not_exists(self, tmp_path, monkeypatch):
         monkeypatch.setattr("src.utils.COMPETENCY_MAPPING_FILE", tmp_path / "nonexistent.json")
@@ -169,14 +146,4 @@ class TestUtilsExtended:
         with patch("json.load", side_effect=Exception("unexpected")):
             assert utils.safe_read_competency_json(path) == []
 
-    def test_safe_load_pickle_default_dirs(self, tmp_path):
-        import pickle
-        data = {"key": "value"}
-        path = tmp_path / "test.pkl"
-        with open(path, "wb") as f:
-            pickle.dump(data, f)
-        with patch("src.utils.DATA_CACHE_DIR", path.parent), \
-             patch("src.utils.DATA_PROCESSED_DIR", path.parent), \
-             patch("src.utils.MODELS_DIR", path.parent):
-            result = utils.safe_load_pickle(path)
-        assert result == data
+

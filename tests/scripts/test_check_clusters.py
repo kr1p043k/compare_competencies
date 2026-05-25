@@ -53,8 +53,7 @@ class TestCheckClusters:
         )
         from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 
-        # Создаём фейковые модели
-        import pickle
+        import joblib
         import numpy as np
 
         for level in ["junior", "middle", "senior"]:
@@ -67,7 +66,7 @@ class TestCheckClusters:
             c.label_to_center_idx = {0: 0, 1: 1, 2: 2}
             c.clusterer_type = "kmeans"
 
-            path = tmp_path / f"vacancy_clusters_{level}.pkl"
+            path = tmp_path / f"vacancy_clusters_{level}.joblib"
             data = {
                 "model": None,
                 "clusterer_type": "kmeans",
@@ -79,8 +78,7 @@ class TestCheckClusters:
                 "min_cluster_size": 5,
                 "label_to_center_idx": c.label_to_center_idx,
             }
-            with open(path, "wb") as f:
-                pickle.dump(data, f)
+            joblib.dump(data, path)
 
         # Запускаем скрипт
         import scripts.check_clusters as cc
@@ -96,10 +94,9 @@ class TestCheckClusters:
         monkeypatch.setattr(
             "src.analyzers.clustering.vacancy_clustering.config.VACANCY_CLUSTERS_CACHE_DIR", tmp_path
         )
-        import pickle, numpy as np
+        import joblib, numpy as np
         from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 
-        # Создаём модель для junior
         c = VacancyClusterer()
         c.is_fitted = True
         c.labels_ = np.array([0, 0, 1])
@@ -119,8 +116,7 @@ class TestCheckClusters:
             "min_cluster_size": 5,
             "label_to_center_idx": c.label_to_center_idx,
         }
-        with open(tmp_path / "vacancy_clusters_junior.pkl", "wb") as f:
-            pickle.dump(data, f)
+        joblib.dump(data, tmp_path / "vacancy_clusters_junior.joblib")
 
         import scripts.check_clusters as cc
         # Проверяем, что скрипт выводит информацию о кластере
@@ -133,7 +129,7 @@ class TestCheckClusters:
             "src.analyzers.clustering.vacancy_clustering.config.VACANCY_CLUSTERS_CACHE_DIR", tmp_path
         )
         for level in ["junior", "middle", "senior"]:
-            assert not (tmp_path / f"vacancy_clusters_{level}.pkl").exists()
+            assert not (tmp_path / f"vacancy_clusters_{level}.joblib").exists()
         with patch('builtins.print') as mock_print:
             # выполняем скрипт, не импортируя его как модуль, чтобы избежать раннего выполнения
             import importlib.util

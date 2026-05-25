@@ -157,10 +157,9 @@ class TestVacancyClusterer:
         clusterer.fit(sample_vacancies, level="test")
 
         # Проверяем, что файл создан
-        model_path = tmp_path / "vacancy_clusters_test.pkl"
+        model_path = tmp_path / "vacancy_clusters_test.joblib"
         assert model_path.exists()
 
-        # Загружаем в новый объект
         clusterer2 = VacancyClusterer()
         loaded = clusterer2.load_model("test")
         assert loaded is True
@@ -246,7 +245,7 @@ class TestVacancyClusteringFull:
         monkeypatch.setattr(config, "VACANCY_CLUSTERS_CACHE_DIR", tmp_path)
         clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=5, use_hdbscan_fallback=False)
         clusterer.fit(vacancies, level="test")
-        model_path = tmp_path / "vacancy_clusters_test.pkl"
+        model_path = tmp_path / "vacancy_clusters_test.joblib"
         assert model_path.exists()
         assert model_path.stat().st_size > 0
         monkeypatch.undo()
@@ -409,7 +408,7 @@ class TestVacancyClusteringFull:
         clusterer.min_cluster_size = 2
 
         clusterer._save_model("test_hdb")
-        model_path = tmp_path / "vacancy_clusters_test_hdb.pkl"
+        model_path = tmp_path / "vacancy_clusters_test_hdb.joblib"
         assert model_path.exists()
         clusterer2 = VacancyClusterer()
         loaded = clusterer2.load_model("test_hdb")

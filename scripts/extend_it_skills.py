@@ -345,7 +345,7 @@ def main():
         if added > 0:
             print(f"\n✅ Добавлено {added} навыков.")
             print("⚠️  Очистите кэш перед следующим запуском:")
-            print("   rm data/cache/parsed_skills.pkl")
+            print("   rm data/cache/parsed_skills.joblib")
             print("   rm -r data/cache/embeddings/")
 
     elif args.interactive:
@@ -355,7 +355,7 @@ def main():
             if added > 0:
                 print(f"\n✅ Добавлено {added} навыков.")
                 print("⚠️  Очистите кэш перед следующим запуском:")
-                print("   rm data/cache/parsed_skills.pkl")
+                print("   rm data/cache/parsed_skills.joblib")
                 print("   rm -r data/cache/embeddings/")
         else:
             print("\nНичего не добавлено.")

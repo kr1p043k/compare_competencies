@@ -10,10 +10,7 @@ import structlog
 from src.config import (
     BASE_DIR,
     COMPETENCY_MAPPING_FILE,
-    DATA_CACHE_DIR,
-    DATA_PROCESSED_DIR,
     LOG_FILE,
-    MODELS_DIR,
 )
 
 logger = structlog.get_logger(__name__)
@@ -141,18 +138,4 @@ def validate_safe_path(user_path: str | Path, base_dir: Path | None = None) -> P
     return resolved
 
 
-def safe_load_pickle(filepath: Path, allowed_dirs: list[Path] | None = None) -> Any | None:
-    if allowed_dirs is None:
-        allowed_dirs = [DATA_CACHE_DIR, MODELS_DIR, DATA_PROCESSED_DIR]
-    resolved = filepath.resolve()
-    if not any(str(resolved).startswith(str(d.resolve())) for d in allowed_dirs):
-        logger.error("pickle_file_outside_allowed_dirs", path=str(filepath))
-        return None
-    try:
-        import pickle
 
-        with open(filepath, "rb") as f:
-            return pickle.load(f)  # nosec B301
-    except Exception as e:
-        logger.error("pickle_load_failed", path=str(filepath), error=str(e))
-        return None

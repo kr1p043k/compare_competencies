@@ -32,7 +32,6 @@ markers = [
 omit = [
     "src/api.py",
     "src/logging_config.py",
-    "src/predictors/skill_forecast.py",
 ]
 
 [tool.mypy]

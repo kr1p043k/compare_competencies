@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+from logging.handlers import RotatingFileHandler
 
 import structlog
 
@@ -38,7 +39,7 @@ def setup_structlog(console_level: int = None):
         level_str = os.getenv("LOG_LEVEL", "INFO").upper()
         console_level = getattr(logging, level_str, logging.INFO)
 
-    file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+    file_handler = RotatingFileHandler(LOG_FILE, encoding="utf-8", maxBytes=10 * 1024 * 1024, backupCount=5)
     file_handler.setLevel(logging.DEBUG)
 
     console_handler = logging.StreamHandler()

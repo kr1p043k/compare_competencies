@@ -37,3 +37,7 @@ data/raw/
 .ruff_cache/
 data/.hh_token_cache.json
 .mypy_cache/
+frontend/node_modules/
+
+frontend/dist/
+
