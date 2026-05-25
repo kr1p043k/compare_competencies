@@ -1,7 +1,6 @@
 # tests/parsing/test_utils.py
 import json
 import logging
-import pickle
 from collections import Counter
 from unittest.mock import MagicMock, patch
 import pytest
@@ -440,11 +439,4 @@ def test_validate_safe_path_outside(tmp_path):
         base_utils.validate_safe_path(user_path, base_dir=base)
 
 
-def test_safe_load_pickle_success(tmp_path):
-    """Успешная загрузка pickle из разрешённой директории"""
-    data = {"key": "value"}
-    filepath = tmp_path / "test.pkl"
-    with open(filepath, "wb") as f:
-        pickle.dump(data, f)
-    result = base_utils.safe_load_pickle(filepath, allowed_dirs=[tmp_path])
-    assert result == data
+

@@ -6,6 +6,7 @@ import logging
 import re
 import time
 from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -16,8 +17,36 @@ if TYPE_CHECKING:
     from .skills.vacancy_parser import VacancyParser
 
 from src import config
+from src.utils import atomic_read_json, atomic_write_json
 
 logger = structlog.get_logger(__name__)
+
+__all__ = [
+    "setup_logging",
+    "read_json",
+    "write_json",
+    "load_it_skills",
+    "filter_skills_by_whitelist",
+    "collect_vacancies_multiple",
+    "load_queries_from_file",
+    "safe_print",
+    "input_int",
+    "input_yes_no",
+    "select_from_list",
+    "interactive_config",
+    "normalize_skill_for_matching",
+    "extract_and_count_skills",
+    "map_to_competencies",
+    "print_top_skills",
+    "print_top_competencies",
+    "date_chunks",
+    "get_last_parsed_id",
+    "save_last_parsed_id",
+    "ParsingCheckpoint",
+    "save_checkpoint",
+    "load_checkpoint",
+    "resume_from_checkpoint",
+]
 
 
 # ----------------------------------------------------------------------
@@ -193,6 +222,94 @@ def load_queries_from_file(filepath: Path) -> list[str]:
     except Exception as e:
         logger.error("queries_file_read_error", path=str(filepath), error=str(e))
         return []
+
+
+# ----------------------------------------------------------------------
+# Инкрементальный парсинг (Incremental Parsing, #11)
+# ----------------------------------------------------------------------
+
+
+def get_last_parsed_id() -> int | None:
+    id_file = config.DATA_PROCESSED_DIR / "last_parsed_id.txt"
+    if not id_file.exists():
+        return None
+    try:
+        raw = id_file.read_text(encoding="utf-8").strip()
+        return int(raw) if raw else None
+    except Exception as e:
+        logger.error("get_last_parsed_id_error", error=str(e))
+        return None
+
+
+def save_last_parsed_id(vacancy_id: int) -> None:
+    id_file = config.DATA_PROCESSED_DIR / "last_parsed_id.txt"
+    try:
+        id_file.parent.mkdir(parents=True, exist_ok=True)
+        id_file.write_text(str(vacancy_id), encoding="utf-8")
+        logger.info("last_parsed_id_saved", vacancy_id=vacancy_id)
+    except Exception as e:
+        logger.error("save_last_parsed_id_error", error=str(e))
+
+
+# ----------------------------------------------------------------------
+# Checkpoint / Resume (#12)
+# ----------------------------------------------------------------------
+
+
+@dataclass
+class ParsingCheckpoint:
+    queries_done: list[str]
+    total_collected: int
+    errors: int
+    elapsed_seconds: float
+    timestamp: str
+
+
+def save_checkpoint(checkpoint: ParsingCheckpoint) -> None:
+    path = config.DATA_CACHE_DIR / "parsing_checkpoint.json"
+    try:
+        atomic_write_json({
+            "queries_done": checkpoint.queries_done,
+            "total_collected": checkpoint.total_collected,
+            "errors": checkpoint.errors,
+            "elapsed_seconds": checkpoint.elapsed_seconds,
+            "timestamp": checkpoint.timestamp,
+        }, path)
+        logger.info("checkpoint_saved", path=str(path), queries_done=len(checkpoint.queries_done))
+    except Exception as e:
+        logger.error("checkpoint_save_error", error=str(e))
+
+
+def load_checkpoint() -> ParsingCheckpoint | None:
+    path = config.DATA_CACHE_DIR / "parsing_checkpoint.json"
+    try:
+        data = atomic_read_json(path)
+        if data is None:
+            return None
+        return ParsingCheckpoint(
+            queries_done=data["queries_done"],
+            total_collected=data["total_collected"],
+            errors=data["errors"],
+            elapsed_seconds=data["elapsed_seconds"],
+            timestamp=data["timestamp"],
+        )
+    except Exception as e:
+        logger.error("checkpoint_load_error", error=str(e))
+        return None
+
+
+def resume_from_checkpoint(queries: list[str]) -> tuple[list[dict], ParsingCheckpoint | None]:
+    checkpoint = load_checkpoint()
+    if checkpoint is None:
+        return [], None
+    remaining = [q for q in queries if q not in checkpoint.queries_done]
+    logger.info(
+        "checkpoint_resume",
+        total_queries=len(queries),
+        done=len(checkpoint.queries_done),
+        remaining=len(remaining),
+    )
+    return [], checkpoint
 
 
 # ----------------------------------------------------------------------
