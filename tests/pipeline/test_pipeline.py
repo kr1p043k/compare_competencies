@@ -9,7 +9,7 @@ import pytest
 sys.modules['shap'] = MagicMock()
 sys.modules['cv2'] = MagicMock()
 
-from src.pipeline.data_source import DataSource
+from src.pipeline.data_source import HhDataSource
 from src.pipeline.helpers import get_load_mode, load_vacancies_details, save_detailed_vacancies
 from src.pipeline.level_builder import LevelBuilder
 from src.pipeline.metric_computer import MetricComputer
@@ -48,40 +48,41 @@ def mock_args():
 
 
 # ---------------------------------------------------------------------------
-# DataSource
+# HhDataSource
 # ---------------------------------------------------------------------------
-class TestDataSource:
+class TestHhDataSource:
     def test_load_from_cache_success(self, tmp_path, monkeypatch, mock_args):
         mock_args.skip_collection = True
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
 
-        # Создаём кэш-файл
         data = [{"id": "1", "name": "test"}]
         cache_file = tmp_path / "hh_vacancies_detailed.json"
         cache_file.write_text(json.dumps(data))
-        # Переопределяем config
         monkeypatch.setattr("src.pipeline.data_source.config.DATA_PROCESSED_DIR", tmp_path)
         monkeypatch.setattr("src.pipeline.data_source.config.DATA_RAW_DIR", tmp_path)
 
-        vacancies, parser = ds.get_vacancies()
-        assert vacancies == data
-        assert parser is not None
+        mock_vac = MagicMock()
+        with patch("src.models.vacancy.Vacancy.from_api", return_value=mock_vac):
+            vacancies, parser = ds.get_vacancies()
+            assert len(vacancies) == 1
+            assert vacancies[0] is mock_vac
+            assert parser is not None
 
     def test_load_from_cache_file_not_found(self, mock_args, tmp_path, monkeypatch):
         mock_args.skip_collection = True
-        ds = DataSource(mock_args)
-        # Замокаем _find_file, чтобы он не вызывал sys.exit
+        ds = HhDataSource(mock_args)
         fake_file = tmp_path / "nonexistent.json"
         ds._find_file = MagicMock(return_value=fake_file)
-        # safe_read_json вернёт None
         with patch("src.pipeline.data_source.safe_read_json", return_value=None), \
-            patch("src.pipeline.data_source.sys.exit") as mock_exit:
-            ds._load_from_cache()
+            patch("src.pipeline.data_source.console_info"), \
+            patch("src.pipeline.data_source.sys.exit", side_effect=SystemExit(1)) as mock_exit:
+            with pytest.raises(SystemExit):
+                ds._load_from_cache()
             mock_exit.assert_called_once_with(1)
 
     def test_collect_from_hh_interactive(self, mock_args):
         mock_args.interactive = True
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
 
         # Мокаем все внешние зависимости
         with patch("src.pipeline.data_source.HeadHunterAPI") as mock_api_class, \
@@ -110,7 +111,7 @@ class TestDataSource:
 
     def test_collect_from_hh_it_sector(self, mock_args):
         mock_args.it_sector = True
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
 
         with patch("src.pipeline.data_source.HeadHunterAPI"), \
              patch("src.pipeline.data_source.VacancyParser"), \
@@ -132,7 +133,7 @@ class TestDataSource:
 
     def test_collect_from_hh_skip_details(self, mock_args):
         mock_args.skip_details = True
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
 
         with patch("src.pipeline.data_source.HeadHunterAPI") as mock_api_class, \
              patch("src.pipeline.data_source.VacancyParser"), \
@@ -151,7 +152,7 @@ class TestDataSource:
         detailed.write_text("[]")
         monkeypatch.setattr("src.pipeline.data_source.config.DATA_PROCESSED_DIR", tmp_path)
         monkeypatch.setattr("src.pipeline.data_source.config.DATA_RAW_DIR", tmp_path)
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
         f = ds._find_file()
         assert f == detailed
 
@@ -160,20 +161,20 @@ class TestDataSource:
         basic.write_text("[]")
         monkeypatch.setattr("src.pipeline.data_source.config.DATA_PROCESSED_DIR", tmp_path)
         monkeypatch.setattr("src.pipeline.data_source.config.DATA_RAW_DIR", tmp_path)
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
         f = ds._find_file()
         assert f == basic
 
     def test_find_file_none_exists(self, tmp_path, monkeypatch, mock_args):
         monkeypatch.setattr("src.pipeline.data_source.config.DATA_PROCESSED_DIR", tmp_path)
         monkeypatch.setattr("src.pipeline.data_source.config.DATA_RAW_DIR", tmp_path)
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
         with patch("src.pipeline.data_source.sys.exit") as mock_exit:
             ds._find_file()
             mock_exit.assert_called_once_with(1)
     def test_collect_from_hh_single_query(self, mock_args):
         mock_args.use_multiple = False  # будет заходить в else
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
         with patch("src.pipeline.data_source.HeadHunterAPI") as MockAPI, \
             patch("src.pipeline.data_source.VacancyParser"), \
             patch("src.pipeline.data_source.get_load_mode") as mock_mode, \
@@ -190,7 +191,7 @@ class TestDataSource:
 
     def test_collect_from_hh_queries_file(self, mock_args):
         mock_args.queries_file = "queries.txt"
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
         with patch("src.pipeline.data_source.HeadHunterAPI"), \
             patch("src.pipeline.data_source.VacancyParser"), \
             patch("src.pipeline.data_source.validate_safe_path", return_value=Path("queries.txt")), \
@@ -213,7 +214,7 @@ class TestDataSource:
         mock_args.queries_file = None
         mock_args.regions = None
         mock_args.skip_details = True
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
         with patch("src.pipeline.data_source.HeadHunterAPI") as MockAPI, \
              patch("src.pipeline.data_source.VacancyParser"), \
              patch("src.pipeline.data_source.console_info"):
@@ -230,7 +231,7 @@ class TestDataSource:
         mock_args.queries_file = None
         mock_args.regions = None
         mock_args.skip_details = False
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
         with patch("src.pipeline.data_source.HeadHunterAPI") as MockAPI, \
              patch("src.pipeline.data_source.VacancyParser"), \
              patch("src.pipeline.data_source.get_load_mode") as mock_mode, \
@@ -247,7 +248,7 @@ class TestDataSource:
 
     def test_collect_from_hh_no_vacancies_sys_exit(self, mock_args):
         mock_args.it_sector = True  # включает use_multiple
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
         with patch("src.pipeline.data_source.HeadHunterAPI"), \
             patch("src.pipeline.data_source.VacancyParser"), \
             patch("src.pipeline.data_source.collect_vacancies_multiple") as mock_collect, \
@@ -263,7 +264,7 @@ class TestDataSource:
         mock_args.queries_file = None
         mock_args.regions = None
         mock_args.skip_details = False
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
         # Мокаем hh_api.search_vacancies
         with patch("src.pipeline.data_source.HeadHunterAPI") as MockAPI, \
             patch("src.pipeline.data_source.VacancyParser"), \
@@ -287,7 +288,7 @@ class TestDataSource:
         mock_args.interactive = False
         mock_args.queries_file = None
         mock_args.regions = None
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
         with patch("src.pipeline.data_source.HeadHunterAPI") as MockAPI, \
             patch("src.pipeline.data_source.VacancyParser"), \
             patch("src.pipeline.data_source.console_info"), \
@@ -593,7 +594,7 @@ class TestRecommendationRunner:
 # ---------------------------------------------------------------------------
 class TestSkillExtractor:
     def test_extract_from_parser(self, tmp_path, monkeypatch, mock_args):
-        cache_path = tmp_path / "cache.pkl"
+        cache_path = tmp_path / "cache.joblib"
         monkeypatch.setattr("src.pipeline.skill_extractor.config.PARSED_SKILLS_CACHE_PATH", cache_path)
         monkeypatch.setattr("src.pipeline.skill_extractor.config.DATA_PROCESSED_DIR", tmp_path)
 
@@ -614,7 +615,7 @@ class TestSkillExtractor:
             assert cache_path.exists()  # кэш сохранен
 
     def test_extract_with_cache(self, tmp_path, monkeypatch, mock_args):
-        cache_path = tmp_path / "cache.pkl"
+        cache_path = tmp_path / "cache.joblib"
         cache_path.touch()                     # <-- файл должен существовать
         raw_file = tmp_path / "raw.json"
         raw_file.write_text("dummy")
@@ -628,7 +629,7 @@ class TestSkillExtractor:
 
         with patch.object(extractor, "_get_file_hash", return_value="abc"), \
              patch.object(extractor, "_check_manifest"), \
-             patch("src.pipeline.skill_extractor.safe_load_pickle", return_value=data), \
+             patch("src.pipeline.skill_extractor.joblib.load", return_value=data), \
              patch("src.pipeline.skill_extractor.TrendAnalyzer"), \
              patch("src.pipeline.skill_extractor.print_top_skills"), \
              patch("src.pipeline.skill_extractor.load_competency_mapping", return_value=None), \
@@ -637,7 +638,7 @@ class TestSkillExtractor:
             assert freq == {"java": 5}
 
     def test_extract_with_competency_mapping(self, tmp_path, monkeypatch, mock_args):
-        monkeypatch.setattr("src.pipeline.skill_extractor.config.PARSED_SKILLS_CACHE_PATH", tmp_path / "cache.pkl")
+        monkeypatch.setattr("src.pipeline.skill_extractor.config.PARSED_SKILLS_CACHE_PATH", tmp_path / "cache.joblib")
         monkeypatch.setattr("src.pipeline.skill_extractor.config.DATA_PROCESSED_DIR", tmp_path)
         extractor = SkillExtractor(mock_args)
         mock_parser = MagicMock()
@@ -677,7 +678,7 @@ class TestSkillExtractor:
             mock_engine_instance.set_cluster_context.assert_called_once_with({"docker": 0.9})
 
     def test_check_manifest_deletes_incompatible(self, tmp_path, monkeypatch):
-        cache_path = tmp_path / "cache.pkl"
+        cache_path = tmp_path / "cache.joblib"
         cache_path.touch()
         manifest_path = cache_path.with_suffix(".manifest.json")
         manifest_path.write_text("{}")
@@ -718,7 +719,7 @@ class TestWeightCleaner:
             assert call_kwargs["competency_freq"] == {}
 
     def test_extract_cache_mismatch_recalculates(self, tmp_path, monkeypatch, mock_args):
-        cache_path = tmp_path / "cache.pkl"
+        cache_path = tmp_path / "cache.joblib"
         raw_file = tmp_path / "raw.json"
         raw_file.write_text("new content")
         # старый кэш с другим хешем
@@ -740,7 +741,7 @@ class TestWeightCleaner:
             patch("src.pipeline.skill_extractor.print_top_skills"), \
             patch("src.pipeline.skill_extractor.load_competency_mapping", return_value=None), \
             patch("src.pipeline.skill_extractor.ArtifactManifest"), \
-            patch("src.pipeline.skill_extractor.safe_load_pickle", return_value=old_data):
+            patch("src.pipeline.skill_extractor.joblib.load", return_value=old_data):
             # _check_manifest будет вызван, но кэш не подойдёт по хешу
             freq, hw, _ = extractor.extract([], mock_parser, raw_file=raw_file)
             assert freq == {"python": 10}
@@ -780,7 +781,7 @@ class TestGapRunner:
 
     def test_collect_from_hh_regions(self, mock_args):
         mock_args.regions = "1,2"
-        ds = DataSource(mock_args)
+        ds = HhDataSource(mock_args)
         with patch("src.pipeline.data_source.HeadHunterAPI"), \
             patch("src.pipeline.data_source.VacancyParser"), \
             patch("src.pipeline.data_source.collect_vacancies_multiple") as mock_collect, \
