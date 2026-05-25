@@ -146,7 +146,7 @@ gap-анализ для профилей студентов. Включает ML
   python scripts/full_rebuild.py
 
 Что делает скрипт:
-  - Удаляет parsed_skills.pkl, модели кластеров, LTR-модель, кэш эмбеддингов
+  - Удаляет parsed_skills.joblib, модели кластеров, LTR-модель, кэш эмбеддингов
   - Пересчитывает навыки из вакансий
   - Обучает кластеры
   - Обучает LTR-модель
@@ -170,12 +170,12 @@ gap-анализ для профилей студентов. Включает ML
 После расширения обязательно очистите кэш:
 
   # Windows PowerShell
-  Remove-Item data/cache/parsed_skills.pkl -ErrorAction SilentlyContinue
+  Remove-Item data/cache/parsed_skills.joblib -ErrorAction SilentlyContinue
   Remove-Item -Recurse data/cache/embeddings/ -ErrorAction SilentlyContinue
   Remove-Item -Recurse data/cache/clusters/ -ErrorAction SilentlyContinue
 
   # Linux/macOS
-  rm -f data/cache/parsed_skills.pkl
+  rm -f data/cache/parsed_skills.joblib
   rm -rf data/cache/embeddings/
   rm -rf data/cache/clusters/
 
@@ -204,7 +204,7 @@ gap-анализ для профилей студентов. Включает ML
 ================================================================================
 
 **Кэш и модели (`data/cache/`, `data/models/`)**
-- `data/cache/parsed_skills.pkl` – кэш извлечённых навыков (для очистки: `rm data/cache/parsed_skills.pkl`)
+- `data/cache/parsed_skills.joblib` – кэш извлечённых навыков (для очистки: `rm data/cache/parsed_skills.joblib`)
 - `data/cache/embeddings/` – рыночные эмбеддинги (для очистки: `rm -rf data/cache/embeddings/`)
 - `data/cache/clusters/` – модели кластеров вакансий
   - `vacancy_clusters_junior.pkl`
@@ -609,6 +609,48 @@ Makefile: быстрые команды
   make rebuild      Полная пересборка проекта (scripts/full_rebuild.py)
   make run-api      Запустить API сервер (uvicorn src.api:app --reload)
   make clean        Удалить кэши и модели
+
+Запуск фронтенда (веб-интерфейс)
+===============================================================================
+
+Фронтенд — React SPA на Vite. Разрабатывается отдельно от бэкенда.
+
+**Требования:** Node.js 18+, npm (или pnpm).
+
+**Установка зависимостей:**
+
+  cd frontend
+  npm install
+
+**Режим разработки:**
+
+  cd frontend
+  npm run dev
+
+  # Сервер запускается на http://localhost:3000
+  # API-запросы проксируются на http://localhost:8000 (должен быть запущен бэкенд)
+
+**Production-сборка:**
+
+  cd frontend
+  npm run build
+
+  # Результат в dist/ — можно раздать через nginx или любой статический сервер.
+
+**Полный запуск (бэкенд + фронтенд):**
+
+  Терминал 1:
+    uvicorn src.api_pkg:app --reload      # API на :8000 (новая архитектура)
+    # Альтернатива (старая версия):
+    # uvicorn src.api:app --reload
+
+  Терминал 2:
+    cd frontend && npm run dev            # Фронтенд на :3000, /api → localhost:8000
+
+Фронтенд общается с бэкендом через REST API, поэтому оба сервера должны быть
+запущены одновременно. В режиме разработки прокси Vite перенаправляет /api/* 
+запросы на бэкенд.
+
 
 Поддержка
 ================================================================================
