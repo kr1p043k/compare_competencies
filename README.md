@@ -20,185 +20,213 @@
 ## 📁 Структура проекта
 
 ```plaintext
-└── 📁 competency_comparison
+└── 📁 compare_competencies/
     │
     ├── 📁 data/                            # Данные: кэш, справочники, результаты
     │   ├── 📁 cache/                       # Единый кэш быстрых данных
     │   ├── 📁 history/                     # Исторические снимки частот навыков
     │   ├── 📁 last_uploaded/               # Последняя загруженная матрица компетенций
-    │   ├── 📁 models/                      # Обученные ML-модели
+    │   ├── 📁 models/                      # Обученные ML-модели (joblib)
     │   ├── 📁 processed/                   # Обработанные данные после парсинга
     │   ├── 📁 raw/                         # Сырые входные данные
     │   ├── 📁 reference/                   # Эталонные справочники
-    │   ├── 📁 result/                      # Результаты: отчёты, графики
+    │   ├── 📁 result/                      # Результаты: отчёты, графики (300 DPI)
     │   └── 📁 students/                    # Профили студентов
     │
-    ├── 📁 frontend/                        # React + Vite + TypeScript
-    │   └── 📁 src/
-    │       ├── 📁 app/
-    │       │   ├── 📁 components/
-    │       │   │   ├── 📁 figma/
-    │       │   │   │   └── 📄 ImageWithFallback.tsx
-    │       │   │   ├── 📁 ui/              # shadcn/ui (button, card, dialog, tooltip…)
-    │       │   │   ├── 📄 AnalysisTab.tsx   # Вкладка анализа, принимает состояние через пропсы
-    │       │   │   ├── 📄 DataViewer.tsx    # Табличный просмотр данных
-    │       │   │   ├── 📄 Footer.tsx        # Подвал
-    │       │   │   ├── 📄 GapAnalysisVisualizer.tsx  # Визуализация gap-анализа
-    │       │   │   ├── 📄 LoadingSpinner.tsx         # Индикатор загрузки
-    │       │   │   ├── 📄 MetricsExplanation.tsx     # Объяснение метрик
-    │       │   │   ├── 📄 PipelineProgress.tsx       # Прогресс пайплайна
-    │       │   │   ├── 📄 RecommendationsReport.tsx  # Рекомендации + gap-объяснения с тултипами
-    │       │   │   ├── 📄 RegionCombobox.tsx         # Выбор региона
-    │       │   │   ├── 📄 StatsCards.tsx             # Карточки статистики
-    │       │   │   ├── 📄 VacanciesList.tsx          # Список вакансий
-    │       │   │   └── 📄 VacancyCard.tsx            # Карточка вакансии
-    │       │   └── 📄 App.tsx               # Корневой компонент, состояние наверх
-    │       ├── 📁 lib/
-    │       │   └── 📄 logger.ts             # Клиентское логирование
-    │       ├── 📁 styles/                   # CSS: tailwind, globals, theme
-    │       │   ├── 📄 fonts.css             # Шрифты
-    │       │   ├── 📄 globals.css           # Глобальные стили
-    │       │   ├── 📄 index.css             # Входная точка стилей
-    │       │   ├── 📄 tailwind.css          # Tailwind directives
-    │       │   └── 📄 theme.css             # Тема
-    │       └── 📄 main.tsx                  # Точка входа React
+    ├── 📁 docs/                            # Документация
+    │   ├── 📄 ARCHITECTURE.md              # Архитектура и возможности системы
+    │   ├── 📄 PROJECT_OVERVIEW.md           # Обзор проекта
+    │   └── 📄 user_manual.md               # Руководство пользователя
     │
-    ├── 📁 notebooks/                        # Jupyter ноутбуки
+    ├── 📁 frontend/                        # React + Vite + TypeScript
+    │   ├── 📁 src/
+    │   │   ├── 📁 app/
+    │   │   │   ├── 📁 components/
+    │   │   │   │   ├── 📁 figma/
+    │   │   │   │   │   └── 📄 ImageWithFallback.tsx
+    │   │   │   │   ├── 📁 ui/              # shadcn/ui (60+ компонентов)
+    │   │   │   │   ├── 📄 AnalysisTab.tsx
+    │   │   │   │   ├── 📄 DataViewer.tsx
+    │   │   │   │   ├── 📄 Footer.tsx
+    │   │   │   │   ├── 📄 GapAnalysisVisualizer.tsx
+    │   │   │   │   ├── 📄 LoadingSpinner.tsx
+    │   │   │   │   ├── 📄 MetricsExplanation.tsx
+    │   │   │   │   ├── 📄 PipelineProgress.tsx
+    │   │   │   │   ├── 📄 RecommendationsReport.tsx
+    │   │   │   │   ├── 📄 RegionCombobox.tsx
+    │   │   │   │   ├── 📄 StatsCards.tsx
+    │   │   │   │   ├── 📄 VacanciesList.tsx
+    │   │   │   │   └── 📄 VacancyCard.tsx
+    │   │   │   └── 📄 App.tsx
+    │   │   ├── 📁 imports/                 # Импортированные скрипты и данные
+    │   │   │   ├── 📁 pasted_text/
+    │   │   │   ├── 📄 pipeline_endpoints.py
+    │   │   │   ├── 📄 pipeline_runner.py
+    │   │   │   ├── 📄 README.md
+    │   │   │   └── 📄 user_manual.md
+    │   │   ├── 📁 lib/
+    │   │   │   └── 📄 logger.ts
+    │   │   ├── 📁 styles/
+    │   │   │   ├── 📄 fonts.css
+    │   │   │   ├── 📄 globals.css
+    │   │   │   ├── 📄 index.css
+    │   │   │   ├── 📄 tailwind.css
+    │   │   │   └── 📄 theme.css
+    │   │   └── 📄 main.tsx
+    │   ├── 📄 package.json
+    │   ├── 📄 vite.config.ts
+    │   ├── 📄 postcss.config.mjs
+    │   ├── 📄 pipeline.bat
+    │   └── 📄 pnpm-workspace.yaml
+    │
+    ├── 📁 htmlcov/                         # Отчёты о покрытии тестами
+    │
+    ├── 📁 logs/                            # Логи приложения
+    │
+    ├── 📁 notebooks/                       # Jupyter ноутбуки
     │
     ├── 📁 scripts/
-    │   ├── 📄 check_clusters.py             # Проверка обученных кластеров вакансий
-    │   ├── 📄 extend_it_skills.py           # Расширение белого списка навыков из вакансий
-    │   ├── 📄 full_rebuild.py               # Очистка кэшей и полная пересборка проекта
-    │   └── 📄 train_clusters.py             # Обучение кластеров вакансий по уровням
+    │   ├── 📄 check_clusters.py            # Проверка обученных кластеров
+    │   ├── 📄 extend_it_skills.py          # Расширение белого списка навыков
+    │   ├── 📄 full_rebuild.py              # Очистка кэшей и пересборка
+    │   └── 📄 train_clusters.py            # Обучение кластеров по уровням
     │
     ├── 📁 src/
-    │   ├── 📁 analyzers/                    # Аналитика и сравнение
+    │   ├── 📁 analyzers/
     │   │   ├── 📁 clustering/
-    │   │   │   └── 📄 vacancy_clustering.py # Кластеризация вакансий KMeans/HDBSCAN
+    │   │   │   └── 📄 vacancy_clustering.py
     │   │   ├── 📁 comparison/
-    │   │   │   ├── 📄 comparator.py         # Сравнение навыков студента с рынком (TF-IDF / эмбеддинги)
-    │   │   │   ├── 📄 domain_analyzer.py    # Анализ покрытия по 15 доменам
-    │   │   │   ├── 📄 embedding_comparator.py # Семантическое сравнение через эмбеддинги + FAISS
-    │   │   │   └── 📄 engines.py            # Движки сравнения профилей
+    │   │   │   ├── 📄 comparator.py
+    │   │   │   ├── 📄 domain_analyzer.py
+    │   │   │   ├── 📄 embedding_comparator.py
+    │   │   │   └── 📄 engines.py
     │   │   ├── 📁 gap/
-    │   │   │   ├── 📄 gap_analyzer.py       # Gap-анализ: разница между навыками студента и рынка
-    │   │   │   └── 📄 profile_evaluator.py  # Оценка профиля: метрики покрытия, readiness
+    │   │   │   ├── 📄 gap_analyzer.py
+    │   │   │   └── 📄 profile_evaluator.py
     │   │   └── 📁 skills/
-    │   │       ├── 📄 profession_taxonomy.py # Таксономия профессий: домены, КРМ-коды
-    │   │       ├── 📄 skill_correlation.py  # Анализ совместной встречаемости навыков (Jaccard)
-    │   │       ├── 📄 skill_filter.py       # Фильтрация навыков, удаление мусора
-    │   │       ├── 📄 skill_level_analyzer.py # Распределение навыков по уровням
-    │   │       ├── 📄 skill_taxonomy.py     # Таксономия навыков по 19 категориям (Singleton)
-    │   │       └── 📄 trends.py             # Анализ трендов: сравнение исторических снимков
+    │   │       ├── 📄 profession_taxonomy.py
+    │   │       ├── 📄 skill_correlation.py
+    │   │       ├── 📄 skill_filter.py
+    │   │       ├── 📄 skill_level_analyzer.py
+    │   │       ├── 📄 skill_taxonomy.py
+    │   │       └── 📄 trends.py
     │   │
-    │   ├── 📁 api_pkg/                      # FastAPI-пакет
-    │   │   ├── 📄 __init__.py               # Инициализация пакета
-    │   │   ├── 📄 deps.py                   # Depends-зависимости (DI)
-    │   │   ├── 📄 n8n.py                    # Интеграция с n8n
-    │   │   ├── 📄 startup.py                # Startup/hooks приложения
+    │   ├── 📁 api_pkg/                     # FastAPI-пакет (10 роутеров)
+    │   │   ├── 📄 __init__.py
+    │   │   ├── 📄 deps.py
+    │   │   ├── 📄 n8n.py
+    │   │   ├── 📄 startup.py
     │   │   └── 📁 routers/
-    │   │       ├── 📄 __init__.py            # Сборка роутеров
-    │   │       ├── 📄 admin.py              # Админ-эндпоинты
-    │   │       ├── 📄 clusters.py           # Эндпоинты кластеров
-    │   │       ├── 📄 health.py             # Health check (/api/health)
-    │   │       ├── 📄 market.py             # Эндпоинты рыночных данных
-    │   │       ├── 📄 pipeline.py           # Управление пайплайном
-    │   │       ├── 📄 profiles.py           # Эндпоинты профилей студентов
-    │   │       ├── 📄 results.py            # Результаты анализа
-    │   │       ├── 📄 taxonomy.py           # Таксономия навыков
-    │   │       ├── 📄 trends.py             # Тренды
-    │   │       └── 📄 vacancies.py          # Вакансии
+    │   │       ├── 📄 __init__.py
+    │   │       ├── 📄 admin.py
+    │   │       ├── 📄 clusters.py
+    │   │       ├── 📄 health.py
+    │   │       ├── 📄 market.py
+    │   │       ├── 📄 pipeline.py
+    │   │       ├── 📄 profiles.py
+    │   │       ├── 📄 results.py
+    │   │       ├── 📄 taxonomy.py
+    │   │       ├── 📄 trends.py
+    │   │       └── 📄 vacancies.py
     │   │
-    │   ├── 📁 loaders_student/              # Загрузка профилей студентов
+    │   ├── 📁 loaders_student/
     │   │   ├── 📄 __init__.py
-    │   │   └── 📄 student_loader.py         # Загрузка из JSON/CSV
+    │   │   └── 📄 student_loader.py
     │   │
-    │   ├── 📁 models/                       # Pydantic-модели
+    │   ├── 📁 models/                      # Pydantic-модели
     │   │   ├── 📄 __init__.py
-    │   │   ├── 📄 api_responses.py          # Pydantic-схемы ответов FastAPI (30+ моделей)
-    │   │   ├── 📄 comparison.py             # Модели сравнения профилей
-    │   │   ├── 📄 competency.py             # Модель компетенции
-    │   │   ├── 📄 data_contracts.py         # Контракты между этапами пайплайна
-    │   │   ├── 📄 enums.py                  # Enum'ы (уровни, приоритеты, тренды)
-    │   │   ├── 📄 hh_responses.py           # Модели ответов API hh.ru
-    │   │   ├── 📄 market_metrics.py         # Метрики рынка
-    │   │   ├── 📄 student.py                # Модель студента
-    │   │   └── 📄 vacancy.py                # Модель вакансии
+    │   │   ├── 📄 api_responses.py
+    │   │   ├── 📄 comparison.py
+    │   │   ├── 📄 competency.py
+    │   │   ├── 📄 data_contracts.py
+    │   │   ├── 📄 enums.py
+    │   │   ├── 📄 hh_responses.py
+    │   │   ├── 📄 market_metrics.py
+    │   │   ├── 📄 student.py
+    │   │   └── 📄 vacancy.py
     │   │
-    │   ├── 📁 parsing/                      # Парсинг вакансий hh.ru
+    │   ├── 📁 parsing/
     │   │   ├── 📁 api/
     │   │   │   ├── 📄 __init__.py
-    │   │   │   ├── 📄 hh_api.py             # Синхронный клиент API hh.ru
-    │   │   │   ├── 📄 hh_api_async.py       # Асинхронный клиент (пакетная загрузка)
-    │   │   │   └── 📄 embedding_loader.py   # Загрузка SentenceTransformer (Singleton)
+    │   │   │   ├── 📄 hh_api.py
+    │   │   │   ├── 📄 hh_api_async.py
+    │   │   │   └── 📄 embedding_loader.py
     │   │   ├── 📁 skills/
     │   │   │   ├── 📄 __init__.py
-    │   │   │   ├── 📄 bm25_ranker.py        # BM25-ранжер с предфильтрацией
-    │   │   │   ├── 📄 hybrid_weight_calculator.py # Гибридные веса BM25 + Embeddings + PCA
-    │   │   │   ├── 📄 skill_embedding_cache.py # JSON-кэш эмбеддингов навыков
-    │   │   │   ├── 📄 skill_normalizer.py   # Нормализация: синонимы, fuzzy-матчи
-    │   │   │   ├── 📄 skill_parser.py       # Извлечение навыков из текста
-    │   │   │   ├── 📄 skill_validator.py    # Валидация: чёрный/белый списки
-    │   │   │   └── 📄 vacancy_parser.py     # Фасад парсера
-    │   │   └── 📄 utils.py                  # Утилиты: whitelist, интерактивный режим
+    │   │   │   ├── 📄 bm25_ranker.py
+    │   │   │   ├── 📄 hybrid_weight_calculator.py
+    │   │   │   ├── 📄 skill_embedding_cache.py
+    │   │   │   ├── 📄 skill_normalizer.py
+    │   │   │   ├── 📄 skill_parser.py
+    │   │   │   ├── 📄 skill_validator.py
+    │   │   │   └── 📄 vacancy_parser.py
+    │   │   └── 📄 utils.py
     │   │
-    │   ├── 📁 pipeline/                     # Конвейер обработки
+    │   ├── 📁 pipeline/
     │   │   ├── 📄 __init__.py
-    │   │   ├── 📄 data_source.py            # Загрузка вакансий из кэша или hh.ru
-    │   │   ├── 📄 gap_runner.py             # Оркестрация gap-анализа и рекомендаций
-    │   │   ├── 📄 helpers.py                # Общие функции: загрузка, сохранение
-    │   │   ├── 📄 level_builder.py          # Подготовка level_vacancies_data
-    │   │   ├── 📄 metric_computer.py        # Оценка профилей (ProfileEvaluator)
-    │   │   ├── 📄 recommendation_runner.py  # Генерация рекомендаций
-    │   │   ├── 📄 skill_extractor.py        # Извлечение навыков из вакансий
-    │   │   └── 📄 weight_cleaner.py         # Фильтрация hybrid_weights через справочники
+    │   │   ├── 📄 data_source.py
+    │   │   ├── 📄 gap_runner.py
+    │   │   ├── 📄 helpers.py
+    │   │   ├── 📄 level_builder.py
+    │   │   ├── 📄 metric_computer.py
+    │   │   ├── 📄 recommendation_runner.py
+    │   │   ├── 📄 skill_extractor.py
+    │   │   └── 📄 weight_cleaner.py
     │   │
-    │   ├── 📁 predictors/                   # ML-модели
+    │   ├── 📁 predictors/
     │   │   ├── 📄 __init__.py
-    │   │   ├── 📄 ltr_recommendation_engine.py  # LTR на XGBoost (обучение, SHAP)
-    │   │   ├── 📄 recommendation_engine.py      # Ансамбль: скоры, тренды, домены
-    │   │   └── 📄 skill_forecast.py             # Прогнозирование трендов навыков
+    │   │   ├── 📄 ltr_recommendation_engine.py
+    │   │   ├── 📄 recommendation_engine.py
+    │   │   └── 📄 skill_forecast.py
     │   │
-    │   ├── 📁 scoring/                      # Скоринг
+    │   ├── 📁 scoring/
     │   │   ├── 📄 __init__.py
-    │   │   └── 📄 vacancy_quality_scorer.py # Оценка качества вакансий
+    │   │   └── 📄 vacancy_quality_scorer.py
     │   │
-    │   ├── 📁 visualization/                # Графики и отчёты
-    │   │   ├── 📄 __init__.py               # Публичный API визуализации
-    │   │   ├── 📄 _config.py                # Настройки стилей и эмодзи
-    │   │   ├── 📄 _utils.py                 # Загрузка данных для графиков
-    │   │   ├── 📄 clusters.py               # Ближайшие кластеры вакансий
-    │   │   ├── 📄 correlation.py            # Тепловая карта Jaccard-матрицы
-    │   │   ├── 📄 coverage.py               # Графики покрытия рынка
-    │   │   ├── 📄 importance.py             # Важность навыков (ML + веса)
-    │   │   ├── 📄 orchestration.py          # Сохранение графиков, запуск ноутбуков
-    │   │   └── 📄 radar.py                  # Радарная диаграмма навыков
+    │   ├── 📁 visualization/
+    │   │   ├── 📄 __init__.py
+    │   │   ├── 📄 _config.py
+    │   │   ├── 📄 _utils.py
+    │   │   ├── 📄 clusters.py
+    │   │   ├── 📄 correlation.py
+    │   │   ├── 📄 coverage.py
+    │   │   ├── 📄 importance.py
+    │   │   ├── 📄 orchestration.py
+    │   │   └── 📄 radar.py
     │   │
     │   ├── 📄 __init__.py
-    │   ├── 📄 api.py                        # FastAPI-сервер для доступа к данным
-    │   ├── 📄 artifacts.py                  # Манифест артефактов (версия, хеш)
-    │   ├── 📄 config.py                     # Pydantic Settings
-    │   ├── 📄 logging_config.py             # structlog + маскирование секретов
-    │   ├── 📄 result.py                     # Result[T, E] / Either pattern
-    │   └── 📄 utils.py                      # Утилиты: atomic_write_json, safe_read_json
+    │   ├── 📄 api.py
+    │   ├── 📄 artifacts.py
+    │   ├── 📄 config.py
+    │   ├── 📄 logging_config.py
+    │   ├── 📄 result.py
+    │   └── 📄 utils.py
     │
-    ├── 📁 tests/                            # pytest + mypy --strict
+    ├── 📁 tests/                           # pytest (35 файлов, ~86% coverage)
     │   ├── 📁 analyzers/
+    │   │   ├── 📁 comparison/
+    │   │   ├── 📄 test_analyzers.py … test_vacancy_clustering.py
+    │   ├── 📁 api/
     │   ├── 📁 integration/
     │   ├── 📁 loaders/
     │   ├── 📁 models/
     │   ├── 📁 parsing/
+    │   ├── 📁 pipeline/
     │   ├── 📁 predictors/
+    │   ├── 📁 scoring/
     │   ├── 📁 scripts/
     │   ├── 📁 visualization/
-    │   └── 📄 conftest.py
+    │   ├── 📄 conftest.py
+    │   ├── 📄 test_artifacts.py
+    │   ├── 📄 test_logging_config.py
+    │   └── 📄 test_utils.py
     │
-    ├── 📄 main.py                           # Точка входа: полный пайплайн
-    ├── 📄 requirements.txt                  # Prod-зависимости
-    ├── 📄 requirements-dev.txt              # dev-зависимости
+    ├── 📄 main.py                          # Точка входа: полный пайплайн
+    ├── 📄 pyproject.toml                   # Конфигурация проекта и инструментов
+    ├── 📄 requirements.txt                 # Prod-зависимости
+    ├── 📄 requirements-dev.txt             # dev-зависимости
     ├── 📄 MakeFile
-    ├── 📄 user_manual.md                    # Руководство пользователя
-    └── 📄 README.md                         # Документация проекта
+    └── 📄 README.md
 ```
 
 ## 🚀 Быстрый старт
@@ -206,8 +234,7 @@
 1. **Установите зависимости**
    ```bash
    pip install -r requirements.txt
-   # Для разработки (тесты, ноутбуки):
-   pip install -r requirements-dev.txt
+   pip install -r requirements-dev.txt   # тесты, ноутбуки
 
 2. **Соберите вакансии**
    ```bash
@@ -234,26 +261,41 @@
    npm install
    npm run dev
    ```
-   Приложение на `http://localhost:5173`. Vite proxy отправляет `/api/*` на backend (порт 8000).
+   Приложение на `http://localhost:3001` (Vite proxy → backend :8000).
 
 ## 📦 Зависимости
 
-**Python (requirements.txt):**
-- `fastapi`, `uvicorn` – REST API
-- `requests`, `aiohttp` – работа с API hh.ru
-- `pandas`, `numpy` – обработка данных
-- `scikit‑learn`, `xgboost`, `shap` – машинное обучение
-- `sentence‑transformers` – эмбеддинги
-- `matplotlib`, `seaborn` – визуализация
-- `pydantic` – модели данных
-- `structlog` – логирование
-- `lightgbm`, `faiss‑cpu` (опционально)
+**Python (requirements.txt) — актуальные установленные версии:**
+- `fastapi==0.116.1`, `uvicorn==0.35.0` — REST API
+- `requests==2.32.4`, `aiohttp==3.12.14` — работа с API hh.ru
+- `pandas==2.3.1`, `numpy==2.2.6` — обработка данных
+- `scikit-learn==1.8.0`, `xgboost==3.0.3`, `shap==0.51.0` — ML
+- `sentence-transformers==5.3.0`, `torch>=2.5.0` — эмбеддинги
+- `matplotlib==3.10.3`, `seaborn==0.13.2` — визуализация
+- `pydantic==2.13.4` — модели данных
+- `structlog==25.5.0` — логирование
+- `lightgbm==4.6.0`, `faiss-cpu==1.13.2` (опционально)
+- `pydantic-settings==2.14.1` — конфигурация
+- `aioresponses` — моки для тестов API
 
 **Frontend (frontend/package.json):**
-- `React 18`, `TypeScript`, `Vite`
-- `shadcn/ui` (Radix UI, Tailwind CSS)
-- `recharts` – графики
-- `lucide-react` – иконки
+- `React 18` + `TypeScript` + `Vite 6.3`
+- `shadcn/ui` (Radix UI, Tailwind CSS) — 60+ компонентов
+- `recharts==2.15.2` — графики
+- `lucide-react==0.487.0` — иконки
+- `motion==12.23` — анимации
+- `react-router==7.13` — маршрутизация
+- `cmdk`, `sonner`, `vaul`, `date-fns`, `react-hook-form` — UI-утилиты
+
+## 🧪 Тестирование
+
+```bash
+pytest --cov=src --cov-report=term --ignore=tests/test_api.py
+```
+- **35 тестовых файлов**, 36 модулей src под покрытием
+- **Общее покрытие: 86%** (отчёт: `htmlcov/index.html`)
+- Ключевые модули: спам-фильтрация (100%), движки сравнения (98%), data_source (97%)
+- API-тесты (hh.ru) выключены — требуют токена, тестируются интеграционно
 
 ## 📝 Примеры использования
 
