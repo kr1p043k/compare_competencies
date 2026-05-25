@@ -1,5 +1,5 @@
 """
-Embedding Comparator с поддержкой уровней опыта и FAISS (опционально)
+Embedding Comparator — семантическое сравнение навыков через эмбеддинги.
 Атомарная запись кэша эмбеддингов + восстановление при порче.
 """
 
@@ -15,6 +15,12 @@ import structlog
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src import config
+from src.analyzers.comparison.engines import (
+    ComparisonResult,
+    EnsembleEngine,
+    JaccardEngine,
+    SimilarityEngine,
+)
 from src.artifacts import ArtifactManifest
 from src.parsing.api.embedding_loader import get_embedding_model
 
@@ -23,12 +29,9 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-try:
-    import faiss
 
-    FAISS_AVAILABLE = True
-except ImportError:
-    FAISS_AVAILABLE = False
+#: Вес cosine similarity при бленде с extra_engines. Остаток делится между extra.
+COSINE_WEIGHT = 0.7
 
 
 class EmbeddingComparator:
@@ -37,7 +40,6 @@ class EmbeddingComparator:
         model_name: str = None,
         cache_dir: str = None,
         similarity_threshold: float = 0.75,
-        use_faiss: bool = True,
     ):
         self.model = get_embedding_model(model_name)
         if cache_dir is None:
@@ -46,21 +48,14 @@ class EmbeddingComparator:
             self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.similarity_threshold = similarity_threshold
-        self.use_faiss = use_faiss and FAISS_AVAILABLE
         self.market_embeddings = None
         self.market_skills = None
-        self.index = None
         self.skill_weights: dict[str, float] = {}
         self.clusterer: VacancyClusterer | None = None
         self.vacancies_data: list[dict] = []
 
-        if self.use_faiss:
-            logger.info("faiss_available")
-        else:
-            logger.info("faiss_unavailable")
-
     def _get_cache_path(self, name: str, level: str = "middle") -> Path:
-        return self.cache_dir / f"{name}_{level}.pkl"
+        return self.cache_dir / f"{name}_{level}.joblib"
 
     def embed_skills(self, skills: list[str]) -> np.ndarray:
         if not skills:
@@ -69,17 +64,11 @@ class EmbeddingComparator:
         return self.model.encode(skills, convert_to_numpy=True, show_progress_bar=False)
 
     def build_market_index(self, all_market_skills: list[str], level: str = "middle"):
-        """
-        Строит (или загружает) рыночный индекс эмбеддингов с атомарной записью.
-        При порче кэша автоматически удаляет битый файл и пересчитывает.
-        """
         cache_path = self._get_cache_path("market_embeddings", level)
 
-        # ── 1. Попытка загрузить существующий кэш ──────────────────────────
         if cache_path.exists():
             manifest_path = cache_path.with_suffix(".manifest.json")
             try:
-                # Проверяем манифест на совместимость
                 if manifest_path.exists():
                     manifest = ArtifactManifest.load(cache_path)
                     if not manifest.is_compatible():
@@ -91,7 +80,6 @@ class EmbeddingComparator:
                         )
                         raise ValueError("Model version mismatch")
 
-                # Пытаемся загрузить сам кэш
                 loaded = joblib.load(cache_path)
                 if isinstance(loaded, dict):
                     self.market_embeddings = loaded["embeddings"]
@@ -100,35 +88,26 @@ class EmbeddingComparator:
                     self.market_embeddings, self.market_skills = loaded
 
                 logger.info("embeddings_cache_loaded", level=level)
-                if self.use_faiss:
-                    self._build_faiss_index()
                 return
 
             except Exception as e:
-                logger.warning(
-                    "market_cache_load_failed",
-                    level=level,
-                    error=str(e),
-                )
-                # Удаляем битый кэш и манифест, чтобы пересоздать
+                logger.warning("market_cache_load_failed", level=level, error=str(e))
                 with suppress(Exception):
                     cache_path.unlink()
                 with suppress(Exception):
                     manifest_path.unlink()
 
-        # ── 2. Пересчитываем эмбеддинги и сохраняем атомарно ──────────────
         self.market_skills = all_market_skills
         self.market_embeddings = self.embed_skills(self.market_skills)
 
-        # Атомарная запись: пишем во временный файл, потом переименовываем
         try:
-            fd, tmp_path = tempfile.mkstemp(dir=cache_path.parent, suffix=".pkl.tmp")
+            fd, tmp_path = tempfile.mkstemp(dir=cache_path.parent, suffix=".joblib.tmp")
             os.close(fd)
             joblib.dump(
                 {"embeddings": self.market_embeddings, "skills": self.market_skills},
                 tmp_path,
             )
-            os.replace(tmp_path, cache_path)  # атомарно на POSIX, почти атомарно на Windows
+            os.replace(tmp_path, cache_path)
             logger.info("market_embeddings_saved_atomically", level=level, path=str(cache_path))
         except Exception as e:
             logger.error("failed_to_save_market_embeddings", error=str(e))
@@ -136,7 +115,6 @@ class EmbeddingComparator:
                 os.unlink(tmp_path)
             raise
 
-        # ── 3. Сохраняем манифест ──────────────────────────────────────────
         try:
             manifest = ArtifactManifest(
                 artifact_path=cache_path,
@@ -146,19 +124,7 @@ class EmbeddingComparator:
         except Exception as e:
             logger.warning("market_cache_manifest_save_failed", error=str(e))
 
-        if self.use_faiss:
-            self._build_faiss_index()
-
-    def _build_faiss_index(self):
-        if self.market_embeddings is None or len(self.market_embeddings) == 0:
-            return
-        dim = self.market_embeddings.shape[1]
-        self.index = faiss.IndexFlatIP(dim)
-        faiss.normalize_L2(self.market_embeddings)
-        self.index.add(self.market_embeddings)
-        logger.info("faiss_index_built")
-
-    def compare_student_to_market(self, student_skills: list[str]) -> dict:
+    def compare_student_to_market(self, student_skills: list[str]) -> ComparisonResult:
         if self.market_embeddings is None:
             raise ValueError("Сначала вызови build_market_index()")
 
@@ -168,22 +134,64 @@ class EmbeddingComparator:
             return {"score": 0.0, "weighted_coverage": 0.0, "matches": [], "missing": [], "avg_similarity": 0.0}
 
         best_sims_per_market = {}
+        similarities = cosine_similarity(student_embs, self.market_embeddings)
+        for i in range(len(student_skills)):
+            for j, sim in enumerate(similarities[i]):
+                mskill = self.market_skills[j]
+                best_sims_per_market[mskill] = max(best_sims_per_market.get(mskill, 0.0), float(sim))
 
-        if self.use_faiss and self.index is not None:
-            for stu_emb in student_embs:
-                stu_emb = stu_emb.reshape(1, -1).astype(np.float32)
-                faiss.normalize_L2(stu_emb)
-                scores, idx = self.index.search(stu_emb, k=5)
-                for score, midx in zip(scores[0], idx[0], strict=False):
-                    mskill = self.market_skills[midx]
-                    best_sims_per_market[mskill] = max(best_sims_per_market.get(mskill, 0.0), float(score))
-        else:
-            similarities = cosine_similarity(student_embs, self.market_embeddings)
-            for i in range(len(student_skills)):
-                for j, sim in enumerate(similarities[i]):
-                    mskill = self.market_skills[j]
-                    best_sims_per_market[mskill] = max(best_sims_per_market.get(mskill, 0.0), float(sim))
+        return self._result_from_sims(best_sims_per_market)
 
+    def compare_student_to_market_ensemble(
+        self,
+        student_skills: list[str],
+        extra_engines: dict[str, tuple[SimilarityEngine, float]] | None = None,
+    ) -> ComparisonResult:
+        """Blends cosine similarity with extra_engines via EnsembleEngine.
+
+        Usage:
+            comp.compare_student_to_market_ensemble(
+                student_skills,
+                extra_engines={"jaccard": (JaccardEngine(), 0.3)},
+            )
+        """
+        base = self.compare_student_to_market(student_skills)
+        if not extra_engines or not self.market_skills:
+            return base
+
+        class _CosineProxy:
+            def __init__(self, outer):
+                self._outer = outer
+            def compare(self, ss, ms):
+                if self._outer.market_embeddings is None:
+                    return {"score": 0.0, "matches": []}
+                student_embs = self._outer.embed_skills(ss)
+                if len(student_embs) == 0:
+                    return {"score": 0.0, "matches": []}
+                sims = cosine_similarity(student_embs, self._outer.market_embeddings)
+                best = {}
+                for i in range(len(ss)):
+                    for j, s in enumerate(sims[i]):
+                        best[ms[j]] = max(best.get(ms[j], 0.0), float(s))
+                avg = float(np.mean(list(best.values()))) if best else 0.0
+                matches = sorted(
+                    [{"skill": k, "similarity": v} for k, v in best.items()],
+                    key=lambda x: x["similarity"], reverse=True,
+                )[:15]
+                return dict(score=round(avg, 4), weighted_coverage=round(avg, 4),
+                            avg_similarity=round(avg, 4), matches=matches, missing=[])
+
+        total_extra = sum(w for _, w in extra_engines.values()) or 1.0
+        engines: dict[str, tuple[SimilarityEngine, float]] = {
+            "cosine": (_CosineProxy(self), COSINE_WEIGHT),
+        }
+        for name, (engine, weight) in extra_engines.items():
+            engines[name] = (engine, (1 - COSINE_WEIGHT) * weight / total_extra)
+
+        ensemble = EnsembleEngine(engines)
+        return ensemble.compare(student_skills, self.market_skills)
+
+    def _result_from_sims(self, best_sims_per_market: dict[str, float]) -> ComparisonResult:
         total_weighted = 0.0
         total_weight = 0.0
 
@@ -213,13 +221,13 @@ class EmbeddingComparator:
             reverse=True,
         )[:15]
 
-        return {
-            "score": round(weighted_coverage, 4),
-            "weighted_coverage": round(weighted_coverage, 4),
-            "avg_similarity": round(avg_similarity, 4),
-            "matches": sorted_matches,
-            "missing": [],
-        }
+        return dict(
+            score=round(weighted_coverage, 4),
+            weighted_coverage=round(weighted_coverage, 4),
+            avg_similarity=round(avg_similarity, 4),
+            matches=sorted_matches,
+            missing=[],
+        )
 
     def get_vacancy_embedding(self, skills: list[str]) -> np.ndarray:
         if not skills:
@@ -239,17 +247,22 @@ class EmbeddingComparator:
         level_vacancies = [v for v in vacancies if v.get("experience") == level]
         if not level_vacancies:
             level_vacancies = vacancies
-
-        vac_embs = []
-        for vac in level_vacancies:
-            vac_skills = vac.get("skills", [])
-            emb = self.get_vacancy_embedding(vac_skills)
-            vac_embs.append(emb)
-
-        if not vac_embs:
+        if not level_vacancies:
             return []
 
-        vac_embs = np.vstack(vac_embs)
+        # Batched embedding: embed all unique skills once, then mean-pool per vacancy
+        vac_skill_lists = [(i, v.get("skills", [])) for i, v in enumerate(level_vacancies)]
+        all_skills = list({s for _, sk in vac_skill_lists for s in sk})
+        if not all_skills:
+            return []
+
+        skill_to_emb = dict(zip(all_skills, self.embed_skills(all_skills), strict=False))
+
+        vac_embs = np.zeros((len(level_vacancies), self.model.get_sentence_embedding_dimension()))
+        for i, skills in vac_skill_lists:
+            embs = [skill_to_emb[s] for s in skills if s in skill_to_emb]
+            vac_embs[i] = np.mean(embs, axis=0) if embs else np.zeros(self.model.get_sentence_embedding_dimension())
+
         similarities = cosine_similarity(student_emb, vac_embs)[0]
         top_indices = np.argsort(similarities)[-top_k:][::-1]
         return [level_vacancies[i] for i in top_indices]

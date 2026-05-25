@@ -138,7 +138,7 @@ def test_comparator_tfidf_mode(use_embeddings, level):
 
 class TestEmbeddingComparatorExtended:
     def test_build_market_index_creates_cache(self, tmp_path):
-        comparator = EmbeddingComparator(cache_dir=str(tmp_path), use_faiss=False)
+        comparator = EmbeddingComparator(cache_dir=str(tmp_path))
         skills = ["python", "java"]
         comparator.build_market_index(skills, level="middle")
         cache_path = comparator._get_cache_path("market_embeddings", "middle")
@@ -150,7 +150,7 @@ class TestEmbeddingComparatorExtended:
             comparator.compare_student_to_market(["python"])
 
     def test_compare_student_to_market_results(self):
-        comparator = EmbeddingComparator(use_faiss=False)
+        comparator = EmbeddingComparator()
         market_skills = ["python", "java", "c++"]
         comparator.build_market_index(market_skills, level="middle")
         student_skills = ["python", "c#"]
@@ -175,16 +175,7 @@ class TestEmbeddingComparatorExtended:
 class TestEmbeddingComparatorFull:
     @pytest.fixture
     def comparator(self):
-        return EmbeddingComparator(use_faiss=False)
-
-    def test_init_with_faiss(self):
-        """Покрытие строк 22-23 (FAISS available)"""
-        comp = EmbeddingComparator(use_faiss=True)
-        assert comp.use_faiss is True
-
-    def test_init_without_faiss(self):
-        comp = EmbeddingComparator(use_faiss=False)
-        assert comp.use_faiss is False
+        return EmbeddingComparator()
 
     def test_get_vacancy_embedding_empty_skills(self, comparator):
         """Строка 71: пустые навыки → нулевой вектор"""
@@ -198,12 +189,11 @@ class TestEmbeddingComparatorFull:
         emb = comparator.get_vacancy_embedding(skills)
         assert emb.shape[0] == comparator.model.get_sentence_embedding_dimension()
 
-    def test_build_market_index_with_faiss(self, tmp_path):
-        """Строка 87, 91: FAISS индекс"""
-        comp = EmbeddingComparator(cache_dir=str(tmp_path), use_faiss=True)
+    def test_build_market_index_cache_created(self, tmp_path):
+        comp = EmbeddingComparator(cache_dir=str(tmp_path))
         skills = ["python", "java", "c++"]
         comp.build_market_index(skills, level="test")
-        assert comp.index is not None
+        assert comp.market_skills == skills
 
     def test_compare_student_to_market_empty_skills(self, comparator):
         """Строка 105: пустые навыки студента"""
@@ -308,13 +298,6 @@ class TestEmbeddingComparatorFull:
         assert result["cluster_score"] is None
         assert result["hybrid_score"] == result["global_score"]
 
-    def test_faiss_available_check(self, monkeypatch):
-        """Строки 22-23: проверка доступности FAISS"""
-        # FAISS уже импортирован, проверяем флаг
-        from src.analyzers.comparison.embedding_comparator import FAISS_AVAILABLE
-
-        assert isinstance(FAISS_AVAILABLE, bool)
-
     def test_find_closest_vacancies_no_level_match_no_fallback(self, comparator):
         """Строка 182: все вакансии отфильтрованы по уровню, fallback отключен"""
         student_skills = ["python"]
@@ -333,7 +316,7 @@ class TestCompetencyComparatorFull:
         comparator = CompetencyComparator(use_embeddings=True)
         comparator.fitted = True
         mock_emb = MagicMock()
-        mock_emb.compare_student_to_market.return_value = {
+        mock_emb.compare_student_to_market_ensemble.return_value = {
             "score": 0.5,
             "weighted_coverage": 0.5,
             "matches": [{"skill": "python", "similarity": 0.3}, {"skill": "java", "similarity": 0.2}],
@@ -458,7 +441,7 @@ class TestCompetencyComparatorFull:
         fake_model = MagicMock()
         with patch("src.analyzers.comparison.embedding_comparator.get_embedding_model",
                    return_value=fake_model) as mock_get:
-            comp = EmbeddingComparator(use_faiss=False)
+            comp = EmbeddingComparator()
             mock_get.assert_called_once_with(None)
             assert comp.model is fake_model
 
@@ -468,7 +451,7 @@ class TestCompetencyComparatorFull:
         # Подготовим кэш
         cache_dir = tmp_path / "cache"
         cache_dir.mkdir()
-        comp = EmbeddingComparator(cache_dir=str(cache_dir), use_faiss=False)
+        comp = EmbeddingComparator(cache_dir=str(cache_dir))
         fake_model = MagicMock()
         comp.model = fake_model
 
@@ -491,7 +474,7 @@ class TestCompetencyComparatorFull:
         """Строки 70-73: манифест несовместим -> пересчёт."""
         cache_dir = tmp_path / "cache"
         cache_dir.mkdir()
-        comp = EmbeddingComparator(cache_dir=str(cache_dir), use_faiss=False)
+        comp = EmbeddingComparator(cache_dir=str(cache_dir))
         fake_model = MagicMock()
         fake_model.get_sentence_embedding_dimension.return_value = 2
         fake_model.encode.return_value = np.array([[0.5, 0.6]])
@@ -518,7 +501,7 @@ class TestCompetencyComparatorFull:
         """Строки 84-88: битый кэш -> удаляется и пересоздаётся."""
         cache_dir = tmp_path / "cache"
         cache_dir.mkdir()
-        comp = EmbeddingComparator(cache_dir=str(cache_dir), use_faiss=False)
+        comp = EmbeddingComparator(cache_dir=str(cache_dir))
         fake_model = MagicMock()
         fake_model.get_sentence_embedding_dimension.return_value = 2
         fake_model.encode.return_value = np.array([[0.7, 0.8]])
@@ -535,7 +518,7 @@ class TestCompetencyComparatorFull:
         """Строки 100-103: ошибка при атомарной записи -> исключение."""
         cache_dir = tmp_path / "cache"
         cache_dir.mkdir()
-        comp = EmbeddingComparator(cache_dir=str(cache_dir), use_faiss=False)
+        comp = EmbeddingComparator(cache_dir=str(cache_dir))
         fake_model = MagicMock()
         fake_model.get_sentence_embedding_dimension.return_value = 2
         fake_model.encode.return_value = np.array([[0.1, 0.2]])
@@ -549,7 +532,7 @@ class TestCompetencyComparatorFull:
         """Строки 108-109: ошибка сохранения манифеста не роняет процесс."""
         cache_dir = tmp_path / "cache"
         cache_dir.mkdir()
-        comp = EmbeddingComparator(cache_dir=str(cache_dir), use_faiss=False)
+        comp = EmbeddingComparator(cache_dir=str(cache_dir))
         fake_model = MagicMock()
         fake_model.get_sentence_embedding_dimension.return_value = 2
         fake_model.encode.return_value = np.array([[0.1, 0.2]])
@@ -562,31 +545,10 @@ class TestCompetencyComparatorFull:
             comp.build_market_index(["python"], level="middle")
             assert comp.market_skills == ["python"]
 
-    def test_build_market_index_with_faiss_index(self, tmp_path):
-        """Строки 80-81, 111: включение FAISS индекса после загрузки/создания."""
-        cache_dir = tmp_path / "cache"
-        cache_dir.mkdir()
-        comp = EmbeddingComparator(cache_dir=str(cache_dir), use_faiss=True)
-        fake_model = MagicMock()
-        fake_model.get_sentence_embedding_dimension.return_value = 2
-        fake_model.encode.return_value = np.array([[0.1, 0.2]])
-        comp.model = fake_model
-
-        with patch("faiss.IndexFlatIP") as mock_index_class, \
-             patch("faiss.normalize_L2") as mock_norm:
-            mock_index = MagicMock()
-            mock_index_class.return_value = mock_index
-
-            comp.build_market_index(["python"], level="middle")
-
-            mock_index_class.assert_called_once_with(2)
-            mock_norm.assert_called_once_with(comp.market_embeddings)
-            mock_index.add.assert_called_once_with(comp.market_embeddings)
-
     # ======================== ПОКРЫТИЕ СТРОК 133-137 ==========================
     def test_compare_student_to_market_logs_empty_weights(self, mocker):
         """Строки 133-134: предупреждение при пустых skill_weights."""
-        comp = EmbeddingComparator(use_faiss=False)
+        comp = EmbeddingComparator()
         fake_model = MagicMock()
         fake_model.get_sentence_embedding_dimension.return_value = 3
         fake_model.encode.return_value = np.array([[0.1, 0.2, 0.3]])
@@ -602,7 +564,7 @@ class TestCompetencyComparatorFull:
 
     def test_compare_student_to_market_logs_weights_count(self):
         """Строки 135-137: отладка с количеством весов."""
-        comp = EmbeddingComparator(use_faiss=False)
+        comp = EmbeddingComparator()
         fake_model = MagicMock()
         fake_model.get_sentence_embedding_dimension.return_value = 3
         fake_model.encode.return_value = np.array([[0.1, 0.2, 0.3]])
@@ -618,7 +580,7 @@ class TestCompetencyComparatorFull:
     # ======================== ПОКРЫТИЕ СТРОК 145 и 154 ========================
     def test_compare_student_to_market_weighted_calculation(self):
         """Строка 145: вычисление с весами (effective_sim**2 * weight)."""
-        comp = EmbeddingComparator(use_faiss=False)
+        comp = EmbeddingComparator()
         fake_model = MagicMock()
         fake_model.get_sentence_embedding_dimension.return_value = 2
         # student эмбеддинг: [1,0] даст cosine_sim с рыночным [1,0] = 1.0
@@ -636,7 +598,7 @@ class TestCompetencyComparatorFull:
 
     def test_compare_student_to_market_no_weights_calculation(self):
         """Строка 154: вычисление без весов (сумма effective_sim / количество)."""
-        comp = EmbeddingComparator(use_faiss=False)
+        comp = EmbeddingComparator()
         fake_model = MagicMock()
         fake_model.get_sentence_embedding_dimension.return_value = 2
         fake_model.encode.side_effect = lambda skills, **kwargs: np.array([[0.6, 0.8]])
@@ -654,7 +616,7 @@ class TestCompetencyComparatorFull:
     # ======================== ПОКРЫТИЕ СТРОКИ 235 ==============================
     def test_hybrid_compare_no_clusters_uses_global(self):
         """Строка 235: если best_cluster is None -> hybrid_score = global_score."""
-        comp = EmbeddingComparator(use_faiss=False)
+        comp = EmbeddingComparator()
         # Мокируем compare_student_to_market и compare_to_clusters
         with patch.object(comp, "compare_student_to_market",
                           return_value={"avg_similarity": 0.7, "weighted_coverage": 0.7}):

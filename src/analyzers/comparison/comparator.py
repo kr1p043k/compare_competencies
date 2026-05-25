@@ -4,6 +4,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
+from src.analyzers.comparison.engines import BM25Engine, JaccardEngine
 
 logger = structlog.get_logger(__name__)
 
@@ -27,6 +28,8 @@ class CompetencyComparator:
 
         if use_embeddings:
             self.embedding_comparator = EmbeddingComparator(similarity_threshold=similarity_threshold)
+            self.jaccard_engine = JaccardEngine()
+            self.bm25_engine = BM25Engine()
         else:
             self.tfidf = TfidfVectorizer(
                 ngram_range=ngram_range, min_df=min_df, max_df=max_df, token_pattern=r"(?u)\b\w[\w-]*\b"
@@ -52,7 +55,9 @@ class CompetencyComparator:
         if self.use_embeddings and self.embedding_comparator:
             all_skills = [skill for vac in vacancies_skills for skill in vac]
             self.embedding_comparator.build_market_index(all_skills, level=self.level)
-            logger.info("market_embeddings_built", level=self.level)
+            unique_skills = list(dict.fromkeys(all_skills))
+            self.bm25_engine.fit(unique_skills)
+            logger.info("market_embeddings_and_bm25_built", level=self.level)
         else:
             corpus = [" ".join(skills) for skills in vacancies_skills]
             self.tfidf.fit(corpus)
@@ -74,7 +79,13 @@ class CompetencyComparator:
             return round(score, 4), round(confidence, 4)
 
         if self.use_embeddings and self.embedding_comparator:
-            result = self.embedding_comparator.compare_student_to_market(student_skills)
+            result = self.embedding_comparator.compare_student_to_market_ensemble(
+                student_skills,
+                extra_engines={
+                    "jaccard": (self.jaccard_engine, 0.2),
+                    "bm25": (self.bm25_engine, 0.15),
+                },
+            )
             score = result.get("score", result.get("weighted_coverage", 0.0))
             matches = result.get("matches", [])
             confidence = (
