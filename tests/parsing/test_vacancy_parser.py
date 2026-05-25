@@ -229,6 +229,51 @@ def test_aggregate_to_dataframe_missing_employer(parser_with_mocks):
     df = parser_with_mocks.aggregate_to_dataframe([vac_dict])
     assert df.loc[0, "Компания"] == "Unknown"
 
+def test_aggregate_to_dataframe_with_quality_report_spam(parser_with_mocks):
+    """Добавление колонок 'Спам' и 'Причина спама' через quality_report"""
+    parser_with_mocks.skill_parser.parse_vacancy.return_value = []
+    vac = {
+        "id": "1",
+        "name": "Test",
+        "employer": {"name": "Corp"},
+        "area": {"name": "MSK"},
+        "key_skills": [],
+        "description": "",
+        "snippet": {},
+    }
+    report = {
+        "spam_vacancies": [
+            {"id": "1", "name": "Test", "employer": "Corp", "score": 0.3,
+             "flags": [{"reason": "NO_SKILLS", "detail": "No key skills"}]}
+        ]
+    }
+    df = parser_with_mocks.aggregate_to_dataframe([vac], quality_report=report)
+    assert "Спам" in df.columns
+    assert "Причина спама" in df.columns
+    assert df.loc[0, "Спам"] == "Да"
+
+def test_aggregate_to_dataframe_with_quality_report_clean(parser_with_mocks):
+    """Чистая вакансия в quality_report — колонка 'Спам' = 'Нет'"""
+    parser_with_mocks.skill_parser.parse_vacancy.return_value = []
+    vac = {
+        "id": "1",
+        "name": "Test",
+        "employer": {"name": "Corp"},
+        "area": {"name": "MSK"},
+        "key_skills": [],
+        "description": "",
+        "snippet": {},
+    }
+    report = {
+        "spam_vacancies": [
+            {"id": "1", "name": "Test", "employer": "Corp", "score": 0.8,
+             "flags": [{"reason": "OK", "detail": ""}]}
+        ]
+    }
+    df = parser_with_mocks.aggregate_to_dataframe([vac], quality_report=report)
+    assert df.loc[0, "Спам"] == "Нет"
+
+
 def test_save_processed_frequencies_without_filter(tmp_path, monkeypatch):
     """Строки 217-218: apply_filter=False"""
     monkeypatch.setattr("src.parsing.skills.vacancy_parser.config.DATA_PROCESSED_DIR", tmp_path)
