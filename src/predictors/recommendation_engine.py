@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 import requests
 import structlog
+from sklearn.preprocessing import MinMaxScaler
 
 from src import config
 from src.analyzers.comparison.comparator import CompetencyComparator
@@ -188,12 +189,10 @@ class RecommendationEngine:
                     ltr_impacts = self.ltr_engine.predict_skill_impact(student.skills, missing_for_ltr)
                     if ltr_impacts:
                         skills, raw_scores, _ = zip(*ltr_impacts, strict=False)
-                        from sklearn.preprocessing import MinMaxScaler
-
                         scaler = MinMaxScaler()
                         normalized_scores = scaler.fit_transform(np.array(raw_scores).reshape(-1, 1)).flatten()
                         ltr_scores = {
-                            skill: float(score) for skill, score in zip(skills, normalized_scores, strict=False)
+                            skill.lower(): float(score) for skill, score in zip(skills, normalized_scores, strict=False)
                         }
                     logger.info("ltr_scores_normalized", profile=profile_name, ltr_skills=len(ltr_scores))
                 except Exception as e:
@@ -566,11 +565,11 @@ class RecommendationEngine:
 
     def _get_timeframe(self, skill: str) -> str:
         skill_lower = skill.lower()
-        if any(k in skill_lower for k in self._timeframe_easy):
+        if skill_lower in self._timeframe_easy:
             return "1-2 недели"
-        if any(k in skill_lower for k in self._timeframe_medium):
+        if skill_lower in self._timeframe_medium:
             return "1-2 месяца"
-        if any(k in skill_lower for k in self._timeframe_hard):
+        if skill_lower in self._timeframe_hard:
             return "2-6 месяцев"
         return "1-3 месяца"
 
@@ -663,8 +662,6 @@ class RecommendationEngine:
             try:
                 with open(templates_path, encoding="utf-8") as f:
                     data = json.load(f)
-                self.HARD_SKILL_TEMPLATES = data.get("hard_skills", {})
-                self.SOFT_SKILL_TEMPLATES = data.get("soft_skills", {})
                 self.HARD_LEARNING_PATHS = data.get("hard_paths", {})
                 self.SOFT_LEARNING_PATHS = data.get("soft_paths", {})
                 logger.info("templates_loaded", path=str(templates_path))
@@ -672,16 +669,6 @@ class RecommendationEngine:
             except Exception as e:
                 logger.warning("templates_load_error", error=str(e))
 
-        self.HARD_SKILL_TEMPLATES = {
-            "python": "Python — основной язык для бэкенда и data science.",
-            "java": "Java — стандарт для enterprise-приложений.",
-            "sql": "SQL — язык работы с базами данных.",
-            "docker": "Docker — стандарт для контейнеризации.",
-        }
-        self.SOFT_SKILL_TEMPLATES = {
-            "английский язык": "Английский язык B2+ открывает доступ к документации.",
-            "аналитическое мышление": "Аналитическое мышление критично для решения сложных задач.",
-        }
         self.HARD_LEARNING_PATHS = {
             "python": "1. Основы Python. 2. Практика: 10+ мини-проектов. 3. Углубление.",
             "sql": "1. Основы SELECT. 2. JOIN и подзапросы. 3. Оптимизация.",

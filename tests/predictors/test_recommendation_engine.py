@@ -126,20 +126,17 @@ class TestLoadTemplates:
         templates_dir.mkdir()
         templates_file = templates_dir / "recommendation_templates.json"
         templates_file.write_text(json.dumps({
-            "hard_skills": {"python": "Python is great"},
-            "soft_skills": {"communication": "Soft skill"},
             "hard_paths": {"python": "Learn Python"},
             "soft_paths": {"communication": "Practice"},
         }), encoding="utf-8")
         monkeypatch.setattr(config, "DATA_DIR", tmp_path)
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        assert engine.HARD_SKILL_TEMPLATES["python"] == "Python is great"
-        assert engine.SOFT_SKILL_TEMPLATES["communication"] == "Soft skill"
+        assert engine.HARD_LEARNING_PATHS["python"] == "Learn Python"
 
     def test_default_templates(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        assert "python" in engine.HARD_SKILL_TEMPLATES
-        assert "английский язык" in engine.SOFT_SKILL_TEMPLATES
+        assert "python" in engine.HARD_LEARNING_PATHS
+        assert "английский язык" in engine.SOFT_LEARNING_PATHS
 
     def test_load_templates_corrupted(self, tmp_path, monkeypatch, mock_profile_evaluator):
         templates_dir = tmp_path / "templates"
@@ -148,8 +145,7 @@ class TestLoadTemplates:
         templates_file.write_text("{invalid")
         monkeypatch.setattr(config, "DATA_DIR", tmp_path)
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        # fallback defaults should be loaded
-        assert "python" in engine.HARD_SKILL_TEMPLATES
+        assert "python" in engine.HARD_LEARNING_PATHS
 
 
 # ---------------------------------------------------------------------------
@@ -536,8 +532,7 @@ class TestRecommendationEngineExtended:
         (templates_dir / "recommendation_templates.json").write_text("{invalid")
         monkeypatch.setattr(config, "DATA_DIR", tmp_path)
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        # должен загрузить дефолтные шаблоны
-        assert "python" in engine.HARD_SKILL_TEMPLATES
+        assert "python" in engine.HARD_LEARNING_PATHS
 
     def test_empty_recommendations_structure(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)

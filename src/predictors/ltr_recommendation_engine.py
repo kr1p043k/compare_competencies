@@ -358,8 +358,14 @@ class LTRRecommendationEngine:
         if not student_skills or not self.vacancy_skills_corpus:
             return 0.0
         student_set = set(student_skills)
-        hits = sum(1 for vac_set in self.vacancy_skills_corpus if skill in vac_set and vac_set & student_set)
-        return hits / len(self.vacancy_skills_corpus)
+        hits = 0
+        docs_with_skill = 0
+        for vac_set in self.vacancy_skills_corpus:
+            if skill in vac_set:
+                docs_with_skill += 1
+                if vac_set & student_set:
+                    hits += 1
+        return hits / max(docs_with_skill, 1)
 
     def _get_student_embedding(self, student_skills: list[str]) -> np.ndarray | None:
         if not student_skills:
