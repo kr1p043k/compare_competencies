@@ -26,7 +26,8 @@ from src.models.enums import ExperienceLevel
 from src.models.data_contracts import PipelineContext
 from src.models.student import StudentProfile, merge_skills_hierarchically
 from src.parsing.skills.skill_normalizer import SkillNormalizer
-from src.pipeline.data_source import DataSource
+from src.pipeline.data_source import HhDataSource
+from src.scoring.vacancy_quality_scorer import VacancyQualityScorer
 from src.pipeline.gap_runner import GapRunner
 from src.pipeline.helpers import console_header, console_info
 from src.pipeline.level_builder import LevelBuilder
@@ -58,9 +59,9 @@ def convert_float32(obj):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
-    parser.add_argument("--query", "-q", type=str, default="Python Developer")
-    parser.add_argument("--area-id", "-a", type=int, default=1)
-    parser.add_argument("--max-pages", "-p", type=int, default=10)
+    parser.add_argument("--query", "-q", type=str, default="Разработчик")
+    parser.add_argument("--area-id", "-a", type=int, default=10)
+    parser.add_argument("--max-pages", "-p", type=int, default=20)
     parser.add_argument("--period", "-d", type=int, default=30)
     parser.add_argument("--show-vacancies", "-v", action="store_true")
     parser.add_argument("--skip-details", "-s", action="store_true")
@@ -70,7 +71,7 @@ def parse_arguments():
     parser.add_argument("--regions", "-r", type=str)
     parser.add_argument("--industry", "-i", type=int)
     parser.add_argument("--interactive", action="store_true")
-    parser.add_argument("--max-vacancies-per-query", type=int, default=1000)
+    parser.add_argument("--max-vacancies-per-query", type=int, default=2000)
     parser.add_argument("--it-sector", action="store_true")
     parser.add_argument("--use-async", action="store_true", default=True)
     parser.add_argument("--async-workers", type=int, default=3)
@@ -79,6 +80,7 @@ def parse_arguments():
     parser.add_argument("--run-notebooks", action="store_true")
     parser.add_argument("--status", action="store_true", help="Показать состояние файлов и моделей")
     parser.add_argument("--train-model", action="store_true", help="Обучить LTR-модель на текущих данных и выйти")
+    parser.add_argument("--force", action="store_true", help="Принудительное переобучение (пропускает проверки кэша)")
     parser.add_argument(
         "--use-llm",
         action="store_true",
@@ -88,7 +90,11 @@ def parse_arguments():
     parser.add_argument(
         "--skip-collection", action="store_true", help="Пропустить сбор вакансий,использовать существующие файлы"
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.query and args.query.startswith("b64:"):
+        import base64
+        args.query = base64.b64decode(args.query[4:]).decode("utf-8")
+    return args
 
 
 def validate_args(args) -> None:
@@ -284,6 +290,16 @@ def main():
         if not raw_file.exists():
             console_info("❌ Файлы вакансий не найдены. Сначала выполните сбор.")
             sys.exit(1)
+        model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
+        if model_path.exists() and not args.force:
+            ltr_engine = LTRRecommendationEngine()
+            if ltr_engine.is_fitted:
+                model_mtime = model_path.stat().st_mtime
+                data_mtime = raw_file.stat().st_mtime
+                if model_mtime > data_mtime:
+                    console_info("✅ Модель уже обучена и актуальна, обучение пропущено")
+                    console_info(f"Модель: {ltr_engine.model_path}")
+                    return
         training_vacancies = safe_read_json(raw_file)
         if not training_vacancies:
             console_info("❌ Не удалось прочитать или файл повреждён.")
@@ -292,7 +308,6 @@ def main():
         logger.info("training_data_loaded", count=len(training_vacancies))
         ltr_engine = LTRRecommendationEngine()
         ltr_engine.fit(training_vacancies)
-        model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
         if model_path.exists():
             console_info("⚠️  Существующая модель будет перезаписана.")
             logger.warning("overwriting_existing_ltr_model", path=str(model_path))
@@ -310,11 +325,48 @@ def main():
 
     # ------------------- Основной пайплайн -------------------
     # Stage 1: Данные
-    source = DataSource(args)
+    source = HhDataSource(args)
     vacancies, parser = source.get_vacancies()
     raw_file = None
     if args.skip_collection:
-        raw_file = source._find_file()  # можно заменить на публичный метод
+        raw_file = source._find_file()
+
+    # Stage 1b: Качественная оценка и маркировка спама (без фильтрации)
+    scorer = VacancyQualityScorer()
+    spam_count = 0
+    scores = []
+    for v in vacancies:
+        s = scorer.score(v)
+        scores.append(s)
+        if s.is_spam:
+            spam_count += 1
+            reason = "; ".join(f.reason for f in s.flags)
+            if hasattr(v, "raw_data") and isinstance(v.raw_data, dict):
+                v.raw_data["is_spam"] = True
+                v.raw_data["spam_reason"] = reason
+    quality_report = scorer._build_report(scores, len(vacancies))
+    scorer.print_report(quality_report)
+
+    # пересохраняем JSON с пометками о спаме
+    from src.pipeline.helpers import save_detailed_vacancies
+    save_detailed_vacancies(vacancies, logger)
+
+    spam_path = config.DATA_RESULT_DIR / "spam_vacancies_report.json"
+    with open(spam_path, "w", encoding="utf-8") as f:
+        json.dump(quality_report, f, ensure_ascii=False, indent=2)
+    logger.info(
+        "spam_report_saved",
+        path=str(spam_path),
+        spam_count=quality_report["spam_count"],
+        clean_count=quality_report["clean_count"],
+        total=len(vacancies),
+    )
+
+    # Excel с информацией о спаме
+    if args.excel and vacancies:
+        df = parser.aggregate_to_dataframe(vacancies, quality_report)
+        excel_name = f"vacancies_{args.query.replace(' ', '_')}.xlsx"
+        parser.save_to_excel(df, excel_name)
 
     # Stage 2: Навыки
     extractor = SkillExtractor(args)
