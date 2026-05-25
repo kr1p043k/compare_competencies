@@ -78,6 +78,18 @@ export default function App() {
   const pipelineLoadingRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // reconnect to running task after page refresh
+  useEffect(() => {
+    const savedId = sessionStorage.getItem("pipelineTaskId");
+    if (savedId) {
+      pipelineTaskRef.current = savedId;
+      setPipelineLoading(true);
+      pipelineLoadingRef.current = true;
+      setPipelineStep({ step: 1, total: 4, status: "running", message: "Переподключение...", progress: 5 });
+      pollTimerRef.current = setTimeout(pollPipeline, 500);
+    }
+  }, []);
+
   const startPipeline = (regionIds: string, profession: string, maxPages?: number, periodDays?: number) => {
     if (pipelineTaskRef.current || pipelineLoadingRef.current) return;
     pipelineLoadingRef.current = true;
@@ -97,6 +109,7 @@ export default function App() {
         const m = data.output?.match(/Task ID: (\S+?)\.?\s/);
         if (!m) throw new Error("Не получен ID задачи");
         pipelineTaskRef.current = m[1];
+        sessionStorage.setItem("pipelineTaskId", m[1]);
         pollTimerRef.current = setTimeout(pollPipeline, 1000);
       })
       .catch(e => {
@@ -113,20 +126,26 @@ export default function App() {
       .then(r => r.ok ? r.json() : Promise.reject("Ошибка статуса"))
       .then(s => {
         const step = Math.min(s.step || 1, 4);
-        setPipelineStep({
-          step,
-          total: 4,
-          status: s.status === "completed" ? "completed" : s.status === "failed" ? "error" : "running",
-          message: s.message || "Выполняется...",
-          progress: s.status === "completed" ? 100 : Math.min(step * 25, 95),
+        let subProgress = s.sub_progress ?? undefined;
+        setPipelineStep(prev => {
+          const pct = s.status === "completed" ? 100 : Math.min(step * 25, 95);
+          return {
+            step,
+            total: 4,
+            status: s.status === "completed" ? "completed" : s.status === "failed" ? "error" : "running",
+            message: s.message || "Выполняется...",
+            progress: pct,
+            subProgress: subProgress,
+          };
         });
         if (s.status === "completed" || s.status === "failed") {
           setPipelineLoading(false);
           pipelineTaskRef.current = null;
           pipelineLoadingRef.current = false;
+          sessionStorage.removeItem("pipelineTaskId");
           return;
         }
-        pollTimerRef.current = setTimeout(pollPipeline, 3000);
+        pollTimerRef.current = setTimeout(pollPipeline, 2000);
       })
       .catch(() => {
         setPipelineLoading(false);
