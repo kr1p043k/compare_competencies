@@ -1,6 +1,7 @@
 """DataSource — загружает вакансии из кэша или через API hh.ru."""
 
 import sys
+from typing import Protocol
 
 import structlog
 
@@ -19,7 +20,11 @@ from .helpers import console_header, console_info, get_load_mode, load_vacancies
 logger = structlog.get_logger("data_source")
 
 
-class DataSource:
+class DataSourceProtocol(Protocol):
+    def get_vacancies(self, queries: list[str], max_pages: int) -> tuple[list[dict], VacancyParser]: ...
+
+
+class HhDataSource(DataSourceProtocol):
     """Загружает вакансии, возвращает (список, парсер)."""
 
     def __init__(self, args):
@@ -37,7 +42,9 @@ class DataSource:
             self._console_info("❌ Не удалось прочитать файл вакансий.")
             sys.exit(1)
         parser = VacancyParser()
-        return data, parser
+        from src.models.vacancy import Vacancy
+        vacancies = [Vacancy.from_api(v) if isinstance(v, dict) else v for v in data]
+        return vacancies, parser
 
     def _collect_from_hh(self):
         # Импортируем вспомогательные функции из main, чтобы избежать циклических импортов
@@ -214,3 +221,6 @@ class DataSource:
 
     def _console_info(self, msg):
         print(f"  {msg}")
+
+
+
