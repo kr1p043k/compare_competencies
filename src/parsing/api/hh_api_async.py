@@ -37,6 +37,11 @@ class HeadHunterAPIAsync:
         self.semaphore = asyncio.Semaphore(max_concurrent)
         self.last_request_time = 0
         self.stats = {"success": 0, "403_errors": 0, "404_errors": 0, "429_errors": 0, "timeouts": 0, "other_errors": 0}
+        self._progress_file = config.BASE_DIR / "data" / "cache" / "pipeline_progress.json"
+
+        self._progress_file = (
+            config.BASE_DIR / "data" / "cache" / "pipeline_progress.json"
+        ) if config.BASE_DIR else None
 
         # === АВТОРИЗАЦИЯ ===
         self._token = token
@@ -52,6 +57,18 @@ class HeadHunterAPIAsync:
         if raw is None:
             raise ValueError(f"Vacancy {vacancy_id} not found or API error")
         return cast(VacancyDetailResponse, parse_response(raw, VacancyDetailResponse))
+
+    def _write_progress(self, loaded: int, total: int):
+        if not self._progress_file:
+            return
+        try:
+            import json
+            pct = int(loaded / total * 10) if total else 10
+            self._progress_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._progress_file, "w", encoding="utf-8") as f:
+                json.dump({"pct": pct, "message": f"Загрузка деталей: {loaded}/{total}"}, f, ensure_ascii=False)
+        except Exception:
+            pass
 
     async def _ensure_token(self):
         """Проверяет и обновляет токен при необходимости."""
@@ -282,12 +299,14 @@ class HeadHunterAPIAsync:
 
         await self._ensure_token()
 
+        self._write_progress(0, len(vacancy_ids))
         logger.info("async_batch_loading_started", total=len(vacancy_ids), max_concurrent=self.max_concurrent)
 
         all_results = []
         self.stats = {k: 0 for k in self.stats}
 
         total_batches = (len(vacancy_ids) + self.batch_size - 1) // self.batch_size
+        self._write_progress(0, total_batches)
 
         for i in range(0, len(vacancy_ids), self.batch_size):
             batch = vacancy_ids[i : i + self.batch_size]
@@ -305,6 +324,7 @@ class HeadHunterAPIAsync:
                     elif isinstance(r, Exception):
                         logger.debug("vacancy_skipped_due_to_error", error=str(r))
 
+            self._write_progress(len(all_results), len(vacancy_ids))
             logger.info("batch_progress", loaded=len(all_results), total=len(vacancy_ids))
             logger.debug(
                 "batch_stats",
