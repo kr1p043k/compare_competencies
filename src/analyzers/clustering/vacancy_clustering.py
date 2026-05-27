@@ -280,15 +280,12 @@ class VacancyClusterer:
         joblib.dump(data, path)
         logger.info(f"Модель кластеризации сохранена: {path}")
 
-        # Сохраняем манифест
-        try:
-            manifest = ArtifactManifest(
-                artifact_path=path,
-                metrics={"clusters": self.n_clusters_, "samples": len(self.vacancy_ids)},
-            )
-            manifest.save()
-        except Exception as e:
-            logger.warning("cluster_manifest_save_failed", error=str(e))
+        manifest = ArtifactManifest(
+            artifact_path=path,
+            metrics={"clusters": self.n_clusters_, "samples": len(self.vacancy_ids)},
+        )
+        if manifest.save().is_err():
+            logger.warning("cluster_manifest_save_failed")
 
     def _migrate_pkl_to_joblib(self, level: str) -> None:
         path_pkl = config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{level}.pkl"
