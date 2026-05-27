@@ -1,7 +1,8 @@
-"""Pipeline: full cycle, rebuild, train, gap analysis, tasks."""
+"""Pipeline: full cycle, rebuild, train, gap analysis, tasks, WebSocket."""
 
 import asyncio
 import base64
+import json
 import os
 import shutil
 import subprocess
@@ -11,7 +12,7 @@ from pathlib import Path
 
 import requests
 import structlog
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -28,6 +29,7 @@ logger = structlog.get_logger("api")
 _areas_cache = None
 GAP_PROGRESS_FILE = Path(__file__).parent.parent.parent.parent / "data" / "cache" / "gap_progress.json"
 PIPELINE_PROGRESS_FILE = Path(__file__).parent.parent.parent.parent / "data" / "cache" / "pipeline_progress.json"
+TASKS_STORE_FILE = Path(__file__).parent.parent.parent.parent / "data" / "cache" / "pipeline_tasks.json"
 
 
 def _read_progress_file(path: Path) -> dict:
@@ -94,6 +96,7 @@ router = APIRouter(tags=["pipeline"])
 limiter = Limiter(key_func=get_remote_address)
 
 pipeline_tasks: dict[str, PipelineTaskStatus] = {}
+pipeline_procs: dict[str, subprocess.Popen] = {}
 
 
 class PipelineAction(str, Enum):
@@ -112,8 +115,9 @@ class PipelineResponse(BaseModel):
     output: str | None = None
 
 
-async def run_command(cmd: list[str], cwd: Path | None = None, timeout: int | None = None) -> tuple[int, str, str]:
+async def run_command(cmd: list[str], cwd: Path | None = None, timeout: int | None = None, task_id: str | None = None) -> tuple[int, str, str]:
     def _run():
+        import tempfile
         env = dict(os.environ,
             PYTHONIOENCODING="utf-8",
             HF_HUB_VERBOSITY="error",
@@ -123,24 +127,85 @@ async def run_command(cmd: list[str], cwd: Path | None = None, timeout: int | No
             OMP_NUM_THREADS="1",
             OPENBLAS_NUM_THREADS="1",
         )
-        kwargs = dict(
-            args=cmd,
-            capture_output=True,
-            text=True,
-            cwd=str(cwd) if cwd else None,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-        )
-        if timeout:
-            kwargs["timeout"] = timeout
-        return subprocess.run(**kwargs)
+        tmp_out = tmp_err = None
+        out_path = err_path = None
+        try:
+            tmp_out = tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8", errors="replace")
+            tmp_err = tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8", errors="replace")
+            out_path, err_path = tmp_out.name, tmp_err.name
+            proc = subprocess.Popen(
+                args=cmd,
+                stdout=tmp_out,
+                stderr=tmp_err,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                cwd=str(cwd) if cwd else None,
+                env=env,
+            )
+            if task_id:
+                pipeline_procs[task_id] = proc
+            try:
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+            tmp_out.close()
+            tmp_err.close()
+            with open(out_path, "r", encoding="utf-8", errors="replace") as f:
+                stdout = f.read()
+            with open(err_path, "r", encoding="utf-8", errors="replace") as f:
+                stderr = f.read()
+            rc = proc.returncode
+            if rc != 0:
+                stderr = (stderr or "") + (f"\nTIMEOUT" if rc == -1 else "")
+            return rc, stdout, stderr
+        except Exception as e:
+            return -1, "", str(e)
+        finally:
+            for p in (out_path, err_path):
+                if p:
+                    try:
+                        os.unlink(p)
+                    except Exception:
+                        pass
+            if task_id and task_id in pipeline_procs:
+                del pipeline_procs[task_id]
     try:
-        proc = await asyncio.to_thread(_run)
-        return proc.returncode, proc.stdout, proc.stderr
-    except subprocess.TimeoutExpired:
-        return -1, "", "TIMEOUT"
+        return await asyncio.to_thread(_run)
+    except Exception as e:
+        return -1, "", str(e)
 
+
+def _save_tasks():
+    try:
+        TASKS_STORE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        data = {tid: t.model_dump() for tid, t in pipeline_tasks.items()}
+        with open(TASKS_STORE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+def _load_tasks():
+    try:
+        if TASKS_STORE_FILE.exists():
+            with open(TASKS_STORE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            now = time.time()
+            for tid, tdata in data.items():
+                t = PipelineTaskStatus.model_validate(tdata)
+                status = getattr(t, "status", "")
+                started = getattr(t, "started_at", 0) or 0
+                if status == "running" and now - started > 3600:
+                    t.status = "failed"
+                    t.message = "Прерван перезапуском сервера"
+                pipeline_tasks[tid] = t
+            _save_tasks()
+            logger.info("tasks_restored", count=len(data))
+    except Exception as e:
+        logger.warning("tasks_restore_failed", error=str(e))
+
+_load_tasks()
 
 def _make_task_status(task_id, status, message, started_at, completed_at=None, output=None, step=0, sub_progress=None):
     return PipelineTaskStatus(
@@ -149,39 +214,57 @@ def _make_task_status(task_id, status, message, started_at, completed_at=None, o
         output=output, step=step, sub_progress=sub_progress,
     )
 
-async def _rotate_progress(task_id: str, step: int = 4):
+def _pct_to_step(pct: int) -> int:
+    if pct < 18: return 1
+    if pct < 60: return 2
+    if pct < 70: return 3
+    return 4
+
+async def _rotate_progress(task_id: str, step: int = 1):
     i = 0
     phases_map = {
-        1: ["Сбор вакансий с hh.ru...", "Оценка качества...", "Сохранение результатов..."],
-        2: ["Кластеризация вакансий..."],
-        3: ["Обучение модели ранжирования...", "Проверка качества..."],
-        4: ["GAP-анализ: загрузка моделей...", "GAP-анализ: вычисление эмбеддингов...", "GAP-анализ: сравнение профилей...", "GAP-анализ: генерация рекомендаций..."],
+        1: ["Поиск вакансий на hh.ru...", "Загрузка деталей...", "Оценка качества...", "Извлечение навыков..."],
+        2: ["Очистка весов...", "Построение уровней..."],
+        3: ["Обучение кластеров...", "Обучение LTR-модели..."],
+        4: ["GAP-анализ: инициализация...", "GAP-анализ: оценка профилей...", "GAP-анализ: генерация рекомендаций...", "Генерация графиков..."],
     }
     prev_pct = -1
-    t = pipeline_tasks.get(task_id)
-    while t and t.status == "running":
-        if step == 4:
+    while True:
+        t = pipeline_tasks.get(task_id)
+        if not t or t.status != "running":
+            break
+        pct = -1
+        msg = ""
+        pp = _read_pipeline_progress()
+        if pp and pp.get("pct") is not None:
+            pct = int(pp["pct"])
+            msg = pp.get("message", "")
+        # Interpolate gap_progress sub-pct into pipeline scale (70-92) for step 4
+        if _pct_to_step(pct) >= 4:
             gp = _read_gap_progress()
             if gp and gp.get("pct", 0) > 0:
-                pct = int(gp["pct"])
-                if pct > prev_pct:
-                    t.sub_progress = pct
-                    prev_pct = pct
-                t.message = gp.get("message", phases_map[4][i % len(phases_map[4])])
+                gp_pct = int(gp["pct"])
+                interpolated = 70 + (92 - 70) * gp_pct / 100
+                if interpolated > pct:
+                    pct = int(interpolated)
+                    msg = gp.get("message", msg)
+        if pct >= 0:
+            if pct > prev_pct:
+                t.sub_progress = pct
+                prev_pct = pct
+                t.step = _pct_to_step(pct)
+            elif pct < prev_pct:
+                prev_pct = -1
+                t.sub_progress = 0
+                t.step = _pct_to_step(pct)
+            if msg:
+                t.message = msg
             else:
-                t.message = phases_map[4][i % len(phases_map[4])]
-                i += 1
-        else:
-            pp = _read_pipeline_progress()
-            if pp and pp.get("pct", 0) > 0:
-                pct = int(pp["pct"])
-                if pct > prev_pct:
-                    t.sub_progress = pct
-                    prev_pct = pct
-                t.message = pp.get("message", phases_map[step][i % len(phases_map[step])])
-            else:
-                t.message = phases_map[step][i % len(phases_map[step])]
-                i += 1
+                t.message = phases_map.get(t.step, phases_map[1])[i % len(phases_map.get(t.step, phases_map[1]))]
+            logs = pp.get("logs", [])
+            if logs:
+                t.logs = logs
+        _save_tasks()
         await asyncio.sleep(5)
 
 
@@ -189,13 +272,14 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
     base_dir = Path(__file__).parent.parent.parent.parent
     started_at = time.time()
     pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск сбора...", started_at, step=0)
+    _save_tasks()
     try:
         ret = -1
         out = err = ""
         if action == PipelineAction.REBUILD:
             script = base_dir / "scripts" / "full_rebuild.py"
             pipeline_tasks[task_id].message = "Запуск полной пересборки..."
-            ret, out, err = await run_command(["python", str(script)], base_dir)
+            ret, out, err = await run_command(["python", str(script)], base_dir, task_id=task_id)
         elif action == PipelineAction.FULL_CYCLE:
             gap = kwargs.get("run_gap_analysis", True)
             regions_raw = kwargs.get("regions", "113")
@@ -206,97 +290,88 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             regions = _resolve_area_ids(regions_raw) if regions_raw not in ("0", "") else "113"
             logger.info("regions_resolved", raw=regions_raw, resolved=regions)
 
+            # Clean stale progress files so the rotator doesn't pick up old data
+            try:
+                for fp in (PIPELINE_PROGRESS_FILE, GAP_PROGRESS_FILE):
+                    if fp.exists():
+                        fp.unlink()
+            except Exception as e:
+                logger.warning("clean_progress_failed", error=str(e))
+
             progress_rotator = asyncio.ensure_future(_rotate_progress(task_id, step=1))
             pipeline_tasks[task_id].step = 1
-            cmd = ["python", str(base_dir / "main.py"), "--it-sector", "--regions", regions, "--excel",
+            cmd = ["python", str(base_dir / "main.py"), "--regions", regions, "--excel",
                    "--max-pages", str(max_pages), "--period", str(period)]
+            if not gap:
+                cmd.append("--skip-gap-analysis")
             if query:
                 enc = base64.b64encode(query.encode("utf-8")).decode("ascii")
                 cmd.extend(["--query", f"b64:{enc}"])
-            ret, out, err = await run_command(cmd, base_dir)
+            else:
+                cmd.append("--it-sector")
+            ret, out, err = await run_command(cmd, base_dir, timeout=1200, task_id=task_id)
             progress_rotator.cancel()
-            import re
-            vac_match = re.search(r"Найдено (\d+) базовых вакансий", out or "")
-            if vac_match:
-                pipeline_tasks[task_id].message = f"Собрано {vac_match.group(1)} вакансий. Кластеризация..."
-            if ret == 0:
-                progress_rotator = asyncio.ensure_future(_rotate_progress(task_id, step=2))
-                pipeline_tasks[task_id].step = 2
-                ret, out, err = await run_command(
-                    ["python", str(base_dir / "scripts" / "train_clusters.py"), "--level", "all"], base_dir, timeout=600)
-                progress_rotator.cancel()
-            if ret == 0:
-                progress_rotator = asyncio.ensure_future(_rotate_progress(task_id, step=3))
-                model_path = base_dir / "models" / "ltr_ranker_xgb_regressor.joblib"
-                if model_path.exists():
-                    pipeline_tasks[task_id].message = "Проверка модели ранжирования..."
-                else:
-                    pipeline_tasks[task_id].message = "Обучение модели ранжирования..."
-                pipeline_tasks[task_id].step = 3
-                ret, out, err = await run_command(
-                    ["python", str(base_dir / "main.py"), "--train-model"], base_dir, timeout=600)
-                progress_rotator.cancel()
-            if ret == 0 and gap:
-                progress_rotator = asyncio.ensure_future(_rotate_progress(task_id, step=4))
-                pipeline_tasks[task_id].step = 4
-                ret, out, err = await run_command(
-                    ["python", str(base_dir / "main.py"), "--skip-collection", "--run-gap-analysis"], base_dir, timeout=600)
-                progress_rotator.cancel()
         elif action == PipelineAction.TRAIN_CLUSTERS:
             pipeline_tasks[task_id].message = "Кластеризация вакансий..."
             ret, out, err = await run_command(
-                ["python", str(base_dir / "scripts" / "train_clusters.py"), "--level", "all"], base_dir)
+                ["python", str(base_dir / "scripts" / "train_clusters.py"), "--level", "all"], base_dir, task_id=task_id)
         elif action == PipelineAction.TRAIN_MODEL:
             pipeline_tasks[task_id].message = "Обучение модели ранжирования..."
             ret, out, err = await run_command(
-                ["python", str(base_dir / "main.py"), "--train-model"], base_dir)
+                ["python", str(base_dir / "main.py"), "--train-model"], base_dir, task_id=task_id)
         elif action == PipelineAction.GAP_ANALYSIS:
             gap_progress = asyncio.ensure_future(_rotate_progress(task_id, step=4))
             ret, out, err = await run_command(
-                ["python", str(base_dir / "main.py"), "--skip-collection", "--run-gap-analysis"], base_dir)
+                ["python", str(base_dir / "main.py"), "--skip-collection", "--run-gap-analysis"], base_dir, task_id=task_id)
             gap_progress.cancel()
         else:
             pipeline_tasks[task_id] = _make_task_status(
                 task_id, "failed", f"Неизвестное действие: {action}", started_at, output="")
+            _save_tasks()
             return
-            msg = (err or out)[-500:] if ret != 0 else ""  # show error details only on failure
-            if ret == 0:
-                if action == PipelineAction.FULL_CYCLE:
-                    msg = "Все этапы выполнены. Данные обновлены."
-                elif action == PipelineAction.GAP_ANALYSIS:
-                    msg = "GAP-анализ завершен. Отчёты готовы."
-                elif action == PipelineAction.TRAIN_CLUSTERS:
-                    msg = "Кластеризация завершена."
-                elif action == PipelineAction.TRAIN_MODEL:
-                    msg = "Модель обучена."
-                elif action == PipelineAction.REBUILD:
-                    msg = "Пересборка завершена."
-                else:
-                    msg = "Операция завершена."
-            status = "completed" if ret == 0 else "failed"
-            pipeline_tasks[task_id] = _make_task_status(
-                task_id, status, msg[:500], started_at, output=msg)
-            if ret == 0 and action == PipelineAction.FULL_CYCLE:
-                try:
-                    await reload_api_data()
-                except Exception as reload_err:
-                    logger.error("reload_after_pipeline_failed", error=str(reload_err))
+
+        # --- Common completion logic for all known actions ---
+        msg = (err or out)[-500:] if ret != 0 else ""
+        if ret == 0:
+            if action == PipelineAction.FULL_CYCLE:
+                msg = "Все этапы выполнены. Данные обновлены."
+            elif action == PipelineAction.GAP_ANALYSIS:
+                msg = "GAP-анализ завершен. Отчёты готовы."
+            elif action == PipelineAction.TRAIN_CLUSTERS:
+                msg = "Кластеризация завершена."
+            elif action == PipelineAction.TRAIN_MODEL:
+                msg = "Модель обучена."
+            elif action == PipelineAction.REBUILD:
+                msg = "Пересборка завершена."
+            else:
+                msg = "Операция завершена."
+        status = "completed" if ret == 0 else "failed"
+        t = pipeline_tasks.get(task_id)
+        if t and t.status == "cancelled":
+            return
+        pipeline_tasks[task_id] = _make_task_status(
+            task_id, status, msg[:500], started_at, output=msg)
+        _save_tasks()
+        if ret == 0 and action == PipelineAction.FULL_CYCLE:
+            try:
+                await reload_api_data()
+            except Exception as reload_err:
+                logger.error("reload_after_pipeline_failed", error=str(reload_err))
     except Exception as e:
+        t = pipeline_tasks.get(task_id)
+        if t and t.status == "cancelled":
+            return
         logger.exception("Pipeline task failed", task_id=task_id)
         pipeline_tasks[task_id] = _make_task_status(
             task_id, "failed", str(e), started_at, output="")
+        _save_tasks()
 
 
 async def reload_api_data():
     logger.info("Reloading API data...")
     try:
         from src.api_pkg.startup import run_startup
-        from src.api_pkg import deps as deps_module
-        import importlib
-
-        importlib.reload(deps_module)
-        app = None
-        await run_startup(app)
+        await run_startup(None)
         logger.info("API data reloaded successfully")
     except Exception as e:
         logger.error("Ошибка перезагрузки API", error=str(e))
@@ -404,6 +479,15 @@ async def run_pipeline_action_sync(
     return PipelineResponse(
         status="error", message=f"Unknown action: {action}", exit_code=-1
     )
+
+
+@router.get("/api/pipeline/active", response_model=PipelineTaskStatus | None)
+@limiter.limit("30/minute")
+async def get_active_pipeline_task(request: Request):
+    for t in pipeline_tasks.values():
+        if t.status == "running":
+            return t
+    return None
 
 
 @router.get("/api/pipeline/task/{task_id}", response_model=PipelineTaskStatus)
@@ -526,6 +610,27 @@ async def reload_api(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/api/pipeline/cancel/{task_id}")
+@limiter.limit("10/minute")
+async def cancel_pipeline_task(task_id: str, request: Request):
+    if task_id not in pipeline_tasks:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    t = pipeline_tasks[task_id]
+    if t.status != "running":
+        raise HTTPException(status_code=400, detail=f"Task {task_id} is not running (status: {t.status})")
+    t.status = "cancelled"
+    t.message = "Отменено пользователем"
+    t.completed_at = time.time()
+    _save_tasks()
+    proc = pipeline_procs.pop(task_id, None)
+    if proc:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+    return {"status": "cancelled", "message": "Pipeline остановлен"}
+
+
 @router.get("/api/pipeline/gap-progress/{task_id}", response_model=GapProgressResponse)
 @limiter.limit("60/minute")
 async def get_gap_progress(task_id: str, request: Request):
@@ -538,3 +643,35 @@ async def get_gap_progress(task_id: str, request: Request):
             exists=True,
         )
     return GapProgressResponse(exists=False)
+
+
+# === WebSocket: real-time pipeline progress ===
+_ws_clients: set[WebSocket] = set()
+
+
+@router.websocket("/api/pipeline/ws")
+async def pipeline_ws(websocket: WebSocket):
+    await websocket.accept()
+    _ws_clients.add(websocket)
+    try:
+        prev_data = ""
+        while True:
+            raw = None
+            for fp in (PIPELINE_PROGRESS_FILE, GAP_PROGRESS_FILE):
+                if fp.exists():
+                    try:
+                        raw = json.loads(fp.read_text(encoding="utf-8"))
+                        break
+                    except Exception:
+                        pass
+            if raw:
+                text = json.dumps(raw, ensure_ascii=False)
+                if text != prev_data:
+                    prev_data = text
+                    await websocket.send_text(text)
+            await asyncio.sleep(2)
+            _ = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
+    except (WebSocketDisconnect, asyncio.TimeoutError, Exception):
+        pass
+    finally:
+        _ws_clients.discard(websocket)
