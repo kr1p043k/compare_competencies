@@ -1,330 +1,337 @@
-# Сравнение компетенций учебной программы с требованиями рынка труда (hh.ru)
+# Competency Gap Analyzer
 
-Проект предназначен для анализа соответствия учебных компетенций студентов реальным требованиям IT-рынка, извлекаемым из вакансий hh.ru.
-Система собирает вакансии, нормализует навыки, выполняет gap-анализ и формирует персонализированные рекомендации с использованием машинного обучения.
+Анализ соответствия учебных компетенций студентов требованиям IT-рынка (hh.ru).
 
-## 🎯 Основные возможности
+Собирает вакансии, нормализует навыки, выполняет gap-анализ и формирует персонализированные рекомендации через ML (XGBoost + SHAP).
 
-- **Сбор вакансий с hh.ru** — поиск по профессиям, регионам, пакетный и интерактивный режим
-- **Нормализация навыков** — очистка, синонимия, BM25 + SentenceTransformer + PCA
-- **Таксономия навыков и профессий** — 19 категорий, привязка к доменам и КРМ-компетенциям
-- **Gap-анализ (junior/middle/senior)** — дефициты, приоритеты, готовность к уровню
-- **Покрытие целевой профессии** — средневзвешенное по доменам
-- **ML-ранжирование (LTR + XGBoost + SHAP)** — предсказание важности навыков
-- **Кластеризация вакансий** — KMeans/HDBSCAN + автоопределение k
-- **Визуализация** — радары, тепловые карты, сравнение профилей (300 DPI)
-- **Анализ трендов** — динамика спроса, временные ряды
-- **REST API (api_pkg)** — 10 FastAPI-роутеров, n8n, startup/hooks
-- **React-фронтенд** — Vite, shadcn/ui, TypeScript, Vite proxy
+## Возможности
 
-## 📁 Структура проекта
+- **Сбор вакансий** — hh.ru API, синхронный и асинхронный клиенты, 2000 вакансий на запрос
+- **Нормализация навыков** — синонимы, fuzzy-матчинг, BM25 + SentenceTransformer + PCA
+- **Таксономия** — 19 категорий навыков + профессии с привязкой к доменам и КРМ
+- **Gap-анализ** — дефициты по уровням junior/middle/senior, приоритеты, готовность
+- **ML-ранжирование** — XGBoost LTR + SHAP, предсказание важности навыков (0-100%)
+- **Кластеризация** — KMeans/HDBSCAN + авто k по silhouette, человекочитаемые имена
+- **Тренды** — динамика спроса по историческим снимкам, временные ряды топ-10
+- **Визуализация** — радары, тепловые карты, покрытие, профессии (300 DPI)
+
+## Структура проекта
 
 ```plaintext
-└── 📁 compare_competencies/
-    │
-    ├── 📁 data/                            # Данные: кэш, справочники, результаты
-    │   ├── 📁 cache/                       # Единый кэш быстрых данных
-    │   ├── 📁 history/                     # Исторические снимки частот навыков
-    │   ├── 📁 last_uploaded/               # Последняя загруженная матрица компетенций
-    │   ├── 📁 models/                      # Обученные ML-модели (joblib)
-    │   ├── 📁 processed/                   # Обработанные данные после парсинга
-    │   ├── 📁 raw/                         # Сырые входные данные
-    │   ├── 📁 reference/                   # Эталонные справочники
-    │   ├── 📁 result/                      # Результаты: отчёты, графики (300 DPI)
-    │   └── 📁 students/                    # Профили студентов
-    │
-    ├── 📁 docs/                            # Документация
-    │   ├── 📄 ARCHITECTURE.md              # Архитектура и возможности системы
-    │   ├── 📄 PROJECT_OVERVIEW.md           # Обзор проекта
-    │   └── 📄 user_manual.md               # Руководство пользователя
-    │
-    ├── 📁 frontend/                        # React + Vite + TypeScript
-    │   ├── 📁 src/
-    │   │   ├── 📁 app/
-    │   │   │   ├── 📁 components/
-    │   │   │   │   ├── 📁 figma/
-    │   │   │   │   │   └── 📄 ImageWithFallback.tsx
-    │   │   │   │   ├── 📁 ui/              # shadcn/ui (60+ компонентов)
-    │   │   │   │   ├── 📄 AnalysisTab.tsx
-    │   │   │   │   ├── 📄 DataViewer.tsx
-    │   │   │   │   ├── 📄 Footer.tsx
-    │   │   │   │   ├── 📄 GapAnalysisVisualizer.tsx
-    │   │   │   │   ├── 📄 LoadingSpinner.tsx
-    │   │   │   │   ├── 📄 MetricsExplanation.tsx
-    │   │   │   │   ├── 📄 PipelineProgress.tsx
-    │   │   │   │   ├── 📄 RecommendationsReport.tsx
-    │   │   │   │   ├── 📄 RegionCombobox.tsx
-    │   │   │   │   ├── 📄 StatsCards.tsx
-    │   │   │   │   ├── 📄 VacanciesList.tsx
-    │   │   │   │   └── 📄 VacancyCard.tsx
-    │   │   │   └── 📄 App.tsx
-    │   │   ├── 📁 imports/                 # Импортированные скрипты и данные
-    │   │   │   ├── 📁 pasted_text/
-    │   │   │   ├── 📄 pipeline_endpoints.py
-    │   │   │   ├── 📄 pipeline_runner.py
-    │   │   │   ├── 📄 README.md
-    │   │   │   └── 📄 user_manual.md
-    │   │   ├── 📁 lib/
-    │   │   │   └── 📄 logger.ts
-    │   │   ├── 📁 styles/
-    │   │   │   ├── 📄 fonts.css
-    │   │   │   ├── 📄 globals.css
-    │   │   │   ├── 📄 index.css
-    │   │   │   ├── 📄 tailwind.css
-    │   │   │   └── 📄 theme.css
-    │   │   └── 📄 main.tsx
-    │   ├── 📄 package.json
-    │   ├── 📄 vite.config.ts
-    │   ├── 📄 postcss.config.mjs
-    │   ├── 📄 pipeline.bat
-    │   └── 📄 pnpm-workspace.yaml
-    │
-    ├── 📁 htmlcov/                         # Отчёты о покрытии тестами
-    │
-    ├── 📁 logs/                            # Логи приложения
-    │
-    ├── 📁 notebooks/                       # Jupyter ноутбуки
-    │
-    ├── 📁 scripts/
-    │   ├── 📄 check_clusters.py            # Проверка обученных кластеров
-    │   ├── 📄 extend_it_skills.py          # Расширение белого списка навыков
-    │   ├── 📄 full_rebuild.py              # Очистка кэшей и пересборка
-    │   └── 📄 train_clusters.py            # Обучение кластеров по уровням
-    │
-    ├── 📁 src/
-    │   ├── 📁 analyzers/
-    │   │   ├── 📁 clustering/
-    │   │   │   └── 📄 vacancy_clustering.py
-    │   │   ├── 📁 comparison/
-    │   │   │   ├── 📄 comparator.py
-    │   │   │   ├── 📄 domain_analyzer.py
-    │   │   │   ├── 📄 embedding_comparator.py
-    │   │   │   └── 📄 engines.py
-    │   │   ├── 📁 gap/
-    │   │   │   ├── 📄 gap_analyzer.py
-    │   │   │   └── 📄 profile_evaluator.py
-    │   │   └── 📁 skills/
-    │   │       ├── 📄 profession_taxonomy.py
-    │   │       ├── 📄 skill_correlation.py
-    │   │       ├── 📄 skill_filter.py
-    │   │       ├── 📄 skill_level_analyzer.py
-    │   │       ├── 📄 skill_taxonomy.py
-    │   │       └── 📄 trends.py
-    │   │
-    │   ├── 📁 api_pkg/                     # FastAPI-пакет (10 роутеров)
-    │   │   ├── 📄 __init__.py
-    │   │   ├── 📄 deps.py
-    │   │   ├── 📄 n8n.py
-    │   │   ├── 📄 startup.py
-    │   │   └── 📁 routers/
-    │   │       ├── 📄 __init__.py
-    │   │       ├── 📄 admin.py
-    │   │       ├── 📄 clusters.py
-    │   │       ├── 📄 health.py
-    │   │       ├── 📄 market.py
-    │   │       ├── 📄 pipeline.py
-    │   │       ├── 📄 profiles.py
-    │   │       ├── 📄 results.py
-    │   │       ├── 📄 taxonomy.py
-    │   │       ├── 📄 trends.py
-    │   │       └── 📄 vacancies.py
-    │   │
-    │   ├── 📁 loaders_student/
-    │   │   ├── 📄 __init__.py
-    │   │   └── 📄 student_loader.py
-    │   │
-    │   ├── 📁 models/                      # Pydantic-модели
-    │   │   ├── 📄 __init__.py
-    │   │   ├── 📄 api_responses.py
-    │   │   ├── 📄 comparison.py
-    │   │   ├── 📄 competency.py
-    │   │   ├── 📄 data_contracts.py
-    │   │   ├── 📄 enums.py
-    │   │   ├── 📄 hh_responses.py
-    │   │   ├── 📄 market_metrics.py
-    │   │   ├── 📄 student.py
-    │   │   └── 📄 vacancy.py
-    │   │
-    │   ├── 📁 parsing/
-    │   │   ├── 📁 api/
-    │   │   │   ├── 📄 __init__.py
-    │   │   │   ├── 📄 hh_api.py
-    │   │   │   ├── 📄 hh_api_async.py
-    │   │   │   └── 📄 embedding_loader.py
-    │   │   ├── 📁 skills/
-    │   │   │   ├── 📄 __init__.py
-    │   │   │   ├── 📄 bm25_ranker.py
-    │   │   │   ├── 📄 hybrid_weight_calculator.py
-    │   │   │   ├── 📄 skill_embedding_cache.py
-    │   │   │   ├── 📄 skill_normalizer.py
-    │   │   │   ├── 📄 skill_parser.py
-    │   │   │   ├── 📄 skill_validator.py
-    │   │   │   └── 📄 vacancy_parser.py
-    │   │   └── 📄 utils.py
-    │   │
-    │   ├── 📁 pipeline/
-    │   │   ├── 📄 __init__.py
-    │   │   ├── 📄 data_source.py
-    │   │   ├── 📄 gap_runner.py
-    │   │   ├── 📄 helpers.py
-    │   │   ├── 📄 level_builder.py
-    │   │   ├── 📄 metric_computer.py
-    │   │   ├── 📄 recommendation_runner.py
-    │   │   ├── 📄 skill_extractor.py
-    │   │   └── 📄 weight_cleaner.py
-    │   │
-    │   ├── 📁 predictors/
-    │   │   ├── 📄 __init__.py
-    │   │   ├── 📄 ltr_recommendation_engine.py
-    │   │   ├── 📄 recommendation_engine.py
-    │   │   └── 📄 skill_forecast.py
-    │   │
-    │   ├── 📁 scoring/
-    │   │   ├── 📄 __init__.py
-    │   │   └── 📄 vacancy_quality_scorer.py
-    │   │
-    │   ├── 📁 visualization/
-    │   │   ├── 📄 __init__.py
-    │   │   ├── 📄 _config.py
-    │   │   ├── 📄 _utils.py
-    │   │   ├── 📄 clusters.py
-    │   │   ├── 📄 correlation.py
-    │   │   ├── 📄 coverage.py
-    │   │   ├── 📄 importance.py
-    │   │   ├── 📄 orchestration.py
-    │   │   └── 📄 radar.py
-    │   │
-    │   ├── 📄 __init__.py
-    │   ├── 📄 api.py
-    │   ├── 📄 artifacts.py
-    │   ├── 📄 config.py
-    │   ├── 📄 logging_config.py
-    │   ├── 📄 result.py
-    │   └── 📄 utils.py
-    │
-    ├── 📁 tests/                           # pytest (35 файлов, ~86% coverage)
-    │   ├── 📁 analyzers/
-    │   │   ├── 📁 comparison/
-    │   │   ├── 📄 test_analyzers.py … test_vacancy_clustering.py
-    │   ├── 📁 api/
-    │   ├── 📁 integration/
-    │   ├── 📁 loaders/
-    │   ├── 📁 models/
-    │   ├── 📁 parsing/
-    │   ├── 📁 pipeline/
-    │   ├── 📁 predictors/
-    │   ├── 📁 scoring/
-    │   ├── 📁 scripts/
-    │   ├── 📁 visualization/
-    │   ├── 📄 conftest.py
-    │   ├── 📄 test_artifacts.py
-    │   ├── 📄 test_logging_config.py
-    │   └── 📄 test_utils.py
-    │
-    ├── 📄 main.py                          # Точка входа: полный пайплайн
-    ├── 📄 pyproject.toml                   # Конфигурация проекта и инструментов
-    ├── 📄 requirements.txt                 # Prod-зависимости
-    ├── 📄 requirements-dev.txt             # dev-зависимости
-    ├── 📄 MakeFile
-    └── 📄 README.md
+📁 compare_competencies/
+│
+├── 📁 data/
+│   ├── 📁 cache/                       # Кэш извлечённых навыков, эмбеддингов, кластеров
+│   │   ├── 📄 parsed_skills.joblib     # Извлечённые навыки (парсинг)
+│   │   ├── 📄 gap_progress.json        # Прогресс gap-анализа (SSE)
+│   │   ├── 📄 pipeline_progress.json   # Прогресс пайплайна (SSE)
+│   │   ├── 📄 pipeline_tasks.json      # Фоновые задачи пайплайна
+│   │   ├── 📁 embeddings/              # Эмбеддинги навыков + рынка
+│   │   ├── 📁 clusters/                # KMeans-кластеры (.joblib + .manifest.json)
+│   │   ├── 📁 students/                # Эмбеддинги профилей студентов
+│   │   └── 📄 .hh_token_cache.json     # Кэш токена hh.ru API
+│   ├── 📁 history/                     # Снимки частот навыков по датам
+│   │   ├── 📄 freq_latest.json         # Текущий срез
+│   │   └── 📄 freq_2026-*.json         # Исторические (апрель–май 2026, ~40 шт.)
+│   ├── 📁 last_uploaded/               # Последняя загруженная матрица
+│   │   └── 📄 competency_matrix.csv
+│   ├── 📁 models/                      # ML-модели
+│   │   ├── 📄 ltr_ranker_xgb_regressor.joblib  # XGBoost LTR-ранкер
+│   │   └── 📄 ltr_feature_importance.png        # Важность признаков
+│   ├── 📁 processed/                   # Обработанные данные
+│   │   ├── 📄 competency_frequency.json          # Частоты навыков на рынке
+│   │   ├── 📄 competency_frequency_mapped.json   # Сопоставление с учебными
+│   │   ├── 📄 competency_mapping.json            # Коды компетенций -> навыки
+│   │   ├── 📄 skill_weights.json                 # Очищенные веса
+│   │   ├── 📄 hh_vacancies_detailed.json         # Детальные вакансии
+│   │   └── 📄 vacancies_IT_Sector_Multiple.xlsx  # Excel-экспорт вакансий
+│   ├── 📁 raw/                         # Сырые данные с hh.ru
+│   │   ├── 📄 hh_vacancies_basic.json  # Результат поиска (HH API)
+│   │   └── 📄 competency_matrix.csv    # Исходная матрица компетенций
+│   ├── 📁 reference/                   # Справочники
+│   │   ├── 📄 domain_map.json          # 15 доменов -> список навыков
+│   │   ├── 📄 filler_words.json        # Слова-паразиты (19 шт.)
+│   │   ├── 📄 generic_words.json       # Общие слова
+│   │   ├── 📄 hard_skills.json         # 96 жёстких навыков (EN)
+│   │   ├── 📄 it_skills.json           # 933 IT-скилла (430 RU + 503 EN)
+│   │   ├── 📄 krm_competency_mapping.json  # КРМ-коды -> навыки
+│   │   ├── 📄 profession_taxonomy.json     # Профессии -> домены + КРМ
+│   │   ├── 📄 skill_blacklist.json     # Чёрный список
+│   │   ├── 📄 skill_taxonomy.json      # 19 категорий навыков
+│   │   ├── 📄 stop_lemmas.json         # Стоп-леммы для BM25
+│   │   ├── 📄 timeframe_groups.json    # Группы для времени изучения
+│   │   └── 📄 trend_hot_skills.json    # Горячие навыки
+│   ├── 📁 result/                      # Графики, отчёты, рекомендации
+│   │   ├── 📁 base/                    # Графики для профиля base
+│   │   ├── 📁 dc/                      # Графики для профиля dc
+│   │   ├── 📁 top_dc/                  # Графики для профиля top_dc
+│   │   ├── 📁 trends/                  # Тренды: графики + JSON
+│   │   └── 📁 reports/                 # Отчёты и экспорт
+│   │       ├── 📄 spam_vacancies_report.json
+│   │       ├── 📄 coverage_comparison.png
+│   │       ├── 📄 profession_coverage.png
+│   │       ├── 📄 domain_skill_gaps.png
+│   │       ├── 📄 skill_correlation_heatmap.png
+│   │       ├── 📄 skills_heatmap.png
+│   │       └── 📄 vacancies_export.xlsx
+│   └── 📁 students/                    # Профили студентов
+│       ├── 📄 base_competency.json
+│       ├── 📄 dc_competency.json
+│       ├── 📄 top_dc_competency.json
+│       ├── 📄 description_of_competency.txt
+│       └── 📄 competency_matrix.csv
+│
+├── 📁 docs/
+│   ├── 📄 ARCHITECTURE.md              # Архитектура системы
+│   └── 📄 user_manual.md               # Полное руководство
+│
+├── 📁 frontend/                        # React SPA (Vite + shadcn/ui)
+│   ├── 📁 src/
+│   │   ├── 📁 app/
+│   │   │   ├── 📁 components/
+│   │   │   │   ├── 📁 figma/
+│   │   │   │   │   └── 📄 ImageWithFallback.tsx
+│   │   │   │   ├── 📁 ui/              # shadcn/ui (60+)
+│   │   │   │   ├── 📄 AnalysisTab.tsx
+│   │   │   │   ├── 📄 DataViewer.tsx
+│   │   │   │   ├── 📄 Footer.tsx
+│   │   │   │   ├── 📄 GapAnalysisVisualizer.tsx
+│   │   │   │   ├── 📄 LoadingSpinner.tsx
+│   │   │   │   ├── 📄 MetricsExplanation.tsx
+│   │   │   │   ├── 📄 PipelineProgress.tsx
+│   │   │   │   ├── 📄 RecommendationsReport.tsx
+│   │   │   │   ├── 📄 RegionCombobox.tsx
+│   │   │   │   ├── 📄 StatsCards.tsx
+│   │   │   │   ├── 📄 VacanciesList.tsx
+│   │   │   │   └── 📄 VacancyCard.tsx
+│   │   │   └── 📄 App.tsx
+│   │   ├── 📁 imports/
+│   │   │   ├── 📄 pipeline_endpoints.py
+│   │   │   ├── 📄 pipeline_runner.py
+│   │   │   ├── 📄 README.md
+│   │   │   └── 📄 user_manual.md
+│   │   ├── 📁 lib/
+│   │   │   └── 📄 logger.ts
+│   │   ├── 📁 styles/
+│   │   │   ├── 📄 fonts.css
+│   │   │   ├── 📄 globals.css
+│   │   │   ├── 📄 index.css
+│   │   │   ├── 📄 tailwind.css
+│   │   │   └── 📄 theme.css
+│   │   └── 📄 main.tsx
+│   ├── 📄 package.json
+│   ├── 📄 vite.config.ts
+│   ├── 📄 postcss.config.mjs
+│   └── 📄 pnpm-workspace.yaml
+│
+├── 📁 scripts/
+│   ├── 📄 check_clusters.py            # Проверка кластеров
+│   ├── 📄 extend_it_skills.py          # Расширение белого списка навыков
+│   ├── 📄 full_rebuild.py              # Пересборка проекта
+│   └── 📄 train_clusters.py            # Обучение кластеров
+│
+├── 📁 src/
+│   │   # Корень
+│   ├── 📄 config.py                    # Pydantic Settings (пути, API, модели)
+│   ├── 📄 logging_config.py            # structlog
+│   ├── 📄 api.py                       # FastAPI (legacy)
+│   ├── 📄 artifacts.py                 # Манифест артефактов
+│   ├── 📄 cache_manager.py             # Менеджер кэша (JSON/joblib)
+│   ├── 📄 decorators.py                # Декораторы (кэш, retry, timeout)
+│   ├── 📄 errors.py                    # Кастомные исключения
+│   ├── 📄 result.py                    # Result[T, E] pattern
+│   └── 📄 utils.py                     # Утилиты (atomic_write, safe_read)
+│
+│   # Пайплайн
+│   ├── 📁 pipeline/
+│   │   ├── 📄 orchestrator.py          # PipelineOrchestrator
+│   │   ├── 📄 stage.py                 # PipelineStage (base)
+│   │   ├── 📄 stages.py                # 8 конкретных этапов
+│   │   ├── 📄 progress.py              # SSE-прогресс
+│   │   ├── 📄 data_source.py           # Загрузка вакансий
+│   │   ├── 📄 skill_extractor.py       # Извлечение навыков
+│   │   ├── 📄 weight_cleaner.py        # Фильтрация весов
+│   │   ├── 📄 level_builder.py         # Уровни junior/middle/senior
+│   │   ├── 📄 gap_runner.py            # Gap-анализ
+│   │   ├── 📄 metric_computer.py       # Оценка профилей
+│   │   ├── 📄 recommendation_runner.py # Рекомендации
+│   │   └── 📄 helpers.py               # Общие функции
+│
+│   # Парсинг
+│   ├── 📁 parsing/
+│   │   ├── 📁 api/
+│   │   │   ├── 📄 hh_api.py            # Синхронный клиент hh.ru
+│   │   │   ├── 📄 hh_api_async.py      # Асинхронный клиент
+│   │   │   └── 📄 embedding_loader.py  # SentenceTransformer
+│   │   ├── 📁 skills/
+│   │   │   ├── 📄 skill_parser.py      # Извлечение навыков из текста
+│   │   │   ├── 📄 skill_normalizer.py  # Синонимы, fuzzy
+│   │   │   ├── 📄 skill_validator.py   # Белый/чёрный списки
+│   │   │   ├── 📄 vacancy_parser.py    # Фасад парсера
+│   │   │   ├── 📄 bm25_ranker.py       # BM25Okapi
+│   │   │   ├── 📄 hybrid_weight_calculator.py  # BM25 + эмбеддинги
+│   │   │   └── 📄 skill_embedding_cache.py     # Кэш эмбеддингов
+│   │   └── 📄 utils.py
+│
+│   # Анализ
+│   ├── 📁 analyzers/
+│   │   ├── 📁 comparison/
+│   │   │   ├── 📄 comparator.py        # CompetencyComparator
+│   │   │   ├── 📄 embedding_comparator.py  # Cosine similarity
+│   │   │   ├── 📄 domain_analyzer.py   # 15 доменов
+│   │   │   └── 📄 engines.py           # Jaccard, Ensemble
+│   │   ├── 📁 gap/
+│   │   │   ├── 📄 gap_analyzer.py      # Разрыв навыков
+│   │   │   └── 📄 profile_evaluator.py # ProfileEvaluator
+│   │   ├── 📁 skills/
+│   │   │   ├── 📄 skill_taxonomy.py    # 19 категорий
+│   │   │   ├── 📄 skill_filter.py      # Фильтрация мусора
+│   │   │   ├── 📄 skill_level_analyzer.py  # Уровни
+│   │   │   ├── 📄 skill_correlation.py # Jaccard-матрица
+│   │   │   ├── 📄 profession_taxonomy.py  # Профессии
+│   │   │   └── 📄 trends.py            # Тренды
+│   │   └── 📁 clustering/
+│   │       └── 📄 vacancy_clustering.py    # KMeans/HDBSCAN
+│
+│   # API
+│   ├── 📁 api_pkg/
+│   │   ├── 📄 deps.py                  # Depends
+│   │   ├── 📄 startup.py               # Startup hooks
+│   │   ├── 📄 n8n.py                   # n8n integration
+│   │   └── 📁 routers/
+│   │       ├── 📄 health.py            # GET /api/health
+│   │       ├── 📄 vacancies.py         # GET /api/vacancies
+│   │       ├── 📄 profiles.py          # GET /api/profiles
+│   │       ├── 📄 clusters.py          # GET /api/clusters
+│   │       ├── 📄 taxonomy.py          # GET /api/taxonomy
+│   │       ├── 📄 trends.py            # GET /api/trends
+│   │       ├── 📄 market.py            # GET /api/market
+│   │       ├── 📄 pipeline.py          # POST /api/pipeline
+│   │       ├── 📄 results.py           # GET /api/results
+│   │       └── 📄 admin.py             # POST /api/admin
+│
+│   # ML
+│   ├── 📁 predictors/
+│   │   ├── 📄 recommendation_engine.py # Движок рекомендаций
+│   │   ├── 📄 ltr_recommendation_engine.py  # XGBoost + SHAP
+│   │   ├── 📄 skill_forecast.py        # Прогноз трендов
+│   │   ├── 📄 base.py                  # Базовый предиктор
+│   │   ├── 📄 factory.py               # Фабрика
+│   │   └── 📄 models.py                # Pydantic-модели
+│
+│   # Модели
+│   ├── 📁 models/
+│   │   ├── 📄 vacancy.py               # Vacancy, KeySkill, Salary
+│   │   ├── 📄 student.py               # StudentProfile
+│   │   ├── 📄 competency.py            # Competency, CompetencyMatrix
+│   │   ├── 📄 comparison.py            # ComparisonReport
+│   │   ├── 📄 data_contracts.py        # PipelineContext
+│   │   ├── 📄 enums.py                 # Уровни, приоритеты
+│   │   ├── 📄 hh_responses.py          # Ответы hh.ru
+│   │   ├── 📄 market_metrics.py        # SkillMetrics
+│   │   └── 📄 api_responses.py         # API-ответы
+│
+│   # Остальное
+│   ├── 📁 scoring/
+│   │   └── 📄 vacancy_quality_scorer.py    # Спам-фильтр (9 критериев)
+│   ├── 📁 loaders_student/
+│   │   └── 📄 student_loader.py        # Загрузка профилей
+│   ├── 📁 n8n/
+│   │   ├── 📄 auth.py
+│   │   ├── 📄 webhooks.py
+│   │   └── 📁 workflows/
+│   │       ├── 📄 nightly_pipeline.json
+│   │       ├── 📄 student_onboarding.json
+│   │       └── 📄 trend_alert.json
+│   └── 📁 visualization/
+│       ├── 📄 _config.py
+│       ├── 📄 _utils.py
+│       ├── 📄 coverage.py              # Графики покрытия
+│       ├── 📄 radar.py                 # Радарные диаграммы
+│       ├── 📄 importance.py            # Важность навыков
+│       ├── 📄 correlation.py           # Тепловая карта
+│       ├── 📄 clusters.py              # Кластеры
+│       └── 📄 orchestration.py         # Сохранение графиков
+│
+├── 📁 tests/                           # pytest (86% coverage)
+│   ├── 📄 conftest.py
+│   ├── 📁 analyzers/
+│   ├── 📁 api/
+│   ├── 📁 integration/
+│   ├── 📁 loaders/
+│   ├── 📁 models/
+│   ├── 📁 parsing/
+│   ├── 📁 pipeline/
+│   ├── 📁 predictors/
+│   ├── 📁 scoring/
+│   ├── 📁 scripts/
+│   ├── 📁 visualization/
+│   ├── 📁 snapshots/
+│   ├── 📄 test_artifacts.py
+│   ├── 📄 test_logging_config.py
+│   ├── 📄 test_result.py
+│   └── 📄 test_utils.py
+│
+├── 📄 main.py                          # Точка входа (CLI)
+├── 📄 MakeFile                         # make test/lint/train/rebuild
+├── 📄 pyproject.toml                   # ruff, mypy, pytest, bandit
+├── 📄 requirements.txt                 # Зависимости
+├── 📄 requirements-dev.txt             # dev-зависимости
+├── 📄 .env.example                     # Переменные окружения
+├── 📄 .pre-commit-config.yaml          # pre-commit хуки
+└── 📄 README.md
 ```
 
-## 🚀 Быстрый старт
+## Быстрый старт
 
-1. **Установите зависимости**
-   ```bash
-   pip install -r requirements.txt
-   pip install -r requirements-dev.txt   # тесты, ноутбуки
+```bash
+# 1. Установка
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
-2. **Соберите вакансии**
-   ```bash
-   python main.py --it-sector --excel
+# 2. Сбор вакансий
+python main.py --it-sector --excel
 
-3. **Обучите кластеры**
-   ```bash
-   python scripts/train_clusters.py --level all
+# 3. Кластеризация
+python scripts/train_clusters.py --level all
 
-4. **Обучите ML‑модель ранжирования**
-   ```bash
-   python main.py --train-model
+# 4. ML-модель
+python main.py --train-model
 
-5. **Запустите gap‑анализ и получите рекомендации**
-   ```bash
-   python main.py --skip-collection --run-gap-analysis
+# 5. Gap-анализ
+python main.py --skip-collection --run-gap-analysis
 
-6. **Графики и отчёты**
-   Пайплайн генерирует графики в `data/result/`: радарные диаграммы, важность навыков, тепловые карты, покрытие доменов.
+# 6. API
+uvicorn src.api_pkg:app --host 0.0.0.0 --port 8000 --reload
 
-7. **Запустите backend**
-   ```bash
-   uvicorn src.api_pkg.app:app --host 0.0.0.0 --port 8000 --reload
-   ```
-   API будет доступен на `http://localhost:8000`, документация: `http://localhost:8000/docs`.
+# 7. Фронтенд (отдельный терминал)
+cd frontend && npm install && npx vite
+```
 
-8. **Запустите фронтенд (опционально)**
-   ```bash
-   cd frontend
-   npm install
-   npx vite
-   ```
-   Приложение на `http://localhost:3000` (Vite proxy → backend :8000).
+## Зависимости
 
-## 📦 Зависимости
+**Python:** fastapi, uvicorn, requests, aiohttp, pandas, numpy, scikit-learn, xgboost, shap, sentence-transformers, matplotlib, seaborn, pydantic, structlog, pymorphy3, rapidfuzz
 
-**Python (requirements.txt) — актуальные установленные версии:**
-- `fastapi==0.116.1`, `uvicorn==0.35.0` — REST API
-- `requests==2.32.4`, `aiohttp==3.12.14` — работа с API hh.ru
-- `pandas==2.3.1`, `numpy==2.2.6` — обработка данных
-- `scikit-learn==1.8.0`, `xgboost==3.0.3`, `shap==0.51.0` — ML
-- `sentence-transformers==5.3.0`, `torch>=2.5.0` — эмбеддинги
-- `matplotlib==3.10.3`, `seaborn==0.13.2` — визуализация
-- `pydantic==2.13.4` — модели данных
-- `structlog==25.5.0` — логирование
-- `lightgbm==4.6.0`, `faiss-cpu==1.13.2` (опционально)
-- `pydantic-settings==2.14.1` — конфигурация
-- `aioresponses` — моки для тестов API
+**Frontend:** React 18, TypeScript, Vite 6.3, shadcn/ui (60+), recharts, motion, react-router, lucide-react
 
-**Frontend (frontend/package.json):**
-- `React 18` + `TypeScript` + `Vite 6.3`
-- `shadcn/ui` (Radix UI, Tailwind CSS) — 60+ компонентов
-- `recharts==2.15.2` — графики
-- `lucide-react==0.487.0` — иконки
-- `motion==12.23` — анимации
-- `react-router==7.13` — маршрутизация
-- `cmdk`, `sonner`, `vaul`, `date-fns`, `react-hook-form` — UI-утилиты
-
-## 🧪 Тестирование
+## Тестирование
 
 ```bash
 pytest --cov=src --cov-report=term --ignore=tests/test_api.py
 ```
-- **35 тестовых файлов**, 36 модулей src под покрытием
-- **Общее покрытие: 86%** (отчёт: `htmlcov/index.html`)
-- Ключевые модули: спам-фильтрация (100%), движки сравнения (98%), data_source (97%)
-- API-тесты (hh.ru) выключены — требуют токена, тестируются интеграционно
 
-## 📝 Примеры использования
+- 35+ тестовых файлов, 86% покрытие
+- Ключевые: vacany_quality_scorer (100%), engines (98%), data_source (97%)
 
-### Поиск по конкретному запросу
+## Примеры
+
 ```bash
 python main.py --query "Data Scientist" --area-id 2 --max-pages 5 --excel
-
-### Загрузка запросов из файла
 python main.py --queries-file queries.txt --regions 1,2 --excel
-
-### Интерактивный режим
 python main.py --interactive
+```
 
-### Обучение модели на свежих данных
-python main.py --it-sector          # сбор вакансий
-python scripts/train_clusters.py --level all
-python main.py --train-model        # обучение LTR
-python main.py --skip-collection --run-gap-analysis  # генерация рекомендаций
+## Документация
 
-## 📖 Подробнее
-
-Детальное руководство пользователя находится в файле user_manual.md.
-Вопросы и предложения можно оставлять в Issues репозитория.
-
----
-*Проект создан для образовательных и исследовательских целей.*
+- `docs/ARCHITECTURE.md` — архитектура системы
+- `docs/user_manual.md` — полное руководство пользователя
