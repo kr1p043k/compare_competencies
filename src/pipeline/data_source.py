@@ -1,11 +1,10 @@
 """DataSource — загружает вакансии из кэша или через API hh.ru."""
 
-import sys
 from typing import Protocol
 
 import structlog
 
-from src import config
+from src import DataSourceError, Err, Ok, Result, config
 from src.parsing.api.hh_api import HeadHunterAPI
 from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import (
@@ -21,7 +20,7 @@ logger = structlog.get_logger("data_source")
 
 
 class DataSourceProtocol(Protocol):
-    def get_vacancies(self, queries: list[str], max_pages: int) -> tuple[list[dict], VacancyParser]: ...
+    def get_vacancies(self, queries: list[str], max_pages: int) -> Result[tuple[list[dict], VacancyParser], DataSourceError]: ...
 
 
 class HhDataSource(DataSourceProtocol):
@@ -30,25 +29,29 @@ class HhDataSource(DataSourceProtocol):
     def __init__(self, args):
         self.args = args
 
-    def get_vacancies(self) -> tuple[list, VacancyParser]:
-        if self.args.skip_collection:
-            return self._load_from_cache()
-        return self._collect_from_hh()
+    def get_vacancies(self) -> Result[tuple[list, VacancyParser], DataSourceError]:
+        try:
+            if self.args.skip_collection:
+                return self._load_from_cache()
+            return self._collect_from_hh()
+        except DataSourceError:
+            raise
+        except Exception as e:
+            return Err(DataSourceError(message=f"Ошибка сбора вакансий: {e}"))
 
-    def _load_from_cache(self):
+    def _load_from_cache(self) -> Result[tuple[list, VacancyParser], DataSourceError]:
         raw_file = self._find_file()
+        if raw_file is None:
+            return Err(DataSourceError(message="❌ Файлы вакансий не найдены."))
         data = safe_read_json(raw_file)
         if not data:
-            self._console_info("❌ Не удалось прочитать файл вакансий.")
-            sys.exit(1)
+            return Err(DataSourceError(message="❌ Не удалось прочитать файл вакансий."))
         parser = VacancyParser()
         from src.models.vacancy import Vacancy
         vacancies = [Vacancy.from_api(v) if isinstance(v, dict) else v for v in data]
-        return vacancies, parser
+        return Ok((vacancies, parser))
 
-    def _collect_from_hh(self):
-        # Импортируем вспомогательные функции из main, чтобы избежать циклических импортов
-
+    def _collect_from_hh(self) -> Result[tuple[list, VacancyParser], DataSourceError]:
         hh_api = HeadHunterAPI()
         parser = VacancyParser()
 
@@ -150,8 +153,7 @@ class HhDataSource(DataSourceProtocol):
             )
 
             if not basic_vacancies:
-                console_info("❌ Не найдено вакансий.")
-                sys.exit(1)
+                return Err(DataSourceError(message="❌ Не найдено вакансий."))
 
             console_info(f"Найдено {len(basic_vacancies)} базовых вакансий")
             parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json")
@@ -185,8 +187,7 @@ class HhDataSource(DataSourceProtocol):
             )
 
             if not basic_vacancies:
-                console_info("❌ Не найдено вакансий.")
-                sys.exit(1)
+                return Err(DataSourceError(message="❌ Не найдено вакансий."))
 
             console_info(f"Найдено {len(basic_vacancies)} вакансий")
             parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json")
@@ -206,7 +207,7 @@ class HhDataSource(DataSourceProtocol):
                 )
                 save_detailed_vacancies(vacancies_to_process, logger)
 
-        return vacancies_to_process, parser
+        return Ok((vacancies_to_process, parser))
 
     def _find_file(self):
         detailed = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
@@ -215,11 +216,10 @@ class HhDataSource(DataSourceProtocol):
             return detailed
         elif basic.exists():
             return basic
-        else:
-            self._console_info("❌ Файлы вакансий не найдены.")
-            sys.exit(1)
+        return None
 
-    def _console_info(self, msg):
+    @staticmethod
+    def _console_info(msg):
         print(f"  {msg}")
 
 
