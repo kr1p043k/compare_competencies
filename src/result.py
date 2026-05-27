@@ -27,6 +27,11 @@ class Result(Generic[T, E]):
     def unwrap_or(self, default: T) -> T:
         raise NotImplementedError
 
+    def unwrap_or_else(self, fn) -> T:
+        if isinstance(self, Ok):
+            return self._value
+        return fn(self._error)
+
     def ok(self) -> T | None:
         if isinstance(self, Ok):
             return self._value
