@@ -14,6 +14,7 @@ from src.models.api_responses import (
     ProfileShort,
 )
 from src.models.student import StudentProfile
+from src import Err, Ok
 from src.predictors.recommendation_engine import RecommendationEngine
 from src.parsing.skills.skill_validator import SkillValidator
 
@@ -118,8 +119,11 @@ async def get_recommendations(
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
     student = profiles[profile]
-    full_rec = engine.generate_recommendations(student)
-    return full_rec
+    match engine.generate_recommendations(student):
+        case Ok(full_rec):
+            return full_rec
+        case Err(err):
+            raise HTTPException(status_code=500, detail=str(err))
 
 
 @router.get("/api/skills/missing", response_model=MissingSkillsResponse)
