@@ -186,6 +186,7 @@ class PipelineTaskStatus(BaseModel):
     output: str | None = None
     step: int = 0
     sub_progress: int | None = None
+    logs: list[str] = []
 
 
 class GapProgressResponse(BaseModel):
