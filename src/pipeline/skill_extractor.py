@@ -55,7 +55,8 @@ class SkillExtractor:
                 joblib.dump(cache_data, cache_path)
                 self._console_info("💾 Кэш результатов сохранён")
                 manifest = ArtifactManifest(artifact_path=cache_path, metrics={"num_skills": len(skill_freq)})
-                manifest.save()
+                if manifest.save().is_err():
+                    logger.warning("manifest_save_failed", path=str(cache_path))
 
             whitelist = load_it_skills()
             skill_freq_filtered = filter_skills_by_whitelist(skill_freq, whitelist) if whitelist else skill_freq
@@ -102,15 +103,15 @@ class SkillExtractor:
 
     def _check_manifest(self, cache_path: Path):
         manifest_path = cache_path.with_suffix(".manifest.json")
-        if manifest_path.exists():
-            try:
-                manifest = ArtifactManifest.load(cache_path)
-                if not manifest.is_compatible():
-                    logger.warning("parsed_skills_cache_incompatible_manifest")
-                    cache_path.unlink()
-                    manifest_path.unlink()
-            except Exception as e:
-                logger.warning("parsed_skills_manifest_check_failed", error=str(e))
+        if not manifest_path.exists():
+            return
+        match ArtifactManifest.load(cache_path):
+            case Ok(manifest) if not manifest.is_compatible():
+                logger.warning("parsed_skills_cache_incompatible_manifest")
+                cache_path.unlink()
+                manifest_path.unlink()
+            case Err(err):
+                logger.warning("parsed_skills_manifest_check_failed", error=str(err))
 
     def _console_info(self, msg):
         print(f"  {msg}")
