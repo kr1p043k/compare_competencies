@@ -8,6 +8,7 @@ from src.analyzers.comparison.comparator import CompetencyComparator
 from src.models.data_contracts import PipelineContext
 from src.models.enums import ComparisonLevel
 from src.predictors.recommendation_engine import RecommendationEngine
+from src.predictors.models import RecommendationResult
 
 logger = structlog.get_logger("recommendation_runner")
 
@@ -49,20 +50,21 @@ class RecommendationRunner:
             return Err(RecommendationError(message="Движок не инициализирован", profile="all"))
         recs = {}
         for pname, student in tqdm(self.profiles.items(), desc="Генерация рекомендаций"):
-            try:
-                v2_result = evaluations[pname]
-                skill_ctx = self._build_skill_context(v2_result)
-                self.engine.set_cluster_context(skill_ctx)
-                full_rec = self.engine.generate_recommendations(student, user_type="student")
-                if full_rec is None:
-                    continue
-                full_rec["summary"]["market_coverage_score"] = v2_result["market_coverage_score"]
-                full_rec["summary"]["skill_coverage"] = v2_result["skill_coverage"]
-                full_rec["summary"]["domain_coverage_score"] = v2_result["domain_coverage_score"]
-                full_rec["domain_coverage"] = v2_result.get("domain_coverage", {})
-                recs[pname] = full_rec
-            except Exception as e:
-                logger.error("recommendation_generation_failed", profile=pname, error=str(e))
+            v2_result = evaluations.get(pname)
+            if v2_result is None:
+                logger.warning("evaluation_not_found", profile=pname)
+                continue
+            skill_ctx = self._build_skill_context(v2_result)
+            self.engine.set_cluster_context(skill_ctx)
+            match self.engine.generate_recommendations(student, user_type="student"):
+                case Ok(full_rec):
+                    full_rec.summary.market_coverage_score = v2_result["market_coverage_score"]
+                    full_rec.summary.skill_coverage = v2_result["skill_coverage"]
+                    full_rec.summary.domain_coverage_score = v2_result["domain_coverage_score"]
+                    full_rec.domain_coverage = v2_result.get("domain_coverage", {})
+                    recs[pname] = full_rec.model_dump()
+                case Err(err):
+                    logger.error("recommendation_generation_failed", profile=pname, error=str(err))
         return Ok(recs)
 
     def _build_skill_context(self, eval_result):
