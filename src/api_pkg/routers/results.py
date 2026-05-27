@@ -90,7 +90,7 @@ async def get_profile_image(
 @router.get("/api/results/images/coverage-comparison")
 @limiter.limit("30/minute")
 async def get_coverage_comparison_image(request: Request):
-    image_path = config.DATA_DIR / "result" / "coverage_comparison.png"
+    image_path = config.REPORTS_DIR / "coverage_comparison.png"
     if not image_path.exists():
         raise HTTPException(
             status_code=404, detail="Coverage comparison image not found"
@@ -101,7 +101,7 @@ async def get_coverage_comparison_image(request: Request):
 @router.get("/api/results/images/skills-heatmap")
 @limiter.limit("30/minute")
 async def get_skills_heatmap_image(request: Request):
-    image_path = config.DATA_DIR / "result" / "skills_heatmap.png"
+    image_path = config.REPORTS_DIR / "skills_heatmap.png"
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Skills heatmap not found")
     return FileResponse(image_path, media_type="image/png")
@@ -110,7 +110,7 @@ async def get_skills_heatmap_image(request: Request):
 @router.get("/api/results/images/skill-correlation")
 @limiter.limit("30/minute")
 async def get_skill_correlation_image(request: Request):
-    image_path = config.DATA_DIR / "result" / "skill_correlation_heatmap.png"
+    image_path = config.REPORTS_DIR / "skill_correlation_heatmap.png"
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Skill correlation not found")
     return FileResponse(image_path, media_type="image/png")
