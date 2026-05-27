@@ -2,9 +2,11 @@
 
 import hashlib
 import json
+import time
 
 import joblib
 import structlog
+from tqdm import tqdm
 
 from src import config
 from src.analyzers.comparison.comparator import CompetencyComparator
@@ -84,6 +86,34 @@ async def run_startup(app):
         return
 
     logger.info("Загружено вакансий", count=len(basic_vacancies))
+
+    has_descriptions = any(v.get("description") for v in basic_vacancies[:10])
+    if not has_descriptions and basic_vacancies:
+        logger.warning("Вакансии без описаний — загружаю детали...")
+        try:
+            from src.parsing.api.hh_api import HeadHunterAPI
+
+            hh = HeadHunterAPI()
+            detailed = []
+            for v in tqdm(basic_vacancies, desc="Загрузка описаний"):
+                vid = v.get("id")
+                if not vid:
+                    detailed.append(v)
+                    continue
+                try:
+                    det = hh.get_vacancy_details(str(vid))
+                    detailed.append(det or v)
+                except Exception:
+                    detailed.append(v)
+                time.sleep(config.REQUEST_DELAY)
+            basic_vacancies = detailed
+            detailed_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(detailed_file, "w", encoding="utf-8") as f:
+                json.dump(detailed, f, ensure_ascii=False, indent=2)
+            raw_file = detailed_file
+            logger.info("Детали загружены и сохранены", count=len(detailed))
+        except Exception as e:
+            logger.warning("Не удалось загрузить описания", error=str(e))
 
     parser = VacancyParser()
 
