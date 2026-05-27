@@ -39,8 +39,17 @@ def setup_structlog(console_level: int = None):
         level_str = os.getenv("LOG_LEVEL", "INFO").upper()
         console_level = getattr(logging, level_str, logging.INFO)
 
-    file_handler = RotatingFileHandler(LOG_FILE, encoding="utf-8", maxBytes=10 * 1024 * 1024, backupCount=5)
+    file_handler = RotatingFileHandler(LOG_FILE, encoding="utf-8", maxBytes=10 * 1024 * 1024, backupCount=5, delay=True)
     file_handler.setLevel(logging.DEBUG)
+    _orig_rollover = file_handler.doRollover
+
+    def _safe_rollover():
+        try:
+            _orig_rollover()
+        except PermissionError:
+            pass
+
+    file_handler.doRollover = _safe_rollover
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(console_level)
