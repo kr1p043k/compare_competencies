@@ -1,0 +1,40 @@
+{
+  "name": "Trend Alert",
+  "nodes": [
+    {
+      "name": "Schedule (weekly)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "parameters": { "rule": { "interval": [{ "field": "weeks", "minutesInterval": 10080 }] } }
+    },
+    {
+      "name": "Fetch Trends",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BASE_URL }}/api/trends?top_n=20&min_change=10.0",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      }
+    },
+    {
+      "name": "Filter Spikes",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst THRESHOLD = 25.0;\nreturn items.filter(i => i.json.change_pct > THRESHOLD);"
+      }
+    },
+    {
+      "name": "Notify",
+      "type": "n8n-nodes-base.telegram",
+      "parameters": {
+        "chatId": "={{ $env.TG_CHAT_ID }}",
+        "text": "🔥 Trend spike detected:\n={{ JSON.stringify($json) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule (weekly)": { "main": [[ { "node": "Fetch Trends", "type": "main" } ]] },
+    "Fetch Trends": { "main": [[ { "node": "Filter Spikes", "type": "main" } ]] },
+    "Filter Spikes": { "main": [[ { "node": "Notify", "type": "main" } ]] }
+  }
+}
