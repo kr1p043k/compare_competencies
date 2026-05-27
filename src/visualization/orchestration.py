@@ -36,14 +36,17 @@ def save_all_charts(
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info("generating_all_charts", output_dir=str(output_dir), profiles=len(results))
 
-    # Основные графики покрытия
+    logger.info("chart_coverage_comparison")
     plot_coverage_comparison(results, output_dir / "coverage_comparison.png")
+    logger.info("chart_profession_coverage")
     plot_profession_coverage(results, output_dir / "profession_coverage.png")
+    logger.info("chart_domain_skill_gaps")
     plot_domain_skill_gaps(results, output_dir / "domain_skill_gaps.png")
 
     skill_weights = load_skill_weights()
     market_top = list(skill_weights.keys())[:15] if skill_weights else []
 
+    logger.info("chart_per_profile_start", profiles=list(results.keys()))
     for profile_name, eval_dict in results.items():
         prof_dir = output_dir / profile_name
         prof_dir.mkdir(exist_ok=True)
@@ -74,8 +77,10 @@ def save_all_charts(
                 plt.close(fig)
                 logger.info("deficits_saved", profile=profile_name, count=len(deficits))
 
+    logger.info("chart_per_profile_done")
     if vacancies_skills_list:
         try:
+            logger.info("chart_correlation_heatmap")
             from src.analyzers.skills.skill_correlation import SkillCorrelationAnalyzer
 
             corr_analyzer = SkillCorrelationAnalyzer()
@@ -86,7 +91,9 @@ def save_all_charts(
         except Exception as e:
             logger.warning("correlation_heatmap_failed", error=str(e))
 
+    logger.info("chart_skills_heatmap")
     plot_skills_heatmap(results, top_n=20, save_path=output_dir / "skills_heatmap.png")
+    logger.info("chart_cluster_insights")
     plot_cluster_insights(results, output_dir)
     logger.info("all_charts_generated")
 
