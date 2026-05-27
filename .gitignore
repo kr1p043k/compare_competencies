@@ -35,9 +35,9 @@ data/raw/
 *.xslx
 .pre-commit-cache/
 .ruff_cache/
-data/.hh_token_cache.json
+data/cache/.hh_token_cache.json
 .mypy_cache/
 frontend/node_modules/
-
+.hypothesis/
 frontend/dist/
-
+data/
