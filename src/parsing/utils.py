@@ -21,6 +21,11 @@ from src.utils import atomic_read_json, atomic_write_json
 
 logger = structlog.get_logger(__name__)
 
+
+def _write_progress_pct(pct: int, message: str):
+    from src.pipeline.progress import write
+    write(pct, message)
+
 __all__ = [
     "setup_logging",
     "read_json",
@@ -152,9 +157,14 @@ def collect_vacancies_multiple(
     chunk_threshold = 2000
     date_chunk_days = 5
 
+    total_combos = len(queries) * len(area_ids)
+    combo_idx = 0
+
     for query in queries:
         query_vacancies = []
         for area_id in area_ids:
+            combo_idx += 1
+            _write_progress_pct(5 + int(combo_idx / total_combos * 5), f"Поиск: {query[:40]} (регион {area_id})")
             logger.info("search_started", query=query, area_id=area_id)
 
             _ = hh_api.search_vacancies(
@@ -184,7 +194,11 @@ def collect_vacancies_multiple(
             else:
                 chunks = date_chunks(period_days, date_chunk_days)
                 logger.info("period_chunked", chunks=len(chunks), total_days=period_days)
-                for date_from, date_to in chunks:
+                for ci, (date_from, date_to) in enumerate(chunks):
+                    _write_progress_pct(
+                        5 + int(combo_idx / total_combos * 5),
+                        f"Поиск {query[:30]}... интервал {ci + 1}/{len(chunks)} ({date_from}..{date_to})",
+                    )
                     vacs = hh_api.search_vacancies(
                         text=query,
                         area=area_id,
@@ -208,6 +222,10 @@ def collect_vacancies_multiple(
             time.sleep(config.REQUEST_DELAY)
 
         all_vacancies.extend(query_vacancies[:max_vacancies_per_query])
+        _write_progress_pct(
+            5 + int(combo_idx / total_combos * 5),
+            f"Найдено {len(all_vacancies)} вакансий ({query[:30]})",
+        )
         logger.info("query_completed", query=query, vacancies=len(query_vacancies[:max_vacancies_per_query]))
 
     logger.info("collection_completed", total_unique=len(all_vacancies))
