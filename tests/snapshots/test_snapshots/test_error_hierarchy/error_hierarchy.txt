@@ -1,0 +1,3 @@
+DomainError(message, detail)
+PipelineError(message, detail, stage)
+SkillExtractionError(message, detail, stage, vacancies_count)
