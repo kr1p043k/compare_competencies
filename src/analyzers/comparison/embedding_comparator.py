@@ -14,7 +14,7 @@ import numpy as np
 import structlog
 from sklearn.metrics.pairwise import cosine_similarity
 
-from src import config
+from src import Err, Ok, config
 from src.analyzers.comparison.engines import (
     ComparisonResult,
     EnsembleEngine,
@@ -68,34 +68,34 @@ class EmbeddingComparator:
 
         if cache_path.exists():
             manifest_path = cache_path.with_suffix(".manifest.json")
-            try:
-                if manifest_path.exists():
-                    manifest = ArtifactManifest.load(cache_path)
-                    if not manifest.is_compatible():
-                        logger.info(
-                            "market_cache_invalidated_by_model",
+            manifest_ok = True
+            if manifest_path.exists():
+                match ArtifactManifest.load(cache_path):
+                    case Ok(manifest) if not manifest.is_compatible():
+                        logger.info("market_cache_invalidated_by_model",
                             level=level,
                             manifest_version=manifest.model_version,
-                            current_version=ArtifactManifest._get_embedding_model_version(),
-                        )
-                        raise ValueError("Model version mismatch")
-
-                loaded = joblib.load(cache_path)
-                if isinstance(loaded, dict):
-                    self.market_embeddings = loaded["embeddings"]
-                    self.market_skills = loaded["skills"]
-                else:
-                    self.market_embeddings, self.market_skills = loaded
-
-                logger.info("embeddings_cache_loaded", level=level)
-                return
-
-            except Exception as e:
-                logger.warning("market_cache_load_failed", level=level, error=str(e))
-                with suppress(Exception):
-                    cache_path.unlink()
-                with suppress(Exception):
-                    manifest_path.unlink()
+                            current_version=ArtifactManifest._get_embedding_model_version())
+                        manifest_ok = False
+                    case Err(err):
+                        logger.warning("market_cache_manifest_load_failed", error=str(err))
+                        manifest_ok = False
+            if manifest_ok:
+                try:
+                    loaded = joblib.load(cache_path)
+                    if isinstance(loaded, dict):
+                        self.market_embeddings = loaded["embeddings"]
+                        self.market_skills = loaded["skills"]
+                    else:
+                        self.market_embeddings, self.market_skills = loaded
+                    logger.info("embeddings_cache_loaded", level=level)
+                    return
+                except Exception as e:
+                    logger.warning("market_cache_load_failed", level=level, error=str(e))
+                    with suppress(Exception):
+                        cache_path.unlink()
+                    with suppress(Exception):
+                        manifest_path.unlink()
 
         self.market_skills = all_market_skills
         self.market_embeddings = self.embed_skills(self.market_skills)
@@ -115,14 +115,12 @@ class EmbeddingComparator:
                 os.unlink(tmp_path)
             raise
 
-        try:
-            manifest = ArtifactManifest(
-                artifact_path=cache_path,
-                metrics={"num_skills": len(self.market_skills)},
-            )
-            manifest.save()
-        except Exception as e:
-            logger.warning("market_cache_manifest_save_failed", error=str(e))
+        manifest = ArtifactManifest(
+            artifact_path=cache_path,
+            metrics={"num_skills": len(self.market_skills)},
+        )
+        if manifest.save().is_err():
+            logger.warning("market_cache_manifest_save_failed")
 
     def compare_student_to_market(self, student_skills: list[str]) -> ComparisonResult:
         if self.market_embeddings is None:
