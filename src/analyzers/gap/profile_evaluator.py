@@ -386,7 +386,8 @@ class ProfileEvaluator:
             artifact_path=cache_path,
             metrics={"dim": len(embedding)},
         )
-        manifest.save()
+        if manifest.save().is_err():
+            logger.warning("student_embedding_manifest_save_failed", profile=student.profile_name)
 
     def _get_or_compute_student_embedding(self, student: StudentProfile) -> np.ndarray:
         cached = self._load_cached_embedding(student)
