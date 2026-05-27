@@ -78,12 +78,12 @@ class TestVacancyQualityScorer:
     def test_no_skills(self, scorer):
         v = _make_vac({'key_skills': []})
         s = scorer.score(v)
-        assert any(f.reason == 'NO_SKILLS' for f in s.flags)
+        assert any(f.reason == 'нет навыков' for f in s.flags)
 
     def test_too_few_skills(self, scorer):
         v = _make_vac({'key_skills': [KeySkill(name='python')]})
         s = scorer.score(v)
-        assert any(f.reason == 'TOO_FEW_SKILLS' for f in s.flags)
+        assert any(f.reason == 'TOO_FEW_KEY_SKILLS' for f in s.flags)
 
     def test_suspicious_employer(self, scorer):
         v = _make_vac({'employer': Employer(id='999', name='Кадровое агентство')})

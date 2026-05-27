@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 import pytest
+from src import Err, Ok
 from src.artifacts import ArtifactManifest
 
 class TestArtifactManifest:
@@ -46,11 +47,14 @@ class TestArtifactManifest:
             metrics={"r2": 0.9},
             model_version="v2",
         )
-        manifest.save()
+        assert manifest.save().is_ok()
         assert manifest.manifest_path.exists()
-        loaded = ArtifactManifest.load(artifact)
-        assert loaded.data_hash == "123"
-        assert loaded.metrics["r2"] == 0.9
+        match ArtifactManifest.load(artifact):
+            case Ok(loaded):
+                assert loaded.data_hash == "123"
+                assert loaded.metrics["r2"] == 0.9
+            case Err(err):
+                pytest.fail(f"Failed to load manifest: {err}")
 
     def test_is_compatible_same_version(self, tmp_path):
         manifest = ArtifactManifest(artifact_path=tmp_path / "x.pkl", model_version="v1")

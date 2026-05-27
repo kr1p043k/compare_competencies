@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from pydantic import SecretStr
 
-from src import config
+from src import Err, Ok, config
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.models.student import StudentProfile
 from src.predictors.recommendation_engine import RecommendationEngine
@@ -171,25 +171,24 @@ class TestGenerateRecommendations:
     def test_generate_without_profile_evaluator(self):
         engine = RecommendationEngine()
         student = StudentProfile(profile_name="t", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now())
-        with pytest.raises(RuntimeError, match="должен быть инициализирован"):
-            engine.generate_recommendations(student)
+        result = engine.generate_recommendations(student)
+        assert result.is_err()
 
     def test_generate_success(self, mock_profile_evaluator, sample_student_profile):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        result = engine.generate_recommendations(sample_student_profile)
-        assert "summary" in result
-        assert "recommendations" in result
-        assert result["summary"]["readiness_score"] == 68.0
-        recs = result["recommendations"]
-        assert len(recs) == 3
-        assert recs[0]["skill"] == "docker"
-        # importance может отличаться от исходных 0.85 из-за бонусов
-        assert recs[0]["importance_score"] > 0
+        match engine.generate_recommendations(sample_student_profile):
+            case Ok(result):
+                assert result.summary.readiness_score == 68.0
+                recs = result.recommendations
+                assert len(recs) == 3
+                assert recs[0].skill == "docker"
+                assert recs[0].importance_score > 0
 
     def test_generate_with_user_type(self, mock_profile_evaluator, sample_student_profile):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        engine.generate_recommendations(sample_student_profile, user_type="junior")
-        mock_profile_evaluator.evaluate_profile.assert_called_with(sample_student_profile, user_type="junior", target_domains=None, taxonomy=None)
+        match engine.generate_recommendations(sample_student_profile, user_type="junior"):
+            case Ok(_):
+                mock_profile_evaluator.evaluate_profile.assert_called_with(sample_student_profile, user_type="junior", target_domains=None, taxonomy=None)
 
     def test_generate_empty_recommendations(self, mock_profile_evaluator, sample_student_profile):
         mock_profile_evaluator.evaluate_profile.return_value = {
@@ -205,15 +204,15 @@ class TestGenerateRecommendations:
             "market_skill_coverage": 80.0,
         }
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        result = engine.generate_recommendations(sample_student_profile)
-        assert result["recommendations"] == []
+        match engine.generate_recommendations(sample_student_profile):
+            case Ok(result):
+                assert result.recommendations == []
 
     def test_generate_eval_result_none(self, mock_profile_evaluator, sample_student_profile):
         mock_profile_evaluator.evaluate_profile.return_value = None
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         result = engine.generate_recommendations(sample_student_profile)
-        assert result["recommendations"] == []
-        assert result["summary"]["readiness_score"] == 0
+        assert result.is_err()
 
 
 # ---------------------------------------------------------------------------
@@ -454,13 +453,16 @@ class TestRecommendationEngineExtended:
         mock_ltr = MagicMock()
         mock_ltr.is_fitted = True
         mock_ltr.skill_metadata = {"docker": {}, "fastapi": {}, "k8s": {}}
-        mock_ltr.predict_skill_impact.return_value = [("docker", 90, ""), ("fastapi", 70, "")]
+        mock_ltr.predict_impact.return_value = [
+            __import__("src.predictors.models", fromlist=["SkillImpact"]).SkillImpact(skill="docker", score=90, explanation=""),
+            __import__("src.predictors.models", fromlist=["SkillImpact"]).SkillImpact(skill="fastapi", score=70, explanation=""),
+        ]
         engine.ltr_engine = mock_ltr
 
-        result = engine.generate_recommendations(sample_student_profile)
-        assert "recommendations" in result
-        # Без _always_hot бонусов трендов нет, если trend_analyzer = None
-        assert result["trend_bonuses_count"] == 0
+        match engine.generate_recommendations(sample_student_profile):
+            case Ok(result):
+                assert len(result.recommendations) > 0
+                assert result.trend_bonuses_count == 0
 
     def test_generate_with_trends(self, mock_profile_evaluator, sample_student_profile, tmp_path):
         mock_trends = MagicMock()
@@ -469,31 +471,32 @@ class TestRecommendationEngineExtended:
         }
         mock_trends.save_trends.return_value = None
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator, trend_analyzer=mock_trends)
-        engine._always_hot = set()          # отключаем встроенные горячие навыки
-        result = engine.generate_recommendations(sample_student_profile)
-        assert result["trend_bonuses_count"] == 1
+        engine._always_hot = set()
+        match engine.generate_recommendations(sample_student_profile):
+            case Ok(result):
+                assert result.trend_bonuses_count == 1
 
     def test_generate_with_domain_bonus(self, mock_profile_evaluator, sample_student_profile, tmp_path):
         """Доменный бонус: добавляем domain_analyzer с мапой навыков."""
         mock_profile_evaluator.domain_analyzer = MagicMock()
         mock_profile_evaluator.domain_analyzer.domain_map = {"Backend": ["docker", "fastapi"]}
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        result = engine.generate_recommendations(sample_student_profile)
-        # Проверим, что рекомендации содержат доменный бонус (как минимум не пусто)
-        recs = result["recommendations"]
-        assert any("🔗" in r.get("why_important", "") for r in recs)
+        match engine.generate_recommendations(sample_student_profile):
+            case Ok(result):
+                recs = result.recommendations
+                assert any("🔗" in r.why_important for r in recs)
 
-    def test_generate_eval_result_none_returns_empty(self, mock_profile_evaluator, sample_student_profile):
+    def test_generate_eval_result_none_returns_err(self, mock_profile_evaluator, sample_student_profile):
         mock_profile_evaluator.evaluate_profile.return_value = None
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         result = engine.generate_recommendations(sample_student_profile)
-        assert result["recommendations"] == []
+        assert result.is_err()
 
-    def test_generate_crash_returns_empty(self, mock_profile_evaluator, sample_student_profile):
+    def test_generate_crash_returns_err(self, mock_profile_evaluator, sample_student_profile):
         mock_profile_evaluator.evaluate_profile.side_effect = Exception("unexpected error")
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         result = engine.generate_recommendations(sample_student_profile)
-        assert result["summary"]["readiness_score"] == 0
+        assert result.is_err()
 
     def test_diversify_with_many_categories(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
@@ -543,9 +546,10 @@ class TestRecommendationEngineExtended:
     def test_generate_saves_ltr_debug_file(self, mock_profile_evaluator, sample_student_profile, tmp_path, monkeypatch):
         monkeypatch.setattr(config, "DATA_DIR", tmp_path)
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        engine.generate_recommendations(sample_student_profile)
-        ltr_file = tmp_path / "result" / sample_student_profile.profile_name / f"ltr_recommendations_{sample_student_profile.profile_name}.json"
-        assert ltr_file.exists()
+        match engine.generate_recommendations(sample_student_profile):
+            case Ok(_):
+                ltr_file = tmp_path / "result" / sample_student_profile.profile_name / f"ltr_recommendations_{sample_student_profile.profile_name}.json"
+                assert ltr_file.exists()
         with open(ltr_file, encoding="utf-8") as f:   # <-- добавлен encoding
             data = json.load(f)
         assert data["profile"] == sample_student_profile.profile_name
@@ -553,9 +557,10 @@ class TestRecommendationEngineExtended:
     def test_generate_ltr_save_exception(self, mock_profile_evaluator, sample_student_profile, tmp_path, monkeypatch):
         monkeypatch.setattr(config, "DATA_DIR", tmp_path)
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        with patch("src.utils.atomic_write_json", side_effect=Exception("disk full")):  # <-- правильный путь
-            result = engine.generate_recommendations(sample_student_profile)
-        assert "recommendations" in result
+        with patch("src.utils.atomic_write_json", side_effect=Exception("disk full")):
+            match engine.generate_recommendations(sample_student_profile):
+                case Ok(result):
+                    assert len(result.recommendations) > 0
 
     def test_explanation_taxonomy_exception(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)

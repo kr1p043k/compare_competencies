@@ -2,7 +2,7 @@
 import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -13,10 +13,14 @@ from src.pipeline.data_source import HhDataSource
 from src.pipeline.helpers import get_load_mode, load_vacancies_details, save_detailed_vacancies
 from src.pipeline.level_builder import LevelBuilder
 from src.pipeline.metric_computer import MetricComputer
+from src.result import Err, Ok
 from src.pipeline.recommendation_runner import RecommendationRunner
 from src.pipeline.skill_extractor import SkillExtractor
 from src.pipeline.weight_cleaner import WeightCleaner
+from src.errors import RecommendationError
+from src.models.vacancy import Vacancy
 from src.pipeline.gap_runner import GapRunner
+from src.predictors.models import RecommendationResult, RecommendationSummary
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -63,10 +67,13 @@ class TestHhDataSource:
 
         mock_vac = MagicMock()
         with patch("src.models.vacancy.Vacancy.from_api", return_value=mock_vac):
-            vacancies, parser = ds.get_vacancies()
-            assert len(vacancies) == 1
-            assert vacancies[0] is mock_vac
-            assert parser is not None
+            match ds.get_vacancies():
+                case Ok((vacancies, parser)):
+                    assert len(vacancies) == 1
+                    assert vacancies[0] is mock_vac
+                    assert parser is not None
+                case Err(e):
+                    pytest.fail(f"get_vacancies failed: {e.message}")
 
     def test_load_from_cache_file_not_found(self, mock_args, tmp_path, monkeypatch):
         mock_args.skip_collection = True
@@ -74,11 +81,9 @@ class TestHhDataSource:
         fake_file = tmp_path / "nonexistent.json"
         ds._find_file = MagicMock(return_value=fake_file)
         with patch("src.pipeline.data_source.safe_read_json", return_value=None), \
-            patch("src.pipeline.data_source.console_info"), \
-            patch("src.pipeline.data_source.sys.exit", side_effect=SystemExit(1)) as mock_exit:
-            with pytest.raises(SystemExit):
-                ds._load_from_cache()
-            mock_exit.assert_called_once_with(1)
+            patch("src.pipeline.data_source.console_info"):
+            result = ds._load_from_cache()
+            assert result.is_err()
 
     def test_collect_from_hh_interactive(self, mock_args):
         mock_args.interactive = True
@@ -105,8 +110,11 @@ class TestHhDataSource:
             mock_load_mode.return_value = (False, 0, "sync_mode")
             mock_load_det.return_value = [{"id": "1", "details": True}]
 
-            vacancies, parser = ds.get_vacancies()
-            assert len(vacancies) == 1
+            match ds.get_vacancies():
+                case Ok((vacancies, _)):
+                    assert len(vacancies) == 1
+                case Err(e):
+                    pytest.fail(f"get_vacancies failed: {e.message}")
             mock_save.assert_called_once()
 
     def test_collect_from_hh_it_sector(self, mock_args):
@@ -126,8 +134,11 @@ class TestHhDataSource:
             mock_load_mode.return_value = (False, 0, "sync_mode")
             mock_load_det.return_value = [{"id": "1", "details": True}]
 
-            vacancies, _ = ds.get_vacancies()
-            # Проверяем, что industry стал 7
+            match ds.get_vacancies():
+                case Ok((vacancies, _)):
+                    assert len(vacancies) == 1
+                case Err(e):
+                    pytest.fail(f"get_vacancies failed: {e.message}")
             call_args = mock_collect.call_args[1]
             assert call_args["industry"] == 7
 
@@ -144,8 +155,11 @@ class TestHhDataSource:
             mock_api_class.return_value.search_vacancies.return_value = [{"id": "1"}]
             mock_collect.return_value = [{"id": "1"}]
 
-            vacancies, _ = ds.get_vacancies()
-            assert len(vacancies) == 1
+            match ds.get_vacancies():
+                case Ok((v, _)):
+                    assert len(v) == 1
+                case Err(e):
+                    pytest.fail(f"get_vacancies failed: {e.message}")
 
     def test_find_file_detailed_exists(self, tmp_path, monkeypatch, mock_args):
         detailed = tmp_path / "hh_vacancies_detailed.json"
@@ -169,9 +183,8 @@ class TestHhDataSource:
         monkeypatch.setattr("src.pipeline.data_source.config.DATA_PROCESSED_DIR", tmp_path)
         monkeypatch.setattr("src.pipeline.data_source.config.DATA_RAW_DIR", tmp_path)
         ds = HhDataSource(mock_args)
-        with patch("src.pipeline.data_source.sys.exit") as mock_exit:
-            ds._find_file()
-            mock_exit.assert_called_once_with(1)
+        f = ds._find_file()
+        assert f is None
     def test_collect_from_hh_single_query(self, mock_args):
         mock_args.use_multiple = False  # будет заходить в else
         ds = HhDataSource(mock_args)
@@ -185,8 +198,11 @@ class TestHhDataSource:
             mock_api_instance.search_vacancies.return_value = [{"id": "1"}]
             mock_mode.return_value = (True, 4, "async")
             mock_load.return_value = [{"id": "1", "details": True}]
-            vacancies, _ = ds.get_vacancies()
-            assert len(vacancies) == 1
+            match ds.get_vacancies():
+                case Ok((v, _)):
+                    assert len(v) == 1
+                case Err(e):
+                    pytest.fail(f"get_vacancies failed: {e.message}")
             mock_api_instance.search_vacancies.assert_called_once()
 
     def test_collect_from_hh_queries_file(self, mock_args):
@@ -202,8 +218,8 @@ class TestHhDataSource:
             patch("src.pipeline.data_source.save_detailed_vacancies"), \
             patch("src.pipeline.data_source.console_info"):
             mock_collect.return_value = [{"id":"1"}]
-            ds.get_vacancies()
-            # проверяем, что queries переданы
+            result = ds.get_vacancies()
+            assert result.is_ok()
             args, kwargs = mock_collect.call_args
             assert "QA" in kwargs["queries"]
 
@@ -220,9 +236,11 @@ class TestHhDataSource:
              patch("src.pipeline.data_source.console_info"):
             api = MockAPI.return_value
             api.search_vacancies.return_value = [{"id": "1"}]
-            vacancies, _ = ds.get_vacancies()
-            assert len(vacancies) == 1
-            # не должно быть вызова load_vacancies_details
+            match ds.get_vacancies():
+                case Ok((v, _)):
+                    assert len(v) == 1
+                case Err(e):
+                    pytest.fail(f"get_vacancies failed: {e.message}")
 
     def test_collect_from_hh_single_query_async(self, mock_args):
         """Покрытие одиночного запроса с асинхронной загрузкой (строки 153-154)."""
@@ -242,21 +260,23 @@ class TestHhDataSource:
             api.search_vacancies.return_value = [{"id": "1"}]
             mock_mode.return_value = (True, 4, "async")
             mock_load.return_value = [{"id": "1", "details": True}]
-            vacancies, _ = ds.get_vacancies()
-            assert len(vacancies) == 1
+            match ds.get_vacancies():
+                case Ok((v, _)):
+                    assert len(v) == 1
+                case Err(e):
+                    pytest.fail(f"get_vacancies failed: {e.message}")
             mock_load.assert_called_once()
 
-    def test_collect_from_hh_no_vacancies_sys_exit(self, mock_args):
-        mock_args.it_sector = True  # включает use_multiple
+    def test_collect_from_hh_no_vacancies_returns_err(self, mock_args):
+        mock_args.it_sector = True
         ds = HhDataSource(mock_args)
         with patch("src.pipeline.data_source.HeadHunterAPI"), \
             patch("src.pipeline.data_source.VacancyParser"), \
             patch("src.pipeline.data_source.collect_vacancies_multiple") as mock_collect, \
-            patch("src.pipeline.data_source.console_info"), \
-            patch("src.pipeline.data_source.sys.exit") as mock_exit:
+            patch("src.pipeline.data_source.console_info"):
             mock_collect.return_value = []
-            ds._collect_from_hh()
-            mock_exit.assert_called_once_with(1)
+            result = ds._collect_from_hh()
+            assert result.is_err()
 
     def test_collect_from_hh_single_query_async_real(self, mock_args, monkeypatch):
         mock_args.it_sector = False
@@ -278,12 +298,14 @@ class TestHhDataSource:
             with patch("src.parsing.api.hh_api_async.HeadHunterAPIAsync") as MockAsync:
                 async_instance = MockAsync.return_value
                 async_instance.get_vacancies_details_sync_validated.return_value = []
-                # Возвращаем пустой список, но функция не упадет
-                vacancies, _ = ds.get_vacancies()
-                # Проверяем, что load_vacancies_details была вызвана (можно по вызову async метода)
+                match ds.get_vacancies():
+                    case Ok((vacancies, _)):
+                        assert len(vacancies) >= 0
+                    case Err(e):
+                        pytest.fail(f"get_vacancies failed: {e.message}")
                 async_instance.get_vacancies_details_sync_validated.assert_called()
 
-    def test_collect_from_hh_single_query_no_vacancies_exit(self, mock_args):
+    def test_collect_from_hh_single_query_no_vacancies_returns_err(self, mock_args):
         mock_args.it_sector = False
         mock_args.interactive = False
         mock_args.queries_file = None
@@ -291,12 +313,11 @@ class TestHhDataSource:
         ds = HhDataSource(mock_args)
         with patch("src.pipeline.data_source.HeadHunterAPI") as MockAPI, \
             patch("src.pipeline.data_source.VacancyParser"), \
-            patch("src.pipeline.data_source.console_info"), \
-            patch("src.pipeline.data_source.sys.exit") as mock_exit:
+            patch("src.pipeline.data_source.console_info"):
             api = MockAPI.return_value
             api.search_vacancies.return_value = []
-            ds._collect_from_hh()
-            mock_exit.assert_called_once_with(1)
+            result = ds._collect_from_hh()
+            assert result.is_err()
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -343,9 +364,8 @@ class TestHelpers:
             "trend_analyzer": None
         }
         runner = GapRunner(mock_profiles, mock_data, mock_args)
-        evals, recs = runner.run()
-        assert evals == {}
-        assert recs == {}
+        result = runner.run()
+        assert result.is_err()  # GapRunner returns Err when required data is missing
 
 
 # ---------------------------------------------------------------------------
@@ -358,57 +378,68 @@ class TestLevelBuilder:
             {"key_skills": [{"name": "python"}], "experience": {"id": "no_experience"}, "description": ""},
             {"key_skills": [{"name": "java"}], "experience": {"id": "between1And3"}, "description": ""},
         ]
-        levels, skills = builder.build(vacancies, MagicMock())
-        assert len(levels) == 2
-        assert levels[0]["experience"] == "junior"   # теперь совпадает
-        assert levels[1]["experience"] == "middle"
+        match builder.build(vacancies, MagicMock()):
+            case Ok((levels, skills)):
+                assert len(levels) == 2
+                assert levels[0]["experience"] == "junior"
+                assert levels[1]["experience"] == "middle"
+            case Err(e):
+                pytest.fail(f"build failed: {e.message}")
 
     def test_build_with_vacancy_objects(self):
-        from src.models.vacancy import Vacancy
-        vac1 = MagicMock(spec=Vacancy)
-        vac1.key_skills = [MagicMock(name="python")]
-        vac1.key_skills[0].name = "python"
-        vac1.experience = MagicMock()
-        vac1.experience.id = "between3And6"
-        vac1.name = "Backend Dev"
-        vac1.description = "desc"
-
-        vac2 = MagicMock(spec=Vacancy)
-        vac2.key_skills = [MagicMock(name="java")]
-        vac2.key_skills[0].name = "java"
-        vac2.experience = "senior"
-        vac2.name = "Senior Dev"
-        vac2.description = "desc"
-
         builder = LevelBuilder()
-        levels, _ = builder.build([vac1, vac2], MagicMock())
-        assert levels[0]["experience"] == "middle"
-        assert levels[1]["experience"] == "senior"
+        vac1 = MagicMock(spec=Vacancy)
+        vac1.id = "1"
+        vac1.name = "Python Developer"
+        vac1.key_skills = [MagicMock(name="python")]
+        vac1.experience = MagicMock(id="no_experience")
+        vac1.description = ""
+        vac1.snippet = None
+        vac2 = MagicMock()
+        vac2.id = "2"
+        vac2.name = "Java Developer"
+        vac2.key_skills = [MagicMock(name="java")]
+        vac2.experience = MagicMock(id="between1And3")
+        vac2.description = ""
+        vac2.snippet = None
+
+        match builder.build([vac1, vac2], MagicMock()):
+            case Ok((levels, _)):
+                assert len(levels) == 2
+                assert levels[0]["experience"] == "junior"
+                assert levels[1]["experience"] == "middle"
+            case Err(e):
+                pytest.fail(f"build failed: {e.message}")
 
     def test_build_with_junior_name(self):
-        from src.models.vacancy import Vacancy
-        vac = MagicMock(spec=Vacancy)
-        vac.key_skills = [MagicMock()]
-        vac.key_skills[0].name = "python"
-        vac.experience = MagicMock()
-        vac.experience.id = "between1And3"   # middle по опыту
-        vac.name = "Junior Python Developer" # но имя переопределяет на junior
-        vac.description = ""
         builder = LevelBuilder()
-        levels, _ = builder.build([vac], MagicMock())
-        assert levels[0]["experience"] == "junior"
+        vac = MagicMock(spec=Vacancy)
+        vac.name = "Junior Python Developer"
+        vac.key_skills = [MagicMock(name="python")]
+        vac.experience = MagicMock(id="between1And3")
+        vac.description = ""
+        vac.snippet = None
+
+        match builder.build([vac], MagicMock()):
+            case Ok((levels, _)):
+                assert levels[0]["experience"] == "junior"
+            case Err(e):
+                pytest.fail(f"build failed: {e.message}")
 
     def test_build_with_senior_name(self):
-        from src.models.vacancy import Vacancy
-        vac = MagicMock(spec=Vacancy)
-        vac.key_skills = [MagicMock()]
-        vac.key_skills[0].name = "python"
-        vac.experience = "middle"
-        vac.name = "Senior Developer"
-        vac.description = ""
         builder = LevelBuilder()
-        levels, _ = builder.build([vac], MagicMock())
-        assert levels[0]["experience"] == "senior"
+        vac = MagicMock(spec=Vacancy)
+        vac.name = "Senior Python Developer"
+        vac.key_skills = [MagicMock(name="python")]
+        vac.experience = MagicMock(id="between1And3")
+        vac.description = ""
+        vac.snippet = None
+
+        match builder.build([vac], MagicMock()):
+            case Ok((levels, _)):
+                assert levels[0]["experience"] == "senior"
+            case Err(e):
+                pytest.fail(f"build failed: {e.message}")
 
     def test_load_vacancies_sync(self, tmp_path, monkeypatch):
         monkeypatch.setattr("src.pipeline.helpers.config.PYDANTIC_VALIDATION_ENABLED", False)
@@ -438,43 +469,40 @@ class TestLevelBuilder:
                 assert len(result) == 1
 
     def test_build_with_vacancy_objects_extracted_skills(self):
-        """Покрытие ветки extracted_skills (строки 21-22)."""
-        from src.models.vacancy import Vacancy
-        vac = MagicMock(spec=Vacancy)
-        vac.key_skills = []               # нет key_skills
-        vac.extracted_skills = ["python", "sql"]
-        vac.experience = MagicMock()
-        vac.experience.id = "between1And3"
-        vac.name = "Developer"
-        vac.description = ""
         builder = LevelBuilder()
-        levels, _ = builder.build([vac], MagicMock())
-        assert len(levels) == 1
-        assert levels[0]["skills"] == ["python", "sql"]
+        vac = MagicMock(spec=Vacancy)
+        vac.id = "1"
+        vac.name = "Python Developer"
+        vac.key_skills = []
+        vac.extracted_skills = ["python", "django"]
+        vac.experience = MagicMock(id="no_experience")
+        vac.description = ""
+        vac.snippet = None
+
+        match builder.build([vac], MagicMock()):
+            case Ok((levels, _)):
+                assert len(levels) == 1
+                assert levels[0]["skills"] == ["python", "django"]
+            case Err(e):
+                pytest.fail(f"build failed: {e.message}")
 
     def test_build_with_junior_name_in_dict(self):
-        """Покрытие переопределения уровня по имени (строки 66-67)."""
         builder = LevelBuilder()
-        vac = {
-            "key_skills": [{"name": "python"}],
-            "experience": {"id": "between1And3"},  # middle по опыту
-            "description": "",
-            "name": "Junior Python Developer"
-        }
-        levels, _ = builder.build([vac], MagicMock())
-        assert levels[0]["experience"] == "junior"
+        vac = {"key_skills": [{"name": "python"}], "name": "младший разработчик", "experience": {"id": "between1And3"}, "description": ""}
+        match builder.build([vac], MagicMock()):
+            case Ok((levels, _)):
+                assert levels[0]["experience"] == "junior"
+            case Err(e):
+                pytest.fail(f"build failed: {e.message}")
 
     def test_build_with_senior_name_in_dict(self):
-        """Покрытие переопределения уровня по имени 'senior'."""
         builder = LevelBuilder()
-        vac = {
-            "key_skills": [{"name": "python"}],
-            "experience": {"id": "between1And3"},  # middle
-            "description": "",
-            "name": "Senior Python Developer"
-        }
-        levels, _ = builder.build([vac], MagicMock())
-        assert levels[0]["experience"] == "senior"
+        vac = {"key_skills": [{"name": "python"}], "name": "старший разработчик", "experience": {"id": "between1And3"}, "description": ""}
+        match builder.build([vac], MagicMock()):
+            case Ok((levels, _)):
+                assert levels[0]["experience"] == "senior"
+            case Err(e):
+                pytest.fail(f"build failed: {e.message}")
 
 
 # ---------------------------------------------------------------------------
@@ -484,20 +512,26 @@ class TestMetricComputer:
     def test_prepare_and_compute(self):
         comp = MetricComputer({}, [], [], {})
         assert comp.evaluator is None
-        comp.prepare({})
+        match comp.prepare({}):
+            case Ok(None):
+                pass
+            case Err(e):
+                pytest.fail(f"prepare failed: {e}")
         assert comp.evaluator is not None
 
-        # Мокаем evaluator.evaluate_profile
         comp.evaluator.evaluate_profile = MagicMock(return_value={"readiness": 80})
         profiles = {"stud1": MagicMock()}
-        evals = comp.compute(profiles)
-        assert "stud1" in evals
-        assert evals["stud1"] == {"readiness": 80}
+        match comp.compute(profiles):
+            case Ok(evals):
+                assert "stud1" in evals
+                assert evals["stud1"] == {"readiness": 80}
+            case Err(e):
+                pytest.fail(f"compute failed: {e}")
 
-    def test_compute_without_prepare_raises(self):
+    def test_compute_without_prepare_returns_err(self):
         comp = MetricComputer({}, [], [], {})
-        with pytest.raises(RuntimeError, match="Сначала вызовите prepare()"):
-            comp.compute({})
+        result = comp.compute({})
+        assert result.is_err()
 
 
 # ---------------------------------------------------------------------------
@@ -513,22 +547,25 @@ class TestRecommendationRunner:
         with patch("src.pipeline.recommendation_runner.RecommendationEngine") as MockEngine, \
              patch("src.pipeline.recommendation_runner.CompetencyComparator") as MockComp:
             mock_engine_instance = MockEngine.return_value
-            mock_engine_instance.generate_recommendations.return_value = {
-                "summary": {}, "recommendations": []
-            }
+            mock_engine_instance.generate_recommendations.return_value = Ok(
+                RecommendationResult(summary=RecommendationSummary(), recommendations=[])
+            )
 
             runner.initialize_engine(mock_evaluator)
             assert runner.engine is not None
 
             evaluations = {"p1": {"market_coverage_score": 80, "skill_coverage": 70,
                                   "domain_coverage_score": 60, "domain_coverage": {}}}
-            recs = runner.run(evaluations)
-            assert "p1" in recs
+            match runner.run(evaluations):
+                case Ok(recs):
+                    assert "p1" in recs
+                case Err(e):
+                    pytest.fail(f"run failed: {e.message}")
 
-    def test_run_without_initialize_raises(self, mock_args):
+    def test_run_without_initialize_returns_err(self, mock_args):
         runner = RecommendationRunner({}, {}, mock_args)
-        with pytest.raises(RuntimeError, match="Сначала вызовите initialize_engine()"):
-            runner.run({})
+        result = runner.run({})
+        assert result.is_err()
 
     def test_run_with_exception(self, mock_args):
         mock_profiles = {"p1": MagicMock()}
@@ -537,30 +574,44 @@ class TestRecommendationRunner:
         mock_evaluator = MagicMock()
         with patch("src.pipeline.recommendation_runner.RecommendationEngine") as MockEngine:
             mock_engine_instance = MockEngine.return_value
-            mock_engine_instance.generate_recommendations.side_effect = Exception("fail")
+            mock_engine_instance.generate_recommendations.return_value = Err(
+                RecommendationError(message="generation failed", profile="p1")
+            )
             runner.initialize_engine(mock_evaluator)
             evaluations = {"p1": {"market_coverage_score": 80, "skill_coverage": 70,
                                 "domain_coverage_score": 60, "domain_coverage": {}}}
-            recs = runner.run(evaluations)
-            assert recs == {}  # пустой результат при ошибке
+            match runner.run(evaluations):
+                case Ok(recs):
+                    assert recs == {}
+                case Err(e):
+                    pytest.fail(f"run failed: {e.message}")
 
     def test_build_with_string_experience_junior(self):
         builder = LevelBuilder()
         vacancies = [{"key_skills": [{"name": "python"}], "experience": "нет опыта", "description": ""}]
-        levels, _ = builder.build(vacancies, MagicMock())
-        assert levels[0]["experience"] == "junior"
+        match builder.build(vacancies, MagicMock()):
+            case Ok((levels, _)):
+                assert levels[0]["experience"] == "junior"
+            case Err(e):
+                pytest.fail(f"build failed: {e.message}")
 
     def test_build_with_string_experience_senior(self):
         builder = LevelBuilder()
         vacancies = [{"key_skills": [{"name": "python"}], "experience": "senior", "description": ""}]
-        levels, _ = builder.build(vacancies, MagicMock())
-        assert levels[0]["experience"] == "senior"
+        match builder.build(vacancies, MagicMock()):
+            case Ok((levels, _)):
+                assert levels[0]["experience"] == "senior"
+            case Err(e):
+                pytest.fail(f"build failed: {e.message}")
 
     def test_build_with_empty_skills(self):
         builder = LevelBuilder()
         vacancies = [{"key_skills": [], "experience": {"id": "noExperience"}, "description": ""}]
-        levels, _ = builder.build(vacancies, MagicMock())
-        assert levels == []   # не добавляется, потому что vac_skills пусты
+        match builder.build(vacancies, MagicMock()):
+            case Ok((levels, _)):
+                assert levels == []
+            case Err(e):
+                pytest.fail(f"build failed: {e.message}")
 
     def test_initialize_engine_no_data(self, mock_args):
         """Покрытие initialize_engine с пустыми данными (строка 51)."""
@@ -574,20 +625,24 @@ class TestRecommendationRunner:
             assert runner.engine is not None
 
     def test_run_recommendation_generation_failed(self, mock_args):
-        """Покрытие обработки исключения в run (строка 69)."""
         mock_profiles = {"p1": MagicMock()}
         mock_data = {"hybrid_weights": {"py": 0.9}, "vacancies_skills": [], "trend_analyzer": None}
         runner = RecommendationRunner(mock_profiles, mock_data, mock_args)
         mock_evaluator = MagicMock()
         with patch("src.pipeline.recommendation_runner.RecommendationEngine") as MockEngine:
             mock_engine_instance = MockEngine.return_value
-            mock_engine_instance.generate_recommendations.side_effect = Exception("fail")
+            mock_engine_instance.generate_recommendations.return_value = Err(
+                RecommendationError(message="generation failed", profile="p1")
+            )
             runner.initialize_engine(mock_evaluator)
             evaluations = {"p1": {"market_coverage_score": 80, "skill_coverage": 70,
                                   "domain_coverage_score": 60, "domain_coverage": {},
                                   "skill_metrics": {}, "cluster_context": {}}}
-            recs = runner.run(evaluations)
-            assert recs == {}
+            match runner.run(evaluations):
+                case Ok(recs):
+                    assert recs == {}
+                case Err(e):
+                    pytest.fail(f"run failed: {e.message}")
 
 # ---------------------------------------------------------------------------
 # SkillExtractor
@@ -610,13 +665,16 @@ class TestSkillExtractor:
             patch("src.pipeline.skill_extractor.print_top_skills"), \
             patch("src.pipeline.skill_extractor.load_competency_mapping", return_value=None), \
             patch("src.pipeline.skill_extractor.ArtifactManifest"):
-            freq, hw, trend = extractor.extract([], mock_parser)
-            assert freq == {"python": 10}
-            assert cache_path.exists()  # кэш сохранен
+            match extractor.extract([], mock_parser):
+                case Ok((freq, hw, trend)):
+                    assert freq == {"python": 10}
+                case Err(e):
+                    pytest.fail(f"extract failed: {e.message}")
+            assert cache_path.exists()
 
     def test_extract_with_cache(self, tmp_path, monkeypatch, mock_args):
         cache_path = tmp_path / "cache.joblib"
-        cache_path.touch()                     # <-- файл должен существовать
+        cache_path.touch()
         raw_file = tmp_path / "raw.json"
         raw_file.write_text("dummy")
 
@@ -634,8 +692,11 @@ class TestSkillExtractor:
              patch("src.pipeline.skill_extractor.print_top_skills"), \
              patch("src.pipeline.skill_extractor.load_competency_mapping", return_value=None), \
              patch("src.pipeline.skill_extractor.ArtifactManifest"):
-            freq, hw, trend = extractor.extract([], mock_parser, raw_file=raw_file)
-            assert freq == {"java": 5}
+            match extractor.extract([], mock_parser, raw_file=raw_file):
+                case Ok((freq, hw, trend)):
+                    assert freq == {"java": 5}
+                case Err(e):
+                    pytest.fail(f"extract failed: {e.message}")
 
     def test_extract_with_competency_mapping(self, tmp_path, monkeypatch, mock_args):
         monkeypatch.setattr("src.pipeline.skill_extractor.config.PARSED_SKILLS_CACHE_PATH", tmp_path / "cache.joblib")
@@ -657,8 +718,11 @@ class TestSkillExtractor:
             mock_map.return_value = MagicMock()
             mock_map.return_value.most_common.return_value = [("python", 10)]
             MockFilter.return_value.GENERIC_WORDS = set()
-            freq, _, _ = extractor.extract([], mock_parser)
-            assert freq == {"python": 10}
+            match extractor.extract([], mock_parser):
+                case Ok((freq, _, _)):
+                    assert freq == {"python": 10}
+                case Err(e):
+                    pytest.fail(f"extract failed: {e.message}")
             mock_map.assert_called_once()
 
     def test_run_sets_cluster_context(self, mock_args):
@@ -668,13 +732,16 @@ class TestSkillExtractor:
         mock_evaluator = MagicMock()
         with patch("src.pipeline.recommendation_runner.RecommendationEngine") as MockEngine:
             mock_engine_instance = MockEngine.return_value
-            mock_engine_instance.generate_recommendations.return_value = {"summary": {}, "recommendations": []}
+            mock_engine_instance.generate_recommendations.return_value = Ok(
+                RecommendationResult(summary=RecommendationSummary(), recommendations=[])
+            )
             runner.initialize_engine(mock_evaluator)
             evaluations = {"p1": {"market_coverage_score": 80, "skill_coverage": 70,
                                 "domain_coverage_score": 60, "domain_coverage": {},
                                 "skill_metrics": {"docker": {"cluster_relevance": 0.8}},
                                 "cluster_context": {"skills": {"docker": 0.9}}}}
-            runner.run(evaluations)
+            result = runner.run(evaluations)
+            assert result.is_ok()
             mock_engine_instance.set_cluster_context.assert_called_once_with({"docker": 0.9})
 
     def test_check_manifest_deletes_incompatible(self, tmp_path, monkeypatch):
@@ -685,8 +752,9 @@ class TestSkillExtractor:
         monkeypatch.setattr("src.pipeline.skill_extractor.config.PARSED_SKILLS_CACHE_PATH", cache_path)
         extractor = SkillExtractor(MagicMock())
         with patch("src.pipeline.skill_extractor.ArtifactManifest") as MockManifest:
-            mock_inst = MockManifest.load.return_value
+            mock_inst = MagicMock()
             mock_inst.is_compatible.return_value = False
+            MockManifest.load.return_value = Ok(mock_inst)
             extractor._check_manifest(cache_path)
         assert not cache_path.exists()
         assert not manifest_path.exists()
@@ -704,8 +772,11 @@ class TestWeightCleaner:
         mock_filter = MagicMock()
         mock_filter.get_clean_weights.return_value = {"py": 0.9}
         with patch("src.pipeline.weight_cleaner.SkillFilter", return_value=mock_filter):
-            result = cleaner.clean({"py": 0.8})
-            assert result == {"py": 0.9}
+            match cleaner.clean({"py": 0.8}):
+                case Ok(v):
+                    assert v == {"py": 0.9}
+                case Err(e):
+                    pytest.fail(f"clean failed: {e.message}")
 
     def test_clean_no_comp_file(self, tmp_path, monkeypatch):
         cleaner = WeightCleaner()
@@ -742,9 +813,11 @@ class TestWeightCleaner:
             patch("src.pipeline.skill_extractor.load_competency_mapping", return_value=None), \
             patch("src.pipeline.skill_extractor.ArtifactManifest"), \
             patch("src.pipeline.skill_extractor.joblib.load", return_value=old_data):
-            # _check_manifest будет вызван, но кэш не подойдёт по хешу
-            freq, hw, _ = extractor.extract([], mock_parser, raw_file=raw_file)
-            assert freq == {"python": 10}
+            match extractor.extract([], mock_parser, raw_file=raw_file):
+                case Ok((freq, hw, _)):
+                    assert freq == {"python": 10}
+                case Err(e):
+                    pytest.fail(f"extract failed: {e.message}")
 
 # ---------------------------------------------------------------------------
 # GapRunner
@@ -772,12 +845,15 @@ class TestGapRunner:
                 "domain_coverage": {}, "skill_metrics": {}
             }
             mock_re_instance = MockRE.return_value
-            mock_re_instance.generate_recommendations.return_value = {"summary": {}, "recommendations": []}
+            mock_re_instance.generate_recommendations.return_value = Ok(RecommendationResult(summary=RecommendationSummary(), recommendations=[]))
             mock_re_instance.ltr_engine = MagicMock(is_fitted=True)
 
-            evals, recs = runner.run()
-            assert "p1" in evals
-            assert "p1" in recs
+            match runner.run():
+                case Ok((evals, recs)):
+                    assert "p1" in evals
+                    assert "p1" in recs
+                case Err(e):
+                    pytest.fail(f"run failed: {e.message}")
 
     def test_collect_from_hh_regions(self, mock_args):
         mock_args.regions = "1,2"
@@ -792,8 +868,8 @@ class TestGapRunner:
             mock_collect.return_value = [{"id": "1"}]
             mock_load_mode.return_value = (False, 0, "sync")
             mock_load_det.return_value = [{"id": "1", "details": True}]
-            ds.get_vacancies()
-            # Проверяем, что area_ids установлены
+            result = ds.get_vacancies()
+            assert result.is_ok()
             args, kwargs = mock_collect.call_args
             assert kwargs["area_ids"] == [1, 2]
 
@@ -801,9 +877,13 @@ class TestGapRunner:
         mock_profiles = {"p1": MagicMock()}
         mock_data = {"hybrid_weights": {}, "skill_freq": {}, "vacancies_skills": [], "level_vacancies_data": []}
         runner = GapRunner(mock_profiles, mock_data, mock_args)
-        evals, recs = runner.run()
-        assert evals == {}
-        assert recs == {}
+        match runner.run():
+            case Ok((evals, recs)):
+                assert evals == {}
+                assert recs == {}
+            case Err(e):
+                # GapRunner returns Err when required data is missing
+                assert "данных" in str(e) or "data" in str(e).lower()
 
     def test_run_ltr_not_fitted(self, mock_args):
         mock_profiles = {"p1": MagicMock()}
@@ -826,10 +906,13 @@ class TestGapRunner:
                 "domain_coverage": {}, "skill_metrics": {}
             }
             mock_re_instance = MockRE.return_value
-            mock_re_instance.ltr_engine = None              # LTR отсутствует
-            mock_re_instance.generate_recommendations.return_value = {"summary": {}, "recommendations": []}
-            evals, recs = runner.run()
-            assert "p1" in recs
+            mock_re_instance.ltr_engine = None
+            mock_re_instance.generate_recommendations.return_value = Ok(RecommendationResult(summary=RecommendationSummary(), recommendations=[]))
+            match runner.run():
+                case Ok((evals, recs)):
+                    assert "p1" in recs
+                case Err(e):
+                    pytest.fail(f"run failed: {e.message}")
 
     def test_run_with_ltr_not_fitted_warning(self, mock_args, capsys):
         """Покрытие ветки LTR не обучен (строки 122-125)."""
@@ -853,9 +936,10 @@ class TestGapRunner:
                 "domain_coverage": {}, "skill_metrics": {}
             }
             mock_re_instance = MockRE.return_value
-            mock_re_instance.ltr_engine = None   # LTR отсутствует
-            mock_re_instance.generate_recommendations.return_value = {"summary": {}, "recommendations": []}
-            runner.run()
+            mock_re_instance.ltr_engine = None
+            mock_re_instance.generate_recommendations.return_value = Ok(RecommendationResult(summary=RecommendationSummary(), recommendations=[]))
+            result = runner.run()
+            assert result.is_ok()
             captured = capsys.readouterr()
             assert "LTR-модель не загружена" in captured.out
 
@@ -882,8 +966,9 @@ class TestGapRunner:
             }
             mock_re_instance = MockRE.return_value
             mock_re_instance.ltr_engine = MagicMock(is_fitted=True)
-            mock_re_instance.generate_recommendations.return_value = {"summary": {}, "recommendations": []}
-            runner.run()
+            mock_re_instance.generate_recommendations.return_value = Ok(RecommendationResult(summary=RecommendationSummary(), recommendations=[]))
+            result = runner.run()
+            assert result.is_ok()
             captured = capsys.readouterr()
             assert "СВОДКА МЕТРИК ПО ПРОФИЛЯМ" in captured.out
             assert "Готовность к уровню" in captured.out

@@ -13,6 +13,7 @@ import pandas as pd
 import pytest
 import xgboost as xgb
 
+from src import Ok
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine, _SYNTHETIC_DOMAIN_PROFILES
 
 
@@ -629,9 +630,10 @@ class TestLTRLoadModel:
         manifest_path.write_text(json.dumps({"model_version": "same", "metrics": {}}))
         engine_with_mocks.is_fitted = False
         with patch("src.predictors.ltr_recommendation_engine.ArtifactManifest") as MockManifest:
-            mock_inst = MockManifest.load.return_value
+            mock_inst = MagicMock()
             mock_inst.is_compatible.return_value = True
             mock_inst.metrics = {"r2": 0.9}
+            MockManifest.load.return_value = Ok(mock_inst)
             with patch("src.predictors.ltr_recommendation_engine.logger") as mock_logger:
                 engine_with_mocks.load_model(filepath)
         mock_logger.info.assert_any_call("ltr_manifest_verified", metrics={"r2": 0.9})
