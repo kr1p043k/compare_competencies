@@ -54,7 +54,7 @@ class HeadHunterAPI:
         self._token = None
         self._token_expires_at = 0
         if self.TOKEN_CACHE_FILE is None:
-            self.TOKEN_CACHE_FILE = Path(config.DATA_DIR) / ".hh_token_cache.json"
+            self.TOKEN_CACHE_FILE = config.DATA_CACHE_DIR / ".hh_token_cache.json"
         if config.HH_CLIENT_ID and config.HH_CLIENT_SECRET:
             if not self._load_cached_token():
                 self._get_app_token()
