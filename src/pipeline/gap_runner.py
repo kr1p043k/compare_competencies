@@ -15,6 +15,7 @@ from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 from src.models.data_contracts import PipelineContext
 from src.models.enums import ComparisonLevel, ExperienceLevel
 from src.predictors.recommendation_engine import RecommendationEngine
+from src.predictors.models import RecommendationResult
 
 logger = structlog.get_logger("gap_runner")
 
@@ -30,7 +31,7 @@ class GapRunner:
         self.recommendation_engine = None
         self.taxonomy = ProfessionTaxonomy()
         self._profile_names = list(profiles.keys())
-        self._total_steps = len(self._profile_names) * 2
+        self._total_steps = len(self._profile_names) * 2 + 4
         self._steps_done = 0
 
     def _write_progress(self, pct: float, message: str, stage: str = ""):
@@ -55,6 +56,8 @@ class GapRunner:
             return Err(GapAnalysisError(message="Недостаточно данных для gap-анализа"))
 
         try:
+            pct = self._update_progress()
+            self._write_progress(pct, "GAP-анализ: загрузка анализатора уровней...")
             level_analyzer = SkillLevelAnalyzer()
             level_analyzer.analyze_vacancies(self.ctx.level_vacancies_data)
 
@@ -62,6 +65,8 @@ class GapRunner:
             for level in ExperienceLevel:
                 skill_weights_by_level[level] = level_analyzer.get_weights_for_level(skill_weights, level)
 
+            pct = self._update_progress()
+            self._write_progress(pct, "GAP-анализ: инициализация ProfileEvaluator...")
             self.evaluator = ProfileEvaluator(
                 skill_weights=skill_weights,
                 vacancies_skills=self.ctx.vacancies_skills,
@@ -70,6 +75,8 @@ class GapRunner:
                 skill_weights_by_level=skill_weights_by_level,
             )
 
+            pct = self._update_progress()
+            self._write_progress(pct, "GAP-анализ: загрузка RecommendationEngine...")
             self.recommendation_engine = RecommendationEngine(
                 use_ltr=True,
                 use_llm=self.args.use_llm,
@@ -84,22 +91,31 @@ class GapRunner:
                 level=ComparisonLevel.MIDDLE,
                 similarity_threshold=0.80,
             )
+            pct = self._update_progress()
+            self._write_progress(pct, "GAP-анализ: подгонка Comparator...")
             self.recommendation_engine.fit(self.ctx.vacancies_skills, skill_weights=skill_weights)
 
+            pct = self._update_progress()
+            self._write_progress(pct, "GAP-анализ: оценка профилей...")
             evaluations_new = self._evaluate_profiles_parallel()
+
             self._print_summary(evaluations_new)
 
+            self._write_progress(90, "GAP-анализ: генерация рекомендаций...")
             all_recommendations = self._generate_recommendations(evaluations_new)
 
-            self._clear_progress()
+            self._write_progress(100, "GAP-анализ завершён", "done")
             logger.info(
                 "gap_analysis_pipeline_complete",
                 profiles_evaluated=len(evaluations_new),
-                total_recommendations=sum(len(r.get("recommendations", [])) for r in all_recommendations.values()),
+                total_recommendations=sum(
+                    len(r.get("recommendations", [])) if isinstance(r, dict) else len(r.recommendations)
+                    for r in all_recommendations.values()
+                ),
             )
             return Ok((evaluations_new, all_recommendations))
         except Exception as e:
-            self._clear_progress()
+            self._write_progress(0, "GAP-анализ не выполнен", "error")
             logger.exception("gap_analysis_failed", error=str(e))
             return Err(GapAnalysisError(message=f"Gap-анализ не выполнен: {e}"))
 
@@ -159,15 +175,21 @@ class GapRunner:
             eval_result["target_domains"] = target_domains
             return pname, eval_result
 
+        logger.info("profile_evaluation_start", profiles=n, max_workers=max_workers)
         with tqdm(total=n, desc="Оценка профилей") as pbar:
             with ThreadPoolExecutor(max_workers=max_workers) as pool:
                 futures = {pool.submit(_eval_one, pname): pname for pname in self._profile_names}
                 for future in as_completed(futures):
-                    pname, result = future.result()
+                    try:
+                        pname, result = future.result(timeout=300)
+                    except TimeoutError:
+                        logger.error("profile_evaluation_timeout")
+                        raise
                     evals[pname] = result
                     pbar.update(1)
                     pct = self._update_progress()
                     self._write_progress(pct, f"Оценка профилей... {len(evals)}/{n}", "evaluation")
+        logger.info("profile_evaluation_done", evaluated=len(evals))
         return evals
 
     def _print_summary(self, evaluations):
@@ -194,26 +216,28 @@ class GapRunner:
 
         with tqdm(total=n, desc="Генерация рекомендаций") as pbar:
             for idx, (pname, student) in enumerate(self.profiles.items(), 1):
-                try:
-                    v2_result = evaluations[pname]
-                    skill_weights_context = self._build_skill_context(v2_result)
-                    rec_engine.set_cluster_context(skill_weights_context)
-                    full_rec = rec_engine.generate_recommendations(
-                        student,
-                        user_type="student",
-                        precomputed_eval=v2_result,
-                    )
-                    if full_rec is None:
-                        continue
-                    full_rec["summary"]["market_coverage_score"] = v2_result["market_coverage_score"]
-                    full_rec["summary"]["skill_coverage"] = v2_result["skill_coverage"]
-                    full_rec["summary"]["domain_coverage_score"] = v2_result["domain_coverage_score"]
-                    full_rec["summary"]["profession_coverage"] = v2_result.get("profession_coverage", 0)
-                    full_rec["domain_coverage"] = v2_result.get("domain_coverage", {})
-                    full_rec["target_profession"] = v2_result.get("target_profession", "")
-                    recs[pname] = full_rec
-                except Exception as e:
-                    logger.error("recommendation_generation_failed", profile=pname, error=str(e))
+                v2_result = evaluations.get(pname)
+                if v2_result is None:
+                    logger.warning("evaluation_not_found", profile=pname)
+                    pbar.update(1)
+                    continue
+                skill_weights_context = self._build_skill_context(v2_result)
+                rec_engine.set_cluster_context(skill_weights_context)
+                match rec_engine.generate_recommendations(
+                    student,
+                    user_type="student",
+                    precomputed_eval=v2_result,
+                ):
+                    case Ok(full_rec):
+                        full_rec.summary.market_coverage_score = v2_result["market_coverage_score"]
+                        full_rec.summary.skill_coverage = v2_result["skill_coverage"]
+                        full_rec.summary.domain_coverage_score = v2_result["domain_coverage_score"]
+                        full_rec.summary.profession_coverage = v2_result.get("profession_coverage", 0)
+                        full_rec.domain_coverage = v2_result.get("domain_coverage", {})
+                        full_rec.target_profession = v2_result.get("target_profession", "")
+                        recs[pname] = full_rec.model_dump()
+                    case Err(err):
+                        logger.error("recommendation_generation_failed", profile=pname, error=str(err))
                 pbar.update(1)
                 pct = self._update_progress()
                 self._write_progress(pct, f"Генерация рекомендаций... {idx}/{n}", "recommendations")
