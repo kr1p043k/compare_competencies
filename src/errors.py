@@ -110,3 +110,13 @@ class DataSourceError(DomainError):
 @dataclass
 class CacheError(DomainError):
     cache_path: str = ""
+
+
+@dataclass
+class ManifestError(DomainError):
+    artifact_path: str = ""
+
+
+@dataclass
+class NormalizerError(DomainError):
+    skill_name: str = ""
