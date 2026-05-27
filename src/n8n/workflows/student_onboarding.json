@@ -1,0 +1,43 @@
+{
+  "name": "Student Onboarding (Webhook)",
+  "nodes": [
+    {
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": {
+        "path": "student-created",
+        "options": { "rawBody": true }
+      }
+    },
+    {
+      "name": "Send to API",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BASE_URL }}/api/n8n/webhook/student-created",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": { "parameters": [
+          { "name": "profile_name", "value": "={{ $json.body.profile_name }}" },
+          { "name": "skills", "value": "={{ $json.body.skills }}" },
+          { "name": "target_level", "value": "={{ $json.body.target_level }}" }
+        ]}
+      }
+    },
+    {
+      "name": "Trigger Evaluation",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BASE_URL }}/api/recommendations/{{ $json.body.profile_name }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[ { "node": "Send to API", "type": "main" } ]] },
+    "Send to API": { "main": [[ { "node": "Trigger Evaluation", "type": "main" } ]] }
+  }
+}
