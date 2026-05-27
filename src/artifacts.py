@@ -15,7 +15,7 @@ from typing import Any
 
 import structlog
 
-from src import config
+from src import Err, ManifestError, Ok, Result, config
 from src.utils import atomic_write_json
 
 logger = structlog.get_logger(__name__)
@@ -73,23 +73,34 @@ class ArtifactManifest:
             "created_at": self.created_at,
         }
 
-    def save(self) -> None:
+    def save(self) -> Result[None, ManifestError]:
         """Сохраняет манифест рядом с артефактом."""
-        atomic_write_json(self.to_dict(), self.manifest_path)
-        logger.info("artifact_manifest_saved", path=str(self.manifest_path))
+        try:
+            atomic_write_json(self.to_dict(), self.manifest_path)
+            logger.info("artifact_manifest_saved", path=str(self.manifest_path))
+            return Ok(None)
+        except Exception as e:
+            return Err(ManifestError(message=str(e), artifact_path=str(self.manifest_path)))
 
     @classmethod
-    def load(cls, artifact_path: Path) -> "ArtifactManifest":
+    def load(cls, artifact_path: Path) -> Result["ArtifactManifest", ManifestError]:
         """Загружает манифест из .manifest.json."""
         manifest_path = artifact_path.with_suffix(".manifest.json")
-        with open(manifest_path, encoding="utf-8") as f:
-            data = json.load(f)
-        return cls(
-            artifact_path=artifact_path,
-            data_hash=data.get("data_hash"),
-            model_version=data.get("model_version"),
-            metrics=data.get("metrics"),
-        )
+        try:
+            with open(manifest_path, encoding="utf-8") as f:
+                data = json.load(f)
+            return Ok(cls(
+                artifact_path=artifact_path,
+                data_hash=data.get("data_hash"),
+                model_version=data.get("model_version"),
+                metrics=data.get("metrics"),
+            ))
+        except FileNotFoundError:
+            return Err(ManifestError(message=f"Manifest not found: {manifest_path}", artifact_path=str(manifest_path)))
+        except json.JSONDecodeError as e:
+            return Err(ManifestError(message=f"Invalid manifest JSON: {e}", artifact_path=str(manifest_path)))
+        except Exception as e:
+            return Err(ManifestError(message=str(e), artifact_path=str(manifest_path)))
 
     def is_compatible(self) -> bool:
         """Проверяет, совпадает ли версия модели эмбеддингов с текущей."""
