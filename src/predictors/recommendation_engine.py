@@ -9,19 +9,26 @@ import requests
 import structlog
 from sklearn.preprocessing import MinMaxScaler
 
-from src import Err, Ok, config
+from src import Err, Ok, RecommendationError, Result, config
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.gap.gap_analyzer import GapAnalyzer
 from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.models.enums import PriorityLevel, SkillCategory, TrendType
 from src.models.student import StudentProfile
+from src.predictors.base import RecommenderPredictor
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
+from src.predictors.models import (
+    ClosestRole,
+    Recommendation,
+    RecommendationResult,
+    RecommendationSummary,
+)
 
 logger = structlog.get_logger(__name__)
 
 
-class RecommendationEngine:
+class RecommendationEngine(RecommenderPredictor["RecommendationEngine", RecommendationResult]):
     """
     Движок рекомендаций с профильной оценкой, LTR-ранжированием
     и генерацией естественноязыковых объяснений.
@@ -92,6 +99,7 @@ class RecommendationEngine:
             self._timeframe_medium = {"javascript", "python", "sql", "redis", "docker", "react"}
             self._timeframe_hard = {"java", "kubernetes", "aws", "machine learning", "tensorflow"}
 
+        self._cached_trend_bonuses: dict[str, float] | None = None
         self._load_templates()
         logger.info(
             "recommendation_engine_initialized",
@@ -99,6 +107,10 @@ class RecommendationEngine:
             ltr_fitted=self.ltr_engine.is_fitted if self.ltr_engine else False,
             llm=self.use_llm,
         )
+
+    @property
+    def name(self) -> str:
+        return "RecommendationEngine"
 
     # ------------------------------------------------------------------
     # ПУБЛИЧНЫЙ API
@@ -143,17 +155,16 @@ class RecommendationEngine:
         precomputed_eval: dict[str, Any] | None = None,
         target_domains: list[str] | None = None,
         taxonomy: Any | None = None,
-    ) -> dict[str, Any]:
+    ) -> Result[RecommendationResult, RecommendationError]:
         from src.utils import atomic_write_json
 
         if not hasattr(self, "profile_evaluator") or self.profile_evaluator is None:
-            raise RuntimeError("RecommendationEngine должен быть инициализирован с profile_evaluator")
+            return Err(RecommendationError(message="RecommendationEngine не инициализирован с profile_evaluator", profile=student.profile_name))
 
         profile_name = student.profile_name
         logger.info("generate_recommendations_started", profile=profile_name)
 
         try:
-            # ── Шаг 1: оценка профиля (с поддержкой предвычисленного результата) ──
             if precomputed_eval is not None:
                 eval_result = precomputed_eval
             else:
@@ -165,30 +176,27 @@ class RecommendationEngine:
                 )
             if eval_result is None:
                 logger.error("eval_result_is_none", profile=profile_name)
-                return self._empty_recommendations()
+                return Err(RecommendationError(message="Оценка профиля вернула None", profile=profile_name))
 
-            # ── Шаг 2: кластерный контекст ────────────────────────────────
             cluster_context = eval_result.get("cluster_context") or {}
             closest_clusters = cluster_context.get("closest_clusters", [])
             cluster_skills_map = cluster_context.get("skills", {})
             student_set = set(s.lower() for s in student.skills)
 
-            # ── Шаг 3: ближайшие роли ─────────────────────────────────────
             closest_roles = self._build_closest_roles(closest_clusters, cluster_skills_map, student_set)
 
-            # ── Шаг 4: скоры от ProfileEvaluator ─────────────────────────
             top_recs: list[tuple[str, float]] = eval_result.get("top_recommendations", [])
             evaluator_scores: dict[str, float] = {skill: score for skill, score in top_recs}
 
-            # ── Шаг 5: скоры от LTR (нормализованные MinMaxScaler) ──────
             ltr_scores: dict[str, float] = {}
             if self.ltr_engine and self.ltr_engine.is_fitted:
                 all_market = list(self.ltr_engine.skill_metadata.keys())
                 missing_for_ltr = [s for s in all_market if s not in student_set]
                 try:
-                    ltr_impacts = self.ltr_engine.predict_skill_impact(student.skills, missing_for_ltr)
+                    ltr_impacts = self.ltr_engine.predict_impact(student.skills, missing_for_ltr)
                     if ltr_impacts:
-                        skills, raw_scores, _ = zip(*ltr_impacts, strict=False)
+                        skills = [im.skill for im in ltr_impacts]
+                        raw_scores = [im.score for im in ltr_impacts]
                         scaler = MinMaxScaler()
                         normalized_scores = scaler.fit_transform(np.array(raw_scores).reshape(-1, 1)).flatten()
                         ltr_scores = {
@@ -200,7 +208,6 @@ class RecommendationEngine:
             else:
                 logger.info("ltr_not_used_generating_without_ml", profile=profile_name)
 
-            # ── Шаг 6: смешиваем скоры ─────────────────────────────────
             all_skills_to_rank = set(evaluator_scores) | set(ltr_scores)
             combined_scores: dict[str, float] = {}
             for skill in all_skills_to_rank:
@@ -211,21 +218,18 @@ class RecommendationEngine:
                 else:
                     combined_scores[skill] = ev
 
-            # ── Контекстные бонусы (тренды + домены) ──────────────────────
-            trend_bonuses: dict[str, float] = {}
-            if self.trend_analyzer is not None:
+            if self._cached_trend_bonuses is None and self.trend_analyzer is not None:
                 trends = self.trend_analyzer.get_trending_skills(top_n=500, min_change_percent=0.0)
                 self.trend_analyzer.save_trends(trends)
+                tb: dict[str, float] = {}
                 for t in trends.get(TrendType.RISING, []):
-                    trend_bonuses[t["skill"]] = min(t["change_pct"] / 100.0, 0.3)
+                    tb[t["skill"]] = min(t["change_pct"] / 100.0, 0.3)
+                for hot in self._always_hot:
+                    if hot not in tb:
+                        tb[hot] = config.TREND_ALWAYS_HOT_BONUS
+                self._cached_trend_bonuses = tb
 
-            # Гарантированный бонус для горячих технологий (загружен из JSON)
-            for skill in combined_scores:
-                if skill.lower() in self._always_hot:
-                    trend_bonuses[skill] = max(trend_bonuses.get(skill, 0), config.TREND_ALWAYS_HOT_BONUS)
-
-            if trend_bonuses:
-                logger.info("applied_trend_bonuses", count=len(trend_bonuses), sample=list(trend_bonuses.keys())[:10])
+            trend_bonuses = self._cached_trend_bonuses or {}
 
             dominant_domain = max(
                 eval_result.get("domain_coverage", {}).items(),
@@ -246,8 +250,7 @@ class RecommendationEngine:
                     bonus += config.DOMAIN_BONUS
                 combined_scores[skill] *= bonus
 
-            # ── Шаг 7: формируем объекты рекомендаций ────────────────────
-            recommendations: list[dict[str, Any]] = []
+            rec_objects: list[Recommendation] = []
             skill_metrics = eval_result.get("skill_metrics", {})
             for skill, score in combined_scores.items():
                 metric = skill_metrics.get(skill, {})
@@ -257,46 +260,41 @@ class RecommendationEngine:
                         explanation += f" 📈 Растущий тренд (+{trend_bonuses[skill] * 100:.0f}%)."
                     if skill.lower() in domain_skills:
                         explanation += f" 🔗 Ключевой навык для домена «{dominant_domain}»."
-
                     is_soft = not self._is_hard_skill(skill)
                 except Exception as e:
                     logger.error("explanation_failed", skill=skill, error=str(e))
                     explanation = f"Навык '{skill}' востребован на рынке."
                     is_soft = False
 
-                recommendations.append(
-                    {
-                        "rank": 0,
-                        "skill": skill,
-                        "importance_score": score,
-                        "priority": (
-                            PriorityLevel.HIGH
-                            if score > config.PRIORITY_HIGH_THRESHOLD
-                            else PriorityLevel.MEDIUM
-                            if score > config.PRIORITY_MEDIUM_THRESHOLD
-                            else PriorityLevel.LOW
-                        ),
-                        "category": metric.get("category", SkillCategory.MISSING),
-                        "why_important": explanation,
-                        "how_to_learn": self._get_learning_path(skill, is_soft, student),
-                        "expected_timeframe": self._get_timeframe(skill),
-                        "expected_outcome": self._get_role_outcome(skill, closest_roles),
-                        "is_soft_skill": is_soft,
-                        "market_frequency_percent": score * 100,
-                    }
-                )
+                rec_objects.append(Recommendation(
+                    skill=skill,
+                    importance_score=score,
+                    priority=(
+                        PriorityLevel.HIGH
+                        if score > config.PRIORITY_HIGH_THRESHOLD
+                        else PriorityLevel.MEDIUM
+                        if score > config.PRIORITY_MEDIUM_THRESHOLD
+                        else PriorityLevel.LOW
+                    ),
+                    category=metric.get("category", SkillCategory.MISSING),
+                    why_important=explanation,
+                    how_to_learn=self._get_learning_path(skill, is_soft, student),
+                    expected_timeframe=self._get_timeframe(skill),
+                    expected_outcome=self._get_role_outcome(skill, closest_roles),
+                    is_soft_skill=is_soft,
+                    market_frequency_percent=score * 100,
+                ))
 
-            recommendations.sort(key=lambda x: x["importance_score"], reverse=True)
+            rec_objects.sort(key=lambda x: x.importance_score, reverse=True)
 
-            # ── Шаг 8: диверсификация категорий ──────────────────────────
-            top_recommendations = self._diversify_recommendations(
-                recommendations, max_per_category=config.DIVERSIFY_MAX_PER_CATEGORY
+            top_recs_obj = self._diversify_recommendations(
+                [r.model_dump() for r in rec_objects], max_per_category=config.DIVERSIFY_MAX_PER_CATEGORY
             )[:15]
 
-            for idx, rec in enumerate(top_recommendations, 1):
-                rec["rank"] = idx
+            rec_objects = [Recommendation(**r) for r in top_recs_obj]
+            for idx, rec in enumerate(rec_objects, 1):
+                rec.rank = idx
 
-            # ── Шаг 9: сохраняем результат LTR для дебага ────────────────
             ltr_file = config.DATA_DIR / "result" / profile_name / f"ltr_recommendations_{profile_name}.json"
             ltr_file.parent.mkdir(parents=True, exist_ok=True)
             ltr_data = {
@@ -304,12 +302,8 @@ class RecommendationEngine:
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "ltr_used": bool(ltr_scores),
                 "recommendations": [
-                    {
-                        "skill": rec["skill"],
-                        "score": round(rec["importance_score"] * 100, 2),
-                        "explanation": rec["why_important"],
-                    }
-                    for rec in top_recommendations[:10]
+                    {"skill": r.skill, "score": round(r.importance_score * 100, 2), "explanation": r.why_important}
+                    for r in rec_objects[:10]
                 ],
             }
             try:
@@ -320,40 +314,41 @@ class RecommendationEngine:
             logger.info(
                 "generate_recommendations_completed",
                 profile=profile_name,
-                recs=len(top_recommendations),
+                recs=len(rec_objects),
                 ltr_contributed=bool(ltr_scores),
             )
 
             profession_coverage = eval_result.get("profession_coverage", 0)
-            return {
-                "summary": {
-                    "match_score": eval_result.get("market_coverage_score", 0),
-                    "confidence": eval_result.get("readiness_score", 0),
-                    "market_coverage_score": eval_result.get("market_coverage_score", 0),
-                    "skill_coverage": eval_result.get("skill_coverage", 0),
-                    "domain_coverage_score": eval_result.get("domain_coverage_score", 0),
-                    "readiness_score": eval_result.get("readiness_score", 0),
-                    "profession_coverage": profession_coverage,
-                    "avg_gap": eval_result.get("avg_gap", 0),
-                    "coverage": eval_result.get("market_coverage_score", 0),
-                    "coverage_details": {
+            result = RecommendationResult(
+                summary=RecommendationSummary(
+                    match_score=eval_result.get("market_coverage_score", 0),
+                    confidence=eval_result.get("readiness_score", 0),
+                    market_coverage_score=eval_result.get("market_coverage_score", 0),
+                    skill_coverage=eval_result.get("skill_coverage", 0),
+                    domain_coverage_score=eval_result.get("domain_coverage_score", 0),
+                    readiness_score=eval_result.get("readiness_score", 0),
+                    profession_coverage=profession_coverage,
+                    avg_gap=eval_result.get("avg_gap", 0),
+                    coverage=eval_result.get("market_coverage_score", 0),
+                    coverage_details={
                         "covered_skills_count": len(student_set & set(eval_result.get("skill_metrics", {}).keys())),
                         "total_market_skills": len(eval_result.get("skill_metrics", {})),
                     },
-                    "market_skill_coverage": eval_result.get("market_skill_coverage", 0.0),
-                },
-                "profession_coverage_detail": eval_result.get("profession_coverage_detail", {}),
-                "closest_roles": closest_roles,
-                "recommendations": top_recommendations,
-                "domain_coverage": eval_result.get("domain_coverage", {}),
-                "gaps": eval_result.get("gaps", {}),
-                "trend_bonuses_count": len(trend_bonuses),
-                "dominant_domain_name": dominant_domain,
-            }
+                    market_skill_coverage=eval_result.get("market_skill_coverage", 0.0),
+                ),
+                profession_coverage_detail=eval_result.get("profession_coverage_detail", {}),
+                closest_roles=[ClosestRole(**r) for r in closest_roles],
+                recommendations=rec_objects,
+                domain_coverage=eval_result.get("domain_coverage", {}),
+                gaps=eval_result.get("gaps", {}),
+                trend_bonuses_count=len(trend_bonuses),
+                dominant_domain_name=dominant_domain,
+            )
+            return Ok(result)
 
         except Exception as e:
             logger.exception("generate_recommendations_crashed", profile=profile_name, error=str(e))
-            return self._empty_recommendations()
+            return Err(RecommendationError(message=str(e), profile=profile_name))
 
     # ------------------------------------------------------------------
     # ПРИВАТНЫЕ МЕТОДЫ
