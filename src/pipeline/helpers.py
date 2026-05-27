@@ -26,9 +26,16 @@ def get_load_mode(total_vacancies: int, args, log) -> tuple:
     return True, args.async_workers, "async_mode"
 
 
+def _load_details_progress(current: int, total: int, phase: str):
+    from src.pipeline.progress import write as pwrite
+    pct = 10 + int(current / total * 10) if total else 10
+    pwrite(pct, f"Загрузка деталей: {current}/{total} ({phase})")
+
+
 def load_vacancies_details(basic_vacancies: list, hh_api, use_async: bool, async_workers: int, parser, log) -> list:
     print("  Загрузка детальной информации по вакансиям...")
     log.info("loading_vacancy_details_started")
+    _load_details_progress(0, len(basic_vacancies), "старт")
 
     if use_async:
         try:
@@ -42,18 +49,17 @@ def load_vacancies_details(basic_vacancies: list, hh_api, use_async: bool, async
             )
             vacancy_ids = [v.get("id") if isinstance(v, dict) else v.id for v in basic_vacancies]
             start = time.time()
+            _load_details_progress(0, len(vacancy_ids), "асинхронно")
             if config.PYDANTIC_VALIDATION_ENABLED:
-                detailed = [
-                    Vacancy.from_api(r.model_dump())
-                    for r in api_async.get_vacancies_details_sync_validated(vacancy_ids)
-                ]
+                results = api_async.get_vacancies_details_sync_validated(vacancy_ids)
+                detailed = [Vacancy.from_api(r.model_dump()) for r in results]
             else:
+                results = api_async.get_vacancies_details_sync(vacancy_ids)
                 detailed = [
-                    Vacancy.from_api(r)
-                    for r in api_async.get_vacancies_details_sync(vacancy_ids)
-                    if not isinstance(r, Exception)
+                    Vacancy.from_api(r) for r in results if not isinstance(r, Exception)
                 ]
             elapsed = time.time() - start
+            _load_details_progress(len(detailed), len(vacancy_ids), "готово")
             print(f"  ✓ Загружено {len(detailed)}/{len(vacancy_ids)} вакансий за {elapsed:.1f} сек")
             log.info("async_loading_completed", elapsed=round(elapsed, 1), loaded=len(detailed), total=len(vacancy_ids))
             return detailed
@@ -65,7 +71,9 @@ def load_vacancies_details(basic_vacancies: list, hh_api, use_async: bool, async
     detailed = []
     total = len(basic_vacancies)
     start = time.time()
-    for _, vac in tqdm(enumerate(basic_vacancies, 1), total=total, desc="Загрузка вакансий"):
+    for idx, vac in tqdm(enumerate(basic_vacancies, 1), total=total, desc="Загрузка вакансий"):
+        if idx % 10 == 0:
+            _load_details_progress(idx, total, "синхронно")
         vac_id = vac.get("id") if isinstance(vac, dict) else vac.id
         if config.PYDANTIC_VALIDATION_ENABLED:
             try:
@@ -79,6 +87,7 @@ def load_vacancies_details(basic_vacancies: list, hh_api, use_async: bool, async
             detailed.append(det)
         time.sleep(config.REQUEST_DELAY)
     elapsed = time.time() - start
+    _load_details_progress(len(detailed), total, "готово")
     print(f"  ✓ Загружено {len(detailed)}/{total} вакансий за {elapsed / 60:.1f} мин")
     log.info("sync_loading_completed", elapsed=round(elapsed / 60, 1), loaded=len(detailed), total=total)
     return detailed
