@@ -10,6 +10,7 @@ import structlog
 
 from src.errors import ScorerError
 from src.models.vacancy import Vacancy
+from src.parsing.skills.skill_parser import SkillParser
 from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
@@ -109,6 +110,7 @@ class VacancyQualityScorer:
         self.min_skills = min_skills
         self.min_description_chars = min_description_chars
         self.spam_threshold = spam_threshold
+        self._skill_parser = SkillParser()
         self._suspicious_employer_re = re.compile(
             "|".join(f"(?:{p})" for p in SUSPICIOUS_EMPLOYER_PATTERNS),
             re.IGNORECASE,
@@ -146,7 +148,9 @@ class VacancyQualityScorer:
         snippet_req = (vacancy.snippet.requirement or "") if vacancy.snippet else ""
         snippet_resp = (vacancy.snippet.responsibility or "") if vacancy.snippet else ""
         all_text = f"{description} {snippet_req} {snippet_resp}"
-        skills_count = len(vacancy.key_skills)
+        key_skills_count = len(vacancy.key_skills)
+        parsed = self._skill_parser.parse_vacancy(vacancy)
+        total_skills = len(set(s.text.lower() for s in parsed))
 
         if not description.strip():
             flags.append(SpamFlag("NO_DESCRIPTION", "No description"))
@@ -156,12 +160,16 @@ class VacancyQualityScorer:
             flags.append(SpamFlag("TOO_SHORT_DESCRIPTION", f"Description < {self.min_description_chars} chars"))
             deductions += 0.15
 
-        if skills_count == 0:
-            flags.append(SpamFlag("NO_SKILLS", "No key skills"))
-            deductions += 0.2
+        if total_skills == 0:
+            flags.append(SpamFlag("нет навыков", "No skills in key_skills, description, or snippet"))
+            deductions += 0.6
 
-        if 0 < skills_count < self.min_skills:
-            flags.append(SpamFlag("TOO_FEW_SKILLS", f"Less than {self.min_skills} key skills"))
+        if key_skills_count == 0 and total_skills > 0:
+            flags.append(SpamFlag("NO_KEY_SKILLS", "No key skills (but found in description/snippet)"))
+            deductions += 0.05
+
+        if 0 < key_skills_count < self.min_skills:
+            flags.append(SpamFlag("TOO_FEW_KEY_SKILLS", f"Less than {self.min_skills} key skills"))
             deductions += 0.1
 
         if self._suspicious_employer_re.search(employer_lower):
