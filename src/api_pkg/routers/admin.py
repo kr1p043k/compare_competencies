@@ -274,7 +274,8 @@ async def export_excel(request: Request):
         })
 
     df = pd.DataFrame(rows)
-    excel_path = config.DATA_DIR / "result" / "vacancies_export.xlsx"
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    excel_path = config.REPORTS_DIR / "vacancies_export.xlsx"
     df.to_excel(excel_path, index=False, engine="openpyxl")
 
     if not excel_path.exists():
