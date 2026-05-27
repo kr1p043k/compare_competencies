@@ -7,9 +7,11 @@ from .errors import (
     DomainError,
     GapAnalysisError,
     LevelBuildError,
+    ManifestError,
     ModelError,
     ModelNotFoundError,
     ModelTrainingError,
+    NormalizerError,
     ParseError,
     PipelineError,
     RateLimitError,
@@ -51,4 +53,6 @@ __all__ = [
     "GapAnalysisError",
     "RecommendationError",
     "DataSourceError",
+    "ManifestError",
+    "NormalizerError",
 ]
