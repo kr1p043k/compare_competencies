@@ -32,6 +32,8 @@ from src.artifacts import ArtifactManifest
 from src.parsing.api.embedding_loader import get_embedding_model
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.parsing.skills.vacancy_parser import VacancyParser
+from src.predictors.base import RankingPredictor
+from src.predictors.models import SkillImpact
 
 logger = structlog.get_logger(__name__)
 
@@ -52,12 +54,9 @@ _SYNTHETIC_DOMAIN_PROFILES: list[list[str]] = [
 ]
 
 
-class LTRRecommendationEngine:
+class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[SkillImpact]]):
     """
     LTR-движок на XGBoost для персонализированного ранжирования навыков.
-
-    Изменения относительно предыдущей версии:
-    - Устойчивость к ошибкам matplotlib при сохранении графика важности.
     """
 
     def __init__(self, model_path: Path | None = None):
@@ -83,6 +82,10 @@ class LTRRecommendationEngine:
             self.model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
         else:
             self.model_path = model_path
+
+    @property
+    def name(self) -> str:
+        return "LTRRanking"
 
     # ------------------------------------------------------------------
     # ОБУЧЕНИЕ
@@ -226,22 +229,20 @@ class LTRRecommendationEngine:
         logger.info("model_saved", path=str(self.model_path))
 
         # ── Сохранение манифеста ──
-        try:
-            data_hash = hashlib.sha256(
-                json.dumps([v.get("id", "") for v in vacancies[:200]], sort_keys=True).encode()
-            ).hexdigest()
-            manifest = ArtifactManifest(
-                artifact_path=self.model_path,
-                data_hash=data_hash,
-                metrics={
-                    "r2": round(r2, 4),
-                    "mae": round(mae, 4),
-                    "ndcg_at_10": round(ndcg, 4) if not np.isnan(ndcg) else 0.0,
-                },
-            )
-            manifest.save()
-        except Exception as e:
-            logger.warning("manifest_save_failed", error=str(e))
+        data_hash = hashlib.sha256(
+            json.dumps([v.get("id", "") for v in vacancies[:200]], sort_keys=True).encode()
+        ).hexdigest()
+        manifest = ArtifactManifest(
+            artifact_path=self.model_path,
+            data_hash=data_hash,
+            metrics={
+                "r2": round(r2, 4),
+                "mae": round(mae, 4),
+                "ndcg_at_10": round(ndcg, 4) if not np.isnan(ndcg) else 0.0,
+            },
+        )
+        if manifest.save().is_err():
+            logger.warning("manifest_save_failed")
 
         self.last_metrics = {
             "r2": round(r2, 4),
@@ -306,14 +307,23 @@ class LTRRecommendationEngine:
     # ПРЕДСКАЗАНИЕ
     # ------------------------------------------------------------------
 
+    def predict_impact(
+        self, student_skills: list[str], missing_skills: list[str]
+    ) -> list[SkillImpact]:
+        impacts = self.predict_skill_impact(student_skills, missing_skills)
+        return [
+            SkillImpact(skill=s, score=sc, explanation=ex)
+            for s, sc, ex in impacts
+        ]
+
     def predict_skill_impact(
         self, student_skills: list[str], missing_skills: list[str]
     ) -> list[tuple[str, float, str]]:
-        recs, _, _ = self.predict_skill_impact_with_shap(student_skills, missing_skills)
+        recs, _, _ = self.predict_skill_impact_with_shap(student_skills, missing_skills, compute_shap=False)
         return recs
 
     def predict_skill_impact_with_shap(
-        self, student_skills: list[str], missing_skills: list[str]
+        self, student_skills: list[str], missing_skills: list[str], compute_shap: bool = True
     ) -> tuple[list[tuple[str, float, str]], np.ndarray | None, pd.DataFrame | None]:
         if not self.is_fitted or self.model is None:
             logger.warning("model_not_trained_returning_fallback")
@@ -347,12 +357,13 @@ class LTRRecommendationEngine:
         else:
             scores = raw_scores
 
-        try:
-            explainer = shap.TreeExplainer(self.model)
-            shap_values = explainer.shap_values(X)
-        except Exception as e:
-            logger.warning("shap_computation_failed", error=str(e))
-            shap_values = None
+        shap_values = None
+        if compute_shap:
+            try:
+                explainer = shap.TreeExplainer(self.model)
+                shap_values = explainer.shap_values(X)
+            except Exception as e:
+                logger.warning("shap_computation_failed", error=str(e))
 
         impacts = []
         for i, skill in enumerate(valid_missing):
@@ -501,24 +512,18 @@ class LTRRecommendationEngine:
                 path=str(model_path),
             ))
 
-        # Проверка манифеста модели
         manifest_path = model_path.with_suffix(".manifest.json")
         if manifest_path.exists():
-            try:
-                manifest = ArtifactManifest.load(model_path)
-                if not manifest.is_compatible():
-                    logger.warning(
-                        "ltr_model_incompatible_manifest",
+            match ArtifactManifest.load(model_path):
+                case Ok(manifest) if not manifest.is_compatible():
+                    logger.warning("ltr_model_incompatible_manifest",
                         path=str(model_path),
                         manifest_version=manifest.model_version,
-                        current_version=ArtifactManifest._get_embedding_model_version(),
-                    )
-                else:
+                        current_version=ArtifactManifest._get_embedding_model_version())
+                case Ok(manifest):
                     logger.info("ltr_manifest_verified", metrics=manifest.metrics)
-            except Exception as e:
-                logger.warning("ltr_manifest_load_failed", error=str(e))
-        else:
-            logger.info("ltr_manifest_not_found_skipping_check", path=str(model_path))
+                case Err(err):
+                    logger.warning("ltr_manifest_load_failed", error=str(err))
 
         try:
             data = joblib.load(model_path)
