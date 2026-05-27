@@ -144,6 +144,14 @@ def create_app() -> FastAPI:
 
     app.include_router(admin_router)
 
+    from src.n8n.webhooks import router as n8n_webhook_router
+
+    app.include_router(n8n_webhook_router)
+
+    from src.n8n.auth import N8NAuthMiddleware
+
+    app.add_middleware(N8NAuthMiddleware)
+
     return app
 
 
