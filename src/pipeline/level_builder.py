@@ -55,6 +55,7 @@ class LevelBuilder:
                         levels.append(
                             {"skills": vac_skills, "description": vac.description or "", "experience": vac_experience}
                         )
+                        skills.append(vac_skills)
                 else:
                     vac_skills = [s["name"] for s in vac.get("key_skills", [])]
                     if not vac_skills:
