@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { CheckCircle2, Loader2, XCircle, Rocket, Clock } from "lucide-react";
+import { CheckCircle2, Loader2, XCircle, Rocket, Clock, Terminal } from "lucide-react";
 import { Card, CardContent } from "./ui/card";
+import { ScrollArea } from "./ui/scroll-area";
 
 interface PipelineStep {
   step: number;
@@ -12,13 +13,16 @@ interface PipelineStep {
   subProgress?: number;
   maxPages?: number;
   periodDays?: number;
+  logs?: string[];
 }
 
 interface PipelineProgressProps {
   currentStep?: PipelineStep;
+  onCancel?: () => void;
+  onRestart?: () => void;
 }
 
-export function PipelineProgress({ currentStep }: PipelineProgressProps) {
+export function PipelineProgress({ currentStep, onCancel, onRestart }: PipelineProgressProps) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -37,27 +41,16 @@ export function PipelineProgress({ currentStep }: PipelineProgressProps) {
 
   const progressPct = currentStep?.progress ?? 0;
   const subPct = currentStep?.subProgress ?? 0;
+  const effectivePct = subPct > 0 ? subPct : progressPct;
   const estimatedText = useMemo(() => {
-    if (progressPct <= 0 || elapsed < 10) return null;
-    if (subPct > 0 && subPct >= 5) {
-      const rate = Math.max(subPct, 5) / elapsed;
-      const rem = Math.max(0, (100 - subPct) / rate);
-      if (rem < 10) return null;
-      if (rem > 3600) return null;
-      if (rem < 60) return `~${Math.round(rem)} сек`;
-      return `~${Math.floor(rem / 60)} мин ${Math.round(rem % 60)} сек`;
-    }
-    const STEP_ESTIMATES: Record<number, number> = {
-      1: 180, 2: 120, 3: 180, 4: 300,
-    };
-    const estimate = STEP_ESTIMATES[currentStep?.step ?? 1] ?? 180;
-    const remaining = Math.max(0, estimate - elapsed);
+    if (effectivePct <= 0 || elapsed < 10) return null;
+    const rate = Math.max(effectivePct, 1) / elapsed;
+    const remaining = Math.max(0, (100 - effectivePct) / rate);
     if (remaining < 15) return null;
-    if (remaining < 60) return `~${remaining} сек`;
-    const m = Math.floor(remaining / 60);
-    const s = remaining % 60;
-    return `~${m} мин ${s} сек`;
-  }, [elapsed, progressPct, currentStep?.step, subPct]);
+    if (remaining > 7200) return null;
+    if (remaining < 60) return `~${Math.round(remaining)} сек`;
+    return `~${Math.floor(remaining / 60)} мин ${Math.round(remaining % 60)} сек`;
+  }, [elapsed, effectivePct]);
 
   if (!currentStep) return null;
 
@@ -90,6 +83,7 @@ export function PipelineProgress({ currentStep }: PipelineProgressProps) {
   };
 
   const showSubBar = subPct > 0 && currentStep.status === "running";
+  const logs = currentStep.logs ?? [];
 
   return (
     <motion.div
@@ -201,7 +195,61 @@ export function PipelineProgress({ currentStep }: PipelineProgressProps) {
             </motion.div>
           )}
 
-          {/* Status Message */}
+          {/* Actions */}
+          <div className="mt-4 flex gap-2">
+            {currentStep.status === "running" && onCancel && (
+              <button
+                onClick={onCancel}
+                className="px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+              >
+                Остановить
+              </button>
+            )}
+            {(currentStep.status === "completed" || currentStep.status === "error") && onRestart && (
+              <button
+                onClick={onRestart}
+                className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+              >
+                {currentStep.status === "error" ? "Повторить" : "Запустить ещё"}
+              </button>
+            )}
+          </div>
+
+          {/* Log Terminal */}
+          {currentStep.status === "running" && logs.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              className="mt-4"
+            >
+              <div className="flex items-center gap-2 mb-2 text-xs font-medium text-slate-500">
+                <Terminal className="size-3.5" />
+                Журнал пайплайна
+              </div>
+              <ScrollArea className="h-48 rounded-lg border border-gray-200 bg-gray-950 p-3">
+                <div className="font-mono text-xs leading-relaxed">
+                  {logs.map((line, i) => (
+                    <div
+                      key={i}
+                      className={`${
+                        line.includes("ошибка") || line.includes("Error") || line.includes("❌")
+                          ? "text-red-400"
+                          : line.includes("✅") || line.includes("успешно") || line.includes("завершён")
+                            ? "text-green-400"
+                            : line.includes("⚠") || line.includes("warning")
+                              ? "text-yellow-400"
+                              : "text-gray-300"
+                      }`}
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </motion.div>
+          )}
+
+          {/* Error Status */}
           {currentStep.status === "error" && (
             <motion.div
               initial={{ opacity: 0 }}

@@ -49,6 +49,7 @@ interface PipelineStep {
   progress: number;
   maxPages?: number;
   periodDays?: number;
+  logs?: string[];
 }
 
 export default function App() {
@@ -74,20 +75,36 @@ export default function App() {
   const [pipelineRegions, setPipelineRegions] = useState("");
   const [pipelineMaxPages, setPipelineMaxPages] = useState(20);
   const [pipelinePeriod, setPipelinePeriod] = useState(30);
+  const [restartFlag, setRestartFlag] = useState(0);
   const pipelineTaskRef = useRef<string | null>(null);
   const pipelineLoadingRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const profileRef = useRef(profile);
+  useEffect(() => { profileRef.current = profile; }, [profile]);
 
   // reconnect to running task after page refresh
   useEffect(() => {
-    const savedId = sessionStorage.getItem("pipelineTaskId");
-    if (savedId) {
-      pipelineTaskRef.current = savedId;
-      setPipelineLoading(true);
-      pipelineLoadingRef.current = true;
-      setPipelineStep({ step: 1, total: 4, status: "running", message: "Переподключение...", progress: 5 });
-      pollTimerRef.current = setTimeout(pollPipeline, 500);
-    }
+    fetch("/api/pipeline/active")
+      .then(r => r.ok ? r.json() : null)
+      .then(active => {
+        if (active && active.task_id && active.status === "running") {
+          pipelineTaskRef.current = active.task_id;
+          sessionStorage.setItem("pipelineTaskId", active.task_id);
+          setPipelineLoading(true);
+          pipelineLoadingRef.current = true;
+          setPipelineStep({ step: 1, total: 4, status: "running", message: "Переподключение...", progress: 5 });
+          pollTimerRef.current = setTimeout(pollPipeline, 500);
+          return;
+        }
+        const savedId = sessionStorage.getItem("pipelineTaskId");
+        if (savedId) {
+          pipelineTaskRef.current = savedId;
+          setPipelineLoading(true);
+          pipelineLoadingRef.current = true;
+          setPipelineStep({ step: 1, total: 4, status: "running", message: "Переподключение...", progress: 5 });
+          pollTimerRef.current = setTimeout(pollPipeline, 500);
+        }
+      });
   }, []);
 
   const startPipeline = (regionIds: string, profession: string, maxPages?: number, periodDays?: number) => {
@@ -119,11 +136,34 @@ export default function App() {
       });
   };
 
+  const cancelPipeline = () => {
+    const taskId = pipelineTaskRef.current;
+    if (!taskId) return;
+    fetch(`/api/pipeline/cancel/${taskId}`, { method: "POST" }).catch(() => {});
+    if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    setPipelineStep(prev => prev ? { ...prev, status: "error", message: "Отменено" } : null);
+    setPipelineLoading(false);
+    pipelineTaskRef.current = null;
+    pipelineLoadingRef.current = false;
+    sessionStorage.removeItem("pipelineTaskId");
+  };
+
+  const restartPipeline = () => {
+    cancelPipeline();
+    setTimeout(() => {
+      setPipelineStep(null);
+      setRestartFlag(n => n + 1);
+    }, 300);
+  };
+
   const pollPipeline = () => {
     const taskId = pipelineTaskRef.current;
     if (!taskId) { setPipelineLoading(false); pipelineLoadingRef.current = false; return; }
     fetch(`/api/pipeline/task/${taskId}`)
-      .then(r => r.ok ? r.json() : Promise.reject("Ошибка статуса"))
+      .then(r => {
+        if (r.status === 404) throw new Error("NOT_FOUND");
+        return r.ok ? r.json() : Promise.reject("Ошибка статуса");
+      })
       .then(s => {
         const step = Math.min(s.step || 1, 4);
         let subProgress = s.sub_progress ?? undefined;
@@ -132,13 +172,24 @@ export default function App() {
           return {
             step,
             total: 4,
-            status: s.status === "completed" ? "completed" : s.status === "failed" ? "error" : "running",
+            status: s.status === "completed" ? "completed" : s.status === "failed" || s.status === "cancelled" ? "error" : "running",
             message: s.message || "Выполняется...",
             progress: pct,
             subProgress: subProgress,
+            logs: s.logs ?? [],
           };
         });
-        if (s.status === "completed" || s.status === "failed") {
+            if (s.status === "completed") {
+          setPipelineLoading(false);
+          pipelineTaskRef.current = null;
+          pipelineLoadingRef.current = false;
+          sessionStorage.removeItem("pipelineTaskId");
+          setActiveTab("analysis");
+          const prof = profileRef.current;
+          fetch(`/api/results/recommendations/${prof}`).then(r => r.ok && r.json()).then(d => { if (d) setAnalysisData(d); }).catch(() => {});
+          return;
+        }
+        if (s.status === "failed" || s.status === "cancelled") {
           setPipelineLoading(false);
           pipelineTaskRef.current = null;
           pipelineLoadingRef.current = false;
@@ -147,10 +198,21 @@ export default function App() {
         }
         pollTimerRef.current = setTimeout(pollPipeline, 2000);
       })
-      .catch(() => {
-        setPipelineLoading(false);
-        pipelineTaskRef.current = null;
-        pipelineLoadingRef.current = false;
+      .catch(e => {
+        if (e?.message === "NOT_FOUND") {
+          setPipelineStep(null);
+          setPipelineLoading(false);
+          pipelineTaskRef.current = null;
+          pipelineLoadingRef.current = false;
+          sessionStorage.removeItem("pipelineTaskId");
+          return;
+        }
+        if (pipelineTaskRef.current) {
+          pollTimerRef.current = setTimeout(pollPipeline, 5000);
+        } else {
+          setPipelineLoading(false);
+          pipelineLoadingRef.current = false;
+        }
       });
   };
 
@@ -305,7 +367,7 @@ export default function App() {
           {/* Pipeline progress (above tabs, persists across tab switches) */}
           {pipelineStep && (
             <div className="mb-4">
-              <PipelineProgress currentStep={pipelineStep} />
+              <PipelineProgress currentStep={pipelineStep} onCancel={cancelPipeline} onRestart={restartPipeline} />
             </div>
           )}
 
@@ -314,6 +376,7 @@ export default function App() {
             <VacanciesList
               pipelineStep={pipelineStep}
               pipelineLoading={pipelineLoading}
+              restartFlag={restartFlag}
               onStartPipeline={(regionIds, profession, maxPages, periodDays) => startPipeline(regionIds, profession, maxPages, periodDays)}
               pipelineMaxPages={pipelineMaxPages}
               pipelinePeriod={pipelinePeriod}

@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { Heart, Code, Sparkles } from "lucide-react";
+import { Heart, Sparkles } from "lucide-react";
 
 export function Footer() {
   return (
@@ -94,8 +94,7 @@ export function Footer() {
               >
                 <Heart className="size-4 text-red-500 fill-red-500" />
               </motion.div>
-              <span>командой</span>
-              <Code className="size-4" />
+
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-500">
               © 2026 Competency Gap Analyzer. Все права защищены.

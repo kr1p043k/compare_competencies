@@ -107,15 +107,15 @@ interface PipelineStep {
 }
 
 interface VacanciesListProps {
-  onViewDetails?: (id: string) => void;
   pipelineStep?: PipelineStep | null;
   pipelineLoading?: boolean;
+  restartFlag?: number;
   onStartPipeline?: (regionIds: string, profession: string, maxPages?: number, periodDays?: number) => void;
   pipelineMaxPages?: number;
   pipelinePeriod?: number;
 }
 
-export function VacanciesList({ onViewDetails, pipelineStep, pipelineLoading, onStartPipeline, pipelineMaxPages, pipelinePeriod }: VacanciesListProps) {
+export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onStartPipeline, pipelineMaxPages, pipelinePeriod }: VacanciesListProps) {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -150,6 +150,12 @@ export function VacanciesList({ onViewDetails, pipelineStep, pipelineLoading, on
       refreshVacancies();
     }
   }, [pipelineStep]);
+
+  useEffect(() => {
+    if (restartFlag && restartFlag > 0) {
+      setShowPipelineSetup(true);
+    }
+  }, [restartFlag]);
 
   const loadVacancies = async () => {
     setLoading(true);
@@ -312,9 +318,10 @@ export function VacanciesList({ onViewDetails, pipelineStep, pipelineLoading, on
                   value={pipelineProfession}
                   onChange={(e) => setPipelineProfession(e.target.value)}
                   placeholder="IT-специалист / Data Scientist / Все"
+                  disabled={!cityMode}
                   className="h-10"
                 />
-                <p className="text-xs text-slate-400">Оставьте пустым для поиска по всем профессиям</p>
+                <p className="text-xs text-slate-400">{!cityMode ? "Весь рынок — поиск по всем IT-профессиям" : "Оставьте пустым для поиска по всем профессиям"}</p>
               </div>
 
               {/* Search params */}
@@ -353,7 +360,7 @@ export function VacanciesList({ onViewDetails, pipelineStep, pipelineLoading, on
               <div className="flex gap-2">
                 <Button
                   variant={!cityMode ? "default" : "outline"}
-                  onClick={() => { setCityMode(false); setSelectedCities([]); setPipelineRegion("0"); }}
+                  onClick={() => { setCityMode(false); setSelectedCities([]); setPipelineRegion("0"); setPipelineProfession(""); }}
                   className="flex-1 h-10 gap-2"
                 >
                   <Globe className="size-4" />
@@ -844,7 +851,7 @@ export function VacanciesList({ onViewDetails, pipelineStep, pipelineLoading, on
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ delay: index * 0.05 }}
                 >
-                  <VacancyCard vacancy={vacancy} onViewDetails={onViewDetails} />
+                  <VacancyCard vacancy={vacancy} />
                 </motion.div>
               ))}
             </AnimatePresence>
