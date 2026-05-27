@@ -25,13 +25,14 @@ class Settings(BaseSettings):
     DATA_RAW_DIR: Path = Field(default_factory=lambda: Path("data/raw"))
     DATA_PROCESSED_DIR: Path = Field(default_factory=lambda: Path("data/processed"))
     DATA_RESULT_DIR: Path = Field(default_factory=lambda: Path("data/result"))
+    REPORTS_DIR: Path = Field(default_factory=lambda: Path("data/result/reports"))
     STUDENTS_DIR: Path = Field(default_factory=lambda: Path("data/students"))
     LAST_UPLOADED_DIR: Path = Field(default_factory=lambda: Path("data/last_uploaded"))
     COMPETENCY_MAPPING_FILE: Path = Field(default_factory=lambda: Path("data/processed/competency_mapping.json"))
     COMPETENCY_FREQ_PATH: Path = Field(default_factory=lambda: Path("data/processed/competency_frequency.json"))
 
     LOG_DIR: Path = Field(default_factory=lambda: Path("logs"))
-    LOG_FILE: Path = Field(default_factory=lambda: Path("logs/app.log"))
+    LOG_FILE: Path = Field(default_factory=lambda: Path("logs/backend.log"))
 
     # ---------- справочные данные (reference) ----------
     REFERENCE_DIR: Path = Field(default_factory=lambda: Path("data/reference"))
@@ -57,6 +58,10 @@ class Settings(BaseSettings):
 
     MODELS_DIR: Path = Field(default_factory=lambda: Path("data/models"))
     HISTORY_DIR: Path = Field(default_factory=lambda: Path("data/history"))
+
+    # ---------- n8n ----------
+    N8N_API_KEY: SecretStr | None = None
+    N8N_WEBHOOK_SECRET: SecretStr | None = None
 
     # ---------- CORS ----------
     ALLOWED_ORIGINS: str = "*"
@@ -146,6 +151,7 @@ class Settings(BaseSettings):
         "DATA_RAW_DIR",
         "DATA_PROCESSED_DIR",
         "DATA_RESULT_DIR",
+        "REPORTS_DIR",
         "STUDENTS_DIR",
         "LAST_UPLOADED_DIR",
         "COMPETENCY_MAPPING_FILE",
@@ -190,6 +196,7 @@ class Settings(BaseSettings):
             self.MODELS_DIR,
             self.HISTORY_DIR,
             self.DATA_RESULT_DIR,
+            self.REPORTS_DIR,
             self.REFERENCE_DIR,
             self.DATA_CACHE_DIR,
             self.EMBEDDINGS_CACHE_DIR,
@@ -214,6 +221,7 @@ DATA_DIR = settings.DATA_DIR
 DATA_RAW_DIR = settings.DATA_RAW_DIR
 DATA_PROCESSED_DIR = settings.DATA_PROCESSED_DIR
 DATA_RESULT_DIR = settings.DATA_RESULT_DIR
+REPORTS_DIR = settings.REPORTS_DIR
 STUDENTS_DIR = settings.STUDENTS_DIR
 LAST_UPLOADED_DIR = settings.LAST_UPLOADED_DIR
 COMPETENCY_MAPPING_FILE = settings.COMPETENCY_MAPPING_FILE
