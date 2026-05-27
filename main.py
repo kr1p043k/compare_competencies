@@ -22,38 +22,37 @@ import structlog
 from src import Err, Ok, config, timed_block
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.logging_config import setup_structlog
+from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.models.enums import ExperienceLevel
 from src.models.data_contracts import PipelineContext
 from src.models.student import StudentProfile, merge_skills_hierarchically
-from src.parsing.skills.skill_normalizer import SkillNormalizer
-from src.pipeline.data_source import HhDataSource
-from src.scoring.vacancy_quality_scorer import VacancyQualityScorer
-from src.pipeline.gap_runner import GapRunner
 from src.pipeline.helpers import console_header, console_info
-from src.pipeline.level_builder import LevelBuilder
-from src.pipeline.skill_extractor import SkillExtractor
-from src.pipeline.weight_cleaner import WeightCleaner
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
+from src.pipeline.orchestrator import PipelineOrchestrator
+from src.pipeline.progress import write as _write_pipeline_progress
+from src.pipeline.stages import (
+    ClusterTrainingStage,
+    DataCollectionStage,
+    GapAnalysisStage,
+    LevelBuildingStage,
+    ModelTrainingStage,
+    QualityScoringStage,
+    SkillExtractionStage,
+    WeightCleaningStage,
+)
+from src.predictors import create_ranking_predictor, create_recommender
 from src.utils import (
     atomic_write_json,
     load_competency_mapping,
     safe_read_competency_json,
     safe_read_json,
 )
+import matplotlib
+matplotlib.use("Agg")
 from src.visualization.orchestration import run_notebook, save_all_charts, show_context_info
 
 logger = structlog.get_logger("main")
 
-PIPELINE_PROGRESS_FILE = Path(__file__).parent / "data" / "cache" / "pipeline_progress.json"
 
-
-def _write_pipeline_progress(pct: int, message: str):
-    try:
-        PIPELINE_PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(PIPELINE_PROGRESS_FILE, "w", encoding="utf-8") as f:
-            json.dump({"pct": pct, "message": message}, f, ensure_ascii=False)
-    except Exception:
-        pass
 
 
 def convert_float32(obj):
@@ -70,7 +69,7 @@ def convert_float32(obj):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
-    parser.add_argument("--query", "-q", type=str, default="Python Разработчик")
+    parser.add_argument("--query", "-q", type=str, default="1с разработчик")
     parser.add_argument("--area-id", "-a", type=int, default=1)
     parser.add_argument("--max-pages", "-p", type=int, default=10)
     parser.add_argument("--period", "-d", type=int, default=30)
@@ -87,8 +86,10 @@ def parse_arguments():
     parser.add_argument("--use-async", action="store_true", default=True)
     parser.add_argument("--async-workers", type=int, default=3)
     parser.add_argument("--async-threshold", type=int, default=10000)
-    parser.add_argument("--run-gap-analysis", action="store_true", default=False)
+    parser.add_argument("--run-gap-analysis", action="store_true", default=False,
+        help="Устарел. Используйте --skip-gap-analysis для пропуска")
     parser.add_argument("--run-notebooks", action="store_true")
+    parser.add_argument("--skip-gap-analysis", action="store_true", default=False)
     parser.add_argument("--status", action="store_true", help="Показать состояние файлов и моделей")
     parser.add_argument("--train-model", action="store_true", help="Обучить LTR-модель на текущих данных и выйти")
     parser.add_argument("--force", action="store_true", help="Принудительное переобучение (пропускает проверки кэша)")
@@ -256,11 +257,11 @@ def show_status():
     if model_path.exists():
         manifest = model_path.with_suffix(".manifest.json")
         if manifest.exists():
-            try:
-                m = ArtifactManifest.load(model_path)
-                console_info(f"✅ LTR-модель: {model_path}, R²={m.metrics.get('r2', '?')}")
-            except Exception:
-                console_info(f"✅ LTR-модель: {model_path}, манифест повреждён")
+            match ArtifactManifest.load(model_path):
+                case Ok(m):
+                    console_info(f"✅ LTR-модель: {model_path}, R²={m.metrics.get('r2', '?')}")
+                case Err(_):
+                    console_info(f"✅ LTR-модель: {model_path}, манифест повреждён")
         else:
             console_info(f"✅ LTR-модель: {model_path} (без манифеста)")
     else:
@@ -303,13 +304,12 @@ def main():
             sys.exit(1)
         model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
         if model_path.exists() and not args.force:
-            ltr_engine = LTRRecommendationEngine()
-            if ltr_engine.is_fitted:
+            ltr_engine = create_ranking_predictor(model_path=model_path)
+            if ltr_engine and ltr_engine.is_fitted:
                 model_mtime = model_path.stat().st_mtime
                 data_mtime = raw_file.stat().st_mtime
                 if model_mtime > data_mtime:
                     console_info("✅ Модель уже обучена и актуальна, обучение пропущено")
-                    console_info(f"Модель: {ltr_engine.model_path}")
                     return
         training_vacancies = safe_read_json(raw_file)
         if not training_vacancies:
@@ -317,8 +317,13 @@ def main():
             sys.exit(1)
         console_info(f"Загружено {len(training_vacancies)} вакансий для обучения")
         logger.info("training_data_loaded", count=len(training_vacancies))
+        from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
         ltr_engine = LTRRecommendationEngine()
-        ltr_engine.fit(training_vacancies)
+        match ltr_engine.fit(training_vacancies):
+            case Ok(_):
+                pass
+            case Err(err):
+                logger.error("ltr_training_failed", error=str(err))
         if model_path.exists():
             console_info("⚠️  Существующая модель будет перезаписана.")
             logger.warning("overwriting_existing_ltr_model", path=str(model_path))
@@ -334,108 +339,65 @@ def main():
         console_info(f"Модель сохранена в: {ltr_engine.model_path}")
         return
 
-    # ------------------- Основной пайплайн -------------------
-    # Stage 1: Данные
-    _write_pipeline_progress(5, "Сбор вакансий с hh.ru...")
-    with timed_block("Stage1.data_collection"):
-        source = HhDataSource(args)
-        vacancies, parser = source.get_vacancies()
-        raw_file = None
-        if args.skip_collection:
-            raw_file = source._find_file()
+    # ------------------- Основной пайплайн (PipelineOrchestrator) -------------------
+    _write_pipeline_progress(0, "Инициализация...")
 
-    _write_pipeline_progress(15, "Оценка качества и маркировка спама...")
-    # Stage 1b: Качественная оценка и маркировка спама (без фильтрации)
-    with timed_block("Stage1b.quality_scoring"):
-        scorer = VacancyQualityScorer()
-        spam_count = 0
-        scores = []
-        for v in vacancies:
-            s = scorer.score(v)
-            scores.append(s)
-            if s.is_spam:
-                spam_count += 1
-                reason = "; ".join(f.reason for f in s.flags)
-                if hasattr(v, "raw_data") and isinstance(v.raw_data, dict):
-                    v.raw_data["is_spam"] = True
-                    v.raw_data["spam_reason"] = reason
-        quality_report = scorer._build_report(scores, len(vacancies))
-        scorer.print_report(quality_report)
+    stages = [
+        DataCollectionStage(args),
+    ]
+    if not args.skip_collection:
+        stages.append(QualityScoringStage(args))
+    stages.extend([
+        SkillExtractionStage(args),
+        WeightCleaningStage(),
+        LevelBuildingStage(),
+        ClusterTrainingStage(),
+        ModelTrainingStage(),
+    ])
+    show_context_info()
 
-        # пересохраняем JSON с пометками о спаме
-        from src.pipeline.helpers import save_detailed_vacancies
-        save_detailed_vacancies(vacancies, logger)
+    orchestrator = PipelineOrchestrator(stages, num_retries=1)
+    run = orchestrator.run(name="full_pipeline")
 
-        spam_path = config.DATA_RESULT_DIR / "spam_vacancies_report.json"
-        with open(spam_path, "w", encoding="utf-8") as f:
-            json.dump(quality_report, f, ensure_ascii=False, indent=2)
-        logger.info(
-            "spam_report_saved",
-            path=str(spam_path),
-            spam_count=quality_report["spam_count"],
-            clean_count=quality_report["clean_count"],
-            total=len(vacancies),
-        )
+    if run.status != "completed":
+        console_info(f"❌ Пайплайн не завершён: {run.stages[-1].error if run.stages else 'unknown'}")
+        return
 
-        # Excel с информацией о спаме (все вакансии)
-        if args.excel and vacancies:
-            df = parser.aggregate_to_dataframe(vacancies, quality_report)
-            excel_name = f"vacancies_{args.query.replace(' ', '_')}.xlsx"
-            parser.save_to_excel(df, excel_name)
+    ctx_data = {}
+    for sr in run.stages:
+        if sr.data:
+            ctx_data.update(sr.data)
 
-    # Stage 2: Навыки
-    _write_pipeline_progress(25, "Извлечение навыков из вакансий...")
-    extractor = SkillExtractor(args)
-    match extractor.extract(vacancies, parser, raw_file):
-        case Ok((skill_freq, hybrid_weights_raw, trend_analyzer)):
-            pass
-        case Err(err):
-            logger.error("skill_extraction_failed", error=str(err))
-            return
-
-    # Stage 3: Очистка весов
-    _write_pipeline_progress(45, "Очистка весов навыков...")
-    cleaner = WeightCleaner()
-    match cleaner.clean(hybrid_weights_raw):
-        case Ok(hybrid_weights):
-            pass
-        case Err(err):
-            logger.error("weight_cleaning_failed", error=str(err))
-            return
-
-    # Сохраняем веса на диск для save_all_charts()
-    skill_weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
-    with open(skill_weights_path, "w", encoding="utf-8") as f:
-        json.dump(hybrid_weights, f, ensure_ascii=False, indent=2)
-    logger.info("skill_weights_saved", path=str(skill_weights_path), count=len(hybrid_weights))
-
-    # Stage 4: Подготовка уровней
-    _write_pipeline_progress(60, "Построение уровней компетенций...")
-    builder = LevelBuilder()
-    match builder.build(vacancies, parser):
-        case Ok((level_data, vacancies_skills)):
-            pass
-        case Err(err):
-            logger.error("level_building_failed", error=str(err))
-            return
+    vacancies = ctx_data.get("vacancies", [])
+    parser = ctx_data.get("parser")
+    raw_file = ctx_data.get("raw_file")
+    skill_freq = ctx_data.get("skill_freq", {})
+    hybrid_weights = ctx_data.get("hybrid_weights", {})
+    trend_analyzer = ctx_data.get("trend_analyzer")
+    level_data = ctx_data.get("level_data", [])
+    vacancies_skills = ctx_data.get("vacancies_skills", [])
 
     # Профили студентов
-    competency_mapping = load_competency_mapping()
-    if not competency_mapping:
-        console_info("⚠️  Маппинг компетенций не загружен")
-    all_codes = {}
-    for name in ["base", "dc", "top_dc"]:
-        codes = load_student_competencies(name)
-        if codes:
-            all_codes[name] = codes
-        else:
-            console_info(f"⚠️  Профиль {name} не загружен")
-    profiles = build_profiles(all_codes, competency_mapping)
+    _write_pipeline_progress(60, "Загрузка профилей студентов...")
+    with timed_block("Stage4b.student_profiles"):
+        competency_mapping = load_competency_mapping()
+        if not competency_mapping:
+            console_info("⚠️  Маппинг компетенций не загружен")
+        all_codes = {}
+        for name in ["base", "dc", "top_dc"]:
+            codes = load_student_competencies(name)
+            if codes:
+                all_codes[name] = codes
+                _write_pipeline_progress(63, f"Загружен профиль {name}")
+            else:
+                console_info(f"⚠️  Профиль {name} не загружен")
+        profiles = build_profiles(all_codes, competency_mapping)
+        _write_pipeline_progress(68, f"Построено {len(profiles)} профилей")
 
     # Stage 5: Gap-анализ и рекомендации
     evaluations = None
-    if args.run_gap_analysis:
-        _write_pipeline_progress(75, "GAP-анализ и генерация рекомендаций...")
+    if not args.skip_gap_analysis and profiles:
+        _write_pipeline_progress(72, "Инициализация GAP-анализа...")
         console_header("GAP-АНАЛИЗ И ГЕНЕРАЦИЯ РЕКОМЕНДАЦИЙ")
         ctx = PipelineContext(
             skill_freq=skill_freq,
@@ -444,46 +406,49 @@ def main():
             level_vacancies_data=level_data,
             trend_analyzer=trend_analyzer,
         )
-        runner = GapRunner(profiles, ctx, args)
-        match runner.run():
-            case Ok((evals, recs)):
-                evaluations = evals
+        gap_stage = GapAnalysisStage(profiles, ctx, args)
+        gap_result = gap_stage.run()
+        match gap_result:
+            case Ok(data):
+                evaluations = data.get("evaluations")
+                recs = data.get("recommendations")
+                _write_pipeline_progress(88, "GAP-анализ завершён")
                 if recs:
                     print_recommendations(profiles, recs)
                     console_header("GAP-АНАЛИЗ УСПЕШНО ЗАВЕРШЁН")
             case Err(err):
                 logger.error("gap_analysis_failed", error=str(err))
-                return
+                sys.exit(1)
 
-    show_context_info()
-
-    _write_pipeline_progress(95, "Генерация графиков...")
+    _write_pipeline_progress(93, "Генерация графиков...")
     if evaluations:
         console_header("ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ")
-        output_viz_dir = config.DATA_DIR / "result"
+        output_viz_dir = config.REPORTS_DIR
         output_viz_dir.mkdir(parents=True, exist_ok=True)
         save_all_charts(evaluations, output_viz_dir, use_ml=True, vacancies_skills_list=vacancies_skills)
-        console_info(f"✅ Графики сохранены в {output_viz_dir}")
+        _write_pipeline_progress(97, "Графики сохранены")
 
     if args.run_notebooks:
         console_info("Запуск Jupyter ноутбуков...")
         run_notebook("01_hh_analysis.ipynb", output_dir=config.DATA_DIR / "notebooks")
         run_notebook("02_competency_matching.ipynb", output_dir=config.DATA_DIR / "notebooks")
 
-    try:
-        csv_path = config.DATA_RAW_DIR / "competency_matrix.csv"
-        if not csv_path.exists():
-            csv_path = config.DATA_DIR / "last_uploaded" / "competency_matrix.csv"
-        if csv_path.exists():
-            generate_profiles_from_csv(csv_path)
-            console_info("✓ Профили студентов обновлены из CSV")
-    except Exception as e:
-        logger.warning("csv_profile_update_failed", error=str(e))
+    csv_path = config.DATA_RAW_DIR / "competency_matrix.csv"
+    if not csv_path.exists():
+        csv_path = config.DATA_DIR / "last_uploaded" / "competency_matrix.csv"
+    if csv_path.exists():
+        match generate_profiles_from_csv(csv_path):
+            case Ok(_):
+                console_info("✓ Профили студентов обновлены из CSV")
+            case Err(e):
+                logger.warning("csv_profile_update_failed", error=str(e.message))
 
+    _write_pipeline_progress(100, "Пайплайн завершён")
     console_header("ПАЙПЛАЙН УСПЕШНО ЗАВЕРШЁН")
     console_info(f"📁 Результаты: {config.DATA_DIR / 'result'}")
-    console_info(f"📋 Логи: {config.LOG_FILE}")
-    console_info(f"⏰ Завершено: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    console_info(f"📋 Логи бэкенда: {config.LOG_FILE}")
+    console_info(f"📋 Логи фронтенда: frontend/logs/app.log")
+    console_info(f"⏰ Завершено за {run.elapsed:.1f} сек" if run.elapsed < 120 else f"⏰ Завершено за {run.elapsed / 60:.1f} мин")
 
 
 if __name__ == "__main__":
