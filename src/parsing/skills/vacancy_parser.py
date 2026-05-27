@@ -192,8 +192,9 @@ class VacancyParser:
         return pd.DataFrame(rows)
 
     def save_to_excel(self, df: pd.DataFrame, filename: str):
-        """Сохраняет DataFrame в Excel"""
-        filepath = config.DATA_RESULT_DIR / filename
+        """Сохраняет DataFrame в Excel (в data/result/reports/)"""
+        config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        filepath = config.REPORTS_DIR / filename
         df.to_excel(filepath, index=False, engine="openpyxl")
         logger.info("Excel файл сохранён", path=str(filepath))
 
