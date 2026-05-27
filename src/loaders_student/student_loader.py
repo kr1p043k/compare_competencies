@@ -11,6 +11,7 @@ import traceback
 import pandas as pd
 import structlog
 
+from src import DomainError, Err, Ok, Result
 from src.config import DATA_RAW_DIR, LAST_UPLOADED_DIR, PROFILES_DISCIPLINES, STUDENTS_DIR
 from src.models.student import StudentProfile
 
@@ -23,127 +24,120 @@ class StudentLoader:
     def __init__(self, students_dir: Path = STUDENTS_DIR):
         self.students_dir = students_dir
 
-    def load_student(self, profile_name: str) -> StudentProfile | None:
+    def load_student(self, profile_name: str) -> Result[StudentProfile, DomainError]:
         """Загружает данные ученика по имени профиля (base, dc, top_dc)."""
         file_path = self.students_dir / f"{profile_name}_competency.json"
         if not file_path.exists():
-            logger.error("student_file_not_found", path=str(file_path))
-            return None
+            return Err(DomainError(message=f"Файл студента не найден: {file_path}"))
 
-        with open(file_path, encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            return Err(DomainError(message=f"Ошибка чтения файла студента: {e}"))
 
         skills = data.get("навыки", [])
-
-        # ИСПРАВЛЕНО: используем поля, которые принимает текущая модель StudentProfile
-        return StudentProfile(
-            profile_name=profile_name,  # ← обязательно для модели
+        return Ok(StudentProfile(
+            profile_name=profile_name,
             competencies=skills,
-            skills=skills,  # дублируем для совместимости с остальным кодом
-            target_level="middle",  # или target_role — в зависимости от модели
-        )
+            skills=skills,
+            target_level="middle",
+        ))
 
     def load_all_students(self) -> list[StudentProfile]:
         """Загружает все три профиля."""
         students = []
         for profile in ["base", "dc", "top_dc"]:
-            student = self.load_student(profile)
-            if student:
-                students.append(student)
+            match self.load_student(profile):
+                case Ok(student):
+                    students.append(student)
+                case Err(e):
+                    logger.warning("student_load_skipped", profile=profile, error=str(e))
         return students
 
 
 # ====================== Создание профилей из CSV ======================
 def generate_profiles_from_csv(
     csv_path: Path = DATA_RAW_DIR / "competency_matrix.csv", output_dir: Path = STUDENTS_DIR, save_copy: bool = True
-) -> dict[str, list[str]]:
+) -> Result[dict[str, list[str]], DomainError]:
     logger.info("csv_processing_started", path=str(csv_path))
 
     if not csv_path.exists():
-        logger.error("csv_file_not_found", path=str(csv_path))
-        raise FileNotFoundError(f"CSV файл не найден: {csv_path}")
+        return Err(DomainError(message=f"CSV файл не найден: {csv_path}"))
 
-    # Чтение CSV
     try:
         try:
             df = pd.read_csv(csv_path, header=None, encoding="utf-8")
         except UnicodeDecodeError:
             df = pd.read_csv(csv_path, header=None, encoding="cp1251")
         logger.debug("csv_loaded", shape=df.shape)
-    except Exception:
+    except Exception as e:
         logger.exception("csv_read_error")
-        raise
+        return Err(DomainError(message=f"Ошибка чтения CSV: {e}"))
 
-    # Индикаторы компетенций (вторая строка)
-    indicators_raw = df.iloc[1, 1:].tolist()
+    try:
+        indicators_raw = df.iloc[1, 1:].tolist()
+        indicator_mapping = {}
+        col_idx = 2
+        for raw in indicators_raw:
+            if pd.isna(raw):
+                continue
+            code = str(raw).split(" ", 1)[0]
+            indicator_mapping[col_idx] = code
+            col_idx += 1
+        logger.info("indicators_found", count=len(indicator_mapping))
 
-    # Формируем маппинг: позиция столбца → исходный код компетенции
-    indicator_mapping = {}
-    col_idx = 2  # первые два столбца: № и Дисциплина
-    for raw in indicators_raw:
-        if pd.isna(raw):
-            continue
-        code = str(raw).split(" ", 1)[0]
-        indicator_mapping[col_idx] = code
-        col_idx += 1
-    logger.info("indicators_found", count=len(indicator_mapping))
+        disciplines_df = df.iloc[2:, :].copy()
+        disciplines_df.columns = list(range(disciplines_df.shape[1]))
+        disciplines_df[0] = pd.to_numeric(disciplines_df[0], errors="coerce").fillna(0).astype(int)
 
-    # Данные дисциплин (строки с 3-й)
-    disciplines_df = df.iloc[2:, :].copy()
-    disciplines_df.columns = list(range(disciplines_df.shape[1]))
-    disciplines_df[0] = pd.to_numeric(disciplines_df[0], errors="coerce").fillna(0).astype(int)
+        profiles_skills = {profile: set() for profile in PROFILES_DISCIPLINES}
 
-    # Инициализируем наборы навыков для профилей
-    profiles_skills = {profile: set() for profile in PROFILES_DISCIPLINES}
-
-    for _, row in disciplines_df.iterrows():
-        discipline_id = int(row[0])
-        if discipline_id == 0:
-            continue
-
-        for profile_name, discipline_ids in PROFILES_DISCIPLINES.items():
-            if discipline_id not in discipline_ids:
+        for _, row in disciplines_df.iterrows():
+            discipline_id = int(row[0])
+            if discipline_id == 0:
                 continue
 
-            # Для каждой дисциплины учебного плана профиля
-            # добавляем ВСЕ компетенции, у которых есть любая отметка (Б, П, Э, X)
-            for col_idx, indicator_code in indicator_mapping.items():
-                val = row.iloc[col_idx]
-                if pd.notna(val) and str(val).strip() in ("Б", "П", "Э", "X"):
-                    profiles_skills[profile_name].add(indicator_code)
+            for profile_name, discipline_ids in PROFILES_DISCIPLINES.items():
+                if discipline_id not in discipline_ids:
+                    continue
 
-    # Сохраняем JSON-файлы и формируем результат
-    result = {}
-    for profile_name, skills in profiles_skills.items():
-        sorted_skills = sorted(skills)
-        result[profile_name] = sorted_skills
-        logger.info("profile_skills_extracted", profile=profile_name, skills_count=len(sorted_skills))
+                for col_idx, indicator_code in indicator_mapping.items():
+                    val = row.iloc[col_idx]
+                    if pd.notna(val) and str(val).strip() in ("Б", "П", "Э", "X"):
+                        profiles_skills[profile_name].add(indicator_code)
 
-        json_path = output_dir / f"{profile_name}_competency.json"
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump({"навыки": sorted_skills}, f, ensure_ascii=False, indent=2)
-        logger.debug("profile_json_saved", path=str(json_path))
+        result = {}
+        for profile_name, skills in profiles_skills.items():
+            sorted_skills = sorted(skills)
+            result[profile_name] = sorted_skills
+            logger.info("profile_skills_extracted", profile=profile_name, skills_count=len(sorted_skills))
 
-    # Копия CSV (как было)
-    if save_copy:
-        LAST_UPLOADED_DIR.mkdir(parents=True, exist_ok=True)
-        last_csv_path = LAST_UPLOADED_DIR / "competency_matrix.csv"
-        shutil.copy2(csv_path, last_csv_path)
-        logger.info("csv_copy_saved", path=str(last_csv_path))
+            json_path = output_dir / f"{profile_name}_competency.json"
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump({"навыки": sorted_skills}, f, ensure_ascii=False, indent=2)
 
-    logger.info("csv_processing_completed")
-    return result
+        if save_copy:
+            LAST_UPLOADED_DIR.mkdir(parents=True, exist_ok=True)
+            last_csv_path = LAST_UPLOADED_DIR / "competency_matrix.csv"
+            shutil.copy2(csv_path, last_csv_path)
+
+        logger.info("csv_processing_completed")
+        return Ok(result)
+    except Exception as e:
+        logger.exception("csv_processing_error")
+        return Err(DomainError(message=f"Ошибка обработки CSV: {e}"))
 
 
 if __name__ == "__main__":
     print("Запуск генерации профилей из CSV...")
-    try:
-        profiles = generate_profiles_from_csv()
-        print("Готово! Созданы файлы:")
-        for name, skills in profiles.items():
-            print(f"  {name}: {len(skills)} навыков")
-        print(f"JSON-файлы сохранены в: {STUDENTS_DIR}")
-        print(f"Копия CSV сохранена в: {LAST_UPLOADED_DIR / 'competency_matrix.csv'}")
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        traceback.print_exc()
+    match generate_profiles_from_csv():
+        case Ok(profiles):
+            print("Готово! Созданы файлы:")
+            for name, skills in profiles.items():
+                print(f"  {name}: {len(skills)} навыков")
+            print(f"JSON-файлы сохранены в: {STUDENTS_DIR}")
+            print(f"Копия CSV сохранена в: {LAST_UPLOADED_DIR / 'competency_matrix.csv'}")
+        case Err(e):
+            print(f"Ошибка: {e.message}")
+            traceback.print_exc()
