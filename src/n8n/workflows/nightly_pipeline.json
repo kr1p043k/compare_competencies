@@ -1,0 +1,44 @@
+{
+  "name": "Nightly Pipeline",
+  "nodes": [
+    {
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "parameters": { "rule": { "interval": [{ "field": "days", "minutesInterval": 1440 }] } }
+    },
+    {
+      "name": "Trigger Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BASE_URL }}/api/pipeline/full-cycle",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [
+          { "name": "skip_collection", "value": "false" },
+          { "name": "run_gap_analysis", "value": "true" },
+          { "name": "period", "value": "30" }
+        ]}
+      }
+    },
+    {
+      "name": "Wait for Completion",
+      "type": "n8n-nodes-base.wait",
+      "parameters": { "amount": 5, "unit": "minutes" }
+    },
+    {
+      "name": "Notify Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "parameters": {
+        "chatId": "={{ $env.TG_CHAT_ID }}",
+        "text": "🔁 Pipeline completed\nCheck: {{ $json.url }}"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule": { "main": [[ { "node": "Trigger Pipeline", "type": "main" } ]] },
+    "Trigger Pipeline": { "main": [[ { "node": "Wait for Completion", "type": "main" } ]] },
+    "Wait for Completion": { "main": [[ { "node": "Notify Telegram", "type": "main" } ]] }
+  }
+}
