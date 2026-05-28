@@ -195,7 +195,8 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         mae = mean_absolute_error(y_test, pred_test)
         try:
             ndcg = ndcg_score([y_test], [pred_test], k=10)
-        except Exception:
+        except Exception as e:
+            logger.warning("ndcg_computation_failed", error=str(e))
             ndcg = float("nan")
 
         logger.info(
@@ -469,8 +470,8 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             cat = self._taxonomy.get_category(skill)
             if cat and cat != "other":
                 return cat
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("skill_taxonomy_get_category_failed", skill=skill, error=str(e))
         match self.skill_filter.get_skill_categories([skill]):
             case Ok(cats):
                 for cat, cat_skills in cats.items():

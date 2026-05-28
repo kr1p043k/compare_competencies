@@ -8,8 +8,12 @@ import time
 
 from tqdm import tqdm
 
+import structlog
+
 from src import config
 from src.models.vacancy import Vacancy
+
+logger = structlog.get_logger("helpers")
 
 
 def get_load_mode(total_vacancies: int, args, log) -> tuple:
@@ -79,7 +83,8 @@ def load_vacancies_details(basic_vacancies: list, hh_api, use_async: bool, async
             try:
                 validated = hh_api.get_vacancy_details_validated(vac_id)
                 det = Vacancy.from_api(validated.model_dump())
-            except Exception:
+            except Exception as e:
+                logger.warning("vacancy_validation_failed", vac_id=vac_id, error=str(e))
                 det = None
         else:
             det = hh_api.get_vacancy_details_as_object(vac_id)

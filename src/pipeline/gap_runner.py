@@ -39,15 +39,15 @@ class GapRunner:
             GAP_PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
             with open(GAP_PROGRESS_FILE, "w", encoding="utf-8") as f:
                 json.dump({"pct": round(pct, 1), "message": message, "stage": stage}, f, ensure_ascii=False)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("progress_file_write_failed", error=str(e))
 
     def _clear_progress(self):
         try:
             if GAP_PROGRESS_FILE.exists():
                 GAP_PROGRESS_FILE.unlink()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("progress_file_unlink_failed", error=str(e))
 
     def run(self) -> Result[tuple[dict, dict], GapAnalysisError]:
         skill_weights = self.ctx.hybrid_weights or self.ctx.skill_freq

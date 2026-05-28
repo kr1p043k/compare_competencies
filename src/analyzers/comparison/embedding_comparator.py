@@ -251,12 +251,14 @@ class EmbeddingComparator:
         if not level_vacancies:
             level_vacancies = vacancies
         if not level_vacancies:
+            logger.warning("find_closest_vacancies_no_vacancies", level=level)
             return []
 
         # Batched embedding: embed all unique skills once, then mean-pool per vacancy
         vac_skill_lists = [(i, v.get("skills", [])) for i, v in enumerate(level_vacancies)]
         all_skills = list({s for _, sk in vac_skill_lists for s in sk})
         if not all_skills:
+            logger.warning("find_closest_vacancies_no_skills", level=level)
             return []
 
         skill_to_emb = dict(zip(all_skills, self.embed_skills(all_skills), strict=False))

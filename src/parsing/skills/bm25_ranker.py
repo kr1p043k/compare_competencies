@@ -92,6 +92,7 @@ class BM25Ranker:
                 try:
                     lemmas.append(self._morph.parse(w)[0].normal_form)
                 except Exception:
+                    logger.warning("lemmatization_failed", word=w)
                     lemmas.append(w)
             else:
                 lemmas.append(w)

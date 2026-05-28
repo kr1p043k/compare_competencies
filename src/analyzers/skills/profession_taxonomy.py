@@ -172,11 +172,13 @@ class ProfessionTaxonomy:
     def get_domains_for_profession(self, profession_name: str) -> list[str]:
         info = self.get_profession_info(profession_name)
         if not info:
+            logger.warning("profession_not_found_for_domains", profession=profession_name)
             return []
         return info.get("domains", [])
 
     def get_domain_skills(self, domain_name: str) -> list[str]:
         if not self._domain_map:
+            logger.warning("domain_map_not_loaded")
             return []
         return [s.lower().strip() for s in self._domain_map.get(domain_name, [])]
 
@@ -196,12 +198,14 @@ class ProfessionTaxonomy:
     def get_profession_competency_codes(self, profession_name: str) -> list[str]:
         info = self.get_profession_info(profession_name)
         if not info:
+            logger.warning("profession_not_found_for_competency_codes", profession=profession_name)
             return []
         return info.get("competency_codes", [])
 
     def get_competency_skills(self, competency_code: str) -> list[str]:
         """Возвращает скиллы для КРМ-компетенции."""
         if not self._krm_mapping:
+            logger.warning("krm_mapping_not_loaded")
             return []
         return [s.lower().strip() for s in self._krm_mapping.get(competency_code, [])]
 
@@ -252,6 +256,7 @@ class ProfessionTaxonomy:
         Если domain_weights не заданы — равные веса."""
         coverages = self.compute_domain_coverage_for_profession(profession_name, user_skills)
         if not coverages:
+            logger.warning("no_coverages_for_profession", profession=profession_name)
             return 0.0, {}
         per_domain = {}
         total_weight = 0.0

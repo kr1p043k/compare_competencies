@@ -21,7 +21,8 @@ def write(pct: int, message: str, logs: list[str] | None = None):
                 with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
                     prev = json.load(f)
                     existing_logs = prev.get("logs", [])
-            except Exception:
+            except Exception as e:
+                logger.warning("progress_file_read_failed", error=str(e))
                 existing_logs = []
         ts = time.strftime("%H:%M:%S")
         entry = f"[{ts}] {message}"

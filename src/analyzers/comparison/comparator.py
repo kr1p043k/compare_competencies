@@ -131,6 +131,7 @@ class CompetencyComparator:
 
     def weighted_coverage(self, student_skills: list[str], weights: dict[str, float], use_hybrid: bool = True) -> float:
         if not student_skills or not weights:
+            logger.debug("weighted_coverage_empty_input", student_skills=len(student_skills), weights=len(weights))
             return 0.0
 
         if not self.use_embeddings or self.embedding_comparator is None:
@@ -141,6 +142,7 @@ class CompetencyComparator:
 
         student_embs = self.embedding_comparator.embed_skills(student_skills)
         if len(student_embs) == 0:
+            logger.debug("weighted_coverage_no_embeddings")
             return 0.0
 
         matched = 0.0

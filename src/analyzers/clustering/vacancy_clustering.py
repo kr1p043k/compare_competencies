@@ -77,6 +77,7 @@ class VacancyClusterer:
                     case Ok(n):
                         return n
                     case _:
+                        logger.warning("skill_normalization_failed_in_clustering", skill=s)
                         return None
             clean = [n for s in skills if (n := _norm(s))]
             cleaned_per_vacancy.append(clean)
@@ -340,6 +341,7 @@ class VacancyClusterer:
         self, student_skills_or_embedding: list[str] | np.ndarray, top_k: int = 3
     ) -> list[tuple[int, float]]:
         if not self.is_fitted or self.cluster_centers is None:
+            logger.warning("clusterer_not_fitted_for_find_closest")
             return []
 
         if isinstance(student_skills_or_embedding, np.ndarray):
@@ -371,6 +373,7 @@ class VacancyClusterer:
 
     def get_cluster_skills(self, cluster_id: int, vacancies: list[dict] | None = None) -> list[str]:
         if not self.is_fitted or self.labels_ is None:
+            logger.warning("clusterer_not_fitted_for_get_skills")
             return []
         skills_set = set()
         for i, label in enumerate(self.labels_):
@@ -463,6 +466,7 @@ class VacancyClusterer:
     def get_top_skills_in_cluster(self, cluster_id: int, top_n: int = 30) -> list[str]:
         """Возвращает топ-N навыков кластера по частоте."""
         if not self.is_fitted or self.labels_ is None:
+            logger.warning("clusterer_not_fitted_for_top_skills")
             return []
         from collections import Counter
 

@@ -32,7 +32,8 @@ class HybridWeightCalculator:
         try:
             skills = list(bm25_weights.keys())
             emb_dict = self.cache.get_embeddings(skills)
-        except Exception:
+        except Exception as e:
+            logger.warning("embedding_failed_fallback_to_bm25", error=str(e))
             return self._norm(bm25_weights)
 
         if len(emb_dict) < 10:
