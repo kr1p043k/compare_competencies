@@ -231,21 +231,25 @@ class TestLTRPredict:
         engine.is_fitted = True
         engine.model = MagicMock()
         engine.model.predict.return_value = np.array([0.5])
-        recs, shap, X = engine.predict_skill_impact_with_shap(["python"], ["docker"])
+        result = engine.predict_skill_impact_with_shap(["python"], ["docker"])
+        assert result.is_ok()
+        recs, shap, X = result.unwrap()
         assert len(recs) == 1
 
     def test_predict_not_fitted(self, engine_with_mocks):
         engine = engine_with_mocks
         engine.is_fitted = False
-        recs = engine.predict_skill_impact(["python"], ["docker"])
-        assert len(recs) > 0   # fallback
+        result = engine.predict_skill_impact(["python"], ["docker"])
+        assert result.is_err()
 
     def test_predict_fitted(self, engine_with_mocks):
         engine = engine_with_mocks
         engine.is_fitted = True
         engine.model = MagicMock()
         engine.model.predict.return_value = np.array([0.5])
-        recs = engine.predict_skill_impact(["python"], ["docker"])
+        result = engine.predict_skill_impact(["python"], ["docker"])
+        assert result.is_ok()
+        recs = result.unwrap()
         assert recs[0][0] == "docker"
 
     def test_predict_with_shap(self, engine_with_mocks):
@@ -255,7 +259,9 @@ class TestLTRPredict:
         engine.model.predict.return_value = np.array([0.5])
         with patch("src.predictors.ltr_recommendation_engine.shap.TreeExplainer") as mock_explainer:
             mock_explainer.return_value.shap_values.return_value = np.array([[0.1, 0.2]])
-            recs, shap_vals, X = engine.predict_skill_impact_with_shap(["python"], ["docker"])
+            result = engine.predict_skill_impact_with_shap(["python"], ["docker"])
+        assert result.is_ok()
+        recs, shap_vals, X = result.unwrap()
         assert len(recs) == 1
         assert shap_vals is not None
 
@@ -266,7 +272,9 @@ class TestLTRPredict:
         engine.model.predict.return_value = np.array([0.5])
         with patch("src.predictors.ltr_recommendation_engine.shap.TreeExplainer",
                    side_effect=Exception("shap fail")):
-            recs, shap_vals, X = engine.predict_skill_impact_with_shap(["python"], ["docker"])
+            result = engine.predict_skill_impact_with_shap(["python"], ["docker"])
+        assert result.is_ok()
+        recs, shap_vals, X = result.unwrap()
         assert shap_vals is None
 
     def test_predict_student_emb_none(self, engine_with_mocks):
@@ -274,14 +282,17 @@ class TestLTRPredict:
         engine.is_fitted = True
         engine.skill_embeddings = {}
         engine.model = MagicMock()
-        recs = engine.predict_skill_impact(["python"], ["docker"])
-        assert len(recs) == 1
+        result = engine.predict_skill_impact(["python"], ["docker"])
+        assert result.is_err()
+        assert "No embeddings" in result.err().message
 
     def test_predict_empty_missing(self, engine_with_mocks):
         engine = engine_with_mocks
         engine.is_fitted = True
         engine.model = MagicMock()
-        recs, shap_vals, X = engine.predict_skill_impact_with_shap(["python"], [])
+        result = engine.predict_skill_impact_with_shap(["python"], [])
+        assert result.is_ok()
+        recs, shap_vals, X = result.unwrap()
         assert recs == []
 
     def test_fallback_impacts(self, engine_with_mocks):
@@ -294,7 +305,9 @@ class TestLTRPredict:
         engine = engine_with_mocks
         engine.is_fitted = True
         engine.model = MagicMock()
-        recs, shap_vals, X = engine.predict_skill_impact_with_shap(["python"], ["nonexistent"])
+        result = engine.predict_skill_impact_with_shap(["python"], ["nonexistent"])
+        assert result.is_ok()
+        recs, shap_vals, X = result.unwrap()
         assert recs == []
 
     # extra: студент с пустыми навыками
@@ -303,7 +316,9 @@ class TestLTRPredict:
         engine.is_fitted = True
         engine.model = MagicMock()
         engine.model.predict.return_value = np.array([0.5])
-        recs = engine.predict_skill_impact([], ["docker"])
+        result = engine.predict_skill_impact([], ["docker"])
+        assert result.is_ok()
+        recs = result.unwrap()
         assert len(recs) == 1
 
     def test_predict_single_missing_skill(self, engine_with_mocks):
@@ -311,7 +326,9 @@ class TestLTRPredict:
         engine.is_fitted = True
         engine.model = MagicMock()
         engine.model.predict.return_value = np.array([0.5])
-        recs, shap, X = engine.predict_skill_impact_with_shap(["python"], ["docker"])
+        result = engine.predict_skill_impact_with_shap(["python"], ["docker"])
+        assert result.is_ok()
+        recs, shap, X = result.unwrap()
         # один навык → scores = raw_scores (без softmax)
         assert len(recs) == 1
 
@@ -319,7 +336,9 @@ class TestLTRPredict:
         engine = engine_with_mocks
         engine.is_fitted = True
         engine.model = MagicMock()
-        recs, shap_vals, X = engine.predict_skill_impact_with_shap(["python"], [])
+        result = engine.predict_skill_impact_with_shap(["python"], [])
+        assert result.is_ok()
+        recs, shap_vals, X = result.unwrap()
         assert recs == []
         assert shap_vals is None
         assert X is None
@@ -329,7 +348,9 @@ class TestLTRPredict:
         engine.is_fitted = True
         engine.model = MagicMock()
         engine.model.predict.return_value = np.array([0.5])
-        recs, shap_vals, X = engine.predict_skill_impact_with_shap(["python"], ["docker"])
+        result = engine.predict_skill_impact_with_shap(["python"], ["docker"])
+        assert result.is_ok()
+        recs, shap_vals, X = result.unwrap()
         # один навык -> scores = raw_scores (без softmax)
         assert len(recs) == 1
 

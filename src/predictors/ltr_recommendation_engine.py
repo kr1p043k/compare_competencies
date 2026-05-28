@@ -313,31 +313,37 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
 
     def predict_impact(
         self, student_skills: list[str], missing_skills: list[str]
-    ) -> list[SkillImpact]:
-        impacts = self.predict_skill_impact(student_skills, missing_skills)
-        return [
-            SkillImpact(skill=s, score=sc, explanation=ex)
-            for s, sc, ex in impacts
-        ]
+    ) -> Result[list[SkillImpact], ModelError]:
+        match self.predict_skill_impact(student_skills, missing_skills):
+            case Ok(impacts):
+                return Ok([
+                    SkillImpact(skill=s, score=sc, explanation=ex)
+                    for s, sc, ex in impacts
+                ])
+            case Err(e):
+                return Err(e)
 
     def predict_skill_impact(
         self, student_skills: list[str], missing_skills: list[str]
-    ) -> list[tuple[str, float, str]]:
-        recs, _, _ = self.predict_skill_impact_with_shap(student_skills, missing_skills, compute_shap=False)
-        return recs
+    ) -> Result[list[tuple[str, float, str]], ModelError]:
+        match self.predict_skill_impact_with_shap(student_skills, missing_skills, compute_shap=False):
+            case Ok((recs, _, _)):
+                return Ok(recs)
+            case Err(e):
+                return Err(e)
 
     def predict_skill_impact_with_shap(
         self, student_skills: list[str], missing_skills: list[str], compute_shap: bool = True
-    ) -> tuple[list[tuple[str, float, str]], np.ndarray | None, pd.DataFrame | None]:
+    ) -> Result[tuple[list[tuple[str, float, str]], np.ndarray | None, pd.DataFrame | None], ModelError]:
         if not self.is_fitted or self.model is None:
-            logger.warning("model_not_trained_returning_fallback")
-            return self._fallback_impacts(missing_skills), None, None
+            logger.warning("model_not_trained")
+            return Err(ModelError(model_name="ltr_ranker", message="Model not fitted"))
 
         student_emb = self._get_student_embedding(student_skills)
         if student_emb is None:
             student_emb = np.mean(list(self.skill_embeddings.values()), axis=0) if self.skill_embeddings else None
         if student_emb is None:
-            return self._fallback_impacts(missing_skills), None, None
+            return Err(ModelError(model_name="ltr_ranker", message="No embeddings available for prediction"))
 
         X_rows = []
         valid_missing = []
@@ -349,7 +355,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             valid_missing.append(skill)
 
         if not X_rows:
-            return [], None, None
+            return Ok(([], None, None))
 
         X = pd.DataFrame(X_rows)[self.feature_names]
         raw_scores = self.model.predict(X)
@@ -375,7 +381,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             explanation = self._generate_explanation(skill, score, shap_values, i, X) if shap_values is not None else ""
             impacts.append((skill, round(score * 100, 2), explanation))
 
-        return sorted(impacts, key=lambda x: x[1], reverse=True)[:15], shap_values, X
+        return Ok((sorted(impacts, key=lambda x: x[1], reverse=True)[:15], shap_values, X))
 
     # ------------------------------------------------------------------
     # ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ

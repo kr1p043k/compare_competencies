@@ -195,19 +195,19 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             if self.ltr_engine and self.ltr_engine.is_fitted:
                 all_market = list(self.ltr_engine.skill_metadata.keys())
                 missing_for_ltr = [s for s in all_market if s not in student_set]
-                try:
-                    ltr_impacts = self.ltr_engine.predict_impact(student.skills, missing_for_ltr)
-                    if ltr_impacts:
-                        skills = [im.skill for im in ltr_impacts]
-                        raw_scores = [im.score for im in ltr_impacts]
-                        scaler = MinMaxScaler()
-                        normalized_scores = scaler.fit_transform(np.array(raw_scores).reshape(-1, 1)).flatten()
-                        ltr_scores = {
-                            skill.lower(): float(score) for skill, score in zip(skills, normalized_scores, strict=False)
-                        }
-                    logger.info("ltr_scores_normalized", profile=profile_name, ltr_skills=len(ltr_scores))
-                except Exception as e:
-                    logger.warning("ltr_scoring_failed", error=str(e))
+                match self.ltr_engine.predict_impact(student.skills, missing_for_ltr):
+                    case Ok(ltr_impacts):
+                        if ltr_impacts:
+                            skills = [im.skill for im in ltr_impacts]
+                            raw_scores = [im.score for im in ltr_impacts]
+                            scaler = MinMaxScaler()
+                            normalized_scores = scaler.fit_transform(np.array(raw_scores).reshape(-1, 1)).flatten()
+                            ltr_scores = {
+                                skill.lower(): float(score) for skill, score in zip(skills, normalized_scores, strict=False)
+                            }
+                        logger.info("ltr_scores_normalized", profile=profile_name, ltr_skills=len(ltr_scores))
+                    case Err(e):
+                        logger.warning("ltr_scoring_failed", error=str(e))
             else:
                 logger.info("ltr_not_used_generating_without_ml", profile=profile_name)
 

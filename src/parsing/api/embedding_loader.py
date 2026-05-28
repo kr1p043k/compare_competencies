@@ -1,5 +1,4 @@
 import structlog
-import torch
 from sentence_transformers import SentenceTransformer
 
 from src import config
@@ -13,14 +12,15 @@ def get_embedding_model(model_name: str = None):
     global _embedding_model
     if _embedding_model is None:
         model_name = model_name or config.EMBEDDING_MODEL
-        torch.set_num_threads(1)
         logger.info("loading_embedding_model", model=model_name)
-        token = config.HF_TOKEN.get_secret_value() if config.HF_TOKEN else None
+        kwargs = {}
+        if config.HF_TOKEN:
+            kwargs["token"] = config.HF_TOKEN.get_secret_value()
         _embedding_model = SentenceTransformer(
             model_name,
-            use_auth_token=token,
             device="cpu",
             model_kwargs={"low_cpu_mem_usage": True},
+            **kwargs,
         )
         _embedding_model.eval()
         logger.info("embedding_model_loaded")

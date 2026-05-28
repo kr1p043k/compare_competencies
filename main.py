@@ -71,7 +71,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
     parser.add_argument("--query", "-q", type=str, default="1с разработчик")
     parser.add_argument("--area-id", "-a", type=int, default=1)
-    parser.add_argument("--max-pages", "-p", type=int, default=10)
+    parser.add_argument("--max-pages", "-p", type=int, default=1)
     parser.add_argument("--period", "-d", type=int, default=30)
     parser.add_argument("--show-vacancies", "-v", action="store_true")
     parser.add_argument("--skip-details", "-s", action="store_true")
@@ -180,8 +180,12 @@ def build_profiles(all_codes: dict, competency_mapping: dict) -> dict:
             student_codes = all_codes[profile_name]
             student_skills = map_codes_to_skills(student_codes)
 
-        student_skills = [SkillNormalizer.normalize(s) for s in student_skills if SkillNormalizer.normalize(s)]
-        student_skills = list(dict.fromkeys(student_skills))
+        normalized = []
+        for s in student_skills:
+            match SkillNormalizer.normalize(s):
+                case Ok(norm):
+                    normalized.append(norm)
+        student_skills = list(dict.fromkeys(normalized))
         profiles[profile_name] = StudentProfile(
             profile_name=profile_name,
             competencies=student_codes,
