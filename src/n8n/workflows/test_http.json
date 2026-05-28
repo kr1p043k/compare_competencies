@@ -1,0 +1,36 @@
+{
+"name": "Test HTTP",
+"nodes": [
+{
+"id": "t1-t1-t1-t1-t1",
+"name": "Manual",
+"type": "n8n-nodes-base.manualTrigger",
+"typeVersion": 1,
+"position": [250, 300],
+"parameters": {}
+},
+{
+"id": "t2-t2-t2-t2-t2",
+"name": "HTTP Request",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [450, 300],
+"parameters": {
+"method": "GET",
+"url": "=https://prospective-worth-carriers-founded.trycloudflare.com/"
+}
+}
+],
+"connections": {
+"Manual": {
+"main": [[{"node": "HTTP Request", "type": "main"}]]
+}
+},
+"pinData": {},
+"versionId": "tttt-tttt-tttt-tttt",
+"triggerCount": 0,
+"active": false,
+"settings": {},
+"tags": [],
+"staticData": null
+}

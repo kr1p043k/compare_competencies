@@ -1,0 +1,50 @@
+{
+"name": "Test Telegram",
+"nodes": [
+{
+"id": "t1-t1-t1-t1-t1",
+"name": "Manual",
+"type": "n8n-nodes-base.manualTrigger",
+"typeVersion": 1,
+"position": [250, 300],
+"parameters": {}
+},
+{
+"id": "t2-t2-t2-t2-t2",
+"name": "Set",
+"type": "n8n-nodes-base.set",
+"typeVersion": 2,
+"position": [450, 300],
+"parameters": {
+"mode": "raw",
+"jsonOutput": "={\"msg\": \"test\"}"
+}
+},
+{
+"id": "t3-t3-t3-t3-t3",
+"name": "Telegram",
+"type": "n8n-nodes-base.telegram",
+"typeVersion": 1,
+"position": [650, 300],
+"parameters": {
+"chatId": "=821508283",
+"text": "=test"
+}
+}
+],
+"connections": {
+"Manual": {
+"main": [[{"node": "Set", "type": "main"}]]
+},
+"Set": {
+"main": [[{"node": "Telegram", "type": "main"}]]
+}
+},
+"pinData": {},
+"versionId": "tttt-tttt-tttt-tttt",
+"triggerCount": 0,
+"active": false,
+"settings": {},
+"tags": [],
+"staticData": null
+}
