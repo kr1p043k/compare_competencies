@@ -1,7 +1,9 @@
 """Admin: whitelist management, student profiles, pipeline, Excel export."""
 
+import io
 import json
 import shutil
+import zipfile
 from datetime import datetime
 from typing import Any
 
@@ -285,4 +287,28 @@ async def export_excel(request: Request):
         str(excel_path),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename="vacancies_export.xlsx",
+    )
+
+
+@router.get("/api/admin/export/full-report")
+@limiter.limit("2/minute")
+async def export_full_report(request: Request):
+    from fastapi.responses import StreamingResponse
+
+    result_dir = config.DATA_RESULT_DIR
+    if not result_dir.exists() or not any(result_dir.rglob("*")):
+        raise HTTPException(status_code=404, detail="No report data found")
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fpath in sorted(result_dir.rglob("*")):
+            if fpath.is_file() and fpath.suffix in {".json", ".png", ".xlsx"}:
+                arcname = str(fpath.relative_to(result_dir.parent))
+                zf.write(str(fpath), arcname)
+    zip_buffer.seek(0)
+
+    return StreamingResponse(
+        iter([zip_buffer.getvalue()]),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="full_report.zip"'},
     )
