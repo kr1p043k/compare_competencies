@@ -18,6 +18,9 @@ import structlog
 from rapidfuzz import fuzz
 from rank_bm25 import BM25Okapi
 
+from src import Result, Ok, Err
+from src.errors import DomainError
+
 logger = structlog.get_logger(__name__)
 
 
@@ -91,14 +94,14 @@ class EnsembleEngine:
         self,
         student_skills: list[str],
         market_skills: list[str],
-    ) -> ComparisonResult:
+    ) -> Result[dict, DomainError]:
         results: dict[str, ComparisonResult] = {}
         for name, (engine, _weight) in self.engines.items():
             results[name] = engine.compare(student_skills, market_skills)
 
         total_weight = sum(w for _, w in self.engines.values())
         if total_weight <= 0:
-            return dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[])
+            return Ok(dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[]))
 
         combined_score = sum(
             results[name].get("score", 0.0) * w
@@ -121,14 +124,14 @@ class EnsembleEngine:
         avg_sim = float(np.mean([m["similarity"] for m in sorted_matches])) if sorted_matches else 0.0
         engine_details = {name: dict(res) for name, res in results.items()}
 
-        return dict(
+        return Ok(dict(
             score=round(combined_score, 4),
             weighted_coverage=round(combined_score, 4),
             avg_similarity=round(avg_sim, 4),
             matches=sorted_matches,
             missing=[],
             details=engine_details,
-        )
+        ))
 
 
 class BM25Engine:

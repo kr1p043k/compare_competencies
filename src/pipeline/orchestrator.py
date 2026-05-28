@@ -96,6 +96,8 @@ class PipelineOrchestrator:
                     )
 
             if run.stages and run.stages[-1].status != "ok":
+                for s in reversed(self.stages[: idx + 1]):
+                    s.rollback()
                 run.status = "failed"
                 write_progress(pct_base, f"✗ {stage_name}: {last_error}")
                 logger.error("pipeline_failed", stage=stage_name, error=last_error)

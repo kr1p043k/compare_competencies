@@ -3,8 +3,10 @@ import structlog
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from src import Result, Ok, Err
 from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
 from src.analyzers.comparison.engines import BM25Engine, JaccardEngine
+from src.errors import DomainError
 
 logger = structlog.get_logger(__name__)
 
@@ -47,10 +49,10 @@ class CompetencyComparator:
         if self.embedding_comparator:
             logger.info("skill_weights_forwarded_to_embedding_comparator")
 
-    def fit_market(self, vacancies_skills: list[list[str]]) -> bool:
+    def fit_market(self, vacancies_skills: list[list[str]]) -> Result[bool, DomainError]:
         if not vacancies_skills:
             logger.warning("no_data_for_fit_market")
-            return False
+            return Ok(False)
 
         if self.use_embeddings and self.embedding_comparator:
             all_skills = [skill for vac in vacancies_skills for skill in vac]
@@ -65,18 +67,18 @@ class CompetencyComparator:
 
         self.fitted = True
         self._vacancies_skills = vacancies_skills
-        return True
+        return Ok(True)
 
-    def compare(self, student_skills: list[str]) -> tuple[float, float]:
+    def compare(self, student_skills: list[str]) -> Result[tuple[float, float], DomainError]:
         if not self.fitted:
-            raise ValueError("Сначала вызови fit_market()")
+            return Err(DomainError(message="Сначала вызови fit_market()"))
 
         if self.skill_weights is not None and len(self.skill_weights) > 0:
             score = self.weighted_coverage(student_skills, self.skill_weights)
             student_norm = [s.lower().strip() for s in student_skills]
             matched = sum(1 for s in student_norm if self.skill_weights.get(s, 0) > 0)
             confidence = matched / max(1, len(student_skills))
-            return round(score, 4), round(confidence, 4)
+            return Ok((round(score, 4), round(confidence, 4)))
 
         if self.use_embeddings and self.embedding_comparator:
             result = self.embedding_comparator.compare_student_to_market_ensemble(
@@ -93,11 +95,11 @@ class CompetencyComparator:
                 if student_skills
                 else 0.0
             )
-            return round(score, 4), round(confidence, 4)
+            return Ok((round(score, 4), round(confidence, 4)))
 
         else:
             if not student_skills:
-                return 0.0, 0.0
+                return Ok((0.0, 0.0))
 
             student_text = " ".join(student_skills)
             student_vec = self.tfidf.transform([student_text])
@@ -110,7 +112,7 @@ class CompetencyComparator:
             score = float(np.mean(similarities)) if len(similarities) > 0 else 0.0
             confidence = float(np.max(similarities)) if len(similarities) > 0 else 0.0
 
-            return round(score, 4), round(confidence, 4)
+            return Ok((round(score, 4), round(confidence, 4)))
 
     def get_skill_weights(self) -> dict[str, float]:
         if self.use_embeddings:
@@ -120,12 +122,12 @@ class CompetencyComparator:
             logger.warning("get_skill_weights_not_implemented", mode="tfidf")
             return {}
 
-    def get_stats(self) -> dict:
-        return {
+    def get_stats(self) -> Result[dict, DomainError]:
+        return Ok({
             "status": "ready" if self.fitted else "not_fitted",
             "mode": "embeddings" if self.use_embeddings else "tfidf",
             "level": self.level,
-        }
+        })
 
     def weighted_coverage(self, student_skills: list[str], weights: dict[str, float], use_hybrid: bool = True) -> float:
         if not student_skills or not weights:

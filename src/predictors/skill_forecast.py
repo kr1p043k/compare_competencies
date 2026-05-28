@@ -65,7 +65,7 @@ class SkillForecastEngine(BasePredictor):
     def is_fitted(self) -> bool:
         return self._is_fitted
 
-    def fit(self, skill_frequencies: dict[str, float] | None = None, **kwargs) -> Result:
+    def fit(self, skill_frequencies: dict[str, float] | None = None, **kwargs) -> Result["SkillForecastEngine", Exception]:
         freqs = skill_frequencies or {}
         self._population = {}
         for skill, freq in freqs.items():

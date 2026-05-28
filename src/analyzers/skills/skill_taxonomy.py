@@ -8,7 +8,8 @@ from typing import Optional
 
 import structlog
 
-from src import config
+from src import Result, Ok, Err, config
+from src.errors import DomainError
 
 logger = structlog.get_logger(__name__)
 
@@ -93,17 +94,19 @@ class SkillTaxonomy:
         """
         return self._category_info.get(category_id, {}).get("icon", "")
 
-    def get_skills_in_category(self, category_id: str) -> list[str]:
+    def get_skills_in_category(self, category_id: str) -> Result[list[str], DomainError]:
         """
         Возвращает все навыки указанной категории.
         """
-        return self._taxonomy.get("categories", {}).get(category_id, {}).get("skills", [])
+        if self._taxonomy is None:
+            return Err(DomainError("Taxonomy not loaded"))
+        return Ok(self._taxonomy.get("categories", {}).get(category_id, {}).get("skills", []))
 
-    def get_all_categories(self) -> list[str]:
+    def get_all_categories(self) -> Result[list[str], DomainError]:
         """Возвращает список всех ID категорий."""
-        return list(self._category_info.keys())
+        return Ok(list(self._category_info.keys()))
 
-    def get_category_stats(self, skills: list[str]) -> dict[str, int]:
+    def get_category_stats(self, skills: list[str]) -> Result[dict[str, int], DomainError]:
         """
         Подсчитывает количество навыков по категориям.
         Возвращает {category_id: count}.
@@ -112,7 +115,7 @@ class SkillTaxonomy:
         for skill in skills:
             cat = self.get_category(skill)
             stats[cat] = stats.get(cat, 0) + 1
-        return dict(sorted(stats.items(), key=lambda x: x[1], reverse=True))
+        return Ok(dict(sorted(stats.items(), key=lambda x: x[1], reverse=True)))
 
     def get_dominant_category(self, skills: list[str]) -> str:
         """

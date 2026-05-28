@@ -15,7 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import structlog
 
-from src import config
+from src import Result, Ok, Err, config
+from src.errors import DomainError
 from src.models.enums import TrendType
 from src.utils import validate_safe_path
 
@@ -33,30 +34,36 @@ class TrendAnalyzer:
     # ------------------------------------------------------------------
     # Работа со снимками
     # ------------------------------------------------------------------
-    def save_snapshot(self, frequencies: dict[str, float], label: str = None, apply_whitelist: bool = True) -> Path:
+    def save_snapshot(self, frequencies: dict[str, float], label: str = None, apply_whitelist: bool = True) -> Result[Path, DomainError]:
         """Сохраняет текущий снимок и возвращает путь к файлу."""
-        if apply_whitelist:
-            from src.parsing.skills.skill_validator import SkillValidator
+        try:
+            if apply_whitelist:
+                from src.parsing.skills.skill_validator import SkillValidator
 
-            validator = SkillValidator()
-            filtered = {skill: freq for skill, freq in frequencies.items() if validator.validate(skill).is_valid}
-            frequencies = filtered
-            logger.info("snapshot_filtered", skills_count=len(frequencies))
+                validator = SkillValidator()
+                filtered = {skill: freq for skill, freq in frequencies.items() if validator.validate(skill).is_valid}
+                frequencies = filtered
+                logger.info("snapshot_filtered", skills_count=len(frequencies))
 
-        timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-        filename = f"freq_{label or timestamp}.json"
-        path = self.history_dir / filename
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(frequencies, f, ensure_ascii=False, indent=2)
-        logger.info("snapshot_saved", path=str(path))
-        return path
+            timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+            filename = f"freq_{label or timestamp}.json"
+            path = self.history_dir / filename
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(frequencies, f, ensure_ascii=False, indent=2)
+            logger.info("snapshot_saved", path=str(path))
+            return Ok(path)
+        except Exception as e:
+            return Err(DomainError(f"Failed to save snapshot: {e}"))
 
-    def load_all_snapshots(self) -> list[tuple[datetime, Path, dict[str, float]]]:
+    def load_all_snapshots(self) -> Result[list[tuple[datetime, Path, dict[str, float]]], DomainError]:
         """
         Загружает все снимки из history_dir.
         Возвращает список (datetime, путь, данные), отсортированный по дате.
         """
-        files = sorted(self.history_dir.glob("freq_*.json"))
+        try:
+            files = sorted(self.history_dir.glob("freq_*.json"))
+        except Exception as e:
+            return Err(DomainError(f"Failed to list snapshot files: {e}"))
         snapshots = []
         for fpath in files:
             try:
@@ -68,7 +75,7 @@ class TrendAnalyzer:
                 logger.warning("snapshot_load_failed", filename=fpath.name, error=str(e))
 
         snapshots.sort(key=lambda x: x[0])
-        return snapshots
+        return Ok(snapshots)
 
     @staticmethod
     def _extract_date(filepath: Path) -> datetime:
@@ -85,24 +92,30 @@ class TrendAnalyzer:
         return datetime.fromtimestamp(filepath.stat().st_mtime)
 
     @staticmethod
-    def load_file(filepath: Path) -> dict[str, float]:
+    def load_file(filepath: Path) -> Result[dict[str, float], DomainError]:
         """Загружает один файл снимка."""
-        with open(filepath, encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(filepath, encoding="utf-8") as f:
+                return Ok(json.load(f))
+        except Exception as e:
+            return Err(DomainError(f"Failed to load snapshot file {filepath}: {e}"))
 
     # ------------------------------------------------------------------
     # Выбор снимков по параметру --history
     # ------------------------------------------------------------------
-    def get_snapshots_for_analysis(self, n: int = None) -> list[tuple[datetime, Path, dict[str, float]]]:
+    def get_snapshots_for_analysis(self, n: int = None) -> Result[list[tuple[datetime, Path, dict[str, float]]], DomainError]:
         """
         Возвращает список снимков для анализа:
         - Если n=None — все доступные снимки
         - Если n указано — последние n снимков
         """
-        all_snapshots = self.load_all_snapshots()
+        result = self.load_all_snapshots()
+        if result.is_err():
+            return Err(result.err())
+        all_snapshots = result.ok()
         if n is None or n >= len(all_snapshots):
-            return all_snapshots
-        return all_snapshots[-n:]
+            return Ok(all_snapshots)
+        return Ok(all_snapshots[-n:])
 
     # ------------------------------------------------------------------
     # Анализ трендов
@@ -113,7 +126,7 @@ class TrendAnalyzer:
         min_change_percent: float = 5.0,
         previous_snapshot: dict = None,
         prev_label: str = "предыдущий",
-    ) -> dict[str, list[dict]]:
+    ) -> Result[dict[str, list[dict]], DomainError]:
         """
         Сравнивает текущий снимок с предыдущим (переданным или историческим).
         """
@@ -121,10 +134,13 @@ class TrendAnalyzer:
         if previous_snapshot is not None:
             prev_data = previous_snapshot
         else:
-            snapshots = self.load_all_snapshots()
+            snapshots_result = self.load_all_snapshots()
+            if snapshots_result.is_err():
+                return Err(snapshots_result.err())
+            snapshots = snapshots_result.ok()
             if len(snapshots) < 2:
                 logger.warning("not_enough_snapshots_for_trends")
-                return {"rising": [], "falling": []}
+                return Ok({TrendType.RISING: [], TrendType.FALLING: []})
             prev_dt, _, prev_data = snapshots[-2]
             prev_label = prev_dt.strftime("%Y-%m-%d")
 
@@ -151,9 +167,9 @@ class TrendAnalyzer:
 
         rising.sort(key=lambda x: x["change_pct"], reverse=True)
         falling.sort(key=lambda x: x["change_pct"])
-        return {TrendType.RISING: rising[:top_n], TrendType.FALLING: falling[:top_n]}
+        return Ok({TrendType.RISING: rising[:top_n], TrendType.FALLING: falling[:top_n]})
 
-    def get_emerging_skills(self, min_weight: float = 0.01, top_n: int = 20) -> list[dict]:
+    def get_emerging_skills(self, min_weight: float = 0.01, top_n: int = 20) -> Result[list[dict], DomainError]:
         max_weight = max(self.current.values()) if self.current else 1.0
         emerging = []
         for skill, weight in self.current.items():
@@ -171,11 +187,11 @@ class TrendAnalyzer:
                     {"skill": skill, "weight": weight, "normalized": round(norm_weight, 4), "potential": potential}
                 )
         emerging.sort(key=lambda x: x["weight"], reverse=True)
-        return emerging[:top_n]
+        return Ok(emerging[:top_n])
 
-    def get_stable_skills(self, top_n: int = 20) -> list[dict]:
+    def get_stable_skills(self, top_n: int = 20) -> Result[list[dict], DomainError]:
         if not self.current:
-            return []
+            return Ok([])
         avg = sum(self.current.values()) / max(len(self.current), 1)
         stable = []
         for skill, weight in self.current.items():
@@ -183,20 +199,20 @@ class TrendAnalyzer:
                 stability = "CRITICAL" if weight >= avg * 2 else "STABLE"
                 stable.append({"skill": skill, "weight": weight, "stability": stability})
         stable.sort(key=lambda x: x["weight"], reverse=True)
-        return stable[:top_n]
+        return Ok(stable[:top_n])
 
     # ------------------------------------------------------------------
     # Временные ряды
     # ------------------------------------------------------------------
     def get_skill_timeline(
         self, skills: list[str], snapshots: list[tuple[datetime, Path, dict]]
-    ) -> dict[str, list[tuple[datetime, float]]]:
+    ) -> Result[dict[str, list[tuple[datetime, float]]], DomainError]:
         """Строит временной ряд для каждого навыка по переданным снимкам."""
         timeline = {skill: [] for skill in skills}
         for dt, _, data in snapshots:
             for skill in skills:
                 timeline[skill].append((dt, data.get(skill, 0)))
-        return timeline
+        return Ok(timeline)
 
     # ------------------------------------------------------------------
     # Графики
@@ -207,13 +223,16 @@ class TrendAnalyzer:
         snapshots: list[tuple[datetime, Path, dict]],
         save_path: Path | None = None,
         title: str = "Динамика спроса на навыки",
-    ):
+    ) -> Result[plt.Figure | None, DomainError]:
         """Линейный график изменения частот навыков по всем выбранным снимкам."""
         if not snapshots or len(snapshots) < 2:
             logger.warning("not_enough_snapshots_for_plot")
-            return None
+            return Ok(None)
 
-        timeline = self.get_skill_timeline(skills, snapshots)
+        timeline_result = self.get_skill_timeline(skills, snapshots)
+        if timeline_result.is_err():
+            return Err(timeline_result.err())
+        timeline = timeline_result.ok()
 
         fig, ax = plt.subplots(figsize=(18, 10))
 
@@ -240,16 +259,19 @@ class TrendAnalyzer:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
             logger.info("timeline_plot_saved", path=str(save_path))
         plt.close(fig)
-        return fig
+        return Ok(fig)
 
-    def plot_trending(self, top_n: int = 15, save_path: Path | None = None, previous_snapshot: dict = None):
+    def plot_trending(self, top_n: int = 15, save_path: Path | None = None, previous_snapshot: dict = None) -> Result[plt.Figure | None, DomainError]:
         """Горизонтальный бар-чарт растущих и падающих навыков."""
-        trends = self.get_trending_skills(top_n=top_n, min_change_percent=3.0, previous_snapshot=previous_snapshot)
+        trends_result = self.get_trending_skills(top_n=top_n, min_change_percent=3.0, previous_snapshot=previous_snapshot)
+        if trends_result.is_err():
+            return Err(trends_result.err())
+        trends = trends_result.ok()
         rising = trends[TrendType.RISING][:top_n]
         falling = trends[TrendType.FALLING][:top_n]
         if not rising and not falling:
             logger.info("no_significant_trends", threshold=3.0)
-            return None
+            return Ok(None)
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, max(8, (len(rising) + len(falling)) * 0.4)))
 
@@ -299,17 +321,20 @@ class TrendAnalyzer:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
             logger.info("trending_plot_saved", path=str(save_path))
         plt.close(fig)
-        return fig
+        return Ok(fig)
 
-    def save_trends(self, trends: dict, tag: str = "latest") -> Path:
+    def save_trends(self, trends: dict, tag: str = "latest") -> Result[Path, DomainError]:
         """Сохраняет результат анализа трендов в data/result/trends/trends_<tag>.json."""
         output_dir = config.DATA_RESULT_DIR / "trends"
         output_dir.mkdir(parents=True, exist_ok=True)
         path = output_dir / f"trends_{tag}.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(trends, f, ensure_ascii=False, indent=2)
-        logger.info("trends_saved", path=str(path))
-        return path
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(trends, f, ensure_ascii=False, indent=2)
+            logger.info("trends_saved", path=str(path))
+            return Ok(path)
+        except Exception as e:
+            return Err(DomainError(f"Failed to save trends to {path}: {e}"))
 
 
 # ============================== CLI ==============================
@@ -335,14 +360,22 @@ if __name__ == "__main__":
 
     # === Загрузка текущего снимка ===
     if args.current:
-        current_freq = TrendAnalyzer.load_file(args.current)
+        current_freq_result = TrendAnalyzer.load_file(args.current)
+        if current_freq_result.is_err():
+            logger.error("failed_to_load_current_snapshot", error=str(current_freq_result.err()))
+            sys.exit(1)
+        current_freq = current_freq_result.ok()
         logger.info("current_snapshot_loaded", path=str(args.current))
     else:
         freq_path = config.DATA_PROCESSED_DIR / "competency_frequency.json"
         if not freq_path.exists():
             logger.error("frequency_file_not_found", path=str(freq_path))
             sys.exit(1)
-        current_freq = TrendAnalyzer.load_file(freq_path)
+        current_freq_result = TrendAnalyzer.load_file(freq_path)
+        if current_freq_result.is_err():
+            logger.error("failed_to_load_frequency_file", error=str(current_freq_result.err()))
+            sys.exit(1)
+        current_freq = current_freq_result.ok()
 
     analyzer = TrendAnalyzer(current_freq)
 
@@ -351,18 +384,25 @@ if __name__ == "__main__":
         analyzer.save_snapshot(current_freq)
 
     # === Выбор снимков для анализа ===
-    snapshots = analyzer.get_snapshots_for_analysis(args.history)
-    logger.info(
-        "snapshots_for_analysis",
-        selected=len(snapshots),
-        available=len(analyzer.load_all_snapshots()),
-    )
+    snapshots_result = analyzer.get_snapshots_for_analysis(args.history)
+    if snapshots_result.is_err():
+        logger.error("failed_to_get_snapshots", error=str(snapshots_result.err()))
+        sys.exit(1)
+    snapshots = snapshots_result.ok()
+
+    available_result = analyzer.load_all_snapshots()
+    available_count = len(available_result.ok()) if available_result.is_ok() else 0
+    logger.info("snapshots_for_analysis", selected=len(snapshots), available=available_count)
 
     # === Предыдущий снимок ===
     previous_snapshot = None
     if args.previous:
         previous_path = validate_safe_path(args.previous)
-        previous_snapshot = TrendAnalyzer.load_file(previous_path)
+        prev_result = TrendAnalyzer.load_file(previous_path)
+        if prev_result.is_err():
+            logger.error("failed_to_load_previous_snapshot", error=str(prev_result.err()))
+            sys.exit(1)
+        previous_snapshot = prev_result.ok()
         logger.info("previous_snapshot_loaded", path=str(args.previous))
     elif len(snapshots) >= 2:
         # Берём предпоследний из выбранных (или самый последний исторический)
@@ -376,9 +416,13 @@ if __name__ == "__main__":
     print("=" * 70)
 
     # Тренды
-    trends = analyzer.get_trending_skills(
+    trends_result = analyzer.get_trending_skills(
         top_n=args.top, min_change_percent=args.min_change, previous_snapshot=previous_snapshot
     )
+    if trends_result.is_err():
+        logger.error("failed_to_get_trends", error=str(trends_result.err()))
+        sys.exit(1)
+    trends = trends_result.ok()
     if trends[TrendType.RISING]:
         print("\n📈 РАСТУЩИЕ НАВЫКИ:")
         for t in trends[TrendType.RISING]:
@@ -400,14 +444,16 @@ if __name__ == "__main__":
         print(f"\n📉 ПАДАЮЩИЕ НАВЫКИ: нет (изменения меньше {args.min_change}%)")
 
     # Emerging
-    emerging = analyzer.get_emerging_skills(min_weight=0.03, top_n=args.top)
+    emerging_result = analyzer.get_emerging_skills(min_weight=0.03, top_n=args.top)
+    emerging = emerging_result.ok() if emerging_result.is_ok() else []
     if emerging:
         print("\n🌱 ПОТЕНЦИАЛЬНО РАСТУЩИЕ НАВЫКИ:")
         for e in emerging:
             print(f"  • {e['skill']:<35} вес: {e['weight']} (потенциал: {e['potential']})")
 
     # Stable
-    stable = analyzer.get_stable_skills(top_n=args.top)
+    stable_result = analyzer.get_stable_skills(top_n=args.top)
+    stable = stable_result.ok() if stable_result.is_ok() else []
     if stable:
         print("\n💪 СТАБИЛЬНЫЕ ВЫСОКОЧАСТОТНЫЕ НАВЫКИ:")
         for s in stable:
@@ -423,7 +469,7 @@ if __name__ == "__main__":
     )
 
     # Временные ряды для топ-N навыков по всем выбранным снимкам
-    if len(snapshots) >= 2:
+    if len(snapshots) >= 2 and stable:
         top_skills_list = [s["skill"] for s in stable[: min(args.top, 10)]]
         analyzer.plot_timeline(
             top_skills_list,

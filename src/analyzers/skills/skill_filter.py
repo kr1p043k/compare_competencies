@@ -6,6 +6,9 @@
 import numpy as np
 import structlog
 
+from src import Result, Ok, Err
+from src.errors import DomainError
+
 logger = structlog.get_logger(__name__)
 
 
@@ -43,7 +46,7 @@ class SkillFilter:
             return set()
         logger.info("skill_filter_initialized", reference_skills_count=len(self.reference_skills))
 
-    def filter_weights(self, skill_weights: dict[str, float], min_weight: float = 0.01) -> dict[str, float]:
+    def filter_weights(self, skill_weights: dict[str, float], min_weight: float = 0.01) -> Result[dict[str, float], DomainError]:
         """
         Агрессивно фильтрует веса навыков.
 
@@ -60,7 +63,7 @@ class SkillFilter:
             Отфильтрованный словарь весов
         """
         if not skill_weights:
-            return {}
+            return Ok({})
 
         filtered = {}
         removed_count = 0
@@ -111,9 +114,9 @@ class SkillFilter:
             remaining=len(filtered),
         )
 
-        return filtered
+        return Ok(filtered)
 
-    def normalize_weights(self, skill_weights: dict[str, float], method: str = "minmax") -> dict[str, float]:
+    def normalize_weights(self, skill_weights: dict[str, float], method: str = "minmax") -> Result[dict[str, float], DomainError]:
         """
         Нормализует веса с сохранением пропорций.
 
@@ -125,7 +128,7 @@ class SkillFilter:
             Нормализованные веса
         """
         if not skill_weights:
-            return {}
+            return Ok({})
 
         weights = list(skill_weights.values())
 
@@ -139,34 +142,34 @@ class SkillFilter:
                     # Нормализуем в диапазон [0.1, 1.0]
                     norm_val = 0.1 + 0.9 * (weight - min_w) / (max_w - min_w)
                     normalized[skill] = round(norm_val, 4)
-                return normalized
+                return Ok(normalized)
             else:
                 # Все веса одинаковые
-                return {skill: 1.0 for skill in skill_weights}
+                return Ok({skill: 1.0 for skill in skill_weights})
 
         elif method == "log":
             # Логарифмическая нормализация (для больших разбросов)
             log_weights = {skill: np.log1p(weight) for skill, weight in skill_weights.items()}
             max_log = max(log_weights.values())
             if max_log > 0:
-                return {skill: round(w / max_log, 4) for skill, w in log_weights.items()}
-            return skill_weights
+                return Ok({skill: round(w / max_log, 4) for skill, w in log_weights.items()})
+            return Ok(skill_weights)
 
         elif method == "softmax":
             # Softmax нормализация
             exp_weights = {skill: np.exp(weight) for skill, weight in skill_weights.items()}
             total = sum(exp_weights.values())
             if total > 0:
-                return {skill: round(w / total, 4) for skill, w in exp_weights.items()}
-            return skill_weights
+                return Ok({skill: round(w / total, 4) for skill, w in exp_weights.items()})
+            return Ok(skill_weights)
 
         else:
             logger.warning("unknown_normalization_method", method=method)
-            return skill_weights
+            return Ok(skill_weights)
 
     def merge_with_reference(
         self, skill_weights: dict[str, float], competency_freq: dict[str, int]
-    ) -> dict[str, float]:
+    ) -> Result[dict[str, float], DomainError]:
         """
         Объединяет skill_weights (TF-IDF) с competency_frequency.
 
@@ -246,7 +249,7 @@ class SkillFilter:
 
         logger.info("merge_total", total_skills=len(merged))
 
-        return merged
+        return Ok(merged)
 
     def get_clean_weights(
         self,
@@ -254,7 +257,7 @@ class SkillFilter:
         competency_freq: dict[str, int] = None,
         use_reference: bool = True,
         normalize_method: str = "minmax",
-    ) -> dict[str, float]:
+    ) -> Result[dict[str, float], DomainError]:
         """
         Финальная очистка весов с сохранением реальной важности навыков.
         """
@@ -262,7 +265,7 @@ class SkillFilter:
 
         if not skill_weights_raw:
             logger.warning("skill_weights_raw_empty")
-            return {}
+            return Ok({})
 
         # 1. Берём данные из competency_freq как основной источник частот
         if competency_freq and len(competency_freq) > 0:
@@ -310,10 +313,13 @@ class SkillFilter:
 
         if not raw_freq:
             logger.warning("no_skills_after_cleanup")
-            return {}
+            return Ok({})
 
         # 5. Нормализация с сохранением пропорций
-        normalized = self.normalize_weights(raw_freq, method=normalize_method)
+        normalized_result = self.normalize_weights(raw_freq, method=normalize_method)
+        if normalized_result.is_err():
+            return Err(normalized_result.err())
+        normalized = normalized_result.ok()
         if normalized:
             vals = list(normalized.values())
             logger.info(
@@ -337,9 +343,9 @@ class SkillFilter:
                 original_weight=round(original_weight, 2),
             )
 
-        return normalized
+        return Ok(normalized)
 
-    def validate_skills(self, skills: list[str]) -> list[str]:
+    def validate_skills(self, skills: list[str]) -> Result[list[str], DomainError]:
         """
         Валидирует список навыков, оставляя только чистые.
 
@@ -375,9 +381,9 @@ class SkillFilter:
 
             validated.append(skill_lower)
 
-        return validated
+        return Ok(validated)
 
-    def get_skill_categories(self, skills: list[str]) -> dict[str, list[str]]:
+    def get_skill_categories(self, skills: list[str]) -> Result[dict[str, list[str]], DomainError]:
         """
         Группирует навыки по категориям.
 
@@ -457,4 +463,4 @@ class SkillFilter:
                 categories["other"].append(skill)
 
         # Убираем пустые категории
-        return {k: v for k, v in categories.items() if v}
+        return Ok({k: v for k, v in categories.items() if v})

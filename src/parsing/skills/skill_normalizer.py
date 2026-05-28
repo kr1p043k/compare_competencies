@@ -9,6 +9,8 @@ from functools import cache
 import structlog
 from rapidfuzz import fuzz, process
 
+from src import Result, Ok, Err
+from src.errors import DomainError
 from src.parsing.utils import load_it_skills
 
 logger = structlog.get_logger(__name__)
@@ -270,38 +272,41 @@ class SkillNormalizer:
 
     @staticmethod
     @cache
-    def normalize(skill: str) -> str:
-        if not skill:
-            return ""
-        original = skill.strip()
-        text = original.lower()
+    def normalize(skill: str) -> Result[str, DomainError]:
+        try:
+            if not skill:
+                return Ok("")
+            original = skill.strip()
+            text = original.lower()
 
-        for pattern in SkillNormalizer.VERSION_PATTERNS:
-            text = re.sub(pattern, "", text)
-        for pattern in SkillNormalizer.PREFIX_REMOVALS:
-            text = re.sub(pattern, "", text, flags=re.IGNORECASE)
-        for suffix in SkillNormalizer.SUFFIX_REMOVALS:
-            text = re.sub(suffix, "", text, flags=re.IGNORECASE)
+            for pattern in SkillNormalizer.VERSION_PATTERNS:
+                text = re.sub(pattern, "", text)
+            for pattern in SkillNormalizer.PREFIX_REMOVALS:
+                text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+            for suffix in SkillNormalizer.SUFFIX_REMOVALS:
+                text = re.sub(suffix, "", text, flags=re.IGNORECASE)
 
-        text = re.sub(r"\s+", " ", text).strip()
+            text = re.sub(r"\s+", " ", text).strip()
 
-        text = SkillNormalizer._apply_synonym_map(text)
+            text = SkillNormalizer._apply_synonym_map(text)
 
-        text = re.sub(r"[^\w\s\+\#\-\.]", "", text)
-        text = re.sub(r"\s+", " ", text).strip()
+            text = re.sub(r"[^\w\s\+\#\-\.]", "", text)
+            text = re.sub(r"\s+", " ", text).strip()
 
-        whitelist = SkillNormalizer._get_whitelist()
-        if text in whitelist:
-            return text
+            whitelist = SkillNormalizer._get_whitelist()
+            if text in whitelist:
+                return Ok(text)
 
-        matches = process.extract(text, whitelist, scorer=fuzz.WRatio, limit=SkillNormalizer.MAX_FUZZY_CANDIDATES)
-        if matches and matches[0][1] >= SkillNormalizer.FUZZY_THRESHOLD:
-            best = matches[0][0]
-            logger.debug("fuzzy_match", original=original, matched=best, score=matches[0][1])
-            return best
+            matches = process.extract(text, whitelist, scorer=fuzz.WRatio, limit=SkillNormalizer.MAX_FUZZY_CANDIDATES)
+            if matches and matches[0][1] >= SkillNormalizer.FUZZY_THRESHOLD:
+                best = matches[0][0]
+                logger.debug("fuzzy_match", original=original, matched=best, score=matches[0][1])
+                return Ok(best)
 
-        logger.debug("no_fuzzy_match", original=original, normalized=text)
-        return text
+            logger.debug("no_fuzzy_match", original=original, normalized=text)
+            return Ok(text)
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail=f"normalize({skill})"))
 
     @classmethod
     def _apply_synonym_map(cls, text: str) -> str:
@@ -312,16 +317,23 @@ class SkillNormalizer:
         return text_lower
 
     @staticmethod
-    def normalize_batch(skills: list[str]) -> list[str]:
-        return [SkillNormalizer.normalize(skill) for skill in skills if skill]
+    def normalize_batch(skills: list[str]) -> Result[list[str], DomainError]:
+        results = []
+        for skill in skills:
+            if skill:
+                r = SkillNormalizer.normalize(skill)
+                if r.is_ok():
+                    results.append(r.unwrap())
+        return Ok(results)
 
     @staticmethod
-    def deduplicate(skills: list[str]) -> list[str]:
+    def deduplicate(skills: list[str]) -> Result[list[str], DomainError]:
         seen = set()
         result = []
         for skill in skills:
-            norm = SkillNormalizer.normalize(skill)
+            r = SkillNormalizer.normalize(skill)
+            norm = r.unwrap() if r.is_ok() else ""
             if norm and norm not in seen:
                 seen.add(norm)
                 result.append(norm)
-        return result
+        return Ok(result)

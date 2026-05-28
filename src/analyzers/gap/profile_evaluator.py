@@ -8,7 +8,8 @@ from typing import Any
 import numpy as np
 import structlog
 
-from src import config
+from src import Result, Ok, Err, config
+from src.errors import DomainError
 from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.comparison.domain_analyzer import DomainAnalyzer
@@ -75,9 +76,9 @@ class ProfileEvaluator:
         user_type: str = "student",
         target_domains: list[str] | None = None,
         taxonomy: ProfessionTaxonomy | None = None,
-    ) -> dict[str, Any]:
+    ) -> Result[dict[str, Any], DomainError]:
         if not self.gap_analyzer_new:
-            raise RuntimeError("skill_weights_by_level не были переданы в конструктор")
+            return Err(DomainError(message="skill_weights_by_level не были переданы в конструктор"))
 
         user_skills_list = student.skills
         user_levels = {skill: 1.0 for skill in user_skills_list}
@@ -100,7 +101,11 @@ class ProfileEvaluator:
             domain_skills = set()
 
         # === 1. Skill-level метрики ===
-        metrics = self.gap_analyzer_new.compute_metrics(user_skills_list, user_levels)
+        match self.gap_analyzer_new.compute_metrics(user_skills_list, user_levels):
+            case Err(err):
+                return Err(err)
+            case Ok(val):
+                metrics = val
 
         # Если задана целевая профессия — фильтруем метрики до её доменов
         if domain_skills:
@@ -123,7 +128,11 @@ class ProfileEvaluator:
                 metric.cluster_relevance = 0.15 * getattr(metric, "cluster_relevance", 0.0)
 
         # === 3. Domain-level coverage ===
-        domain_coverages = self.domain_analyzer.compute_domain_coverage(user_skills_list)
+        match self.domain_analyzer.compute_domain_coverage(user_skills_list):
+            case Err(err):
+                return Err(err)
+            case Ok(val):
+                domain_coverages = val
 
         if domain_coverages:
             dominant_domain = max(domain_coverages.items(), key=lambda x: x[1].coverage)
@@ -251,10 +260,11 @@ class ProfileEvaluator:
 
         market_coverage_score = 0.60 * skill_coverage + 0.40 * domain_coverage_score
 
+        market_div = total_market if total_market > 0 else 1
         readiness = (
             config.READINESS_MARKET_WEIGHT * market_coverage_score
-            + config.READINESS_SKILL_WEIGHT * (strong_count / total_market * 100)
-            + config.READINESS_DOMAIN_WEIGHT * (weak_count / total_market * 100)
+            + config.READINESS_SKILL_WEIGHT * (strong_count / market_div * 100)
+            + config.READINESS_DOMAIN_WEIGHT * (weak_count / market_div * 100)
             + config.READINESS_GAP_PENALTY_WEIGHT * domain_coverage_score
         )
 
@@ -263,7 +273,11 @@ class ProfileEvaluator:
 
         readiness_score = round(max(0.0, min(100.0, readiness)), 2)
 
-        user_skills_norm = {SkillNormalizer.normalize(s) for s in user_skills_list}
+        user_skills_norm: set[str] = set()
+        for s in user_skills_list:
+            match SkillNormalizer.normalize(s):
+                case Ok(n):
+                    user_skills_norm.add(n)
         all_market_skills = list(metrics.keys())
         covered_market = sum(1 for s in all_market_skills if s in user_skills_norm)
         market_skill_coverage_pct = (
@@ -296,7 +310,7 @@ class ProfileEvaluator:
         eval_result.domain_skill_count = domain_skill_count or total_market
         eval_result.krm_coverage = krm_coverage
         result = eval_result.model_dump()
-        return result
+        return Ok(result)
 
     def _get_cluster_context(self, student: StudentProfile, target_level: str) -> dict | None:
         if not self.use_clustering:
@@ -308,9 +322,14 @@ class ProfileEvaluator:
         try:
             student_emb = self._get_or_compute_student_embedding(student)
 
-            cluster_context = self.clusterer.get_cluster_context(
+            match self.clusterer.get_cluster_context(
                 profile_embedding=student_emb, level=target_level, top_k_clusters=5, top_k_skills_per_cluster=25
-            )
+            ):
+                case Ok(val):
+                    cluster_context = val
+                case Err(err):
+                    logger.warning("cluster_context_failed", error=str(err))
+                    return None
             logger.info(
                 "cluster_context_obtained",
                 level=target_level,
@@ -328,7 +347,7 @@ class ProfileEvaluator:
 
         logger.info("creating_level_comparator", level=target_level)
         comparator = CompetencyComparator(use_embeddings=True, level=target_level)
-        success = comparator.fit_market(self.vacancies_skills)
+        success = comparator.fit_market(self.vacancies_skills).unwrap_or(False)
         if success:
             logger.info("level_comparator_trained", level=target_level)
         else:

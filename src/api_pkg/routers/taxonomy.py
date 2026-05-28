@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src import Err, Ok
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.models.api_responses import (
     KRMCoverageResponse,
@@ -29,11 +30,18 @@ async def taxonomy_coverage(
 ):
     if not taxonomy_instance:
         raise HTTPException(status_code=503, detail="Таксономия не загружена")
+    match taxonomy_instance.get_all_categories():
+        case Ok(categories):
+            cat_ids = categories
+        case Err(err):
+            raise HTTPException(status_code=500, detail=str(err))
     coverage = {}
-    for cat_id in taxonomy_instance.get_all_categories():
-        cat_skills = set(
-            s.lower() for s in taxonomy_instance.get_skills_in_category(cat_id)
-        )
+    for cat_id in cat_ids:
+        match taxonomy_instance.get_skills_in_category(cat_id):
+            case Ok(skills):
+                cat_skills = set(s.lower() for s in skills)
+            case Err(err):
+                raise HTTPException(status_code=500, detail=str(err))
         covered = cat_skills & deps.current_skills_set
         coverage[cat_id] = {
             "label": taxonomy_instance.get_category_label_by_id(cat_id),

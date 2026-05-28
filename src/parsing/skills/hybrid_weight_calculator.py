@@ -16,9 +16,11 @@ class HybridWeightCalculator:
         self.cache = embedding_cache or SkillEmbeddingCache()
 
     def calculate(self, vacancies: list) -> dict[str, float]:
-        bm25_weights = self.bm25.calculate_weights(vacancies)
-        if not bm25_weights:
-            return {}
+        match self.bm25.calculate_weights(vacancies):
+            case Ok(w):
+                bm25_weights = w
+            case _:
+                return {}
 
         if self.cache.model is None:
             logger.warning("Эмбеддинги недоступны — только BM25")

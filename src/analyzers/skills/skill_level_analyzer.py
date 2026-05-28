@@ -7,6 +7,9 @@ from collections import defaultdict
 
 import structlog
 
+from src import Result, Ok, Err
+from src.errors import DomainError
+
 logger = structlog.get_logger(__name__)
 
 
@@ -86,7 +89,7 @@ class SkillLevelAnalyzer:
 
         return max_level
 
-    def get_weights_for_level(self, skill_weights: dict[str, float], target_level: str) -> dict[str, float]:
+    def get_weights_for_level(self, skill_weights: dict[str, float], target_level: str) -> Result[dict[str, float], DomainError]:
         """
         Фильтрует и переустанавливает веса для конкретного уровня
 
@@ -97,6 +100,9 @@ class SkillLevelAnalyzer:
         Returns:
             новый словарь весов, где навыки переупорядочены по релевантности для уровня
         """
+        if target_level not in ("junior", "middle", "senior"):
+            return Err(DomainError(f"Invalid target level: {target_level}"))
+
         level_weights = {}
 
         for skill, original_weight in skill_weights.items():
@@ -132,7 +138,7 @@ class SkillLevelAnalyzer:
 
             level_weights[skill] = adjusted_weight
 
-        return level_weights
+        return Ok(level_weights)
 
     def _is_lower_level(self, current: str, target: str) -> bool:
         """Проверяет, ниже ли текущий уровень целевого"""
@@ -142,7 +148,7 @@ class SkillLevelAnalyzer:
         except ValueError:
             return False
 
-    def get_skill_roadmap(self, skill: str) -> dict[str, bool]:
+    def get_skill_roadmap(self, skill: str) -> Result[dict[str, bool], DomainError]:
         """
         Возвращает дорожку развития навыка по уровням
 
@@ -152,8 +158,8 @@ class SkillLevelAnalyzer:
         skill_lower = skill.lower().strip()
         levels_count = self.skill_by_level.get(skill_lower, {})
 
-        return {
+        return Ok({
             "junior": levels_count.get("junior", 0) > 0,
             "middle": levels_count.get("middle", 0) > 0,
             "senior": levels_count.get("senior", 0) > 0,
-        }
+        })

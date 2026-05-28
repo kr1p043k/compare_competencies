@@ -124,110 +124,106 @@ class VacancyQualityScorer:
             re.IGNORECASE,
         )
 
-    def score_result(self, vacancy: Vacancy) -> Result[QualityScore, ScorerError]:
+    def score(self, vacancy: Vacancy) -> Result[QualityScore, ScorerError]:
         try:
-            return Ok(self.score(vacancy))
+            flags = []
+            deductions = 0.0
+            name_lower = (vacancy.name or "").lower().strip()
+            employer_lower = (vacancy.employer.name or "").lower().strip()
+            description = vacancy.description or ""
+            snippet_req = (vacancy.snippet.requirement or "") if vacancy.snippet else ""
+            snippet_resp = (vacancy.snippet.responsibility or "") if vacancy.snippet else ""
+            all_text = f"{description} {snippet_req} {snippet_resp}"
+            key_skills_count = len(vacancy.key_skills)
+            parsed = self._skill_parser.parse_vacancy(vacancy)
+            total_skills = len(set(s.text.lower() for s in parsed))
+
+            if not description.strip():
+                flags.append(SpamFlag("NO_DESCRIPTION", "No description"))
+                deductions += 0.25
+
+            if len(description.strip()) < self.min_description_chars and description.strip():
+                flags.append(SpamFlag("TOO_SHORT_DESCRIPTION", f"Description < {self.min_description_chars} chars"))
+                deductions += 0.15
+
+            if total_skills == 0:
+                flags.append(SpamFlag("нет навыков", "No skills in key_skills, description, or snippet"))
+                deductions += 0.6
+
+            if key_skills_count == 0 and total_skills > 0:
+                flags.append(SpamFlag("NO_KEY_SKILLS", "No key skills (but found in description/snippet)"))
+                deductions += 0.05
+
+            if 0 < key_skills_count < self.min_skills:
+                flags.append(SpamFlag("TOO_FEW_KEY_SKILLS", f"Less than {self.min_skills} key skills"))
+                deductions += 0.1
+
+            if self._suspicious_employer_re.search(employer_lower):
+                flags.append(SpamFlag("SUSPICIOUS_EMPLOYER", f"Employer: {vacancy.employer.name}"))
+                deductions += 0.3
+
+            if name_lower in GENERIC_NAME_EXACT or self._generic_vacancy_re.match(name_lower):
+                flags.append(SpamFlag("GENERIC_NAME", f"Name: {vacancy.name}"))
+                deductions += 0.3
+
+            if self._promo_re.search(all_text):
+                flags.append(SpamFlag("PROMO_DESCRIPTION", "Promotional text detected"))
+                deductions += 0.2
+
+            url_count = _count_urls(all_text)
+            if url_count > 3:
+                flags.append(SpamFlag("EXCESSIVE_URLS", f"{url_count} URLs in description"))
+                deductions += 0.15
+
+            if vacancy.salary:
+                midpoint = vacancy.salary.get_midpoint()
+                if midpoint and midpoint > 1_000_000:
+                    flags.append(SpamFlag("SALARY_ANOMALY", f"Salary > 1M: {midpoint} {vacancy.salary.currency}"))
+                    deductions += 0.2
+
+            score = max(0.0, 1.0 - deductions)
+            is_spam = score < self.spam_threshold
+            return Ok(QualityScore(
+                vacancy_id=vacancy.id,
+                vacancy_name=vacancy.name,
+                employer_name=vacancy.employer.name,
+                score=score,
+                is_spam=is_spam,
+                flags=flags,
+            ))
         except Exception as exc:
             return Err(ScorerError(message=str(exc), detail=f"vacancy={vacancy.id}"))
 
-    def filter_vacancies_result(
+    def filter_vacancies(
         self, vacancies: list[Any]
     ) -> Result[tuple[list[Any], list[Any], dict[str, Any]], ScorerError]:
         try:
-            clean, spam, report = self.filter_vacancies(vacancies)
+            clean = []
+            spam = []
+            scores = []
+
+            for v in vacancies:
+                match self.score(v):
+                    case Ok(s):
+                        scores.append(s)
+                        if s.is_spam:
+                            spam.append((v, s))
+                        else:
+                            clean.append(v)
+                    case Err(e):
+                        return Err(e)
+
+            report = self._build_report(scores, len(vacancies))
+            logger.info(
+                "quality_scoring_done",
+                total=len(vacancies),
+                clean=len(clean),
+                spam=len(spam),
+                threshold=self.spam_threshold,
+            )
             return Ok((clean, spam, report))
         except Exception as exc:
             return Err(ScorerError(message=str(exc), detail=f"total={len(vacancies)}"))
-
-    def score(self, vacancy: Vacancy) -> QualityScore:
-        flags = []
-        deductions = 0.0
-        name_lower = (vacancy.name or "").lower().strip()
-        employer_lower = (vacancy.employer.name or "").lower().strip()
-        description = vacancy.description or ""
-        snippet_req = (vacancy.snippet.requirement or "") if vacancy.snippet else ""
-        snippet_resp = (vacancy.snippet.responsibility or "") if vacancy.snippet else ""
-        all_text = f"{description} {snippet_req} {snippet_resp}"
-        key_skills_count = len(vacancy.key_skills)
-        parsed = self._skill_parser.parse_vacancy(vacancy)
-        total_skills = len(set(s.text.lower() for s in parsed))
-
-        if not description.strip():
-            flags.append(SpamFlag("NO_DESCRIPTION", "No description"))
-            deductions += 0.25
-
-        if len(description.strip()) < self.min_description_chars and description.strip():
-            flags.append(SpamFlag("TOO_SHORT_DESCRIPTION", f"Description < {self.min_description_chars} chars"))
-            deductions += 0.15
-
-        if total_skills == 0:
-            flags.append(SpamFlag("нет навыков", "No skills in key_skills, description, or snippet"))
-            deductions += 0.6
-
-        if key_skills_count == 0 and total_skills > 0:
-            flags.append(SpamFlag("NO_KEY_SKILLS", "No key skills (but found in description/snippet)"))
-            deductions += 0.05
-
-        if 0 < key_skills_count < self.min_skills:
-            flags.append(SpamFlag("TOO_FEW_KEY_SKILLS", f"Less than {self.min_skills} key skills"))
-            deductions += 0.1
-
-        if self._suspicious_employer_re.search(employer_lower):
-            flags.append(SpamFlag("SUSPICIOUS_EMPLOYER", f"Employer: {vacancy.employer.name}"))
-            deductions += 0.3
-
-        if name_lower in GENERIC_NAME_EXACT or self._generic_vacancy_re.match(name_lower):
-            flags.append(SpamFlag("GENERIC_NAME", f"Name: {vacancy.name}"))
-            deductions += 0.3
-
-        if self._promo_re.search(all_text):
-            flags.append(SpamFlag("PROMO_DESCRIPTION", "Promotional text detected"))
-            deductions += 0.2
-
-        url_count = _count_urls(all_text)
-        if url_count > 3:
-            flags.append(SpamFlag("EXCESSIVE_URLS", f"{url_count} URLs in description"))
-            deductions += 0.15
-
-        if vacancy.salary:
-            midpoint = vacancy.salary.get_midpoint()
-            if midpoint and midpoint > 1_000_000:
-                flags.append(SpamFlag("SALARY_ANOMALY", f"Salary > 1M: {midpoint} {vacancy.salary.currency}"))
-                deductions += 0.2
-
-        score = max(0.0, 1.0 - deductions)
-        is_spam = score < self.spam_threshold
-        return QualityScore(
-            vacancy_id=vacancy.id,
-            vacancy_name=vacancy.name,
-            employer_name=vacancy.employer.name,
-            score=score,
-            is_spam=is_spam,
-            flags=flags,
-        )
-
-    def filter_vacancies(self, vacancies: list[Any]) -> tuple[list[Any], list[Any], dict[str, Any]]:
-        clean = []
-        spam = []
-        scores = []
-
-        for v in vacancies:
-            s = self.score(v)
-            scores.append(s)
-            if s.is_spam:
-                spam.append((v, s))
-            else:
-                clean.append(v)
-
-        report = self._build_report(scores, len(vacancies))
-        logger.info(
-            "quality_scoring_done",
-            total=len(vacancies),
-            clean=len(clean),
-            spam=len(spam),
-            threshold=self.spam_threshold,
-        )
-        return clean, spam, report
 
     def _build_report(self, scores: list[QualityScore], total: int) -> dict[str, Any]:
         spam_scores = [s for s in scores if s.is_spam]

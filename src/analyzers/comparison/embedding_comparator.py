@@ -14,7 +14,8 @@ import numpy as np
 import structlog
 from sklearn.metrics.pairwise import cosine_similarity
 
-from src import Err, Ok, config
+from src import Err, Ok, Result, config
+from src.errors import DomainError
 from src.analyzers.comparison.engines import (
     ComparisonResult,
     EnsembleEngine,
@@ -122,14 +123,14 @@ class EmbeddingComparator:
         if manifest.save().is_err():
             logger.warning("market_cache_manifest_save_failed")
 
-    def compare_student_to_market(self, student_skills: list[str]) -> ComparisonResult:
+    def compare_student_to_market(self, student_skills: list[str]) -> Result[dict, DomainError]:
         if self.market_embeddings is None:
-            raise ValueError("Сначала вызови build_market_index()")
+            return Err(DomainError(message="Сначала вызови build_market_index()"))
 
         student_embs = self.embed_skills(student_skills)
 
         if len(student_embs) == 0:
-            return {"score": 0.0, "weighted_coverage": 0.0, "matches": [], "missing": [], "avg_similarity": 0.0}
+            return Ok({"score": 0.0, "weighted_coverage": 0.0, "matches": [], "missing": [], "avg_similarity": 0.0})
 
         best_sims_per_market = {}
         similarities = cosine_similarity(student_embs, self.market_embeddings)
@@ -138,7 +139,7 @@ class EmbeddingComparator:
                 mskill = self.market_skills[j]
                 best_sims_per_market[mskill] = max(best_sims_per_market.get(mskill, 0.0), float(sim))
 
-        return self._result_from_sims(best_sims_per_market)
+        return Ok(self._result_from_sims(best_sims_per_market))
 
     def compare_student_to_market_ensemble(
         self,
@@ -153,7 +154,9 @@ class EmbeddingComparator:
                 extra_engines={"jaccard": (JaccardEngine(), 0.3)},
             )
         """
-        base = self.compare_student_to_market(student_skills)
+        base = self.compare_student_to_market(student_skills).unwrap_or(
+            {"score": 0.0, "weighted_coverage": 0.0, "avg_similarity": 0.0, "matches": [], "missing": []}
+        )
         if not extra_engines or not self.market_skills:
             return base
 
@@ -187,7 +190,9 @@ class EmbeddingComparator:
             engines[name] = (engine, (1 - COSINE_WEIGHT) * weight / total_extra)
 
         ensemble = EnsembleEngine(engines)
-        return ensemble.compare(student_skills, self.market_skills)
+        return ensemble.compare(student_skills, self.market_skills).unwrap_or(
+            {"score": 0.0, "weighted_coverage": 0.0, "avg_similarity": 0.0, "matches": [], "missing": []}
+        )
 
     def _result_from_sims(self, best_sims_per_market: dict[str, float]) -> ComparisonResult:
         total_weighted = 0.0
@@ -292,7 +297,9 @@ class EmbeddingComparator:
     def hybrid_compare(
         self, student_skills: list[str], global_weights: dict[str, float], cluster_weight: float = 0.6
     ) -> dict[str, Any]:
-        global_result = self.compare_student_to_market(student_skills)
+        global_result = self.compare_student_to_market(student_skills).unwrap_or(
+            {"avg_similarity": 0.0, "weighted_coverage": 0.0}
+        )
         global_score = global_result["avg_similarity"]
 
         cluster_result = self.compare_to_clusters(student_skills, top_k=3)

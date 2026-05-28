@@ -14,7 +14,8 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
 
-from src import config
+from src import Result, Ok, Err, config
+from src.errors import DomainError
 from src.artifacts import ArtifactManifest
 from src.models.enums import ExperienceLevel
 from src.parsing.api.embedding_loader import get_embedding_model
@@ -71,7 +72,13 @@ class VacancyClusterer:
         cleaned_per_vacancy = []
         all_skill_set: set[str] = set()
         for skills in self.vacancy_skills:
-            clean = [s for s in (SkillNormalizer.normalize(s) for s in skills) if s]
+            def _norm(s):
+                match SkillNormalizer.normalize(s):
+                    case Ok(n):
+                        return n
+                    case _:
+                        return None
+            clean = [n for s in skills if (n := _norm(s))]
             cleaned_per_vacancy.append(clean)
             all_skill_set.update(clean)
 
@@ -377,20 +384,15 @@ class VacancyClusterer:
         level: str = "middle",
         top_k_clusters: int = 3,
         top_k_skills_per_cluster: int = 20,
-    ) -> dict[str, Any]:
-        """
-        Возвращает контекст: ближайшие кластеры, их навыки и веса.
-        """
+    ) -> Result[dict[str, Any], DomainError]:
         if profile_embedding is None:
-            return {"clusters": [], "skills": {}, "total_skills_in_context": 0}
+            return Ok({"clusters": [], "skills": {}, "total_skills_in_context": 0})
 
-        # Нормализуем эмбеддинг
         embedding = profile_embedding / np.linalg.norm(profile_embedding)
 
-        # Находим ближайшие кластеры
         closest = self.find_closest_clusters(embedding, top_k=top_k_clusters)
         if not closest:
-            return {"clusters": [], "skills": {}, "total_skills_in_context": 0}
+            return Ok({"clusters": [], "skills": {}, "total_skills_in_context": 0})
 
         context_skills = {}
         result_clusters = []
@@ -398,20 +400,18 @@ class VacancyClusterer:
         for cluster_id, sim in closest:
             top_skills = self.get_top_skills_in_cluster(cluster_id, top_n=top_k_skills_per_cluster)
 
-            # Генерируем имя кластера на основе таксономии
             cluster_name = self._generate_cluster_name(cluster_id)
 
             result_clusters.append({"id": int(cluster_id), "similarity": float(sim), "name": cluster_name})
 
             for skill in top_skills:
-                # Вес = сходство кластера (можно также учесть частоту)
                 context_skills[skill] = max(context_skills.get(skill, 0.0), sim)
 
-        return {
+        return Ok({
             "closest_clusters": result_clusters,
             "skills": context_skills,
             "total_skills_in_context": len(context_skills),
-        }
+        })
 
     def _generate_cluster_name(self, cluster_id: int) -> str:
         """

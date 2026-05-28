@@ -39,7 +39,11 @@ class MetricComputer:
             evaluations = {}
             with tqdm(total=len(profiles), desc="Оценка профилей") as pbar:
                 for pname, student in profiles.items():
-                    evaluations[pname] = self.evaluator.evaluate_profile(student)
+                    match self.evaluator.evaluate_profile(student):
+                        case Ok(eval_result):
+                            evaluations[pname] = eval_result
+                        case Err(e):
+                            logger.error("profile_evaluation_failed", profile=pname, error=str(e))
                     pbar.update(1)
             return Ok(evaluations)
         except Exception as e:

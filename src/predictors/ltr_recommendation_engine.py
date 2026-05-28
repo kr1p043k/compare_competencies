@@ -399,17 +399,26 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         return np.mean([self.skill_embeddings[s] for s in valid], axis=0)
 
     def _extract_skills_from_vacancy(self, vac: dict) -> list[str]:
+        from src import Ok
+
+        def _normalize(skill: str) -> str | None:
+            match SkillNormalizer.normalize(skill):
+                case Ok(n):
+                    return n
+                case _:
+                    return None
+
         skills: set[str] = set()
         for ks in vac.get("key_skills", []):
             name = ks.get("name", "")
             if name:
-                norm = SkillNormalizer.normalize(name)
+                norm = _normalize(name)
                 if norm:
                     skills.add(norm)
         desc = vac.get("description", "")
         if desc:
             for s in self.vacancy_parser.extract_skills_from_description(desc):
-                norm = SkillNormalizer.normalize(s)
+                norm = _normalize(s)
                 if norm:
                     skills.add(norm)
         if not skills:
@@ -417,7 +426,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             combined = f"{snippet.get('requirement', '')} {snippet.get('responsibility', '')}"
             if combined.strip():
                 for s in self.vacancy_parser.extract_skills_from_description(combined):
-                    norm = SkillNormalizer.normalize(s)
+                    norm = _normalize(s)
                     if norm:
                         skills.add(norm)
         return list(skills)

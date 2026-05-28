@@ -64,14 +64,17 @@ class QualityScoringStage(PipelineStage):
             if idx % 50 == 0:
                 pct = int(idx / total * 80) if total else 0
                 self._progress(pct, f"Оценка качества: {idx}/{total} вакансий")
-            s = scorer.score(v)
-            scores.append(s)
-            if s.is_spam:
-                spam_count += 1
-                reason = "; ".join(f.reason for f in s.flags)
-                if hasattr(v, "raw_data") and isinstance(v.raw_data, dict):
-                    v.raw_data["is_spam"] = True
-                    v.raw_data["spam_reason"] = reason
+            match scorer.score(v):
+                case Ok(s):
+                    scores.append(s)
+                    if s.is_spam:
+                        spam_count += 1
+                        reason = "; ".join(f.reason for f in s.flags)
+                        if hasattr(v, "raw_data") and isinstance(v.raw_data, dict):
+                            v.raw_data["is_spam"] = True
+                            v.raw_data["spam_reason"] = reason
+                case Err(e):
+                    return Err(e.message)
 
         self._progress(80, f"Спам-фильтр: отсеяно {spam_count} из {total}")
         quality_report = scorer._build_report(scores, len(vacancies))

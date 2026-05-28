@@ -7,7 +7,9 @@ from typing import Any
 import pandas as pd
 import structlog
 
+from src import Result, Ok, Err
 from src import config
+from src.errors import DomainError
 from src.models.data_contracts import SkillExtractionResult
 from src.models.vacancy import Vacancy
 from src.parsing.skills.bm25_ranker import BM25Ranker
@@ -31,62 +33,67 @@ class VacancyParser:
         self.hybrid_calc = HybridWeightCalculator(self.bm25_ranker, self.embedding_cache)
 
     # --------------------- публичные методы -------------------------
-    def extract_skills_from_description(self, description: str) -> list[str]:
-        if not description:
-            return []
-        extracted = self.skill_parser._extract_from_text(description, source=SkillSource.DESCRIPTION)
-        return [skill.text for skill in extracted]
+    def extract_skills_from_description(self, description: str) -> Result[list[str], DomainError]:
+        try:
+            if not description:
+                return Ok([])
+            extracted = self.skill_parser._extract_from_text(description, source=SkillSource.DESCRIPTION)
+            return Ok([skill.text for skill in extracted])
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="extract_skills_from_description"))
 
-    def extract_skills_from_vacancies(self, vacancies: list[dict] | list[Vacancy]) -> dict[str, Any]:
-        # Шаг 1: конвертация
-        vacancy_objects = []
-        for vac in vacancies:
-            if isinstance(vac, dict):
-                try:
-                    vacancy_objects.append(Vacancy.from_api(vac))
-                except ValueError:
-                    continue
-            else:
-                vacancy_objects.append(vac)
+    def extract_skills_from_vacancies(self, vacancies: list[dict] | list[Vacancy]) -> Result[dict[str, Any], DomainError]:
+        try:
+            vacancy_objects = []
+            for vac in vacancies:
+                if isinstance(vac, dict):
+                    try:
+                        vacancy_objects.append(Vacancy.from_api(vac))
+                    except ValueError:
+                        continue
+                else:
+                    vacancy_objects.append(vac)
 
-        # Шаг 2: подсчёт частот
-        skill_freq = Counter()
-        for vacancy in vacancy_objects:
-            extracted = self.skill_parser.parse_vacancy(vacancy)
-            skill_texts = [s.text for s in extracted if s.text]
-            normalized = SkillNormalizer.normalize_batch(skill_texts)
-            unique = list(dict.fromkeys([s for s in normalized if s]))
-            for skill in unique:
-                skill_freq[skill] += 1
-        logger.info("Уникальных навыков", count=len(skill_freq))
+            skill_freq = Counter()
+            for vacancy in vacancy_objects:
+                extracted = self.skill_parser.parse_vacancy(vacancy)
+                skill_texts = [s.text for s in extracted if s.text]
+                normalized_r = SkillNormalizer.normalize_batch(skill_texts)
+                normalized = normalized_r.unwrap() if normalized_r.is_ok() else []
+                unique = list(dict.fromkeys([s for s in normalized if s]))
+                for skill in unique:
+                    skill_freq[skill] += 1
+            logger.info("Уникальных навыков", count=len(skill_freq))
 
-        # Шаг 3: гибридные веса (BM25 + embeddings)
-        hybrid_weights = self.hybrid_calc.calculate(vacancies)
+            hybrid_weights = self.hybrid_calc.calculate(vacancies)
 
-        return {"frequencies": dict(skill_freq), "hybrid_weights": hybrid_weights}
+            return Ok({"frequencies": dict(skill_freq), "hybrid_weights": hybrid_weights})
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="extract_skills_from_vacancies"))
 
-    def extract_from_detailed(self, detailed_vacancies: list[dict]) -> dict[str, float]:
-        self._validate_vacancies(detailed_vacancies)
-        skill_freq = {}
-        for vac in detailed_vacancies:
-            skills = self._extract_from_description(vac.get("description", ""))
-            for s in skills:
-                skill_freq[s] = skill_freq.get(s, 0) + 1
-        final_freq = self._validate_skills(skill_freq)
-        logger.info("После валидации", count=len(final_freq))
+    def extract_from_detailed(self, detailed_vacancies: list[dict]) -> Result[dict[str, float], DomainError]:
+        try:
+            self._validate_vacancies(detailed_vacancies)
+            skill_freq = {}
+            for vac in detailed_vacancies:
+                skills = self._extract_from_description(vac.get("description", ""))
+                for s in skills:
+                    skill_freq[s] = skill_freq.get(s, 0) + 1
+            final_freq = self._validate_skills(skill_freq)
+            logger.info("После валидации", count=len(final_freq))
 
-        # Шаг 4: гибридные веса (внутри вызовет BM25)
-        hybrid_weights = self.hybrid_calc.calculate(vacancies)
+            hybrid_weights = self.hybrid_calc.calculate(detailed_vacancies)
 
-        # Шаг 5: эмбеддинги для валидных навыков
-        skill_embeddings = self.embedding_cache.get_embeddings(list(final_freq.keys()))
+            skill_embeddings = self.embedding_cache.get_embeddings(list(final_freq.keys()))
 
-        result = SkillExtractionResult(
-            frequencies=final_freq,
-            hybrid_weights=hybrid_weights,
-            skill_embeddings={skill: emb.tolist() for skill, emb in skill_embeddings.items()},
-        )
-        return result.model_dump()
+            result = SkillExtractionResult(
+                frequencies=final_freq,
+                hybrid_weights=hybrid_weights,
+                skill_embeddings={skill: emb.tolist() for skill, emb in skill_embeddings.items()},
+            )
+            return Ok(result.model_dump())
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="extract_from_detailed"))
 
     # --------------------- утилиты сохранения и вывода -------------------------
     def save_raw_vacancies(self, vacancies, filename="hh_vacancies.json"):

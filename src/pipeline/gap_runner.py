@@ -63,7 +63,11 @@ class GapRunner:
 
             skill_weights_by_level = {}
             for level in ExperienceLevel:
-                skill_weights_by_level[level] = level_analyzer.get_weights_for_level(skill_weights, level)
+                match level_analyzer.get_weights_for_level(skill_weights, level):
+                    case Ok(weights):
+                        skill_weights_by_level[level] = weights
+                    case Err(e):
+                        return Err(GapAnalysisError(message=f"Не удалось получить веса для уровня {level}: {e}"))
 
             pct = self._update_progress()
             self._write_progress(pct, "GAP-анализ: инициализация ProfileEvaluator...")
@@ -93,7 +97,11 @@ class GapRunner:
             )
             pct = self._update_progress()
             self._write_progress(pct, "GAP-анализ: подгонка Comparator...")
-            self.recommendation_engine.fit(self.ctx.vacancies_skills, skill_weights=skill_weights)
+            match self.recommendation_engine.fit(self.ctx.vacancies_skills, skill_weights=skill_weights):
+                case Ok(engine):
+                    self.recommendation_engine = engine
+                case Err(e):
+                    return Err(GapAnalysisError(message=f"Не удалось обучить RecommendationEngine: {e}"))
 
             pct = self._update_progress()
             self._write_progress(pct, "GAP-анализ: оценка профилей...")
@@ -136,15 +144,19 @@ class GapRunner:
                 else:
                     target_domains = []
                     target_profession = ""
-                eval_result = self.evaluator.evaluate_profile(
+                match self.evaluator.evaluate_profile(
                     student,
                     user_type="student",
                     target_domains=target_domains,
                     taxonomy=self.taxonomy,
-                )
-                eval_result["target_profession"] = target_profession
-                eval_result["target_domains"] = target_domains
-                evals[pname] = eval_result
+                ):
+                    case Ok(eval_result):
+                        eval_result["target_profession"] = target_profession
+                        eval_result["target_domains"] = target_domains
+                        evals[pname] = eval_result
+                    case Err(e):
+                        logger.error("profile_evaluation_failed", profile=pname, error=str(e))
+                        continue
                 pbar.update(1)
                 pct = self._update_progress()
                 idx = len(evals)
@@ -165,15 +177,19 @@ class GapRunner:
             else:
                 target_domains = []
                 target_profession = ""
-            eval_result = self.evaluator.evaluate_profile(
+            match self.evaluator.evaluate_profile(
                 student,
                 user_type="student",
                 target_domains=target_domains,
                 taxonomy=self.taxonomy,
-            )
-            eval_result["target_profession"] = target_profession
-            eval_result["target_domains"] = target_domains
-            return pname, eval_result
+            ):
+                case Ok(eval_result):
+                    eval_result["target_profession"] = target_profession
+                    eval_result["target_domains"] = target_domains
+                    return pname, eval_result
+                case Err(e):
+                    logger.error("profile_evaluation_failed", profile=pname, error=str(e))
+                    return pname, None
 
         logger.info("profile_evaluation_start", profiles=n, max_workers=max_workers)
         with tqdm(total=n, desc="Оценка профилей") as pbar:

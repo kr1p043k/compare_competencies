@@ -50,13 +50,13 @@ class HeadHunterAPIAsync:
 
     async def get_vacancy_details_validated(
         self, session: aiohttp.ClientSession, vacancy_id: str
-    ) -> VacancyDetailResponse:
+    ) -> Result[VacancyDetailResponse, ApiError]:
         """Асинхронное получение деталей с валидацией."""
         url = f"{self.BASE_URL}vacancies/{vacancy_id}"
         raw = await self._request(session, url)
         if raw is None:
-            raise ValueError(f"Vacancy {vacancy_id} not found or API error")
-        return cast(VacancyDetailResponse, parse_response(raw, VacancyDetailResponse))
+            return Err(ApiError(message=f"Vacancy {vacancy_id} not found or API error", endpoint=f"vacancies/{vacancy_id}"))
+        return Ok(cast(VacancyDetailResponse, parse_response(raw, VacancyDetailResponse)))
 
     def _write_progress(self, loaded: int, total: int):
         if not self._progress_file:

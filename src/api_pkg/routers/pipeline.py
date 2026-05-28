@@ -409,8 +409,10 @@ async def run_pipeline_action_sync(
             output=stdout[-1000:] if stdout else stderr[-1000:],
         )
     elif action == PipelineAction.FULL_CYCLE:
+        req_id = getattr(request.state, "request_id", "unknown")
         task_id = f"{action.value}_{int(time.time())}"
         started_at = time.time()
+        logger.info("pipeline_scheduled", request_id=req_id, task_id=task_id)
         pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск сбора...", started_at, step=0)
         background_tasks.add_task(
             run_pipeline_task,

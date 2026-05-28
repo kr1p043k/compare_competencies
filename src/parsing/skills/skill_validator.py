@@ -13,7 +13,9 @@ from typing import Any
 
 import structlog
 
+from src import Result, Ok, Err
 from src import config
+from src.errors import DomainError
 from src.parsing.utils import load_it_skills
 
 logger = structlog.get_logger(__name__)
@@ -128,7 +130,7 @@ class SkillValidator:
         # Статистика
         self.stats = {"total": 0, "valid": 0, "rejected": 0, "reasons": Counter()}
 
-    def validate(self, skill: str, confidence: float = 1.0) -> ValidationResult:
+    def validate(self, skill: str, confidence: float = 1.0) -> Result[ValidationResult, DomainError]:
         """
         Валидирует навык с расширенными проверками
 
@@ -139,85 +141,76 @@ class SkillValidator:
         Returns:
             ValidationResult с результатами
         """
-        self.stats["total"] += 1
-        reasons = []
+        try:
+            self.stats["total"] += 1
+            reasons = []
 
-        if not skill or not skill.strip():
-            self.stats["rejected"] += 1
-            self.stats["reasons"]["empty"] += 1
-            return ValidationResult(skill=skill, is_valid=False, reasons=[ValidationReason.EMPTY], confidence=0.0)
+            if not skill or not skill.strip():
+                self.stats["rejected"] += 1
+                self.stats["reasons"]["empty"] += 1
+                return Ok(ValidationResult(skill=skill, is_valid=False, reasons=[ValidationReason.EMPTY], confidence=0.0))
 
-        skill = skill.strip()
-        skill_lower = skill.lower()
+            skill = skill.strip()
+            skill_lower = skill.lower()
 
-        # === ПРОВЕРКА 1: Уверенность ===
-        if confidence < self.min_confidence:
-            reasons.append(ValidationReason.IN_BLACKLIST)
-
-        # === ПРОВЕРКА 2: Длина ===
-        if len(skill) < self.min_length:
-            reasons.append(ValidationReason.TOO_SHORT)
-
-        if len(skill) > self.max_length:
-            reasons.append(ValidationReason.TOO_LONG)
-
-        # === ПРОВЕРКА 3: Количество слов ===
-        words = skill_lower.split()
-        if len(words) > self.max_words:
-            reasons.append(ValidationReason.TOO_LONG)
-
-        # === ПРОВЕРКА 4: Только цифры ===
-        if self.DIGITS_PATTERN.match(skill):
-            reasons.append(ValidationReason.ONLY_DIGITS)
-
-        # === ПРОВЕРКА 5: Только спецсимволы ===
-        if self.SPECIAL_PATTERN.match(skill):
-            reasons.append(ValidationReason.ONLY_SPECIAL)
-
-        # === ПРОВЕРКА 6: Generic слова ===
-        if skill_lower in self.generic_words:
-            reasons.append(ValidationReason.GENERIC_WORD)
-
-        # === ПРОВЕРКА 7: Чёрный список (КРИТИЧЕСКАЯ) ===
-        for bad in self.blacklist:
-            if bad in skill_lower:
+            if confidence < self.min_confidence:
                 reasons.append(ValidationReason.IN_BLACKLIST)
-                break
 
-        # === ПРОВЕРКА 8: Слова-паразиты ===
-        if all(word in self.filler_words for word in words):
-            reasons.append(ValidationReason.IN_BLACKLIST)
+            if len(skill) < self.min_length:
+                reasons.append(ValidationReason.TOO_SHORT)
 
-        # === ПРОВЕРКА 9: Белый список (если задан) ===
-        if self.whitelist is not None:
-            skill_normalized = skill_lower.replace(" ", "").replace("-", "").replace("_", "")
-            if skill_normalized not in self.whitelist:
-                found_in_whitelist = any(
-                    skill_normalized in wl.replace(" ", "").replace("-", "").replace("_", "")
-                    or wl.replace(" ", "").replace("-", "").replace("_", "") in skill_normalized
-                    for wl in self.whitelist
-                )
-                if not found_in_whitelist:
-                    reasons.append(ValidationReason.NOT_IN_WHITELIST)
+            if len(skill) > self.max_length:
+                reasons.append(ValidationReason.TOO_LONG)
 
-        # === ПРОВЕРКА 10: Дополнительная - наличие букв ===
-        if not any(c.isalpha() for c in skill):
-            reasons.append(ValidationReason.ONLY_DIGITS)
+            words = skill_lower.split()
+            if len(words) > self.max_words:
+                reasons.append(ValidationReason.TOO_LONG)
 
-        is_valid = len(reasons) == 0
+            if self.DIGITS_PATTERN.match(skill):
+                reasons.append(ValidationReason.ONLY_DIGITS)
 
-        # Вычисляем уверенность
-        confidence_score = min(1.0, confidence + 0.1) if is_valid else max(0.1, 1.0 - len(reasons) * 0.2)
+            if self.SPECIAL_PATTERN.match(skill):
+                reasons.append(ValidationReason.ONLY_SPECIAL)
 
-        # Обновляем статистику
-        if is_valid:
-            self.stats["valid"] += 1
-        else:
-            self.stats["rejected"] += 1
-            for reason in reasons:
-                self.stats["reasons"][reason.value] += 1
+            if skill_lower in self.generic_words:
+                reasons.append(ValidationReason.GENERIC_WORD)
 
-        return ValidationResult(skill=skill, is_valid=is_valid, reasons=reasons, confidence=confidence_score)
+            for bad in self.blacklist:
+                if bad in skill_lower:
+                    reasons.append(ValidationReason.IN_BLACKLIST)
+                    break
+
+            if all(word in self.filler_words for word in words):
+                reasons.append(ValidationReason.IN_BLACKLIST)
+
+            if self.whitelist is not None:
+                skill_normalized = skill_lower.replace(" ", "").replace("-", "").replace("_", "")
+                if skill_normalized not in self.whitelist:
+                    found_in_whitelist = any(
+                        skill_normalized in wl.replace(" ", "").replace("-", "").replace("_", "")
+                        or wl.replace(" ", "").replace("-", "").replace("_", "") in skill_normalized
+                        for wl in self.whitelist
+                    )
+                    if not found_in_whitelist:
+                        reasons.append(ValidationReason.NOT_IN_WHITELIST)
+
+            if not any(c.isalpha() for c in skill):
+                reasons.append(ValidationReason.ONLY_DIGITS)
+
+            is_valid = len(reasons) == 0
+
+            confidence_score = min(1.0, confidence + 0.1) if is_valid else max(0.1, 1.0 - len(reasons) * 0.2)
+
+            if is_valid:
+                self.stats["valid"] += 1
+            else:
+                self.stats["rejected"] += 1
+                for reason in reasons:
+                    self.stats["reasons"][reason.value] += 1
+
+            return Ok(ValidationResult(skill=skill, is_valid=is_valid, reasons=reasons, confidence=confidence_score))
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail=f"validate({skill})"))
 
     def validate_batch(self, skills: list[str], confidences: list[float] | None = None) -> tuple:
         """

@@ -3,10 +3,10 @@
 import json
 from pathlib import Path
 
-import joblib
 import structlog
 
 from src import Err, Ok, Result, SkillExtractionError, config, timed
+from src.cache_manager import CacheManager
 from src.analyzers.skills.trends import TrendAnalyzer
 from src.artifacts import ArtifactManifest
 from src.parsing.skills.vacancy_parser import VacancyParser
@@ -29,6 +29,8 @@ class SkillExtractor:
         self.args = args
 
     def extract(self, vacancies: list, parser: VacancyParser, raw_file: Path | None = None) -> Result[tuple, SkillExtractionError]:
+        cache = CacheManager(config.PARSED_SKILLS_CACHE_PATH.parent)
+        cache_key = config.PARSED_SKILLS_CACHE_PATH.stem
         cache_path = config.PARSED_SKILLS_CACHE_PATH
         vacancies_hash = None
         if raw_file:
@@ -36,12 +38,15 @@ class SkillExtractor:
 
         try:
             cached_result = None
-            if cache_path.exists() and vacancies_hash:
+            if vacancies_hash:
                 self._check_manifest(cache_path)
-                cached = joblib.load(cache_path)
-                if cached and cached.get("source_hash") == vacancies_hash:
-                    self._console_info("✅ Загружен кэш результатов парсинга навыков")
-                    cached_result = cached["result"]
+                match cache.load(cache_key):
+                    case Ok(cached):
+                        if isinstance(cached, dict) and cached.get("source_hash") == vacancies_hash:
+                            self._console_info("✅ Загружен кэш результатов парсинга навыков")
+                            cached_result = cached["result"]
+                    case _:
+                        pass
 
             if cached_result:
                 skill_freq = cached_result["frequencies"]
@@ -52,7 +57,7 @@ class SkillExtractor:
                 skill_freq = result["frequencies"]
                 hybrid_weights_raw = result.get("hybrid_weights", {})
                 cache_data = {"source_hash": vacancies_hash, "result": result}
-                joblib.dump(cache_data, cache_path)
+                cache.save(cache_key, cache_data)
                 self._console_info("💾 Кэш результатов сохранён")
                 manifest = ArtifactManifest(artifact_path=cache_path, metrics={"num_skills": len(skill_freq)})
                 if manifest.save().is_err():

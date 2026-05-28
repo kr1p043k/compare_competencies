@@ -4,11 +4,11 @@ import hashlib
 import json
 import time
 
-import joblib
 import structlog
 from tqdm import tqdm
 
-from src import config
+from src import Err, Ok, config
+from src.cache_manager import CacheManager
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.skill_filter import SkillFilter
@@ -118,34 +118,42 @@ async def run_startup(app):
     parser = VacancyParser()
 
     # 2. Извлечение навыков (с кэшированием)
-    cache_path = config.PARSED_SKILLS_CACHE_PATH
+    cache = CacheManager(config.PARSED_SKILLS_CACHE_PATH.parent)
+    cache_key = config.PARSED_SKILLS_CACHE_PATH.stem
     vacancies_hash = hashlib.sha256(raw_file.read_bytes()).hexdigest()
     skill_freq_local = {}
     hybrid_weights_local = {}
 
-    if cache_path.exists():
-        try:
-            cached = joblib.load(cache_path)
-            if cached.get("source_hash") == vacancies_hash:
+    match cache.load(cache_key):
+        case Ok(cached):
+            if isinstance(cached, dict) and cached.get("source_hash") == vacancies_hash:
                 result = cached["result"]
                 skill_freq_local = result["frequencies"]
                 hybrid_weights_local = result.get("hybrid_weights", {})
                 logger.info("Загружен кэш парсинга навыков")
-        except Exception as e:
-            logger.warning("Не удалось загрузить кэш", error=str(e))
+        case _:
+            pass
+
+    def _unwrap_parse(r):
+        match r:
+            case Ok(d):
+                return d
+            case Err(e):
+                logger.error("parse_failed", error=str(e))
+                return {}
 
     if not skill_freq_local:
-        result = parser.extract_skills_from_vacancies(basic_vacancies)
-        skill_freq_local = result["frequencies"]
+        result = _unwrap_parse(parser.extract_skills_from_vacancies(basic_vacancies))
+        skill_freq_local = result.get("frequencies", {})
         hybrid_weights_local = result.get("hybrid_weights", {})
         cache_data = {"source_hash": vacancies_hash, "result": result}
-        joblib.dump(cache_data, cache_path)
+        cache.save(cache_key, cache_data)
         logger.info("Кэш парсинга сохранён")
     elif not hybrid_weights_local:
-        result = parser.extract_skills_from_vacancies(basic_vacancies)
+        result = _unwrap_parse(parser.extract_skills_from_vacancies(basic_vacancies))
         hybrid_weights_local = result.get("hybrid_weights", {})
         cache_data = {"source_hash": vacancies_hash, "result": result}
-        joblib.dump(cache_data, cache_path)
+        cache.save(cache_key, cache_data)
         logger.info("Кэш парсинга обновлён (добавлены hybrid_weights)")
 
     deps.skill_freq = skill_freq_local
@@ -157,14 +165,23 @@ async def run_startup(app):
     if comp_freq_path.exists():
         with open(comp_freq_path, encoding="utf-8") as f:
             competency_freq = json.load(f)
-    hybrid_weights = filter_engine.get_clean_weights(
+    match filter_engine.get_clean_weights(
         hybrid_weights_local, competency_freq=competency_freq, use_reference=True
-    )
+    ):
+        case Ok(w):
+            hybrid_weights = w
+        case Err(err):
+            logger.error("get_clean_weights_failed", error=str(err))
+            hybrid_weights = {}
     if not hybrid_weights and skill_freq_local:
-        hybrid_weights = filter_engine.get_clean_weights(
+        match filter_engine.get_clean_weights(
             skill_freq_local, competency_freq=competency_freq, use_reference=True
-        )
-        logger.info("fallback_to_skill_freq_weights", count=len(hybrid_weights))
+        ):
+            case Ok(w):
+                hybrid_weights = w
+                logger.info("fallback_to_skill_freq_weights", count=len(hybrid_weights))
+            case Err(err):
+                logger.error("get_clean_weights_fallback_failed", error=str(err))
     deps.skill_weights = hybrid_weights
 
     # 4. Таксономия и белый список
@@ -239,9 +256,12 @@ async def run_startup(app):
     # 6. Веса по уровням
     skill_weights_by_level = {}
     for level in ExperienceLevel:
-        skill_weights_by_level[level] = level_analyzer.get_weights_for_level(
-            deps.skill_weights, level
-        )
+        match level_analyzer.get_weights_for_level(deps.skill_weights, level):
+            case Ok(w):
+                skill_weights_by_level[level] = w
+            case Err(err):
+                logger.error("get_weights_for_level_failed", level=str(level), error=str(err))
+                skill_weights_by_level[level] = {}
 
     # 7. Студенческие профили
     deps.competency_mapping = load_competency_mapping()
@@ -289,9 +309,14 @@ async def run_startup(app):
             skills = merge_skills_hierarchically(top_skills, dc_skills, base_skills)
         else:
             skills = map_codes(codes)
-        skills = [
-            SkillNormalizer.normalize(s) for s in skills if SkillNormalizer.normalize(s)
-        ]
+        def _unwrap(s):
+            match SkillNormalizer.normalize(s):
+                case Ok(n):
+                    return n
+                case _:
+                    return None
+
+        skills = [n for s in skills if (n := _unwrap(s))]
         skills = list(dict.fromkeys(skills))
         deps.student_profiles[pname] = StudentProfile(
             profile_name=pname,
@@ -322,7 +347,11 @@ async def run_startup(app):
         level=ComparisonLevel.MIDDLE,
         similarity_threshold=0.80,
     )
-    deps.recommendation_engine.fit(vacancies_skills, skill_weights=hybrid_weights)
+    match deps.recommendation_engine.fit(vacancies_skills, skill_weights=hybrid_weights):
+        case Ok(_):
+            logger.info("recommendation_engine_fitted")
+        case Err(err):
+            logger.error("recommendation_engine_fit_failed", error=str(err))
 
     # 9. Кластеры
     for lvl in ExperienceLevel:

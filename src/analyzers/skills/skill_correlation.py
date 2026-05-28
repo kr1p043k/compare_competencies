@@ -8,6 +8,8 @@ from collections import defaultdict
 import numpy as np
 import structlog
 
+from src import Result, Ok, Err
+from src.errors import DomainError
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 
 logger = structlog.get_logger(__name__)
@@ -36,11 +38,11 @@ class SkillCorrelationAnalyzer:
 
         for skills in vacancies_skills:
             # Нормализуем и убираем дубли в рамках одной вакансии
-            normalized = set()
+            normalized: set[str] = set()
             for s in skills:
-                norm = SkillNormalizer.normalize(s)
-                if norm:
-                    normalized.add(norm)
+                match SkillNormalizer.normalize(s):
+                    case Ok(n):
+                        normalized.add(n)
 
             # Считаем частоты
             for skill in normalized:
@@ -60,11 +62,11 @@ class SkillCorrelationAnalyzer:
             unique_pairs=len(self._cooccurrence),
         )
 
-    def get_top_skills(self, top_n: int = 30) -> list[str]:
+    def get_top_skills(self, top_n: int = 30) -> Result[list[str], DomainError]:
         """Возвращает топ-N навыков по частоте."""
-        return [s for s, _ in sorted(self._skill_freq.items(), key=lambda x: x[1], reverse=True)[:top_n]]
+        return Ok([s for s, _ in sorted(self._skill_freq.items(), key=lambda x: x[1], reverse=True)[:top_n]])
 
-    def get_correlation_matrix(self, skills: list[str] | None = None, top_n: int = 30) -> np.ndarray:
+    def get_correlation_matrix(self, skills: list[str] | None = None, top_n: int = 30) -> Result[np.ndarray, DomainError]:
         """
         Возвращает матрицу корреляций (нормированных) для указанных навыков.
 
@@ -72,7 +74,10 @@ class SkillCorrelationAnalyzer:
         где |A| — количество вакансий с навыком A.
         """
         if skills is None:
-            skills = self.get_top_skills(top_n)
+            top_result = self.get_top_skills(top_n)
+            if top_result.is_err():
+                return Err(top_result.err())
+            skills = top_result.ok()
 
         n = len(skills)
         matrix = np.zeros((n, n))
@@ -92,24 +97,33 @@ class SkillCorrelationAnalyzer:
                         matrix[i][j] = round(cooc / denom, 3)
                         matrix[j][i] = matrix[i][j]
 
-        return matrix
+        return Ok(matrix)
 
-    def get_correlation_labeled(self, skills: list[str] | None = None, top_n: int = 30) -> tuple[list[str], np.ndarray]:
+    def get_correlation_labeled(self, skills: list[str] | None = None, top_n: int = 30) -> Result[tuple[list[str], np.ndarray], DomainError]:
         """
         Возвращает (список навыков, матрица корреляций).
         Удобно для визуализации.
         """
         if skills is None:
-            skills = self.get_top_skills(top_n)
-        matrix = self.get_correlation_matrix(skills)
-        return skills, matrix
+            top_result = self.get_top_skills(top_n)
+            if top_result.is_err():
+                return Err(top_result.err())
+            skills = top_result.ok()
+        matrix_result = self.get_correlation_matrix(skills)
+        if matrix_result.is_err():
+            return Err(matrix_result.err())
+        return Ok((skills, matrix_result.ok()))
 
-    def get_related_skills(self, skill: str, top_k: int = 10, min_cooccurrence: int = 3) -> list[tuple[str, float]]:
+    def get_related_skills(self, skill: str, top_k: int = 10, min_cooccurrence: int = 3) -> Result[list[tuple[str, float]], DomainError]:
         """
         Возвращает навыки, наиболее связанные с указанным.
         """
         related = []
-        skill_norm = SkillNormalizer.normalize(skill)
+        match SkillNormalizer.normalize(skill):
+            case Ok(n):
+                skill_norm = n
+            case _:
+                skill_norm = ""
         freq_a = self._skill_freq.get(skill_norm, 0)
 
         for (a, b), cooc in self._cooccurrence.items():
@@ -121,4 +135,4 @@ class SkillCorrelationAnalyzer:
                     jaccard = cooc / denom
                     related.append((other, round(jaccard, 3)))
 
-        return sorted(related, key=lambda x: x[1], reverse=True)[:top_k]
+        return Ok(sorted(related, key=lambda x: x[1], reverse=True)[:top_k])

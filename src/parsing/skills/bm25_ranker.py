@@ -8,7 +8,9 @@ import pymorphy3
 import structlog
 from rank_bm25 import BM25Okapi
 
+from src import Result, Ok, Err
 from src import config
+from src.errors import DomainError
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.parsing.utils import load_it_skills
 
@@ -107,74 +109,79 @@ class BM25Ranker:
                     continue
                 if any(lemma in self._stop_lemmas for lemma in ngram_words):
                     continue
-                norm = SkillNormalizer.normalize(ngram)
-                if norm and norm in whitelist:
-                    doc_skills.append(norm)
+                match SkillNormalizer.normalize(ngram):
+                    case Ok(norm):
+                        if norm in whitelist:
+                            doc_skills.append(norm)
         return doc_skills
 
-    def calculate_weights(self, vacancies: list) -> dict[str, float]:
-        ch = self._compute_corpus_hash(vacancies)
-        if self._cached_corpus is not None and self._corpus_hash == ch:
-            logger.info("BM25 из кэша")
-            return self._cached_corpus
+    def calculate_weights(self, vacancies: list) -> Result[dict[str, float], DomainError]:
+        try:
+            ch = self._compute_corpus_hash(vacancies)
+            if self._cached_corpus is not None and self._corpus_hash == ch:
+                logger.info("BM25 из кэша")
+                return Ok(self._cached_corpus)
 
-        whitelist_raw = load_it_skills()
-        whitelist = set()
-        for skill in whitelist_raw:
-            norm = SkillNormalizer.normalize(skill)
-            if norm:
-                whitelist.add(norm)
-        whitelist_words = {s for s in whitelist if " " not in s}
-        whitelist_phrases = {s for s in whitelist if " " in s}
+            whitelist_raw = load_it_skills()
+            whitelist = set()
+            for skill in whitelist_raw:
+                r = SkillNormalizer.normalize(skill)
+                norm = r.unwrap() if r.is_ok() else ""
+                if norm:
+                    whitelist.add(norm)
+            whitelist_words = {s for s in whitelist if " " not in s}
+            whitelist_phrases = {s for s in whitelist if " " in s}
 
-        corpus_docs = []
-        all_skills = set()
+            corpus_docs = []
+            all_skills = set()
 
-        for vac in vacancies:
-            text = self._extract_vacancy_text(vac)
-            if not text:
-                continue
-
-            lemmas = self._lemmatize(text)
-            if not lemmas:
-                continue
-
-            doc_skills = self._build_vacancy_skills(lemmas, whitelist, whitelist_words, whitelist_phrases)
-            if doc_skills:
-                doc_skills_dedup = list(dict.fromkeys(doc_skills))
-                corpus_docs.append(doc_skills_dedup)
-                all_skills.update(doc_skills_dedup)
-
-        if not corpus_docs:
-            logger.warning("Нет валидных n-грамм для BM25")
-            return {}
-
-        total = len(vacancies)
-        max_docs = max(200, min(2000, total // 10))
-        if len(corpus_docs) > max_docs:
-            corpus_docs = [corpus_docs[i] for i in np.argsort([len(d) for d in corpus_docs])[-max_docs:]]
-
-        bm25 = BM25Okapi(corpus_docs)
-        weights = {}
-        for term in all_skills:
-            try:
-                scores = bm25.get_scores([term])
-                if len(scores) == 0:
+            for vac in vacancies:
+                text = self._extract_vacancy_text(vac)
+                if not text:
                     continue
-                avg = float(sum(scores) / len(scores))
-                if avg > config.BM25_MIN_SCORE:
-                    weights[term] = round(avg, 4)
-            except ZeroDivisionError:
-                continue
 
-        if weights:
-            vals = np.array(list(weights.values()))
-            vmin, vmax = vals.min(), vals.max()
-            if vmax > vmin:
-                for k in weights:
-                    weights[k] = round((weights[k] - vmin) / (vmax - vmin), 4)
+                lemmas = self._lemmatize(text)
+                if not lemmas:
+                    continue
 
-        logger.info("BM25 готов", skill_count=len(weights))
-        self._cached_corpus = weights
-        self._corpus_hash = ch
-        return weights
+                doc_skills = self._build_vacancy_skills(lemmas, whitelist, whitelist_words, whitelist_phrases)
+                if doc_skills:
+                    doc_skills_dedup = list(dict.fromkeys(doc_skills))
+                    corpus_docs.append(doc_skills_dedup)
+                    all_skills.update(doc_skills_dedup)
+
+            if not corpus_docs:
+                logger.warning("Нет валидных n-грамм для BM25")
+                return Ok({})
+
+            total = len(vacancies)
+            max_docs = max(200, min(2000, total // 10))
+            if len(corpus_docs) > max_docs:
+                corpus_docs = [corpus_docs[i] for i in np.argsort([len(d) for d in corpus_docs])[-max_docs:]]
+
+            bm25 = BM25Okapi(corpus_docs)
+            weights = {}
+            for term in all_skills:
+                try:
+                    scores = bm25.get_scores([term])
+                    if len(scores) == 0:
+                        continue
+                    avg = float(sum(scores) / len(scores))
+                    if avg > config.BM25_MIN_SCORE:
+                        weights[term] = round(avg, 4)
+                except ZeroDivisionError:
+                    continue
+
+            if weights:
+                vals = np.array(list(weights.values()))
+                vmin, vmax = vals.min(), vals.max()
+                if vmax > vmin:
+                    for k in weights:
+                        weights[k] = round((weights[k] - vmin) / (vmax - vmin), 4)
+
+            logger.info("BM25 готов", skill_count=len(weights))
+            self._cached_corpus = weights
+            self._corpus_hash = ch
+            return Ok(weights)
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="calculate_weights"))

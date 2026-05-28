@@ -3,7 +3,8 @@ import json
 
 import structlog
 
-from src import config
+from src import Result, Ok, Err, config
+from src.errors import DomainError
 from src.models.market_metrics import DomainMetrics
 
 logger = structlog.get_logger(__name__)  # ← используется напрямую
@@ -20,7 +21,7 @@ class DomainAnalyzer:
             logger.error("domain_map_file_not_found", path=str(self.domain_map_path))
             self.domain_map = {}
 
-    def compute_domain_coverage(self, user_skills: list[str]) -> dict[str, DomainMetrics]:
+    def compute_domain_coverage(self, user_skills: list[str]) -> Result[dict[str, DomainMetrics], DomainError]:
         user_set = set(skill.lower().strip() for skill in user_skills)
         result = {}
         total_domains = len(self.domain_map)
@@ -31,8 +32,7 @@ class DomainAnalyzer:
             dm.importance = 1.0 / max(total_domains, 1)
             result[domain_name] = dm
 
-            # Детализация по каждому домену — только в DEBUG
-            logger.debug(  # ← исправлено: self.logger → logger
+            logger.debug(
                 "Домен обработан",
                 domain=domain_name,
                 coverage=round(dm.coverage, 3),
@@ -40,11 +40,10 @@ class DomainAnalyzer:
                 total_required=dm.total_required,
             )
 
-        # Сводка — INFO
         top_domain = max(result.items(), key=lambda x: x[1].coverage)
         avg_coverage = sum(d.coverage for d in result.values()) / len(result)
 
-        logger.info(  # ← исправлено: self.logger → logger
+        logger.info(
             "Доменное покрытие рассчитано",
             total_domains=len(result),
             avg_coverage=round(avg_coverage, 3),
@@ -53,4 +52,4 @@ class DomainAnalyzer:
             user_skills_count=len(user_skills),
         )
 
-        return result
+        return Ok(result)

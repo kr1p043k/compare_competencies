@@ -8,14 +8,27 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class WeightedSkill(BaseModel):
+    name: str
+    weight: float
+    category: str = "other"
+
+
+class LevelVacancy(BaseModel):
+    skills: list[str]
+    description: str = ""
+    experience: str = "middle"
+
+
 class PipelineContext(BaseModel):
     """Типизированный контекст пайплайна вместо сырого dict."""
 
     skill_freq: dict[str, int] = Field(default_factory=dict)
     hybrid_weights: dict[str, float] = Field(default_factory=dict)
     vacancies_skills: list[list[str]] = Field(default_factory=list)
-    level_vacancies_data: list[dict[str, Any]] = Field(default_factory=list)
+    level_vacancies_data: list[LevelVacancy] = Field(default_factory=list)
     trend_analyzer: Any = None
+    request_id: str = ""
 
     class Config:
         arbitrary_types_allowed = True
@@ -60,12 +73,24 @@ class ProfileEvaluationResult(BaseModel):
         arbitrary_types_allowed = True
 
 
+class RecommendationItem(BaseModel):
+    skill: str = ""
+    action: str = ""
+    impact: float = 0.0
+    priority: str = "medium"
+
+
+class DomainCoverage(BaseModel):
+    score: float = 0.0
+    skills: list[str] = Field(default_factory=list)
+
+
 class RecommendationResponse(BaseModel):
     """Ответ движка рекомендаций."""
 
     summary: dict[str, Any] = Field(default_factory=dict)
     closest_roles: list[dict[str, Any]] = Field(default_factory=list)
-    recommendations: list[dict[str, Any]] = Field(default_factory=list)
+    recommendations: list[RecommendationItem] = Field(default_factory=list)
     domain_coverage: dict[str, Any] = Field(default_factory=dict)
     gaps: dict[str, Any] = Field(default_factory=dict)
 

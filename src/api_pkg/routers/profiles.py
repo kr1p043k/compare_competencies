@@ -35,18 +35,18 @@ async def compare_profiles(
 ):
     evaluations = {}
     for pname, student in profiles.items():
-        try:
-            eval_result = eval_instance.evaluate_profile(student)
-            evaluations[pname] = {
-                "market_coverage_score": eval_result.get("market_coverage_score"),
-                "skill_coverage": eval_result.get("skill_coverage"),
-                "domain_coverage_score": eval_result.get("domain_coverage_score"),
-                "readiness_score": eval_result.get("readiness_score"),
-                "real_coverage": eval_result.get("market_skill_coverage"),
-            }
-        except Exception as e:
-            logger.error("Ошибка оценки профиля", profile=pname, error=str(e))
-            evaluations[pname] = {"error": str(e)}
+        match eval_instance.evaluate_profile(student):
+            case Ok(eval_result):
+                evaluations[pname] = {
+                    "market_coverage_score": eval_result.get("market_coverage_score"),
+                    "skill_coverage": eval_result.get("skill_coverage"),
+                    "domain_coverage_score": eval_result.get("domain_coverage_score"),
+                    "readiness_score": eval_result.get("readiness_score"),
+                    "real_coverage": eval_result.get("market_skill_coverage"),
+                }
+            case Err(err):
+                logger.error("Ошибка оценки профиля", profile=pname, error=str(err))
+                evaluations[pname] = {"error": str(err)}
     return {"profiles": evaluations}
 
 
@@ -89,23 +89,25 @@ async def get_profile_profession_evaluation(request: Request, profile: str):
         )
 
     student = deps.student_profiles[profile]
-    result = deps.evaluator.evaluate_profile(
+    match deps.evaluator.evaluate_profile(
         student,
         user_type="student",
         target_domains=profile_config.get("target_domains", []),
         taxonomy=taxonomy,
-    )
-
-    return {
-        "profile": profile,
-        "target_profession": profile_config.get("target_profession", ""),
-        "target_domains": profile_config.get("target_domains", []),
-        "profession_coverage": result.get("profession_coverage", 0),
-        "krm_coverage": result.get("krm_coverage", {}),
-        "readiness_score": result.get("readiness_score", 0),
-        "skill_coverage": result.get("skill_coverage", 0),
-        "domain_coverage_score": result.get("domain_coverage_score", 0),
-    }
+    ):
+        case Ok(result):
+            return {
+                "profile": profile,
+                "target_profession": profile_config.get("target_profession", ""),
+                "target_domains": profile_config.get("target_domains", []),
+                "profession_coverage": result.get("profession_coverage", 0),
+                "krm_coverage": result.get("krm_coverage", {}),
+                "readiness_score": result.get("readiness_score", 0),
+                "skill_coverage": result.get("skill_coverage", 0),
+                "domain_coverage_score": result.get("domain_coverage_score", 0),
+            }
+        case Err(err):
+            raise HTTPException(status_code=500, detail=str(err))
 
 
 @router.get("/api/recommendations/{profile}", response_model=dict)

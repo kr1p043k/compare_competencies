@@ -4,6 +4,8 @@
 
 import structlog
 
+from src import Result, Ok, Err
+from src.errors import DomainError
 from src.models.enums import ExperienceLevel
 from src.models.market_metrics import SkillMetrics
 
@@ -14,7 +16,7 @@ class GapAnalyzer:
     def __init__(self, skill_weights_by_level: dict[str, dict[str, float]]):
         self.skill_weights_by_level = skill_weights_by_level
 
-    def compute_metrics(self, user_skills: list[str], user_levels: dict[str, float]) -> dict[str, SkillMetrics]:
+    def compute_metrics(self, user_skills: list[str], user_levels: dict[str, float]) -> Result[dict[str, SkillMetrics], DomainError]:
         metrics: dict[str, SkillMetrics] = {}
         all_weights = {}
         for level_data in self.skill_weights_by_level.values():
@@ -34,7 +36,6 @@ class GapAnalyzer:
                 setattr(metrics[skill], f"gap_{level_key}", gap)
                 setattr(metrics[skill], f"demand_{level_key}", demand)
 
-        # Сводная статистика
         total_gaps = sum(max(m.gap_j, m.gap_m, m.gap_s) for m in metrics.values())
         avg_gap = total_gaps / len(metrics) if metrics else 0
 
@@ -45,7 +46,6 @@ class GapAnalyzer:
             levels_available=list(self.skill_weights_by_level.keys()),
         )
 
-        # Детализация по топ-5 навыкам с наибольшим gap
         top_gaps = sorted(metrics.items(), key=lambda x: max(x[1].gap_j, x[1].gap_m, x[1].gap_s), reverse=True)[:5]
         logger.debug(
             "top_5_gaps",
@@ -59,10 +59,10 @@ class GapAnalyzer:
             ],
         )
 
-        return metrics
+        return Ok(metrics)
 
     def set_weights_by_level(self, weights_by_level: dict[str, dict[str, float]]):
         self.skill_weights_by_level = weights_by_level
 
-    def get_weights_by_level(self) -> dict[str, dict[str, float]]:
-        return self.skill_weights_by_level
+    def get_weights_by_level(self) -> Result[dict[str, dict[str, float]], DomainError]:
+        return Ok(self.skill_weights_by_level)

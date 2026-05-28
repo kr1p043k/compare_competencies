@@ -131,12 +131,11 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         self.cluster_weights = None
         logger.info("cluster_context_cleared")
 
-    def fit(self, vacancies_skills: list[list[str]], skill_weights: dict[str, float]) -> None:
+    def fit(self, vacancies_skills: list[list[str]], skill_weights: dict[str, float]) -> Result["RecommendationEngine", Exception]:
         if not vacancies_skills:
-            logger.warning("no_vacancy_data_for_training")
-            return
+            return Err(RecommendationError(message="no_vacancy_data_for_training", profile=""))
         if not skill_weights:
-            raise ValueError("skill_weights обязательны для fit")
+            return Err(RecommendationError(message="skill_weights_required", profile=""))
 
         self.comparator.fit_market(vacancies_skills)
         self.gap_analyzer = GapAnalyzer(skill_weights)
@@ -147,6 +146,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             vacancies=len(vacancies_skills),
             skills=len(skill_weights),
         )
+        return Ok(self)
 
     def generate_recommendations(
         self,
@@ -168,15 +168,18 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             if precomputed_eval is not None:
                 eval_result = precomputed_eval
             else:
-                eval_result = self.profile_evaluator.evaluate_profile(
+                match self.profile_evaluator.evaluate_profile(
                     student,
                     user_type=user_type,
                     target_domains=target_domains,
                     taxonomy=taxonomy,
-                )
-            if eval_result is None:
-                logger.error("eval_result_is_none", profile=profile_name)
-                return Err(RecommendationError(message="Оценка профиля вернула None", profile=profile_name))
+                ):
+                    case Ok(eval_result):
+                        pass
+                    case Err(e):
+                        return Err(RecommendationError(message=str(e), profile=profile_name))
+                    case _:
+                        return Err(RecommendationError(message="Оценка профиля вернула неожиданный результат", profile=profile_name))
 
             cluster_context = eval_result.get("cluster_context") or {}
             closest_clusters = cluster_context.get("closest_clusters", [])

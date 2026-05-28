@@ -39,7 +39,12 @@ class RecommendationRunner:
                 level=ComparisonLevel.MIDDLE,
                 similarity_threshold=0.80,
             )
-            self.engine.fit(self.ctx.vacancies_skills, skill_weights=hybrid_weights)
+            match self.engine.fit(self.ctx.vacancies_skills, skill_weights=hybrid_weights):
+                case Ok(engine):
+                    self.engine = engine
+                case Err(e):
+                    logger.error("engine_fit_failed", error=str(e))
+                    return Err(RecommendationError(message=f"Ошибка обучения движка: {e}", profile="all"))
             return Ok(None)
         except Exception as e:
             logger.error("engine_initialization_failed", error=str(e))

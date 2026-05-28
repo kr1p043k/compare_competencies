@@ -65,17 +65,16 @@ class HeadHunterAPI:
 
     def search_vacancies_validated(
         self, text, area, period_days=30, max_pages=20, per_page=100, industry=None, date_from=None, date_to=None
-    ) -> list[dict]:
+    ) -> Result[list[dict], ApiError]:
         """Возвращает список словарей, как и раньше (для обратной совместимости)."""
-        # реализация та же, что в search_vacancies
-        return self.search_vacancies(text, area, period_days, max_pages, per_page, industry, date_from, date_to)
+        return Ok(self.search_vacancies(text, area, period_days, max_pages, per_page, industry, date_from, date_to))
 
-    def get_vacancy_details_validated(self, vacancy_id) -> VacancyDetailResponse:
+    def get_vacancy_details_validated(self, vacancy_id) -> Result[VacancyDetailResponse, ApiError]:
         """Получает детали вакансии и возвращает валидированную модель."""
         raw = self._get(f"{self.BASE_URL_FULL}vacancies/{vacancy_id}")
         if raw is None:
-            raise ValueError(f"Vacancy {vacancy_id} not found or API error")
-        return parse_response(raw, VacancyDetailResponse)
+            return Err(ApiError(message=f"Vacancy {vacancy_id} not found or API error", endpoint=f"vacancies/{vacancy_id}"))
+        return Ok(parse_response(raw, VacancyDetailResponse))
 
     # -----------------------------------------------------------------------
     def _load_cached_token(self) -> bool:
@@ -219,15 +218,15 @@ class HeadHunterAPI:
             logger.warning("vacancy_details_failed", vacancy_id=vacancy_id)
         return data
 
-    def get_vacancy_details_as_object(self, vacancy_id):
+    def get_vacancy_details_as_object(self, vacancy_id) -> Result[Vacancy, ApiError]:
         raw = self.get_vacancy_details(vacancy_id)
         if not raw:
-            return None
+            return Err(ApiError(message=f"Vacancy {vacancy_id} not found", endpoint=f"vacancies/{vacancy_id}"))
         try:
-            return Vacancy.from_api(raw)
+            return Ok(Vacancy.from_api(raw))
         except ValueError as e:
             logger.warning("invalid_vacancy", vacancy_id=vacancy_id, error=str(e))
-            return None
+            return Err(ApiError(message=str(e), endpoint=f"vacancies/{vacancy_id}"))
 
     # -----------------------------------------------------------------------
     def _get_result(self, url, params=None, retry_count=0, _is_retry_after_401=False) -> Result[dict, ApiError]:
