@@ -15,14 +15,18 @@ gap-анализ для профилей студентов. Включает ML
 
 Примеры команд:
 
-  # Полный цикл с нуля: сбор IT-вакансий, обучение модели, анализ
-  python main.py --it-sector --regions 1,2 --excel
-  python scripts/train_clusters.py --level all
-  python main.py --train-model
-  python main.py --skip-collection --run-gap-analysis
+  # Полный пайплайн со значениями по умолчанию
+  python main.py
+  # Без аргументов: поиск "1с разработчик" в СПб (--area-id=2), 10 страниц, полный цикл
 
-  # Альтернативный запуск (если вакансии уже собраны)
-  python main.py --skip-collection --run-gap-analysis
+  # Полный цикл с нуля: сбор IT-вакансий, обучение модели, gap-анализ
+  python main.py --it-sector --regions 1,2 --excel
+  # Внутри main: сбор → quality scoring → навыки → кластеры → LTR-модель → gap-анализ (всё автоматически)
+
+  # Пошагово (если нужно разделить):
+  python scripts/train_clusters.py --level all           # кластеризация
+  python main.py --train-model                           # LTR-модель
+  python main.py --skip-collection                       # gap-анализ без сбора
 
   # Быстрый тест на малом объёме
   python main.py --query "Python Developer" --max-pages 1 --show-vacancies
@@ -67,8 +71,8 @@ gap-анализ для профилей студентов. Включает ML
 
   --skip-collection   Использовать существующие файлы вакансий, не выполняя новый сбор.
 
-  --run-gap-analysis  Запустить gap-анализ после обработки вакансий.
-                      По умолчанию: выключено
+  --skip-gap-analysis  Пропустить этап gap-анализа и генерации рекомендаций.
+                       По умолчанию: gap-анализ выполняется автоматически
 
 
 Расширенные возможности
@@ -456,7 +460,7 @@ ML-модель и рекомендации
    python main.py --train-model
 
 3. Запустить gap-анализ с рекомендациями (модель загрузится автоматически):
-   python main.py --skip-collection --run-gap-analysis
+   python main.py --skip-collection
 
 Рекомендации сохраняются в data/result/<профиль>/full_recommendations_<профиль>.json.
 Модель можно переобучать после каждого обновления вакансий для актуализации весов.
@@ -545,7 +549,7 @@ ML-модель и рекомендации
 Вопрос: Почему рекомендации обновляются, а ltr_recommendations_*.json — нет?
 Ответ: LTR-рекомендации сохраняются вместе с полными рекомендациями при каждом
        запуске gap-анализа. Проверьте дату модификации файла или запустите
-       python main.py --skip-collection --run-gap-analysis повторно.
+       python main.py --skip-collection повторно.
 
 Вопрос: Как интерпретировать доменное покрытие 5-10%?
 Ответ: Это нормально при сравнении с широким IT-рынком. Студент не обязан знать
