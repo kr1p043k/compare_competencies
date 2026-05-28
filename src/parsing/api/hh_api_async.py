@@ -191,7 +191,14 @@ class HeadHunterAPIAsync:
 
                     if resp.status == 403:
                         self.stats["403_errors"] += 1
-                        return Err(ApiError(message="Forbidden", status_code=403, endpoint=url))
+                        if retries < 1:
+                            logger.warning("http_403_refreshing_token_async")
+                            self._token = None
+                            self._token_expires_at = 0
+                            await self._ensure_token()
+                            return await self._request_result(session, url, params, retries + 1, max_retries)
+                        logger.error("http_403_after_token_refresh_async")
+                        return Err(ApiError(message="Forbidden after token refresh", status_code=403, endpoint=url))
 
                     if resp.status == 404:
                         self.stats["404_errors"] += 1
@@ -264,10 +271,13 @@ class HeadHunterAPIAsync:
                 tasks = [self.get_vacancy_details_validated(session, vid) for vid in batch]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 for r in results:
-                    if isinstance(r, VacancyDetailResponse):
-                        all_results.append(r)
-                    elif isinstance(r, Exception):
-                        logger.debug("vacancy_validated_skipped", error=str(r))
+                    match r:
+                        case Ok(v) if isinstance(v, VacancyDetailResponse):
+                            all_results.append(v)
+                        case Err(e):
+                            logger.debug("vacancy_validated_skipped", error=str(e))
+                        case e if isinstance(e, Exception):
+                            logger.debug("vacancy_exception_skipped", error=str(e))
             # Прогресс
             logger.info(
                 "async_validated_batch_progress",

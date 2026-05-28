@@ -198,6 +198,11 @@ class HeadHunterAPI:
                 logger.error("failed_to_get_search_data")
                 break
             items = data["items"]
+            found = data.get("found", 0)
+            if found == 0:
+                if items:
+                    logger.warning("hh_no_exact_results_similar_queries_returned", query=text, area=area, similar_items=len(items))
+                break
             if not items:
                 break
             all_vacancies.extend(items)
@@ -206,6 +211,22 @@ class HeadHunterAPI:
                 break
             page += 1
             time.sleep(config.REQUEST_DELAY)
+        if all_vacancies:
+            query_words = [w.lower() for w in text.split() if len(w) > 1]
+            if query_words:
+                matching = sum(
+                    1 for v in all_vacancies if any(w in (v.get("name", "") or "").lower() for w in query_words)
+                )
+                match_pct = matching / len(all_vacancies) * 100
+                if match_pct < 20:
+                    logger.warning(
+                        "hh_search_returned_similar_queries",
+                        query=text,
+                        area=area,
+                        total=len(all_vacancies),
+                        matching_pct=round(match_pct, 1),
+                    )
+
         logger.info("search_vacancies_completed", total=len(all_vacancies))
         return all_vacancies
 
@@ -256,8 +277,8 @@ class HeadHunterAPI:
                 return Err(ApiError(message="Unauthorized after token refresh", status_code=401, endpoint=url))
             elif response.status_code == 403:
                 err_text = response.text[:300]
-                if "token-revoked" in err_text or "token_expired" in err_text:
-                    logger.warning("token_revoked_attempting_refresh")
+                if "token-revoked" in err_text or "token_expired" in err_text or "bad_authorization" in err_text:
+                    logger.warning("token_invalid_attempting_refresh")
                     self._token = None
                     self._token_expires_at = 0
                     self._clear_token_cache()

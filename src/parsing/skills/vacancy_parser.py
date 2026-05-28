@@ -76,7 +76,12 @@ class VacancyParser:
             self._validate_vacancies(detailed_vacancies)
             skill_freq = {}
             for vac in detailed_vacancies:
-                skills = self._extract_from_description(vac.get("description", ""))
+                skills = []
+                match self.extract_skills_from_description(vac.get("description", "")):
+                    case Ok(sk):
+                        skills = sk
+                    case _:
+                        pass
                 for s in skills:
                     skill_freq[s] = skill_freq.get(s, 0) + 1
             final_freq = self._validate_skills(skill_freq)
@@ -170,7 +175,12 @@ class VacancyParser:
                 snippet = vac.get("snippet", {}) or {}
                 snippet_req = snippet.get("requirement", "") or ""
                 snippet_resp = snippet.get("responsibility", "") or ""
-                text_skill_names = self.extract_skills_from_description(f"{description} {snippet_req} {snippet_resp}")
+                text_skill_names = []
+                match self.extract_skills_from_description(f"{description} {snippet_req} {snippet_resp}"):
+                    case Ok(ts):
+                        text_skill_names = ts
+                    case _:
+                        pass
 
             all_skills = list(dict.fromkeys(key_skill_names + text_skill_names))
             try:
@@ -230,7 +240,12 @@ class VacancyParser:
                 snip = vac.get("snippet", {}) or {}
                 req = snip.get("requirement", "") or ""
                 resp = snip.get("responsibility", "") or ""
-                text_skill_names = self.extract_skills_from_description(f"{desc} {req} {resp}")
+                text_skill_names = []
+                match self.extract_skills_from_description(f"{desc} {req} {resp}"):
+                    case Ok(ts):
+                        text_skill_names = ts
+                    case _:
+                        pass
 
             all_skills = list(dict.fromkeys(key_skill_names + text_skill_names))
             try:

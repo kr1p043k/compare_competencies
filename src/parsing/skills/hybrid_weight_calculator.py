@@ -4,7 +4,7 @@ import numpy as np
 import structlog
 import torch
 
-from src import config
+from src import Ok, config
 from src.parsing.skills.skill_embedding_cache import SkillEmbeddingCache
 
 logger = structlog.get_logger(__name__)
@@ -21,6 +21,9 @@ class HybridWeightCalculator:
                 bm25_weights = w
             case _:
                 return {}
+
+        if not bm25_weights:
+            return {}
 
         if self.cache.model is None:
             logger.warning("Эмбеддинги недоступны — только BM25")
@@ -72,6 +75,8 @@ class HybridWeightCalculator:
 
     @staticmethod
     def _norm(w: dict[str, float]) -> dict[str, float]:
+        if not w:
+            return w
         vals = np.array(list(w.values()))
         vmin, vmax = vals.min(), vals.max()
         if vmax > vmin:
