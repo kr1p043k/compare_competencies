@@ -159,7 +159,8 @@ class HhDataSource(DataSourceProtocol):
             parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json")
 
             if self.args.skip_details:
-                vacancies_to_process = basic_vacancies
+                from src.models.vacancy import Vacancy
+                vacancies_to_process = [Vacancy.from_api(v) for v in basic_vacancies]
                 console_info("Пропуск загрузки деталей (--skip-details)")
             else:
                 total_vacs = len(basic_vacancies)
@@ -193,7 +194,8 @@ class HhDataSource(DataSourceProtocol):
             parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json")
 
             if self.args.skip_details:
-                vacancies_to_process = basic_vacancies
+                from src.models.vacancy import Vacancy
+                vacancies_to_process = [Vacancy.from_api(v) for v in basic_vacancies]
             else:
                 total_vacs = len(basic_vacancies)
                 use_async, async_workers, reason = get_load_mode(total_vacs, self.args, logger)

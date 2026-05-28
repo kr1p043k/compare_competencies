@@ -20,11 +20,14 @@ class WeightCleaner:
             if comp_freq_path.exists():
                 with open(comp_freq_path, encoding="utf-8") as f:
                     competency_freq = json.load(f)
-            hybrid_weights = filter_engine.get_clean_weights(
+            match filter_engine.get_clean_weights(
                 hybrid_weights_raw, competency_freq=competency_freq, use_reference=True
-            )
-            print(f"  📊 После фильтрации: {len(hybrid_weights)} навыков")
-            return Ok(hybrid_weights)
+            ):
+                case Ok(hybrid_weights):
+                    print(f"  📊 После фильтрации: {len(hybrid_weights)} навыков")
+                    return Ok(hybrid_weights)
+                case Err(e):
+                    return Err(WeightCleanError(message=f"Ошибка очистки весов: {e}"))
         except Exception as e:
             logger.exception("weight_cleaning_failed", error=str(e))
             return Err(WeightCleanError(message=f"Ошибка очистки весов: {e}"))

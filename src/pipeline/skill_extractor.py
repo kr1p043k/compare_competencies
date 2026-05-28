@@ -53,9 +53,12 @@ class SkillExtractor:
                 hybrid_weights_raw = cached_result.get("hybrid_weights", {})
             else:
                 self._console_info("Извлечение навыков из вакансий...")
-                result = parser.extract_skills_from_vacancies(vacancies)
-                skill_freq = result["frequencies"]
-                hybrid_weights_raw = result.get("hybrid_weights", {})
+                match parser.extract_skills_from_vacancies(vacancies):
+                    case Ok(result):
+                        skill_freq = result["frequencies"]
+                        hybrid_weights_raw = result.get("hybrid_weights", {})
+                    case Err(e):
+                        return Err(SkillExtractionError(message=f"Ошибка извлечения навыков: {e}", detail=str(e), stage="skill_extraction", vacancies_count=len(vacancies)))
                 cache_data = {"source_hash": vacancies_hash, "result": result}
                 cache.save(cache_key, cache_data)
                 self._console_info("💾 Кэш результатов сохранён")

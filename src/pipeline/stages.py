@@ -93,7 +93,20 @@ class QualityScoringStage(PipelineStage):
             excel_name = f"vacancies_{self.args.query.replace(' ', '_')}.xlsx"
             parser.save_to_excel(df, excel_name)
 
+        clean_pct = (total - spam_count) / total * 100 if total else 0
         self._progress(100, f"Оценка качества завершена: {total - spam_count} качественных вакансий")
+
+        if clean_pct < 30:
+            logger.warning(
+                "hh_possible_similar_queries",
+                clean_pct=round(clean_pct, 1),
+                spam_count=spam_count,
+                total=total,
+            )
+            print(f"\n  ⚠️  Обнаружено {spam_count}/{total} нерелевантных вакансий ({clean_pct:.0f}% качественных).")
+            print(f"     Возможно, HH.ru вернул «похожие запросы» вместо точных результатов.")
+            print(f"     Попробуйте другой регион или уточните запрос.\n")
+
         return Ok({"quality_report": quality_report})
 
 
