@@ -29,7 +29,7 @@ import structlog
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src import config
+from src import Ok, Err, config
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.parsing.skills.skill_validator import SkillValidator
@@ -70,11 +70,16 @@ def extract_all_skills(vacancies: list[dict], min_frequency: int = 1) -> list[tu
         snippet = vac.get("snippet", {}) or {}
         req = snippet.get("requirement", "") or ""
         resp = snippet.get("responsibility", "") or ""
-        text_skills = parser.extract_skills_from_description(f"{desc} {req} {resp}")
-        for skill in text_skills:
-            norm = SkillNormalizer.normalize(skill)
-            if norm:
-                skills_from_vac.add(norm)
+        match parser.extract_skills_from_description(f"{desc} {req} {resp}"):
+            case Ok(text_skills):
+                for skill in text_skills:
+                    match SkillNormalizer.normalize(skill):
+                        case Ok(norm):
+                            skills_from_vac.add(norm)
+                        case _:
+                            pass
+            case _:
+                pass
 
         for skill in skills_from_vac:
             skill_counter[skill] += 1

@@ -14,6 +14,7 @@ import structlog
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src import config
+from src.result import Err, Ok, Result
 from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import read_json
@@ -35,11 +36,19 @@ def prepare_vacancies_for_clustering(raw_vacancies: list) -> list:
         snippet = vac.get("snippet", {}) or {}
         req = snippet.get("requirement", "") or ""
         resp = snippet.get("responsibility", "") or ""
-        text_skills = parser.extract_skills_from_description(f"{desc} {req} {resp}")
+        match parser.extract_skills_from_description(f"{desc} {req} {resp}"):
+            case Ok(skills_from_desc):
+                text_skills = skills_from_desc
+            case _:
+                text_skills = []
 
         from src.parsing.skills.skill_normalizer import SkillNormalizer
 
-        all_skills = SkillNormalizer.deduplicate(skills + text_skills)
+        match SkillNormalizer.deduplicate(skills + text_skills):
+            case Ok(deduped):
+                all_skills = deduped
+            case _:
+                all_skills = []
 
         exp_obj = vac.get("experience", {})
         if isinstance(exp_obj, dict):
