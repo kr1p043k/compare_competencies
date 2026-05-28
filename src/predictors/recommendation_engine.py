@@ -222,15 +222,18 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                     combined_scores[skill] = ev
 
             if self._cached_trend_bonuses is None and self.trend_analyzer is not None:
-                trends = self.trend_analyzer.get_trending_skills(top_n=500, min_change_percent=0.0)
-                self.trend_analyzer.save_trends(trends)
-                tb: dict[str, float] = {}
-                for t in trends.get(TrendType.RISING, []):
-                    tb[t["skill"]] = min(t["change_pct"] / 100.0, 0.3)
-                for hot in self._always_hot:
-                    if hot not in tb:
-                        tb[hot] = config.TREND_ALWAYS_HOT_BONUS
-                self._cached_trend_bonuses = tb
+                match self.trend_analyzer.get_trending_skills(top_n=500, min_change_percent=0.0):
+                    case Ok(trends):
+                        self.trend_analyzer.save_trends(trends)
+                        tb: dict[str, float] = {}
+                        for t in trends.get(TrendType.RISING, []):
+                            tb[t["skill"]] = min(t["change_pct"] / 100.0, 0.3)
+                        for hot in self._always_hot:
+                            if hot not in tb:
+                                tb[hot] = config.TREND_ALWAYS_HOT_BONUS
+                        self._cached_trend_bonuses = tb
+                    case _:
+                        pass
 
             trend_bonuses = self._cached_trend_bonuses or {}
 

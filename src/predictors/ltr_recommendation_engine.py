@@ -102,9 +102,12 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         logger.info("ltr_training_started", vacancies=len(vacancies))
         np.random.seed(config.GLOBAL_RANDOM_SEED)
 
-        extraction_result = self.vacancy_parser.extract_skills_from_vacancies(vacancies)
-        frequencies = extraction_result["frequencies"]
-        hybrid_weights = extraction_result.get("hybrid_weights", {})
+        match self.vacancy_parser.extract_skills_from_vacancies(vacancies):
+            case Ok(result):
+                frequencies = result["frequencies"]
+                hybrid_weights = result.get("hybrid_weights", {})
+            case Err(e):
+                return Err(ModelTrainingError(message=str(e), detail="extract_skills_from_vacancies"))
 
         processed_vacancies = self._prepare_vacancies_for_levels(vacancies)
         self.level_analyzer.analyze_vacancies(processed_vacancies)
@@ -417,18 +420,26 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                     skills.add(norm)
         desc = vac.get("description", "")
         if desc:
-            for s in self.vacancy_parser.extract_skills_from_description(desc):
-                norm = _normalize(s)
-                if norm:
-                    skills.add(norm)
+            match self.vacancy_parser.extract_skills_from_description(desc):
+                case Ok(skills_list):
+                    for s in skills_list:
+                        norm = _normalize(s)
+                        if norm:
+                            skills.add(norm)
+                case _:
+                    pass
         if not skills:
             snippet = vac.get("snippet") or {}
             combined = f"{snippet.get('requirement', '')} {snippet.get('responsibility', '')}"
             if combined.strip():
-                for s in self.vacancy_parser.extract_skills_from_description(combined):
-                    norm = _normalize(s)
-                    if norm:
-                        skills.add(norm)
+                match self.vacancy_parser.extract_skills_from_description(combined):
+                    case Ok(skills_list):
+                        for s in skills_list:
+                            norm = _normalize(s)
+                            if norm:
+                                skills.add(norm)
+                    case _:
+                        pass
         return list(skills)
 
     def _prepare_vacancies_for_levels(self, vacancies: list[dict]) -> list[dict]:
@@ -460,10 +471,13 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 return cat
         except Exception:
             pass
-        cats = self.skill_filter.get_skill_categories([skill])
-        for cat, skills in cats.items():
-            if skill in skills:
-                return cat
+        match self.skill_filter.get_skill_categories([skill]):
+            case Ok(cats):
+                for cat, cat_skills in cats.items():
+                    if skill in cat_skills:
+                        return cat
+            case _:
+                pass
         return "other"
 
     def _fallback_impacts(self, missing_skills: list[str]) -> list[tuple[str, float, str]]:
