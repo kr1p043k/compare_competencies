@@ -1,5 +1,6 @@
 """n8n webhook router — приём callback'ов от n8n."""
 
+import hmac
 import json
 from datetime import datetime
 from pathlib import Path
@@ -42,8 +43,9 @@ def _verify_n8n_secret(request: Request) -> bool:
     from src import config
     expected = config.N8N_WEBHOOK_SECRET
     if expected is None:
+        logger.warning("n8n_webhook_secret_not_configured")
         return True
-    return token == expected.get_secret_value()
+    return hmac.compare_digest(token, expected.get_secret_value())
 
 
 @router.post("/api/n8n/webhook/student-created")

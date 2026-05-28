@@ -23,7 +23,11 @@ uvicorn src.api_pkg:app --host 0.0.0.0 --port 8000
   - Header Name: `Authorization`
   - Header Value: `Bearer <N8N_API_KEY>`
 - All HTTP Request nodes use this credential
-- Base URL: `http://localhost:8000` (dev) or `https://your-domain.com` (prod)
+- Set **Environment Variable** in n8n Settings → Environment Variables:
+  ```env
+  BASE_URL=https://penny-coffee-considered-ala.trycloudflare.com
+  ```
+- Workflow templates use `{{ $env.BASE_URL }}` — обнови значение при смене туннеля
 
 ---
 
@@ -124,7 +128,7 @@ Webhook (from admin panel)
 
 Set in n8n **Settings → Environment Variables**:
 ```env
-BASE_URL=http://localhost:8000
+BASE_URL=https://your-tunnel.trycloudflare.com
 TG_CHAT_ID=123456789
 ```
 
@@ -160,3 +164,42 @@ Or use n8n credentials for the HTTP Header Auth.
 3. Both stored in `.env`, never committed
 4. Rate limits: 2-60 req/min per endpoint
 5. All n8n traffic should go through HTTPS in production
+
+---
+
+## 9. Workflow Validation Checklist
+
+Before activating ANY workflow, verify:
+
+### Implementation
+- [ ] Trigger configured (Schedule / Webhook / Manual)
+- [ ] All HTTP Request nodes use Generic Credential (Bearer N8N_API_KEY)
+- [ ] Webhook data accessed via `$json.body.field` (not `$json.field`)
+- [ ] At least 1 data transformation node (Set / Code / IF)
+- [ ] Output/action nodes present (Telegram / API / Email)
+
+### Error Handling
+- [ ] **Error Trigger** node added (catches all unhandled errors)
+- [ ] Error notification path (Telegram or log)
+- [ ] Unary operators use `isNotEmpty` / `isEmpty` (not manual singleValue)
+- [ ] Branch `false` output connected or intentionally empty
+
+### Data Validation
+- [ ] IF node validates critical inputs before processing
+- [ ] Empty results handled gracefully (IF with no action = silent skip)
+- [ ] `.get()` or `||` used in Code nodes for safe access
+- [ ] Return format: always `[{"json": {…}}]`
+
+---
+
+## 10. Deployment Checklist
+
+- [ ] `.env` has `N8N_API_KEY` set
+- [ ] `.env` has `N8N_WEBHOOK_SECRET` set
+- [ ] API is reachable from n8n (test: `curl /health`)
+- [ ] Generic Credential created in n8n with `Authorization: Bearer <N8N_API_KEY>`
+- [ ] X-N8N-Webhook-Secret matches in n8n HTTP Request headers
+- [ ] Workflow imported from `src/n8n/workflows/*.json`
+- [ ] Workflow validated (no red nodes)
+- [ ] Tested with manual trigger before scheduling
+- [ ] Monitoring: check first 3 automated executions
