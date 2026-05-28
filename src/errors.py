@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class DomainError:
+class DomainError(Exception):
     message: str
     detail: str = ""
 
