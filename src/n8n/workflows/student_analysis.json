@@ -1,0 +1,191 @@
+{
+    "name":  "Student Analysis (Webhook)",
+    "nodes":  [
+                  {
+                      "name":  "Webhook",
+                      "type":  "n8n-nodes-base.webhook",
+                      "parameters":  {
+                                         "httpMethod":  "POST",
+                                         "path":  "student-analysis",
+                                         "responseMode":  "responseNode",
+                                         "options":  {}
+                                     },
+                      "id":  "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                      "position":  [
+                                       200,
+                                       200
+                                   ],
+                      "typeVersion":  3.4
+                  },
+                  {
+                      "name":  "Get Profile",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "parameters":  {
+                                         "method":  "GET",
+                                         "url":  "=https://prospective-worth-carriers-founded.trycloudflare.com/api/profiles/compare",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth"
+                                     },
+                      "id":  "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                      "position":  [
+                                       200,
+                                       380
+                                   ],
+                      "typeVersion":  4.1
+                  },
+                  {
+                      "name":  "Get Recommendations",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "parameters":  {
+                                         "method":  "GET",
+                                         "url":  "='https://prospective-worth-carriers-founded.trycloudflare.com/api/recommendations/' + $json.profile",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth"
+                                     },
+                      "id":  "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                      "position":  [
+                                       200,
+                                       560
+                                   ],
+                      "typeVersion":  4.1
+                  },
+                  {
+                      "name":  "Get Profession Eval",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "parameters":  {
+                                         "method":  "GET",
+                                         "url":  "='https://prospective-worth-carriers-founded.trycloudflare.com/api/profiles/' + $json.profile + '/profession-evaluation'",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth"
+                                     },
+                      "id":  "d4e5f6a7-b8c9-0123-defa-234567890123",
+                      "position":  [
+                                       400,
+                                       380
+                                   ],
+                      "typeVersion":  4.1
+                  },
+                  {
+                      "name":  "Merge Results",
+                      "type":  "n8n-nodes-base.code",
+                      "parameters":  {
+                                         "jsCode":  "const profile = $input.first().json;\nconst recs = $('Get Recommendations').first().json;\nconst profEval = $('Get Profession Eval').first().json;\nreturn [{\n  json: {\n    profile: profile,\n    recommendations: recs,\n    profession_evaluation: profEval,\n    generated_at: new Date().toISOString()\n  }\n}];"
+                                     },
+                      "id":  "e5f6a7b8-c9d0-1234-efab-345678901234",
+                      "position":  [
+                                       200,
+                                       740
+                                   ],
+                      "typeVersion":  2.1
+                  },
+                  {
+                      "name":  "Response",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "parameters":  {},
+                      "id":  "f6a7b8c9-d0e1-2345-fabc-456789012345",
+                      "position":  [
+                                       200,
+                                       920
+                                   ],
+                      "typeVersion":  1.1
+                  },
+                  {
+                      "name":  "Error Handler",
+                      "type":  "n8n-nodes-base.errorTrigger",
+                      "parameters":  {},
+                      "id":  "a7b8c9d0-e1f2-3456-abcd-567890123456",
+                      "position":  [
+                                       200,
+                                       1100
+                                   ],
+                      "typeVersion":  2.3
+                  },
+                  {
+                      "name":  "Notify on Error",
+                      "type":  "n8n-nodes-base.telegram",
+                      "parameters":  {
+                                         "chatId":  "=821508283",
+                                         "text":  "='Student Analysis failed: ' + $json.error.message"
+                                     },
+                      "id":  "b8c9d0e1-f2a3-4567-bcde-678901234567",
+                      "position":  [
+                                       200,
+                                       1280
+                                   ],
+                      "typeVersion":  1.1
+                  }
+              ],
+    "connections":  {
+                        "Webhook":  {
+                                       "main":  [
+                                                    [
+                                                        {
+                                                            "node":  "Get Profile",
+                                                            "type":  "main"
+                                                        }
+                                                    ]
+                                                ]
+                                   },
+                        "Get Profile":  {
+                                            "main":  [
+                                                         [
+                                                             {
+                                                                 "node":  "Get Recommendations",
+                                                                 "type":  "main"
+                                                             },
+                                                             {
+                                                                 "node":  "Get Profession Eval",
+                                                                 "type":  "main"
+                                                             }
+                                                         ]
+                                                     ]
+                                        },
+                        "Get Recommendations":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Merge Results",
+                                                                         "type":  "main"
+                                                                     }
+                                                                 ]
+                                                             ]
+                                               },
+                        "Get Profession Eval":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "Merge Results",
+                                                                          "type":  "main"
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                },
+                        "Merge Results":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Response",
+                                                                   "type":  "main"
+                                                               }
+                                                           ]
+                                                       ]
+                                         },
+                        "Error Handler":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Notify on Error",
+                                                                   "type":  "main"
+                                                               }
+                                                           ]
+                                                       ]
+                    }
+                     },
+    "pinData": {},
+    "versionId": "cccccccc-cccc-4ccc-cccc-cccccccccccc",
+    "triggerCount": 0,
+    "active": false,
+    "settings": {},
+    "tags": [],
+    "staticData": null
+}

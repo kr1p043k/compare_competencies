@@ -1,43 +1,225 @@
-{
-  "name": "Student Onboarding (Webhook)",
-  "nodes": [
-    {
-      "name": "Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "parameters": {
-        "path": "student-created",
-        "options": { "rawBody": true }
-      }
-    },
-    {
-      "name": "Send to API",
-      "type": "n8n-nodes-base.httpRequest",
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.BASE_URL }}/api/n8n/webhook/student-created",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendBody": true,
-        "bodyParameters": { "parameters": [
-          { "name": "profile_name", "value": "={{ $json.body.profile_name }}" },
-          { "name": "skills", "value": "={{ $json.body.skills }}" },
-          { "name": "target_level", "value": "={{ $json.body.target_level }}" }
-        ]}
-      }
-    },
-    {
-      "name": "Trigger Evaluation",
-      "type": "n8n-nodes-base.httpRequest",
-      "parameters": {
-        "method": "GET",
-        "url": "={{ $env.BASE_URL }}/api/recommendations/{{ $json.body.profile_name }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      }
-    }
-  ],
-  "connections": {
-    "Webhook": { "main": [[ { "node": "Send to API", "type": "main" } ]] },
-    "Send to API": { "main": [[ { "node": "Trigger Evaluation", "type": "main" } ]] }
-  }
+﻿{
+    "name":  "Student Onboarding (Webhook)",
+    "nodes":  [
+                  {
+                      "name":  "Webhook",
+                      "type":  "n8n-nodes-base.webhook",
+                      "parameters":  {
+                                         "path":  "student-created",
+                                         "options":  {
+                                                         "rawBody":  true
+                                                     }
+                                     },
+                      "id":  "333019ff-fda9-49b0-8b1b-fbbe451abf3b",
+                      "position":  [
+                                       200,
+                                       200
+                                   ],
+                      "typeVersion":  3.4
+                  },
+                  {
+                      "name":  "Validate Input",
+                      "type":  "n8n-nodes-base.if",
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "string":  [
+                                                                           {
+                                                                               "value1":  "={{ $json.body.profile_name }}",
+                                                                               "operation":  "isNotEmpty"
+                                                                           }
+                                                                       ],
+                                                            "number":  [
+                                                                           {
+                                                                               "value1":  "={{ $json.body.skills.length }}",
+                                                                               "operation":  "largerEqual",
+                                                                               "value2":  1
+                                                                           }
+                                                                       ]
+                                                        }
+                                     },
+                      "id":  "35b0f101-4fd1-4072-9e83-e8505f64978d",
+                      "position":  [
+                                       200,
+                                       380
+                                   ],
+                      "typeVersion":  4.1
+                  },
+                  {
+                      "name":  "Send to API",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "=https://prospective-worth-carriers-founded.trycloudflare.com/api/n8n/webhook/student-created",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth",
+                                         "sendBody":  true,
+                                         "bodyParameters":  {
+                                                                "parameters":  [
+                                                                                   {
+                                                                                       "name":  "profile_name",
+                                                                                       "value":  "={{ $json.body.profile_name }}"
+                                                                                   },
+                                                                                   {
+                                                                                       "name":  "skills",
+                                                                                       "value":  "={{ $json.body.skills }}"
+                                                                                   },
+                                                                                   {
+                                                                                       "name":  "target_level",
+                                                                                       "value":  "={{ $json.body.target_level }}"
+                                                                                   }
+                                                                               ]
+                                                            }
+                                     },
+                      "id":  "74c5ce21-123b-43bb-90a7-f98f8acf8f0d",
+                      "position":  [
+                                       200,
+                                       560
+                                   ],
+                      "typeVersion":  4.1
+                  },
+                  {
+                      "name":  "Trigger Evaluation",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "parameters":  {
+                                         "method":  "GET",
+                                         "url":  "=https://prospective-worth-carriers-founded.trycloudflare.com/api/recommendations/{{ $json.body.profile_name }}",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth"
+                                     },
+                      "id":  "80d4d791-0363-4e36-a5a9-5d20982982a2",
+                      "position":  [
+                                       200,
+                                       740
+                                   ],
+                      "typeVersion":  4.1
+                  },
+                  {
+                      "name":  "Format Response",
+                      "type":  "n8n-nodes-base.set",
+                      "parameters":  {
+                                         "mode":  "raw",
+                                         "jsonOutput":  "={\n  \"ok\": true,\n  \"profile\": $json.body.profile_name,\n  \"evaluated\": true\n}"
+                                     },
+                      "id":  "c0fe84cd-0973-447f-9195-bc32f305fbff",
+                      "position":  [
+                                       200,
+                                       920
+                                   ],
+                      "typeVersion":  2.5
+                  },
+                  {
+                      "name":  "Invalid Input Response",
+                      "type":  "n8n-nodes-base.set",
+                      "parameters":  {
+                                         "mode":  "raw",
+                                         "jsonOutput":  "={\n  \"ok\": false,\n  \"error\": \"profile_name required, at least 1 skill required\"\n}"
+                                     },
+                      "id":  "5ba665dd-7940-4ba6-876f-ac257d8efa4d",
+                      "position":  [
+                                       200,
+                                       1100
+                                   ],
+                      "typeVersion":  2.5
+                  },
+                  {
+                      "name":  "Error Handler",
+                      "type":  "n8n-nodes-base.errorTrigger",
+                      "parameters":  {
+
+                                     },
+                      "id":  "e4a13b83-eb9e-4cf1-a85b-305bb6e2cf65",
+                      "position":  [
+                                       200,
+                                       1280
+                                   ],
+                      "typeVersion":  2.3
+                  },
+                  {
+                      "name":  "Log Error",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "=https://prospective-worth-carriers-founded.trycloudflare.com/api/log",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth",
+                                         "sendBody":  true,
+                                         "bodyParameters":  {
+                                                                "parameters":  [
+                                                                                   {
+                                                                                       "name":  "level",
+                                                                                       "value":  "error"
+                                                                                   },
+                                                                                   {
+                                                                                       "name":  "message",
+                                                                                       "value":  "=Student onboarding failed: {{ $json.error.message }}"
+                                                                                   }
+                                                                               ]
+                                                            }
+                                     },
+                      "id":  "a3e734b0-572c-4eb5-b6e7-23e7932481f2",
+                      "position":  [
+                                       200,
+                                       1460
+                                   ],
+                      "typeVersion":  4.1
+                  }
+              ],
+    "connections":  {
+                        "Webhook":  {
+                                        "main":  [
+                                                     [
+                                                         {
+                                                             "node":  "Validate Input",
+                                                             "type":  "main"
+                                                         }
+                                                     ]
+                                                 ]
+                                    },
+                        "Validate Input":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Send to API",
+                                                                    "type":  "main"
+                                                                }
+                                                            ],
+                                                            [
+                                                                {
+                                                                    "node":  "Invalid Input Response",
+                                                                    "type":  "main"
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Send to API":  {
+                                            "main":  [
+                                                         [
+                                                             {
+                                                                 "node":  "Trigger Evaluation",
+                                                                 "type":  "main"
+                                                             }
+                                                         ]
+                                                     ]
+                                        },
+                        "Trigger Evaluation":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "Format Response",
+                                                                        "type":  "main"
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "Error Handler":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Log Error",
+                                                                   "type":  "main"
+                                                               }
+                                                           ]
+                                                       ]
+                                          }
+                    }
 }

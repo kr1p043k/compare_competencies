@@ -1,44 +1,410 @@
-{
-  "name": "Nightly Pipeline",
-  "nodes": [
-    {
-      "name": "Schedule",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "parameters": { "rule": { "interval": [{ "field": "days", "minutesInterval": 1440 }] } }
-    },
-    {
-      "name": "Trigger Pipeline",
-      "type": "n8n-nodes-base.httpRequest",
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.BASE_URL }}/api/pipeline/full-cycle",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendQuery": true,
-        "queryParameters": { "parameters": [
-          { "name": "skip_collection", "value": "false" },
-          { "name": "run_gap_analysis", "value": "true" },
-          { "name": "period", "value": "30" }
-        ]}
-      }
-    },
-    {
-      "name": "Wait for Completion",
-      "type": "n8n-nodes-base.wait",
-      "parameters": { "amount": 5, "unit": "minutes" }
-    },
-    {
-      "name": "Notify Telegram",
-      "type": "n8n-nodes-base.telegram",
-      "parameters": {
-        "chatId": "={{ $env.TG_CHAT_ID }}",
-        "text": "🔁 Pipeline completed\nCheck: {{ $json.url }}"
-      }
-    }
-  ],
-  "connections": {
-    "Schedule": { "main": [[ { "node": "Trigger Pipeline", "type": "main" } ]] },
-    "Trigger Pipeline": { "main": [[ { "node": "Wait for Completion", "type": "main" } ]] },
-    "Wait for Completion": { "main": [[ { "node": "Notify Telegram", "type": "main" } ]] }
-  }
+﻿{
+    "name":  "Nightly Pipeline",
+    "nodes":  [
+                  {
+                      "name":  "Schedule (daily 02:00)",
+                      "type":  "n8n-nodes-base.scheduleTrigger",
+                      "parameters":  {
+                                         "rule":  {
+                                                      "interval":  [
+                                                                       {
+                                                                           "field":  "days",
+                                                                           "minutesInterval":  1440
+                                                                       }
+                                                                   ]
+                                                  }
+                                     },
+                      "id":  "2720f0ba-aa86-48d0-8352-3771daf9634b",
+                      "position":  [
+                                       200,
+                                       200
+                                   ],
+                      "typeVersion":  2.3
+                  },
+                  {
+                      "name":  "Trigger Pipeline",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "=https://prospective-worth-carriers-founded.trycloudflare.com/api/pipeline/full-cycle",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth",
+                                         "sendQuery":  true,
+                                         "queryParameters":  {
+                                                                 "parameters":  [
+                                                                                    {
+                                                                                        "name":  "skip_collection",
+                                                                                        "value":  "false"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "run_gap_analysis",
+                                                                                        "value":  "true"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "period",
+                                                                                        "value":  "30"
+                                                                                    }
+                                                                                ]
+                                                             }
+                                     },
+                      "id":  "cf7b0987-4227-44d3-b859-031ba7a6f7ef",
+                      "position":  [
+                                       200,
+                                       380
+                                   ],
+                      "typeVersion":  4.1
+                  },
+                  {
+                      "name":  "Extract Task ID",
+                      "type":  "n8n-nodes-base.set",
+                      "parameters":  {
+                                         "mode":  "raw",
+                                         "jsonOutput":  "={\n  \"task_id\": $json.task_id\n}"
+                                     },
+                      "id":  "edb7e474-7c00-44c7-92b4-ea47ffa6217c",
+                      "position":  [
+                                       200,
+                                       560
+                                   ],
+                      "typeVersion":  2.5
+                  },
+                  {
+                      "name":  "Wait 3 min",
+                      "type":  "n8n-nodes-base.wait",
+                      "parameters":  {
+                                         "amount":  3,
+                                         "unit":  "minutes"
+                                     },
+                      "id":  "809ee9ef-518b-479e-84b2-5c39f75dbe94",
+                      "position":  [
+                                       200,
+                                       740
+                                   ],
+                      "typeVersion":  2.1
+                  },
+                  {
+                      "name":  "Check Status",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "parameters":  {
+                                         "method":  "GET",
+                                         "url":  "=https://prospective-worth-carriers-founded.trycloudflare.com/api/pipeline/task/{{ $json.task_id }}",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth"
+                                     },
+                      "id":  "d52033d9-cea6-493b-98a0-c22e70ddd3f3",
+                      "position":  [
+                                       200,
+                                       920
+                                   ],
+                      "typeVersion":  4.1
+                  },
+                  {
+                       "name":  "Is Completed?",
+                       "type":  "n8n-nodes-base.if",
+                       "parameters":  {
+                                          "conditions":  {
+                                                             "string":  [
+                                                                            {
+                                                                                "value1":  "={{ $json.status }}",
+                                                                                "operation":  "equal",
+                                                                                "value2":  "completed"
+                                                                            }
+                                                                        ]
+                                                         }
+                                      },
+                       "id":  "c13dc642-7340-4dc6-8b9a-c12ba4670c26",
+                       "position":  [
+                                        200,
+                                        1100
+                                    ],
+                       "typeVersion":  2
+                  },
+                  {
+                      "name":  "Wait 3 min (retry)",
+                      "type":  "n8n-nodes-base.wait",
+                      "parameters":  {
+                                         "amount":  3,
+                                         "unit":  "minutes"
+                                     },
+                      "id":  "f4ce12fc-de31-4b66-bfaa-8a2bd285970f",
+                      "position":  [
+                                       200,
+                                       1280
+                                   ],
+                      "typeVersion":  2.1
+                  },
+                  {
+                      "name":  "Check Status (retry)",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "parameters":  {
+                                         "method":  "GET",
+                                         "url":  "=https://prospective-worth-carriers-founded.trycloudflare.com/api/pipeline/task/{{ $json.task_id }}",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth"
+                                     },
+                      "id":  "a3f564bb-7916-42d9-9a68-38f38bbff130",
+                      "position":  [
+                                       200,
+                                       1460
+                                   ],
+                      "typeVersion":  4.1
+                  },
+                  {
+                       "name":  "Retry Completed?",
+                       "type":  "n8n-nodes-base.if",
+                       "parameters":  {
+                                          "conditions":  {
+                                                             "string":  [
+                                                                            {
+                                                                                "value1":  "={{ $json.status }}",
+                                                                                "operation":  "equal",
+                                                                                "value2":  "completed"
+                                                                            }
+                                                                        ]
+                                                         }
+                                      },
+                       "id":  "e8c4fd63-2a3e-4a61-bce2-cb226c20f281",
+                       "position":  [
+                                        200,
+                                        1640
+                                    ],
+                       "typeVersion":  2
+                  },
+                  {
+                      "name":  "Wait 5 min (last)",
+                      "type":  "n8n-nodes-base.wait",
+                      "parameters":  {
+                                         "amount":  5,
+                                         "unit":  "minutes"
+                                     },
+                      "id":  "e0c37a56-c0c9-44d8-bcf9-37c4346e4f5f",
+                      "position":  [
+                                       200,
+                                       1820
+                                   ],
+                      "typeVersion":  2.1
+                  },
+                  {
+                      "name":  "Check Status (last)",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "parameters":  {
+                                         "method":  "GET",
+                                         "url":  "=https://prospective-worth-carriers-founded.trycloudflare.com/api/pipeline/task/{{ $json.task_id }}",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth"
+                                     },
+                      "id":  "d0e86ba2-1dc0-401b-99ae-9bf8d0975ded",
+                      "position":  [
+                                       200,
+                                       2000
+                                   ],
+                      "typeVersion":  4.1
+                  },
+                  {
+                      "name":  "Format Success",
+                      "type":  "n8n-nodes-base.set",
+                      "parameters":  {
+                                         "mode":  "raw",
+                                         "jsonOutput":  "={\n  \"task_id\": $json.task_id,\n  \"status\": $json.status,\n  \"message\": \"Pipeline completed successfully\"\n}"
+                                     },
+                      "id":  "f4d490ef-889d-4ded-87a5-3de90c2ccd70",
+                      "position":  [
+                                       200,
+                                       2180
+                                   ],
+                      "typeVersion":  2.5
+                  },
+                  {
+                      "name":  "Notify Telegram",
+                      "type":  "n8n-nodes-base.telegram",
+                      "parameters":  {
+                                         "chatId":  "=821508283",
+                                         "text":  "={\n  \"msg\": \"✅ Pipeline completed\",\n  \"task_id\": $json.task_id,\n  \"status\": $json.status\n}"
+                                     },
+                      "id":  "c1b01527-6359-4dfd-976a-34add75503cc",
+                      "position":  [
+                                       200,
+                                       2360
+                                   ],
+                      "typeVersion":  1.1
+                  },
+                  {
+                      "name":  "Error Handler",
+                      "type":  "n8n-nodes-base.errorTrigger",
+                      "parameters":  {
+
+                                     },
+                      "id":  "42fe85e9-7182-4331-b0f1-aa6144eef111",
+                      "position":  [
+                                       200,
+                                       2540
+                                   ],
+                      "typeVersion":  2.3
+                  },
+                  {
+                      "name":  "Notify on Error",
+                      "type":  "n8n-nodes-base.telegram",
+                      "parameters":  {
+                                         "chatId":  "=821508283",
+                                         "text":  "={\n  \"msg\": \"❌ Pipeline failed\",\n  \"error\": $json.error.message\n}"
+                                     },
+                      "id":  "cae882b3-b01d-450f-8a0d-cc0554e406fb",
+                      "position":  [
+                                       200,
+                                       2720
+                                   ],
+                      "typeVersion":  1.1
+                  }
+              ],
+    "connections":  {
+                        "Schedule (daily 02:00)":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "Trigger Pipeline",
+                                                                            "type":  "main"
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "Trigger Pipeline":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "Extract Task ID",
+                                                                      "type":  "main"
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "Extract Task ID":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Wait 3 min",
+                                                                     "type":  "main"
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                        "Wait 3 min":  {
+                                           "main":  [
+                                                        [
+                                                            {
+                                                                "node":  "Check Status",
+                                                                "type":  "main"
+                                                            }
+                                                        ]
+                                                    ]
+                                       },
+                        "Check Status":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Is Completed?",
+                                                                  "type":  "main"
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Is Completed?":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Format Success",
+                                                                   "type":  "main"
+                                                               }
+                                                           ],
+                                                           [
+                                                               {
+                                                                   "node":  "Wait 3 min (retry)",
+                                                                   "type":  "main"
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "Wait 3 min (retry)":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "Check Status (retry)",
+                                                                        "type":  "main"
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "Check Status (retry)":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "Retry Completed?",
+                                                                          "type":  "main"
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                        "Retry Completed?":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "Format Success",
+                                                                      "type":  "main"
+                                                                  }
+                                                              ],
+                                                              [
+                                                                  {
+                                                                      "node":  "Wait 5 min (last)",
+                                                                      "type":  "main"
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "Wait 5 min (last)":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Check Status (last)",
+                                                                       "type":  "main"
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Check Status (last)":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Format Success",
+                                                                         "type":  "main"
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "Format Success":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Notify Telegram",
+                                                                    "type":  "main"
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Error Handler":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Notify on Error",
+                                                                   "type":  "main"
+                                                               }
+                                                           ]
+                                                       ]
+                    }
+                     },
+    "pinData": {},
+    "versionId": "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+    "triggerCount": 0,
+    "active": false,
+    "settings": {},
+    "tags": [],
+    "staticData": null
 }

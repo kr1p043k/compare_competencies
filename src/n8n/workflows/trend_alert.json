@@ -1,40 +1,73 @@
+﻿{
+"name": "Market Report",
+"nodes": [
 {
-  "name": "Trend Alert",
-  "nodes": [
-    {
-      "name": "Schedule (weekly)",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "parameters": { "rule": { "interval": [{ "field": "weeks", "minutesInterval": 10080 }] } }
-    },
-    {
-      "name": "Fetch Trends",
-      "type": "n8n-nodes-base.httpRequest",
-      "parameters": {
+"id": "fd6589f9-4c07-49f9-8179-8c87108436f7",
+"name": "Manual",
+"type": "n8n-nodes-base.manualTrigger",
+"typeVersion": 1,
+"position": [200, 200],
+"parameters": {}
+},
+{
+"id": "03162e0e-2cf6-40d9-82d5-db92526b3d91",
+"name": "Fetch Excel",
+"type": "n8n-nodes-base.httpRequest",
+"typeVersion": 4.2,
+"position": [200, 380],
+    "parameters": {
         "method": "GET",
-        "url": "={{ $env.BASE_URL }}/api/trends?top_n=20&min_change=10.0",
+        "url": "=https://prospective-worth-carriers-founded.trycloudflare.com/api/admin/export/full-report",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      }
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+            "response": {
+                "response": {
+                    "responseFormat": "file",
+                    "outputPropertyName": "data"
+                }
+            }
+        }
     },
-    {
-      "name": "Filter Spikes",
-      "type": "n8n-nodes-base.code",
-      "parameters": {
-        "jsCode": "const items = $input.all();\nconst THRESHOLD = 25.0;\nreturn items.filter(i => i.json.change_pct > THRESHOLD);"
-      }
-    },
-    {
-      "name": "Notify",
-      "type": "n8n-nodes-base.telegram",
-      "parameters": {
-        "chatId": "={{ $env.TG_CHAT_ID }}",
-        "text": "🔥 Trend spike detected:\n={{ JSON.stringify($json) }}"
-      }
-    }
-  ],
-  "connections": {
-    "Schedule (weekly)": { "main": [[ { "node": "Fetch Trends", "type": "main" } ]] },
-    "Fetch Trends": { "main": [[ { "node": "Filter Spikes", "type": "main" } ]] },
-    "Filter Spikes": { "main": [[ { "node": "Notify", "type": "main" } ]] }
-  }
+"credentials": {
+"httpHeaderAuth": {
+"id": null,
+"name": "Header Auth Account 3"
+}
+}
+},
+{
+"id": "de5635de-4a78-40ca-b640-d3c156745f51",
+"name": "Send to Telegram",
+"type": "n8n-nodes-base.telegram",
+"typeVersion": 1,
+"position": [200, 560],
+"parameters": {
+"resource": "message",
+"operation": "sendDocument",
+"chatId": "=821508283",
+"text": "Отчёт по рынку вакансий",
+"binaryData": true,
+"document": "data",
+"additionalFields": {
+"fileName": "vacancies_export.xlsx"
+}
+}
+}
+],
+"connections": {
+"Manual": {
+"main": [[{"node": "Fetch Excel", "type": "main"}]]
+},
+"Fetch Excel": {
+"main": [[{"node": "Send to Telegram", "type": "main"}]]
+}
+},
+"pinData": {},
+"versionId": "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
+"triggerCount": 0,
+"active": false,
+"settings": {},
+"tags": [],
+"staticData": null
 }
