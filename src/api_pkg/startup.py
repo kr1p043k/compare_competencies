@@ -207,7 +207,12 @@ async def run_startup(app):
             req = snip.get("requirement", "")
             resp = snip.get("responsibility", "")
             combined = f"{desc} {req} {resp}"
-            vac_skills = parser.extract_skills_from_description(combined)
+            vac_skills = []
+            match parser.extract_skills_from_description(combined):
+                case Ok(sk):
+                    vac_skills = sk
+                case _:
+                    pass
 
         experience = ExperienceLevel.MIDDLE
         if "experience" in vac:
