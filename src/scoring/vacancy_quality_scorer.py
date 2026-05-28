@@ -73,6 +73,79 @@ GENERIC_VACANCY_PATTERNS = [
     r"^кассир\b",
 ]
 
+NON_IT_VACANCY_PATTERNS = [
+    r"^повар\b",
+    r"^кондитер\b",
+    r"^бармен\b",
+    r"^официант\b",
+    r"^шеф-повар\b",
+    r"^пекарь\b",
+    r"^мойщик\b",
+    r"^уборщиц\b",
+    r"^клининг\b",
+    r"^горничн\b",
+    r"^дворник\b",
+    r"^врач\b",
+    r"^медсестр\b",
+    r"^медбрат\b",
+    r"^фельдшер\b",
+    r"^медицинск\b",
+    r"^провизор\b",
+    r"^фармацевт\b",
+    r"^санитар\b",
+    r"^водител\b",
+    r"^экспедитор\b",
+    r"^такс\b",
+    r"^дальнобой\b",
+    r"^тракторист\b",
+    r"^машинист\b",
+    r"^сторож\b",
+    r"^вахтер\b",
+    r"^консьерж\b",
+    r"^штукатур\b",
+    r"^маляр\b",
+    r"^каменщик\b",
+    r"^бетонщик\b",
+    r"^арматурщик\b",
+    r"^сварщик\b",
+    r"^электромонт\b",
+    r"^сантехник\b",
+    r"^плотник\b",
+    r"^столяр\b",
+    r"^отделочник\b",
+    r"^монтажник\b",
+    r"^разнорабоч\b",
+    r"^комплектовщик\b",
+    r"^фасовщик\b",
+    r"^упаковщик\b",
+    r"^сортировщик\b",
+    r"^кладовщик\b",
+    r"^мерчендайзер\b",
+    r"^товаровед\b",
+    r"^администратор\s+(?:магазин|салон|торгов|зал|ресторан|кафе|гостиниц)\b",
+    r"^администратор\s*$",
+    r"^бармен-официант\b",
+    r"^хостес\b",
+    r"^аниматор\b",
+    r"^воспитател\b",
+    r"^нян\b",
+    r"^гувернантк\b",
+    r"^сиделк\b",
+    r"^социальн\s+работ\b",
+    r"^парикмахер\b",
+    r"^косметолог\b",
+    r"^массажист\b",
+    r"^мастер\s+маникюр\b",
+    r"^фитнес\b",
+    r"^тренер\b",
+    r"^инструктор\b",
+    r"^промоутер\b",
+    r"^курьер\b",
+    r"^грумер\b",
+    r"^ветеринар\b",
+    r"^охраник\b",
+]
+
 PROMO_KEYWORDS = [
     r"самая высокая зарплата",
     r"зарплата от \d{6}",
@@ -123,6 +196,10 @@ class VacancyQualityScorer:
             "|".join(f"(?:{p})" for p in PROMO_KEYWORDS),
             re.IGNORECASE,
         )
+        self._non_it_re = re.compile(
+            "|".join(f"(?:{p})" for p in NON_IT_VACANCY_PATTERNS),
+            re.IGNORECASE,
+        )
 
     def score(self, vacancy: Vacancy) -> Result[QualityScore, ScorerError]:
         try:
@@ -165,6 +242,10 @@ class VacancyQualityScorer:
             if name_lower in GENERIC_NAME_EXACT or self._generic_vacancy_re.match(name_lower):
                 flags.append(SpamFlag("GENERIC_NAME", f"Name: {vacancy.name}"))
                 deductions += 0.3
+
+            if self._non_it_re.match(name_lower):
+                flags.append(SpamFlag("NOT_RELEVANT", f"Non IT: {vacancy.name}"))
+                deductions += 0.7
 
             if self._promo_re.search(all_text):
                 flags.append(SpamFlag("PROMO_DESCRIPTION", "Promotional text detected"))
