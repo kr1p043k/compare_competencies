@@ -32,8 +32,12 @@ class SkillLevelAnalyzer:
         total_by_level = defaultdict(int)
 
         for vac in vacancies:
-            skills = vac.get("skills", [])
-            experience_raw = vac.get("experience", "middle")
+            if isinstance(vac, dict):
+                skills = vac.get("skills", [])
+                experience_raw = vac.get("experience", "middle")
+            else:
+                skills = getattr(vac, "skills", [])
+                experience_raw = getattr(vac, "experience", "middle")
 
             # Обработка разных форматов поля experience
             if isinstance(experience_raw, dict):
