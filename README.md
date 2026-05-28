@@ -289,22 +289,18 @@
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 
-# 2. Сбор вакансий
+# 2. Полный цикл: сбор → обучение → gap-анализ (одна команда)
 python main.py --it-sector --excel
 
-# 3. Кластеризация
-python scripts/train_clusters.py --level all
+# 3. Или пошагово:
+python scripts/train_clusters.py --level all           # кластеризация
+python main.py --train-model                           # LTR-модель
+python main.py --skip-collection                       # gap-анализ без сбора
 
-# 4. ML-модель
-python main.py --train-model
-
-# 5. Gap-анализ
-python main.py --skip-collection --run-gap-analysis
-
-# 6. API
+# 4. API
 uvicorn src.api_pkg:app --host 0.0.0.0 --port 8000 --reload
 
-# 7. Фронтенд (отдельный терминал)
+# 5. Фронтенд (отдельный терминал)
 cd frontend && npm install && npx vite
 ```
 
