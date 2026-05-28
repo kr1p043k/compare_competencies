@@ -229,21 +229,15 @@
    # Для разработки (тесты, ноутбуки):
    pip install -r requirements-dev.txt
 
-2. **Соберите вакансии**
+2. **Полный цикл (одна команда)**
    ```bash
    python main.py --it-sector --excel
 
-3. **Обучите кластеры**
+3. **Или пошагово**
   ```bash
-  python scripts/train_clusters.py --level all
-
-4. **Обучите ML‑модель ранжирования**
-   ```bash
-   python main.py --train-model
-
-5. **Запустите gap‑анализ и получите рекомендации**
-   ```bash
-  python main.py --skip-collection --run-gap-analysis
+  python scripts/train_clusters.py --level all           # кластеризация
+  python main.py --train-model                           # LTR-модель
+  python main.py --skip-collection                       # gap-анализ без сбора
 
 6. **Визуализация**
    `charts.py` строит графики покрытия, важности навыков, радарные диаграммы и сохраняет их в `data/result/`.
@@ -275,7 +269,7 @@ python main.py --interactive
 python main.py --it-sector          # сбор вакансий
 python scripts/train_clusters.py --level all
 python main.py --train-model        # обучение LTR
-python main.py --skip-collection --run-gap-analysis  # генерация рекомендаций
+python main.py --skip-collection                    # gap-анализ без сбора
 
 ## 📖 Подробнее
 
