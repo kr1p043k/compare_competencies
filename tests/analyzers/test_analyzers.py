@@ -1,10 +1,20 @@
 # tests/analyzers/test_analyzers.py
 
+from src import Ok
+
+
+def _unwrap(res):
+    match res:
+        case Ok(d):
+            return d
+        case _:
+            raise AssertionError(f"Expected Ok, got {res}")
+
 
 def test_skill_filter_filters_generic(skill_filter):
     """SkillFilter удаляет generic слова"""
     weights = {"frontend": 0.9, "python": 0.8, "web разработка": 0.7, "sql": 0.6}
-    filtered = skill_filter.filter_weights(weights, min_weight=0.01)
+    filtered = _unwrap(skill_filter.filter_weights(weights, min_weight=0.01))
     assert "python" in filtered
     assert "frontend" not in filtered
 
@@ -49,10 +59,7 @@ def test_embedding_comparator_build_index(embedding_comparator):
     embedding_comparator.build_market_index(all_market_skills)
 
     student_skills = ["python", "react", "fastapi"]
-    comparison = embedding_comparator.compare_student_to_market(student_skills)
-
-    assert comparison is not None
-    assert isinstance(comparison, dict)
+    comparison = _unwrap(embedding_comparator.compare_student_to_market(student_skills))
     assert "matches" in comparison
     assert "missing" in comparison
 

@@ -42,6 +42,7 @@ def pytest_configure(config):
 
     mock_st = MagicMock()
     mock_st.SentenceTransformer = MagicMock(return_value=mock_model)
+    mock_st.__version__ = "2.7.0"
     sys.modules["sentence_transformers"] = mock_st
 
     logging.getLogger("httpx").setLevel(logging.WARNING)

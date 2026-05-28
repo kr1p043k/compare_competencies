@@ -3,7 +3,16 @@ import pytest
 from unittest.mock import MagicMock, patch
 import numpy as np
 
+from src import Ok, Result
 from src.analyzers.comparison.engines import JaccardEngine, EnsembleEngine, BM25Engine, SimilarityEngine
+
+
+def _unwrap(res: Result) -> dict:
+    match res:
+        case Ok(d):
+            return d
+        case _:
+            raise AssertionError(f"Expected Ok, got {res}")
 
 
 class TestJaccardEngine:
@@ -124,7 +133,7 @@ class TestEnsembleEngine:
             "weighted_coverage": 0.8, "avg_similarity": 0.8, "missing": [],
         }
         ensemble = EnsembleEngine({"mock": (mock_engine, 1.0)})
-        res = ensemble.compare(["python"], ["py"])
+        res = _unwrap(ensemble.compare(["python"], ["py"]))
         assert res["score"] == 0.8
         mock_engine.compare.assert_called_once()
 
@@ -134,7 +143,7 @@ class TestEnsembleEngine:
         e2 = MagicMock(spec=SimilarityEngine)
         e2.compare.return_value = {"score": 0.4, "matches": [{"skill": "py", "similarity": 0.4}]}
         ensemble = EnsembleEngine({"e1": (e1, 0.7), "e2": (e2, 0.3)})
-        res = ensemble.compare(["python"], ["py"])
+        res = _unwrap(ensemble.compare(["python"], ["py"]))
         expected = (0.8 * 0.7 + 0.4 * 0.3) / 1.0
         assert res["score"] == pytest.approx(expected, 0.01)
 
@@ -142,7 +151,7 @@ class TestEnsembleEngine:
         e1 = MagicMock(spec=SimilarityEngine)
         e1.compare.return_value = {"score": 0.8, "matches": []}
         ensemble = EnsembleEngine({"e1": (e1, 0.0)})
-        res = ensemble.compare(["python"], ["py"])
+        res = _unwrap(ensemble.compare(["python"], ["py"]))
         assert res["score"] == 0.0
 
     def test_compare_merges_matches(self):
@@ -151,7 +160,7 @@ class TestEnsembleEngine:
         e2 = MagicMock(spec=SimilarityEngine)
         e2.compare.return_value = {"score": 0.6, "matches": [{"skill": "py", "similarity": 0.6}]}
         ensemble = EnsembleEngine({"e1": (e1, 0.5), "e2": (e2, 0.5)})
-        res = ensemble.compare(["python"], ["py"])
+        res = _unwrap(ensemble.compare(["python"], ["py"]))
         assert len(res["matches"]) == 1
         assert res["matches"][0]["similarity"] == 0.8  # max
 
@@ -159,7 +168,7 @@ class TestEnsembleEngine:
         e1 = MagicMock(spec=SimilarityEngine)
         e1.compare.return_value = {"score": 0.7, "matches": []}
         ensemble = EnsembleEngine({"e1": (e1, 1.0)})
-        res = ensemble.compare(["python"], ["py"])
+        res = _unwrap(ensemble.compare(["python"], ["py"]))
         assert "details" in res
         assert "e1" in res["details"]
 
@@ -170,13 +179,13 @@ class TestEnsembleEngine:
             m.compare.return_value = {"score": 0.5, "matches": [{"skill": f"s{j}", "similarity": 0.5} for j in range(10)]}
             engines[f"e{i}"] = (m, 1.0)
         ensemble = EnsembleEngine(engines)
-        res = ensemble.compare(["a"], [f"s{j}" for j in range(30)])
+        res = _unwrap(ensemble.compare(["a"], [f"s{j}" for j in range(30)]))
         assert len(res["matches"]) <= 15
 
     def test_returns_required_keys(self):
         e1 = MagicMock(spec=SimilarityEngine)
         e1.compare.return_value = {"score": 0.7, "matches": []}
         ensemble = EnsembleEngine({"e1": (e1, 1.0)})
-        res = ensemble.compare(["python"], ["py"])
+        res = _unwrap(ensemble.compare(["python"], ["py"]))
         for key in ("score", "weighted_coverage", "avg_similarity", "matches", "missing", "details"):
             assert key in res

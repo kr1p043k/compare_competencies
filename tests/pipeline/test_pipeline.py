@@ -519,7 +519,7 @@ class TestMetricComputer:
                 pytest.fail(f"prepare failed: {e}")
         assert comp.evaluator is not None
 
-        comp.evaluator.evaluate_profile = MagicMock(return_value={"readiness": 80})
+        comp.evaluator.evaluate_profile = MagicMock(return_value=Ok({"readiness": 80}))
         profiles = {"stud1": MagicMock()}
         match comp.compute(profiles):
             case Ok(evals):
@@ -687,7 +687,7 @@ class TestSkillExtractor:
 
         with patch.object(extractor, "_get_file_hash", return_value="abc"), \
              patch.object(extractor, "_check_manifest"), \
-             patch("src.pipeline.skill_extractor.joblib.load", return_value=data), \
+             patch("src.cache_manager.CacheManager.load", return_value=Ok(data)), \
              patch("src.pipeline.skill_extractor.TrendAnalyzer"), \
              patch("src.pipeline.skill_extractor.print_top_skills"), \
              patch("src.pipeline.skill_extractor.load_competency_mapping", return_value=None), \
@@ -793,11 +793,7 @@ class TestWeightCleaner:
         cache_path = tmp_path / "cache.joblib"
         raw_file = tmp_path / "raw.json"
         raw_file.write_text("new content")
-        # старый кэш с другим хешем
         old_data = {"source_hash": "old", "result": {"frequencies": {"old": 1}, "hybrid_weights": {}}}
-        with open(cache_path, "wb") as f:
-            import pickle
-            pickle.dump(old_data, f)
 
         monkeypatch.setattr("src.pipeline.skill_extractor.config.PARSED_SKILLS_CACHE_PATH", cache_path)
         monkeypatch.setattr("src.pipeline.skill_extractor.config.DATA_PROCESSED_DIR", tmp_path)
@@ -812,7 +808,7 @@ class TestWeightCleaner:
             patch("src.pipeline.skill_extractor.print_top_skills"), \
             patch("src.pipeline.skill_extractor.load_competency_mapping", return_value=None), \
             patch("src.pipeline.skill_extractor.ArtifactManifest"), \
-            patch("src.pipeline.skill_extractor.joblib.load", return_value=old_data):
+            patch("src.cache_manager.CacheManager.load", return_value=Ok(old_data)):
             match extractor.extract([], mock_parser, raw_file=raw_file):
                 case Ok((freq, hw, _)):
                     assert freq == {"python": 10}
@@ -839,11 +835,13 @@ class TestGapRunner:
              patch("src.pipeline.gap_runner.SkillLevelAnalyzer") as MockSLA, \
              patch("src.pipeline.gap_runner.CompetencyComparator"):
             mock_pe_instance = MockPE.return_value
-            mock_pe_instance.evaluate_profile.return_value = {
+            mock_pe_instance.evaluate_profile.return_value = Ok({
                 "market_coverage_score": 70, "skill_coverage": 65, "domain_coverage_score": 60,
                 "market_skill_coverage": 50, "readiness_score": 68, "top_recommendations": [],
                 "domain_coverage": {}, "skill_metrics": {}
-            }
+            })
+            MockSLA.return_value.get_weights_for_level.return_value = Ok({"py": 0.9})
+            MockRE.return_value.fit.return_value = Ok(MockRE.return_value)
             mock_re_instance = MockRE.return_value
             mock_re_instance.generate_recommendations.return_value = Ok(RecommendationResult(summary=RecommendationSummary(), recommendations=[]))
             mock_re_instance.ltr_engine = MagicMock(is_fitted=True)
@@ -900,11 +898,13 @@ class TestGapRunner:
              patch("src.pipeline.gap_runner.SkillLevelAnalyzer") as MockSLA, \
              patch("src.pipeline.gap_runner.CompetencyComparator"):
             mock_pe_instance = MockPE.return_value
-            mock_pe_instance.evaluate_profile.return_value = {
+            mock_pe_instance.evaluate_profile.return_value = Ok({
                 "market_coverage_score": 70, "skill_coverage": 65, "domain_coverage_score": 60,
                 "market_skill_coverage": 50, "readiness_score": 68, "top_recommendations": [],
                 "domain_coverage": {}, "skill_metrics": {}
-            }
+            })
+            MockSLA.return_value.get_weights_for_level.return_value = Ok({"py": 0.9})
+            MockRE.return_value.fit.return_value = Ok(MockRE.return_value)
             mock_re_instance = MockRE.return_value
             mock_re_instance.ltr_engine = None
             mock_re_instance.generate_recommendations.return_value = Ok(RecommendationResult(summary=RecommendationSummary(), recommendations=[]))
@@ -927,14 +927,16 @@ class TestGapRunner:
         runner = GapRunner(mock_profiles, mock_data, mock_args)
         with patch("src.pipeline.gap_runner.ProfileEvaluator") as MockPE, \
              patch("src.pipeline.gap_runner.RecommendationEngine") as MockRE, \
-             patch("src.pipeline.gap_runner.SkillLevelAnalyzer"), \
+             patch("src.pipeline.gap_runner.SkillLevelAnalyzer") as MockSLA, \
              patch("src.pipeline.gap_runner.CompetencyComparator"):
             mock_pe_instance = MockPE.return_value
-            mock_pe_instance.evaluate_profile.return_value = {
+            mock_pe_instance.evaluate_profile.return_value = Ok({
                 "market_coverage_score": 70, "skill_coverage": 65, "domain_coverage_score": 60,
                 "market_skill_coverage": 50, "readiness_score": 68, "top_recommendations": [],
                 "domain_coverage": {}, "skill_metrics": {}
-            }
+            })
+            MockSLA.return_value.get_weights_for_level.return_value = Ok({"py": 0.9})
+            MockRE.return_value.fit.return_value = Ok(MockRE.return_value)
             mock_re_instance = MockRE.return_value
             mock_re_instance.ltr_engine = None
             mock_re_instance.generate_recommendations.return_value = Ok(RecommendationResult(summary=RecommendationSummary(), recommendations=[]))
@@ -956,14 +958,16 @@ class TestGapRunner:
         runner = GapRunner(mock_profiles, mock_data, mock_args)
         with patch("src.pipeline.gap_runner.ProfileEvaluator") as MockPE, \
              patch("src.pipeline.gap_runner.RecommendationEngine") as MockRE, \
-             patch("src.pipeline.gap_runner.SkillLevelAnalyzer"), \
+             patch("src.pipeline.gap_runner.SkillLevelAnalyzer") as MockSLA, \
              patch("src.pipeline.gap_runner.CompetencyComparator"):
             mock_pe_instance = MockPE.return_value
-            mock_pe_instance.evaluate_profile.return_value = {
+            mock_pe_instance.evaluate_profile.return_value = Ok({
                 "market_coverage_score": 70, "skill_coverage": 65, "domain_coverage_score": 60,
                 "market_skill_coverage": 50, "readiness_score": 68, "top_recommendations": [],
                 "domain_coverage": {}, "skill_metrics": {}
-            }
+            })
+            MockSLA.return_value.get_weights_for_level.return_value = Ok({"py": 0.9})
+            MockRE.return_value.fit.return_value = Ok(MockRE.return_value)
             mock_re_instance = MockRE.return_value
             mock_re_instance.ltr_engine = MagicMock(is_fitted=True)
             mock_re_instance.generate_recommendations.return_value = Ok(RecommendationResult(summary=RecommendationSummary(), recommendations=[]))

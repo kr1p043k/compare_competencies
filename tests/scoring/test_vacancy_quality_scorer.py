@@ -1,5 +1,6 @@
 ﻿# tests/scoring/test_vacancy_quality_scorer.py
 import pytest
+from src import Ok
 from src.scoring.vacancy_quality_scorer import VacancyQualityScorer, SpamFlag, QualityScore, _count_urls
 from src.models.vacancy import Vacancy, Salary, Snippet, Area, Employer, KeySkill
 
@@ -61,82 +62,82 @@ class TestCountUrls:
 class TestVacancyQualityScorer:
     def test_clean_vacancy(self, scorer):
         v = _make_vac()
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert not s.is_spam
         assert s.score >= 0.5
 
     def test_no_description(self, scorer):
         v = _make_vac({'description': ''})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert any(f.reason == 'NO_DESCRIPTION' for f in s.flags)
 
     def test_too_short_description(self, scorer):
         v = _make_vac({'description': 'Short'})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert any(f.reason == 'TOO_SHORT_DESCRIPTION' for f in s.flags)
 
     def test_no_skills(self, scorer):
         v = _make_vac({'key_skills': []})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert any(f.reason == 'нет навыков' for f in s.flags)
 
     def test_too_few_skills(self, scorer):
         v = _make_vac({'key_skills': [KeySkill(name='python')]})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert any(f.reason == 'TOO_FEW_KEY_SKILLS' for f in s.flags)
 
     def test_suspicious_employer(self, scorer):
         v = _make_vac({'employer': Employer(id='999', name='Кадровое агентство')})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert any(f.reason == 'SUSPICIOUS_EMPLOYER' for f in s.flags)
 
     def test_generic_name(self, scorer):
         v = _make_vac({'name': 'водитель'})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert any(f.reason == 'GENERIC_NAME' for f in s.flags)
 
     def test_generic_name_pattern(self, scorer):
         v = _make_vac({'name': 'вакансия менеджер'})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert any(f.reason == 'GENERIC_NAME' for f in s.flags)
 
     def test_promo_description(self, scorer):
         v = _make_vac({'description': 'самая высокая зарплата на рынке!', 'snippet': Snippet()})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert any(f.reason == 'PROMO_DESCRIPTION' for f in s.flags)
 
     def test_excessive_urls(self, scorer):
         urls = ' '.join([f'https://site{i}.com' for i in range(5)])
         v = _make_vac({'description': urls, 'snippet': Snippet()})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert any(f.reason == 'EXCESSIVE_URLS' for f in s.flags)
 
     def test_salary_anomaly(self, scorer):
         v = _make_vac({'salary': Salary(from_amount=2_000_000, to_amount=3_000_000, currency='RUR')})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert any(f.reason == 'SALARY_ANOMALY' for f in s.flags)
 
     def test_score_below_threshold_is_spam(self):
         strict = VacancyQualityScorer(spam_threshold=0.8)
         v = _make_vac({'description': '', 'key_skills': []})
-        s = strict.score(v)
+        s = strict.score(v).unwrap()
         assert s.is_spam
 
     def test_non_spam_salary_ok(self, scorer):
         v = _make_vac({'salary': Salary(from_amount=100_000, to_amount=150_000, currency='RUR')})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert not any(f.reason == 'SALARY_ANOMALY' for f in s.flags)
 
     def test_non_spam_urls_ok(self, scorer):
         urls = ' '.join([f'https://site{i}.com' for i in range(2)])
         v = _make_vac({'description': urls, 'snippet': Snippet()})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert not any(f.reason == 'EXCESSIVE_URLS' for f in s.flags)
 
     def test_filter_vacancies_all_clean(self, scorer):
         v1 = _make_vac({'id': '1'})
         v2 = _make_vac({'id': '2'})
-        clean, spam, report = scorer.filter_vacancies([v1, v2])
+        clean, spam, report = scorer.filter_vacancies([v1, v2]).unwrap()
         assert len(clean) == 2
         assert len(spam) == 0
         assert report['spam_count'] == 0
@@ -148,7 +149,7 @@ class TestVacancyQualityScorer:
             'name': 'водитель',
             'employer': Employer(id='999', name='Кадровое агентство'),
         })
-        clean, spam, report = scorer.filter_vacancies([clean_v, spam_v])
+        clean, spam, report = scorer.filter_vacancies([clean_v, spam_v]).unwrap()
         assert len(clean) == 1
         assert len(spam) == 1
         assert report['spam_count'] == 1
@@ -184,25 +185,25 @@ class TestVacancyQualityScorer:
 
     def test_snippet_both_texts_checked(self, scorer):
         v = _make_vac({'description': 'normal job', 'snippet': Snippet(requirement='работа без опыта', responsibility='')})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert any(f.reason == 'PROMO_DESCRIPTION' for f in s.flags)
 
     def test_score_never_below_zero(self, scorer):
         v = _make_vac({'description': '', 'key_skills': []})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert s.score >= 0.0
 
     def test_snippet_is_none(self, scorer):
         v = _make_vac({'snippet': None})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert not s.is_spam
 
     def test_get_midpoint_from_only_from(self, scorer):
         v = _make_vac({'salary': Salary(from_amount=2_000_000, to_amount=None, currency='RUR')})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert any(f.reason == 'SALARY_ANOMALY' for f in s.flags)
 
     def test_get_midpoint_from_only_to(self, scorer):
         v = _make_vac({'salary': Salary(from_amount=None, to_amount=50_000, currency='RUR')})
-        s = scorer.score(v)
+        s = scorer.score(v).unwrap()
         assert not any(f.reason == 'SALARY_ANOMALY' for f in s.flags)

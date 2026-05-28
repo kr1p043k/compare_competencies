@@ -20,10 +20,21 @@ from src.predictors.recommendation_engine import RecommendationEngine
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+from src import Ok, Result
+
+
+def _unwrap(res: Result):
+    match res:
+        case Ok(d):
+            return d
+        case _:
+            raise AssertionError(f"Expected Ok, got {res}")
+
+
 @pytest.fixture
 def mock_profile_evaluator():
     evaluator = MagicMock(spec=ProfileEvaluator)
-    evaluator.evaluate_profile.return_value = {
+    evaluator.evaluate_profile.return_value = Ok({
         "market_coverage_score": 72.0,
         "skill_coverage": 65.0,
         "domain_coverage_score": 60.0,
@@ -53,7 +64,7 @@ def mock_profile_evaluator():
             ],
             "skills": {"docker": 0.9, "fastapi": 0.7},
         },
-    }
+    })
     return evaluator
 
 
@@ -155,12 +166,13 @@ class TestFit:
 
     def test_fit_without_skill_weights(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        with pytest.raises(ValueError, match="skill_weights обязательны"):
-            engine.fit([["python"]], skill_weights=None)
+        result = engine.fit([["python"]], skill_weights=None)
+        assert result.is_err()
 
     def test_fit_empty_vacancies(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        engine.fit([], skill_weights={"python": 0.9})
+        result = engine.fit([], skill_weights={"python": 0.9})
+        assert result.is_err()
         assert not engine.is_fitted
 
 
@@ -191,7 +203,7 @@ class TestGenerateRecommendations:
                 mock_profile_evaluator.evaluate_profile.assert_called_with(sample_student_profile, user_type="junior", target_domains=None, taxonomy=None)
 
     def test_generate_empty_recommendations(self, mock_profile_evaluator, sample_student_profile):
-        mock_profile_evaluator.evaluate_profile.return_value = {
+        mock_profile_evaluator.evaluate_profile.return_value = Ok({
             "market_coverage_score": 90.0,
             "skill_coverage": 85.0,
             "domain_coverage_score": 80.0,
@@ -202,7 +214,7 @@ class TestGenerateRecommendations:
             "top_recommendations": [],
             "gaps": {},
             "market_skill_coverage": 80.0,
-        }
+        })
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         match engine.generate_recommendations(sample_student_profile):
             case Ok(result):
@@ -221,25 +233,24 @@ class TestGenerateRecommendations:
 class TestGenerateExplanation:
     def test_explanation_high_cluster_relevance(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        expl = engine._generate_explanation("docker", 0.85, mock_profile_evaluator.evaluate_profile.return_value)
+        expl = engine._generate_explanation("docker", 0.85, _unwrap(mock_profile_evaluator.evaluate_profile.return_value))
         assert "🎯" in expl
 
     def test_explanation_high_score_no_cluster(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        # убираем cluster_context, чтобы не попал в ветку cluster
-        eval_copy = mock_profile_evaluator.evaluate_profile.return_value.copy()
+        eval_copy = _unwrap(mock_profile_evaluator.evaluate_profile.return_value).copy()
         eval_copy["cluster_context"] = None
         expl = engine._generate_explanation("docker", 0.85, eval_copy)
         assert "🔴" in expl
 
     def test_explanation_medium_score(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        expl = engine._generate_explanation("fastapi", 0.45, mock_profile_evaluator.evaluate_profile.return_value)
+        expl = engine._generate_explanation("fastapi", 0.45, _unwrap(mock_profile_evaluator.evaluate_profile.return_value))
         assert "🟡" in expl
 
     def test_explanation_low_score(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        expl = engine._generate_explanation("html", 0.2, mock_profile_evaluator.evaluate_profile.return_value)
+        expl = engine._generate_explanation("html", 0.2, _unwrap(mock_profile_evaluator.evaluate_profile.return_value))
         assert "🟢" in expl
 
 
@@ -564,7 +575,7 @@ class TestRecommendationEngineExtended:
 
     def test_explanation_taxonomy_exception(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        eval_copy = mock_profile_evaluator.evaluate_profile.return_value.copy()
+        eval_copy = _unwrap(mock_profile_evaluator.evaluate_profile.return_value).copy()
         eval_copy["cluster_context"] = None               # убираем кластер
         eval_copy["skill_metrics"] = {"docker": {"cluster_relevance": 0, "category": "missing"}}
         engine._taxonomy.get_category_label = MagicMock(side_effect=Exception("taxonomy error"))
