@@ -23,6 +23,7 @@ import { AnalysisTab } from "./components/AnalysisTab";
 import { PipelineProgress } from "./components/PipelineProgress";
 import { DataViewer } from "./components/DataViewer";
 import { RecommendationsReport } from "./components/RecommendationsReport";
+import { PredictionsTab } from "./components/PredictionsTab";
 import { initApiLogger } from "../lib/logger";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -34,6 +35,7 @@ import {
   Award,
   Briefcase,
   TrendingUp,
+  TrendingDown,
   Target,
   Info,
   AlertCircle,
@@ -356,6 +358,13 @@ export default function App() {
               Визуализация
             </TabsTrigger>
             <TabsTrigger
+              value="predictions"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
+            >
+              <TrendingUp className="size-4" />
+              Прогнозы
+            </TabsTrigger>
+            <TabsTrigger
               value="analysis"
               className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
             >
@@ -517,6 +526,9 @@ export default function App() {
               analysisData={analysisData}
               onDataLoaded={(data) => { setAnalysisData(data); setLastResult(data); }}
             />
+          </TabsContent>
+          <TabsContent value="predictions">
+            <PredictionsTab />
           </TabsContent>
         </Tabs>
 

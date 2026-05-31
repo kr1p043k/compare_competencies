@@ -1,0 +1,72 @@
+"""File-based implementations of domain ports."""
+
+from __future__ import annotations
+
+
+import structlog
+
+from src import Ok, Err, Result, config
+from src.errors import DataSourceError, DomainError
+from src.utils import safe_read_json, safe_read_competency_json
+
+logger = structlog.get_logger(__name__)
+
+
+class FileDataProvider:
+    def get_vacancies(self, queries: list[str], max_pages: int, **kwargs) -> Result[list[dict], DataSourceError]:
+        detailed = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
+        basic = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+        path = detailed if detailed.exists() else basic
+        if not path.exists():
+            return Err(DataSourceError(message="vacancy files not found"))
+        data = safe_read_json(path)
+        return Ok(data) if data else Err(DataSourceError(message="failed to read vacancies"))
+
+    def get_student_profiles(self) -> Result[dict[str, list], DomainError]:
+        profiles = {}
+        for name in ["base", "dc", "top_dc"]:
+            path = config.STUDENTS_DIR / f"{name}_competency.json"
+            alt = config.STUDENTS_DIR / f"{name}.json"
+            codes = safe_read_competency_json(path if path.exists() else alt)
+            if codes:
+                profiles[name] = codes
+        return Ok(profiles)
+
+    def get_reference_data(self, name: str) -> Result[dict, DomainError]:
+        path_map = {
+            "competency_mapping": config.COMPETENCY_MAPPING_FILE,
+            "skill_taxonomy": config.SKILL_TAXONOMY_PATH,
+            "domain_map": config.DOMAIN_MAP_PATH,
+            "trend_hot_skills": config.TREND_HOT_SKILLS_PATH,
+        }
+        path = path_map.get(name)
+        if not path or not path.exists():
+            return Err(DomainError(message=f"reference not found: {name}"))
+        data = safe_read_json(path)
+        return Ok(data) if data else Err(DomainError(message=f"empty reference: {name}"))
+
+
+class StudentFileProvider:
+    def __init__(self):
+        self._cache: dict[str, list] | None = None
+
+    def load_profile(self, name: str) -> Result[list, DomainError]:
+        path = config.STUDENTS_DIR / f"{name}_competency.json"
+        alt = config.STUDENTS_DIR / f"{name}.json"
+        codes = safe_read_competency_json(path if path.exists() else alt)
+        if codes:
+            return Ok(codes)
+        return Err(DomainError(message=f"profile not found: {name}"))
+
+    def load_all(self) -> Result[dict[str, list], DomainError]:
+        if self._cache is not None:
+            return Ok(self._cache)
+        profiles = {}
+        for name in ["base", "dc", "top_dc"]:
+            match self.load_profile(name):
+                case Ok(codes):
+                    profiles[name] = codes
+                case Err(_):
+                    logger.warning("profile_not_loaded", name=name)
+        self._cache = profiles
+        return Ok(profiles)

@@ -1,0 +1,43 @@
+"""HH.ru API implementation of VacancyProvider port."""
+
+from __future__ import annotations
+
+import structlog
+
+from src import Ok, Err, Result
+from src.errors import DataSourceError
+from src.parsing.api.hh_api import HeadHunterAPI
+
+logger = structlog.get_logger(__name__)
+
+
+class HHVacancyProvider:
+    def __init__(self):
+        self._api = HeadHunterAPI()
+        self._areas_cache: list[dict] | None = None
+
+    def search(self, query: str, area: int, period: int, pages: int) -> Result[list[dict], DataSourceError]:
+        try:
+            vacancies = self._api.search_vacancies(text=query, area=area, period_days=period, max_pages=pages)
+            return Ok(vacancies) if vacancies else Err(DataSourceError(message=f"no vacancies for {query}"))
+        except Exception as e:
+            return Err(DataSourceError(message=f"search failed: {e}"))
+
+    def get_details(self, vacancy_id: str) -> Result[dict, DataSourceError]:
+        try:
+            detail = self._api.get_vacancy(vacancy_id)
+            return Ok(detail) if detail else Err(DataSourceError(message=f"vacancy {vacancy_id} not found"))
+        except Exception as e:
+            return Err(DataSourceError(message=f"detail fetch failed: {e}"))
+
+    def get_areas(self) -> Result[list[dict], DataSourceError]:
+        if self._areas_cache:
+            return Ok(self._areas_cache)
+        try:
+            import requests
+            resp = requests.get("https://api.hh.ru/areas", timeout=10)
+            resp.encoding = "utf-8"
+            self._areas_cache = resp.json()
+            return Ok(self._areas_cache)
+        except Exception as e:
+            return Err(DataSourceError(message=f"areas fetch failed: {e}"))

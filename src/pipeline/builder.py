@@ -1,0 +1,53 @@
+"""PipelineBuilder — fluent builder for pipeline construction."""
+
+from __future__ import annotations
+
+
+import structlog
+
+from src import Err, Ok, Result
+from src.errors import DomainError
+from src.pipeline.orchestrator import PipelineOrchestrator
+from src.pipeline.stage import PipelineStage
+
+logger = structlog.get_logger(__name__)
+
+
+class PipelineBuilder:
+    def __init__(self):
+        self._stages: list[PipelineStage] = []
+        self._retries: int = 1
+        self._name: str = "pipeline"
+
+    def with_stage(self, stage: PipelineStage) -> PipelineBuilder:
+        self._stages.append(stage)
+        return self
+
+    def with_stages(self, *stages: PipelineStage) -> PipelineBuilder:
+        self._stages.extend(stages)
+        return self
+
+    def with_retries(self, count: int) -> PipelineBuilder:
+        self._retries = count
+        return self
+
+    def named(self, name: str) -> PipelineBuilder:
+        self._name = name
+        return self
+
+    def build(self) -> PipelineOrchestrator:
+        if not self._stages:
+            logger.warning("pipeline_builder_no_stages")
+        return PipelineOrchestrator(self._stages, num_retries=self._retries)
+
+    def run(self, initial_ctx: dict | None = None) -> Result[None, DomainError]:
+        orchestrator = self.build()
+        run = orchestrator.run(initial_ctx=initial_ctx, name=self._name)
+        if run.status != "completed":
+            last_err = run.stages[-1].error if run.stages else "unknown"
+            return Err(DomainError(message=f"pipeline failed: {last_err}"))
+        return Ok(None)
+
+    def __repr__(self) -> str:
+        stage_names = [s.name or s.__class__.__name__ for s in self._stages]
+        return f"PipelineBuilder(name={self._name}, stages={stage_names}, retries={self._retries})"
