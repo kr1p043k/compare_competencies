@@ -8,7 +8,7 @@
 
 - **Сбор вакансий** — hh.ru API, синхронный и асинхронный клиенты, 2000 вакансий на запрос
 - **Нормализация навыков** — синонимы, fuzzy-матчинг, BM25 + SentenceTransformer + PCA
-- **Таксономия** — 19 категорий навыков + профессии с привязкой к доменам и КРМ
+- **Таксономия** — 19 категорий навыков + профессии с привязкой к доменам
 - **Gap-анализ** — дефициты по уровням junior/middle/senior, приоритеты, готовность
 - **ML-ранжирование** — XGBoost LTR + SHAP, предсказание важности навыков (0-100%)
 - **Кластеризация** — KMeans/HDBSCAN + авто k по silhouette, человекочитаемые имена
@@ -54,8 +54,7 @@
 │   │   ├── 📄 generic_words.json       # Общие слова
 │   │   ├── 📄 hard_skills.json         # 96 жёстких навыков (EN)
 │   │   ├── 📄 it_skills.json           # 933 IT-скилла (430 RU + 503 EN)
-│   │   ├── 📄 krm_competency_mapping.json  # КРМ-коды -> навыки
-│   │   ├── 📄 profession_taxonomy.json     # Профессии -> домены + КРМ
+│   │   ├── 📄 profession_taxonomy.json     # Профессии -> домены
 │   │   ├── 📄 skill_blacklist.json     # Чёрный список
 │   │   ├── 📄 skill_taxonomy.json      # 19 категорий навыков
 │   │   ├── 📄 stop_lemmas.json         # Стоп-леммы для BM25
@@ -242,7 +241,8 @@
 │   │   └── 📁 workflows/
 │   │       ├── 📄 nightly_pipeline.json
 │   │       ├── 📄 student_onboarding.json
-│   │       └── 📄 trend_alert.json
+│   │       ├── 📄 trend_alert.json
+│   │       └── 📄 weekly_report.json
 │   └── 📁 visualization/
 │       ├── 📄 _config.py
 │       ├── 📄 _utils.py
@@ -331,3 +331,4 @@ python main.py --interactive
 
 - `docs/ARCHITECTURE.md` — архитектура системы
 - `docs/user_manual.md` — полное руководство пользователя
+- `src/n8n/n8n_guide.md` — интеграция с n8n (workflows, credentials, деплой)

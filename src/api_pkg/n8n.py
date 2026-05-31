@@ -33,7 +33,7 @@ N8N_ENDPOINTS: dict[str, list[dict]] = {
     "02_profiles": [
         {"M": "GET", "P": "/api/profiles/compare",              "RL": "20/m","Q": {},                                              "B": {}, "note": "Evaluate ALL student profiles"},
         {"M": "GET", "P": "/api/profiles/{profile}",            "RL": "60/m","Q": {},                                              "B": {}, "note": "Single profile details"},
-        {"M": "GET", "P": "/api/profiles/{profile}/profession-evaluation", "RL": "30/m","Q": {},                                  "B": {}, "note": "Profession evaluation w/ KRM"},
+        {"M": "GET", "P": "/api/profiles/{profile}/profession-evaluation", "RL": "30/m","Q": {},                                  "B": {}, "note": "Profession evaluation"},
         {"M": "GET", "P": "/api/recommendations/{profile}",     "RL": "30/m","Q": {},                                              "B": {}, "note": "Full LTR recommendations"},
         {"M": "GET", "P": "/api/skills/missing",                "RL": "30/m","Q": {"min_frequency": "int=1"},                    "B": {}, "note": "Skills not in whitelist"},
         {"M": "GET", "P": "/api/skills/dead",                   "RL": "30/m","Q": {},                                              "B": {}, "note": "Skills in whitelist not in vacancies"},
@@ -60,7 +60,7 @@ N8N_ENDPOINTS: dict[str, list[dict]] = {
         {"M": "GET", "P": "/api/taxonomy/coverage",            "RL": "20/m","Q": {},                                              "B": {}, "note": "Taxonomy coverage by category"},
         {"M": "GET", "P": "/api/taxonomy/professions",         "RL": "60/m","Q": {},                                              "B": {}, "note": "All professions"},
         {"M": "GET", "P": "/api/taxonomy/profession/{name}",   "RL": "60/m","Q": {},                                              "B": {}, "note": "Profession detail"},
-        {"M": "GET", "P": "/api/taxonomy/profession/{name}/krm-coverage", "RL": "30/m","Q": {"skills": "str"},                    "B": {}, "note": "KRM coverage for skills"},
+        {"M": "GET", "P": "/api/taxonomy/profession/{name}/krm-coverage", "RL": "30/m","Q": {"skills": "str"},                    "B": {}, "note": "Profession coverage for skills"},
     ],
     "08_results": [
         {"M": "GET", "P": "/api/results/summary",              "RL": "30/m","Q": {},                                              "B": {}, "note": "All analysis results summary"},
@@ -105,7 +105,7 @@ N8N_WORKFLOWS: dict[str, str] = {
     "profile_monitor":       "profile_monitor.json     — Мониторинг профилей: изменения ко дню",
     "trend_alert":           "trend_alert.json         — Оповещение о скачках трендов навыков",
     "student_onboarding":    "student_onboarding.json  — Приём нового студента через webhook",
-    "weekly_report":         "weekly_report.json       — Еженедельный отчёт в Telegram/email",
+    "weekly_report":         "weekly_report.json       — Еженедельный отчёт: LLM + TG + Email + Postgres",
     "gap_analysis_watch":    "gap_analysis_watch.json  — Запуск gap-анализа по расписанию",
 }
 

@@ -232,8 +232,7 @@ gap-анализ для профилей студентов. Включает ML
 - `trend_hot_skills.json` – горячие навыки для трендов
 - `timeframe_groups.json` – группы для оценки времени изучения
 - `skill_blacklist.json`, `generic_words.json`, `filler_words.json` – фильтры навыков
-- `profession_taxonomy.json` – таксономия профессий (домены, КРМ-коды, aliases)
-- `krm_competency_mapping.json` – маппинг КРМ-компетенций → навыки
+- `profession_taxonomy.json` – таксономия профессий (домены, aliases)
 - `stop_lemmas.json` – стоп-леммы для фильтрации BM25
 
 **Результаты анализа (`data/result/`)**
@@ -645,9 +644,7 @@ Makefile: быстрые команды
 **Полный запуск (бэкенд + фронтенд):**
 
   Терминал 1:
-    uvicorn src.api_pkg:app --reload      # API на :8000 (новая архитектура)
-    # Альтернатива (старая версия):
-    # uvicorn src.api:app --reload
+    uvicorn src.api_pkg:app --reload      # API на :8000
 
   Терминал 2:
     cd frontend && npm install           # Фронтенд на :3000, /api → localhost:8000
@@ -656,6 +653,14 @@ Makefile: быстрые команды
 Фронтенд общается с бэкендом через REST API, поэтому оба сервера должны быть
 запущены одновременно. В режиме разработки прокси Vite перенаправляет /api/* 
 запросы на бэкенд.
+
+**n8n оркестрация:**
+
+  Подробная документация: `src/n8n/n8n_guide.md`
+
+  Воркфлоу импортируются из `src/n8n/workflows/*.json` через UI n8n.
+  Для доступа к API требуется `Authorization: Bearer <N8N_API_KEY>`.
+  Weekly report использует LLM (Gemini/OpenAI) + Telegram + Email + Postgres.
 
 
 Поддержка

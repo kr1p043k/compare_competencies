@@ -47,7 +47,6 @@ Full list in `src/api_pkg/n8n.py`. Key groups:
 |--------|------|------|-----|
 | GET | `/api/profiles/compare` | 20/min | Evaluate all profiles |
 | GET | `/api/recommendations/{profile}` | 30/min | LTR recommendations |
-| GET | `/api/profiles/{profile}/profession-evaluation` | 30/min | KRM profession eval |
 
 ### Pipeline
 | Method | Path | Rate | Use |
@@ -56,6 +55,19 @@ Full list in `src/api_pkg/n8n.py`. Key groups:
 | GET  | `/api/pipeline/status` | 30/min | Check artifacts |
 | GET  | `/api/pipeline/tasks` | 30/min | Task history |
 | WS   | `/api/pipeline/ws` | — | Real-time progress |
+
+### Market & Trends
+| Method | Path | Rate | Use |
+|--------|------|------|-----|
+| GET | `/api/market/top-skills` | 60/min | Top market skills |
+| GET | `/api/market/skill/{skill}` | 60/min | Single skill detail |
+| GET | `/api/trends` | 60/min | Trending skills analysis |
+
+### Admin
+| Method | Path | Rate | Use |
+|--------|------|------|-----|
+| GET | `/api/admin/export/excel` | 3/min | Export full report to Excel |
+| GET | `/api/admin/export/full-report` | 3/min | Full analytics report XLSX |
 
 ---
 
@@ -82,13 +94,47 @@ All webhooks require header: `X-N8N-Webhook-Secret: <N8N_WEBHOOK_SECRET>`
 
 Pre-exported JSON templates in `src/n8n/workflows/`:
 
-| File | Description | Trigger |
-|------|-------------|---------|
-| `nightly_pipeline.json` | Еженочный пайплайн + Telegram | Schedule (24h) |
-| `trend_alert.json` | Алёрт при скачке тренда >25% | Schedule (weekly) |
-| `student_onboarding.json` | Приём студента через webhook | Webhook |
+| File | Description | Trigger | LLM | Postgres | Error Handler |
+|------|-------------|---------|-----|----------|---------------|
+| `nightly_pipeline.json` | Еженочный пайплайн + Telegram | Schedule (24h) | — | — | — |
+| `trend_alert.json` | Алёрт при скачке тренда >25% | Schedule (weekly) | — | — | — |
+| `student_onboarding.json` | Приём студента через webhook | Webhook | — | — | — |
+| `weekly_report.json` | Еженедельный отчёт: 5 API → LLM → TG + Email + PG | Schedule (Mon 09:00) | Gemini/OpenAI | ✅ | ✅ |
+
+### 4.1 Weekly Report Architecture
+
+```
+Schedule (Mon 09:00)
+  → Health Check → IF Service Healthy
+    → 5 параллельных запросов (Pipeline Status, Top Skills,
+       Trends, Profiles Compare, Vacancy Stats)
+    → Merge (combineByPosition)
+    → Aggregate Report Data
+    → Build Report Prompt
+    → Switch LLM (Gemini / OpenAI по $env.LLM_PROVIDER)
+    → Parse Report (JSON extraction + fallback)
+    → Format Telegram (HTML)
+    → Send Telegram ($env.TG_CHAT_ID)
+    → Save Report to Postgres (таблица weekly_reports)
+    → Build Email HTML + Fetch Excel Report
+    → Send Email (HTML + XLSX вложение)
+```
+
+**Key improvements over legacy:**
+- `$env.BASE_URL` вместо хардкода домена
+- LLM-генерация отчёта (Gemini / OpenAI) вместо JavaScript форматировки
+- Постгрес-персистентность (`weekly_reports` таблица)
+- Error Trigger в `settings.errorWorkflow`
+- Email с профессиональным HTML и Excel-вложением
 
 Import in n8n: **Workflows → Add → Import from File**
+
+Required credentials before import:
+- **Generic Credential**: HTTP Header Auth (`Authorization: Bearer <N8N_API_KEY>`)
+- **Google Palm API** (для Gemini Report)
+- **OpenAI API** (опционально, для OpenAI Report)
+- **SMTP** (для Send Email) — назвать `SFEDU SMTP`
+- **Telegram Bot** (для Send Telegram)
 
 ---
 
@@ -122,14 +168,49 @@ Webhook (from admin panel)
   → Email report
 ```
 
+### 5.4 Weekly Report (LLM-powered)
+```
+Schedule (Mon 09:00)
+  → Health Check
+  → IF Service Healthy
+    → (true) 5 parallel API calls:
+      → Pipeline Status, Top Skills, Trends,
+        Profiles Compare, Vacancy Stats
+    → (false) stop silently
+  → Merge Data Sources (combineByPosition, 5 inputs)
+  → Aggregate Report Data (Code: merge JSON)
+  → Build Report Prompt (Code: assemble LLM prompt)
+  → Switch LLM ($env.LLM_PROVIDER):
+    → case "gemini": Gemini Report (Google Palm)
+    → case "openai": OpenAI Report
+    → default: Gemini Report
+  → Parse Report (Code: extract JSON, fallback on fail)
+  → Format Telegram (Code: HTML for Telegram)
+  → Send Telegram to $env.TG_CHAT_ID (HTML parse_mode)
+  → Save Report to Postgres (таблица weekly_reports)
+  → Build Email HTML (Code: HTML template)
+  → Fetch Excel Report (HTTP GET /api/admin/export/full-report)
+  → Send Email (SFEDU SMTP, HTML + XLSX)
+```
+
 ---
 
 ## 6. n8n Environment Variables
 
 Set in n8n **Settings → Environment Variables**:
 ```env
+# Core
 BASE_URL=https://your-tunnel.trycloudflare.com
+
+# Telegram
 TG_CHAT_ID=123456789
+
+# LLM Provider (gemini / openai)
+LLM_PROVIDER=gemini
+
+# SMTP (для Email-отчётов)
+SMTP_FROM=noreply@sfedu.ru
+REPORT_EMAIL=admin@sfedu.ru
 ```
 
 Or use n8n credentials for the HTTP Header Auth.
@@ -190,6 +271,16 @@ Before activating ANY workflow, verify:
 - [ ] `.get()` or `||` used in Code nodes for safe access
 - [ ] Return format: always `[{"json": {…}}]`
 
+### Weekly Report Specific
+- [ ] **Switch LLM** correctly routes to Gemini / OpenAI по `$env.LLM_PROVIDER`
+- [ ] **Merge Data Sources** has `combineByPosition` mode with 5 inputs
+- [ ] **Postgres** table `weekly_reports` exists (schema ниже)
+- [ ] **Error Workflow** ID указан в `settings.errorWorkflow`
+- [ ] All HTTP Request nodes use `$env.BASE_URL` (не хардкод)
+- [ ] Telegram message uses HTML parse_mode (не Markdown)
+- [ ] LLM prompt запрашивает JSON с ключами: `executive_summary`, `top_skills_analysis`, `key_trends`, `profile_highlights`, `recommendations`, `market_insights`
+- [ ] Parse Report имеет fallback при невалидном JSON от LLM
+
 ---
 
 ## 10. Deployment Checklist
@@ -203,3 +294,32 @@ Before activating ANY workflow, verify:
 - [ ] Workflow validated (no red nodes)
 - [ ] Tested with manual trigger before scheduling
 - [ ] Monitoring: check first 3 automated executions
+
+### Weekly Report Deployment
+- [ ] **Postgres** таблица создана (см. `n8n.py` или выполнить SQL ниже)
+- [ ] **LLM credentials** настроены: Google Palm API + OpenAI API
+- [ ] **SMTP credential** создан в n8n: `SFEDU SMTP` с вашими SMTP-настройками
+- [ ] **Error Workflow** ID вставлен в `settings.errorWorkflow`
+- [ ] **Environment variables** установлены:
+  ```env
+  BASE_URL=https://your-tunnel.trycloudflare.com
+  TG_CHAT_ID=<chat_id>
+  LLM_PROVIDER=gemini
+  SMTP_FROM=noreply@sfedu.ru
+  REPORT_EMAIL=admin@sfedu.ru
+  ```
+- [ ] **Schedule** активен: Monday 09:00
+- [ ] **Cloudflare tunnel** запущен: `cloudflared tunnel --url http://localhost:8000`
+
+### PostgreSQL Table Schema
+```sql
+CREATE TABLE IF NOT EXISTS weekly_reports (
+    id SERIAL PRIMARY KEY,
+    executive_summary TEXT,
+    report_json JSONB,
+    skill_count INT,
+    profile_count INT,
+    generated_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
