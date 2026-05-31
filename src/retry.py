@@ -54,7 +54,9 @@ class RetryPolicy:
                             time.sleep(delay)
                             continue
                         return Err(e)
-            except self.retryable_exceptions as e:
+            except Exception as e:
+                if not isinstance(e, self.retryable_exceptions):
+                    return Err(DomainError(message=f"non-retryable: {e}"))
                 last_error = DomainError(message=str(e))
                 if attempt < self.max_retries:
                     delay = self._backoff(attempt)

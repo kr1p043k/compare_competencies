@@ -7,7 +7,7 @@ from typing import Any, Generic, TypeVar
 import structlog
 
 from src.pipeline.progress import write as write_progress
-from src.result import Result
+from src import Ok, Result
 
 T = TypeVar("T")
 logger = structlog.get_logger(__name__)
@@ -22,7 +22,7 @@ class PipelineStage(ABC, Generic[T]):
         ...
 
     def validate(self) -> Result[bool, Any]:
-        return Result.Ok(True)
+        return Ok(True)
 
     def rollback(self) -> None:
         pass

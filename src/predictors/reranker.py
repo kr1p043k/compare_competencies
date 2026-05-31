@@ -26,7 +26,6 @@ class RerankerResult:
         self.scores = scores
         self.ranked_indices = ranked_indices
 
-    @property
     def top_k(self, k: int = 10) -> list[tuple[str, float]]:
         return [(self.documents[i], self.scores[i]) for i in self.ranked_indices[:k]]
 

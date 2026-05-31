@@ -59,6 +59,7 @@ class VacancyProvider(Protocol):
     def get_areas(self) -> Result[list[dict], DataSourceError]: ...
 
 
+@runtime_checkable
 class ForecastProvider(Protocol):
     def predict(self, skill: str, history: dict[str, float], months: int) -> Result[dict[str, float], DomainError]: ...
 
