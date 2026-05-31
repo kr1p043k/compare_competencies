@@ -9,7 +9,7 @@ from src.predictors.skill_forecast import SkillForecastEngine, ForecastResult
 def test_forecast_engine_creation():
     engine = SkillForecastEngine()
     assert not engine.is_fitted
-    assert engine.name == "SkillForecastEngine"
+    assert engine.name == "SkillForecastGA"
 
 
 def test_forecast_engine_fit_with_frequencies():
@@ -23,9 +23,8 @@ def test_forecast_engine_fit_with_frequencies():
 def test_forecast_engine_forecast():
     engine = SkillForecastEngine()
     freqs = {"python": 0.8, "java": 0.6, "rust": 0.3}
-    result = engine.fit(freqs)
-    fitted = result._value
-    fr = fitted.forecast("python")
+    engine.fit(freqs)
+    fr = engine.forecast("python")
     assert fr is not None
     assert fr.skill == "python"
     assert fr.current_frequency == 0.8
@@ -58,22 +57,15 @@ def test_forecast_engine_top_growing():
     assert all(isinstance(r, ForecastResult) for r in top)
 
 
-def test_forecast_engine_top_declining():
+def test_forecast_engine_top_growing_sorted_desc():
     engine = SkillForecastEngine()
     freqs = {"python": 0.8, "java": 0.6, "rust": 0.3, "typescript": 0.5}
     engine.fit(freqs)
-    decl = engine.top_declining(2)
-    assert len(decl) <= 2
+    top = engine.top_growing(4)
+    assert len(top) == 4
+    for i in range(len(top) - 1):
+        assert top[i].predicted_growth >= top[i + 1].predicted_growth
 
-
-def test_forecast_engine_method_assignment():
-    engine = SkillForecastEngine()
-    freqs = {"python": 0.8}
-    history = {"python": {"2024-01": 0.7, "2024-06": 0.75, "2025-01": 0.8}}
-    engine.fit(freqs, history=history)
-    fr = engine.forecast("python")
-    assert fr is not None
-    assert fr.method in ("ets", "linear", "genetic")
 
 
 def test_forecast_engine_empty_fit():

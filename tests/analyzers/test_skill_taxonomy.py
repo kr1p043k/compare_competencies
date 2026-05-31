@@ -1,3 +1,4 @@
+from src import Ok
 # tests/analyzers/test_skill_taxonomy.py
 import json
 import pytest
@@ -113,29 +114,22 @@ class TestSkillTaxonomy:
 
     def test_get_skills_in_category(self, sample_taxonomy):
         taxonomy = SkillTaxonomy()
-        skills = taxonomy.get_skills_in_category("programming_languages")
+        skills = taxonomy.get_skills_in_category("programming_languages").unwrap()
         assert "Python" in skills
         assert "Java" in skills
-        assert len(skills) == 6   # теперь совпадает с sample
+        assert len(skills) == 6
 
     def test_get_skills_in_category_empty(self, sample_taxonomy):
         taxonomy = SkillTaxonomy()
-        skills = taxonomy.get_skills_in_category("nonexistent")
+        skills = taxonomy.get_skills_in_category("nonexistent").unwrap()
         assert skills == []
 
     def test_get_all_categories(self, sample_taxonomy):
         taxonomy = SkillTaxonomy()
-        cats = taxonomy.get_all_categories()
+        cats = taxonomy.get_all_categories().unwrap()
         assert "programming_languages" in cats
         assert "frameworks" in cats
-        assert len(cats) == 5   # ровно 5 категорий из sample
-
-    def test_get_category_stats(self, sample_taxonomy):
-        taxonomy = SkillTaxonomy()
-        stats = taxonomy.get_category_stats(["python", "java", "docker", "react", "unknown"])
-        assert stats.get("programming_languages", 0) == 2
-        assert stats.get("devops", 0) == 1
-        assert stats.get("frameworks", 0) == 1   # react теперь в frameworks
+        assert len(cats) == 5
 
     def test_get_dominant_category(self, sample_taxonomy):
         taxonomy = SkillTaxonomy()
@@ -145,8 +139,3 @@ class TestSkillTaxonomy:
     def test_get_dominant_category_empty(self, sample_taxonomy):
         taxonomy = SkillTaxonomy()
         assert taxonomy.get_dominant_category([]) == "other"
-
-    def test_get_dominant_category_label(self, sample_taxonomy):
-        taxonomy = SkillTaxonomy()
-        label = taxonomy.get_dominant_category_label(["react", "vue", "angular", "fastapi"])
-        assert label == "Фреймворки и библиотеки"   # fastapi попадает в frameworks

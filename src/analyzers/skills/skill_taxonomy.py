@@ -121,10 +121,10 @@ class SkillTaxonomy:
         """
         Возвращает доминирующую категорию (самую частую).
         """
-        stats = self.get_category_stats(skills)
-        if not stats:
+        result = self.get_category_stats(skills)
+        if result.is_err() or not result.unwrap():
             return "other"
-        return max(stats, key=stats.get)
+        return max(result.unwrap(), key=result.unwrap().get)
 
     def get_dominant_category_label(self, skills: list[str]) -> str:
         """Возвращает человекочитаемое название доминирующей категории."""

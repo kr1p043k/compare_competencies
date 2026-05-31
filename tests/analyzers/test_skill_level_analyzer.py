@@ -1,3 +1,4 @@
+from src import Ok, Err
 # tests/analyzers/test_skill_level_analyzer.py
 import pytest
 
@@ -50,7 +51,7 @@ class TestSkillLevelAnalyzerFull:
         analyzer.skill_by_level = {
             "git": {"junior": 5, "middle": 5, "senior": 5},
         }
-        weights = analyzer.get_weights_for_level({"git": 1.0}, "middle")
+        weights = analyzer.get_weights_for_level({"git": 1.0}, "middle").unwrap()
         # git → all_levels → коэффициент 1.1
         # level_percentage = 5/15 ≈ 0.33
         # adjusted = 1.0 * (0.3 + 0.33) * 1.1 = 0.693
@@ -61,7 +62,7 @@ class TestSkillLevelAnalyzerFull:
         analyzer.skill_by_level = {
             "k8s": {"junior": 0, "middle": 2, "senior": 10},
         }
-        weights = analyzer.get_weights_for_level({"k8s": 1.0}, "senior")
+        weights = analyzer.get_weights_for_level({"k8s": 1.0}, "senior").unwrap()
         # k8s → senior-specific → коэффициент 1.5
         # level_percentage = 10/12 ≈ 0.833
         # adjusted = 1.0 * (0.3 + 0.833) * 1.5 = 1.6995
@@ -72,7 +73,7 @@ class TestSkillLevelAnalyzerFull:
         analyzer.skill_by_level = {
             "html": {"junior": 10, "middle": 2, "senior": 0},
         }
-        weights = analyzer.get_weights_for_level({"html": 1.0}, "senior")
+        weights = analyzer.get_weights_for_level({"html": 1.0}, "senior").unwrap()
         # html → junior → коэффициент 0.8
         assert weights["html"] < 1.0
 
@@ -81,7 +82,7 @@ class TestSkillLevelAnalyzerFull:
         analyzer.skill_by_level = {
             "k8s": {"junior": 0, "middle": 1, "senior": 10},
         }
-        weights = analyzer.get_weights_for_level({"k8s": 1.0}, "junior")
+        weights = analyzer.get_weights_for_level({"k8s": 1.0}, "junior").unwrap()
         # k8s → senior → is_lower_level("senior", "junior") = False
         # попадает в else → коэффициент 0.6
         assert weights["k8s"] < 1.0
@@ -93,7 +94,7 @@ class TestSkillLevelAnalyzerFull:
         assert analyzer._is_lower_level("middle", "middle") is False
 
     def test_get_skill_roadmap_unknown_skill(self, analyzer):
-        roadmap = analyzer.get_skill_roadmap("nonexistent")
+        roadmap = analyzer.get_skill_roadmap("nonexistent").unwrap()
         assert roadmap == {"junior": False, "middle": False, "senior": False}
 
     def test_analyze_vacancies_with_leading_variants(self, analyzer):

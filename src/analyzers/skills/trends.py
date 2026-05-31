@@ -41,7 +41,11 @@ class TrendAnalyzer:
                 from src.parsing.skills.skill_validator import SkillValidator
 
                 validator = SkillValidator()
-                filtered = {skill: freq for skill, freq in frequencies.items() if validator.validate(skill).is_valid}
+                filtered = {}
+                for skill, freq in frequencies.items():
+                    r = validator.validate(skill)
+                    if r.is_ok() and r.ok().is_valid:
+                        filtered[skill] = freq
                 frequencies = filtered
                 logger.info("snapshot_filtered", skills_count=len(frequencies))
 

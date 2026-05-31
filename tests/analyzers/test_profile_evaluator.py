@@ -6,6 +6,7 @@ import numpy as np
 
 import pytest
 
+from src import Ok, Err
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.models.student import StudentProfile
 
@@ -69,7 +70,7 @@ class TestProfileEvaluatorExtended:
             use_clustering=False,
         )
 
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
 
         assert "market_coverage_score" in result
         assert "skill_coverage" in result
@@ -89,8 +90,9 @@ class TestProfileEvaluatorExtended:
             vacancies_skills=[["python"]],
             vacancies_skills_dict=[{"skills": ["python"]}],
         )
-        with pytest.raises(RuntimeError, match="skill_weights_by_level не были переданы"):
-            evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student)
+        assert result.is_err()
+        assert "skill_weights_by_level" in result.err().message
 
     def test_evaluate_profile_readiness_score(
         self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
@@ -102,7 +104,7 @@ class TestProfileEvaluatorExtended:
             skill_weights_by_level=skill_weights_by_level,
         )
 
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
         assert 0.0 <= result["readiness_score"] <= 100.0
         assert isinstance(result["market_skill_coverage"], float)
 
@@ -116,7 +118,7 @@ class TestProfileEvaluatorExtended:
             skill_weights_by_level=skill_weights_by_level,
         )
 
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
         assert isinstance(result["top_recommendations"], list)
         if result["top_recommendations"]:
             rec = result["top_recommendations"][0]
@@ -133,7 +135,7 @@ class TestProfileEvaluatorExtended:
             skill_weights_by_level=skill_weights_by_level,
         )
 
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
         # DomainAnalyzer должен найти домены
         assert len(result["domain_coverage"]) > 0
         # Backend обычно содержит python, docker
@@ -148,7 +150,7 @@ class TestProfileEvaluatorExtended:
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
         )
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
         assert "readiness_score" in result
         assert 0 <= result["readiness_score"] <= 100
 
@@ -168,7 +170,7 @@ class TestProfileEvaluatorExtended:
         assert isinstance(evaluator.domain_analyzer, DomainAnalyzer)
 
         # Проверяем вычисление покрытия для данных студента
-        coverages = evaluator.domain_analyzer.compute_domain_coverage(student.skills)
+        coverages = evaluator.domain_analyzer.compute_domain_coverage(student.skills).unwrap()
         assert isinstance(coverages, dict)
         assert len(coverages) > 0
 
@@ -217,7 +219,7 @@ class TestProfileEvaluatorFull:
             use_clustering=False,
         )
 
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
         assert "top_recommendations" in result
         assert "market_skill_coverage" in result
 
@@ -304,7 +306,7 @@ class TestProfileEvaluatorFull:
             skill_weights_by_level=skill_weights_by_level,
             use_clustering=True,
         )
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
         assert "cluster_context" in result
 
     def test_evaluate_profile_with_student_user_type(
@@ -317,7 +319,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
         )
-        result = evaluator.evaluate_profile(student, user_type="student")
+        result = evaluator.evaluate_profile(student, user_type="student").unwrap()
         assert result["level_weights_used"]["junior"] == pytest.approx(0.60)
         assert result["level_weights_used"]["senior"] == pytest.approx(0.10)
 
@@ -331,7 +333,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
         )
-        result = evaluator.evaluate_profile(student, user_type="junior")
+        result = evaluator.evaluate_profile(student, user_type="junior").unwrap()
         assert result["level_weights_used"]["junior"] == pytest.approx(0.40)
         assert result["level_weights_used"]["middle"] == pytest.approx(0.40)
 
@@ -377,7 +379,7 @@ class TestProfileEvaluatorFull:
         )
         # Студент с очень малым количеством навыков → большой gap
         student.skills = ["python"]
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
         assert result["readiness_score"] < 50  # большой gap снижает readiness
 
     def test_evaluate_profile_domain_bonus_applied(
@@ -390,7 +392,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
         )
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
         # Навыки из доменов получают бонус
         assert "domain_coverage" in result
         assert len(result["domain_coverage"]) > 0
@@ -412,7 +414,7 @@ class TestProfileEvaluatorFull:
         )
         # Студент уже знает все навыки из middle-уровня
         student.skills = list(skill_weights_by_level["middle"].keys())
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
         assert "top_recommendations" in result
 
     def test_evaluate_profile_readiness_high_coverage(
@@ -427,7 +429,7 @@ class TestProfileEvaluatorFull:
             use_clustering=False,
         )
         student.skills = list(skill_weights_by_level["middle"].keys())
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
 
         # Проверяем что метод возвращает все ключи
         assert "readiness_score" in result
@@ -451,7 +453,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
         )
-        result = evaluator.evaluate_profile(student, user_type="middle")
+        result = evaluator.evaluate_profile(student, user_type="middle").unwrap()
         assert result["level_weights_used"]["middle"] == pytest.approx(0.50)
         assert result["level_weights_used"]["junior"] == pytest.approx(0.20)
 
@@ -465,7 +467,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
         )
-        result = evaluator.evaluate_profile(student, user_type="unknown_type")
+        result = evaluator.evaluate_profile(student, user_type="unknown_type").unwrap()
         assert result["level_weights_used"]["junior"] == pytest.approx(0.33)
         assert result["level_weights_used"]["middle"] == pytest.approx(0.34)
         assert result["level_weights_used"]["senior"] == pytest.approx(0.33)
@@ -531,7 +533,7 @@ class TestProfileEvaluatorFull:
             created_at=datetime.now(),
         )
 
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
         assert "top_recommendations" in result
         assert "readiness_score" in result
         # При полном покрытии рекомендаций нет
@@ -556,7 +558,7 @@ class TestProfileEvaluatorFull:
             created_at=datetime.now(),
         )
 
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
         assert "top_recommendations" in result
         assert len(result["top_recommendations"]) == 0, f"Expected empty, got: {result['top_recommendations']}"
 
@@ -587,9 +589,9 @@ class TestProfileEvaluatorFull:
                 m.gap_m = 0.0
                 m.gap_s = 0.0
                 m.cluster_relevance = 0.0
-            mock_metrics.return_value = metrics_dict
+            mock_metrics.return_value = Ok(metrics_dict)
 
-            result = evaluator.evaluate_profile(student)
+            result = evaluator.evaluate_profile(student).unwrap()
             assert "top_recommendations" in result
 
     def test_evaluate_profile_default_user_type(
@@ -603,7 +605,7 @@ class TestProfileEvaluatorFull:
             skill_weights_by_level=skill_weights_by_level,
         )
         # Не передаём user_type — должен использоваться 'student'
-        result = evaluator.evaluate_profile(student)
+        result = evaluator.evaluate_profile(student).unwrap()
         assert result["level_weights_used"]["junior"] == pytest.approx(0.60)
         assert result["level_weights_used"]["middle"] == pytest.approx(0.30)
         assert result["level_weights_used"]["senior"] == pytest.approx(0.10)
@@ -680,7 +682,7 @@ class TestProfileEvaluatorFull:
         fake_domain.coverage = 0.9
         fake_coverages = {"Backend": fake_domain}
 
-        with patch.object(evaluator.domain_analyzer, "compute_domain_coverage", return_value=fake_coverages):
+        with patch.object(evaluator.domain_analyzer, "compute_domain_coverage", return_value=Ok(fake_coverages)):
             with patch.object(evaluator.gap_analyzer_new, "compute_metrics") as mock_metrics:
                 from src.models.market_metrics import SkillMetrics
                 metrics = {
@@ -689,9 +691,9 @@ class TestProfileEvaluatorFull:
                 }
                 for m in metrics.values():
                     m.gap_j = 0.5; m.gap_m = 0.5; m.gap_s = 0.5
-                mock_metrics.return_value = metrics
+                mock_metrics.return_value = Ok(metrics)
 
-                result = evaluator.evaluate_profile(student)
+                result = evaluator.evaluate_profile(student).unwrap()
         # Должен отработать без ошибок, бонусы применены
         assert "top_recommendations" in result
 
@@ -959,7 +961,7 @@ class TestProfileEvaluatorFull:
         evaluator.comparators = {}
         with patch("src.analyzers.gap.profile_evaluator.CompetencyComparator") as MockComp:
             mock_instance = MockComp.return_value
-            mock_instance.fit_market.return_value = True
+            mock_instance.fit_market.return_value = Ok(True)
             comp = evaluator._get_or_create_comparator("middle")
             assert comp is mock_instance
             mock_instance.fit_market.assert_called_once_with(vacancies_skills)

@@ -1,3 +1,4 @@
+from src import Ok, Err
 # tests/analyzers/test_gap_analyzer.py
 import pytest
 
@@ -21,8 +22,7 @@ class TestGapAnalyzerExtended:
         ga = GapAnalyzer(sample_weights_by_level)
         user_skills = ["python", "sql"]
         user_levels = {"python": 0.7, "sql": 0.4}
-        metrics = ga.compute_metrics(user_skills, user_levels)
-
+        metrics = ga.compute_metrics(user_skills, user_levels).unwrap()
         assert len(metrics) > 0
         for _skill, metric in metrics.items():
             assert hasattr(metric, "gap_j")
@@ -37,8 +37,7 @@ class TestGapAnalyzerExtended:
         ga = GapAnalyzer(sample_weights_by_level)
         user_skills = ["python"]
         user_levels = {"python": 0.3}
-        metrics = ga.compute_metrics(user_skills, user_levels)
-
+        metrics = ga.compute_metrics(user_skills, user_levels).unwrap()
         assert "python" in metrics
         assert metrics["python"].gap_j == pytest.approx(0.5)
         assert metrics["python"].gap_m == pytest.approx(0.6)
@@ -47,15 +46,14 @@ class TestGapAnalyzerExtended:
         ga = GapAnalyzer(sample_weights_by_level)
         user_skills = ["python"]
         user_levels = {"python": 1.0}
-        metrics = ga.compute_metrics(user_skills, user_levels)
-
+        metrics = ga.compute_metrics(user_skills, user_levels).unwrap()
         assert metrics["python"].gap_j == 0.0
         assert metrics["python"].gap_m == 0.0
         assert metrics["python"].gap_s == 0.0
 
     def test_compute_metrics_empty_user(self, sample_weights_by_level):
         ga = GapAnalyzer(sample_weights_by_level)
-        metrics = ga.compute_metrics([], {})
+        metrics = ga.compute_metrics([], {}).unwrap()
         assert len(metrics) > 0
         for skill, metric in metrics.items():
             if skill == "python":

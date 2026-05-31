@@ -7,6 +7,7 @@ import joblib
 import numpy as np
 import pytest
 
+from src import Ok
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
 
@@ -17,12 +18,13 @@ logger = logging.getLogger("test_comparator")
 class TestCompetencyComparatorExtended:
     def test_fit_market_empty_data(self):
         comparator = CompetencyComparator(use_embeddings=False)
-        assert not comparator.fit_market([])
+        result = comparator.fit_market([])
+        assert result.is_ok() and not result.unwrap()
 
     def test_compare_not_fitted_raises(self):
         comparator = CompetencyComparator(use_embeddings=False)
-        with pytest.raises(ValueError, match="Сначала вызови fit_market"):
-            comparator.compare(["python"])
+        result = comparator.compare(["python"])
+        assert result.is_err()
 
     def test_compare_embeddings_mode_mocked(self):
         comparator = CompetencyComparator(use_embeddings=True)
@@ -35,7 +37,7 @@ class TestCompetencyComparatorExtended:
         # Мокаем weighted_coverage
         mock_emb.compare_student_to_market = None  # не должен вызываться
         with patch.object(comparator, "weighted_coverage", return_value=0.8):
-            score, confidence = comparator.compare(["python"])
+            score, confidence = comparator.compare(["python"]).unwrap()
         assert score == 0.8
         assert 0 <= confidence <= 1
 
@@ -43,18 +45,18 @@ class TestCompetencyComparatorExtended:
         comparator = CompetencyComparator(use_embeddings=False)
         corpus = [["python", "sql"], ["java", "spring"]]
         comparator.fit_market(corpus)
-        score, confidence = comparator.compare(["python"])
+        score, confidence = comparator.compare(["python"]).unwrap()
         assert 0.0 <= score <= 1.0
         assert 0.0 <= confidence <= 1.0
 
     def test_get_stats(self):
         comparator = CompetencyComparator(use_embeddings=True, level="senior")
-        stats = comparator.get_stats()
+        stats = comparator.get_stats().unwrap()
         assert stats["mode"] == "embeddings"
         assert stats["level"] == "senior"
         assert stats["status"] == "not_fitted"
         comparator.fitted = True
-        stats = comparator.get_stats()
+        stats = comparator.get_stats().unwrap()
         assert stats["status"] == "ready"
 
     def test_set_skill_weights(self):
@@ -70,7 +72,7 @@ class TestCompetencyComparatorExtended:
         corpus = [["python", "sql"], ["python", "docker"]]
         comparator.fit_market(corpus)
         comparator.set_skill_weights({"python": 0.9, "sql": 0.5, "docker": 0.3})
-        score, confidence = comparator.compare(["python"])
+        score, confidence = comparator.compare(["python"]).unwrap()
         assert 0.0 <= score <= 1.0
         assert 0.0 <= confidence <= 1.0
 
@@ -112,17 +114,17 @@ def test_comparator_tfidf_mode(use_embeddings, level):
 
         logger.info("Вызываем fit_market()...")
         success = comparator.fit_market(vacancies_skills)
-        assert success is True, "fit_market вернул False"
+        assert success.is_ok() and success.unwrap() is True, "fit_market вернул не Ok(True)"
         logger.info("✅ fit_market прошёл успешно")
 
         logger.info("Вызываем compare()...")
-        score, confidence = comparator.compare(student_skills)
+        score, confidence = comparator.compare(student_skills).unwrap()
         logger.info(f"Результат: score={score:.4f} | confidence={confidence:.4f}")
 
         assert 0.0 <= score <= 1.0, f"Некорректный score: {score}"
         assert 0.0 <= confidence <= 1.0, f"Некорректный confidence: {confidence}"
 
-        stats = comparator.get_stats()
+        stats = comparator.get_stats().unwrap()
         logger.info(f"Статистика: {stats}")
 
         logger.info("✅ ТЕСТ ПРОШЁЛ УСПЕШНО")
@@ -146,15 +148,15 @@ class TestEmbeddingComparatorExtended:
 
     def test_compare_student_to_market_without_index(self):
         comparator = EmbeddingComparator()
-        with pytest.raises(ValueError, match="Сначала вызови build_market_index"):
-            comparator.compare_student_to_market(["python"])
+        result = comparator.compare_student_to_market(["python"])
+        assert result.is_err()
 
     def test_compare_student_to_market_results(self):
         comparator = EmbeddingComparator()
         market_skills = ["python", "java", "c++"]
         comparator.build_market_index(market_skills, level="middle")
         student_skills = ["python", "c#"]
-        result = comparator.compare_student_to_market(student_skills)
+        result = comparator.compare_student_to_market(student_skills).unwrap()
         assert "matches" in result
         assert "missing" in result
         assert result["score"] >= 0
@@ -198,7 +200,7 @@ class TestEmbeddingComparatorFull:
     def test_compare_student_to_market_empty_skills(self, comparator):
         """Строка 105: пустые навыки студента"""
         comparator.build_market_index(["python", "java"], level="test")
-        result = comparator.compare_student_to_market([])
+        result = comparator.compare_student_to_market([]).unwrap()
         assert result["score"] == 0.0
         assert result["weighted_coverage"] == 0.0
 
@@ -206,14 +208,14 @@ class TestEmbeddingComparatorFull:
         """Строка 136: skill_weights пусты — fallback"""
         comparator.build_market_index(["python", "java", "c++"], level="test")
         comparator.skill_weights = {}
-        result = comparator.compare_student_to_market(["python"])
+        result = comparator.compare_student_to_market(["python"]).unwrap()
         assert result["score"] >= 0
 
     def test_compare_student_to_market_with_weights(self, comparator):
         """Строка 140-144: с весами навыков"""
         comparator.build_market_index(["python", "java", "c++"], level="test")
         comparator.skill_weights = {"python": 0.9, "java": 0.7, "c++": 0.5}
-        result = comparator.compare_student_to_market(["python"])
+        result = comparator.compare_student_to_market(["python"]).unwrap()
         assert result["score"] >= 0
 
     def test_find_closest_vacancies_empty(self, comparator):
@@ -322,7 +324,7 @@ class TestCompetencyComparatorFull:
             "matches": [{"skill": "python", "similarity": 0.3}, {"skill": "java", "similarity": 0.2}],
         }
         comparator.embedding_comparator = mock_emb
-        score, confidence = comparator.compare(["python"])
+        score, confidence = comparator.compare(["python"]).unwrap()
         # confidence = len(matches with sim >= 0.65) / len(student_skills) = 0/1 = 0
         assert score == 0.5
         assert confidence == 0.0
@@ -332,7 +334,7 @@ class TestCompetencyComparatorFull:
         comparator = CompetencyComparator(use_embeddings=False)
         corpus = [["python", "sql"], ["java", "spring"]]
         comparator.fit_market(corpus)
-        score, confidence = comparator.compare([])
+        score, confidence = comparator.compare([]).unwrap()
         assert score == 0.0
         assert confidence == 0.0
 
@@ -342,17 +344,18 @@ class TestCompetencyComparatorFull:
         corpus = [["python", "sql"], ["java", "spring"]]
         comparator.fit_market(corpus)
         # Первый вызов создаст _market_tfidf_matrix
-        score1, _ = comparator.compare(["python"])
+        score1, _ = comparator.compare(["python"]).unwrap()
         # Второй вызов должен использовать кэш
         assert hasattr(comparator, "_market_tfidf_matrix")
-        score2, _ = comparator.compare(["python"])
+        score2, _ = comparator.compare(["python"]).unwrap()
         assert score1 == score2
 
     def test_fit_market_sets_fitted_flag(self):
         """Проверка что fit_market устанавливает флаг fitted"""
         comparator = CompetencyComparator(use_embeddings=False)
         corpus = [["python", "sql"], ["java", "spring"]]
-        assert comparator.fit_market(corpus) is True
+        result = comparator.fit_market(corpus)
+        assert result.is_ok() and result.unwrap() is True
         assert comparator.fitted is True
 
     def test_weighted_coverage_hybrid(self):
@@ -486,12 +489,14 @@ class TestCompetencyComparatorFull:
         manifest_path = cache_path.with_suffix(".manifest.json")
         manifest_path.write_text('{"model_version": "old", "metrics": {}}')
 
-        with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest") as MockManifest:
-            mock_manifest = MockManifest.load.return_value
-            mock_manifest.is_compatible.return_value = False   # триггер несовместимости
-            MockManifest._get_embedding_model_version.return_value = "new"
+        from src import Ok
+        from src.analyzers.comparison.embedding_comparator import ArtifactManifest as RealArtifactManifest
 
-            comp.build_market_index(["python"], level="middle")
+        real_manifest = RealArtifactManifest(cache_path)
+        real_manifest.is_compatible = MagicMock(return_value=False)
+        with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest.load", return_value=Ok(real_manifest)):
+            with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest._get_embedding_model_version", return_value="new"):
+                comp.build_market_index(["python"], level="middle")
 
         # Должен был пересчитать заново
         assert comp.market_skills == ["python"]
@@ -590,7 +595,7 @@ class TestCompetencyComparatorFull:
         comp.market_embeddings = np.array([[1.0, 0.0], [0.0, 1.0]])  # python, java
         comp.skill_weights = {"python": 0.9, "java": 0.1}
 
-        result = comp.compare_student_to_market(["python"])
+        result = comp.compare_student_to_market(["python"]).unwrap()
         # python: sim=1 -> effective=1, weighted=1*0.9=0.9
         # java: sim=0 -> effective=0, weighted=0*0.1=0
         # total_weighted=0.9, total_weight=1.0, coverage=0.9
@@ -607,7 +612,7 @@ class TestCompetencyComparatorFull:
         comp.market_embeddings = np.array([[0.6, 0.8], [0.0, 1.0]])
         comp.skill_weights = {}   # без весов
 
-        result = comp.compare_student_to_market(["python"])
+        result = comp.compare_student_to_market(["python"]).unwrap()
         # python: sim=1.0 -> effective=1.0, java: sim=0.8 -> effective=0.64
         # total_weighted = 1.0 + 0.64 = 1.64, total_weight = 2.0
         # coverage = 1.64 / 2.0 = 0.82
@@ -619,7 +624,7 @@ class TestCompetencyComparatorFull:
         comp = EmbeddingComparator()
         # Мокируем compare_student_to_market и compare_to_clusters
         with patch.object(comp, "compare_student_to_market",
-                          return_value={"avg_similarity": 0.7, "weighted_coverage": 0.7}):
+                          return_value=Ok({"avg_similarity": 0.7, "weighted_coverage": 0.7})):
             with patch.object(comp, "compare_to_clusters",
                               return_value={"clusters": []}):
                 result = comp.hybrid_compare(["python"], {"python": 0.9})

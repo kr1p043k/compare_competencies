@@ -10,7 +10,9 @@ sys.modules['cv2'] = MagicMock()
 
 # Mock sentence_transformers BEFORE importing src.api to prevent real import
 _sent_original = sys.modules.get('sentence_transformers')
-sys.modules['sentence_transformers'] = MagicMock()
+_sent_mock = MagicMock()
+_sent_mock.__version__ = "0.0.0"
+sys.modules['sentence_transformers'] = _sent_mock
 from src.api import app
 from src.models.student import StudentProfile
 

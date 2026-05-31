@@ -2,10 +2,11 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
+from src import Ok
 from src.parsing.skills.bm25_ranker import BM25Ranker
 
 def identity_normalize(x):
-    return x.lower() if isinstance(x, str) else x
+    return Ok(x.lower() if isinstance(x, str) else x)
 
 @pytest.fixture(autouse=True)
 def mock_global_whitelist():
@@ -19,7 +20,7 @@ def mock_global_whitelist():
 def test_bm25_ranker_empty_vacancies():
     ranker = BM25Ranker()
     weights = ranker.calculate_weights([])
-    assert weights == {}
+    assert weights == Ok({})
 
 def test_bm25_ranker_simple_vacancy():
     ranker = BM25Ranker()
@@ -30,15 +31,15 @@ def test_bm25_ranker_simple_vacancy():
         with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize), \
              patch("src.parsing.skills.bm25_ranker.config.BM25_MIN_SCORE", 0.0):
             weights = ranker.calculate_weights(vacancies)
-    assert isinstance(weights, dict)
-    assert "python" in weights or "sql" in weights
+    assert weights.is_ok() and isinstance(weights.unwrap(), dict)
+    assert weights.is_ok() and ("python" in weights.unwrap() or "sql" in weights.unwrap())
 
 def test_bm25_only_stopwords():
     ranker = BM25Ranker()
     vacancies = [{"description": "в на по для", "key_skills": [], "snippet": {}}]
     with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize):
         weights = ranker.calculate_weights(vacancies)
-    assert weights == {}
+    assert weights == Ok({})
 
 def test_bm25_with_known_skills():
     ranker = BM25Ranker()
@@ -49,8 +50,8 @@ def test_bm25_with_known_skills():
         with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize), \
              patch("src.parsing.skills.bm25_ranker.config.BM25_MIN_SCORE", 0.0):
             weights = ranker.calculate_weights(vacancies)
-    assert isinstance(weights, dict)
-    assert "python" in weights
+    assert weights.is_ok() and isinstance(weights.unwrap(), dict)
+    assert weights.is_ok() and "python" in weights.unwrap()
 
 def test_bm25_caching():
     ranker = BM25Ranker()
@@ -76,7 +77,7 @@ def test_bm25_no_valid_ngrams_stopwords():
     vacancies = [{"description": "в на по для", "key_skills": [], "snippet": {}}]
     with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize):
         weights = ranker.calculate_weights(vacancies)
-    assert weights == {}
+    assert weights == Ok({})
 
 def test_bm25_with_phrases():
     ranker = BM25Ranker()
@@ -87,7 +88,7 @@ def test_bm25_with_phrases():
         with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize), \
              patch("src.parsing.skills.bm25_ranker.config.BM25_MIN_SCORE", 0.0):
             weights = ranker.calculate_weights(vacancies)
-    assert "machine learning" in weights or "deep learning" in weights
+    assert weights.is_ok() and ("machine learning" in weights.unwrap() or "deep learning" in weights.unwrap())
 
 def test_bm25_filter_by_whitelist_phrases():
     ranker = BM25Ranker()
@@ -98,9 +99,9 @@ def test_bm25_filter_by_whitelist_phrases():
         with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize), \
              patch("src.parsing.skills.bm25_ranker.config.BM25_MIN_SCORE", 0.0):
             weights = ranker.calculate_weights(vacancies)
-    assert "python" in weights
-    assert "sql" in weights
-    assert "machine learning" not in weights
+    assert weights.is_ok() and "python" in weights.unwrap()
+    assert weights.is_ok() and "sql" in weights.unwrap()
+    assert weights.is_ok() and "machine learning" not in weights.unwrap()
 
 def test_bm25_remove_stopwords_from_ngrams():
     ranker = BM25Ranker()
@@ -111,9 +112,9 @@ def test_bm25_remove_stopwords_from_ngrams():
         with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize), \
              patch("src.parsing.skills.bm25_ranker.config.BM25_MIN_SCORE", 0.0):
             weights = ranker.calculate_weights(vacancies)
-    assert "python" in weights
-    assert "sql" in weights
-    assert "и" not in weights
+    assert weights.is_ok() and "python" in weights.unwrap()
+    assert weights.is_ok() and "sql" in weights.unwrap()
+    assert weights.is_ok() and "и" not in weights.unwrap()
 
 def test_bm25_corpus_hash_different():
     ranker = BM25Ranker()
@@ -137,7 +138,7 @@ def test_bm25_empty_text(monkeypatch):
     vacancies = [{"description": "", "key_skills": [], "snippet": {}}]
     with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize):
         weights = ranker.calculate_weights(vacancies)
-    assert weights == {}
+    assert weights == Ok({})
 
 def test_bm25_no_words():
     """Строка 333: текст состоит только из знаков препинания, words = []."""
@@ -145,7 +146,7 @@ def test_bm25_no_words():
     vacancies = [{"description": "!!! ???", "key_skills": [], "snippet": {}}]
     with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize):
         weights = ranker.calculate_weights(vacancies)
-    assert weights == {}
+    assert weights == Ok({})
 
 def test_bm25_no_valid_ngrams(monkeypatch):
     """Строка 354: tokenized_corpus остаётся пустым (нет навыков из whitelist)."""
@@ -155,7 +156,7 @@ def test_bm25_no_valid_ngrams(monkeypatch):
         with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize):
             vacancies = [{"description": "some unknown skill", "key_skills": [], "snippet": {}}]
             weights = ranker.calculate_weights(vacancies)
-    assert weights == {}
+    assert weights == Ok({})
 
 def test_bm25_get_scores_empty():
     """Строка 384: bm25.get_scores возвращает пустой список."""
@@ -168,7 +169,7 @@ def test_bm25_get_scores_empty():
         with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize), \
              patch("src.parsing.skills.bm25_ranker.config.BM25_MIN_SCORE", 0.0):
             weights = ranker.calculate_weights(vacancies)
-    assert weights == {}
+    assert weights == Ok({})
 
 def test_bm25_score_below_threshold():
     """Строки 388-389: avg <= порога → навык не добавляется."""
@@ -180,8 +181,8 @@ def test_bm25_score_below_threshold():
         with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize), \
              patch("src.parsing.skills.bm25_ranker.config.BM25_MIN_SCORE", 0.1):
             weights = ranker.calculate_weights(vacancies)
-    assert "python" not in weights
-    assert weights == {}
+    assert weights.is_ok() and "python" not in weights.unwrap()
+    assert weights == Ok({})
 
 def test_bm25_with_vacancy_objects():
     """Покрытие ветки обработки объектов Vacancy."""
@@ -200,7 +201,7 @@ def test_bm25_with_vacancy_objects():
         with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize), \
              patch("src.parsing.skills.bm25_ranker.config.BM25_MIN_SCORE", 0.0):
             weights = ranker.calculate_weights([mock_vacancy])
-    assert "python" in weights
+    assert weights.is_ok() and "python" in weights.unwrap()
 
 def test_bm25_with_snippet_and_skills():
     """Покрытие извлечения requirement, responsibility и key_skills."""
@@ -216,7 +217,7 @@ def test_bm25_with_snippet_and_skills():
         with patch("src.parsing.skills.bm25_ranker.SkillNormalizer.normalize", side_effect=identity_normalize), \
              patch("src.parsing.skills.bm25_ranker.config.BM25_MIN_SCORE", 0.0):
             weights = ranker.calculate_weights(vacancies)
-    assert any(skill in weights for skill in ["python", "sql", "machine learning"])
+    assert weights.is_ok() and any(skill in weights.unwrap() for skill in ["python", "sql", "machine learning"])
 
 def test_bm25_doc_limit():
     """Покрытие ветки ограничения количества документов (unique_docs > max_docs)."""
@@ -242,7 +243,7 @@ def test_bm25_doc_limit():
     corpus_passed = args[0]  # это unique_docs после ограничения
     assert len(corpus_passed) == 300  # 3000 total // 10 = 300
     # Веса могут содержать все 3000 навыков, т.к. они оцениваются уже после обрезки
-    assert len(weights) == 3000
+    assert weights.is_ok() and len(weights.unwrap()) == 3000
 
 def test_bm25_morph_exception():
     """Покрытие except в лемматизации при ошибке pymorphy3."""
@@ -256,4 +257,4 @@ def test_bm25_morph_exception():
             instance = MockBM25.return_value
             instance.get_scores.return_value = [1.0]
             weights = ranker.calculate_weights(vacancies)
-    assert "питон" in weights  # лемма упала → осталось исходное слово
+    assert weights.is_ok() and "питон" in weights.unwrap()  # лемма упала → осталось исходное слово
