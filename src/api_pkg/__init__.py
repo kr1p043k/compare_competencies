@@ -14,7 +14,6 @@ from slowapi.errors import RateLimitExceeded
 
 from src import config
 from src.api_pkg import deps as deps  # noqa: F401
-from src.monitoring import setup_metrics
 
 logger = structlog.get_logger("api")
 
@@ -152,8 +151,6 @@ def create_app() -> FastAPI:
     from src.n8n.auth import N8NAuthMiddleware
 
     app.add_middleware(N8NAuthMiddleware)
-
-    setup_metrics(app)
 
     return app
 

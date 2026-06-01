@@ -10,7 +10,6 @@ import matplotlib
 matplotlib.use("Agg")
 
 from src import Err, Ok, config, timed_block
-from src.monitoring import track_pipeline_duration
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.models.enums import ExperienceLevel
@@ -265,11 +264,6 @@ def clean_progress_files():
 
 
 def run_full_pipeline(args) -> None:
-    with track_pipeline_duration():
-        _run_full_pipeline_impl(args)
-
-
-def _run_full_pipeline_impl(args) -> None:
     console_header("ПОЛНЫЙ ПАЙПЛАЙН: СБОР ВАКАНСИЙ + GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ")
     logger.info("pipeline_started", mode="full_pipeline")
 
@@ -379,46 +373,45 @@ def _run_full_pipeline_impl(args) -> None:
 
 def rebuild() -> None:
     """Full rebuild: clean cache, run pipeline, train clusters, train model, gap analysis."""
-    with track_pipeline_duration():
-        import shutil
+    import shutil
 
-        console_header("ПОЛНАЯ ПЕРЕСБОРКА")
-        logger.info("full_rebuild_started")
+    console_header("ПОЛНАЯ ПЕРЕСБОРКА")
+    logger.info("full_rebuild_started")
 
-        DATA = config.DATA_DIR
-        to_remove = [
-            DATA / "cache" / "parsed_skills.joblib",
-            DATA / "processed" / "skill_weights.json",
-            DATA / "cache" / "clusters" / "vacancy_clusters_junior.pkl",
-            DATA / "cache" / "clusters" / "vacancy_clusters_middle.pkl",
-            DATA / "cache" / "clusters" / "vacancy_clusters_senior.pkl",
-            DATA / "models" / "ltr_ranker_xgb_regressor.joblib",
-            DATA / "cache" / "embeddings" / "market_embeddings_junior.pkl",
-            DATA / "cache" / "embeddings" / "market_embeddings_middle.pkl",
-            DATA / "cache" / "embeddings" / "market_embeddings_senior.pkl",
-        ]
+    DATA = config.DATA_DIR
+    to_remove = [
+        DATA / "cache" / "parsed_skills.joblib",
+        DATA / "processed" / "skill_weights.json",
+        DATA / "cache" / "clusters" / "vacancy_clusters_junior.pkl",
+        DATA / "cache" / "clusters" / "vacancy_clusters_middle.pkl",
+        DATA / "cache" / "clusters" / "vacancy_clusters_senior.pkl",
+        DATA / "models" / "ltr_ranker_xgb_regressor.joblib",
+        DATA / "cache" / "embeddings" / "market_embeddings_junior.pkl",
+        DATA / "cache" / "embeddings" / "market_embeddings_middle.pkl",
+        DATA / "cache" / "embeddings" / "market_embeddings_senior.pkl",
+    ]
 
-        cache_dir = DATA / "cache" / "embeddings"
-        if cache_dir.exists():
-            shutil.rmtree(cache_dir)
-            console_info(f"✓ Удалён кэш эмбеддингов: {cache_dir}")
-            logger.info("cache_directory_removed", path=str(cache_dir))
+    cache_dir = DATA / "cache" / "embeddings"
+    if cache_dir.exists():
+        shutil.rmtree(cache_dir)
+        console_info(f"✓ Удалён кэш эмбеддингов: {cache_dir}")
+        logger.info("cache_directory_removed", path=str(cache_dir))
 
-        removed_count = 0
-        for f in to_remove:
-            if f.exists():
-                f.unlink()
-                logger.info("file_removed", path=str(f))
-                removed_count += 1
+    removed_count = 0
+    for f in to_remove:
+        if f.exists():
+            f.unlink()
+            logger.info("file_removed", path=str(f))
+            removed_count += 1
 
-        clusters_dir = DATA / "cache" / "clusters"
-        if clusters_dir.exists():
-            shutil.rmtree(clusters_dir)
-            logger.info("clusters_directory_removed", path=str(clusters_dir))
-            console_info(f"✓ Удалена папка кластеров: {clusters_dir}")
+    clusters_dir = DATA / "cache" / "clusters"
+    if clusters_dir.exists():
+        shutil.rmtree(clusters_dir)
+        logger.info("clusters_directory_removed", path=str(clusters_dir))
+        console_info(f"✓ Удалена папка кластеров: {clusters_dir}")
 
-        console_info(f"✓ Удалено {removed_count} файлов кэша и моделей")
-        logger.info("cleanup_completed", files_removed=removed_count)
+    console_info(f"✓ Удалено {removed_count} файлов кэша и моделей")
+    logger.info("cleanup_completed", files_removed=removed_count)
 
 
 async def run_pipeline_task_async(args, task_progress_callback=None) -> dict[str, Any]:

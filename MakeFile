@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test train clusters rebuild run-api clean mon-up mon-down mon-logs
+.PHONY: help install install-dev lint format test train clusters rebuild run-api clean
 
 help:
 	@echo "Доступные команды:"
@@ -11,9 +11,6 @@ help:
 	@echo "  make clusters     - обучить кластеры"
 	@echo "  make rebuild      - полная пересборка"
 	@echo "  make run-api      - запустить API сервер"
-	@echo "  make mon-up       - запустить Prometheus + Grafana"
-	@echo "  make mon-down     - остановить мониторинг"
-	@echo "  make mon-logs     - логи мониторинга"
 	@echo "  make clean        - удалить кэши"
 
 install:
@@ -44,15 +41,6 @@ rebuild:
 
 run-api:
 	uvicorn src.api:app --reload --port 8000
-
-mon-up:
-	docker compose up -d prometheus grafana
-
-mon-down:
-	docker compose stop prometheus grafana
-
-mon-logs:
-	docker compose logs -f prometheus grafana
 
 clean:
 	rm -rf data/processed/parsed_skills.pkl
