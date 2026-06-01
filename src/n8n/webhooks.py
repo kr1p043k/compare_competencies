@@ -1,7 +1,6 @@
 """n8n webhook router — приём callback'ов от n8n."""
 
 import hmac
-import json
 from datetime import datetime
 from pathlib import Path
 
@@ -9,7 +8,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from src import Err, Ok
+from src.monitoring.metrics import n8n_webhook_calls_total
 from src.utils import safe_read_json, atomic_write_json
 
 logger = structlog.get_logger("n8n_webhook")
@@ -52,6 +51,7 @@ def _verify_n8n_secret(request: Request) -> bool:
 async def webhook_student_created(body: StudentCreatedBody, request: Request):
     if not _verify_n8n_secret(request):
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
+    n8n_webhook_calls_total.labels(event="student-created").inc()
     WEBHOOK_STORE.mkdir(parents=True, exist_ok=True)
     record = {
         "event": "student-created",
@@ -68,6 +68,7 @@ async def webhook_student_created(body: StudentCreatedBody, request: Request):
 async def webhook_pipeline_completed(body: PipelineCompletedBody, request: Request):
     if not _verify_n8n_secret(request):
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
+    n8n_webhook_calls_total.labels(event="pipeline-completed").inc()
     WEBHOOK_STORE.mkdir(parents=True, exist_ok=True)
     record = {
         "event": "pipeline-completed",
@@ -84,6 +85,7 @@ async def webhook_pipeline_completed(body: PipelineCompletedBody, request: Reque
 async def webhook_alert(body: AlertBody, request: Request):
     if not _verify_n8n_secret(request):
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
+    n8n_webhook_calls_total.labels(event="alert").inc()
     WEBHOOK_STORE.mkdir(parents=True, exist_ok=True)
     record = {
         "event": "alert",

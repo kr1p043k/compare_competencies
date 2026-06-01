@@ -8,6 +8,7 @@ import structlog
 
 from src.pipeline.progress import write as write_progress
 from src.pipeline.stage import PipelineStage
+from src.monitoring import track_stage_duration
 from src import Err, Ok, Result
 from src.errors import PipelineError
 
@@ -66,26 +67,27 @@ class PipelineOrchestrator:
 
                 t0 = time.time()
                 try:
-                    match stage.run(**ctx):
-                        case Ok(data):
-                            if isinstance(data, dict):
-                                ctx.update(data)
-                            else:
-                                ctx[f"{stage_name}_result"] = data
-                            elapsed = time.time() - t0
-                            run.stages.append(StageResult(name=stage_name, status="ok", elapsed=elapsed, data=data))
-                            logger.info("stage_ok", stage=stage_name, elapsed=round(elapsed, 2))
-                            write_progress(pct_base + int(100 / total * 0.9), f"✓ {stage_name}")
-                            break
-                        case Err(err):
-                            last_error = str(err)
-                            elapsed = time.time() - t0
-                            logger.error("stage_failed", stage=stage_name, error=last_error, attempt=attempt)
-                            if attempt < self.num_retries:
-                                continue
-                            run.stages.append(
-                                StageResult(name=stage_name, status="failed", elapsed=elapsed, error=last_error)
-                            )
+                    with track_stage_duration(stage_name):
+                        match stage.run(**ctx):
+                            case Ok(data):
+                                if isinstance(data, dict):
+                                    ctx.update(data)
+                                else:
+                                    ctx[f"{stage_name}_result"] = data
+                                elapsed = time.time() - t0
+                                run.stages.append(StageResult(name=stage_name, status="ok", elapsed=elapsed, data=data))
+                                logger.info("stage_ok", stage=stage_name, elapsed=round(elapsed, 2))
+                                write_progress(pct_base + int(100 / total * 0.9), f"✓ {stage_name}")
+                                break
+                            case Err(err):
+                                last_error = str(err)
+                                elapsed = time.time() - t0
+                                logger.error("stage_failed", stage=stage_name, error=last_error, attempt=attempt)
+                                if attempt < self.num_retries:
+                                    continue
+                                run.stages.append(
+                                    StageResult(name=stage_name, status="failed", elapsed=elapsed, error=last_error)
+                                )
                 except Exception as e:
                     last_error = str(e)
                     elapsed = time.time() - t0
