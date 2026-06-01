@@ -1,7 +1,15 @@
 .PHONY: help install install-dev lint format test train clusters rebuild run-api clean
+.PHONY: docker-build docker-up docker-down docker-logs docker-shell docker-clean
+.PHONY: docker-dev docker-prod docker-exec
+
+# ============================================
+# Существующие команды
+# ============================================
 
 help:
 	@echo "Доступные команды:"
+	@echo ""
+	@echo "  📦 Python / Разработка:"
 	@echo "  make install      - установить зависимости"
 	@echo "  make install-dev  - установить включая dev"
 	@echo "  make lint         - проверить код ruff"
@@ -12,6 +20,17 @@ help:
 	@echo "  make rebuild      - полная пересборка"
 	@echo "  make run-api      - запустить API сервер"
 	@echo "  make clean        - удалить кэши"
+	@echo ""
+	@echo "   Docker:"
+	@echo "  make docker-build - собрать Docker образ"
+	@echo "  make docker-up    - запустить контейнер"
+	@echo "  make docker-down  - остановить контейнер"
+	@echo "  make docker-logs  - посмотреть логи"
+	@echo "  make docker-shell - войти в контейнер"
+	@echo "  make docker-clean - удалить контейнер и volumes"
+	@echo "  make docker-dev   - запустить в режиме разработки"
+	@echo "  make docker-prod  - запустить в production режиме"
+	@echo "  make docker-exec  - выполнить команду (используйте CMD=\"...\")"
 
 install:
 	uv pip install -e .
@@ -47,4 +66,148 @@ clean:
 	rm -rf data/embeddings/cache/*
 	rm -rf data/models/ltr_ranker_xgb_regressor.joblib
 	rm -rf data/processed/vacancy_clusters_*.pkl
-	echo "Кэши очищены"
+	echo " Кэши очищены"
+
+# ============================================
+# Docker команды
+# ============================================
+
+# Переменные
+DOCKER_COMPOSE := docker-compose
+DOCKER_IMAGE := competency-gap-analyzer
+DOCKER_CONTAINER := competency-gap-analyzer
+DOCKER_CONTAINER_DEV := competency-gap-analyzer-dev
+
+# Проверка наличия docker-compose или docker compose
+DOCKER_COMPOSE_CMD := $(shell command -v docker-compose 2>/dev/null || echo "docker compose")
+
+docker-build:
+	@echo " Сборка Docker образа..."
+	@mkdir -p data/cache data/result data/processed data/history logs
+	$(DOCKER_COMPOSE_CMD) build
+	@echo " Образ успешно собран"
+
+docker-up:
+	@echo " Запуск контейнера..."
+	@mkdir -p data/cache data/result data/processed data/history logs
+	@if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi
+	$(DOCKER_COMPOSE_CMD) up -d
+	@sleep 3
+	@echo " Контейнер запущен"
+	@echo "📍 Веб-интерфейс: http://localhost"
+	@echo "📍 API документация: http://localhost:8000/docs"
+
+docker-down:
+	@echo " Остановка контейнера..."
+	$(DOCKER_COMPOSE_CMD) down
+	@echo " Контейнер остановлен"
+
+docker-restart: docker-down docker-up
+	@echo " Перезапуск выполнен"
+
+docker-logs:
+	$(DOCKER_COMPOSE_CMD) logs -f
+
+docker-shell:
+	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) bash
+
+docker-clean:
+	@echo " Полная очистка..."
+	$(DOCKER_COMPOSE_CMD) down -v
+	@echo " Контейнер и volumes удалены"
+
+# Режим разработки (с монтированием кода для hot-reload)
+docker-dev:
+	@echo " Запуск в режиме разработки..."
+	@mkdir -p data/cache data/result data/processed data/history logs
+	docker build -f Dockerfile.dev -t $(DOCKER_IMAGE)-dev .
+	docker run -it --rm \
+		-p 8000:8000 \
+		-v $(PWD)/src:/app/src \
+		-v $(PWD)/scripts:/app/scripts \
+		-v $(PWD)/data:/app/data \
+		-v $(PWD)/logs:/app/logs \
+		-v $(PWD)/.env:/app/.env:ro \
+		--name $(DOCKER_CONTAINER_DEV) \
+		$(DOCKER_IMAGE)-dev
+
+# Production режим с дополнительными параметрами
+docker-prod:
+	@echo " Запуск в production режиме..."
+	@mkdir -p data/cache data/result data/processed data/history logs
+	@if [ ! -f .env ]; then \
+		echo "⚠️  Файл .env не найден, создаю из .env.example"; \
+		cp .env.example .env; \
+	fi
+	$(DOCKER_COMPOSE_CMD) -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+	@echo " Production режим запущен"
+
+# Выполнение произвольной команды в контейнере
+# Использование: make docker-exec CMD="python main.py --train-model"
+docker-exec:
+	@if [ -z "$(CMD)" ]; then \
+		echo " Ошибка: укажите команду через CMD=\"...\""; \
+		echo "Пример: make docker-exec CMD=\"python main.py --train-model\""; \
+		exit 1; \
+	fi
+	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) $(CMD)
+
+# Запуск gap-анализа через Docker
+docker-gap:
+	@echo " Запуск gap-анализа в Docker..."
+	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) python main.py --skip-collection
+
+# Сбор данных через Docker
+docker-fetch:
+	@echo " Сбор вакансий в Docker..."
+	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) python main.py --it-sector --excel
+
+# Обучение модели через Docker
+docker-train:
+	@echo " Обучение модели в Docker..."
+	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) python main.py --train-model
+
+# Кластеризация через Docker
+docker-clusters:
+	@echo " Кластеризация в Docker..."
+	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) python scripts/train_clusters.py --level all
+
+# Статус контейнера
+docker-status:
+	@echo " Статус контейнера:"
+	$(DOCKER_COMPOSE_CMD) ps
+	@echo ""
+	@echo " Использование ресурсов:"
+	docker stats --no-stream $(DOCKER_CONTAINER)
+
+# Просмотр логов ошибок
+docker-errors:
+	@echo " Последние ошибки:"
+	$(DOCKER_COMPOSE_CMD) logs --tail=50 | grep -i error || echo " Ошибок не найдено"
+
+# Импорт данных студентов через Docker
+docker-import-students:
+	@if [ -z "$(FILE)" ]; then \
+		echo " Укажите файл: make docker-import-students FILE=/app/data/students/students.csv"; \
+		exit 1; \
+	fi
+	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) python scripts/import_students.py $(FILE)
+
+# Бэкап данных из контейнера
+docker-backup:
+	@echo " Создание бэкапа данных..."
+	@mkdir -p backups
+	docker cp $(DOCKER_CONTAINER):/app/data ./backups/data-$(shell date +%Y%m%d-%H%M%S)
+	@echo " Бэкап создан в директории backups/"
+
+# Полная пересборка Docker (без кэша)
+docker-rebuild:
+	@echo " Полная пересборка без кэша..."
+	$(DOCKER_COMPOSE_CMD) build --no-cache
+	@echo " Пересборка завершена"
+
+# Удаление неиспользуемых Docker образов
+docker-prune:
+	@echo " Очистка неиспользуемых Docker ресурсов..."
+	docker system prune -f
+	@echo " Очистка завершена"
