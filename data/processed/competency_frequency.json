@@ -1,4 +1,5 @@
 {
+<<<<<<< Updated upstream
   "sql": 15,
   "erp": 12,
   "pyspark sql": 2,
@@ -110,4 +111,9 @@
   "github": 1,
   "ktor": 1,
   "gradle": 1
+=======
+  "r": 1,
+  "c": 1,
+  "1c зарплата и управление персоналом": 1
+>>>>>>> Stashed changes
 }

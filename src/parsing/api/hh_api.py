@@ -56,8 +56,21 @@ class HeadHunterAPI:
         if self.TOKEN_CACHE_FILE is None:
             self.TOKEN_CACHE_FILE = config.DATA_CACHE_DIR / ".hh_token_cache.json"
         if config.HH_CLIENT_ID and config.HH_CLIENT_SECRET:
-            if not self._load_cached_token():
-                self._get_app_token()
+            match self._load_cached_token():
+                case Ok(False):
+                    match self._get_app_token():
+                        case Ok(_):
+                            pass
+                        case Err(e):
+                            logger.warning("auto_token_refresh_failed", error=str(e))
+                case Err(_):
+                    match self._get_app_token():
+                        case Ok(_):
+                            pass
+                        case Err(e):
+                            logger.warning("auto_token_refresh_failed", error=str(e))
+                case _:
+                    pass
         else:
             logger.warning("hh_credentials_not_set")
 
@@ -66,8 +79,7 @@ class HeadHunterAPI:
     def search_vacancies_validated(
         self, text, area, period_days=30, max_pages=20, per_page=100, industry=None, date_from=None, date_to=None
     ) -> Result[list[dict], ApiError]:
-        """Возвращает список словарей, как и раньше (для обратной совместимости)."""
-        return Ok(self.search_vacancies(text, area, period_days, max_pages, per_page, industry, date_from, date_to))
+        return self.search_vacancies(text, area, period_days, max_pages, per_page, industry, date_from, date_to)
 
     def get_vacancy_details_validated(self, vacancy_id) -> Result[VacancyDetailResponse, ApiError]:
         """Получает детали вакансии и возвращает валидированную модель."""
@@ -77,12 +89,11 @@ class HeadHunterAPI:
         return Ok(parse_response(raw, VacancyDetailResponse))
 
     # -----------------------------------------------------------------------
-    def _load_cached_token(self) -> bool:
-        """Загружает кэшированный токен из файла. Возвращает True, если токен ещё жив."""
+    def _load_cached_token(self) -> Result[bool, ApiError]:
         try:
             cache_path = self.TOKEN_CACHE_FILE
             if not cache_path or not cache_path.exists():
-                return False
+                return Ok(False)
             with open(cache_path, encoding="utf-8") as f:
                 cache = json.load(f)
             token = cache.get("access_token")
@@ -92,14 +103,13 @@ class HeadHunterAPI:
                 self._token_expires_at = expires_at
                 self.session.headers.update({"Authorization": f"Bearer {self._token}"})
                 logger.info("cached_token_loaded", expires_in=int(expires_at - time.time()))
-                return True
-            return False
+                return Ok(True)
+            return Ok(False)
         except Exception as e:
             logger.warning("cached_token_load_failed", error=str(e))
-            return False
+            return Err(ApiError(message="Cached token load failed", endpoint="token_cache", detail=str(e)))
 
-    def _save_token_cache(self):
-        """Сохраняет токен в файл для переиспользования между запусками."""
+    def _save_token_cache(self) -> Result[None, ApiError]:
         try:
             cache = {
                 "access_token": self._token,
@@ -110,29 +120,31 @@ class HeadHunterAPI:
                 cache_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(cache_path, "w", encoding="utf-8") as f:
                     json.dump(cache, f)
+            return Ok(None)
         except Exception as e:
             logger.warning("token_cache_save_failed", error=str(e))
+            return Err(ApiError(message="Token cache save failed", endpoint="token_cache", detail=str(e)))
 
-    def _clear_token_cache(self):
+    def _clear_token_cache(self) -> Result[bool, ApiError]:
         try:
             cache_path = self.TOKEN_CACHE_FILE
             if cache_path and cache_path.exists():
                 cache_path.unlink()
                 logger.info("token_cache_cleared")
+                return Ok(True)
+            return Ok(False)
         except Exception as e:
             logger.warning("token_cache_clear_failed", error=str(e))
+            return Err(ApiError(message="Token cache clear failed", endpoint="token_cache", detail=str(e)))
 
-    def _get_app_token(self, retry_count=0):
-        """Получает application access token через client_credentials flow"""
+    def _get_app_token(self, retry_count=0) -> Result[str, ApiError]:
         if retry_count >= 2:
-            logger.error("token_retry_exhausted")
-            return
+            return Err(ApiError(message="Token retry exhausted", endpoint="token"))
         url = "https://api.hh.ru/token"
         client_id = config.HH_CLIENT_ID.get_secret_value() if config.HH_CLIENT_ID else None
         client_secret = config.HH_CLIENT_SECRET.get_secret_value() if config.HH_CLIENT_SECRET else None
         if not client_id or not client_secret:
-            logger.warning("hh_credentials_not_set_token")
-            return
+            return Err(ApiError(message="HH credentials not set", endpoint="token"))
         payload = {
             "grant_type": "client_credentials",
             "client_id": client_id,
@@ -146,27 +158,40 @@ class HeadHunterAPI:
                 expires_in = token_data.get("expires_in", 3600)
                 self._token_expires_at = time.time() + expires_in - 60
                 self.session.headers.update({"Authorization": f"Bearer {self._token}"})
-                self._save_token_cache()
+                match self._save_token_cache():
+                    case Err(e):
+                        logger.warning("token_cache_save_failed", error=str(e))
+                    case _:
+                        pass
                 logger.info("app_token_obtained", expires_in=expires_in)
+                return Ok(self._token)
             elif resp.status_code == 403:
-                logger.warning("token_refresh_too_early", response=resp.text[:200])
+                return Err(ApiError(message="Token refresh too early", status_code=403, endpoint="token"))
             else:
-                logger.error("token_request_failed", status=resp.status_code, response=resp.text[:200])
+                return Err(ApiError(message=f"Token request failed: {resp.status_code}", status_code=resp.status_code, endpoint="token"))
         except Exception as e:
-            logger.error("token_request_exception", error=str(e))
+            return Err(ApiError(message=f"Token request exception: {e}", endpoint="token"))
 
     def _ensure_token(self):
         if not self._token or time.time() > self._token_expires_at:
             logger.info("token_missing_or_expired")
-            self._load_cached_token()
+            match self._load_cached_token():
+                case Ok(True):
+                    pass
+                case _:
+                    pass
             if not self._token or time.time() > self._token_expires_at:
-                self._get_app_token()
+                match self._get_app_token():
+                    case Ok(_):
+                        pass
+                    case Err(e):
+                        logger.warning("token_refresh_failed", error=str(e))
 
     # ======================================================================
     def search_vacancies(
         self, text, area, period_days=30, max_pages=20, per_page=100, industry=None, date_from=None, date_to=None,
         since_id: int | None = None,
-    ):
+    ) -> Result[list, ApiError]:
         params = {
             "text": text,
             "area": area,
@@ -192,13 +217,17 @@ class HeadHunterAPI:
         page = 0
         while page < max_pages:
             params["page"] = page
-            data = self._get(self.BASE_URL, params=params)
-            self.last_response = data
-            if not data or "items" not in data:
-                logger.error("failed_to_get_search_data")
-                break
-            items = data["items"]
-            found = data.get("found", 0)
+            data = self._get_result(self.BASE_URL, params=params)
+            self.last_response = data.ok()
+            match data:
+                case Ok(d):
+                    pass
+                case Err(e):
+                    return Err(ApiError(message="Failed to get search data", endpoint="vacancies", detail=str(e)))
+            if "items" not in d:
+                return Err(ApiError(message="Invalid search response: no items", endpoint="vacancies"))
+            items = d["items"]
+            found = d.get("found", 0)
             if found == 0:
                 if items:
                     logger.warning("hh_no_exact_results_similar_queries_returned", query=text, area=area, similar_items=len(items))
@@ -206,8 +235,8 @@ class HeadHunterAPI:
             if not items:
                 break
             all_vacancies.extend(items)
-            logger.info("search_page_loaded", page=page + 1, items=len(items), total_found=data.get("found", 0))
-            if page >= data.get("pages", 0) - 1:
+            logger.info("search_page_loaded", page=page + 1, items=len(items), total_found=d.get("found", 0))
+            if page >= d.get("pages", 0) - 1:
                 break
             page += 1
             time.sleep(config.REQUEST_DELAY)
@@ -228,19 +257,19 @@ class HeadHunterAPI:
                     )
 
         logger.info("search_vacancies_completed", total=len(all_vacancies))
-        return all_vacancies
+        return Ok(all_vacancies)
 
-    def get_vacancy_details(self, vacancy_id):
+    def get_vacancy_details(self, vacancy_id) -> Result[dict, ApiError]:
         url = f"{self.BASE_URL_FULL}vacancies/{vacancy_id}"
-        data = self._get(url)
-        if data:
-            logger.debug("vacancy_details_loaded", vacancy_id=vacancy_id)
-        else:
-            logger.warning("vacancy_details_failed", vacancy_id=vacancy_id)
-        return data
+        return self._get_result(url)
 
     def get_vacancy_details_as_object(self, vacancy_id) -> Result[Vacancy, ApiError]:
-        raw = self.get_vacancy_details(vacancy_id)
+        raw_r = self.get_vacancy_details(vacancy_id)
+        match raw_r:
+            case Ok(raw):
+                pass
+            case Err(e):
+                return Err(e)
         if not raw:
             return Err(ApiError(message=f"Vacancy {vacancy_id} not found", endpoint=f"vacancies/{vacancy_id}"))
         try:
@@ -271,7 +300,11 @@ class HeadHunterAPI:
             elif response.status_code == 401:
                 if not _is_retry_after_401:
                     logger.warning("http_401_refreshing_token")
-                    self._get_app_token()
+                    match self._get_app_token():
+                        case Ok(_):
+                            pass
+                        case Err(e):
+                            logger.error("token_refresh_failed", error=str(e))
                     return self._get_result(url, params, retry_count, _is_retry_after_401=True)
                 logger.error("http_401_after_token_refresh")
                 return Err(ApiError(message="Unauthorized after token refresh", status_code=401, endpoint=url))
@@ -281,11 +314,17 @@ class HeadHunterAPI:
                     logger.warning("token_invalid_attempting_refresh")
                     self._token = None
                     self._token_expires_at = 0
-                    self._clear_token_cache()
+                    match self._clear_token_cache():
+                        case Err(e):
+                            logger.warning("token_cache_clear_failed", error=str(e))
+                        case _:
+                            pass
                     if not _is_retry_after_401:
-                        self._get_app_token()
-                        if self._token:
-                            return self._get_result(url, params, retry_count, _is_retry_after_401=True)
+                        match self._get_app_token():
+                            case Ok(_):
+                                return self._get_result(url, params, retry_count, _is_retry_after_401=True)
+                            case Err(e):
+                                logger.error("token_refresh_failed", error=str(e))
                     logger.error("token_refresh_failed")
                     return Err(ApiError(message="Token refresh failed", status_code=403, endpoint=url))
                 logger.error("http_403_forbidden", response=err_text)
@@ -312,7 +351,7 @@ class HeadHunterAPI:
             return Err(ApiError(message=str(e), endpoint=url))
 
     def _get(self, url, params=None, retry_count=0, _is_retry_after_401=False):
-        """Legacy: обёртка над _get_result для обратной совместимости."""
+        """Legacy: обёртка над _get_result для обратной совместимости. Устарела, используйте _get_result."""
         return self._get_result(url, params, retry_count, _is_retry_after_401).ok()
 
     def close(self):

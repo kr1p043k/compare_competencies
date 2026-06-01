@@ -56,13 +56,19 @@ def load_vacancies_details(basic_vacancies: list, hh_api, use_async: bool, async
             start = time.time()
             _load_details_progress(0, len(vacancy_ids), "асинхронно")
             if config.PYDANTIC_VALIDATION_ENABLED:
-                results = api_async.get_vacancies_details_sync_validated(vacancy_ids)
-                detailed = [Vacancy.from_api(r.model_dump()) for r in results]
+                match api_async.get_vacancies_details_sync_validated(vacancy_ids):
+                    case Ok(results):
+                        detailed = [Vacancy.from_api(r.model_dump()) for r in results]
+                    case Err(e):
+                        logger.error("async_validated_loading_failed", error=str(e))
+                        return Err(DomainError(message=f"Async validated loading failed: {e}", detail=str(e)))
             else:
-                results = api_async.get_vacancies_details_sync(vacancy_ids)
-                detailed = [
-                    Vacancy.from_api(r) for r in results if not isinstance(r, Exception)
-                ]
+                match api_async.get_vacancies_details_sync(vacancy_ids):
+                    case Ok(results):
+                        detailed = [Vacancy.from_api(r) for r in results]
+                    case Err(e):
+                        logger.error("async_loading_failed", error=str(e))
+                        return Err(DomainError(message=f"Async loading failed: {e}", detail=str(e)))
             elapsed = time.time() - start
             _load_details_progress(len(detailed), len(vacancy_ids), "готово")
             print(f"  ✓ Загружено {len(detailed)}/{len(vacancy_ids)} вакансий за {elapsed:.1f} сек")
@@ -81,14 +87,19 @@ def load_vacancies_details(basic_vacancies: list, hh_api, use_async: bool, async
             _load_details_progress(idx, total, "синхронно")
         vac_id = vac.get("id") if isinstance(vac, dict) else vac.id
         if config.PYDANTIC_VALIDATION_ENABLED:
-            try:
-                validated = hh_api.get_vacancy_details_validated(vac_id)
-                det = Vacancy.from_api(validated.model_dump())
-            except Exception as e:
-                logger.warning("vacancy_validation_failed", vac_id=vac_id, error=str(e))
-                det = None
+            match hh_api.get_vacancy_details_validated(vac_id):
+                case Ok(validated):
+                    det = Vacancy.from_api(validated.model_dump())
+                case Err(e):
+                    logger.warning("vacancy_validation_failed", vac_id=vac_id, error=str(e))
+                    det = None
         else:
-            det = hh_api.get_vacancy_details_as_object(vac_id)
+            match hh_api.get_vacancy_details_as_object(vac_id):
+                case Ok(v):
+                    det = v
+                case Err(e):
+                    logger.warning("vacancy_details_failed", vac_id=vac_id, error=str(e))
+                    det = None
         if det:
             detailed.append(det)
         time.sleep(config.REQUEST_DELAY)

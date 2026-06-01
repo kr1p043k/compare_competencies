@@ -201,28 +201,35 @@ def collect_vacancies_multiple(
             _write_progress_pct(5 + int(combo_idx / total_combos * 5), f"Поиск: {query[:40]} (регион {area_id})")
             logger.info("search_started", query=query, area_id=area_id)
 
-            _ = hh_api.search_vacancies(
+            match hh_api.search_vacancies(
                 text=query, area=area_id, period_days=period_days, max_pages=1, per_page=100, industry=industry
-            )
-            last_resp = getattr(hh_api, "last_response", None)
-            total_found = last_resp.get("found", 0) if last_resp else 0
+            ):
+                case Ok(_):
+                    last_resp = getattr(hh_api, "last_response", None)
+                    total_found = last_resp.get("found", 0) if last_resp else 0
+                case Err(e):
+                    logger.warning("search_estimate_failed", query=query, area=area_id, error=str(e))
+                    total_found = 0
 
             if total_found <= chunk_threshold or period_days <= date_chunk_days:
-                vacs = hh_api.search_vacancies(
+                match hh_api.search_vacancies(
                     text=query,
                     area=area_id,
                     period_days=period_days,
                     max_pages=max_pages,
                     per_page=100,
                     industry=industry,
-                )
-                for vac in vacs:
-                    vid = vac.get("id")
-                    if vid and vid not in seen_ids:
-                        seen_ids.add(vid)
-                        query_vacancies.append(vac)
-                        if len(query_vacancies) >= max_vacancies_per_query:
-                            break
+                ):
+                    case Ok(vacs):
+                        for vac in vacs:
+                            vid = vac.get("id")
+                            if vid and vid not in seen_ids:
+                                seen_ids.add(vid)
+                                query_vacancies.append(vac)
+                                if len(query_vacancies) >= max_vacancies_per_query:
+                                    break
+                    case Err(e):
+                        logger.warning("search_failed", query=query, area=area_id, error=str(e))
                 if len(query_vacancies) >= max_vacancies_per_query:
                     break
             else:
@@ -233,7 +240,7 @@ def collect_vacancies_multiple(
                         5 + int(combo_idx / total_combos * 5),
                         f"Поиск {query[:30]}... интервал {ci + 1}/{len(chunks)} ({date_from}..{date_to})",
                     )
-                    vacs = hh_api.search_vacancies(
+                    match hh_api.search_vacancies(
                         text=query,
                         area=area_id,
                         date_from=date_from,
@@ -241,14 +248,17 @@ def collect_vacancies_multiple(
                         max_pages=max_pages,
                         per_page=100,
                         industry=industry,
-                    )
-                    for vac in vacs:
-                        vid = vac.get("id")
-                        if vid and vid not in seen_ids:
-                            seen_ids.add(vid)
-                            query_vacancies.append(vac)
-                            if len(query_vacancies) >= max_vacancies_per_query:
-                                break
+                    ):
+                        case Ok(vacs):
+                            for vac in vacs:
+                                vid = vac.get("id")
+                                if vid and vid not in seen_ids:
+                                    seen_ids.add(vid)
+                                    query_vacancies.append(vac)
+                                    if len(query_vacancies) >= max_vacancies_per_query:
+                                        break
+                        case Err(e):
+                            logger.warning("search_chunk_failed", query=query, area=area_id, error=str(e))
                     if len(query_vacancies) >= max_vacancies_per_query:
                         break
                     time.sleep(config.REQUEST_DELAY)

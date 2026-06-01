@@ -1,16 +1,12 @@
 """Pipeline: full cycle, rebuild, train, gap analysis, tasks, WebSocket."""
 
 import asyncio
-import base64
 import json
-import os
 import shutil
-import subprocess
 import time
 from enum import Enum
 from pathlib import Path
 
-import requests
 import structlog
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
@@ -27,15 +23,15 @@ from src.models.api_responses import (
 logger = structlog.get_logger("api")
 
 _areas_cache = None
-GAP_PROGRESS_FILE = Path(__file__).parent.parent.parent.parent / "data" / "cache" / "gap_progress.json"
-PIPELINE_PROGRESS_FILE = Path(__file__).parent.parent.parent.parent / "data" / "cache" / "pipeline_progress.json"
-TASKS_STORE_FILE = Path(__file__).parent.parent.parent.parent / "data" / "cache" / "pipeline_tasks.json"
+BASE_DIR = Path(__file__).parent.parent.parent.parent
+GAP_PROGRESS_FILE = BASE_DIR / "data" / "cache" / "gap_progress.json"
+PIPELINE_PROGRESS_FILE = BASE_DIR / "data" / "cache" / "pipeline_progress.json"
+TASKS_STORE_FILE = BASE_DIR / "data" / "cache" / "pipeline_tasks.json"
 
 
 def _read_progress_file(path: Path) -> dict:
     try:
         if path.exists():
-            import json
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
     except Exception:
@@ -52,7 +48,6 @@ def _read_pipeline_progress() -> dict:
 
 
 def _resolve_area_ids(regions_str: str) -> str:
-    """Convert comma-separated region names to HH area IDs."""
     parts = [p.strip() for p in regions_str.split(",") if p.strip()]
     ids = []
     for p in parts:
@@ -67,11 +62,12 @@ def _resolve_area_ids(regions_str: str) -> str:
                 ids.append("0")
     return ",".join(ids) if ids else "0"
 
+
 def _resolve_city_name(name: str) -> int | None:
-    """Look up HH area ID by city name via API."""
     global _areas_cache
     if _areas_cache is None:
         try:
+            import requests
             resp = requests.get("https://api.hh.ru/areas", timeout=10)
             resp.encoding = "utf-8"
             _areas_cache = resp.json()
@@ -90,13 +86,10 @@ def _resolve_city_name(name: str) -> int | None:
     return _search(_areas_cache)
 
 
-logger = structlog.get_logger("api")
-
 router = APIRouter(tags=["pipeline"])
 limiter = Limiter(key_func=get_remote_address)
 
 pipeline_tasks: dict[str, PipelineTaskStatus] = {}
-pipeline_procs: dict[str, subprocess.Popen] = {}
 
 
 class PipelineAction(str, Enum):
@@ -115,68 +108,6 @@ class PipelineResponse(BaseModel):
     output: str | None = None
 
 
-async def run_command(cmd: list[str], cwd: Path | None = None, timeout: int | None = None, task_id: str | None = None) -> tuple[int, str, str]:
-    def _run():
-        import tempfile
-        env = dict(os.environ,
-            PYTHONIOENCODING="utf-8",
-            HF_HUB_VERBOSITY="error",
-            HF_HUB_DISABLE_PROGRESS_BARS="1",
-            TRANSFORMERS_VERBOSITY="error",
-            TOKENIZERS_PARALLELISM="false",
-            OMP_NUM_THREADS="1",
-            OPENBLAS_NUM_THREADS="1",
-        )
-        tmp_out = tmp_err = None
-        out_path = err_path = None
-        try:
-            tmp_out = tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8", errors="replace")
-            tmp_err = tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8", errors="replace")
-            out_path, err_path = tmp_out.name, tmp_err.name
-            proc = subprocess.Popen(
-                args=cmd,
-                stdout=tmp_out,
-                stderr=tmp_err,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                cwd=str(cwd) if cwd else None,
-                env=env,
-            )
-            if task_id:
-                pipeline_procs[task_id] = proc
-            try:
-                proc.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait()
-            tmp_out.close()
-            tmp_err.close()
-            with open(out_path, "r", encoding="utf-8", errors="replace") as f:
-                stdout = f.read()
-            with open(err_path, "r", encoding="utf-8", errors="replace") as f:
-                stderr = f.read()
-            rc = proc.returncode
-            if rc != 0:
-                stderr = (stderr or "") + (f"\nTIMEOUT" if rc == -1 else "")
-            return rc, stdout, stderr
-        except Exception as e:
-            return -1, "", str(e)
-        finally:
-            for p in (out_path, err_path):
-                if p:
-                    try:
-                        os.unlink(p)
-                    except Exception:
-                        pass
-            if task_id and task_id in pipeline_procs:
-                del pipeline_procs[task_id]
-    try:
-        return await asyncio.to_thread(_run)
-    except Exception as e:
-        return -1, "", str(e)
-
-
 def _save_tasks():
     try:
         TASKS_STORE_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -185,6 +116,7 @@ def _save_tasks():
             json.dump(data, f, ensure_ascii=False)
     except Exception:
         pass
+
 
 def _load_tasks():
     try:
@@ -205,7 +137,9 @@ def _load_tasks():
     except Exception as e:
         logger.warning("tasks_restore_failed", error=str(e))
 
+
 _load_tasks()
+
 
 def _make_task_status(task_id, status, message, started_at, completed_at=None, output=None, step=0, sub_progress=None):
     return PipelineTaskStatus(
@@ -214,11 +148,16 @@ def _make_task_status(task_id, status, message, started_at, completed_at=None, o
         output=output, step=step, sub_progress=sub_progress,
     )
 
+
 def _pct_to_step(pct: int) -> int:
-    if pct < 18: return 1
-    if pct < 60: return 2
-    if pct < 70: return 3
+    if pct < 18:
+        return 1
+    if pct < 60:
+        return 2
+    if pct < 70:
+        return 3
     return 4
+
 
 async def _rotate_progress(task_id: str, step: int = 1):
     i = 0
@@ -239,7 +178,6 @@ async def _rotate_progress(task_id: str, step: int = 1):
         if pp and pp.get("pct") is not None:
             pct = int(pp["pct"])
             msg = pp.get("message", "")
-        # Interpolate gap_progress sub-pct into pipeline scale (70-92) for step 4
         if _pct_to_step(pct) >= 4:
             gp = _read_gap_progress()
             if gp and gp.get("pct", 0) > 0:
@@ -269,17 +207,21 @@ async def _rotate_progress(task_id: str, step: int = 1):
 
 
 async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
-    base_dir = Path(__file__).parent.parent.parent.parent
+    from src.pipeline import runner as pr
+
     started_at = time.time()
-    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск сбора...", started_at, step=0)
+    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск...", started_at, step=0)
     _save_tasks()
+
+    loop = asyncio.get_event_loop()
+
     try:
-        ret = -1
-        out = err = ""
         if action == PipelineAction.REBUILD:
-            script = base_dir / "scripts" / "full_rebuild.py"
             pipeline_tasks[task_id].message = "Запуск полной пересборки..."
-            ret, out, err = await run_command(["python", str(script)], base_dir, task_id=task_id)
+            await loop.run_in_executor(None, pr.rebuild)
+            msg = "Пересборка завершена."
+            status = "completed"
+
         elif action == PipelineAction.FULL_CYCLE:
             gap = kwargs.get("run_gap_analysis", True)
             regions_raw = kwargs.get("regions", "113")
@@ -290,73 +232,94 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             regions = _resolve_area_ids(regions_raw) if regions_raw not in ("0", "") else "113"
             logger.info("regions_resolved", raw=regions_raw, resolved=regions)
 
-            # Clean stale progress files so the rotator doesn't pick up old data
-            try:
-                for fp in (PIPELINE_PROGRESS_FILE, GAP_PROGRESS_FILE):
+            for fp in (PIPELINE_PROGRESS_FILE, GAP_PROGRESS_FILE):
+                try:
                     if fp.exists():
                         fp.unlink()
-            except Exception as e:
-                logger.warning("clean_progress_failed", error=str(e))
+                except Exception as e:
+                    logger.warning("clean_progress_failed", error=str(e))
+
+            import argparse
+            pipeline_args = argparse.Namespace(
+                query=query,
+                area_id=2, max_pages=max_pages, period=period,
+                show_vacancies=False, skip_details=False, excel=True,
+                no_filter=False, queries_file=None, regions=regions,
+                industry=None, interactive=False,
+                max_vacancies_per_query=2000, it_sector=not bool(query),
+                use_async=True, async_workers=3, async_threshold=10000,
+                run_gap_analysis=gap, run_notebooks=False,
+                skip_gap_analysis=not gap, status=False,
+                train_model=False, force=False, use_llm=False,
+                skip_collection=False,
+            )
 
             progress_rotator = asyncio.ensure_future(_rotate_progress(task_id, step=1))
             pipeline_tasks[task_id].step = 1
-            cmd = ["python", str(base_dir / "main.py"), "--regions", regions, "--excel",
-                   "--max-pages", str(max_pages), "--period", str(period)]
-            if not gap:
-                cmd.append("--skip-gap-analysis")
-            if query:
-                enc = base64.b64encode(query.encode("utf-8")).decode("ascii")
-                cmd.extend(["--query", f"b64:{enc}"])
-            else:
-                cmd.append("--it-sector")
-            ret, out, err = await run_command(cmd, base_dir, timeout=1200, task_id=task_id)
+            pipeline_tasks[task_id].message = "Запуск полного цикла..."
+
+            await loop.run_in_executor(None, pr.run_full_pipeline, pipeline_args)
+
             progress_rotator.cancel()
+            msg = "Все этапы выполнены. Данные обновлены."
+            status = "completed"
+
+            if gap:
+                try:
+                    from src.api_pkg.startup import run_startup
+                    await run_startup(None)
+                except Exception as reload_err:
+                    logger.error("reload_after_pipeline_failed", error=str(reload_err))
+
         elif action == PipelineAction.TRAIN_CLUSTERS:
             pipeline_tasks[task_id].message = "Кластеризация вакансий..."
-            ret, out, err = await run_command(
-                ["python", str(base_dir / "scripts" / "train_clusters.py"), "--level", "all"], base_dir, task_id=task_id)
+            from scripts.train_clusters import train_clusters
+            ok = await loop.run_in_executor(
+                None, lambda: train_clusters(level="all", save_report=True, interpret=True)
+            )
+            status = "completed" if ok else "failed"
+            msg = "Кластеризация завершена." if ok else "Кластеризация не выполнена."
+
         elif action == PipelineAction.TRAIN_MODEL:
             pipeline_tasks[task_id].message = "Обучение модели ранжирования..."
-            ret, out, err = await run_command(
-                ["python", str(base_dir / "main.py"), "--train-model"], base_dir, task_id=task_id)
+            await loop.run_in_executor(None, pr.run_train_model)
+            msg = "Модель обучена."
+            status = "completed"
+
         elif action == PipelineAction.GAP_ANALYSIS:
-            gap_progress = asyncio.ensure_future(_rotate_progress(task_id, step=4))
-            ret, out, err = await run_command(
-                ["python", str(base_dir / "main.py"), "--skip-collection", "--run-gap-analysis"], base_dir, task_id=task_id)
-            gap_progress.cancel()
+            progress_rotator = asyncio.ensure_future(_rotate_progress(task_id, step=4))
+            import argparse
+            gap_args = argparse.Namespace(
+                skip_collection=True, run_gap_analysis=True, skip_gap_analysis=False,
+                force=False, use_llm=False, excel=False, query="",
+                run_notebooks=False, train_model=False, status=False,
+                regions="113", max_pages=10, period=30,
+                area_id=2, show_vacancies=False, skip_details=False,
+                no_filter=False, queries_file=None, industry=None,
+                interactive=False, max_vacancies_per_query=2000, it_sector=False,
+                use_async=True, async_workers=3, async_threshold=10000,
+            )
+            await loop.run_in_executor(None, pr.run_full_pipeline, gap_args)
+            progress_rotator.cancel()
+            msg = "GAP-анализ завершен. Отчёты готовы."
+            status = "completed"
+
         else:
+            t = pipeline_tasks.get(task_id)
+            if t and t.status == "cancelled":
+                return
             pipeline_tasks[task_id] = _make_task_status(
                 task_id, "failed", f"Неизвестное действие: {action}", started_at, output="")
             _save_tasks()
             return
 
-        # --- Common completion logic for all known actions ---
-        msg = (err or out)[-500:] if ret != 0 else ""
-        if ret == 0:
-            if action == PipelineAction.FULL_CYCLE:
-                msg = "Все этапы выполнены. Данные обновлены."
-            elif action == PipelineAction.GAP_ANALYSIS:
-                msg = "GAP-анализ завершен. Отчёты готовы."
-            elif action == PipelineAction.TRAIN_CLUSTERS:
-                msg = "Кластеризация завершена."
-            elif action == PipelineAction.TRAIN_MODEL:
-                msg = "Модель обучена."
-            elif action == PipelineAction.REBUILD:
-                msg = "Пересборка завершена."
-            else:
-                msg = "Операция завершена."
-        status = "completed" if ret == 0 else "failed"
         t = pipeline_tasks.get(task_id)
         if t and t.status == "cancelled":
             return
         pipeline_tasks[task_id] = _make_task_status(
             task_id, status, msg[:500], started_at, output=msg)
         _save_tasks()
-        if ret == 0 and action == PipelineAction.FULL_CYCLE:
-            try:
-                await reload_api_data()
-            except Exception as reload_err:
-                logger.error("reload_after_pipeline_failed", error=str(reload_err))
+
     except Exception as e:
         t = pipeline_tasks.get(task_id)
         if t and t.status == "cancelled":
@@ -367,14 +330,23 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
         _save_tasks()
 
 
-async def reload_api_data():
-    logger.info("Reloading API data...")
-    try:
-        from src.api_pkg.startup import run_startup
-        await run_startup(None)
-        logger.info("API data reloaded successfully")
-    except Exception as e:
-        logger.error("Ошибка перезагрузки API", error=str(e))
+def _build_args_for_sync(action: PipelineAction, **kwargs):
+    """Build argparse Namespace for synchronous pipeline actions."""
+    import argparse
+    base = dict(
+        query="", area_id=2, max_pages=10, period=30,
+        show_vacancies=False, skip_details=False, excel=False,
+        no_filter=False, queries_file=None, regions="113",
+        industry=None, interactive=False,
+        max_vacancies_per_query=2000, it_sector=False,
+        use_async=True, async_workers=3, async_threshold=10000,
+        run_gap_analysis=True, run_notebooks=False,
+        skip_gap_analysis=False, status=False,
+        train_model=False, force=False, use_llm=False,
+        skip_collection=False,
+    )
+    base.update(kwargs)
+    return argparse.Namespace(**base)
 
 
 @router.post("/api/pipeline/{action}", response_model=PipelineResponse)
@@ -384,30 +356,49 @@ async def run_pipeline_action_sync(
     action: PipelineAction,
     background_tasks: BackgroundTasks,
     skip_collection: bool = Query(False, description="Пропустить сбор вакансий"),
-    run_gap_analysis: bool = Query(
-        True, description="Запустить gap-анализ после обучения"
-    ),
+    run_gap_analysis: bool = Query(True, description="Запустить gap-анализ после обучения"),
     regions: str = Query("0", description="Регионы для сбора вакансий (через запятую)"),
     query: str = Query("", description="Профессия/запрос для поиска вакансий"),
     max_pages: int = Query(20, ge=1, le=100, description="Количество страниц"),
     period: int = Query(30, ge=1, le=365, description="Период поиска в днях"),
 ):
-    base_dir = Path(__file__).parent.parent.parent.parent
+    from src.pipeline import runner as pr
+
     if action == PipelineAction.REBUILD:
-        rebuild_script = base_dir / "scripts" / "full_rebuild.py"
-        if not rebuild_script.exists():
-            raise HTTPException(
-                status_code=404, detail=f"full_rebuild.py not found at {rebuild_script}"
-            )
-        cmd = ["python", str(rebuild_script)]
-        returncode, stdout, stderr = await run_command(cmd, base_dir)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, pr.rebuild)
         return PipelineResponse(
-            status="success" if returncode == 0 else "failed",
-            message="Full rebuild completed",
-            command=" ".join(cmd),
-            exit_code=returncode,
-            output=stdout[-1000:] if stdout else stderr[-1000:],
+            status="success", message="Full rebuild completed",
+            command="rebuild", exit_code=0,
         )
+
+    elif action == PipelineAction.TRAIN_CLUSTERS:
+        from scripts.train_clusters import train_clusters
+        loop = asyncio.get_event_loop()
+        ok = await loop.run_in_executor(
+            None, lambda: train_clusters(level="all", save_report=True, interpret=True)
+        )
+        return PipelineResponse(
+            status="success" if ok else "failed",
+            message="Cluster training completed" if ok else "Cluster training failed",
+            exit_code=0 if ok else 1,
+        )
+
+    elif action == PipelineAction.TRAIN_MODEL:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, pr.run_train_model)
+        return PipelineResponse(
+            status="success", message="Model training completed", exit_code=0,
+        )
+
+    elif action == PipelineAction.GAP_ANALYSIS:
+        args = _build_args_for_sync(action, skip_collection=True, run_gap_analysis=True, skip_gap_analysis=False)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, pr.run_full_pipeline, args)
+        return PipelineResponse(
+            status="success", message="Gap analysis completed", exit_code=0,
+        )
+
     elif action == PipelineAction.FULL_CYCLE:
         req_id = getattr(request.state, "request_id", "unknown")
         task_id = f"{action.value}_{int(time.time())}"
@@ -416,70 +407,21 @@ async def run_pipeline_action_sync(
         pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск сбора...", started_at, step=0)
         background_tasks.add_task(
             run_pipeline_task,
-            action,
-            task_id,
+            action, task_id,
             skip_collection=skip_collection,
             run_gap_analysis=run_gap_analysis,
-            regions=regions,
-            query=query,
-            max_pages=max_pages,
-            period=period,
+            regions=regions, query=query,
+            max_pages=max_pages, period=period,
         )
         return PipelineResponse(
             status="started",
             message=f"Pipeline {action.value} started in background",
-            command=f"python main.py --skip-collection={skip_collection} --run-gap-analysis={run_gap_analysis}",
             exit_code=None,
             output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
         )
-    elif action == PipelineAction.TRAIN_CLUSTERS:
-        cmd = [
-            "python",
-            str(base_dir / "scripts" / "train_clusters.py"),
-            "--level",
-            "all",
-        ]
-        returncode, stdout, stderr = await run_command(cmd, base_dir)
-        return PipelineResponse(
-            status="success" if returncode == 0 else "failed",
-            message="Cluster training completed"
-            if returncode == 0
-            else f"Cluster training failed with code {returncode}",
-            command=" ".join(cmd),
-            exit_code=returncode,
-            output=stdout[-1000:] if stdout else stderr[-1000:],
-        )
-    elif action == PipelineAction.TRAIN_MODEL:
-        cmd = ["python", str(base_dir / "main.py"), "--train-model"]
-        returncode, stdout, stderr = await run_command(cmd, base_dir)
-        return PipelineResponse(
-            status="success" if returncode == 0 else "failed",
-            message="Model training completed"
-            if returncode == 0
-            else f"Model training failed with code {returncode}",
-            command=" ".join(cmd),
-            exit_code=returncode,
-            output=stdout[-1000:] if stdout else stderr[-1000:],
-        )
-    elif action == PipelineAction.GAP_ANALYSIS:
-        cmd = [
-            "python",
-            str(base_dir / "main.py"),
-            "--skip-collection",
-            "--run-gap-analysis",
-        ]
-        returncode, stdout, stderr = await run_command(cmd, base_dir)
-        return PipelineResponse(
-            status="success" if returncode == 0 else "failed",
-            message="Gap analysis completed"
-            if returncode == 0
-            else f"Gap analysis failed with code {returncode}",
-            command=" ".join(cmd),
-            exit_code=returncode,
-            output=stdout[-1000:] if stdout else stderr[-1000:],
-        )
+
     return PipelineResponse(
-        status="error", message=f"Unknown action: {action}", exit_code=-1
+        status="error", message=f"Unknown action: {action}", exit_code=-1,
     )
 
 
@@ -511,35 +453,18 @@ async def list_pipeline_tasks(request: Request, limit: int = Query(10, ge=1, le=
 @router.get("/api/pipeline/status", response_model=dict)
 @limiter.limit("30/minute")
 async def get_pipeline_status(request: Request):
-    base_dir = Path(__file__).parent.parent.parent.parent
     clusters_exist = {
-        "junior": (
-            base_dir / "data" / "cache" / "clusters" / "vacancy_clusters_junior.joblib"
-        ).exists(),
-        "middle": (
-            base_dir / "data" / "cache" / "clusters" / "vacancy_clusters_middle.joblib"
-        ).exists(),
-        "senior": (
-            base_dir / "data" / "cache" / "clusters" / "vacancy_clusters_senior.joblib"
-        ).exists(),
+        "junior": (BASE_DIR / "data" / "cache" / "clusters" / "vacancy_clusters_junior.joblib").exists(),
+        "middle": (BASE_DIR / "data" / "cache" / "clusters" / "vacancy_clusters_middle.joblib").exists(),
+        "senior": (BASE_DIR / "data" / "cache" / "clusters" / "vacancy_clusters_senior.joblib").exists(),
     }
-    model_exists = (
-        base_dir / "data" / "models" / "ltr_ranker_xgb_regressor.joblib"
-    ).exists()
+    model_exists = (BASE_DIR / "data" / "models" / "ltr_ranker_xgb_regressor.joblib").exists()
     recommendations_exist = {
-        "base": (
-            base_dir / "data" / "result" / "base" / "full_recommendations_base.json"
-        ).exists(),
-        "dc": (
-            base_dir / "data" / "result" / "dc" / "full_recommendations_dc.json"
-        ).exists(),
-        "top_dc": (
-            base_dir / "data" / "result" / "top_dc" / "full_recommendations_top_dc.json"
-        ).exists(),
+        "base": (BASE_DIR / "data" / "result" / "base" / "full_recommendations_base.json").exists(),
+        "dc": (BASE_DIR / "data" / "result" / "dc" / "full_recommendations_dc.json").exists(),
+        "top_dc": (BASE_DIR / "data" / "result" / "top_dc" / "full_recommendations_top_dc.json").exists(),
     }
-    skill_weights_exist = (
-        base_dir / "data" / "processed" / "skill_weights.json"
-    ).exists()
+    skill_weights_exist = (BASE_DIR / "data" / "processed" / "skill_weights.json").exists()
     return {
         "clusters": clusters_exist,
         "clusters_all_ready": all(clusters_exist.values()),
@@ -547,28 +472,19 @@ async def get_pipeline_status(request: Request):
         "recommendations": recommendations_exist,
         "recommendations_all_ready": all(recommendations_exist.values()),
         "skill_weights": skill_weights_exist,
-        "scripts": {
-            "full_rebuild": (base_dir / "scripts" / "full_rebuild.py").exists(),
-            "train_clusters": (base_dir / "scripts" / "train_clusters.py").exists(),
-        },
     }
 
 
 @router.post("/api/pipeline/rebuild", response_model=PipelineResponse)
 @limiter.limit("2/minute")
 async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
-    base_dir = Path(__file__).parent.parent.parent.parent
-    rebuild_script = base_dir / "scripts" / "full_rebuild.py"
-    if not rebuild_script.exists():
-        raise HTTPException(
-            status_code=404, detail=f"full_rebuild.py not found at {rebuild_script}"
-        )
     task_id = f"rebuild_{int(time.time())}"
+    started_at = time.time()
+    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0)
     background_tasks.add_task(run_pipeline_task, PipelineAction.REBUILD, task_id)
     return PipelineResponse(
-        status="started",
-        message="Full rebuild started in background",
-        command=f"python {rebuild_script}",
+        status="started", message="Full rebuild started in background",
+        command="rebuild",
         output=f"Task ID: {task_id}. Check /api/pipeline/task/{task_id} for status",
     )
 
@@ -576,10 +492,9 @@ async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
 @router.post("/api/pipeline/refresh-cache", response_model=CacheRefreshResponse)
 @limiter.limit("5/minute")
 async def refresh_cache(request: Request):
-    base_dir = Path(__file__).parent.parent.parent.parent
     cache_dirs = [
-        base_dir / "data" / "cache" / "embeddings",
-        base_dir / "data" / "cache" / "clusters",
+        BASE_DIR / "data" / "cache" / "embeddings",
+        BASE_DIR / "data" / "cache" / "clusters",
     ]
     removed = []
     for cache_dir in cache_dirs:
@@ -587,14 +502,12 @@ async def refresh_cache(request: Request):
             shutil.rmtree(cache_dir)
             removed.append(str(cache_dir))
             cache_dir.mkdir(parents=True, exist_ok=True)
-    parsed_skills = base_dir / "data" / "cache" / "parsed_skills.joblib"
+    parsed_skills = BASE_DIR / "data" / "cache" / "parsed_skills.joblib"
     if parsed_skills.exists():
         parsed_skills.unlink()
         removed.append(str(parsed_skills))
     return {
-        "status": "success",
-        "message": "Cache cleared",
-        "removed": removed,
+        "status": "success", "message": "Cache cleared", "removed": removed,
         "next_step": "Run POST /api/pipeline/full-cycle?skip_collection=false to rebuild",
     }
 
@@ -603,13 +516,26 @@ async def refresh_cache(request: Request):
 @limiter.limit("3/minute")
 async def reload_api(request: Request):
     try:
-        asyncio.create_task(reload_api_data())
+        asyncio.create_task(_reload_api_data())
         return PipelineResponse(
-            status="started",
-            message="API data reload started. Check /api/status for completion.",
+            status="started", message="API data reload started. Check /api/status for completion.",
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _reload_api_data():
+    logger.info("Reloading API data...")
+    try:
+        from src.api_pkg.startup import run_startup
+        await run_startup(None)
+        logger.info("API data reloaded successfully")
+    except Exception as e:
+        logger.error("Ошибка перезагрузки API", error=str(e))
+
+
+async def reload_api_data():
+    await _reload_api_data()
 
 
 @router.post("/api/pipeline/cancel/{task_id}")
@@ -624,12 +550,6 @@ async def cancel_pipeline_task(task_id: str, request: Request):
     t.message = "Отменено пользователем"
     t.completed_at = time.time()
     _save_tasks()
-    proc = pipeline_procs.pop(task_id, None)
-    if proc:
-        try:
-            proc.kill()
-        except Exception:
-            pass
     return {"status": "cancelled", "message": "Pipeline остановлен"}
 
 
@@ -647,7 +567,6 @@ async def get_gap_progress(task_id: str, request: Request):
     return GapProgressResponse(exists=False)
 
 
-# === WebSocket: real-time pipeline progress ===
 _ws_clients: set[WebSocket] = set()
 
 

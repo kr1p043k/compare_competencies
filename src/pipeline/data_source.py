@@ -180,12 +180,16 @@ class HhDataSource(DataSourceProtocol):
 
         else:
             console_info(f"Поиск: '{self.args.query}', регион {self.args.area_id}")
-            basic_vacancies = hh_api.search_vacancies(
+            match hh_api.search_vacancies(
                 text=self.args.query,
                 area=self.args.area_id,
                 period_days=self.args.period,
                 max_pages=self.args.max_pages,
-            )
+            ):
+                case Ok(basic_vacancies):
+                    pass
+                case Err(e):
+                    return Err(DataSourceError(message=f"❌ Ошибка поиска вакансий: {e}"))
 
             if not basic_vacancies:
                 return Err(DataSourceError(message="❌ Не найдено вакансий."))

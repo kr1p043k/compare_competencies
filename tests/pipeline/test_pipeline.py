@@ -13,7 +13,7 @@ from src.pipeline.data_source import HhDataSource
 from src.pipeline.helpers import get_load_mode, load_vacancies_details, save_detailed_vacancies
 from src.pipeline.level_builder import LevelBuilder
 from src.pipeline.metric_computer import MetricComputer
-from src.result import Err, Ok
+from src.result import Err, Ok, Result
 from src.pipeline.recommendation_runner import RecommendationRunner
 from src.pipeline.skill_extractor import SkillExtractor
 from src.pipeline.weight_cleaner import WeightCleaner
@@ -152,7 +152,7 @@ class TestHhDataSource:
              patch("src.pipeline.data_source.console_info"), \
              patch("src.pipeline.data_source.console_header"):
 
-            mock_api_class.return_value.search_vacancies.return_value = [{"id": "1"}]
+            mock_api_class.return_value.search_vacancies.return_value = Ok([{"id": "1"}])
             mock_collect.return_value = [{"id": "1"}]
 
             match ds.get_vacancies():
@@ -195,7 +195,7 @@ class TestHhDataSource:
             patch("src.pipeline.data_source.save_detailed_vacancies"), \
             patch("src.pipeline.data_source.console_info"):
             mock_api_instance = MockAPI.return_value
-            mock_api_instance.search_vacancies.return_value = [{"id": "1"}]
+            mock_api_instance.search_vacancies.return_value = Ok([{"id": "1"}])
             mock_mode.return_value = (True, 4, "async")
             mock_load.return_value = [{"id": "1", "details": True}]
             match ds.get_vacancies():
@@ -235,7 +235,7 @@ class TestHhDataSource:
              patch("src.pipeline.data_source.VacancyParser"), \
              patch("src.pipeline.data_source.console_info"):
             api = MockAPI.return_value
-            api.search_vacancies.return_value = [{"id": "1"}]
+            api.search_vacancies.return_value = Ok([{"id": "1"}])
             match ds.get_vacancies():
                 case Ok((v, _)):
                     assert len(v) == 1
@@ -257,7 +257,7 @@ class TestHhDataSource:
              patch("src.pipeline.data_source.save_detailed_vacancies"), \
              patch("src.pipeline.data_source.console_info"):
             api = MockAPI.return_value
-            api.search_vacancies.return_value = [{"id": "1"}]
+            api.search_vacancies.return_value = Ok([{"id": "1"}])
             mock_mode.return_value = (True, 4, "async")
             mock_load.return_value = [{"id": "1", "details": True}]
             match ds.get_vacancies():
@@ -292,12 +292,12 @@ class TestHhDataSource:
             patch("src.pipeline.data_source.save_detailed_vacancies"), \
             patch("src.pipeline.data_source.console_info"):
             api = MockAPI.return_value
-            api.search_vacancies.return_value = [{"id": "1"}]
+            api.search_vacancies.return_value = Ok([{"id": "1"}])
             mock_mode.return_value = (True, 4, "async")
             # Не патчим load_vacancies_details, но мокаем HeadHunterAPIAsync внутри
             with patch("src.parsing.api.hh_api_async.HeadHunterAPIAsync") as MockAsync:
                 async_instance = MockAsync.return_value
-                async_instance.get_vacancies_details_sync_validated.return_value = []
+                async_instance.get_vacancies_details_sync_validated.return_value = Ok([])
                 match ds.get_vacancies():
                     case Ok((vacancies, _)):
                         assert len(vacancies) >= 0
@@ -315,7 +315,7 @@ class TestHhDataSource:
             patch("src.pipeline.data_source.VacancyParser"), \
             patch("src.pipeline.data_source.console_info"):
             api = MockAPI.return_value
-            api.search_vacancies.return_value = []
+            api.search_vacancies.return_value = Ok([])
             result = ds._collect_from_hh()
             assert result.is_err()
 
@@ -446,7 +446,7 @@ class TestLevelBuilder:
         monkeypatch.setattr("src.pipeline.helpers.config.REQUEST_DELAY", 0)
         basic = [{"id": "1"}, {"id": "2"}]
         hh_api = MagicMock()
-        hh_api.get_vacancy_details_as_object.return_value = MagicMock()
+        hh_api.get_vacancy_details_as_object.return_value = Ok(MagicMock())
         # tqdm должен пропускать итератор, а не подменять список
         with patch("src.pipeline.helpers.tqdm", lambda iterable, *args, **kwargs: iterable):
             result = load_vacancies_details(basic, hh_api, use_async=False, async_workers=0,
@@ -462,7 +462,7 @@ class TestLevelBuilder:
         fake_response.model_dump.return_value = {"id": "1", "name": "test"}
         with patch("src.parsing.api.hh_api_async.HeadHunterAPIAsync") as MockAsync:
             async_instance = MockAsync.return_value
-            async_instance.get_vacancies_details_sync_validated.return_value = [fake_response]
+            async_instance.get_vacancies_details_sync_validated.return_value = Ok([fake_response])
             with patch("src.pipeline.helpers.Vacancy.from_api", return_value=MagicMock()):
                 result = load_vacancies_details(basic, hh_api, use_async=True, async_workers=2,
                                                 parser=MagicMock(), log=MagicMock())

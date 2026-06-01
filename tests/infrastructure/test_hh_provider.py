@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src import Ok, Err
+from src import Err, Ok
 from src.errors import DataSourceError
 from src.infrastructure.hh_provider import HHVacancyProvider
 
@@ -16,7 +16,7 @@ class TestHHVacancyProvider:
     @patch("src.infrastructure.hh_provider.HeadHunterAPI")
     def test_search_success(self, MockAPI):
         mock_api = MagicMock()
-        mock_api.search_vacancies.return_value = [{"id": 1}]
+        mock_api.search_vacancies.return_value = Ok([{"id": 1}])
         MockAPI.return_value = mock_api
         p = HHVacancyProvider()
         p._api = mock_api
@@ -27,7 +27,7 @@ class TestHHVacancyProvider:
     @patch("src.infrastructure.hh_provider.HeadHunterAPI")
     def test_search_no_results(self, MockAPI):
         mock_api = MagicMock()
-        mock_api.search_vacancies.return_value = []
+        mock_api.search_vacancies.return_value = Ok([])
         MockAPI.return_value = mock_api
         p = HHVacancyProvider()
         p._api = mock_api

@@ -27,7 +27,7 @@ class TestHeadHunterAPISync:
         api = HeadHunterAPI()
         mock_get.return_value = {"items": [{"id": "1"}, {"id": "2"}], "pages": 1, "found": 2}
         result = api.search_vacancies(text="Python", area=1)
-        assert len(result) == 2
+        assert len(result.ok()) == 2
         mock_get.assert_called_once()
 
     @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
@@ -38,7 +38,7 @@ class TestHeadHunterAPISync:
             {"items": [{"id": "3"}], "pages": 2, "found": 3},
         ]
         result = api.search_vacancies(text="Java", area=2, max_pages=5)
-        assert len(result) == 3
+        assert len(result.ok()) == 3
         assert mock_get.call_count == 2
 
     @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
@@ -46,20 +46,20 @@ class TestHeadHunterAPISync:
         api = HeadHunterAPI()
         mock_get.return_value = {"items": [], "pages": 5}
         result = api.search_vacancies(text="C++", area=1)
-        assert result == []
+        assert result.ok() == []
 
     @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
     def test_get_vacancy_details_success(self, mock_get):
         api = HeadHunterAPI()
         mock_get.return_value = {"id": "123", "name": "Test"}
         details = api.get_vacancy_details("123")
-        assert details["id"] == "123"
+        assert details.ok()["id"] == "123"
 
     def test_get_vacancy_details_returns_none_on_error(self):
         api = HeadHunterAPI()
         with patch.object(api, "_get", return_value=None):
             details = api.get_vacancy_details("999")
-            assert details is None
+            assert details.is_err()
 
     def test_get_vacancy_details_as_object_valid(self):
         api = HeadHunterAPI()
@@ -72,15 +72,15 @@ class TestHeadHunterAPISync:
         }
         with patch.object(api, "_get", return_value=raw):
             vacancy = api.get_vacancy_details_as_object("456")
-            assert isinstance(vacancy, Vacancy)
-            assert vacancy.id == "456"
-            assert len(vacancy.key_skills) == 2
+            assert isinstance(vacancy.ok(), Vacancy)
+            assert vacancy.ok().id == "456"
+            assert len(vacancy.ok().key_skills) == 2
 
     def test_get_vacancy_details_as_object_invalid(self):
         api = HeadHunterAPI()
         with patch.object(api, "_get", return_value={"id": "no_name"}):
             vacancy = api.get_vacancy_details_as_object("bad")
-            assert vacancy is None
+            assert vacancy.is_err()
 
     def test_get_handles_429_retry(self):
         api = HeadHunterAPI()
@@ -117,7 +117,7 @@ class TestHeadHunterAPISync:
         with patch.object(api, "_get") as mock_get:
             mock_get.return_value = {"items": [{"id": "1"}], "pages": 1}
             result = api.search_vacancies(text="Python", area=1, max_pages=1)
-            assert len(result) == 1
+            assert len(result.ok()) == 1
             mock_get.assert_called_once()
 
     @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
@@ -125,7 +125,7 @@ class TestHeadHunterAPISync:
         api = HeadHunterAPI()
         mock_get.return_value = {"items": [{"id": "2"}], "pages": 1, "found": 1}
         result = api.search_vacancies(text="Python", area=1, since_id=1)
-        assert len(result) == 1
+        assert len(result.ok()) == 1
         call_kwargs = mock_get.call_args[1]
         assert call_kwargs["params"].get("vacancy_id_gt") == 1
 
@@ -134,7 +134,7 @@ class TestHeadHunterAPISync:
         api = HeadHunterAPI()
         mock_get.return_value = {"items": [{"id": "1"}], "pages": 1, "found": 1}
         result = api.search_vacancies(text="Python", area=1, date_from="2024-01-01", date_to="2024-01-31")
-        assert len(result) == 1
+        assert len(result.ok()) == 1
         call_kwargs = mock_get.call_args[1]
         assert call_kwargs["params"].get("date_from") == "2024-01-01"
         assert call_kwargs["params"].get("date_to") == "2024-01-31"
@@ -237,7 +237,7 @@ class TestHeadHunterAPISync:
             result = api.search_vacancies(
                 text="Python", area=1, date_from="2024-01-01", date_to="2024-01-31"
             )
-            assert len(result) == 1
+            assert len(result.ok()) == 1
             call_args = mock_get.call_args[1]["params"]
             assert "date_from" in call_args
             assert "date_to" in call_args
@@ -247,7 +247,7 @@ class TestHeadHunterAPISync:
         api = HeadHunterAPI()
         with patch.object(api, "_get", return_value=None):
             result = api.get_vacancy_details("999")
-            assert result is None
+            assert result.is_err()
 
     def test_get_429_exceeded_retries(self):
         """Строки 161-162: превышены попытки 429"""
@@ -302,14 +302,14 @@ class TestHeadHunterAPISync:
         raw = {"id": "1", "name": "Test", "area": {"id": 1, "name": "M"}, "employer": {"id": "2", "name": "E"}}
         with patch.object(api, "_get", return_value=raw):
             result = api.get_vacancy_details_validated("1")
-            assert result.id == "1"
+            assert result.ok().id == "1"
 
     def test_get_vacancy_details_validated_not_found(self):
-        """Строки 68-71: исключение при None"""
+        """Строки 68-71: ошибка при None"""
         api = HeadHunterAPI()
         with patch.object(api, "_get", return_value=None):
-            with pytest.raises(ValueError, match="not found"):
-                api.get_vacancy_details_validated("999")
+            result = api.get_vacancy_details_validated("999")
+            assert result.is_err()
 
     def test_get_vacancy_details_as_object_invalid(self):
         """Строки 81-82: Vacancy.from_api вызывает ошибку"""
@@ -317,7 +317,7 @@ class TestHeadHunterAPISync:
         raw = {"id": "1"}  # нет name
         with patch.object(api, "_get", return_value=raw):
             result = api.get_vacancy_details_as_object("1")
-            assert result is None
+            assert result.is_err()
 
     def test_get_handles_429_without_retry_after(self):
         """Строки 136-137: 429 без заголовка Retry-After"""
@@ -347,7 +347,7 @@ class TestHeadHunterAPIAsync:
             m.get("https://test.url", payload={"data": "value"})
             async with aiohttp.ClientSession() as session:
                 result = await api._request(session, "https://test.url")
-                assert result == {"data": "value"}
+                assert result.ok() == {"data": "value"}
                 assert api.stats["success"] == 1
 
     @pytest.mark.asyncio
@@ -359,7 +359,7 @@ class TestHeadHunterAPIAsync:
             async with aiohttp.ClientSession() as session:
                 with patch("asyncio.sleep", new_callable=AsyncMock):
                     result = await api._request(session, "https://test.url", retries=0, max_retries=2)
-                    assert result == {"ok": True}
+                    assert result.ok() == {"ok": True}
                     assert api.stats["429_errors"] == 1
 
     @pytest.mark.asyncio
@@ -369,7 +369,7 @@ class TestHeadHunterAPIAsync:
             m.get("https://test.url/vacancies/123", status=403)
             async with aiohttp.ClientSession() as session:
                 result = await api._request(session, "https://test.url/vacancies/123")
-                assert result is None
+                assert result.is_err()
                 assert api.stats["403_errors"] == 1
 
     @pytest.mark.asyncio
@@ -379,7 +379,7 @@ class TestHeadHunterAPIAsync:
             m.get("https://test.url", status=404)
             async with aiohttp.ClientSession() as session:
                 result = await api._request(session, "https://test.url")
-                assert result is None
+                assert result.is_err()
                 assert api.stats["404_errors"] == 1
 
     @pytest.mark.asyncio
@@ -391,7 +391,7 @@ class TestHeadHunterAPIAsync:
             async with aiohttp.ClientSession() as session:
                 with patch("asyncio.sleep", new_callable=AsyncMock):
                     result = await api._request(session, "https://test.url", max_retries=1)
-                    assert result == {"ok": True}
+                    assert result.ok() == {"ok": True}
                     assert api.stats["timeouts"] >= 1
 
     @pytest.mark.asyncio
@@ -401,7 +401,7 @@ class TestHeadHunterAPIAsync:
             m.get("https://api.hh.ru/vacancies/abc", payload={"id": "abc", "name": "Job"})
             async with aiohttp.ClientSession() as session:
                 details = await api.get_vacancy_details_async(session, "abc")
-                assert details["id"] == "abc"
+                assert details.ok()["id"] == "abc"
 
     @pytest.mark.asyncio
     async def test_get_vacancies_details_batch_success(self):
@@ -411,7 +411,7 @@ class TestHeadHunterAPIAsync:
             for vid in vacancy_ids:
                 m.get(f"https://api.hh.ru/vacancies/{vid}", payload={"id": vid, "details": f"data_{vid}"})
             results = await api.get_vacancies_details_batch(vacancy_ids)
-            assert len(results) == 4
+            assert len(results.ok()) == 4
 
     @pytest.mark.asyncio
     async def test_get_vacancies_details_batch_filters_none(self):
@@ -422,17 +422,17 @@ class TestHeadHunterAPIAsync:
             m.get("https://api.hh.ru/vacancies/bad", status=404)
             m.get("https://api.hh.ru/vacancies/2", payload={"id": "2"})
             results = await api.get_vacancies_details_batch(vacancy_ids)
-            assert len(results) == 2
-            assert results[0]["id"] == "1"
-            assert results[1]["id"] == "2"
+            assert len(results.ok()) == 2
+            assert results.ok()[0]["id"] == "1"
+            assert results.ok()[1]["id"] == "2"
 
     def test_get_vacancies_details_sync_wrapper(self):
         api = HeadHunterAPIAsync()
         vacancy_ids = ["1", "2"]
         with patch.object(api, "get_vacancies_details_batch", new_callable=AsyncMock) as mock_batch:
-            mock_batch.return_value = [{"id": "1"}, {"id": "2"}]
+            mock_batch.return_value = Ok([{"id": "1"}, {"id": "2"}])
             results = api.get_vacancies_details_sync(vacancy_ids)
-            assert len(results) == 2
+            assert len(results.ok()) == 2
 
     @pytest.mark.asyncio
     async def test_throttle_skips_sleep_when_elapsed_greater(self):
@@ -449,7 +449,7 @@ class TestHeadHunterAPIAsync:
             m.get("https://test.url", status=500)
             async with aiohttp.ClientSession() as session:
                 result = await api._request(session, "https://test.url")
-                assert result is None
+                assert result.is_err()
                 assert api.stats["other_errors"] >= 1
 
     @pytest.mark.asyncio
@@ -459,14 +459,14 @@ class TestHeadHunterAPIAsync:
             m.get("https://test.url", exception=aiohttp.ClientError())
             async with aiohttp.ClientSession() as session:
                 result = await api._request(session, "https://test.url")
-                assert result is None
+                assert result.is_err()
                 assert api.stats["other_errors"] == 1
 
     @pytest.mark.asyncio
     async def test_get_vacancies_details_batch_empty_list(self):
         api = HeadHunterAPIAsync()
         results = await api.get_vacancies_details_batch([])
-        assert results == []
+        assert results.ok() == []
 
 
 class TestHeadHunterAPIMockedRequests:
@@ -488,7 +488,9 @@ class TestHeadHunterAPIAsyncToken:
         api = HeadHunterAPIAsync(token="old", token_expires_at=time.time() - 100)
 
         with patch.object(api, "_get_app_token", new_callable=AsyncMock) as mock_get_token:
-            await api._ensure_token()
+            mock_get_token.return_value = Ok(True)
+            result = await api._ensure_token()
+            assert result.is_ok()
             mock_get_token.assert_called_once()
 
     @pytest.mark.asyncio
@@ -496,7 +498,8 @@ class TestHeadHunterAPIAsyncToken:
         """Строка 46: нет CLIENT_ID/SECRET"""
         api = HeadHunterAPIAsync()
         with patch("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", None):
-            await api._ensure_token()
+            result = await api._ensure_token()
+            assert result.is_err()
             assert api._token is None
 
     @pytest.mark.asyncio
@@ -513,7 +516,8 @@ class TestHeadHunterAPIAsyncToken:
 
         with patch("src.parsing.api.hh_api_async.HeadHunterAPI", return_value=mock_sync):
             with patch.object(api, "_get_app_token", new_callable=AsyncMock) as mock_async_token:
-                await api._ensure_token()
+                result = await api._ensure_token()
+                assert result.is_ok()
                 mock_async_token.assert_not_called()
                 assert api._token == "sync_token"
 
@@ -568,9 +572,10 @@ class TestHeadHunterAPIAsyncRequest:
             m.get("https://test.url", status=401)
             m.get("https://test.url", payload={"ok": True})
             async with aiohttp.ClientSession() as session:
-                with patch.object(api, "_ensure_token", new_callable=AsyncMock):
+                with patch.object(api, "_ensure_token", new_callable=AsyncMock) as mock_ensure:
+                    mock_ensure.return_value = Ok(True)
                     result = await api._request(session, "https://test.url", retries=0, max_retries=2)
-                    assert result == {"ok": True}
+                    assert result.ok() == {"ok": True}
 
     @pytest.mark.asyncio
     async def test_request_401_double_fail(self):
@@ -580,9 +585,10 @@ class TestHeadHunterAPIAsyncRequest:
             m.get("https://test.url", status=401)
             m.get("https://test.url", status=401)
             async with aiohttp.ClientSession() as session:
-                with patch.object(api, "_ensure_token", new_callable=AsyncMock):
+                with patch.object(api, "_ensure_token", new_callable=AsyncMock) as mock_ensure:
+                    mock_ensure.return_value = Ok(True)
                     result = await api._request(session, "https://test.url", retries=0, max_retries=2)
-                    assert result is None
+                    assert result.is_err()
 
     @pytest.mark.asyncio
     async def test_request_429_max_retries_exceeded(self):
@@ -594,7 +600,7 @@ class TestHeadHunterAPIAsyncRequest:
             async with aiohttp.ClientSession() as session:
                 with patch("asyncio.sleep", new_callable=AsyncMock):
                     result = await api._request(session, "https://test.url", retries=1, max_retries=1)
-                    assert result is None
+                    assert result.is_err()
 
     @pytest.mark.asyncio
     async def test_request_timeout_max_retries(self):
@@ -606,7 +612,7 @@ class TestHeadHunterAPIAsyncRequest:
             async with aiohttp.ClientSession() as session:
                 with patch("asyncio.sleep", new_callable=AsyncMock):
                     result = await api._request(session, "https://test.url", max_retries=1)
-                    assert result is None
+                    assert result.is_err()
 
     def test_get_headers_with_token(self):
         """Строки 100-105: заголовки с токеном"""
@@ -630,9 +636,9 @@ class TestHeadHunterAPIAsyncSyncWrapper:
 
         with patch.object(asyncio, "get_event_loop", side_effect=RuntimeError("No event loop")):
             with patch.object(api, "get_vacancies_details_batch", new_callable=AsyncMock) as mock_batch:
-                mock_batch.return_value = [{"id": "1"}]
+                mock_batch.return_value = Ok([{"id": "1"}])
                 results = api.get_vacancies_details_sync(["1"])
-                assert len(results) == 1
+                assert len(results.ok()) == 1
 
     def test_get_vacancies_details_sync_existing_loop(self):
         """Строки 250-253: существующий event loop"""
@@ -644,9 +650,9 @@ class TestHeadHunterAPIAsyncSyncWrapper:
 
         try:
             with patch.object(api, "get_vacancies_details_batch", new_callable=AsyncMock) as mock_batch:
-                mock_batch.return_value = [{"id": "1"}, {"id": "2"}]
+                mock_batch.return_value = Ok([{"id": "1"}, {"id": "2"}])
                 results = api.get_vacancies_details_sync(["1", "2"])
-                assert len(results) == 2
+                assert len(results.ok()) == 2
         finally:
             loop.close()
 
@@ -671,8 +677,8 @@ class TestHeadHunterAPIAsyncBatch:
             m.get("https://api.hh.ru/vacancies/3", payload={"id": "3"})
 
             results = await api.get_vacancies_details_batch(["1", "2", "3"])
-            assert len(results) == 2
-            ids = [r["id"] for r in results]
+            assert len(results.ok()) == 2
+            ids = [r["id"] for r in results.ok()]
             assert "1" in ids
             assert "3" in ids
 
@@ -688,7 +694,8 @@ class TestHeadHunterAPIAsyncBatch:
         api = HeadHunterAPIAsync()
         with patch("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", None):
             with patch("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", None):
-                await api._ensure_token()
+                result = await api._ensure_token()
+                assert result.is_err()
                 assert api._token is None
 
     @pytest.mark.asyncio
@@ -727,20 +734,20 @@ class TestHeadHunterAPIAsyncBatch:
             async with aiohttp.ClientSession() as session:
                 with patch("asyncio.sleep", new_callable=AsyncMock):
                     result = await api._request(session, "https://test.url", retries=5, max_retries=5)
-                    assert result is None
+                    assert result.is_err()
 
     @pytest.mark.asyncio
     async def test_get_vacancies_details_batch_empty(self):
         """Строка 223: пустой список ID"""
         api = HeadHunterAPIAsync()
         results = await api.get_vacancies_details_batch([])
-        assert results == []
+        assert results.ok() == []
 
     def test_get_vacancies_details_sync_new_loop(self):
         """Строка 250: создание нового event loop"""
         api = HeadHunterAPIAsync()
         mock_batch = AsyncMock()
-        mock_batch.return_value = [{"id": "1"}, {"id": "2"}]
+        mock_batch.return_value = Ok([{"id": "1"}, {"id": "2"}])
 
         # Закрываем текущий loop
         try:
@@ -751,7 +758,7 @@ class TestHeadHunterAPIAsyncBatch:
 
         with patch.object(api, "get_vacancies_details_batch", mock_batch):
             results = api.get_vacancies_details_sync(["1", "2"])
-            assert len(results) == 2
+            assert len(results.ok()) == 2
 
 class TestHeadHunterAPITokenMethods:
     def test_get_app_token_success(self, monkeypatch):
@@ -790,7 +797,8 @@ class TestHeadHunterAPIAsyncAdditional:
         """Строки 48-52: токен валиден — не обновляем"""
         api = HeadHunterAPIAsync(token="valid", token_expires_at=time.time() + 1000)
         with patch.object(api, "_get_app_token", new_callable=AsyncMock) as mock_token:
-            await api._ensure_token()
+            result = await api._ensure_token()
+            assert result.is_ok()
             mock_token.assert_not_called()
 
     @pytest.mark.asyncio
@@ -829,13 +837,13 @@ class TestHeadHunterAPIAsyncAdditional:
                 })
             with patch("asyncio.sleep", new_callable=AsyncMock):
                 results = await api.get_vacancies_details_batch_validated(vacancy_ids)
-        assert len(results) == 2
-        assert results[0].id == "1"
+        assert len(results.ok()) == 2
+        assert results.ok()[0].id == "1"
 
     def test_get_vacancies_details_sync_validated(self):
         """Строки 271-278: синхронная обёртка для валидированных"""
         api = HeadHunterAPIAsync()
         with patch.object(api, "get_vacancies_details_batch_validated", new_callable=AsyncMock) as mock_batch:
-            mock_batch.return_value = [MagicMock(id="1"), MagicMock(id="2")]
+            mock_batch.return_value = Ok([MagicMock(id="1"), MagicMock(id="2")])
             results = api.get_vacancies_details_sync_validated(["1", "2"])
-        assert len(results) == 2
+        assert len(results.ok()) == 2

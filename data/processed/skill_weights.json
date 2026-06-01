@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 {
   "sql": 0.604,
   "erp": 0.496,
@@ -109,3 +110,6 @@
   "ktor": 0.1,
   "gradle": 0.1
 }
+=======
+{}
+>>>>>>> Stashed changes
