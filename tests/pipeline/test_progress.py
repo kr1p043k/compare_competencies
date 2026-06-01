@@ -60,7 +60,7 @@ def test_write_result_returns_ok(tmp_path):
 
 
 def test_write_result_returns_err_on_failure():
-    with patch("src.pipeline.progress.PROGRESS_FILE", Path("/nonexistent/path/to/file.json")):
+    with patch("builtins.open", side_effect=PermissionError("denied")):
         result = write_result(50, "fail")
     assert result.is_err()
 

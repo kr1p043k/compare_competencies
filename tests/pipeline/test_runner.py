@@ -50,29 +50,34 @@ class TestConvertFloat32:
 
 class TestLoadStudentCompetencies:
     def test_loads_from_competency_file(self, tmp_path):
-        codes = {"code1", "code2"}
-        f = tmp_path / "base_competency.json"
-        f.write_text(json.dumps(list(codes)))
+        students = tmp_path / "students"
+        students.mkdir()
+        codes = ["code1", "code2"]
+        f = students / "base_competency.json"
+        f.write_text(json.dumps({"codes": codes}))
         with patch("src.pipeline.runner.config") as cfg:
             cfg.DATA_DIR = tmp_path
             result = load_student_competencies("base")
-        assert set(result) == codes
+        assert result == codes
 
     def test_falls_back_to_plain_json(self, tmp_path):
-        codes = {"alt1", "alt2"}
-        f = tmp_path / "base.json"
-        f.write_text(json.dumps(list(codes)))
+        students = tmp_path / "students"
+        students.mkdir()
+        codes = ["alt1", "alt2"]
+        f = students / "base.json"
+        f.write_text(json.dumps({"codes": codes}))
         with patch("src.pipeline.runner.config") as cfg:
             cfg.DATA_DIR = tmp_path
-            with patch("src.pipeline.runner.safe_read_competency_json", side_effect=[None, list(codes)]):
+            with patch("src.pipeline.runner.safe_read_competency_json", side_effect=[None, codes]):
                 result = load_student_competencies("base")
-        assert set(result) == codes
+        assert result == codes
 
     def test_returns_empty_list_on_missing(self, tmp_path):
+        students = tmp_path / "students"
+        students.mkdir()
         with patch("src.pipeline.runner.config") as cfg:
             cfg.DATA_DIR = tmp_path
-            with patch("src.pipeline.runner.safe_read_competency_json", return_value=None):
-                result = load_student_competencies("nonexistent")
+            result = load_student_competencies("nonexistent")
         assert result == []
 
 
