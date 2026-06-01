@@ -11,6 +11,13 @@ from src.predictors.models import RecommendationResult, SkillImpact
 logger = structlog.get_logger(__name__)
 
 
+def create_reranker(
+    model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+) -> "CrossEncoderReranker":
+    from src.predictors.reranker import CrossEncoderReranker
+    return CrossEncoderReranker(model_name=model_name)
+
+
 def create_ranking_predictor(
     model_path: Path | None = None,
     use_ltr: bool = True,

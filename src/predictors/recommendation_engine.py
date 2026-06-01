@@ -10,6 +10,7 @@ import structlog
 from sklearn.preprocessing import MinMaxScaler
 
 from src import Err, Ok, RecommendationError, Result, config
+from src.errors import DomainError
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.gap.gap_analyzer import GapAnalyzer
 from src.analyzers.skills.skill_filter import SkillFilter
@@ -579,79 +580,27 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
     # ------------------------------------------------------------------
 
     def _llm_explain_with_retry(
-        self,
-        skill: str,
-        importance: float,
-        priority: str,
-        student_skills: list[str],
-        coverage: float,
-        max_retries: int = 2,
-        delay: float = 2.0,
-    ) -> str | None:
-        if not self.use_llm:
-            return None
-        api_key = config.YC_API_KEY.get_secret_value() if config.YC_API_KEY else None
-        if not api_key or not config.YC_FOLDER_ID:
-            return None
-        prompt = (
-            f"Ты — карьерный консультант в IT. Студент владеет навыками: "
-            f"{', '.join(student_skills[:10])} (показано до 10).\n"
-            f"Покрытие рынка составляет {coverage:.1f}%.\n"
-            f"Недостающий навык: {skill}. Важность навыка: {importance:.3f} "
-            f"(приоритет {priority}).\n"
-            f"Объясни кратко (2-3 предложения), почему этот навык важен и "
-            f"как он сочетается с уже имеющимися у студента.\n"
-            f"Дай один конкретный совет по изучению."
-        )
-        headers = {
-            "Authorization": f"Api-Key {api_key}",
-            "x-folder-id": config.YC_FOLDER_ID,
-        }
-        payload = {
-            "modelUri": f"gpt://{config.YC_FOLDER_ID}/{config.YANDEXGPT_MODEL}",
-            "completionOptions": {
-                "stream": False,
-                "temperature": 0.7,
-                "maxTokens": "300",
-            },
-            "messages": [{"role": "user", "text": prompt}],
-        }
-        for attempt in range(max_retries + 1):
-            try:
-                resp = requests.post(
-                    "https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
-                    json=payload,
-                    headers=headers,
-                    timeout=30,
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    return data["result"]["alternatives"][0]["message"]["text"].strip()
-                elif resp.status_code == 429:
-                    wait_time = delay * (attempt + 1)
-                    logger.warning("yandexgpt_rate_limited", attempt=attempt + 1, wait_time=wait_time)
-                    time.sleep(wait_time)
-                else:
-                    logger.warning("yandexgpt_error", status=resp.status_code, response=resp.text[:200])
-                    return None
-            except Exception as e:
-                logger.warning("yandexgpt_exception", attempt=attempt + 1, error=str(e))
-                if attempt < max_retries:
-                    time.sleep(delay)
-                else:
-                    return None
-        return None
+        self, gap: Any, context: str, previous_explanations: list[str]
+    ) -> Result[str, DomainError]:
+        """Генерирует LLM-объяснение с повторными попытками."""
+        prompt = self._build_explanation_prompt(gap, context, previous_explanations)
 
-    def _llm_explain(
-        self,
-        skill: str,
-        importance: float,
-        priority: str,
-        student_skills: list[str],
-        coverage: float,
-    ) -> str | None:
-        time.sleep(1.0)
-        return self._llm_explain_with_retry(skill, importance, priority, student_skills, coverage)
+        for attempt in range(3):
+            try:
+                completion = self.client.chat.completions.create(
+                    model=self.explanation_model or self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                    max_tokens=512,
+                )
+                explanation = completion.choices[0].message.content
+                if explanation:
+                    return Ok(explanation)
+            except Exception as e:
+                logger.warning("llm_explain_attempt_failed", attempt=attempt + 1, error=str(e))
+                time.sleep(1.0)
+
+        return Err(DomainError(message="LLM explanation failed after retries", detail=f"gap={gap.skill_name}"))
 
     # ------------------------------------------------------------------
     # ШАБЛОНЫ
