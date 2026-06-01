@@ -9,6 +9,8 @@ from enum import Enum
 
 import structlog
 
+from src import Err, Ok, Result
+from src.errors import DomainError
 from src.models.vacancy import Vacancy
 
 logger = structlog.get_logger(__name__)
@@ -195,34 +197,38 @@ class SkillParser:
     def __init__(self):
         self.stats = ParsingStats()
 
-    def parse_vacancy(self, vacancy: Vacancy) -> list[ExtractedSkill]:
+    def parse_vacancy(self, vacancy: Vacancy) -> Result[list[ExtractedSkill], DomainError]:
         """Извлекает все навыки из вакансии"""
-        skills = []
+        try:
+            skills = []
 
-        skills.extend(self._extract_from_key_skills(vacancy))
+            skills.extend(self._extract_from_key_skills(vacancy))
 
-        if vacancy.snippet:
-            if vacancy.snippet.requirement:
-                skills.extend(
-                    self._extract_from_text(
-                        vacancy.snippet.requirement, source=SkillSource.SNIPPET_REQUIREMENT, max_text_length=500
+            if vacancy.snippet:
+                if vacancy.snippet.requirement:
+                    skills.extend(
+                        self._extract_from_text(
+                            vacancy.snippet.requirement, source=SkillSource.SNIPPET_REQUIREMENT, max_text_length=500
+                        )
                     )
-                )
-            if vacancy.snippet.responsibility:
-                skills.extend(
-                    self._extract_from_text(
-                        vacancy.snippet.responsibility, source=SkillSource.SNIPPET_RESPONSIBILITY, max_text_length=500
+                if vacancy.snippet.responsibility:
+                    skills.extend(
+                        self._extract_from_text(
+                            vacancy.snippet.responsibility, source=SkillSource.SNIPPET_RESPONSIBILITY, max_text_length=500
+                        )
                     )
+
+            if vacancy.description:
+                skills.extend(
+                    self._extract_from_text(vacancy.description, source=SkillSource.DESCRIPTION, max_text_length=10000)
                 )
 
-        if vacancy.description:
-            skills.extend(
-                self._extract_from_text(vacancy.description, source=SkillSource.DESCRIPTION, max_text_length=10000)
-            )
+            self.stats.total_extracted += len(skills)
 
-        self.stats.total_extracted += len(skills)
-
-        return skills
+            return Ok(skills)
+        except Exception as e:
+            logger.exception("parse_vacancy_failed", vacancy_id=vacancy.id)
+            return Err(DomainError(message=f"Failed to parse vacancy {vacancy.id}", detail=str(e)))
 
     def _extract_from_key_skills(self, vacancy: Vacancy) -> list[ExtractedSkill]:
         """Извлекает из официального поля key_skills"""

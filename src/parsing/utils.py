@@ -16,7 +16,8 @@ import structlog
 if TYPE_CHECKING:
     from .skills.vacancy_parser import VacancyParser
 
-from src import config
+from src import Err, Ok, Result, config
+from src.errors import DomainError
 from src.utils import atomic_read_json, atomic_write_json
 
 logger = structlog.get_logger(__name__)
@@ -89,6 +90,15 @@ def read_json(filepath: Path) -> Any:
         return None
 
 
+def read_json_result(filepath: Path) -> Result[Any, DomainError]:
+    logger.debug("reading_json", path=str(filepath))
+    try:
+        with open(filepath, encoding="utf-8") as f:
+            return Ok(json.load(f))
+    except Exception as e:
+        return Err(DomainError(message="JSON read error", detail=str(e)))
+
+
 def write_json(data: Any, filepath: Path) -> None:
     """Безопасно записывает данные в JSON-файл."""
     logger.debug("writing_json", path=str(filepath))
@@ -97,6 +107,16 @@ def write_json(data: Any, filepath: Path) -> None:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.error("json_write_error", path=str(filepath), error=str(e))
+
+
+def write_json_result(data: Any, filepath: Path) -> Result[None, DomainError]:
+    logger.debug("writing_json", path=str(filepath))
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return Ok(None)
+    except Exception as e:
+        return Err(DomainError(message="JSON write error", detail=str(e)))
 
 
 # ----------------------------------------------------------------------
@@ -122,6 +142,20 @@ def load_it_skills() -> set[str]:
     except Exception as e:
         logger.error("it_skills_load_error", error=str(e))
         return set()
+
+
+def load_it_skills_result() -> Result[set[str], DomainError]:
+    skills_file = config.IT_SKILLS_PATH
+    if not skills_file.exists():
+        return Err(DomainError(message="IT skills file not found", detail=str(skills_file)))
+    try:
+        skills_list = read_json(skills_file)
+        if not isinstance(skills_list, list):
+            return Err(DomainError(message="IT skills invalid format"))
+        skills_set = {skill.strip().lower() for skill in skills_list if isinstance(skill, str)}
+        return Ok(skills_set)
+    except Exception as e:
+        return Err(DomainError(message="IT skills load error", detail=str(e)))
 
 
 def filter_skills_by_whitelist(skills_dict: dict[str, int], whitelist: set[str]) -> dict[str, int]:
@@ -242,6 +276,15 @@ def load_queries_from_file(filepath: Path) -> list[str]:
         return []
 
 
+def load_queries_from_file_result(filepath: Path) -> Result[list[str], DomainError]:
+    try:
+        with open(filepath, encoding="utf-8") as f:
+            queries = [line.strip() for line in f if line.strip()]
+        return Ok(queries)
+    except Exception as e:
+        return Err(DomainError(message="Queries file read error", detail=str(e)))
+
+
 # ----------------------------------------------------------------------
 # Инкрементальный парсинг (Incremental Parsing, #11)
 # ----------------------------------------------------------------------
@@ -259,6 +302,17 @@ def get_last_parsed_id() -> int | None:
         return None
 
 
+def get_last_parsed_id_result() -> Result[int, DomainError]:
+    id_file = config.DATA_PROCESSED_DIR / "last_parsed_id.txt"
+    if not id_file.exists():
+        return Err(DomainError(message="Last parsed ID file not found"))
+    try:
+        raw = id_file.read_text(encoding="utf-8").strip()
+        return Ok(int(raw)) if raw else Err(DomainError(message="Empty last parsed ID file"))
+    except Exception as e:
+        return Err(DomainError(message="Get last parsed ID error", detail=str(e)))
+
+
 def save_last_parsed_id(vacancy_id: int) -> None:
     id_file = config.DATA_PROCESSED_DIR / "last_parsed_id.txt"
     try:
@@ -267,6 +321,16 @@ def save_last_parsed_id(vacancy_id: int) -> None:
         logger.info("last_parsed_id_saved", vacancy_id=vacancy_id)
     except Exception as e:
         logger.error("save_last_parsed_id_error", error=str(e))
+
+
+def save_last_parsed_id_result(vacancy_id: int) -> Result[None, DomainError]:
+    id_file = config.DATA_PROCESSED_DIR / "last_parsed_id.txt"
+    try:
+        id_file.parent.mkdir(parents=True, exist_ok=True)
+        id_file.write_text(str(vacancy_id), encoding="utf-8")
+        return Ok(None)
+    except Exception as e:
+        return Err(DomainError(message="Save last parsed ID error", detail=str(e)))
 
 
 # ----------------------------------------------------------------------
@@ -298,6 +362,21 @@ def save_checkpoint(checkpoint: ParsingCheckpoint) -> None:
         logger.error("checkpoint_save_error", error=str(e))
 
 
+def save_checkpoint_result(checkpoint: ParsingCheckpoint) -> Result[None, DomainError]:
+    path = config.DATA_CACHE_DIR / "parsing_checkpoint.json"
+    try:
+        atomic_write_json({
+            "queries_done": checkpoint.queries_done,
+            "total_collected": checkpoint.total_collected,
+            "errors": checkpoint.errors,
+            "elapsed_seconds": checkpoint.elapsed_seconds,
+            "timestamp": checkpoint.timestamp,
+        }, path)
+        return Ok(None)
+    except Exception as e:
+        return Err(DomainError(message="Checkpoint save error", detail=str(e)))
+
+
 def load_checkpoint() -> ParsingCheckpoint | None:
     path = config.DATA_CACHE_DIR / "parsing_checkpoint.json"
     try:
@@ -314,6 +393,23 @@ def load_checkpoint() -> ParsingCheckpoint | None:
     except Exception as e:
         logger.error("checkpoint_load_error", error=str(e))
         return None
+
+
+def load_checkpoint_result() -> Result[ParsingCheckpoint, DomainError]:
+    path = config.DATA_CACHE_DIR / "parsing_checkpoint.json"
+    try:
+        data = atomic_read_json(path)
+        if data is None:
+            return Err(DomainError(message="Checkpoint not found"))
+        return Ok(ParsingCheckpoint(
+            queries_done=data["queries_done"],
+            total_collected=data["total_collected"],
+            errors=data["errors"],
+            elapsed_seconds=data["elapsed_seconds"],
+            timestamp=data["timestamp"],
+        ))
+    except Exception as e:
+        return Err(DomainError(message="Checkpoint load error", detail=str(e)))
 
 
 def resume_from_checkpoint(queries: list[str]) -> tuple[list[dict], ParsingCheckpoint | None]:
@@ -544,6 +640,17 @@ def extract_and_count_skills(vacancies: list[dict[str, Any]], parser: VacancyPar
     except Exception as e:
         logger.error("skill_extraction_error", error=str(e))
         return {"frequencies": {}, "tfidf_weights": {}}
+
+
+def extract_and_count_skills_result(vacancies: list[dict[str, Any]], parser: VacancyParser) -> Result[dict[str, Any], DomainError]:
+    logger.info("extracting_skills_from_vacancies", count=len(vacancies))
+    if not vacancies:
+        return Ok({"frequencies": {}, "tfidf_weights": {}})
+    try:
+        result = parser.extract_skills_from_vacancies(vacancies)
+        return Ok(result)
+    except Exception as e:
+        return Err(DomainError(message="Skill extraction error", detail=str(e)))
 
 
 def map_to_competencies(skill_frequencies: dict[str, int], mapping: dict[str, list[str]]) -> Counter:

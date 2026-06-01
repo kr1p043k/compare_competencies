@@ -13,12 +13,16 @@ logger = structlog.get_logger(__name__)  # ← используется напр
 class DomainAnalyzer:
     def __init__(self, domain_map_path=None):
         self.domain_map_path = domain_map_path or config.DOMAIN_MAP_PATH
-        if self.domain_map_path.exists():
-            with open(self.domain_map_path, encoding="utf-8") as f:
-                self.domain_map = json.load(f)
-            logger.info("domain_map_loaded", path=str(self.domain_map_path), domains=len(self.domain_map))
-        else:
-            logger.error("domain_map_file_not_found", path=str(self.domain_map_path))
+        self.domain_map = {}
+        try:
+            if self.domain_map_path.exists():
+                with open(self.domain_map_path, encoding="utf-8") as f:
+                    self.domain_map = json.load(f)
+                logger.info("domain_map_loaded", path=str(self.domain_map_path), domains=len(self.domain_map))
+            else:
+                logger.error("domain_map_file_not_found", path=str(self.domain_map_path))
+        except Exception as e:
+            logger.exception("domain_map_load_failed", path=str(self.domain_map_path), error=str(e))
             self.domain_map = {}
 
     def compute_domain_coverage(self, user_skills: list[str]) -> Result[dict[str, DomainMetrics], DomainError]:

@@ -6,6 +6,7 @@ import structlog
 
 from src.predictors.base import BasePredictor
 from src import Ok, Err, Result
+from src.errors import DomainError
 
 logger = structlog.get_logger(__name__)
 
@@ -91,27 +92,34 @@ class SkillForecastEngine(BasePredictor):
         for sf in survivors:
             sf.mutate(rate=0.2)
 
-    def forecast(self, skill: str, months: int = 12) -> ForecastResult | None:
+    def forecast(self, skill: str, months: int = 12) -> Result[ForecastResult, DomainError]:
         sf = self._population.get(skill)
         if sf is None:
-            return None
+            return Err(DomainError(message=f"Skill '{skill}' not found in forecast population"))
         predicted = sf.predict(months)
         growth = (predicted - sf.current_freq) / max(sf.current_freq, 0.01)
-        return ForecastResult(
+        return Ok(ForecastResult(
             skill=skill,
             current_frequency=sf.current_freq,
             predicted_growth=growth,
             confidence=min(abs(growth) * 2, 0.95),
             next_year_frequency=predicted,
-        )
+        ))
 
-    def forecast_all(self, months: int = 12) -> list[ForecastResult]:
-        return [
-            result for skill in self._population
-            if (result := self.forecast(skill, months)) is not None
-        ]
+    def forecast_all(self, months: int = 12) -> Result[list[ForecastResult], DomainError]:
+        results = []
+        for skill in self._population:
+            match self.forecast(skill, months):
+                case Ok(result):
+                    results.append(result)
+                case _:
+                    pass
+        return Ok(results)
 
-    def top_growing(self, n: int = 10, months: int = 12) -> list[ForecastResult]:
-        results = self.forecast_all(months)
-        results.sort(key=lambda x: x.predicted_growth, reverse=True)
-        return results[:n]
+    def top_growing(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
+        match self.forecast_all(months):
+            case Ok(results):
+                results.sort(key=lambda x: x.predicted_growth, reverse=True)
+                return Ok(results[:n])
+            case Err(err):
+                return Err(err)

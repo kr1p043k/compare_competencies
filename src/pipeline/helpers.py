@@ -10,7 +10,8 @@ from tqdm import tqdm
 
 import structlog
 
-from src import config
+from src import Err, Ok, Result, config
+from src.errors import DomainError
 from src.models.vacancy import Vacancy
 
 logger = structlog.get_logger("helpers")
@@ -36,7 +37,7 @@ def _load_details_progress(current: int, total: int, phase: str):
     pwrite(pct, f"Загрузка деталей: {current}/{total} ({phase})")
 
 
-def load_vacancies_details(basic_vacancies: list, hh_api, use_async: bool, async_workers: int, parser, log) -> list:
+def load_vacancies_details(basic_vacancies: list, hh_api, use_async: bool, async_workers: int, parser, log) -> Result[list, DomainError]:
     print("  Загрузка детальной информации по вакансиям...")
     log.info("loading_vacancy_details_started")
     _load_details_progress(0, len(basic_vacancies), "старт")
@@ -66,7 +67,7 @@ def load_vacancies_details(basic_vacancies: list, hh_api, use_async: bool, async
             _load_details_progress(len(detailed), len(vacancy_ids), "готово")
             print(f"  ✓ Загружено {len(detailed)}/{len(vacancy_ids)} вакансий за {elapsed:.1f} сек")
             log.info("async_loading_completed", elapsed=round(elapsed, 1), loaded=len(detailed), total=len(vacancy_ids))
-            return detailed
+            return Ok(detailed)
         except Exception as e:
             print(f"  ⚠️  Ошибка асинхронной загрузки: {e}")
             log.warning("async_loading_failed_fallback_to_sync", error=str(e))
@@ -95,16 +96,20 @@ def load_vacancies_details(basic_vacancies: list, hh_api, use_async: bool, async
     _load_details_progress(len(detailed), total, "готово")
     print(f"  ✓ Загружено {len(detailed)}/{total} вакансий за {elapsed / 60:.1f} мин")
     log.info("sync_loading_completed", elapsed=round(elapsed / 60, 1), loaded=len(detailed), total=total)
-    return detailed
+    return Ok(detailed)
 
 
-def save_detailed_vacancies(vacancies, log):
+def save_detailed_vacancies(vacancies, log) -> Result[None, DomainError]:
     file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
-    file.parent.mkdir(parents=True, exist_ok=True)
-    data = [v.raw_data if isinstance(v, Vacancy) else v for v in vacancies]
-    with open(file, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    log.info("detailed_vacancies_saved", path=str(file), count=len(vacancies))
+    try:
+        file.parent.mkdir(parents=True, exist_ok=True)
+        data = [v.raw_data if isinstance(v, Vacancy) else v for v in vacancies]
+        with open(file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        log.info("detailed_vacancies_saved", path=str(file), count=len(vacancies))
+        return Ok(None)
+    except Exception as e:
+        return Err(DomainError(message="Failed to save detailed vacancies", detail=str(e)))
 
 
 def console_info(msg: str):

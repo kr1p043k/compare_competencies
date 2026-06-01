@@ -8,7 +8,8 @@ import structlog
 
 from src.pipeline.progress import write as write_progress
 from src.pipeline.stage import PipelineStage
-from src.result import Err, Ok, Result
+from src import Err, Ok, Result
+from src.errors import PipelineError
 
 logger = structlog.get_logger(__name__)
 
@@ -44,7 +45,7 @@ class PipelineOrchestrator:
         self,
         initial_ctx: dict | None = None,
         name: str = "pipeline",
-    ) -> PipelineRun:
+    ) -> Result[PipelineRun, PipelineError]:
         ctx = dict(initial_ctx or {})
         run = PipelineRun(started_at=time.time())
         total = len(self.stages)
@@ -102,10 +103,10 @@ class PipelineOrchestrator:
                 write_progress(pct_base, f"✗ {stage_name}: {last_error}")
                 logger.error("pipeline_failed", stage=stage_name, error=last_error)
                 run.finished_at = time.time()
-                return run
+                return Err(PipelineError(message=f"Pipeline failed at stage {stage_name}", stage=stage_name, detail=last_error))
 
         run.status = "completed"
         run.finished_at = time.time()
         write_progress(100, "Пайплайн завершён")
         logger.info("pipeline_completed", elapsed=round(run.elapsed, 2))
-        return run
+        return Ok(run)

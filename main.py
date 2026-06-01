@@ -361,11 +361,11 @@ def main():
     show_context_info()
 
     orchestrator = PipelineOrchestrator(stages, num_retries=1)
-    run = orchestrator.run(name="full_pipeline")
-
-    if run.status != "completed":
-        console_info(f"❌ Пайплайн не завершён: {run.stages[-1].error if run.stages else 'unknown'}")
+    pipeline_result = orchestrator.run(name="full_pipeline")
+    if pipeline_result.is_err():
+        console_info(f"❌ Пайплайн не завершён: {pipeline_result.err()}")
         return
+    run = pipeline_result.unwrap()
 
     ctx_data = {}
     for sr in run.stages:

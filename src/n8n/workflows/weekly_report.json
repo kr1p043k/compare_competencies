@@ -1,216 +1,824 @@
 {
-"name": "Weekly Market Report",
-"nodes": [
-{
-"id": "schedule-001",
-"name": "Schedule",
-"type": "n8n-nodes-base.scheduleTrigger",
-"typeVersion": 1,
-"position": [200, 200],
-"parameters": {
-"rule": {
-"interval": [{"field": "cronExpression", "expression": "0 9 * * 1"}]
-}
-}
-},
-{
-"id": "http-status",
-"name": "Check Status",
-"type": "n8n-nodes-base.httpRequest",
-"typeVersion": 4.2,
-"position": [200, 380],
-"parameters": {
-"method": "GET",
-"url": "=https://prospective-worth-carriers-founded.trycloudflare.com/api/pipeline/status",
-"authentication": "genericCredentialType",
-"genericAuthType": "httpHeaderAuth",
-"options": {}
-},
-"credentials": {
-"httpHeaderAuth": {"id": null, "name": "Header Auth Account 3"}
-}
-},
-{
-"id": "if-stale",
-"name": "Stale Data?",
-"type": "n8n-nodes-base.if",
-"typeVersion": 2,
-"position": [200, 560],
-"parameters": {
-"conditions": {
-"boolean": [{"value1": "={{ $json.skill_weights }}", "operation": "equal", "value2": false}]
-}
-}
-},
-{
-"id": "http-rebuild",
-"name": "Trigger Rebuild",
-"type": "n8n-nodes-base.httpRequest",
-"typeVersion": 4.2,
-"position": [400, 560],
-"parameters": {
-"method": "POST",
-"url": "=https://prospective-worth-carriers-founded.trycloudflare.com/api/pipeline/rebuild",
-"authentication": "genericCredentialType",
-"genericAuthType": "httpHeaderAuth",
-"options": {}
-},
-"credentials": {
-"httpHeaderAuth": {"id": null, "name": "Header Auth Account 3"}
-}
-},
-{
-"id": "http-skills",
-"name": "Top Skills",
-"type": "n8n-nodes-base.httpRequest",
-"typeVersion": 4.2,
-"position": [200, 740],
-"parameters": {
-"method": "GET",
-"url": "=https://prospective-worth-carriers-founded.trycloudflare.com/api/market/top-skills?limit=20",
-"authentication": "genericCredentialType",
-"genericAuthType": "httpHeaderAuth",
-"options": {}
-},
-"credentials": {
-"httpHeaderAuth": {"id": null, "name": "Header Auth Account 3"}
-}
-},
-{
-"id": "http-trends",
-"name": "Trends",
-"type": "n8n-nodes-base.httpRequest",
-"typeVersion": 4.2,
-"position": [200, 920],
-"parameters": {
-"method": "GET",
-"url": "=https://prospective-worth-carriers-founded.trycloudflare.com/api/trends?top_n=10&min_change=5.0",
-"authentication": "genericCredentialType",
-"genericAuthType": "httpHeaderAuth",
-"options": {}
-},
-"credentials": {
-"httpHeaderAuth": {"id": null, "name": "Header Auth Account 3"}
-}
-},
-{
-"id": "http-profiles",
-"name": "Profiles",
-"type": "n8n-nodes-base.httpRequest",
-"typeVersion": 4.2,
-"position": [200, 1100],
-"parameters": {
-"method": "GET",
-"url": "=https://prospective-worth-carriers-founded.trycloudflare.com/api/profiles/compare",
-"authentication": "genericCredentialType",
-"genericAuthType": "httpHeaderAuth",
-"options": {}
-},
-"credentials": {
-"httpHeaderAuth": {"id": null, "name": "Header Auth Account 3"}
-}
-},
-{
-"id": "code-report",
-"name": "Format Report",
-"type": "n8n-nodes-base.code",
-"typeVersion": 2,
-"position": [200, 1280],
-"parameters": {
-"jsCode": "const skillsData = $('Top Skills').first().json;\nconst trendsData = $('Trends').first().json;\nconst profilesData = $('Profiles').first().json;\n\nconst skills = skillsData.skills || [];\nconst trends = trendsData.trends || {};\nconst profiles = profilesData.profiles || {};\n\nconst top10 = skills.slice(0, 10);\nconst rising = (trends.RISING || []).slice(0, 5);\nconst falling = (trends.FALLING || []).slice(0, 5);\n\nconst lines = [];\nlines.push('📊 Еженедельный отчёт по рынку');\nlines.push('');\nlines.push('🏆 Топ-10 навыков:');\ntop10.forEach((s, i) => lines.push(`  ${i+1}. ${s.skill} (${s.weight})`));\nlines.push('');\nif (rising.length) {\n  lines.push('📈 Растущие тренды:');\n  rising.forEach(s => lines.push(`  ${s.skill} +${s.change_pct}%`));\n}\nif (falling.length) {\n  lines.push('📉 Падающие тренды:');\n  falling.forEach(s => lines.push(`  ${s.skill} ${s.change_pct}%`));\n}\nlines.push('');\nlines.push('👤 Оценка профилей:');\nfor (const [name, p] of Object.entries(profiles)) {\n  const r = p.readiness_score != null ? p.readiness_score.toFixed(0) : '—';\n  const c = p.market_coverage_score != null ? p.market_coverage_score.toFixed(0) : '—';\n  lines.push(`  ${name}: готовность ${r}%, покрытие ${c}%`);\n}\n\nlet html = `<h2>Еженедельный отчёт по рынку</h2>`;\nhtml += `<h3>🏆 Топ-10 навыков</h3><table border=1 cellpadding=4><tr><th>#</th><th>Навык</th><th>Вес</th></tr>`;\ntop10.forEach((s, i) => { html += `<tr><td>${i+1}</td><td>${s.skill}</td><td>${s.weight}</td></tr>`; });\nhtml += `</table>`;\nif (rising.length) {\n  html += `<h3>📈 Растущие тренды</h3><table border=1 cellpadding=4><tr><th>Навык</th><th>Изменение</th></tr>`;\n  rising.forEach(s => { html += `<tr><td>${s.skill}</td><td style=\"color:green\">+${s.change_pct}%</td></tr>`; });\n  html += `</table>`;\n}\nif (falling.length) {\n  html += `<h3>📉 Падающие тренды</h3><table border=1 cellpadding=4><tr><th>Навык</th><th>Изменение</th></tr>`;\n  falling.forEach(s => { html += `<tr><td>${s.skill}</td><td style=\"color:red\">${s.change_pct}%</td></tr>`; });\n  html += `</table>`;\n}\nhtml += `<h3>👤 Профили</h3><table border=1 cellpadding=4><tr><th>Профиль</th><th>Готовность</th><th>Покрытие</th></tr>`;\nfor (const [name, p] of Object.entries(profiles)) {\n  const r = p.readiness_score != null ? p.readiness_score.toFixed(0) : '—';\n  const c = p.market_coverage_score != null ? p.market_coverage_score.toFixed(0) : '—';\n  html += `<tr><td>${name}</td><td>${r}%</td><td>${c}%</td></tr>`;\n}\nhtml += `</table>`;\n\nreturn [{ json: { summary: lines.join('\\n'), html: html } }];"
-}
-},
-{
-"id": "http-excel",
-"name": "Fetch Excel",
-"type": "n8n-nodes-base.httpRequest",
-"typeVersion": 4.2,
-"position": [200, 1460],
-    "parameters": {
+  "name": "SFEDU — Weekly Market Report & Compilation",
+  "nodes": [
+    {
+      "id": "wr-schedule-001",
+      "name": "Schedule (Mon 09:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "wr-health-001",
+      "name": "Health Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        120
+      ],
+      "parameters": {
         "method": "GET",
-        "url": "=https://prospective-worth-carriers-founded.trycloudflare.com/api/admin/export/full-report",
+        "url": "={{ $env.BASE_URL }}/health",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
+          "timeout": 10000,
+          "response": {
             "response": {
-                "response": {
-                    "responseFormat": "file",
-                    "outputPropertyName": "data"
-                }
+              "neverError": true,
+              "responseFormat": "json"
             }
+          }
         }
+      }
     },
-"credentials": {
-"httpHeaderAuth": {"id": null, "name": "Header Auth Account 3"}
-}
-},
-{
-"id": "tg-doc",
-"name": "Send to Telegram",
-"type": "n8n-nodes-base.telegram",
-"typeVersion": 1,
-"position": [200, 1640],
-    "parameters": {
+    {
+      "id": "wr-ping-001",
+      "name": "Ping Service",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        280,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "wr-if-health-001",
+      "name": "IF Service Healthy",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        120
+      ],
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-health-001",
+              "leftValue": "={{ $json.status || $json.service || 'unhealthy' }}",
+              "rightValue": "healthy",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "wr-status-001",
+      "name": "Pipeline Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        120
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BASE_URL }}/api/pipeline/status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "wr-skills-001",
+      "name": "Top Skills",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BASE_URL }}/api/market/top-skills?limit=15",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "wr-trends-001",
+      "name": "Trends",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        480
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BASE_URL }}/api/trends?top_n=10&min_change=3.0",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "wr-profiles-001",
+      "name": "Profiles Compare",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        660
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BASE_URL }}/api/profiles/compare",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "wr-vacancy-stats-001",
+      "name": "Vacancy Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        840
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BASE_URL }}/api/vacancies/stats/summary",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "wr-merge-001",
+      "name": "Merge Data Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1200,
+        480
+      ],
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 5,
+        "options": {}
+      }
+    },
+    {
+      "id": "wr-aggregate-001",
+      "name": "Aggregate Report Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        480
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst lang = /[\\u0400-\\u04FF]/.test(JSON.stringify(items)) ? 'ru' : 'en';\n\n// Collect from all 5 sources by position\nconst pipelineStatus = items[0] || {};\nconst topSkills     = items[1] || {};\nconst trendsData    = items[2] || {};\nconst profilesData  = items[3] || {};\nconst vacancyStats  = items[4] || {};\n\nconst skillsList = (topSkills.skills || topSkills.data || topSkills).slice(0, 15);\nconst trends = trendsData.trends || trendsData.data || trendsData;\nconst profiles = profilesData.profiles || profilesData.data || profilesData;\n\nreturn [{\n  json: {\n    pipeline_status: pipelineStatus,\n    top_skills: skillsList,\n    trends: typeof trends === 'object' && !Array.isArray(trends) ? trends : { trends_list: trends },\n    profiles: typeof profiles === 'object' && !Array.isArray(profiles) ? profiles : { list: profiles },\n    vacancy_stats: vacancyStats,\n    generated_at: new Date().toISOString(),\n    user_lang: lang\n  }\n}];"
+      }
+    },
+    {
+      "id": "wr-prompt-001",
+      "name": "Build Report Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1760,
+        480
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "report_prompt",
+              "type": "string",
+              "value": "=You are an AI market analyst for the university career center. Below is raw data from our job market analysis system. Generate a structured weekly report in language: {{ $json.user_lang }}. Data: {{ JSON.stringify($json) }}. Respond ONLY with valid JSON. Keys: executive_summary (string, 3-5 sentences), top_skills_analysis (array of {skill, weight, importance_rating 1-10, why_relevant string}), key_trends (object {rising: array of {skill, change_pct, interpretation string}, falling: array of {skill, change_pct, interpretation string}}), profile_highlights (array of {name string, readiness_score number, recommendation string}), recommendations (array of strings, 3-5 actionable items), market_insights (string, 1-2 paragraphs). All text values in language: {{ $json.user_lang }}."
+            },
+            {
+              "id": "a2",
+              "name": "llm_provider",
+              "type": "string",
+              "value": "={{ $env.LLM_PROVIDER || 'gemini' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "wr-llm-switch-001",
+      "name": "Switch LLM",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2040,
+        480
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "gemini",
+              "conditions": {
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.llm_provider }}",
+                    "rightValue": "gemini",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "openai",
+              "conditions": {
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "c2",
+                    "leftValue": "={{ $json.llm_provider }}",
+                    "rightValue": "openai",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "wr-gemini-001",
+      "name": "Gemini Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2320,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "SFEDU-AI-Assistant/1.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: $json.report_prompt }] }], generationConfig: { temperature: 0.4, responseMimeType: \"application/json\" } }) }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "wr-openai-001",
+      "name": "OpenAI Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2320,
+        660
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "SFEDU-AI-Assistant/1.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"gpt-4o\", temperature: 0.4, response_format: { type: \"json_object\" }, messages: [{ role: \"system\", content: \"You output only JSON.\" }, { role: \"user\", content: $json.report_prompt }] }) }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "wr-parse-001",
+      "name": "Parse Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        480
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const provider = $('Build Report Prompt').first().json.llm_provider;\nconst item = items[0].json;\nlet raw = provider === 'openai'\n  ? (item?.choices?.[0]?.message?.content ?? '')\n  : (item?.candidates?.[0]?.content?.parts?.[0]?.text ?? '');\nraw = String(raw).replace(/```json|```/g, '').trim();\n\nlet report;\ntry {\n  report = JSON.parse(raw);\n} catch (e) {\n  report = {\n    executive_summary: 'Report generation failed — raw LLM output saved.',\n    top_skills_analysis: [],\n    key_trends: { rising: [], falling: [] },\n    profile_highlights: [],\n    recommendations: ['Retry report generation'],\n    market_insights: ''\n  };\n}\n\nconst baseData = $('Aggregate Report Data').first().json;\nreturn [{\n  json: {\n    report: report,\n    raw_data_summary: {\n      skill_count: (baseData.top_skills || []).length,\n      profile_count: Object.keys(baseData.profiles || {}).length,\n      vacancy_stats: baseData.vacancy_stats\n    },\n    generated_at: baseData.generated_at,\n    user_lang: baseData.user_lang\n  }\n}];"
+      }
+    },
+    {
+      "id": "wr-format-tg-001",
+      "name": "Format Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const r = $json.report;\nconst lang = $json.user_lang;\nconst d = new Date($json.generated_at).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });\n\nlet msg = lang === 'ru'\n  ? '<b>📊 Еженедельный отчёт по рынку</b>\\n<i>' + d + '</i>\\n\\n'\n  : '<b>📊 Weekly Market Report</b>\\n<i>' + d + '</i>\\n\\n';\n\nmsg += '<b>' + (lang === 'ru' ? '📋 Резюме:' : '📋 Executive Summary:') + '</b>\\n';\nmsg += (r.executive_summary || '') + '\\n\\n';\n\nif (r.key_trends?.rising?.length) {\n  msg += '<b>📈 ' + (lang === 'ru' ? 'Растущие навыки:' : 'Rising Skills:') + '</b>\\n';\n  r.key_trends.rising.slice(0, 5).forEach(t => {\n    msg += '  \\u2022 <b>' + (t.skill || '') + '</b> ' + (t.change_pct || '') + '% — ' + (t.interpretation || '') + '\\n';\n  });\n  msg += '\\n';\n}\n\nif (r.key_trends?.falling?.length) {\n  msg += '<b>📉 ' + (lang === 'ru' ? 'Падающие навыки:' : 'Falling Skills:') + '</b>\\n';\n  r.key_trends.falling.slice(0, 5).forEach(t => {\n    msg += '  \\u2022 <b>' + (t.skill || '') + '</b> ' + (t.change_pct || '') + '% — ' + (t.interpretation || '') + '\\n';\n  });\n  msg += '\\n';\n}\n\nmsg += '<b>🏆 ' + (lang === 'ru' ? 'Топ навыков:' : 'Top Skills:') + '</b>\\n';\n(r.top_skills_analysis || []).slice(0, 5).forEach((s, i) => {\n  msg += '  ' + (i+1) + '. <b>' + (s.skill || '') + '</b> (' + (s.importance_rating || '') + '/10)\\n';\n});\nmsg += '\\n';\n\nmsg += '<b>💡 ' + (lang === 'ru' ? 'Рекомендации:' : 'Recommendations:') + '</b>\\n';\n(r.recommendations || []).forEach((rec, i) => {\n  msg += '  ' + (i+1) + '. ' + rec + '\\n';\n});\n\nreturn [{ json: { telegram_html: msg, user_lang: lang, report_json: r, raw_data: $json.raw_data_summary, generated_at: $json.generated_at } }];"
+      }
+    },
+    {
+      "id": "wr-tg-send-001",
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        3160,
+        300
+      ],
+      "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "=821508283",
-        "text": "📊 Еженедельный отчёт по рынку\n\n📎 Полный архив отправлен на почту nikolayfortests@gmail.com",
-        "additionalFields": {}
-    }
-},
-{
-"id": "email-report",
-"name": "Send Email",
-"type": "n8n-nodes-base.emailSend",
-"typeVersion": 1,
-"position": [200, 1820],
-    "parameters": {
-        "fromEmail": "opikmaks06@gmail.com",
-        "toEmail": "=nikolayfortests@gmail.com",
-        "subject": "Еженедельный отчёт по рынку вакансий",
-        "html": "={{ $('Format Report').item.json.html }}",
-        "attachments": "data",
+        "chatId": "={{ $env.TG_CHAT_ID }}",
+        "text": "={{ $json.telegram_html }}",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "disable_web_page_preview": true
+        }
+      }
+    },
+    {
+      "id": "wr-format-email-001",
+      "name": "Build Email HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        660
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const r = $json.report;\nconst lang = $json.user_lang;\nconst d = new Date($json.generated_at).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });\n\nconst title = lang === 'ru' ? 'Еженедельный отчёт по рынку' : 'Weekly Market Report';\nconst tSummary = lang === 'ru' ? 'Резюме' : 'Executive Summary';\nconst tRising = lang === 'ru' ? 'Растущие тренды' : 'Rising Trends';\nconst tFalling = lang === 'ru' ? 'Падающие тренды' : 'Falling Trends';\nconst tTop = lang === 'ru' ? 'Топ навыков' : 'Top Skills';\nconst tRec = lang === 'ru' ? 'Рекомендации' : 'Recommendations';\nconst tInsights = lang === 'ru' ? 'Аналитика рынка' : 'Market Insights';\n\nlet html = '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>';\nhtml += 'body{font-family:Arial,sans-serif;color:#333;max-width:800px;margin:0 auto;padding:20px}';\nhtml += 'h1{color:#1a73e8;border-bottom:2px solid #1a73e8;padding-bottom:10px}';\nhtml += 'h2{color:#333;margin-top:30px}';\nhtml += 'table{border-collapse:collapse;width:100%;margin:10px 0}';\nhtml += 'th,td{border:1px solid #ddd;padding:8px;text-align:left}';\nhtml += 'th{background:#1a73e8;color:#fff}';\nhtml += 'tr:nth-child(even){background:#f5f5f5}';\nhtml += '.rising{color:#0a0}';\nhtml += '.falling{color:#c00}';\nhtml += '.rec{background:#e8f5e9;border-left:4px solid #4caf50;padding:10px;margin:5px 0}';\nhtml += '.insights{background:#f0f8ff;padding:15px;border-radius:5px}';\nhtml += '</style></head><body>';\nhtml += '<h1>' + title + '</h1>';\nhtml += '<p><em>' + d + '</em></p>';\n\nhtml += '<h2>' + tSummary + '</h2>';\nhtml += '<p>' + (r.executive_summary || '') + '</p>';\n\nif (r.key_trends?.rising?.length) {\n  html += '<h2>' + tRising + '</h2><table><tr><th>Skill</th><th>Change</th><th>Interpretation</th></tr>';\n  r.key_trends.rising.forEach(t => {\n    html += '<tr><td><b>' + (t.skill || '') + '</b></td><td class=\"rising\">+' + (t.change_pct || '') + '%</td><td>' + (t.interpretation || '') + '</td></tr>';\n  });\n  html += '</table>';\n}\n\nif (r.key_trends?.falling?.length) {\n  html += '<h2>' + tFalling + '</h2><table><tr><th>Skill</th><th>Change</th><th>Interpretation</th></tr>';\n  r.key_trends.falling.forEach(t => {\n    html += '<tr><td><b>' + (t.skill || '') + '</b></td><td class=\"falling\">' + (t.change_pct || '') + '%</td><td>' + (t.interpretation || '') + '</td></tr>';\n  });\n  html += '</table>';\n}\n\nhtml += '<h2>' + tTop + '</h2><table><tr><th>#</th><th>Skill</th><th>Importance</th><th>Why Relevant</th></tr>';\n(r.top_skills_analysis || []).slice(0, 10).forEach((s, i) => {\n  html += '<tr><td>' + (i+1) + '</td><td><b>' + (s.skill || '') + '</b></td><td>' + (s.importance_rating || '') + '/10</td><td>' + (s.why_relevant || '') + '</td></tr>';\n});\nhtml += '</table>';\n\nhtml += '<h2>' + tRec + '</h2>';\n(r.recommendations || []).forEach(rec => {\n  html += '<div class=\"rec\">' + rec + '</div>';\n});\n\nif (r.market_insights) {\n  html += '<h2>' + tInsights + '</h2>';\n  html += '<div class=\"insights\">' + r.market_insights + '</div>';\n}\n\nhtml += '<hr><p style=\"color:#999;font-size:12px\">Generated by SFEDU AI Assistant | ' + new Date().toISOString() + '</p>';\nhtml += '</body></html>';\n\nreturn [{ json: { email_html: html, email_subject: title + ' — ' + d, generated_at: $json.generated_at } }];"
+      }
+    },
+    {
+      "id": "wr-excel-001",
+      "name": "Fetch Excel Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3160,
+        660
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BASE_URL }}/api/admin/export/full-report",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "excel_data"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "wr-pg-save-001",
+      "name": "Save Report to Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3160,
+        480
+      ],
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "weekly_reports",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "executive_summary": "={{ $json.report.executive_summary }}",
+            "report_json": "={{ JSON.stringify($json.report) }}",
+            "skill_count": "={{ $json.raw_data.skill_count }}",
+            "profile_count": "={{ $json.raw_data.profile_count }}",
+            "generated_at": "={{ $json.generated_at }}",
+            "created_at": "={{ $now.toISO() }}"
+          }
+        },
         "options": {}
+      }
+    },
+    {
+      "id": "wr-email-send-001",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3440,
+        660
+      ],
+      "parameters": {
+        "fromEmail": "={{ $env.SMTP_FROM || 'noreply@sfedu.ru' }}",
+        "toEmail": "={{ $env.REPORT_EMAIL || 'admin@sfedu.ru' }}",
+        "subject": "={{ $('Build Email HTML').first().json.email_subject }}",
+        "emailFormat": "html",
+        "htmlBody": "={{ $('Build Email HTML').first().json.email_html }}",
+        "options": {
+          "attachment": [
+            {
+              "parameter": "data",
+              "value": "={{ $binary.excel_data }}",
+              "fileName": "weekly-report.xlsx"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": null,
+          "name": "SFEDU SMTP"
+        }
+      }
     }
-}
-],
-"connections": {
-"Schedule": {
-"main": [[{"node": "Check Status", "type": "main"}]]
-},
-"Check Status": {
-"main": [[{"node": "Stale Data?", "type": "main"}]]
-},
-"Stale Data?": {
-"main": [[{"node": "Trigger Rebuild", "type": "main"}], [{"node": "Top Skills", "type": "main"}]]
-},
-"Trigger Rebuild": {
-"main": [[{"node": "Top Skills", "type": "main"}]]
-},
-"Top Skills": {
-"main": [[{"node": "Trends", "type": "main"}]]
-},
-"Trends": {
-"main": [[{"node": "Profiles", "type": "main"}]]
-},
-"Profiles": {
-"main": [[{"node": "Format Report", "type": "main"}]]
-},
-"Format Report": {
-"main": [[{"node": "Fetch Excel", "type": "main"}]]
-},
-"Fetch Excel": {
-    "main": [[{"node": "Send Email", "type": "main"}]]
-},
-"Send Email": {
-    "main": [[{"node": "Send to Telegram", "type": "main"}]]
-}
-},
-"pinData": {},
-"versionId": "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
-"triggerCount": 0,
-"active": false,
-"settings": {},
-"tags": [],
-"staticData": null
+  ],
+  "connections": {
+    "Schedule (Mon 09:00)": {
+      "main": [
+        {
+          "node": "Health Check",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "Health Check": {
+      "main": [
+        {
+          "node": "IF Service Healthy",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "IF Service Healthy": {
+      "main": [
+        [
+          {
+            "node": "Ping Service",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Ping Service": {
+      "main": [
+        {
+          "node": "Pipeline Status",
+          "type": "main",
+          "index": 0
+        },
+        {
+          "node": "Top Skills",
+          "type": "main",
+          "index": 0
+        },
+        {
+          "node": "Trends",
+          "type": "main",
+          "index": 0
+        },
+        {
+          "node": "Profiles Compare",
+          "type": "main",
+          "index": 0
+        },
+        {
+          "node": "Vacancy Stats",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "Pipeline Status": {
+      "main": [
+        {
+          "node": "Merge Data Sources",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "Top Skills": {
+      "main": [
+        {
+          "node": "Merge Data Sources",
+          "type": "main",
+          "index": 1
+        }
+      ]
+    },
+    "Trends": {
+      "main": [
+        {
+          "node": "Merge Data Sources",
+          "type": "main",
+          "index": 2
+        }
+      ]
+    },
+    "Profiles Compare": {
+      "main": [
+        {
+          "node": "Merge Data Sources",
+          "type": "main",
+          "index": 3
+        }
+      ]
+    },
+    "Vacancy Stats": {
+      "main": [
+        {
+          "node": "Merge Data Sources",
+          "type": "main",
+          "index": 4
+        }
+      ]
+    },
+    "Merge Data Sources": {
+      "main": [
+        {
+          "node": "Aggregate Report Data",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "Aggregate Report Data": {
+      "main": [
+        {
+          "node": "Build Report Prompt",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "Build Report Prompt": {
+      "main": [
+        {
+          "node": "Switch LLM",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "Switch LLM": {
+      "main": [
+        [
+          {
+            "node": "Gemini Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "OpenAI Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Report": {
+      "main": [
+        {
+          "node": "Parse Report",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "OpenAI Report": {
+      "main": [
+        {
+          "node": "Parse Report",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "Parse Report": {
+      "main": [
+        {
+          "node": "Format Telegram",
+          "type": "main",
+          "index": 0
+        },
+        {
+          "node": "Build Email HTML",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "Format Telegram": {
+      "main": [
+        {
+          "node": "Send Telegram",
+          "type": "main",
+          "index": 0
+        },
+        {
+          "node": "Save Report to Postgres",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "Send Telegram": {
+      "main": []
+    },
+    "Build Email HTML": {
+      "main": [
+        {
+          "node": "Fetch Excel Report",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "Fetch Excel Report": {
+      "main": [
+        {
+          "node": "Send Email",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "Save Report to Postgres": {
+      "main": []
+    },
+    "Send Email": {
+      "main": []
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "ERROR_WF_ID"
+  },
+  "meta": {
+    "templateId": "sfedu-weekly-report"
+  },
+  "tags": [
+    {
+      "name": "SFEDU",
+      "id": null
+    },
+    {
+      "name": "weekly",
+      "id": null
+    },
+    {
+      "name": "report",
+      "id": null
+    }
+  ],
+  "active": false,
+  "versionId": "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
+  "triggerCount": 0,
+  "staticData": null
 }

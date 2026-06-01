@@ -32,7 +32,7 @@ class SimilarityEngine(Protocol):
         self,
         student_skills: list[str],
         market_skills: list[str],
-    ) -> ComparisonResult: ...
+    ) -> Result[ComparisonResult, DomainError]: ...
 
 
 class JaccardEngine:
@@ -49,7 +49,7 @@ class JaccardEngine:
         self,
         student_skills: list[str],
         market_skills: list[str],
-    ) -> ComparisonResult:
+    ) -> Result[ComparisonResult, DomainError]:
         best_sims: dict[str, float] = {}
         for ms in market_skills:
             best = max(
@@ -66,13 +66,13 @@ class JaccardEngine:
             reverse=True,
         )[:15]
 
-        return dict(
+        return Ok(dict(
             score=round(avg_sim, 4),
             weighted_coverage=round(avg_sim, 4),
             avg_similarity=round(avg_sim, 4),
             matches=sorted_matches,
             missing=[],
-        )
+        ))
 
 
 class EnsembleEngine:
@@ -97,7 +97,12 @@ class EnsembleEngine:
     ) -> Result[dict, DomainError]:
         results: dict[str, ComparisonResult] = {}
         for name, (engine, _weight) in self.engines.items():
-            results[name] = engine.compare(student_skills, market_skills)
+            match engine.compare(student_skills, market_skills):
+                case Ok(res):
+                    results[name] = res
+                case Err(err):
+                    logger.warning("engine_compare_failed", engine=name, error=str(err))
+                    results[name] = dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[])
 
         total_weight = sum(w for _, w in self.engines.values())
         if total_weight <= 0:
@@ -160,13 +165,13 @@ class BM25Engine:
         self,
         student_skills: list[str],
         market_skills: list[str],
-    ) -> ComparisonResult:
+    ) -> Result[ComparisonResult, DomainError]:
         if not student_skills or self._bm25 is None:
-            return dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[])
+            return Ok(dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[]))
 
         query = " ".join(student_skills).lower().split()
         if not query:
-            return dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[])
+            return Ok(dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[]))
 
         doc_scores = self._bm25.get_scores(query)
         idx_map = {s: i for i, s in enumerate(self._corpus_lower)}
@@ -181,7 +186,7 @@ class BM25Engine:
                     best[ms] = s
 
         if not best:
-            return dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[])
+            return Ok(dict(score=0.0, weighted_coverage=0.0, avg_similarity=0.0, matches=[], missing=[]))
 
         vals = np.array(list(best.values()))
         vmin, vmax = vals.min(), vals.max()
@@ -198,10 +203,10 @@ class BM25Engine:
             reverse=True,
         )[:15]
 
-        return dict(
+        return Ok(dict(
             score=round(avg, 4),
             weighted_coverage=round(avg, 4),
             avg_similarity=round(avg, 4),
             matches=sorted_matches,
             missing=[],
-        )
+        ))

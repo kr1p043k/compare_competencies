@@ -4,8 +4,17 @@ import json
 from pathlib import Path
 from unittest.mock import patch, mock_open
 
+from src import Ok, Result
 from src.analyzers.comparison.domain_analyzer import DomainAnalyzer
 from src.models.market_metrics import DomainMetrics
+
+
+def _unwrap(res: Result) -> dict:
+    match res:
+        case Ok(d):
+            return d
+        case _:
+            raise AssertionError(f"Expected Ok, got {res}")
 
 
 @pytest.fixture
@@ -54,15 +63,14 @@ def test_init_custom_map():
 
 
 def test_compute_domain_coverage_empty_skills(analyzer):
-    result = analyzer.compute_domain_coverage([])
-    assert isinstance(result, dict)
+    result = _unwrap(analyzer.compute_domain_coverage([]))
     for domain_name, metrics in result.items():
         assert metrics.coverage == 0.0
 
 
 def test_compute_domain_coverage_partial(analyzer):
     user_skills = ["python", "sql", "docker"]
-    result = analyzer.compute_domain_coverage(user_skills)
+    result = _unwrap(analyzer.compute_domain_coverage(user_skills))
     assert "Backend" in result
     assert result["Backend"].coverage > 0
     assert result["Backend"].coverage < 1.0
@@ -70,7 +78,7 @@ def test_compute_domain_coverage_partial(analyzer):
 
 def test_compute_domain_coverage_backend_full(analyzer):
     user_skills = ["python", "sql", "docker", "git"]
-    result = analyzer.compute_domain_coverage(user_skills)
+    result = _unwrap(analyzer.compute_domain_coverage(user_skills))
     backend = result["Backend"]
     assert 0.0 < backend.coverage <= 1.0
     assert 0 < backend.importance <= 1.0
@@ -78,28 +86,27 @@ def test_compute_domain_coverage_backend_full(analyzer):
 
 def test_domain_coverage_case_insensitive(analyzer):
     user_skills = ["PYTHON", "Sql", "Docker"]
-    result = analyzer.compute_domain_coverage(user_skills)
+    result = _unwrap(analyzer.compute_domain_coverage(user_skills))
     backend = result["Backend"]
     assert backend.coverage > 0
 
 
 def test_domain_coverage_with_whitespace(analyzer):
     user_skills = ["  python  ", "sql", "\tdocker"]
-    result = analyzer.compute_domain_coverage(user_skills)
+    result = _unwrap(analyzer.compute_domain_coverage(user_skills))
     backend = result["Backend"]
     assert backend.coverage > 0
 
 
 def test_all_domains_present(analyzer):
-    result = analyzer.compute_domain_coverage(["python"])
-    # Проверяем, что все домены из загруженного словаря присутствуют
+    result = _unwrap(analyzer.compute_domain_coverage(["python"]))
     expected_domains = set(analyzer.domain_map.keys())
     for domain in expected_domains:
         assert domain in result, f"Domain {domain} missing from results"
 
 
 def test_domain_coverage_returns_domain_metrics(analyzer):
-    result = analyzer.compute_domain_coverage(["python"])
+    result = _unwrap(analyzer.compute_domain_coverage(["python"]))
     for domain_name, metrics in result.items():
         assert isinstance(metrics, DomainMetrics)
         assert metrics.domain == domain_name

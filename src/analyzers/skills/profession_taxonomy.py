@@ -4,7 +4,8 @@ from pathlib import Path
 import structlog
 from pydantic import BaseModel, Field, ValidationError
 
-from src import config
+from src import Err, Ok, Result, config
+from src.errors import DomainError
 from src.models.market_metrics import DomainMetrics
 
 logger = structlog.get_logger(__name__)
@@ -112,28 +113,31 @@ class ProfessionTaxonomy:
         self._domain_map = {}
         self._krm_mapping = {}
 
-        if self.taxonomy_path.exists():
-            with open(self.taxonomy_path, encoding="utf-8") as f:
-                self._taxonomy = json.load(f)
-            logger.info("taxonomy_loaded", professions=len(self._taxonomy.get("professions", {})))
-        else:
-            logger.error("taxonomy_file_not_found", path=str(self.taxonomy_path))
+        try:
+            if self.taxonomy_path.exists():
+                with open(self.taxonomy_path, encoding="utf-8") as f:
+                    self._taxonomy = json.load(f)
+                logger.info("taxonomy_loaded", professions=len(self._taxonomy.get("professions", {})))
+            else:
+                logger.error("taxonomy_file_not_found", path=str(self.taxonomy_path))
 
-        if self.domain_map_path.exists():
-            with open(self.domain_map_path, encoding="utf-8") as f:
-                self._domain_map = json.load(f)
-            logger.info("domain_map_loaded", domains=len(self._domain_map))
-        else:
-            logger.error("domain_map_not_found", path=str(self.domain_map_path))
+            if self.domain_map_path.exists():
+                with open(self.domain_map_path, encoding="utf-8") as f:
+                    self._domain_map = json.load(f)
+                logger.info("domain_map_loaded", domains=len(self._domain_map))
+            else:
+                logger.error("domain_map_not_found", path=str(self.domain_map_path))
 
-        if self.krm_mapping_path.exists():
-            with open(self.krm_mapping_path, encoding="utf-8") as f:
-                self._krm_mapping = json.load(f)
-            logger.info("krm_mapping_loaded", codes=len(self._krm_mapping))
-        else:
-            logger.warning("krm_mapping_not_found", path=str(self.krm_mapping_path))
+            if self.krm_mapping_path.exists():
+                with open(self.krm_mapping_path, encoding="utf-8") as f:
+                    self._krm_mapping = json.load(f)
+                logger.info("krm_mapping_loaded", codes=len(self._krm_mapping))
+            else:
+                logger.warning("krm_mapping_not_found", path=str(self.krm_mapping_path))
 
-        self._validate()
+            self._validate()
+        except Exception as e:
+            logger.exception("taxonomy_load_failed", error=str(e))
 
     def _validate(self):
         issues: list[str] = []
@@ -162,12 +166,25 @@ class ProfessionTaxonomy:
         else:
             logger.info("taxonomy_validation_ok")
 
+    def load_result(self) -> Result[None, DomainError]:
+        try:
+            self._load()
+            return Ok(None)
+        except Exception as e:
+            return Err(DomainError(message="Taxonomy load failed", detail=str(e)))
+
     @property
     def professions(self) -> list[str]:
         return list(self._taxonomy.get("professions", {}).keys())
 
     def get_profession_info(self, profession_name: str) -> dict | None:
         return self._taxonomy.get("professions", {}).get(profession_name)
+
+    def get_profession_info_result(self, profession_name: str) -> Result[dict, DomainError]:
+        info = self._taxonomy.get("professions", {}).get(profession_name)
+        if not info:
+            return Err(DomainError(message=f"Profession '{profession_name}' not found"))
+        return Ok(info)
 
     def get_domains_for_profession(self, profession_name: str) -> list[str]:
         info = self.get_profession_info(profession_name)
@@ -176,11 +193,24 @@ class ProfessionTaxonomy:
             return []
         return info.get("domains", [])
 
+    def get_domains_for_profession_result(self, profession_name: str) -> Result[list[str], DomainError]:
+        match self.get_profession_info_result(profession_name):
+            case Ok(info):
+                return Ok(info.get("domains", []))
+            case Err(err):
+                return Err(err)
+
     def get_domain_skills(self, domain_name: str) -> list[str]:
         if not self._domain_map:
             logger.warning("domain_map_not_loaded")
             return []
         return [s.lower().strip() for s in self._domain_map.get(domain_name, [])]
+
+    def get_domain_skills_result(self, domain_name: str) -> Result[list[str], DomainError]:
+        if not self._domain_map:
+            return Err(DomainError(message="Domain map not loaded"))
+        skills = [s.lower().strip() for s in self._domain_map.get(domain_name, [])]
+        return Ok(skills)
 
     def get_profession_skills(self, profession_name: str) -> set[str]:
         """Возвращает объединённый набор скиллов для профессии из всех её доменов."""
@@ -191,9 +221,29 @@ class ProfessionTaxonomy:
             skills.update(domain_skills)
         return skills
 
+    def get_profession_skills_result(self, profession_name: str) -> Result[set[str], DomainError]:
+        match self.get_domains_for_profession_result(profession_name):
+            case Ok(domains):
+                skills = set()
+                for domain in domains:
+                    match self.get_domain_skills_result(domain):
+                        case Ok(ds):
+                            skills.update(ds)
+                        case _:
+                            pass
+                return Ok(skills)
+            case Err(err):
+                return Err(err)
+
     def get_profile_target(self, profile_name: str) -> dict | None:
         """Возвращает целевую профессию и домены для профиля (base/dc/top_dc)."""
         return self._taxonomy.get("profile_targets", {}).get(profile_name)
+
+    def get_profile_target_result(self, profile_name: str) -> Result[dict, DomainError]:
+        target = self._taxonomy.get("profile_targets", {}).get(profile_name)
+        if not target:
+            return Err(DomainError(message=f"Profile target '{profile_name}' not found"))
+        return Ok(target)
 
     def get_profession_competency_codes(self, profession_name: str) -> list[str]:
         info = self.get_profession_info(profession_name)
@@ -202,12 +252,24 @@ class ProfessionTaxonomy:
             return []
         return info.get("competency_codes", [])
 
+    def get_profession_competency_codes_result(self, profession_name: str) -> Result[list[str], DomainError]:
+        match self.get_profession_info_result(profession_name):
+            case Ok(info):
+                return Ok(info.get("competency_codes", []))
+            case Err(err):
+                return Err(err)
+
     def get_competency_skills(self, competency_code: str) -> list[str]:
         """Возвращает скиллы для КРМ-компетенции."""
         if not self._krm_mapping:
             logger.warning("krm_mapping_not_loaded")
             return []
         return [s.lower().strip() for s in self._krm_mapping.get(competency_code, [])]
+
+    def get_competency_skills_result(self, competency_code: str) -> Result[list[str], DomainError]:
+        if not self._krm_mapping:
+            return Err(DomainError(message="KRM mapping not loaded"))
+        return Ok([s.lower().strip() for s in self._krm_mapping.get(competency_code, [])])
 
     def get_profession_competency_skills(self, profession_name: str) -> set[str]:
         """Возвращает все навыки из КРМ-компетенций профессии."""
@@ -234,6 +296,29 @@ class ProfessionTaxonomy:
                 "coverage": round(matched / len(req_skills), 4)
             }
         return result
+
+    def compute_krm_coverage_result(self, profession_name: str, user_skills: list[str]) -> Result[dict, DomainError]:
+        match self.get_profession_competency_codes_result(profession_name):
+            case Ok(codes):
+                user_set = set(s.lower().strip() for s in user_skills)
+                result = {}
+                for code in codes:
+                    match self.get_competency_skills_result(code):
+                        case Ok(req_skills):
+                            if not req_skills:
+                                result[code] = {"required": 0, "matched": 0, "coverage": 0.0}
+                                continue
+                            matched = sum(1 for s in req_skills if s in user_set)
+                            result[code] = {
+                                "required": len(req_skills),
+                                "matched": matched,
+                                "coverage": round(matched / len(req_skills), 4)
+                            }
+                        case _:
+                            result[code] = {"required": 0, "matched": 0, "coverage": 0.0}
+                return Ok(result)
+            case Err(err):
+                return Err(err)
 
     def compute_domain_coverage_for_profession(
         self, profession_name: str, user_skills: list[str]

@@ -8,6 +8,7 @@ import pytest
 
 from src import Ok, Err
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
+from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 from src.models.student import StudentProfile
 
 
@@ -82,6 +83,9 @@ class TestProfileEvaluatorExtended:
         assert "top_recommendations" in result
         assert "gaps" in result
         assert "student_skills" in result
+        assert "krm_coverage" in result
+        assert "profession_coverage" in result
+        assert "profession_coverage_detail" in result
         assert 0.0 <= result["readiness_score"] <= 100.0
 
     def test_evaluate_profile_without_level_weights_raises(self, student):
@@ -990,3 +994,177 @@ class TestProfileEvaluatorFull:
         assert "Неплохо для middle" in evaluator._get_recommendation(65, "middle")
         assert "Нужно подготовиться" in evaluator._get_recommendation(45, "middle")
         assert "Недостаточно готов" in evaluator._get_recommendation(30, "middle")
+
+
+class TestProfileEvaluatorKrm:
+
+    SAMPLE_TAXONOMY = {
+        "professions": {
+            "Python Developer": {
+                "domains": ["Backend"],
+                "hh_queries": ["python"],
+                "aliases": [],
+                "competency_codes": ["ППК-Р1", "ППК-Р2"],
+            },
+            "Data Scientist": {
+                "domains": ["Data Science"],
+                "hh_queries": [],
+                "aliases": [],
+                "competency_codes": [],
+            },
+        },
+        "profile_targets": {},
+    }
+
+    SAMPLE_DOMAIN_MAP = {
+        "Backend": ["python", "sql", "docker", "git"],
+        "Data Science": ["python", "sql", "pandas", "numpy"],
+    }
+
+    SAMPLE_KRM = {
+        "ППК-Р1": ["python", "sql", "docker"],
+        "ППК-Р2": ["git", "testing"],
+    }
+
+    @pytest.fixture
+    def krm_taxonomy(self, tmp_path):
+        tax_path = tmp_path / "profession_taxonomy.json"
+        tax_path.write_text(json.dumps(self.SAMPLE_TAXONOMY), encoding="utf-8")
+        dom_path = tmp_path / "domain_map.json"
+        dom_path.write_text(json.dumps(self.SAMPLE_DOMAIN_MAP), encoding="utf-8")
+        krm_path = tmp_path / "krm_competency_mapping.json"
+        krm_path.write_text(json.dumps(self.SAMPLE_KRM), encoding="utf-8")
+        return ProfessionTaxonomy(
+            taxonomy_path=tax_path,
+            domain_map_path=dom_path,
+            krm_mapping_path=krm_path,
+        )
+
+    @pytest.fixture
+    def student_with_target(self):
+        student = StudentProfile(
+            profile_name="krm_test",
+            competencies=[],
+            skills=["python", "sql", "docker", "git"],
+            target_level="middle",
+            created_at=datetime.now(),
+        )
+        object.__setattr__(student, "target_profession", "Python Developer")
+        return student
+
+    @pytest.fixture
+    def skill_weights_by_level(self):
+        return {
+            "junior": {"python": 0.8, "sql": 0.6},
+            "middle": {"python": 0.9, "docker": 0.7, "sql": 0.5, "git": 0.4},
+            "senior": {"python": 0.9, "docker": 0.9},
+        }
+
+    def test_krm_coverage_in_result_keys(self, student_with_target, krm_taxonomy, skill_weights_by_level):
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9, "sql": 0.7, "docker": 0.5, "git": 0.3},
+            vacancies_skills=[["python", "sql", "git"], ["python", "docker"]],
+            vacancies_skills_dict=[{"skills": ["python", "sql", "git"]}, {"skills": ["python", "docker"]}],
+            skill_weights_by_level=skill_weights_by_level,
+            use_clustering=False,
+        )
+        result = evaluator.evaluate_profile(
+            student_with_target,
+            taxonomy=krm_taxonomy,
+        ).unwrap()
+
+        assert "krm_coverage" in result
+        assert isinstance(result["krm_coverage"], dict)
+
+    def test_krm_coverage_full_match(self, student_with_target, krm_taxonomy, skill_weights_by_level):
+        student_with_target.skills = ["python", "sql", "docker", "git", "testing"]
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9, "sql": 0.7, "docker": 0.5, "git": 0.3, "testing": 0.2},
+            vacancies_skills=[["python", "sql", "git"], ["python", "docker"]],
+            vacancies_skills_dict=[{"skills": ["python", "sql", "git"]}, {"skills": ["python", "docker"]}],
+            skill_weights_by_level=skill_weights_by_level,
+            use_clustering=False,
+        )
+        result = evaluator.evaluate_profile(
+            student_with_target,
+            taxonomy=krm_taxonomy,
+        ).unwrap()
+
+        krm = result["krm_coverage"]
+        assert "ППК-Р1" in krm
+        assert "ППК-Р2" in krm
+        assert krm["ППК-Р1"]["coverage"] == 1.0
+        assert krm["ППК-Р2"]["coverage"] == 1.0
+
+    def test_krm_coverage_partial(self, student_with_target, krm_taxonomy, skill_weights_by_level):
+        student_with_target.skills = ["python", "git"]
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9, "git": 0.3},
+            vacancies_skills=[["python", "sql", "git"], ["python", "docker"]],
+            vacancies_skills_dict=[{"skills": ["python", "sql", "git"]}, {"skills": ["python", "docker"]}],
+            skill_weights_by_level=skill_weights_by_level,
+            use_clustering=False,
+        )
+        result = evaluator.evaluate_profile(
+            student_with_target,
+            taxonomy=krm_taxonomy,
+        ).unwrap()
+
+        krm = result["krm_coverage"]
+        assert krm["ППК-Р1"]["coverage"] == pytest.approx(1.0 / 3, rel=0.01)
+        assert krm["ППК-Р2"]["coverage"] == pytest.approx(1.0 / 2, rel=0.01)
+
+    def test_krm_coverage_no_match(self, student_with_target, krm_taxonomy, skill_weights_by_level):
+        student_with_target.skills = ["excel", "powerpoint"]
+        evaluator = ProfileEvaluator(
+            skill_weights={"excel": 0.5, "powerpoint": 0.3},
+            vacancies_skills=[["python", "sql", "git"], ["python", "docker"]],
+            vacancies_skills_dict=[{"skills": ["python", "sql", "git"]}, {"skills": ["python", "docker"]}],
+            skill_weights_by_level=skill_weights_by_level,
+            use_clustering=False,
+        )
+        result = evaluator.evaluate_profile(
+            student_with_target,
+            taxonomy=krm_taxonomy,
+        ).unwrap()
+
+        krm = result["krm_coverage"]
+        assert krm["ППК-Р1"]["coverage"] == 0.0
+        assert krm["ППК-Р2"]["coverage"] == 0.0
+
+    def test_krm_coverage_no_taxonomy_returns_empty(self, student_with_target, skill_weights_by_level):
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9, "sql": 0.7, "docker": 0.5, "git": 0.3},
+            vacancies_skills=[["python", "sql", "git"], ["python", "docker"]],
+            vacancies_skills_dict=[{"skills": ["python", "sql", "git"]}, {"skills": ["python", "docker"]}],
+            skill_weights_by_level=skill_weights_by_level,
+            use_clustering=False,
+        )
+        result = evaluator.evaluate_profile(
+            student_with_target,
+            taxonomy=None,
+        ).unwrap()
+
+        assert result["krm_coverage"] == {}
+
+    def test_krm_coverage_no_target_profession(self, krm_taxonomy, skill_weights_by_level):
+        student = StudentProfile(
+            profile_name="no_target",
+            competencies=[],
+            skills=["python", "sql"],
+            target_level="middle",
+            created_at=datetime.now(),
+        )
+        evaluator = ProfileEvaluator(
+            skill_weights={"python": 0.9, "sql": 0.7},
+            vacancies_skills=[["python", "sql"]],
+            vacancies_skills_dict=[{"skills": ["python", "sql"]}],
+            skill_weights_by_level=skill_weights_by_level,
+            use_clustering=False,
+        )
+        result = evaluator.evaluate_profile(
+            student,
+            taxonomy=krm_taxonomy,
+        ).unwrap()
+
+        assert result["krm_coverage"] == {}
