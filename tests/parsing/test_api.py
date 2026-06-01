@@ -9,6 +9,8 @@ from aioresponses import aioresponses
 from pydantic import SecretStr
 
 from src.models.vacancy import Vacancy
+from src import Ok, Err
+from src.errors import ApiError
 from src.parsing.api.hh_api import HeadHunterAPI
 from src.parsing.api.hh_api_async import HeadHunterAPIAsync
 
@@ -22,42 +24,42 @@ class TestHeadHunterAPISync:
         assert "User-Agent" in api.session.headers
         api.close()
 
-    @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get_result")
     def test_search_vacancies_success(self, mock_get):
         api = HeadHunterAPI()
-        mock_get.return_value = {"items": [{"id": "1"}, {"id": "2"}], "pages": 1, "found": 2}
+        mock_get.return_value = Ok({"items": [{"id": "1"}, {"id": "2"}], "pages": 1, "found": 2})
         result = api.search_vacancies(text="Python", area=1)
         assert len(result.ok()) == 2
         mock_get.assert_called_once()
 
-    @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get_result")
     def test_search_vacancies_pagination(self, mock_get):
         api = HeadHunterAPI()
         mock_get.side_effect = [
-            {"items": [{"id": "1"}, {"id": "2"}], "pages": 2, "found": 3},
-            {"items": [{"id": "3"}], "pages": 2, "found": 3},
+            Ok({"items": [{"id": "1"}, {"id": "2"}], "pages": 2, "found": 3}),
+            Ok({"items": [{"id": "3"}], "pages": 2, "found": 3}),
         ]
         result = api.search_vacancies(text="Java", area=2, max_pages=5)
         assert len(result.ok()) == 3
         assert mock_get.call_count == 2
 
-    @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get_result")
     def test_search_vacancies_stops_on_empty_page(self, mock_get):
         api = HeadHunterAPI()
-        mock_get.return_value = {"items": [], "pages": 5}
+        mock_get.return_value = Ok({"items": [], "pages": 5})
         result = api.search_vacancies(text="C++", area=1)
         assert result.ok() == []
 
-    @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get_result")
     def test_get_vacancy_details_success(self, mock_get):
         api = HeadHunterAPI()
-        mock_get.return_value = {"id": "123", "name": "Test"}
+        mock_get.return_value = Ok({"id": "123", "name": "Test"})
         details = api.get_vacancy_details("123")
         assert details.ok()["id"] == "123"
 
     def test_get_vacancy_details_returns_none_on_error(self):
         api = HeadHunterAPI()
-        with patch.object(api, "_get", return_value=None):
+        with patch.object(api, "_get_result", return_value=Err(ApiError(message="mocked error", endpoint="test"))):
             details = api.get_vacancy_details("999")
             assert details.is_err()
 
@@ -70,7 +72,7 @@ class TestHeadHunterAPISync:
             "employer": {"id": "10", "name": "Company"},
             "key_skills": [{"name": "Python"}, {"name": "Django"}],
         }
-        with patch.object(api, "_get", return_value=raw):
+        with patch.object(api, "_get_result", return_value=Ok(raw)):
             vacancy = api.get_vacancy_details_as_object("456")
             assert isinstance(vacancy.ok(), Vacancy)
             assert vacancy.ok().id == "456"
@@ -78,7 +80,7 @@ class TestHeadHunterAPISync:
 
     def test_get_vacancy_details_as_object_invalid(self):
         api = HeadHunterAPI()
-        with patch.object(api, "_get", return_value={"id": "no_name"}):
+        with patch.object(api, "_get_result", return_value=Ok({"id": "no_name"})):
             vacancy = api.get_vacancy_details_as_object("bad")
             assert vacancy.is_err()
 
@@ -112,27 +114,29 @@ class TestHeadHunterAPISync:
                 pass
             mock_close.assert_called_once()
 
-    def test_search_vacancies_with_max_pages_one(self):
+    def test_search_vacancies_with_max_pages_one(self, monkeypatch):
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", None)
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", None)
         api = HeadHunterAPI()
-        with patch.object(api, "_get") as mock_get:
-            mock_get.return_value = {"items": [{"id": "1"}], "pages": 1}
+        with patch.object(api, "_get_result") as mock_get:
+            mock_get.return_value = Ok({"items": [{"id": "1"}], "pages": 1, "found": 1})
             result = api.search_vacancies(text="Python", area=1, max_pages=1)
             assert len(result.ok()) == 1
             mock_get.assert_called_once()
 
-    @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get_result")
     def test_search_vacancies_since_id(self, mock_get):
         api = HeadHunterAPI()
-        mock_get.return_value = {"items": [{"id": "2"}], "pages": 1, "found": 1}
+        mock_get.return_value = Ok({"items": [{"id": "2"}], "pages": 1, "found": 1})
         result = api.search_vacancies(text="Python", area=1, since_id=1)
         assert len(result.ok()) == 1
         call_kwargs = mock_get.call_args[1]
         assert call_kwargs["params"].get("vacancy_id_gt") == 1
 
-    @patch("src.parsing.api.hh_api.HeadHunterAPI._get")
+    @patch("src.parsing.api.hh_api.HeadHunterAPI._get_result")
     def test_search_vacancies_with_date_range(self, mock_get):
         api = HeadHunterAPI()
-        mock_get.return_value = {"items": [{"id": "1"}], "pages": 1, "found": 1}
+        mock_get.return_value = Ok({"items": [{"id": "1"}], "pages": 1, "found": 1})
         result = api.search_vacancies(text="Python", area=1, date_from="2024-01-01", date_to="2024-01-31")
         assert len(result.ok()) == 1
         call_kwargs = mock_get.call_args[1]
@@ -178,45 +182,56 @@ class TestHeadHunterAPISync:
 
     def test_get_app_token_failure(self, monkeypatch):
         """Строки 75-76: ошибка получения токена"""
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", None)
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", None)
+        api = HeadHunterAPI()
+        api._token = None
+
         monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", SecretStr("test_id"))
         monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
-
-        api = HeadHunterAPI()
         with patch.object(api.session, "post") as mock_post:
             mock_response = Mock(status_code=400)
             mock_response.text = "Bad request"
             mock_post.return_value = mock_response
-
             api._get_app_token()
             assert api._token is None
 
     def test_get_app_token_exception(self, monkeypatch):
         """Строки 75-76: исключение при получении токена"""
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", None)
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", None)
+        api = HeadHunterAPI()
+        api._token = None
+
         monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", SecretStr("test_id"))
         monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
-
-        api = HeadHunterAPI()
         with patch.object(api.session, "post", side_effect=Exception("Network error")):
             api._get_app_token()
             assert api._token is None
 
-    def test_ensure_token_expired(self):
+    def test_ensure_token_expired(self, monkeypatch):
         """Строки 99-100: проверка истечения токена"""
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", None)
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", None)
         api = HeadHunterAPI()
         api._token = "old_token"
         api._token_expires_at = time.time() - 100  # истёк
 
         with patch.object(api, "_get_app_token") as mock_get_token:
-            api._ensure_token()
+            with patch.object(api, "_load_cached_token", return_value=Ok(False)):
+                api._ensure_token()
             mock_get_token.assert_called_once()
 
-    def test_ensure_token_missing(self):
+    def test_ensure_token_missing(self, monkeypatch):
         """Строки 99-100: токен отсутствует"""
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", None)
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", None)
         api = HeadHunterAPI()
         api._token = None
 
         with patch.object(api, "_get_app_token") as mock_get_token:
-            api._ensure_token()
+            with patch.object(api, "_load_cached_token", return_value=Ok(False)):
+                api._ensure_token()
             mock_get_token.assert_called_once()
 
     def test_ensure_token_valid(self):
@@ -232,8 +247,8 @@ class TestHeadHunterAPISync:
     def test_search_vacancies_with_date_range(self):
         """Строки 112-113: поиск с date_from/date_to"""
         api = HeadHunterAPI()
-        with patch.object(api, "_get") as mock_get:
-            mock_get.return_value = {"items": [{"id": "1"}], "pages": 1, "found": 1}
+        with patch.object(api, "_get_result") as mock_get:
+            mock_get.return_value = Ok({"items": [{"id": "1"}], "pages": 1, "found": 1})
             result = api.search_vacancies(
                 text="Python", area=1, date_from="2024-01-01", date_to="2024-01-31"
             )
@@ -245,7 +260,7 @@ class TestHeadHunterAPISync:
     def test_get_vacancy_details_returns_none(self):
         """Строка 138: детали не получены"""
         api = HeadHunterAPI()
-        with patch.object(api, "_get", return_value=None):
+        with patch.object(api, "_get_result", return_value=Err(ApiError(message="mocked error", endpoint="test"))):
             result = api.get_vacancy_details("999")
             assert result.is_err()
 
@@ -290,8 +305,8 @@ class TestHeadHunterAPISync:
     def test_search_vacancies_industry_param(self):
         """Строка 55: параметр industry"""
         api = HeadHunterAPI()
-        with patch.object(api, "_get") as mock_get:
-            mock_get.return_value = {"items": [], "pages": 0}
+        with patch.object(api, "_get_result") as mock_get:
+            mock_get.return_value = Ok({"items": [], "pages": 0})
             api.search_vacancies(text="dev", area=1, industry=7)
             call_args = mock_get.call_args[1]["params"]
             assert call_args["industry"] == 7
@@ -300,14 +315,14 @@ class TestHeadHunterAPISync:
         """Строки 64, 68-71: get_vacancy_details_validated"""
         api = HeadHunterAPI()
         raw = {"id": "1", "name": "Test", "area": {"id": 1, "name": "M"}, "employer": {"id": "2", "name": "E"}}
-        with patch.object(api, "_get", return_value=raw):
+        with patch.object(api, "_get_result", return_value=Ok(raw)):
             result = api.get_vacancy_details_validated("1")
             assert result.ok().id == "1"
 
     def test_get_vacancy_details_validated_not_found(self):
         """Строки 68-71: ошибка при None"""
         api = HeadHunterAPI()
-        with patch.object(api, "_get", return_value=None):
+        with patch.object(api, "_get_result", return_value=Err(ApiError(message="mocked error", endpoint="test"))):
             result = api.get_vacancy_details_validated("999")
             assert result.is_err()
 
@@ -315,7 +330,7 @@ class TestHeadHunterAPISync:
         """Строки 81-82: Vacancy.from_api вызывает ошибку"""
         api = HeadHunterAPI()
         raw = {"id": "1"}  # нет name
-        with patch.object(api, "_get", return_value=raw):
+        with patch.object(api, "_get_result", return_value=Ok(raw)):
             result = api.get_vacancy_details_as_object("1")
             assert result.is_err()
 
@@ -472,8 +487,8 @@ class TestHeadHunterAPIAsync:
 class TestHeadHunterAPIMockedRequests:
     def test_search_vacancies_uses_industry_param(self):
         api = HeadHunterAPI()
-        with patch.object(api, "_get") as mock_get:
-            mock_get.return_value = {"items": [], "pages": 0}
+        with patch.object(api, "_get_result") as mock_get:
+            mock_get.return_value = Ok({"items": [], "pages": 0})
             api.search_vacancies(text="DevOps", area=1, industry=7)
             call_params = mock_get.call_args[1]["params"]
             assert call_params["industry"] == 7
@@ -486,10 +501,13 @@ class TestHeadHunterAPIAsyncToken:
     async def test_ensure_token_expired_gets_new(self):
         """Строки 41-50: токен истёк → получение нового"""
         api = HeadHunterAPIAsync(token="old", token_expires_at=time.time() - 100)
+        mock_sync_no_token = MagicMock(spec=HeadHunterAPI)
+        mock_sync_no_token._token = None
 
         with patch.object(api, "_get_app_token", new_callable=AsyncMock) as mock_get_token:
             mock_get_token.return_value = Ok(True)
-            result = await api._ensure_token()
+            with patch("src.parsing.api.hh_api_async.HeadHunterAPI", return_value=mock_sync_no_token):
+                result = await api._ensure_token()
             assert result.is_ok()
             mock_get_token.assert_called_once()
 
@@ -773,9 +791,12 @@ class TestHeadHunterAPITokenMethods:
             assert api._token == "app_token_123"
 
     def test_get_app_token_failure(self, monkeypatch):
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", None)
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", None)
+        api = HeadHunterAPI()
+        api._token = None
         monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", SecretStr("test_id"))
         monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
-        api = HeadHunterAPI()
         with patch.object(api.session, "post") as mock_post:
             mock_response = Mock(status_code=400)
             mock_response.text = "Bad request"
@@ -784,9 +805,12 @@ class TestHeadHunterAPITokenMethods:
             assert api._token is None
 
     def test_get_app_token_exception(self, monkeypatch):
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", None)
+        monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", None)
+        api = HeadHunterAPI()
+        api._token = None
         monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_ID", SecretStr("test_id"))
         monkeypatch.setattr("src.parsing.api.hh_api.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
-        api = HeadHunterAPI()
         with patch.object(api.session, "post", side_effect=Exception("Network error")):
             api._get_app_token()
             assert api._token is None

@@ -54,7 +54,8 @@ class SkillExtractor:
             else:
                 self._console_info("Извлечение навыков из вакансий...")
                 match parser.extract_skills_from_vacancies(vacancies):
-                    case Ok(result):
+                    case Ok(res):
+                        result = res
                         skill_freq = result["frequencies"]
                         hybrid_weights_raw = result.get("hybrid_weights", {})
                     case Err(e):

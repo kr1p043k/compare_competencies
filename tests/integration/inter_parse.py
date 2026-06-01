@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from src import config
+from src import Ok, config
 from src.parsing.api.hh_api import HeadHunterAPI
 from src.parsing.utils import (
     collect_vacancies_multiple,
@@ -72,9 +72,11 @@ def run_search(args: argparse.Namespace = None, interactive: bool = False):
         for i, vac in enumerate(basic_vacancies, 1):
             if i % 50 == 0:
                 logger.info(f"Прогресс деталей: {i}/{len(basic_vacancies)}")
-            det = hh_api.get_vacancy_details(vac["id"])
-            if det:
-                vacancies_to_process.append(det)
+            match hh_api.get_vacancy_details(vac["id"]):
+                case Ok(det):
+                    vacancies_to_process.append(det)
+                case _:
+                    pass
             time.sleep(config.REQUEST_DELAY)
 
         if not vacancies_to_process:

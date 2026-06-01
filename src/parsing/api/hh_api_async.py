@@ -308,7 +308,11 @@ class HeadHunterAPIAsync:
         if not vacancy_ids:
             return Ok([])
 
-        await self._ensure_token()
+        match await self._ensure_token():
+            case Err(e):
+                logger.warning("token_not_available_batch", error=str(e))
+            case _:
+                pass
 
         self._write_progress(0, len(vacancy_ids))
         logger.info("async_batch_loading_started", total=len(vacancy_ids), max_concurrent=self.max_concurrent)

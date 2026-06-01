@@ -16,7 +16,7 @@ def load_skill_weights() -> dict[str, float]:
         logger.warning("skill_weights_file_not_found", path=str(path))
         return {}
     try:
-        with open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8-sig") as f:
             data = json.load(f)
         logger.info("skill_weights_loaded", path=str(path), count=len(data))
         return data
@@ -30,7 +30,7 @@ def load_hybrid_weights() -> dict[str, float]:
     if not path.exists():
         return {}
     try:
-        with open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8-sig") as f:
             data = json.load(f)
         logger.info("hybrid_weights_loaded", path=str(path), count=len(data))
         return data

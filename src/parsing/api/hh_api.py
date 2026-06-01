@@ -82,11 +82,12 @@ class HeadHunterAPI:
         return self.search_vacancies(text, area, period_days, max_pages, per_page, industry, date_from, date_to)
 
     def get_vacancy_details_validated(self, vacancy_id) -> Result[VacancyDetailResponse, ApiError]:
-        """Получает детали вакансии и возвращает валидированную модель."""
-        raw = self._get(f"{self.BASE_URL_FULL}vacancies/{vacancy_id}")
-        if raw is None:
-            return Err(ApiError(message=f"Vacancy {vacancy_id} not found or API error", endpoint=f"vacancies/{vacancy_id}"))
-        return Ok(parse_response(raw, VacancyDetailResponse))
+        url = f"{self.BASE_URL_FULL}vacancies/{vacancy_id}"
+        match self._get_result(url):
+            case Ok(raw):
+                return Ok(parse_response(raw, VacancyDetailResponse))
+            case Err(e):
+                return Err(ApiError(message=f"Vacancy {vacancy_id} not found or API error", endpoint=f"vacancies/{vacancy_id}", detail=str(e)))
 
     # -----------------------------------------------------------------------
     def _load_cached_token(self) -> Result[bool, ApiError]:
@@ -217,11 +218,9 @@ class HeadHunterAPI:
         page = 0
         while page < max_pages:
             params["page"] = page
-            data = self._get_result(self.BASE_URL, params=params)
-            self.last_response = data.ok()
-            match data:
+            match self._get_result(self.BASE_URL, params=params):
                 case Ok(d):
-                    pass
+                    self.last_response = d
                 case Err(e):
                     return Err(ApiError(message="Failed to get search data", endpoint="vacancies", detail=str(e)))
             if "items" not in d:
