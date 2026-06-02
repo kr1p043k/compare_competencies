@@ -5,118 +5,121 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(frozen=True)
 class DomainError(Exception):
     message: str
     detail: str = ""
 
+    def __str__(self) -> str:
+        return self.message
 
-@dataclass
+
+@dataclass(frozen=True)
 class VacancyError(DomainError):
     vacancy_id: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class VacancyNotFoundError(VacancyError):
     pass
 
 
-@dataclass
+@dataclass(frozen=True)
 class VacancyApiError(VacancyError):
     status_code: int = 0
 
 
-@dataclass
+@dataclass(frozen=True)
 class ParseError(DomainError):
     source: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class SkillParseError(ParseError):
     skill_name: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class ApiError(DomainError):
     status_code: int = 0
     endpoint: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class RateLimitError(ApiError):
     retry_after: float = 0.0
 
 
-@dataclass
+@dataclass(frozen=True)
 class ModelError(DomainError):
     model_name: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class ModelNotFoundError(ModelError):
     path: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class ModelTrainingError(ModelError):
     n_samples: int = 0
 
 
-@dataclass
+@dataclass(frozen=True)
 class ScorerError(DomainError):
     pass
 
 
-@dataclass
+@dataclass(frozen=True)
 class ConfigError(DomainError):
     key: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class PipelineError(DomainError):
     stage: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class SkillExtractionError(PipelineError):
     vacancies_count: int = 0
 
 
-@dataclass
+@dataclass(frozen=True)
 class LevelBuildError(PipelineError):
     vacancies_count: int = 0
 
 
-@dataclass
+@dataclass(frozen=True)
 class WeightCleanError(PipelineError):
     skills_count: int = 0
 
 
-@dataclass
+@dataclass(frozen=True)
 class GapAnalysisError(PipelineError):
     profiles_count: int = 0
 
 
-@dataclass
+@dataclass(frozen=True)
 class RecommendationError(DomainError):
     profile: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class DataSourceError(DomainError):
     source: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class CacheError(DomainError):
     cache_path: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class ManifestError(DomainError):
     artifact_path: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class NormalizerError(DomainError):
     skill_name: str = ""

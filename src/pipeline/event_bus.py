@@ -1,0 +1,57 @@
+"""Pipeline event bus — publish/subscribe для этапов pipeline."""
+
+from __future__ import annotations
+
+import time
+from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+import structlog
+
+from src import Ok, Result
+from src.errors import DomainError
+
+logger = structlog.get_logger(__name__)
+
+EventHandler = Callable[["PipelineEvent"], None]
+
+
+@dataclass
+class PipelineEvent:
+    stage: str
+    status: str
+    elapsed: float
+    metadata: dict[str, Any] = field(default_factory=dict)
+    timestamp: float = field(default_factory=time.time)
+
+
+class EventBus:
+    def __init__(self):
+        self._handlers: dict[str, list[EventHandler]] = defaultdict(list)
+        self._history: list[PipelineEvent] = []
+
+    def on(self, event_type: str, handler: EventHandler) -> None:
+        self._handlers[event_type].append(handler)
+
+    def off(self, event_type: str, handler: EventHandler | None = None) -> None:
+        if handler is None:
+            self._handlers.pop(event_type, None)
+        else:
+            self._handlers[event_type] = [h for h in self._handlers[event_type] if h is not handler]
+
+    def emit(self, event: PipelineEvent) -> Result[None, DomainError]:
+        self._history.append(event)
+        for handler in self._handlers.get(event.status, []) + self._handlers.get("*", []):
+            try:
+                handler(event)
+            except Exception as e:
+                logger.error("event_handler_failed", status=event.status, stage=event.stage, error=str(e))
+        return Ok(None)
+
+    @property
+    def history(self) -> list[PipelineEvent]:
+        return list(self._history)
+
+    def clear(self) -> None:
+        self._history.clear()
