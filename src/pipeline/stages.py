@@ -125,13 +125,19 @@ class SkillExtractionStage(PipelineStage):
             case Ok((skill_freq, hybrid_weights_raw, trend_analyzer)):
                 for i, v in enumerate(vacancies):
                     if isinstance(v, Vacancy):
-                        extracted = parser.skill_parser.parse_vacancy(v)
-                        texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                        match parser.skill_parser.parse_vacancy(v):
+                            case Ok(extracted):
+                                texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                            case Err(_):
+                                texts = []
                         v.raw_data["extracted_skills"] = texts
                     elif isinstance(v, dict):
                         vac_obj = Vacancy.from_api(v)
-                        extracted = parser.skill_parser.parse_vacancy(vac_obj)
-                        texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                        match parser.skill_parser.parse_vacancy(vac_obj):
+                            case Ok(extracted):
+                                texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                            case Err(_):
+                                texts = []
                         v["extracted_skills"] = texts
                     if (i + 1) % 100 == 0 or i == total - 1:
                         pct = int((i + 1) / total * 95)
@@ -213,8 +219,12 @@ class ModelTrainingStage(PipelineStage):
         model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
         if model_path.exists():
             self._progress(5, "Проверка актуальности модели...")
-            ltr_engine = create_ranking_predictor(model_path=model_path)
-            if ltr_engine and ltr_engine.is_fitted:
+            match create_ranking_predictor(model_path=model_path):
+                case Ok(ltr_engine) if ltr_engine.is_fitted:
+                    pass
+                case _:
+                    ltr_engine = None
+            if ltr_engine:
                 model_mtime = model_path.stat().st_mtime
                 data_mtime = raw_file.stat().st_mtime
                 if model_mtime > data_mtime:

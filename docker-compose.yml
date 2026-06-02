@@ -12,9 +12,9 @@ services:
       - ./logs:/app/logs
     restart: unless-stopped
     networks:
-      - app-net
+      - ai-net
 
-  # Ollama с DeepSeek
+  # Ollama сервер для запуска DeepSeek
   ollama:
     image: ollama/ollama:latest
     container_name: ollama-deepseek
@@ -24,8 +24,8 @@ services:
       - ollama-data:/root/.ollama
     restart: unless-stopped
     networks:
-      - app-net
-    # Если есть NVIDIA GPU, раскомментируйте:
+      - ai-net
+    # Если на сервере есть NVIDIA GPU — раскомментируйте:
     # deploy:
     #   resources:
     #     reservations:
@@ -34,7 +34,7 @@ services:
     #           count: 1
     #           capabilities: [gpu]
 
-  # Open Web UI - веб-интерфейс для DeepSeek
+  # Open Web UI — веб-интерфейс для чата с DeepSeek
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
@@ -48,9 +48,9 @@ services:
       - ollama
     restart: unless-stopped
     networks:
-      - app-net
+      - ai-net
 
-  # n8n для автоматизации
+  # n8n — платформа автоматизации workflow
   n8n:
     image: n8nio/n8n:latest
     container_name: n8n
@@ -66,9 +66,9 @@ services:
       - N8N_PROTOCOL=http
     restart: unless-stopped
     networks:
-      - app-net
+      - ai-net
 
-  # PostgreSQL для n8n (рекомендуется для production)
+  # PostgreSQL для n8n (prod)
   postgres:
     image: postgres:16-alpine
     container_name: n8n-postgres
@@ -80,13 +80,10 @@ services:
       - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
-      - app-net
-    # Раскомментируйте если хотите использовать PostgreSQL для n8n
-    # profiles:
-    #   - production
+      - ai-net
 
 networks:
-  app-net:
+  ai-net:
     driver: bridge
 
 volumes:

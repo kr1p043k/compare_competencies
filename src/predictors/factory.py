@@ -3,19 +3,27 @@ from typing import Any
 
 import structlog
 
-from src import Err, Ok, config
+from src import Err, Ok, Result, config
+from src.errors import DomainError
 from src.predictors.base import RankingPredictor, RecommenderPredictor
 from src.predictors.models import RecommendationResult, SkillImpact
 
 logger = structlog.get_logger(__name__)
 
 
+def create_reranker(
+    model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+) -> "CrossEncoderReranker":
+    from src.predictors.reranker import CrossEncoderReranker
+    return CrossEncoderReranker(model_name=model_name)
+
+
 def create_ranking_predictor(
     model_path: Path | None = None,
     use_ltr: bool = True,
-) -> RankingPredictor | None:
+) -> Result[RankingPredictor, DomainError]:
     if not use_ltr:
-        return None
+        return Err(DomainError(message="LTR disabled"))
     from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
     engine = LTRRecommendationEngine(model_path=model_path)
@@ -24,7 +32,7 @@ def create_ranking_predictor(
             case Ok(_):
                 logger.info("ranking_model_loaded", path=str(model_path))
             case Err(err):
-                logger.warning("ranking_model_load_failed", error=str(err))
+                return Err(DomainError(message="Ranking model load failed", detail=str(err)))
     elif config.MODELS_DIR.exists():
         default_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
         if default_path.exists():
@@ -32,8 +40,8 @@ def create_ranking_predictor(
                 case Ok(_):
                     logger.info("ranking_model_loaded", path=str(default_path))
                 case Err(err):
-                    logger.warning("ranking_model_load_failed", error=str(err))
-    return engine
+                    return Err(DomainError(message="Ranking model load failed", detail=str(err)))
+    return Ok(engine)
 
 
 def create_recommender(
@@ -42,7 +50,7 @@ def create_recommender(
     profile_evaluator: Any = None,
     trend_analyzer: Any = None,
     ranking_predictor: RankingPredictor | None = None,
-) -> "RecommendationEngine":
+) -> Result["RecommendationEngine", DomainError]:
     from src.predictors.recommendation_engine import RecommendationEngine
 
     engine = RecommendationEngine(
@@ -54,7 +62,9 @@ def create_recommender(
     if ranking_predictor is not None and isinstance(ranking_predictor, RankingPredictor):
         engine.ltr_engine = ranking_predictor
     elif use_ltr:
-        ltr = create_ranking_predictor()
-        if ltr is not None:
-            engine.ltr_engine = ltr
-    return engine
+        match create_ranking_predictor():
+            case Ok(ltr):
+                engine.ltr_engine = ltr
+            case Err(err):
+                logger.warning("ltr_engine_creation_failed", error=str(err))
+    return Ok(engine)

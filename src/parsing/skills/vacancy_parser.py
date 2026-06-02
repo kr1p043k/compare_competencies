@@ -56,8 +56,11 @@ class VacancyParser:
 
             skill_freq = Counter()
             for vacancy in vacancy_objects:
-                extracted = self.skill_parser.parse_vacancy(vacancy)
-                skill_texts = [s.text for s in extracted if s.text]
+                match self.skill_parser.parse_vacancy(vacancy):
+                    case Ok(extracted):
+                        skill_texts = [s.text for s in extracted if s.text]
+                    case Err(_):
+                        skill_texts = []
                 normalized_r = SkillNormalizer.normalize_batch(skill_texts)
                 normalized = normalized_r.unwrap() if normalized_r.is_ok() else []
                 unique = list(dict.fromkeys([s for s in normalized if s]))
@@ -65,7 +68,11 @@ class VacancyParser:
                     skill_freq[skill] += 1
             logger.info("Уникальных навыков", count=len(skill_freq))
 
-            hybrid_weights = self.hybrid_calc.calculate(vacancies)
+            match self.hybrid_calc.calculate(vacancies):
+                case Ok(weights):
+                    hybrid_weights = weights
+                case Err(err):
+                    hybrid_weights = {}
 
             return Ok({"frequencies": dict(skill_freq), "hybrid_weights": hybrid_weights})
         except Exception as e:
@@ -87,7 +94,11 @@ class VacancyParser:
             final_freq = self._validate_skills(skill_freq)
             logger.info("После валидации", count=len(final_freq))
 
-            hybrid_weights = self.hybrid_calc.calculate(detailed_vacancies)
+            match self.hybrid_calc.calculate(detailed_vacancies):
+                case Ok(weights):
+                    hybrid_weights = weights
+                case Err(err):
+                    hybrid_weights = {}
 
             skill_embeddings = self.embedding_cache.get_embeddings(list(final_freq.keys()))
 
@@ -156,8 +167,11 @@ class VacancyParser:
                 area_name = vac.area.name
                 vac_id = vac.id
                 salary = str(vac.salary) if vac.salary else "Не указана"
-                parsed_skills = self.skill_parser.parse_vacancy(vac)
-                text_skill_names = [s.text for s in parsed_skills if s.text]
+                match self.skill_parser.parse_vacancy(vac):
+                    case Ok(parsed_skills):
+                        text_skill_names = [s.text for s in parsed_skills if s.text]
+                    case _:
+                        text_skill_names = []
                 description = vac.description or ""
                 snippet_req = vac.snippet.requirement if vac.snippet else ""
                 snippet_resp = vac.snippet.responsibility if vac.snippet else ""
@@ -226,8 +240,11 @@ class VacancyParser:
                 employer_name = vac.employer.name
                 area_name = vac.area.name
                 key_skill_names = vac.get_skill_names()
-                parsed = self.skill_parser.parse_vacancy(vac)
-                text_skill_names = [s.text for s in parsed if s.text]
+                match self.skill_parser.parse_vacancy(vac):
+                    case Ok(parsed):
+                        text_skill_names = [s.text for s in parsed if s.text]
+                    case _:
+                        text_skill_names = []
             else:
                 vac_name = vac.get("name", "Unknown")
                 employer = vac.get("employer", {}) or {}

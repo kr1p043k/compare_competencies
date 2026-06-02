@@ -2,612 +2,1500 @@
   "rising": [
     {
       "skill": "erp-системы",
-      "current_freq": 17,
+      "current_freq": 65,
       "prev_freq": 1,
-      "change_pct": 1600.0,
-      "prev_label": "2026-05-27",
+      "change_pct": 6400.0,
+      "prev_label": "2026-06-01",
       "trend": "rising"
     },
     {
-      "skill": "1c управление производственным предприятием",
-      "current_freq": 19,
-      "prev_freq": 2,
-      "change_pct": 850.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "исследования в ml",
-      "current_freq": 8,
-      "prev_freq": 1,
-      "change_pct": 700.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "системный анализ",
-      "current_freq": 9,
-      "prev_freq": 2,
-      "change_pct": 350.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "1c зарплата и управление персоналом",
-      "current_freq": 39,
-      "prev_freq": 11,
-      "change_pct": 254.5,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "контроль реализации проекта",
-      "current_freq": 3,
-      "prev_freq": 1,
-      "change_pct": 200.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "ros",
-      "current_freq": 3,
-      "prev_freq": 1,
-      "change_pct": 200.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "sql оптимизация",
-      "current_freq": 15,
-      "prev_freq": 6,
-      "change_pct": 150.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "планирование задач",
-      "current_freq": 7,
-      "prev_freq": 3,
-      "change_pct": 133.3,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "r",
-      "current_freq": 30,
-      "prev_freq": 13,
-      "change_pct": 130.8,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "1c erp",
+      "skill": "cpp для встроенных систем",
       "current_freq": 11,
-      "prev_freq": 5,
-      "change_pct": 120.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "предварительный анализ данных",
-      "current_freq": 4,
-      "prev_freq": 2,
-      "change_pct": 100.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "xml schema",
-      "current_freq": 4,
-      "prev_freq": 2,
-      "change_pct": 100.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "power bi",
-      "current_freq": 2,
       "prev_freq": 1,
-      "change_pct": 100.0,
-      "prev_label": "2026-05-27",
+      "change_pct": 1000.0,
+      "prev_label": "2026-06-01",
       "trend": "rising"
     },
     {
-      "skill": "php",
-      "current_freq": 9,
-      "prev_freq": 5,
-      "change_pct": 80.0,
-      "prev_label": "2026-05-27",
+      "skill": "обучение на децентрализованных данных",
+      "current_freq": 18,
+      "prev_freq": 2,
+      "change_pct": 800.0,
+      "prev_label": "2026-06-01",
       "trend": "rising"
     },
     {
-      "skill": "postgresql",
-      "current_freq": 7,
+      "skill": "управление проектами ии",
+      "current_freq": 21,
       "prev_freq": 4,
-      "change_pct": 75.0,
-      "prev_label": "2026-05-27",
+      "change_pct": 425.0,
+      "prev_label": "2026-06-01",
       "trend": "rising"
     },
     {
-      "skill": "программирование 1с",
-      "current_freq": 41,
-      "prev_freq": 24,
-      "change_pct": 70.8,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "гис",
-      "current_freq": 26,
-      "prev_freq": 16,
-      "change_pct": 62.5,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "xml",
-      "current_freq": 8,
-      "prev_freq": 5,
-      "change_pct": 60.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "основы баз данных",
-      "current_freq": 11,
-      "prev_freq": 7,
-      "change_pct": 57.1,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "go",
-      "current_freq": 6,
-      "prev_freq": 4,
-      "change_pct": 50.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "интеграция 1с с другими системами",
-      "current_freq": 3,
-      "prev_freq": 2,
-      "change_pct": 50.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "постановка задач разработчикам",
-      "current_freq": 13,
-      "prev_freq": 9,
-      "change_pct": 44.4,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "javascript",
-      "current_freq": 10,
-      "prev_freq": 7,
-      "change_pct": 42.9,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "1c бухгалтерия",
-      "current_freq": 25,
-      "prev_freq": 18,
-      "change_pct": 38.9,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "1c документооборот",
-      "current_freq": 15,
-      "prev_freq": 11,
-      "change_pct": 36.4,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "1c комплексная автоматизация",
-      "current_freq": 4,
-      "prev_freq": 3,
-      "change_pct": 33.3,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "анализ данных",
-      "current_freq": 9,
-      "prev_freq": 7,
-      "change_pct": 28.6,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "теория информации",
-      "current_freq": 11,
-      "prev_freq": 9,
-      "change_pct": 22.2,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "разработка технических заданий",
-      "current_freq": 13,
-      "prev_freq": 11,
-      "change_pct": 18.2,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "коммуникация",
-      "current_freq": 7,
-      "prev_freq": 6,
-      "change_pct": 16.7,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "sql",
-      "current_freq": 24,
-      "prev_freq": 23,
-      "change_pct": 4.3,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "1c предприятие",
-      "current_freq": 26,
-      "prev_freq": 26,
-      "change_pct": 0.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "социальная ответственность ии",
-      "current_freq": 2,
-      "prev_freq": 2,
-      "change_pct": 0.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "ms excel",
-      "current_freq": 7,
-      "prev_freq": 7,
-      "change_pct": 0.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "html",
+      "skill": "новые архитектуры нейросетей",
       "current_freq": 5,
-      "prev_freq": 5,
-      "change_pct": 0.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "mysql",
-      "current_freq": 6,
-      "prev_freq": 6,
-      "change_pct": 0.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "python",
-      "current_freq": 3,
-      "prev_freq": 3,
-      "change_pct": 0.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "power query",
-      "current_freq": 1,
       "prev_freq": 1,
-      "change_pct": 0.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "работа с базами данных",
-      "current_freq": 9,
-      "prev_freq": 9,
-      "change_pct": 0.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "vue",
-      "current_freq": 3,
-      "prev_freq": 3,
-      "change_pct": 0.0,
-      "prev_label": "2026-05-27",
-      "trend": "rising"
-    },
-    {
-      "skill": "kafka streams",
-      "current_freq": 1,
-      "prev_freq": 1,
-      "change_pct": 0.0,
-      "prev_label": "2026-05-27",
+      "change_pct": 400.0,
+      "prev_label": "2026-06-01",
       "trend": "rising"
     },
     {
       "skill": "байесовская оптимизация гиперпараметров",
-      "current_freq": 1,
+      "current_freq": 5,
       "prev_freq": 1,
-      "change_pct": 0.0,
-      "prev_label": "2026-05-27",
+      "change_pct": 400.0,
+      "prev_label": "2026-06-01",
       "trend": "rising"
     },
     {
-      "skill": "etl",
+      "skill": "интеграция 1с с другими системами",
+      "current_freq": 59,
+      "prev_freq": 14,
+      "change_pct": 321.4,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "power pivot",
+      "current_freq": 4,
+      "prev_freq": 1,
+      "change_pct": 300.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "word embeddings",
+      "current_freq": 24,
+      "prev_freq": 10,
+      "change_pct": 140.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "c",
+      "current_freq": 57,
+      "prev_freq": 24,
+      "change_pct": 137.5,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "ведение бэклога",
+      "current_freq": 6,
+      "prev_freq": 3,
+      "change_pct": 100.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "защита от злоупотреблений ии",
+      "current_freq": 8,
+      "prev_freq": 4,
+      "change_pct": 100.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "администрирование windows server",
+      "current_freq": 4,
+      "prev_freq": 2,
+      "change_pct": 100.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "oracle db",
+      "current_freq": 4,
+      "prev_freq": 2,
+      "change_pct": 100.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "разработка мобильных приложений",
+      "current_freq": 2,
+      "prev_freq": 1,
+      "change_pct": 100.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "scrum",
+      "current_freq": 11,
+      "prev_freq": 6,
+      "change_pct": 83.3,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "развёртывание бд в k8s",
+      "current_freq": 77,
+      "prev_freq": 47,
+      "change_pct": 63.8,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "внедрение erp",
+      "current_freq": 35,
+      "prev_freq": 22,
+      "change_pct": 59.1,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "администрирование 1с",
+      "current_freq": 18,
+      "prev_freq": 12,
+      "change_pct": 50.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "выпуклая оптимизация",
+      "current_freq": 3,
+      "prev_freq": 2,
+      "change_pct": 50.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "ревью кода",
+      "current_freq": 3,
+      "prev_freq": 2,
+      "change_pct": 50.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "ms project",
+      "current_freq": 16,
+      "prev_freq": 11,
+      "change_pct": 45.5,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "понимание ролей",
+      "current_freq": 4,
+      "prev_freq": 3,
+      "change_pct": 33.3,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "роботы с ии",
+      "current_freq": 10,
+      "prev_freq": 8,
+      "change_pct": 25.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "межличностные навыки",
+      "current_freq": 6,
+      "prev_freq": 5,
+      "change_pct": 20.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "разработка технических заданий",
+      "current_freq": 44,
+      "prev_freq": 37,
+      "change_pct": 18.9,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "контроль реализации проекта",
+      "current_freq": 7,
+      "prev_freq": 6,
+      "change_pct": 16.7,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "работа с базами данных",
+      "current_freq": 18,
+      "prev_freq": 16,
+      "change_pct": 12.5,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "основы баз данных",
+      "current_freq": 14,
+      "prev_freq": 13,
+      "change_pct": 7.7,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "linux",
+      "current_freq": 15,
+      "prev_freq": 14,
+      "change_pct": 7.1,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "теория информации",
+      "current_freq": 36,
+      "prev_freq": 34,
+      "change_pct": 5.9,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "учет ролевых особенностей",
+      "current_freq": 22,
+      "prev_freq": 21,
+      "change_pct": 4.8,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "1c предприятие",
+      "current_freq": 103,
+      "prev_freq": 101,
+      "change_pct": 2.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "1c бухгалтерия",
+      "current_freq": 69,
+      "prev_freq": 69,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "программирование 1с",
+      "current_freq": 92,
+      "prev_freq": 92,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "sql",
+      "current_freq": 83,
+      "prev_freq": 83,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "xml",
+      "current_freq": 16,
+      "prev_freq": 16,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "rabbitmq",
+      "current_freq": 6,
+      "prev_freq": 6,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "grafana",
+      "current_freq": 3,
+      "prev_freq": 3,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "1c комплексная автоматизация",
+      "current_freq": 14,
+      "prev_freq": 14,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "python",
+      "current_freq": 13,
+      "prev_freq": 13,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "power query",
+      "current_freq": 10,
+      "prev_freq": 10,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "php",
+      "current_freq": 14,
+      "prev_freq": 14,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "solidity",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "javascript",
+      "current_freq": 14,
+      "prev_freq": 14,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "css",
+      "current_freq": 3,
+      "prev_freq": 3,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "git",
+      "current_freq": 51,
+      "prev_freq": 51,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "laravel",
+      "current_freq": 4,
+      "prev_freq": 4,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "nodejs",
+      "current_freq": 3,
+      "prev_freq": 3,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "react",
+      "current_freq": 6,
+      "prev_freq": 6,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "mysql",
+      "current_freq": 9,
+      "prev_freq": 9,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "headless cms",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "социальная ответственность ии",
+      "current_freq": 10,
+      "prev_freq": 10,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "typescript",
+      "current_freq": 6,
+      "prev_freq": 6,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "isolation forest",
+      "current_freq": 3,
+      "prev_freq": 3,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "sql оптимизация",
+      "current_freq": 25,
+      "prev_freq": 25,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "1c документооборот",
+      "current_freq": 52,
+      "prev_freq": 52,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "планирование задач",
+      "current_freq": 16,
+      "prev_freq": 16,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "jenkins",
+      "current_freq": 6,
+      "prev_freq": 6,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "github",
+      "current_freq": 4,
+      "prev_freq": 4,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "gitlab",
+      "current_freq": 18,
+      "prev_freq": 18,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "llm",
+      "current_freq": 5,
+      "prev_freq": 5,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "jira",
+      "current_freq": 12,
+      "prev_freq": 12,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "байесовские оценки",
       "current_freq": 1,
       "prev_freq": 1,
       "change_pct": 0.0,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "коммуникация",
+      "current_freq": 32,
+      "prev_freq": 32,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "бизнес-аналитика ии",
+      "current_freq": 9,
+      "prev_freq": 9,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "go",
+      "current_freq": 9,
+      "prev_freq": 9,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "rag",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "1c erp",
+      "current_freq": 32,
+      "prev_freq": 32,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "postgresql",
+      "current_freq": 32,
+      "prev_freq": 32,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "odata",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
       "trend": "rising"
     },
     {
       "skill": "kubernetes",
-      "current_freq": 1,
-      "prev_freq": 1,
+      "current_freq": 4,
+      "prev_freq": 4,
       "change_pct": 0.0,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
       "trend": "rising"
     },
     {
-      "skill": "устойчивость к атакам",
-      "current_freq": 3,
-      "prev_freq": 3,
+      "skill": "docker",
+      "current_freq": 10,
+      "prev_freq": 10,
       "change_pct": 0.0,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "apache kafka",
+      "current_freq": 11,
+      "prev_freq": 11,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "java",
+      "current_freq": 9,
+      "prev_freq": 9,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
       "trend": "rising"
     },
     {
       "skill": "adobe xd",
-      "current_freq": 1,
-      "prev_freq": 1,
+      "current_freq": 4,
+      "prev_freq": 4,
       "change_pct": 0.0,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
       "trend": "rising"
     },
     {
-      "skill": "elasticsearch",
-      "current_freq": 1,
-      "prev_freq": 1,
+      "skill": "figma",
+      "current_freq": 2,
+      "prev_freq": 2,
       "change_pct": 0.0,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
       "trend": "rising"
     },
     {
-      "skill": "паттерны проектирования",
+      "skill": "математическая статистика",
       "current_freq": 1,
       "prev_freq": 1,
       "change_pct": 0.0,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
       "trend": "rising"
     },
     {
-      "skill": "nginx",
+      "skill": "теория вероятностей",
       "current_freq": 1,
       "prev_freq": 1,
       "change_pct": 0.0,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "анализ данных",
+      "current_freq": 14,
+      "prev_freq": 14,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "service mesh (istio, linkerd)",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "интеграция знаний",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "кооперативные агенты",
+      "current_freq": 4,
+      "prev_freq": 4,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "uml",
+      "current_freq": 7,
+      "prev_freq": 7,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "csharp",
+      "current_freq": 6,
+      "prev_freq": 6,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "исследования в ml",
+      "current_freq": 4,
+      "prev_freq": 4,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "предварительный анализ данных",
+      "current_freq": 6,
+      "prev_freq": 6,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "анализ требований",
+      "current_freq": 7,
+      "prev_freq": 7,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "сетевой анализ",
+      "current_freq": 9,
+      "prev_freq": 9,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "unity",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "nosql",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "pytest",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "безопасность ии",
+      "current_freq": 4,
+      "prev_freq": 4,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "тонкая настройка",
+      "current_freq": 3,
+      "prev_freq": 3,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "dwh",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "apache",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "системное мышление",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "tableau",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "управление рисками ии",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "обработка данных",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "html",
+      "current_freq": 9,
+      "prev_freq": 9,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "веб-аналитика",
+      "current_freq": 4,
+      "prev_freq": 4,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "oauth 2.0",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "vmware",
+      "current_freq": 3,
+      "prev_freq": 3,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "spring cloud",
+      "current_freq": 4,
+      "prev_freq": 4,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "redis",
+      "current_freq": 3,
+      "prev_freq": 3,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "databricks",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "spring boot",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "security assessment",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "websockets",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "prometheus",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "etl",
+      "current_freq": 5,
+      "prev_freq": 5,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "xml schema",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "spa",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "liquibase",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "составление запросов к llm",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "big data",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "matplotlib",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "pyspark",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "scikit-learn",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "pandas",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "hadoop",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "sap (модули)",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "ассоциативные правила",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "atlassian confluence",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "power bi",
+      "current_freq": 3,
+      "prev_freq": 3,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "rl",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "fpga",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "bash",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "ansible",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "управление качеством данных",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "mongodb",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "vue",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "gpt",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "этика ии",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "этика разработки",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "data science",
+      "current_freq": 3,
+      "prev_freq": 3,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "swagger",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "методы оптимизации",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "hibernate",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "матрица ошибок",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "прогнозирование временных рядов",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "моделирование угроз ии",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "hyper-v",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "react native",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "data processing",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "grpc",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "kotlin",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "деревья решений",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "soft skills",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "статистическое моделирование",
+      "current_freq": 2,
+      "prev_freq": 2,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "net core",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "vue.js",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "smote",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "redux",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "нагрузочное тестирование",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
+      "trend": "rising"
+    },
+    {
+      "skill": "powershell",
+      "current_freq": 1,
+      "prev_freq": 1,
+      "change_pct": 0.0,
+      "prev_label": "2026-06-01",
       "trend": "rising"
     }
   ],
   "falling": [
     {
-      "skill": "проектирование restful api",
-      "current_freq": 1,
-      "prev_freq": 12,
-      "change_pct": -91.7,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "роботы с ии",
+      "skill": "гис",
       "current_freq": 2,
-      "prev_freq": 23,
-      "change_pct": -91.3,
-      "prev_label": "2026-05-27",
+      "prev_freq": 80,
+      "change_pct": -97.5,
+      "prev_label": "2026-06-01",
       "trend": "falling"
     },
     {
-      "skill": "управление проектами ии",
+      "skill": "обучение с учителем",
+      "current_freq": 4,
+      "prev_freq": 56,
+      "change_pct": -92.9,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "проектирование restful api",
+      "current_freq": 3,
+      "prev_freq": 40,
+      "change_pct": -92.5,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "администрирование linux",
       "current_freq": 1,
       "prev_freq": 8,
       "change_pct": -87.5,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
       "trend": "falling"
     },
     {
-      "skill": "c",
+      "skill": "теория случайных процессов",
       "current_freq": 2,
-      "prev_freq": 14,
+      "prev_freq": 15,
+      "change_pct": -86.7,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "ms sql server",
+      "current_freq": 1,
+      "prev_freq": 7,
       "change_pct": -85.7,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "дисперсионный анализ",
+      "current_freq": 1,
+      "prev_freq": 6,
+      "change_pct": -83.3,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "gdpr для ии",
+      "current_freq": 2,
+      "prev_freq": 12,
+      "change_pct": -83.3,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "тестирование производительности",
+      "current_freq": 1,
+      "prev_freq": 6,
+      "change_pct": -83.3,
+      "prev_label": "2026-06-01",
       "trend": "falling"
     },
     {
       "skill": "атаки на модели",
-      "current_freq": 3,
-      "prev_freq": 18,
+      "current_freq": 1,
+      "prev_freq": 6,
       "change_pct": -83.3,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
       "trend": "falling"
     },
     {
-      "skill": "тестирование на проникновение ии",
+      "skill": "ml архитектура",
       "current_freq": 1,
       "prev_freq": 5,
       "change_pct": -80.0,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
       "trend": "falling"
     },
     {
-      "skill": "word embeddings",
-      "current_freq": 2,
+      "skill": "sql запросы",
+      "current_freq": 1,
+      "prev_freq": 4,
+      "change_pct": -75.0,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "1c зарплата и управление персоналом",
+      "current_freq": 50,
+      "prev_freq": 170,
+      "change_pct": -70.6,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "windows forms",
+      "current_freq": 4,
+      "prev_freq": 11,
+      "change_pct": -63.6,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "генерация синтетических данных",
+      "current_freq": 3,
       "prev_freq": 7,
-      "change_pct": -71.4,
-      "prev_label": "2026-05-27",
+      "change_pct": -57.1,
+      "prev_label": "2026-06-01",
       "trend": "falling"
     },
     {
-      "skill": "защита от злоупотреблений ии",
-      "current_freq": 2,
-      "prev_freq": 7,
-      "change_pct": -71.4,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "cpp для встроенных систем",
-      "current_freq": 1,
-      "prev_freq": 3,
-      "change_pct": -66.7,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "понимание ролей",
-      "current_freq": 1,
-      "prev_freq": 3,
-      "change_pct": -66.7,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "работа в команде",
-      "current_freq": 5,
-      "prev_freq": 13,
-      "change_pct": -61.5,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "основы глубокого обучения",
-      "current_freq": 1,
-      "prev_freq": 2,
-      "change_pct": -50.0,
-      "prev_label": "2026-05-27",
+      "skill": "глубокое обучение с подкреплением",
+      "current_freq": 4,
+      "prev_freq": 9,
+      "change_pct": -55.6,
+      "prev_label": "2026-06-01",
       "trend": "falling"
     },
     {
       "skill": "rest api",
-      "current_freq": 3,
-      "prev_freq": 6,
+      "current_freq": 7,
+      "prev_freq": 15,
+      "change_pct": -53.3,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "тестирование по",
+      "current_freq": 13,
+      "prev_freq": 26,
       "change_pct": -50.0,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "lstm",
+      "current_freq": 1,
+      "prev_freq": 2,
+      "change_pct": -50.0,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "r",
+      "current_freq": 59,
+      "prev_freq": 112,
+      "change_pct": -47.3,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "agile",
+      "current_freq": 6,
+      "prev_freq": 9,
+      "change_pct": -33.3,
+      "prev_label": "2026-06-01",
       "trend": "falling"
     },
     {
       "skill": "поиск аномалий",
-      "current_freq": 2,
-      "prev_freq": 4,
-      "change_pct": -50.0,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "css",
-      "current_freq": 1,
-      "prev_freq": 2,
-      "change_pct": -50.0,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "администрирование 1с",
-      "current_freq": 2,
-      "prev_freq": 4,
-      "change_pct": -50.0,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "laravel",
-      "current_freq": 1,
-      "prev_freq": 2,
-      "change_pct": -50.0,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "деревья решений",
-      "current_freq": 1,
-      "prev_freq": 2,
-      "change_pct": -50.0,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "развёртывание бд в k8s",
-      "current_freq": 2,
-      "prev_freq": 4,
-      "change_pct": -50.0,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "текстовая аналитика",
-      "current_freq": 1,
-      "prev_freq": 2,
-      "change_pct": -50.0,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "gitlab",
-      "current_freq": 1,
-      "prev_freq": 2,
-      "change_pct": -50.0,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "react",
-      "current_freq": 1,
-      "prev_freq": 2,
-      "change_pct": -50.0,
-      "prev_label": "2026-05-27",
-      "trend": "falling"
-    },
-    {
-      "skill": "git",
       "current_freq": 6,
-      "prev_freq": 11,
-      "change_pct": -45.5,
-      "prev_label": "2026-05-27",
+      "prev_freq": 9,
+      "change_pct": -33.3,
+      "prev_label": "2026-06-01",
       "trend": "falling"
     },
     {
-      "skill": "учет ролевых особенностей",
-      "current_freq": 5,
-      "prev_freq": 8,
-      "change_pct": -37.5,
-      "prev_label": "2026-05-27",
+      "skill": "системный анализ",
+      "current_freq": 19,
+      "prev_freq": 28,
+      "change_pct": -32.1,
+      "prev_label": "2026-06-01",
       "trend": "falling"
     },
     {
       "skill": "erp",
-      "current_freq": 15,
-      "prev_freq": 21,
-      "change_pct": -28.6,
-      "prev_label": "2026-05-27",
+      "current_freq": 76,
+      "prev_freq": 110,
+      "change_pct": -30.9,
+      "prev_label": "2026-06-01",
       "trend": "falling"
     },
     {
-      "skill": "docker",
+      "skill": "ms excel",
+      "current_freq": 19,
+      "prev_freq": 26,
+      "change_pct": -26.9,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "cpp",
       "current_freq": 4,
       "prev_freq": 5,
       "change_pct": -20.0,
-      "prev_label": "2026-05-27",
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "работа в команде",
+      "current_freq": 16,
+      "prev_freq": 20,
+      "change_pct": -20.0,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "ros",
+      "current_freq": 6,
+      "prev_freq": 7,
+      "change_pct": -14.3,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "1c управление производственным предприятием",
+      "current_freq": 26,
+      "prev_freq": 28,
+      "change_pct": -7.1,
+      "prev_label": "2026-06-01",
+      "trend": "falling"
+    },
+    {
+      "skill": "постановка задач разработчикам",
+      "current_freq": 33,
+      "prev_freq": 35,
+      "change_pct": -5.7,
+      "prev_label": "2026-06-01",
       "trend": "falling"
     }
   ]

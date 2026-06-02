@@ -101,8 +101,11 @@ async def run_startup(app):
                     detailed.append(v)
                     continue
                 try:
-                    det = hh.get_vacancy_details(str(vid))
-                    detailed.append(det or v)
+                    match hh.get_vacancy_details(str(vid)):
+                        case Ok(det):
+                            detailed.append(det)
+                        case Err(_):
+                            detailed.append(v)
                 except Exception:
                     detailed.append(v)
                 time.sleep(config.REQUEST_DELAY)

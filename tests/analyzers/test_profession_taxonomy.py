@@ -466,12 +466,12 @@ class TestProfessionTaxonomy:
     def test_init_invalid_json(self, tmp_path):
         p = tmp_path / "bad.json"
         p.write_text("{invalid", encoding="utf-8")
-        with pytest.raises(json.JSONDecodeError):
-            ProfessionTaxonomy(
-                taxonomy_path=p,
-                domain_map_path=tmp_path / "nope.json",
-                krm_mapping_path=tmp_path / "nope.json",
-            )
+        pt = ProfessionTaxonomy(
+            taxonomy_path=p,
+            domain_map_path=tmp_path / "nope.json",
+            krm_mapping_path=tmp_path / "nope.json",
+        )
+        assert pt._taxonomy == {"professions": {}, "profile_targets": {}}
 
 
 # ========================================================================

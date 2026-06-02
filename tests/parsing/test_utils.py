@@ -5,7 +5,7 @@ from collections import Counter
 from unittest.mock import MagicMock, patch
 import pytest
 
-from src import config
+from src import Ok, config
 from src.parsing import utils as parsing_utils
 from src import utils as base_utils
 
@@ -96,7 +96,7 @@ class TestCollectVacanciesMultiple:
     def test_collect_vacancies_multiple(self):
         mock_hh_api = MagicMock()
         mock_hh_api.last_response = {"found": 10, "pages": 1}
-        mock_hh_api.search_vacancies.return_value = [{"id": "1"}, {"id": "2"}]
+        mock_hh_api.search_vacancies.return_value = Ok([{"id": "1"}, {"id": "2"}])
         with patch("time.sleep", return_value=None):
             vacs = utils.collect_vacancies_multiple(
                 mock_hh_api,
@@ -281,7 +281,7 @@ def test_collect_vacancies_multiple_large_found(monkeypatch):
     """Строки 166, 168-192: разбивка по датам при >2000 вакансий"""
     mock_hh_api = MagicMock()
     mock_hh_api.last_response = {"found": 3000, "pages": 50}
-    mock_hh_api.search_vacancies.return_value = [{"id": f"{i}"} for i in range(10)]
+    mock_hh_api.search_vacancies.return_value = Ok([{"id": f"{i}"} for i in range(10)])
     monkeypatch.setattr(utils, "date_chunks", lambda days, chunk_size: [(100, 200), (200, 300)])
     with patch("time.sleep", return_value=None):
         vacs = utils.collect_vacancies_multiple(
@@ -345,7 +345,7 @@ def test_collect_vacancies_multiple_max_vacancies_limit():
     """Строки 152, 154: ограничение max_vacancies_per_query"""
     mock_hh_api = MagicMock()
     mock_hh_api.last_response = {"found": 1000, "pages": 10}
-    mock_hh_api.search_vacancies.return_value = [{"id": str(i)} for i in range(100)]
+    mock_hh_api.search_vacancies.return_value = Ok([{"id": str(i)} for i in range(100)])
     with patch("time.sleep", return_value=None):
         vacs = utils.collect_vacancies_multiple(
             mock_hh_api, queries=["Python"], area_ids=[1], period_days=30,
@@ -358,7 +358,7 @@ def test_collect_vacancies_multiple_date_chunk_loop():
     """Строки 177, 206-207: разбивка на чанки и выход при достижении лимита"""
     mock_hh_api = MagicMock()
     mock_hh_api.last_response = {"found": 3000, "pages": 50}
-    mock_hh_api.search_vacancies.return_value = [{"id": str(i)} for i in range(50)]
+    mock_hh_api.search_vacancies.return_value = Ok([{"id": str(i)} for i in range(50)])
     with patch("src.parsing.utils.date_chunks", return_value=[(100, 200), (200, 300)]), \
          patch("time.sleep", return_value=None):
         vacs = utils.collect_vacancies_multiple(
@@ -400,7 +400,7 @@ def test_collect_vacancies_multiple_date_limit():
     """Строки 206-207: остановка при достижении лимита в цикле по датам"""
     mock_hh_api = MagicMock()
     mock_hh_api.last_response = {"found": 3000, "pages": 50}
-    mock_hh_api.search_vacancies.return_value = [{"id": str(i)} for i in range(50)]
+    mock_hh_api.search_vacancies.return_value = Ok([{"id": str(i)} for i in range(50)])
     with patch("src.parsing.utils.date_chunks", return_value=[(100, 200), (200, 300)]), \
          patch("time.sleep", return_value=None):
         vacs = utils.collect_vacancies_multiple(

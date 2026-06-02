@@ -146,7 +146,7 @@ def show_context_info() -> None:
     market_file = config.DATA_PROCESSED_DIR / "competency_frequency.json"
     if market_file.exists():
         try:
-            with open(market_file, encoding="utf-8") as f:
+            with open(market_file, encoding="utf-8-sig") as f:
                 market_skills = json.load(f)
             logger.info("market_skills_summary", unique_skills=len(market_skills))
             print(f"Рыночные навыки (частота): {len(market_skills)} уникальных")
@@ -162,7 +162,7 @@ def show_context_info() -> None:
     mapping_file = config.COMPETENCY_MAPPING_FILE
     if mapping_file.exists():
         try:
-            with open(mapping_file, encoding="utf-8") as f:
+            with open(mapping_file, encoding="utf-8-sig") as f:
                 mapping = json.load(f)
             logger.info("competency_mapping_summary", competencies=len(mapping))
             print(f"Компетенций в маппинге: {len(mapping)}")
@@ -176,7 +176,7 @@ def show_context_info() -> None:
     taxonomy_file = config.PROFESSION_TAXONOMY_PATH
     if taxonomy_file.exists():
         try:
-            with open(taxonomy_file, encoding="utf-8") as f:
+            with open(taxonomy_file, encoding="utf-8-sig") as f:
                 tax = json.load(f)
             profs = tax.get("professions", {})
             targets = tax.get("profile_targets", {})
@@ -194,7 +194,7 @@ def show_context_info() -> None:
     print(f"Профили студентов (JSON): {len(students)}")
     for student_file in students:
         try:
-            with open(student_file, encoding="utf-8") as f:
+            with open(student_file, encoding="utf-8-sig") as f:
                 data = json.load(f)
                 skills = data.get("навыки", [])
                 print(f"  - {student_file.stem.replace('_competency', '')}: {len(skills)} компетенций")
@@ -244,7 +244,7 @@ if __name__ == "__main__":
     results_for_charts = {}
     summary_path = config.DATA_RESULT_DIR / "profiles_comparison_summary.json"
     if summary_path.exists():
-        with open(summary_path, encoding="utf-8") as f:
+        with open(summary_path, encoding="utf-8-sig") as f:
             data = json.load(f)
         evaluations = data.get("evaluations", {})
         for profile_name, eval_dict in evaluations.items():

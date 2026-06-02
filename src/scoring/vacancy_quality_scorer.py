@@ -212,8 +212,11 @@ class VacancyQualityScorer:
             snippet_resp = (vacancy.snippet.responsibility or "") if vacancy.snippet else ""
             all_text = f"{description} {snippet_req} {snippet_resp}"
             key_skills_count = len(vacancy.key_skills)
-            parsed = self._skill_parser.parse_vacancy(vacancy)
-            total_skills = len(set(s.text.lower() for s in parsed))
+            match self._skill_parser.parse_vacancy(vacancy):
+                case Ok(parsed):
+                    total_skills = len(set(s.text.lower() for s in parsed))
+                case Err(_):
+                    total_skills = 0
 
             if not description.strip():
                 flags.append(SpamFlag("NO_DESCRIPTION", "No description"))

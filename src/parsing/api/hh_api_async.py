@@ -53,10 +53,11 @@ class HeadHunterAPIAsync:
     ) -> Result[VacancyDetailResponse, ApiError]:
         """Асинхронное получение деталей с валидацией."""
         url = f"{self.BASE_URL}vacancies/{vacancy_id}"
-        raw = await self._request(session, url)
-        if raw is None:
-            return Err(ApiError(message=f"Vacancy {vacancy_id} not found or API error", endpoint=f"vacancies/{vacancy_id}"))
-        return Ok(cast(VacancyDetailResponse, parse_response(raw, VacancyDetailResponse)))
+        match await self._request(session, url):
+            case Ok(raw):
+                return Ok(cast(VacancyDetailResponse, parse_response(raw, VacancyDetailResponse)))
+            case Err(e):
+                return Err(ApiError(message=f"Vacancy {vacancy_id} not found or API error", endpoint=f"vacancies/{vacancy_id}", detail=str(e)))
 
     def _write_progress(self, loaded: int, total: int):
         if not self._progress_file:
@@ -70,22 +71,18 @@ class HeadHunterAPIAsync:
         except Exception:
             pass
 
-    async def _ensure_token(self):
-        """Проверяет и обновляет токен при необходимости."""
+    async def _ensure_token(self) -> Result[bool, ApiError]:
         if self._token and time.time() < self._token_expires_at:
-            return
+            return Ok(True)
 
         async with self._token_lock:
             if self._token and time.time() < self._token_expires_at:
-                return
+                return Ok(True)
 
-            # Проверяем наличие учётных данных как SecretStr
             if not config.HH_CLIENT_ID or not config.HH_CLIENT_SECRET:
-                logger.warning("hh_credentials_not_set_async")
-                return
+                return Err(ApiError(message="HH credentials not set for async", endpoint="token"))
 
             sync_api = HeadHunterAPI()
-            # Безопасно проверяем наличие и валидность токена
             if (
                 hasattr(sync_api, "_token")
                 and sync_api._token
@@ -95,19 +92,16 @@ class HeadHunterAPIAsync:
                 self._token = sync_api._token
                 self._token_expires_at = sync_api._token_expires_at
                 logger.info("token_reused_from_sync_api")
-                return
+                return Ok(True)
 
-            await self._get_app_token()
+            return await self._get_app_token()
 
-    async def _get_app_token(self):
-        """Получает application access token."""
+    async def _get_app_token(self) -> Result[bool, ApiError]:
         url = "https://api.hh.ru/token"
-        # Извлекаем значения из SecretStr
         client_id = config.HH_CLIENT_ID.get_secret_value() if config.HH_CLIENT_ID else None
         client_secret = config.HH_CLIENT_SECRET.get_secret_value() if config.HH_CLIENT_SECRET else None
         if not client_id or not client_secret:
-            logger.warning("hh_credentials_not_set_async_token")
-            return
+            return Err(ApiError(message="HH credentials not set for async token", endpoint="token"))
 
         payload = {
             "grant_type": "client_credentials",
@@ -128,14 +122,12 @@ class HeadHunterAPIAsync:
                     expires_in = token_data.get("expires_in", 86400)
                     self._token_expires_at = time.time() + expires_in - 60
                     logger.info("app_token_obtained_async")
+                    return Ok(True)
                 else:
                     text = await resp.text()
-                    if resp.status == 403:
-                        logger.warning("token_403_working_without_auth")
-                    else:
-                        logger.error("token_request_failed_async", status=resp.status, response=text[:200])
+                    return Err(ApiError(message=f"Token request failed: {resp.status}", status_code=resp.status, endpoint="token", detail=text[:200]))
         except Exception as e:
-            logger.error("token_request_exception_async", error=str(e))
+            return Err(ApiError(message=f"Token request exception: {e}", endpoint="token"))
 
     def _get_headers(self) -> dict[str, str]:
         """Формирует заголовки с авторизацией если токен есть."""
@@ -184,7 +176,11 @@ class HeadHunterAPIAsync:
                     if resp.status == 401:
                         if retries < 1:
                             logger.warning("http_401_refreshing_token_async")
-                            await self._ensure_token()
+                            match await self._ensure_token():
+                                case Err(e):
+                                    logger.error("token_refresh_failed_async", error=str(e))
+                                case _:
+                                    pass
                             return await self._request_result(session, url, params, retries + 1, max_retries)
                         logger.error("http_401_after_token_refresh_async")
                         return Err(ApiError(message="Unauthorized after token refresh", status_code=401, endpoint=url))
@@ -195,7 +191,11 @@ class HeadHunterAPIAsync:
                             logger.warning("http_403_refreshing_token_async")
                             self._token = None
                             self._token_expires_at = 0
-                            await self._ensure_token()
+                            match await self._ensure_token():
+                                case Err(e):
+                                    logger.error("token_refresh_failed_async", error=str(e))
+                                case _:
+                                    pass
                             return await self._request_result(session, url, params, retries + 1, max_retries)
                         logger.error("http_403_after_token_refresh_async")
                         return Err(ApiError(message="Forbidden after token refresh", status_code=403, endpoint=url))
@@ -248,19 +248,21 @@ class HeadHunterAPIAsync:
         params: dict | None = None,
         retries: int = 0,
         max_retries: int = 5,
-    ) -> dict | None:
-        """Legacy: обёртка над _request_result для обратной совместимости."""
-        return (await self._request_result(session, url, params, retries, max_retries)).ok()
+    ) -> Result[dict, ApiError]:
+        return await self._request_result(session, url, params, retries, max_retries)
 
-    async def get_vacancy_details_async(self, session: aiohttp.ClientSession, vacancy_id: str) -> dict | None:
-        """Получение деталей одной вакансии асинхронно."""
+    async def get_vacancy_details_async(self, session: aiohttp.ClientSession, vacancy_id: str) -> Result[dict, ApiError]:
         url = f"{self.BASE_URL}vacancies/{vacancy_id}"
         return await self._request(session, url)
 
-    async def get_vacancies_details_batch_validated(self, vacancy_ids: list[str]) -> list[VacancyDetailResponse]:
+    async def get_vacancies_details_batch_validated(self, vacancy_ids: list[str]) -> Result[list[VacancyDetailResponse], ApiError]:
         if not vacancy_ids:
-            return []
-        await self._ensure_token()
+            return Ok([])
+        match await self._ensure_token():
+            case Err(e):
+                logger.warning("token_not_available", error=str(e))
+            case _:
+                pass
         logger.info("async_validated_batch_started", total=len(vacancy_ids))
         all_results = []
         total = len(vacancy_ids)
@@ -278,7 +280,6 @@ class HeadHunterAPIAsync:
                             logger.debug("vacancy_validated_skipped", error=str(e))
                         case e if isinstance(e, Exception):
                             logger.debug("vacancy_exception_skipped", error=str(e))
-            # Прогресс
             logger.info(
                 "async_validated_batch_progress",
                 done=len(all_results),
@@ -288,10 +289,9 @@ class HeadHunterAPIAsync:
             if i + batch_size < total:
                 await asyncio.sleep(1)
         logger.info("async_validated_batch_completed", loaded=len(all_results))
-        return all_results
+        return Ok(all_results)
 
-    def get_vacancies_details_sync_validated(self, vacancy_ids: list[str]) -> list[VacancyDetailResponse]:
-        """Синхронная обёртка для пакетной валидированной загрузки."""
+    def get_vacancies_details_sync_validated(self, vacancy_ids: list[str]) -> Result[list[VacancyDetailResponse], ApiError]:
         try:
             loop = asyncio.get_event_loop()
             if loop.is_closed():
@@ -299,15 +299,20 @@ class HeadHunterAPIAsync:
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        return loop.run_until_complete(self.get_vacancies_details_batch_validated(vacancy_ids))
+        try:
+            return loop.run_until_complete(self.get_vacancies_details_batch_validated(vacancy_ids))
+        except Exception as e:
+            return Err(ApiError(message="Sync validated batch failed", endpoint="vacancies", detail=str(e)))
 
-    async def get_vacancies_details_batch(self, vacancy_ids: list[str]) -> list[dict]:
-        """Загружает детали массива вакансий асинхронно с пакетной обработкой."""
+    async def get_vacancies_details_batch(self, vacancy_ids: list[str]) -> Result[list[dict], ApiError]:
         if not vacancy_ids:
-            logger.warning("empty_vacancy_ids_batch")
-            return []
+            return Ok([])
 
-        await self._ensure_token()
+        match await self._ensure_token():
+            case Err(e):
+                logger.warning("token_not_available_batch", error=str(e))
+            case _:
+                pass
 
         self._write_progress(0, len(vacancy_ids))
         logger.info("async_batch_loading_started", total=len(vacancy_ids), max_concurrent=self.max_concurrent)
@@ -325,49 +330,31 @@ class HeadHunterAPIAsync:
 
             async with aiohttp.ClientSession() as session:
                 tasks = [self.get_vacancy_details_async(session, vid) for vid in batch]
-
                 results = await asyncio.gather(*tasks, return_exceptions=True)
-
                 for r in results:
-                    if r is not None and not isinstance(r, Exception):
-                        all_results.append(r)
-                    elif isinstance(r, Exception):
-                        logger.debug("vacancy_skipped_due_to_error", error=str(r))
+                    match r:
+                        case Ok(d):
+                            all_results.append(d)
+                        case Err(e):
+                            logger.debug("vacancy_skipped_due_to_error", error=str(e))
+                        case _:
+                            pass
 
             self._write_progress(len(all_results), len(vacancy_ids))
             logger.info("batch_progress", loaded=len(all_results), total=len(vacancy_ids))
-            logger.debug(
-                "batch_stats",
-                success=self.stats["success"],
-                forbidden=self.stats["403_errors"],
-                not_found=self.stats["404_errors"],
-                rate_limited=self.stats["429_errors"],
-                timeouts=self.stats["timeouts"],
-            )
 
             if i + self.batch_size < len(vacancy_ids):
                 await asyncio.sleep(1)
 
-        success_rate = (len(all_results) / len(vacancy_ids)) * 100 if vacancy_ids else 0
         logger.info(
             "async_batch_loading_completed",
             loaded=len(all_results),
             total=len(vacancy_ids),
-            success_rate=round(success_rate, 1),
+            success_rate=round((len(all_results) / len(vacancy_ids)) * 100, 1) if vacancy_ids else 0,
         )
-        logger.info(
-            "async_batch_final_stats",
-            success=self.stats["success"],
-            forbidden=self.stats["403_errors"],
-            not_found=self.stats["404_errors"],
-            rate_limited=self.stats["429_errors"],
-            timeouts=self.stats["timeouts"],
-        )
+        return Ok(all_results)
 
-        return all_results
-
-    def get_vacancies_details_sync(self, vacancy_ids: list[str]) -> list[dict]:
-        """Синхронная обёртка для асинхронной загрузки."""
+    def get_vacancies_details_sync(self, vacancy_ids: list[str]) -> Result[list[dict], ApiError]:
         try:
             loop = asyncio.get_event_loop()
             if loop.is_closed():
@@ -375,5 +362,7 @@ class HeadHunterAPIAsync:
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self.get_vacancies_details_batch(vacancy_ids))
+        try:
+            return loop.run_until_complete(self.get_vacancies_details_batch(vacancy_ids))
+        except Exception as e:
+            return Err(ApiError(message="Sync batch failed", endpoint="vacancies", detail=str(e)))

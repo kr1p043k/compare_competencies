@@ -119,13 +119,16 @@ class ProfileEvaluator:
 
         # === 2. Cluster Context + Relevance ===
         target_level = getattr(student, "target_level", ExperienceLevel.MIDDLE)
-        cluster_context = self._get_cluster_context(student, target_level)
-
-        for skill, metric in metrics.items():
-            if cluster_context is not None and skill in cluster_context.get("skills", {}):
-                metric.cluster_relevance = cluster_context["skills"][skill]
-            else:
-                metric.cluster_relevance = 0.15 * getattr(metric, "cluster_relevance", 0.0)
+        match self._get_cluster_context(student, target_level):
+            case Ok(cluster_context):
+                cluster_context_val = cluster_context
+                for skill, metric in metrics.items():
+                    if skill in cluster_context.get("skills", {}):
+                        metric.cluster_relevance = cluster_context["skills"][skill]
+                    else:
+                        metric.cluster_relevance = 0.15 * getattr(metric, "cluster_relevance", 0.0)
+            case Err(_):
+                cluster_context_val = None
 
         # === 3. Domain-level coverage ===
         match self.domain_analyzer.compute_domain_coverage(user_skills_list):
@@ -297,7 +300,7 @@ class ProfileEvaluator:
             avg_gap=round(avg_gap * 100, 2),
             skill_metrics={s: asdict(m) for s, m in metrics.items()},
             domain_coverage={d: asdict(dm) for d, dm in domain_coverages.items()},
-            cluster_context=cluster_context,
+            cluster_context=cluster_context_val,
             top_recommendations=sorted(final_scores.items(), key=lambda x: x[1], reverse=True)[:15],
             gaps=gaps,
             level_weights_used=level_weights,
@@ -312,34 +315,31 @@ class ProfileEvaluator:
         result = eval_result.model_dump()
         return Ok(result)
 
-    def _get_cluster_context(self, student: StudentProfile, target_level: str) -> dict | None:
+    def _get_cluster_context(self, student: StudentProfile, target_level: str) -> Result[dict, DomainError]:
         if not self.use_clustering:
-            return None
+            return Err(DomainError(message="Clustering disabled"))
         if target_level not in self.cluster_models_loaded or not self.cluster_models_loaded[target_level]:
-            logger.info("clusterer_not_trained_for_level", level=target_level)
-            return None
+            return Err(DomainError(message=f"Clusterer not trained for level {target_level}"))
 
-        try:
-            student_emb = self._get_or_compute_student_embedding(student)
+        match self._get_or_compute_student_embedding(student):
+            case Ok(student_emb):
+                pass
+            case Err(e):
+                return Err(e)
 
-            match self.clusterer.get_cluster_context(
-                profile_embedding=student_emb, level=target_level, top_k_clusters=5, top_k_skills_per_cluster=25
-            ):
-                case Ok(val):
-                    cluster_context = val
-                case Err(err):
-                    logger.warning("cluster_context_failed", error=str(err))
-                    return None
-            logger.info(
-                "cluster_context_obtained",
-                level=target_level,
-                total_skills=cluster_context["total_skills_in_context"],
-                clusters_count=len(cluster_context.get("closest_clusters", [])),
-            )
-            return cluster_context
-        except Exception as e:
-            logger.warning("cluster_context_failed", error=str(e))
-            return None
+        match self.clusterer.get_cluster_context(
+            profile_embedding=student_emb, level=target_level, top_k_clusters=5, top_k_skills_per_cluster=25
+        ):
+            case Ok(cluster_context):
+                logger.info(
+                    "cluster_context_obtained",
+                    level=target_level,
+                    total_skills=cluster_context["total_skills_in_context"],
+                    clusters_count=len(cluster_context.get("closest_clusters", [])),
+                )
+                return Ok(cluster_context)
+            case Err(err):
+                return Err(DomainError(message="Cluster context failed", detail=str(err)))
 
     def _get_or_create_comparator(self, target_level: str, level_analyzer=None) -> CompetencyComparator:
         if target_level in self.comparators:
@@ -390,12 +390,14 @@ class ProfileEvaluator:
     def _get_student_cache_path(self, student: StudentProfile) -> Path:
         return config.STUDENT_EMB_CACHE_DIR / f"{student.profile_name}_embedding.json"
 
-    def _load_cached_embedding(self, student: StudentProfile) -> np.ndarray | None:
+    def _load_cached_embedding(self, student: StudentProfile) -> Result[np.ndarray, DomainError]:
         cache_path = self._get_student_cache_path(student)
         data = atomic_read_json(cache_path)
-        if data and data.get("hash") == self._compute_student_hash(student):
-            return np.array(data["embedding"])
-        return None
+        if data is None:
+            return Err(DomainError(message="Cache file not found or invalid"))
+        if data.get("hash") == self._compute_student_hash(student):
+            return Ok(np.array(data["embedding"]))
+        return Err(DomainError(message="Cache hash mismatch"))
 
     def _save_embedding_cache(self, student: StudentProfile, embedding: np.ndarray) -> None:
         cache_path = self._get_student_cache_path(student)
@@ -408,11 +410,13 @@ class ProfileEvaluator:
         if manifest.save().is_err():
             logger.warning("student_embedding_manifest_save_failed", profile=student.profile_name)
 
-    def _get_or_compute_student_embedding(self, student: StudentProfile) -> np.ndarray:
-        cached = self._load_cached_embedding(student)
-        if cached is not None:
-            logger.debug("student_embedding_loaded_from_cache", profile=student.profile_name)
-            return cached
+    def _get_or_compute_student_embedding(self, student: StudentProfile) -> Result[np.ndarray, DomainError]:
+        match self._load_cached_embedding(student):
+            case Ok(cached):
+                logger.debug("student_embedding_loaded_from_cache", profile=student.profile_name)
+                return Ok(cached)
+            case Err(_):
+                pass
 
         embedding_model = get_embedding_model()
         if not student.skills:
@@ -422,4 +426,4 @@ class ProfileEvaluator:
             embs = embedding_model.encode(student.skills, convert_to_numpy=True, show_progress_bar=False)
             emb = np.mean(embs, axis=0)
         self._save_embedding_cache(student, emb)
-        return emb
+        return Ok(emb)

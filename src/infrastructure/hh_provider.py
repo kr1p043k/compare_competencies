@@ -18,8 +18,13 @@ class HHVacancyProvider:
 
     def search(self, query: str, area: int, period: int, pages: int) -> Result[list[dict], DataSourceError]:
         try:
-            vacancies = self._api.search_vacancies(text=query, area=area, period_days=period, max_pages=pages)
-            return Ok(vacancies) if vacancies else Err(DataSourceError(message=f"no vacancies for {query}"))
+            match self._api.search_vacancies(text=query, area=area, period_days=period, max_pages=pages):
+                case Ok(vacancies):
+                    if vacancies:
+                        return Ok(vacancies)
+                    return Err(DataSourceError(message=f"no vacancies for {query}"))
+                case Err(e):
+                    return Err(DataSourceError(message=f"search failed: {e}"))
         except Exception as e:
             return Err(DataSourceError(message=f"search failed: {e}"))
 

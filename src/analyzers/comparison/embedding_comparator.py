@@ -165,10 +165,10 @@ class EmbeddingComparator:
                 self._outer = outer
             def compare(self, ss, ms):
                 if self._outer.market_embeddings is None:
-                    return {"score": 0.0, "matches": []}
+                    return Ok({"score": 0.0, "matches": []})
                 student_embs = self._outer.embed_skills(ss)
                 if len(student_embs) == 0:
-                    return {"score": 0.0, "matches": []}
+                    return Ok({"score": 0.0, "matches": []})
                 sims = cosine_similarity(student_embs, self._outer.market_embeddings)
                 best = {}
                 for i in range(len(ss)):
@@ -179,8 +179,8 @@ class EmbeddingComparator:
                     [{"skill": k, "similarity": v} for k, v in best.items()],
                     key=lambda x: x["similarity"], reverse=True,
                 )[:15]
-                return dict(score=round(avg, 4), weighted_coverage=round(avg, 4),
-                            avg_similarity=round(avg, 4), matches=matches, missing=[])
+                return Ok(dict(score=round(avg, 4), weighted_coverage=round(avg, 4),
+                            avg_similarity=round(avg, 4), matches=matches, missing=[]))
 
         total_extra = sum(w for _, w in extra_engines.values()) or 1.0
         engines: dict[str, tuple[SimilarityEngine, float]] = {

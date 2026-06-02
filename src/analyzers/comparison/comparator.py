@@ -161,3 +161,9 @@ class CompetencyComparator:
             total_weight += weight
 
         return matched / total_weight if total_weight > 0 else 0.0
+
+    def weighted_coverage_result(self, student_skills: list[str], weights: dict[str, float], use_hybrid: bool = True) -> Result[float, DomainError]:
+        try:
+            return Ok(self.weighted_coverage(student_skills, weights, use_hybrid))
+        except Exception as e:
+            return Err(DomainError(message="Weighted coverage calculation failed", detail=str(e)))

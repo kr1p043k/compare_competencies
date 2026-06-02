@@ -165,14 +165,18 @@ class HhDataSource(DataSourceProtocol):
             else:
                 total_vacs = len(basic_vacancies)
                 use_async, async_workers, reason = get_load_mode(total_vacs, self.args, logger)
-                vacancies_to_process = load_vacancies_details(
+                match load_vacancies_details(
                     basic_vacancies=basic_vacancies,
                     hh_api=hh_api,
                     use_async=use_async,
                     async_workers=async_workers,
                     parser=parser,
                     log=logger,
-                )
+                ):
+                    case Ok(vacancies_to_process):
+                        pass
+                    case Err(e):
+                        return Err(DataSourceError(message=str(e)))
                 save_detailed_vacancies(vacancies_to_process, logger)
 
             if self.args.show_vacancies:
@@ -180,12 +184,16 @@ class HhDataSource(DataSourceProtocol):
 
         else:
             console_info(f"Поиск: '{self.args.query}', регион {self.args.area_id}")
-            basic_vacancies = hh_api.search_vacancies(
+            match hh_api.search_vacancies(
                 text=self.args.query,
                 area=self.args.area_id,
                 period_days=self.args.period,
                 max_pages=self.args.max_pages,
-            )
+            ):
+                case Ok(basic_vacancies):
+                    pass
+                case Err(e):
+                    return Err(DataSourceError(message=f"❌ Ошибка поиска вакансий: {e}"))
 
             if not basic_vacancies:
                 return Err(DataSourceError(message="❌ Не найдено вакансий."))
@@ -199,14 +207,18 @@ class HhDataSource(DataSourceProtocol):
             else:
                 total_vacs = len(basic_vacancies)
                 use_async, async_workers, reason = get_load_mode(total_vacs, self.args, logger)
-                vacancies_to_process = load_vacancies_details(
+                match load_vacancies_details(
                     basic_vacancies=basic_vacancies,
                     hh_api=hh_api,
                     use_async=use_async,
                     async_workers=async_workers,
                     parser=parser,
                     log=logger,
-                )
+                ):
+                    case Ok(vacancies_to_process):
+                        pass
+                    case Err(e):
+                        return Err(DataSourceError(message=str(e)))
                 save_detailed_vacancies(vacancies_to_process, logger)
 
         return Ok((vacancies_to_process, parser))

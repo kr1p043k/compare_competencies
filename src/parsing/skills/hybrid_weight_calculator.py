@@ -4,7 +4,8 @@ import numpy as np
 import structlog
 import torch
 
-from src import Ok, config
+from src import Err, Ok, Result, config
+from src.errors import DomainError
 from src.parsing.skills.skill_embedding_cache import SkillEmbeddingCache
 
 logger = structlog.get_logger(__name__)
@@ -15,29 +16,29 @@ class HybridWeightCalculator:
         self.bm25 = bm25_ranker
         self.cache = embedding_cache or SkillEmbeddingCache()
 
-    def calculate(self, vacancies: list) -> dict[str, float]:
+    def calculate(self, vacancies: list) -> Result[dict[str, float], DomainError]:
         match self.bm25.calculate_weights(vacancies):
             case Ok(w):
                 bm25_weights = w
-            case _:
-                return {}
+            case Err(err):
+                return Err(DomainError(message="BM25 weight calculation failed", detail=str(err)))
 
         if not bm25_weights:
-            return {}
+            return Ok({})
 
         if self.cache.model is None:
             logger.warning("Эмбеддинги недоступны — только BM25")
-            return self._norm(bm25_weights)
+            return Ok(self._norm(bm25_weights))
 
         try:
             skills = list(bm25_weights.keys())
             emb_dict = self.cache.get_embeddings(skills)
         except Exception as e:
             logger.warning("embedding_failed_fallback_to_bm25", error=str(e))
-            return self._norm(bm25_weights)
+            return Ok(self._norm(bm25_weights))
 
         if len(emb_dict) < 10:
-            return self._norm(bm25_weights)
+            return Ok(self._norm(bm25_weights))
 
         skill_list = list(emb_dict.keys())
         embs = np.array([emb_dict[s] for s in skill_list], dtype=np.float32)
@@ -72,7 +73,7 @@ class HybridWeightCalculator:
                 bm25_only += 1
 
         logger.info(f"Гибридные веса готовы: {len(hybrid)} навыков (bm25_only={bm25_only})")
-        return hybrid
+        return Ok(hybrid)
 
     @staticmethod
     def _norm(w: dict[str, float]) -> dict[str, float]:

@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from src.models.vacancy import Area, Employer, KeySkill, Vacancy
+from src import Ok, Err
 from src.parsing.skills.skill_parser import ExtractedSkill, SkillSource
 from src.parsing.skills.vacancy_parser import VacancyParser
 
@@ -23,14 +24,18 @@ def parser_with_mocks():
 
 class TestExtractSkillsFromDescription:
     def test_empty_description(self, parser_with_mocks):
-        assert parser_with_mocks.extract_skills_from_description("") == []
+        result = parser_with_mocks.extract_skills_from_description("")
+        assert result.is_ok()
+        assert result.unwrap() == []
 
     def test_calls_parser(self, parser_with_mocks):
         parser_with_mocks.skill_parser._extract_from_text.return_value = [
             ExtractedSkill("python", SkillSource.DESCRIPTION),
             ExtractedSkill("sql", SkillSource.DESCRIPTION),
         ]
-        skills = parser_with_mocks.extract_skills_from_description("Python and SQL")
+        result = parser_with_mocks.extract_skills_from_description("Python and SQL")
+        assert result.is_ok()
+        skills = result.unwrap()
         assert skills == ["python", "sql"]
         parser_with_mocks.skill_parser._extract_from_text.assert_called_once_with(
             "Python and SQL", source=SkillSource.DESCRIPTION
@@ -40,10 +45,10 @@ class TestExtractSkillsFromDescription:
 class TestExtractSkillsFromVacancies:
     def test_integration_with_mocks(self, parser_with_mocks):
         # Настройка моков
-        parser_with_mocks.skill_parser.parse_vacancy.return_value = [
+        parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([
             ExtractedSkill("python", SkillSource.KEY_SKILLS, 1.0),
             ExtractedSkill("sql", SkillSource.DESCRIPTION, 0.9),
-        ]
+        ])
         parser_with_mocks.skill_validator.validate_batch.return_value = (
             ["python", "sql"], [MagicMock(is_valid=True)] * 2
         )
@@ -65,14 +70,15 @@ class TestExtractSkillsFromVacancies:
         vacancies = [vac]
 
         result = parser_with_mocks.extract_skills_from_vacancies(vacancies)
-
-        assert "frequencies" in result
-        assert result["frequencies"]["python"] == 1
-        assert result["frequencies"]["sql"] == 1
+        assert result.is_ok()
+        data = result.unwrap()
+        assert "frequencies" in data
+        assert data["frequencies"]["python"] == 1
+        assert data["frequencies"]["sql"] == 1
 
     def test_validation_thread_pool(self, parser_with_mocks):
         # Навыков >200, должен использоваться ThreadPoolExecutor
-        parser_with_mocks.skill_parser.parse_vacancy.return_value = []
+        parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([])
         # Готовим список навыков
         all_skills = [f"skill_{i}" for i in range(250)]
         parser_with_mocks.skill_validator.validate.return_value = MagicMock(is_valid=True)
@@ -81,15 +87,17 @@ class TestExtractSkillsFromVacancies:
         employer = Employer("1", "Corp")
         vac = Vacancy(id="1", name="Dev", area=area, employer=employer, key_skills=[], description="")
         # Мокаем parse_vacancy, чтобы он вернул 250 ExtractedSkill
-        parser_with_mocks.skill_parser.parse_vacancy.return_value = [
+        parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([
             ExtractedSkill(s, SkillSource.KEY_SKILLS, 1.0) for s in all_skills
-        ]
+        ])
         parser_with_mocks.skill_validator.validate_batch.side_effect = None  # чтобы не сработал
         parser_with_mocks.hybrid_calc.calculate.return_value = {}
         parser_with_mocks.embedding_cache.get_embeddings.return_value = {}
 
         result = parser_with_mocks.extract_skills_from_vacancies([vac])
-        assert "frequencies" in result
+        assert result.is_ok()
+        data = result.unwrap()
+        assert "frequencies" in data
 
 
 class TestSaveMethods:
@@ -124,7 +132,7 @@ class TestStaticMethods:
 
 class TestExcel:
     def test_aggregate_to_dataframe(self, parser_with_mocks):
-        parser_with_mocks.skill_parser.parse_vacancy.return_value = []
+        parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([])
         area = Area(1, "MSK")
         employer = Employer("1", "Corp")
         vac = Vacancy(id="1", name="Dev", area=area, employer=employer,
@@ -143,9 +151,9 @@ class TestExcel:
 
 class TestPrintVacancies:
     def test_print_vacancies_list(self, capsys, parser_with_mocks):
-        parser_with_mocks.skill_parser.parse_vacancy.return_value = [
+        parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([
             ExtractedSkill("python", SkillSource.KEY_SKILLS)
-        ]
+        ])
         area = Area(1, "MSK")
         employer = Employer("1", "Corp")
         vac = Vacancy(id="1", name="Dev", area=area, employer=employer,
@@ -156,7 +164,7 @@ class TestPrintVacancies:
         assert "python" in captured.out.lower()
 
     def test_print_vacancies_list_dict(self, capsys, parser_with_mocks):
-        parser_with_mocks.skill_parser.parse_vacancy.return_value = []
+        parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([])
         parser_with_mocks.print_vacancies_list(
             [{"id": "1", "name": "Job", "employer": {"name": "Corp"}, "area": {"name": "MSK"}, "key_skills": []}]
         )
@@ -165,7 +173,7 @@ class TestPrintVacancies:
 
 def test_extract_skills_from_vacancies_mixed(parser_with_mocks):
     # смесь dict и Vacancy, проверка, что невалидный dict пропускается
-    parser_with_mocks.skill_parser.parse_vacancy.return_value = []
+    parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([])
     parser_with_mocks.skill_validator.validate_batch.return_value = ([], [])
     parser_with_mocks.hybrid_calc.calculate.return_value = {}
     parser_with_mocks.embedding_cache.get_embeddings.return_value = {}
@@ -178,14 +186,16 @@ def test_extract_skills_from_vacancies_mixed(parser_with_mocks):
 
     with patch("src.models.vacancy.Vacancy.from_api", side_effect=[ValueError, vac]):
         result = parser_with_mocks.extract_skills_from_vacancies([invalid_dict, vac])
-    assert "frequencies" in result
+    assert result.is_ok()
+    data = result.unwrap()
+    assert "frequencies" in data
 
 def test_extract_skills_thread_pool_activated(parser_with_mocks, monkeypatch):
     # Более 200 навыков → ThreadPoolExecutor. Нормализация возвращает все навыки без изменений
     monkeypatch.setattr("src.parsing.skills.vacancy_parser.SkillNormalizer.normalize_batch", lambda x: x)
-    parser_with_mocks.skill_parser.parse_vacancy.return_value = [
+    parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([
         ExtractedSkill(f"skill_{i}", SkillSource.KEY_SKILLS, 1.0) for i in range(250)
-    ]
+    ])
     parser_with_mocks.skill_validator.validate.return_value = MagicMock(is_valid=True)
     parser_with_mocks.hybrid_calc.calculate.return_value = {}
     parser_with_mocks.embedding_cache.get_embeddings.return_value = {}
@@ -193,12 +203,14 @@ def test_extract_skills_thread_pool_activated(parser_with_mocks, monkeypatch):
     employer = Employer("1", "Corp")
     vac = Vacancy(id="1", name="Big", area=area, employer=employer, key_skills=[])
     result = parser_with_mocks.extract_skills_from_vacancies([vac])
-    assert "frequencies" in result
-    assert len(result["frequencies"]) == 250
+    assert result.is_ok()
+    data = result.unwrap()
+    assert "frequencies" in data
+    assert len(data["frequencies"]) == 250
 
 def test_aggregate_to_dataframe_with_dict_vacancy(parser_with_mocks):
     """Строки 142-155: обработка словаря вакансии"""
-    parser_with_mocks.skill_parser.parse_vacancy.return_value = []
+    parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([])
     vac_dict = {
         "id": "1",
         "name": "Dev",
@@ -216,7 +228,7 @@ def test_aggregate_to_dataframe_with_dict_vacancy(parser_with_mocks):
 
 def test_aggregate_to_dataframe_missing_employer(parser_with_mocks):
     """Строки 162-163: employer = None в словаре"""
-    parser_with_mocks.skill_parser.parse_vacancy.return_value = []
+    parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([])
     vac_dict = {
             "id": "1",
             "name": "Dev",
@@ -231,7 +243,7 @@ def test_aggregate_to_dataframe_missing_employer(parser_with_mocks):
 
 def test_aggregate_to_dataframe_with_quality_report_spam(parser_with_mocks):
     """Добавление колонок 'Спам' и 'Причина спама' через quality_report"""
-    parser_with_mocks.skill_parser.parse_vacancy.return_value = []
+    parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([])
     vac = {
         "id": "1",
         "name": "Test",
@@ -254,7 +266,7 @@ def test_aggregate_to_dataframe_with_quality_report_spam(parser_with_mocks):
 
 def test_aggregate_to_dataframe_with_quality_report_clean(parser_with_mocks):
     """Чистая вакансия в quality_report — колонка 'Спам' = 'Нет'"""
-    parser_with_mocks.skill_parser.parse_vacancy.return_value = []
+    parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([])
     vac = {
         "id": "1",
         "name": "Test",

@@ -3,6 +3,7 @@ import pytest
 import json
 
 from src.models.vacancy import KeySkill, Snippet, Vacancy
+from src import Ok, Err
 from src.parsing.skills.skill_parser import SkillParser, SkillSource
 from src.parsing.skills.skill_validator import SkillValidator, ValidationReason
 
@@ -13,7 +14,9 @@ class TestSkillParserExtended:
     def test_parse_vacancy_empty_fields(self):
         parser = SkillParser()
         vacancy = Vacancy(id="1", name="Test", area=None, employer=None, key_skills=[], snippet=None, description=None)
-        skills = parser.parse_vacancy(vacancy)
+        result = parser.parse_vacancy(vacancy)
+        assert result.is_ok()
+        skills = result.unwrap()
         assert skills == []
 
     def test_description_html_cleaning(self):
@@ -31,7 +34,9 @@ class TestSkillParserExtended:
             snippet=None,
             description="<p>Знание <b>Python</b> и <i>Django</i></p>",
         )
-        skills = parser.parse_vacancy(vacancy)
+        result = parser.parse_vacancy(vacancy)
+        assert result.is_ok()
+        skills = result.unwrap()
         texts = {s.text.lower() for s in skills}
         assert "python" in texts
         assert "django" in texts
@@ -329,7 +334,9 @@ class TestSkillValidatorExtended:
         parser = SkillParser()
         snippet = Snippet(requirement="Python", responsibility="Django")
         vacancy = Vacancy(id="1", name="Test", area=None, employer=None, key_skills=[], snippet=snippet, description=None)
-        skills = parser.parse_vacancy(vacancy)
+        result = parser.parse_vacancy(vacancy)
+        assert result.is_ok()
+        skills = result.unwrap()
         texts = {s.text.lower() for s in skills}
         assert "python" in texts
         assert "django" in texts
