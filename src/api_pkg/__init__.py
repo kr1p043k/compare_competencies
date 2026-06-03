@@ -144,9 +144,29 @@ def create_app() -> FastAPI:
 
     app.include_router(admin_router)
 
+    from src.api_pkg.routers.forecast import router as forecast_router
+
+    app.include_router(forecast_router)
+
+    from src.api_pkg.routers.auth import router as auth_router
+
+    app.include_router(auth_router)
+
+    from src.api_pkg.routers.teacher import router as teacher_router
+
+    app.include_router(teacher_router)
+
+    from src.api_pkg.routers.student import router as student_router
+
+    app.include_router(student_router)
+
     from src.n8n.webhooks import router as n8n_webhook_router
 
     app.include_router(n8n_webhook_router)
+
+    from src.api_pkg.request_logger import RequestLogMiddleware
+
+    app.add_middleware(RequestLogMiddleware)
 
     from src.n8n.auth import N8NAuthMiddleware
 

@@ -102,7 +102,7 @@ def safe_read_json(filepath: Path):
     try:
         with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
-        if not isinstance(data, list):
+        if not isinstance(data, (list, dict)):
             logger.error("invalid_json_structure", path=str(filepath), type=type(data).__name__)
             return None
         return data

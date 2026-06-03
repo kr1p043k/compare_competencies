@@ -1,0 +1,17 @@
+{
+  "admin": {
+    "password": "admin",
+    "role": "admin",
+    "name": "Администратор"
+  },
+  "prepod": {
+    "password": "prepod",
+    "role": "teacher",
+    "name": "Преподаватель"
+  },
+  "student": {
+    "password": "student",
+    "role": "student",
+    "name": "Студент"
+  }
+}

@@ -625,15 +625,12 @@ def print_top_competencies(comp_counter: Counter, top_n: int = 20) -> None:
         print(f"{i:2}. {comp:<25} {freq:>4} суммарных упоминаний")
 
 
-def date_chunks(days: int, chunk_size: int = 5) -> list[tuple[int, int]]:
-    """
-    Разбивает общий период поиска (в днях) на интервалы по chunk_size дней.
-    Возвращает список кортежей (date_from, date_to) в формате Unix timestamp.
-    """
+def date_chunks(days: int, chunk_size: int = 5) -> list[tuple[str, str]]:
+    """Разбивает период поиска на интервалы. Возвращает (date_from, date_to) в YYYY-MM-DD."""
     end_date = datetime.now()
     chunks = []
     for offset in range(0, days, chunk_size):
         to_date = end_date - timedelta(days=offset)
         from_date = to_date - timedelta(days=min(chunk_size, days - offset))
-        chunks.append((int(from_date.timestamp()), int(to_date.timestamp())))
+        chunks.append((from_date.strftime("%Y-%m-%d"), to_date.strftime("%Y-%m-%d")))
     return chunks

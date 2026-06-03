@@ -24,6 +24,11 @@ import { PipelineProgress } from "./components/PipelineProgress";
 import { DataViewer } from "./components/DataViewer";
 import { RecommendationsReport } from "./components/RecommendationsReport";
 import { PredictionsTab } from "./components/PredictionsTab";
+import { LoginPage } from "./components/LoginPage";
+import { AdminDashboard } from "./components/AdminDashboard";
+import { TeacherDashboard } from "./components/TeacherDashboard";
+import { StudentDashboard } from "./components/StudentDashboard";
+import { useAuth, apiFetch } from "../lib/auth";
 import { initApiLogger } from "../lib/logger";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -39,6 +44,11 @@ import {
   Target,
   Info,
   AlertCircle,
+  LogOut,
+  Shield,
+  GraduationCap,
+  UserCheck,
+  History,
 } from "lucide-react";
 
 const API = "/api";
@@ -282,6 +292,15 @@ export default function App() {
     }
   }
 
+  const { isAuth, login, logout, role, name } = useAuth();
+
+  if (!isAuth) {
+    return <LoginPage onLogin={login} />;
+  }
+
+  const roleIcon = role === "admin" ? <Shield className="size-4" /> : role === "teacher" ? <UserCheck className="size-4" /> : <GraduationCap className="size-4" />;
+  const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : "Студент";
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -302,7 +321,16 @@ export default function App() {
               </div>
             </div>
 
-
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                {roleIcon}
+                <span>{name || roleLabel}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100">{roleLabel}</span>
+              </div>
+              <Button variant="ghost" size="sm" onClick={logout} className="text-gray-500 hover:text-red-600">
+                <LogOut className="size-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -371,10 +399,28 @@ export default function App() {
               <Target className="size-4" />
               Анализ
             </TabsTrigger>
+            {role === "admin" && (
+              <TabsTrigger value="admin" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
+                <Shield className="size-4" />
+                Админ
+              </TabsTrigger>
+            )}
+            {role === "teacher" && (
+              <TabsTrigger value="teacher" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
+                <BarChart3 className="size-4" />
+                Статистика
+              </TabsTrigger>
+            )}
+            {role === "student" && (
+              <TabsTrigger value="student" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
+                <History className="size-4" />
+                Мои запросы
+              </TabsTrigger>
+            )}
           </TabsList>
 
-          {/* Pipeline progress (above tabs, persists across tab switches) */}
-          {pipelineStep && (
+          {/* Pipeline progress (not shown on dashboard tabs) */}
+          {pipelineStep && activeTab === "admin" && (
             <div className="mb-4">
               <PipelineProgress currentStep={pipelineStep} onCancel={cancelPipeline} onRestart={restartPipeline} />
             </div>
@@ -524,12 +570,37 @@ export default function App() {
               pipelineQuery={pipelineQuery}
               pipelineRegions={pipelineRegions}
               analysisData={analysisData}
-              onDataLoaded={(data) => { setAnalysisData(data); setLastResult(data); }}
+              onDataLoaded={(data) => {
+                setAnalysisData(data); setLastResult(data);
+                if (role === "student" && data) {
+                  const vac = typeof data.vacancies_analyzed === "number" ? data.vacancies_analyzed : 0;
+                  apiFetch("/api/student/log-action", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action_type: "analysis", profession: profile, region: pipelineRegions, vacancies_found: vac, result_ref: "" }),
+                  }).catch(() => {});
+                }
+              }}
             />
           </TabsContent>
           <TabsContent value="predictions">
             <PredictionsTab />
           </TabsContent>
+          {role === "admin" && (
+            <TabsContent value="admin">
+              <AdminDashboard />
+            </TabsContent>
+          )}
+          {role === "teacher" && (
+            <TabsContent value="teacher">
+              <TeacherDashboard />
+            </TabsContent>
+          )}
+          {role === "student" && (
+            <TabsContent value="student">
+              <StudentDashboard />
+            </TabsContent>
+          )}
         </Tabs>
 
         <div className="mt-12">

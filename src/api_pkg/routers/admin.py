@@ -5,6 +5,7 @@ import json
 import shutil
 import zipfile
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -16,6 +17,7 @@ from slowapi.util import get_remote_address
 
 from src import config
 from src.parsing.utils import load_it_skills
+from src.api_pkg.request_logger import get_logs, get_logs_by_user
 
 from src.api_pkg import deps
 
@@ -312,3 +314,27 @@ async def export_full_report(request: Request):
         media_type="application/zip",
         headers={"Content-Disposition": 'attachment; filename="full_report.zip"'},
     )
+
+
+@router.get("/api/admin/users")
+@limiter.limit("30/minute")
+async def admin_users(request: Request):
+    users_path = Path(__file__).parent.parent.parent.parent / "users.json"
+    if not users_path.exists():
+        return {"users": []}
+    raw = json.loads(users_path.read_text(encoding="utf-8"))
+    log_counts = get_logs_by_user()
+    users = [
+        {"username": k, "role": v["role"], "name": v["name"], "total_requests": log_counts.get(k, 0)}
+        for k, v in raw.items()
+    ]
+    return {"users": users}
+
+
+@router.get("/api/admin/logs")
+@limiter.limit("30/minute")
+async def admin_logs(request: Request, user: str | None = None, limit: int = 100):
+    if user and user == "all":
+        user = None
+    entries = get_logs(user=user, limit=limit)
+    return {"logs": entries, "total": len(entries)}

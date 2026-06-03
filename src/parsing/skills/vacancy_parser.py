@@ -200,7 +200,9 @@ class VacancyParser:
             try:
                 from src.parsing.skills.skill_normalizer import SkillNormalizer
 
-                all_skills = SkillNormalizer.deduplicate(all_skills)
+                deduped = SkillNormalizer.deduplicate(all_skills)
+                if isinstance(deduped, list):
+                    all_skills = deduped
             except Exception:
                 pass
 
@@ -210,8 +212,8 @@ class VacancyParser:
                 "Регион": area_name,
                 "ID": vac_id,
                 "Зарплата": salary,
-                "Навыков": len(all_skills),
-                "Навыки": ", ".join(all_skills),
+                "Навыков": len(all_skills) if isinstance(all_skills, list) else 0,
+                "Навыки": ", ".join(all_skills) if isinstance(all_skills, list) else "",
             }
 
             if quality_report and vac_id in spam_map:
@@ -268,7 +270,9 @@ class VacancyParser:
             try:
                 from src.parsing.skills.skill_normalizer import SkillNormalizer
 
-                all_skills = SkillNormalizer.deduplicate(all_skills)
+                deduped = SkillNormalizer.deduplicate(all_skills)
+                if isinstance(deduped, list):
+                    all_skills = deduped
             except Exception:
                 pass
 
