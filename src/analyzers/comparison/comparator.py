@@ -56,10 +56,13 @@ class CompetencyComparator:
 
         if self.use_embeddings and self.embedding_comparator:
             all_skills = [skill for vac in vacancies_skills for skill in vac]
-            self.embedding_comparator.build_market_index(all_skills, level=self.level)
-            unique_skills = list(dict.fromkeys(all_skills))
-            self.bm25_engine.fit(unique_skills)
-            logger.info("market_embeddings_and_bm25_built", level=self.level)
+            match self.embedding_comparator.build_market_index(all_skills, level=self.level):
+                case Ok(_):
+                    unique_skills = list(dict.fromkeys(all_skills))
+                    self.bm25_engine.fit(unique_skills)
+                    logger.info("market_embeddings_and_bm25_built", level=self.level)
+                case Err(e):
+                    logger.warning("market_index_build_failed", level=self.level, error=str(e))
         else:
             corpus = [" ".join(skills) for skills in vacancies_skills]
             self.tfidf.fit(corpus)
@@ -81,21 +84,25 @@ class CompetencyComparator:
             return Ok((round(score, 4), round(confidence, 4)))
 
         if self.use_embeddings and self.embedding_comparator:
-            result = self.embedding_comparator.compare_student_to_market_ensemble(
+            match self.embedding_comparator.compare_student_to_market_ensemble(
                 student_skills,
                 extra_engines={
                     "jaccard": (self.jaccard_engine, 0.2),
                     "bm25": (self.bm25_engine, 0.15),
                 },
-            )
-            score = result.get("score", result.get("weighted_coverage", 0.0))
-            matches = result.get("matches", [])
-            confidence = (
-                len([m for m in matches if m.get("similarity", 0) >= 0.65]) / max(1, len(student_skills))
-                if student_skills
-                else 0.0
-            )
-            return Ok((round(score, 4), round(confidence, 4)))
+            ):
+                case Ok(result):
+                    score = result.get("score", result.get("weighted_coverage", 0.0))
+                    matches = result.get("matches", [])
+                    confidence = (
+                        len([m for m in matches if m.get("similarity", 0) >= 0.65]) / max(1, len(student_skills))
+                        if student_skills
+                        else 0.0
+                    )
+                    return Ok((round(score, 4), round(confidence, 4)))
+                case Err(e):
+                    logger.warning("ensemble_comparison_failed", error=str(e))
+                    return Ok((0.0, 0.0))
 
         else:
             if not student_skills:
@@ -141,7 +148,9 @@ class CompetencyComparator:
             return covered / total if total > 0 else 0.0
 
         student_embs = self.embedding_comparator.embed_skills(student_skills)
-        if len(student_embs) == 0:
+        if isinstance(student_embs, Result):
+            student_embs = student_embs.unwrap_or(np.zeros((0, 0)))
+        if not isinstance(student_embs, np.ndarray) or len(student_embs) == 0:
             logger.debug("weighted_coverage_no_embeddings")
             return 0.0
 
@@ -150,7 +159,9 @@ class CompetencyComparator:
 
         for skill, weight in weights.items():
             skill_emb = self.embedding_comparator.embed_skills([skill])
-            if len(skill_emb) == 0:
+            if isinstance(skill_emb, Result):
+                skill_emb = skill_emb.unwrap_or(np.zeros((0,)))
+            if not isinstance(skill_emb, np.ndarray) or len(skill_emb) == 0:
                 continue
             skill_emb = skill_emb[0]
 

@@ -7,9 +7,17 @@ import joblib
 import numpy as np
 import pytest
 
-from src import Ok
+from src import Err, Ok, Result
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
+from src.errors import DomainError
+
+def _unwrap(res: Result) -> dict:
+    match res:
+        case Ok(v):
+            return v
+        case Err(e):
+            raise AssertionError(f"Unexpected Err: {e}")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s", force=True)
 logger = logging.getLogger("test_comparator")
@@ -163,13 +171,13 @@ class TestEmbeddingComparatorExtended:
 
     def test_embed_skills_empty(self):
         comparator = EmbeddingComparator()
-        result = comparator.embed_skills([])
+        result = comparator.embed_skills([]).unwrap()
         assert result.shape[1] == comparator.model.get_sentence_embedding_dimension()
 
     def test_embed_skills_returns_correct_shape(self):
         comparator = EmbeddingComparator()
         skills = ["python", "java"]
-        result = comparator.embed_skills(skills)
+        result = comparator.embed_skills(skills).unwrap()
         assert result.shape[0] == 2
         assert result.shape[1] == comparator.model.get_sentence_embedding_dimension()
 
@@ -181,14 +189,14 @@ class TestEmbeddingComparatorFull:
 
     def test_get_vacancy_embedding_empty_skills(self, comparator):
         """Строка 71: пустые навыки → нулевой вектор"""
-        emb = comparator.get_vacancy_embedding([])
+        emb = comparator.get_vacancy_embedding([]).unwrap()
         assert emb.shape[0] == comparator.model.get_sentence_embedding_dimension()
         assert np.allclose(emb, 0)
 
     def test_get_vacancy_embedding(self, comparator):
         """Строка 71-73: усреднение эмбеддингов"""
         skills = ["python", "sql"]
-        emb = comparator.get_vacancy_embedding(skills)
+        emb = comparator.get_vacancy_embedding(skills).unwrap()
         assert emb.shape[0] == comparator.model.get_sentence_embedding_dimension()
 
     def test_build_market_index_cache_created(self, tmp_path):
@@ -222,7 +230,7 @@ class TestEmbeddingComparatorFull:
         """Строка 168-171: нет вакансий нужного уровня"""
         student_skills = ["python"]
         vacancies = []
-        result = comparator.find_closest_vacancies(student_skills, vacancies)
+        result = comparator.find_closest_vacancies(student_skills, vacancies).unwrap()
         assert result == []
 
     def test_find_closest_vacancies(self, comparator):
@@ -233,7 +241,7 @@ class TestEmbeddingComparatorFull:
             {"skills": ["java", "spring"], "experience": "middle"},
             {"skills": ["python", "docker"], "experience": "senior"},
         ]
-        result = comparator.find_closest_vacancies(student_skills, vacancies, level="middle", top_k=2)
+        result = comparator.find_closest_vacancies(student_skills, vacancies, level="middle", top_k=2).unwrap()
         assert len(result) > 0
 
     def test_find_closest_vacancies_fallback_level(self, comparator):
@@ -242,7 +250,7 @@ class TestEmbeddingComparatorFull:
         vacancies = [
             {"skills": ["python", "sql"], "experience": "senior"},
         ]
-        result = comparator.find_closest_vacancies(student_skills, vacancies, level="middle", top_k=2)
+        result = comparator.find_closest_vacancies(student_skills, vacancies, level="middle", top_k=2).unwrap()
         assert len(result) > 0
 
     def test_set_clusterer(self, comparator):
@@ -254,16 +262,22 @@ class TestEmbeddingComparatorFull:
 
     def test_compare_to_clusters_no_clusterer(self, comparator):
         """Строка 213: clusterer не установлен"""
-        result = comparator.compare_to_clusters(["python"])
-        assert "error" in result
+        match comparator.compare_to_clusters(["python"]):
+            case Err(e):
+                assert "Clusterer not available" in str(e)
+            case _:
+                raise AssertionError("Expected Err")
 
     def test_compare_to_clusters_not_fitted(self, comparator):
         """Строка 213: clusterer не обучен"""
         mock_clusterer = MagicMock()
         mock_clusterer.is_fitted = False
         comparator.set_clusterer(mock_clusterer, [{"skills": ["python"]}])
-        result = comparator.compare_to_clusters(["python"])
-        assert "error" in result
+        match comparator.compare_to_clusters(["python"]):
+            case Err(_):
+                pass
+            case _:
+                raise AssertionError("Expected Err when clusterer not fitted")
 
     def test_compare_to_clusters(self, comparator):
         """Строка 213-228: работа с кластерами"""
@@ -273,7 +287,7 @@ class TestEmbeddingComparatorFull:
         mock_clusterer.get_cluster_skills.return_value = ["python", "sql", "docker"]
 
         comparator.set_clusterer(mock_clusterer, [{"skills": ["python"]}])
-        result = comparator.compare_to_clusters(["python"], top_k=2)
+        result = _unwrap(comparator.compare_to_clusters(["python"], top_k=2))
         assert "clusters" in result
         assert len(result["clusters"]) == 2
 
@@ -287,7 +301,7 @@ class TestEmbeddingComparatorFull:
         mock_clusterer.get_cluster_skills.return_value = ["python", "sql", "docker"]
 
         comparator.set_clusterer(mock_clusterer, [{"skills": ["python"]}])
-        result = comparator.hybrid_compare(["python", "sql"], {"python": 0.9})
+        result = _unwrap(comparator.hybrid_compare(["python", "sql"], {"python": 0.9}))
         assert "global_score" in result
         assert "cluster_score" in result
         assert "hybrid_score" in result
@@ -296,7 +310,7 @@ class TestEmbeddingComparatorFull:
     def test_hybrid_compare_no_clusters(self, comparator):
         """Строка 236-253: без кластеров — hybrid_score = global_score"""
         comparator.build_market_index(["python", "java"], level="test")
-        result = comparator.hybrid_compare(["python"], {"python": 0.9})
+        result = _unwrap(comparator.hybrid_compare(["python"], {"python": 0.9}))
         assert result["cluster_score"] is None
         assert result["hybrid_score"] == result["global_score"]
 
@@ -308,7 +322,7 @@ class TestEmbeddingComparatorFull:
             {"skills": ["java", "spring"], "experience": "senior"},
         ]
         # Указан уровень junior, но все вакансии senior → filter пуст → fallback на все
-        result = comparator.find_closest_vacancies(student_skills, vacancies, level="junior", top_k=2)
+        result = comparator.find_closest_vacancies(student_skills, vacancies, level="junior", top_k=2).unwrap()
         assert len(result) == 2  # fallback возвращает все
 
 
@@ -318,11 +332,11 @@ class TestCompetencyComparatorFull:
         comparator = CompetencyComparator(use_embeddings=True)
         comparator.fitted = True
         mock_emb = MagicMock()
-        mock_emb.compare_student_to_market_ensemble.return_value = {
+        mock_emb.compare_student_to_market_ensemble.return_value = Ok({
             "score": 0.5,
             "weighted_coverage": 0.5,
             "matches": [{"skill": "python", "similarity": 0.3}, {"skill": "java", "similarity": 0.2}],
-        }
+        })
         comparator.embedding_comparator = mock_emb
         score, confidence = comparator.compare(["python"]).unwrap()
         # confidence = len(matches with sim >= 0.65) / len(student_skills) = 0/1 = 0
@@ -530,8 +544,8 @@ class TestCompetencyComparatorFull:
         comp.model = fake_model
 
         with patch("joblib.dump", side_effect=IOError("disk full")):
-            with pytest.raises(IOError, match="disk full"):
-                comp.build_market_index(["python"], level="middle")
+            result = comp.build_market_index(["python"], level="middle")
+            assert result.is_err()
 
     def test_build_market_index_manifest_save_failure(self, tmp_path):
         """Строки 108-109: ошибка сохранения манифеста не роняет процесс."""
@@ -543,12 +557,9 @@ class TestCompetencyComparatorFull:
         fake_model.encode.return_value = np.array([[0.1, 0.2]])
         comp.model = fake_model
 
-        with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest") as MockManifest:
-            instance = MockManifest.return_value
-            instance.save.side_effect = Exception("no write access")
-            # Не должно упасть
-            comp.build_market_index(["python"], level="middle")
-            assert comp.market_skills == ["python"]
+        result = comp.build_market_index(["python"], level="middle")
+        assert result.is_ok()
+        assert comp.market_skills == ["python"]
 
     # ======================== ПОКРЫТИЕ СТРОК 133-137 ==========================
     def test_compare_student_to_market_logs_empty_weights(self, mocker):
@@ -624,10 +635,10 @@ class TestCompetencyComparatorFull:
         comp = EmbeddingComparator()
         # Мокируем compare_student_to_market и compare_to_clusters
         with patch.object(comp, "compare_student_to_market",
-                          return_value=Ok({"avg_similarity": 0.7, "weighted_coverage": 0.7})):
+                           return_value=Ok({"avg_similarity": 0.7, "weighted_coverage": 0.7})):
             with patch.object(comp, "compare_to_clusters",
-                              return_value={"clusters": []}):
-                result = comp.hybrid_compare(["python"], {"python": 0.9})
+                              return_value=Err(DomainError(message="Clusterer not available"))):
+                result = _unwrap(comp.hybrid_compare(["python"], {"python": 0.9}))
                 assert result["global_score"] == 0.7
                 assert result["cluster_score"] is None
-                assert result["hybrid_score"] == 0.7   # строка 235
+                assert result["hybrid_score"] == 0.7

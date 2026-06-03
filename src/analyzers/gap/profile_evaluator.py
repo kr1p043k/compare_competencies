@@ -341,20 +341,21 @@ class ProfileEvaluator:
             case Err(err):
                 return Err(DomainError(message="Cluster context failed", detail=str(err)))
 
-    def _get_or_create_comparator(self, target_level: str, level_analyzer=None) -> CompetencyComparator:
+    def _get_or_create_comparator(self, target_level: str, level_analyzer=None) -> Result[CompetencyComparator, DomainError]:
         if target_level in self.comparators:
-            return self.comparators[target_level]
+            return Ok(self.comparators[target_level])
 
         logger.info("creating_level_comparator", level=target_level)
         comparator = CompetencyComparator(use_embeddings=True, level=target_level)
-        success = comparator.fit_market(self.vacancies_skills).unwrap_or(False)
-        if success:
-            logger.info("level_comparator_trained", level=target_level)
-        else:
-            logger.warning("level_comparator_training_failed", level=target_level)
+        match comparator.fit_market(self.vacancies_skills):
+            case Ok(_):
+                logger.info("level_comparator_trained", level=target_level)
+            case Err(e):
+                logger.warning("level_comparator_training_failed", level=target_level, error=str(e))
+                return Err(DomainError(message="Level comparator training failed", detail=str(e)))
 
         self.comparators[target_level] = comparator
-        return comparator
+        return Ok(comparator)
 
     def _get_recommendation(self, readiness_score: float, target_level: str) -> str:
         if readiness_score >= 80:
@@ -366,17 +367,24 @@ class ProfileEvaluator:
         else:
             return f"Недостаточно готов к {target_level}"
 
-    def _load_cache(self):
+    def _load_cache(self) -> Result[None, DomainError]:
         if self._cache_path.exists():
             try:
                 with open(self._cache_path, encoding="utf-8") as f:
                     self._cache = json.load(f)
-            except Exception:
+                return Ok(None)
+            except Exception as e:
                 self._cache = {}
+                return Err(DomainError(message="Cache load failed", detail=str(e)))
+        return Ok(None)
 
-    def _save_cache(self):
-        with open(self._cache_path, "w", encoding="utf-8") as f:
-            json.dump(self._cache, f, indent=2)
+    def _save_cache(self) -> Result[None, DomainError]:
+        try:
+            with open(self._cache_path, "w", encoding="utf-8") as f:
+                json.dump(self._cache, f, indent=2)
+            return Ok(None)
+        except Exception as e:
+            return Err(DomainError(message="Cache save failed", detail=str(e)))
 
     def _get_student_hash(self, student: StudentProfile, level: str) -> str:
         skills_str = ",".join(sorted(set(s.lower() for s in student.skills)))
@@ -399,16 +407,20 @@ class ProfileEvaluator:
             return Ok(np.array(data["embedding"]))
         return Err(DomainError(message="Cache hash mismatch"))
 
-    def _save_embedding_cache(self, student: StudentProfile, embedding: np.ndarray) -> None:
-        cache_path = self._get_student_cache_path(student)
-        data = {"hash": self._compute_student_hash(student), "embedding": embedding.tolist()}
-        atomic_write_json(data, cache_path)
-        manifest = ArtifactManifest(
-            artifact_path=cache_path,
-            metrics={"dim": len(embedding)},
-        )
-        if manifest.save().is_err():
-            logger.warning("student_embedding_manifest_save_failed", profile=student.profile_name)
+    def _save_embedding_cache(self, student: StudentProfile, embedding: np.ndarray) -> Result[None, DomainError]:
+        try:
+            cache_path = self._get_student_cache_path(student)
+            data = {"hash": self._compute_student_hash(student), "embedding": embedding.tolist()}
+            atomic_write_json(data, cache_path)
+            manifest = ArtifactManifest(
+                artifact_path=cache_path,
+                metrics={"dim": len(embedding)},
+            )
+            if manifest.save().is_err():
+                logger.warning("student_embedding_manifest_save_failed", profile=student.profile_name)
+            return Ok(None)
+        except Exception as e:
+            return Err(DomainError(message="Embedding cache save failed", detail=str(e)))
 
     def _get_or_compute_student_embedding(self, student: StudentProfile) -> Result[np.ndarray, DomainError]:
         match self._load_cached_embedding(student):

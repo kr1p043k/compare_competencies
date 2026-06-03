@@ -353,7 +353,7 @@ class TestProfileEvaluatorFull:
             use_clustering=False,  # отключаем, но проверяем структуру
         )
         context = evaluator._get_cluster_context(student, "middle")
-        assert context is None  # без кластеризации возвращает None
+        assert context.is_err()  # без кластеризации возвращает Err
 
     def test_get_cluster_context_without_model(
         self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
@@ -966,9 +966,12 @@ class TestProfileEvaluatorFull:
         with patch("src.analyzers.gap.profile_evaluator.CompetencyComparator") as MockComp:
             mock_instance = MockComp.return_value
             mock_instance.fit_market.return_value = Ok(True)
-            comp = evaluator._get_or_create_comparator("middle")
-            assert comp is mock_instance
-            mock_instance.fit_market.assert_called_once_with(vacancies_skills)
+            match evaluator._get_or_create_comparator("middle"):
+                case Ok(comp):
+                    assert comp is mock_instance
+                    mock_instance.fit_market.assert_called_once_with(vacancies_skills)
+                case Err(e):
+                    raise AssertionError(f"Expected Ok, got Err({e})")
 
     def test_get_or_create_comparator_returns_cached(self, vacancies_skills):
         """Строки 306: повторное использование уже созданного компаратора."""
@@ -979,8 +982,11 @@ class TestProfileEvaluatorFull:
         )
         fake_comp = MagicMock()
         evaluator.comparators["middle"] = fake_comp
-        comp = evaluator._get_or_create_comparator("middle")
-        assert comp is fake_comp
+        match evaluator._get_or_create_comparator("middle"):
+            case Ok(comp):
+                assert comp is fake_comp
+            case Err(e):
+                raise AssertionError(f"Expected Ok, got Err({e})")
 
     # === строки 314-321 (_get_recommendation) ===
     def test_get_recommendation_all_ranges(self, vacancies_skills, vacancies_skills_dict):
