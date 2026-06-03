@@ -196,9 +196,30 @@ export default function App() {
           pipelineTaskRef.current = null;
           pipelineLoadingRef.current = false;
           sessionStorage.removeItem("pipelineTaskId");
-          setActiveTab("analysis");
           const prof = profileRef.current;
-          fetch(`/api/results/recommendations/${prof}`).then(r => r.ok && r.json()).then(d => { if (d) setAnalysisData(d); }).catch(() => {});
+          fetch(`/api/results/recommendations/${prof}`).then(r => r.ok && r.json()).then(d => {
+            if (d) { setAnalysisData(d); setLastResult(d); }
+            if (role === "student" && d) {
+              const q = pipelineQuery;
+              const url = q ? `/api/vacancies?limit=1&search=${encodeURIComponent(q)}` : "/api/vacancies/info";
+              fetch(url).then(r => r.ok ? r.json() : { total: 0 }).then(vi => {
+                const vc = vi.total || 0;
+                apiFetch("/api/student/log-action", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    action_type: "analysis",
+                    profession: q,
+                    region: pipelineRegions,
+                    vacancies_found: vc,
+                    result_ref: JSON.stringify({ profile: prof }),
+                    profile: prof,
+                  }),
+                }).then(() => window.dispatchEvent(new CustomEvent("student-history-update"))).catch(() => {});
+              });
+            }
+          }).catch(() => {});
+          setActiveTab("analysis");
           return;
         }
         if (s.status === "failed" || s.status === "cancelled") {
@@ -229,6 +250,20 @@ export default function App() {
   };
 
   useEffect(() => () => { if (pollTimerRef.current) clearTimeout(pollTimerRef.current); }, []);
+
+  // navigate-analysis event from StudentDashboard
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.profile) {
+        handleProfileChange(detail.profile);
+        setActiveTab("analysis");
+        fetch(`/api/results/recommendations/${detail.profile}`).then(r => r.ok && r.json()).then(d => { if (d) { setAnalysisData(d); setLastResult(d); } }).catch(() => {});
+      }
+    };
+    window.addEventListener("navigate-analysis", handler);
+    return () => window.removeEventListener("navigate-analysis", handler);
+  }, []);
 
   function showStatus(type: "success" | "error" | "info", message: string) {
     setStatus({ type, message });
@@ -419,10 +454,10 @@ export default function App() {
             )}
           </TabsList>
 
-          {/* Pipeline progress (not shown on dashboard tabs) */}
-          {pipelineStep && activeTab === "admin" && (
+          {/* Pipeline progress */}
+          {pipelineStep && (
             <div className="mb-4">
-              <PipelineProgress currentStep={pipelineStep} onCancel={cancelPipeline} onRestart={restartPipeline} />
+              <PipelineProgress currentStep={pipelineStep} onCancel={cancelPipeline} onRestart={restartPipeline} showLogs={activeTab === "admin"} />
             </div>
           )}
 
@@ -573,12 +608,23 @@ export default function App() {
               onDataLoaded={(data) => {
                 setAnalysisData(data); setLastResult(data);
                 if (role === "student" && data) {
-                  const vac = typeof data.vacancies_analyzed === "number" ? data.vacancies_analyzed : 0;
-                  apiFetch("/api/student/log-action", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action_type: "analysis", profession: profile, region: pipelineRegions, vacancies_found: vac, result_ref: "" }),
-                  }).catch(() => {});
+                  const q = pipelineQuery;
+                  const url = q ? `/api/vacancies?limit=1&search=${encodeURIComponent(q)}` : "/api/vacancies/info";
+                  fetch(url).then(r => r.ok ? r.json() : { total: 0 }).then(vi => {
+                    const vc = vi.total || 0;
+                    apiFetch("/api/student/log-action", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        action_type: "analysis",
+                        profession: q,
+                        region: pipelineRegions,
+                        vacancies_found: vc,
+                        result_ref: JSON.stringify({ profile }),
+                        profile,
+                      }),
+                    }).then(() => window.dispatchEvent(new CustomEvent("student-history-update"))).catch(() => {});
+                  });
                 }
               }}
             />

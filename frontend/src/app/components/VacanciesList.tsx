@@ -285,7 +285,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       </motion.div>
 
       {/* Pipeline trigger / settings panel */}
-      {!pipelineStep && showPipelineSetup ? (
+      {showPipelineSetup && (!pipelineStep || pipelineStep.status !== "running") ? (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

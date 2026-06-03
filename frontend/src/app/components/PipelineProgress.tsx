@@ -20,9 +20,10 @@ interface PipelineProgressProps {
   currentStep?: PipelineStep;
   onCancel?: () => void;
   onRestart?: () => void;
+  showLogs?: boolean;
 }
 
-export function PipelineProgress({ currentStep, onCancel, onRestart }: PipelineProgressProps) {
+export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = true }: PipelineProgressProps) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -215,8 +216,8 @@ export function PipelineProgress({ currentStep, onCancel, onRestart }: PipelineP
             )}
           </div>
 
-          {/* Log Terminal */}
-          {currentStep.status === "running" && logs.length > 0 && (
+          {/* Log Terminal (admin only) */}
+          {showLogs && currentStep.status === "running" && logs.length > 0 && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
