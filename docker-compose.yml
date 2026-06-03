@@ -1,6 +1,5 @@
-version: "3.8"
-
 services:
+  # Ваш проект Competency Gap Analyzer
   backend:
     build: .
     container_name: compare-competencies-api
@@ -10,10 +9,85 @@ services:
       - .env
     volumes:
       - ./data:/app/data
+      - ./logs:/app/logs
     restart: unless-stopped
     networks:
-      - app-net
+      - ai-net
+
+  # Ollama сервер для запуска DeepSeek
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-deepseek
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - ai-net
+    # Если на сервере есть NVIDIA GPU — раскомментируйте:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Open Web UI — веб-интерфейс для чата с DeepSeek
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "3000:8080"
+    volumes:
+      - open-webui-data:/app/backend/data
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      - ollama
+    restart: unless-stopped
+    networks:
+      - ai-net
+
+  # n8n — платформа автоматизации workflow
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n-data:/home/node/.n8n
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - WEBHOOK_URL=http://localhost:5678
+      - GENERIC_TIMEZONE=Europe/Moscow
+      - N8N_PROTOCOL=http
+    restart: unless-stopped
+    networks:
+      - ai-net
+
+  # PostgreSQL для n8n (prod)
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n-postgres
+    environment:
+      - POSTGRES_USER=n8n
+      - POSTGRES_PASSWORD=n8n_password_change_me
+      - POSTGRES_DB=n8n
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - ai-net
 
 networks:
-  app-net:
+  ai-net:
     driver: bridge
+
+volumes:
+  ollama-data:
+  open-webui-data:
+  n8n-data:
+  postgres-data:
