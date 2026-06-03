@@ -53,7 +53,6 @@ async def get_vacancies(
             v
             for v in filtered
             if search_lower in v.get("name", "").lower()
-            or search_lower in v.get("description", "").lower()
         ]
     total = len(filtered)
     items = filtered[offset : offset + limit]

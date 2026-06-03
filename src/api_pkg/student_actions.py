@@ -7,23 +7,24 @@ MAX_ACTIONS = 500
 
 
 class StudentAction:
-    __slots__ = ("username", "action_type", "profession", "region", "vacancies_found", "result_ref", "timestamp")
+    __slots__ = ("username", "action_type", "profession", "region", "vacancies_found", "result_ref", "timestamp", "profile")
 
-    def __init__(self, username: str, action_type: str, profession: str = "", region: str = "", vacancies_found: int = 0, result_ref: str = ""):
+    def __init__(self, username: str, action_type: str, profession: str = "", region: str = "", vacancies_found: int = 0, result_ref: str = "", profile: str = ""):
         self.username = username
         self.action_type = action_type
         self.profession = profession
         self.region = region
         self.vacancies_found = vacancies_found
         self.result_ref = result_ref
+        self.profile = profile
         self.timestamp = datetime.now(timezone.utc).isoformat()
 
 
 _action_buffer: deque[StudentAction] = deque(maxlen=MAX_ACTIONS)
 
 
-def log_action(username: str, action_type: str, profession: str = "", region: str = "", vacancies_found: int = 0, result_ref: str = "") -> None:
-    _action_buffer.append(StudentAction(username, action_type, profession, region, vacancies_found, result_ref))
+def log_action(username: str, action_type: str, profession: str = "", region: str = "", vacancies_found: int = 0, result_ref: str = "", profile: str = "") -> None:
+    _action_buffer.append(StudentAction(username, action_type, profession, region, vacancies_found, result_ref, profile))
 
 
 def get_actions(username: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
@@ -39,6 +40,7 @@ def get_actions(username: str | None = None, limit: int = 50) -> list[dict[str, 
             "region": e.region,
             "vacancies_found": e.vacancies_found,
             "result_ref": e.result_ref,
+            "profile": e.profile,
         }
         for e in entries
     ]

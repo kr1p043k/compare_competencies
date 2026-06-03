@@ -18,6 +18,7 @@ class LogActionRequest(BaseModel):
     region: str = ""
     vacancies_found: int = 0
     result_ref: str = ""
+    profile: str = ""
 
 
 @router.get("/api/student/history")
@@ -43,5 +44,6 @@ async def student_log_action(request: Request, body: LogActionRequest):
         region=body.region,
         vacancies_found=body.vacancies_found,
         result_ref=body.result_ref,
+        profile=body.profile,
     )
     return {"status": "ok"}
