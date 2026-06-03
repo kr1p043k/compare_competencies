@@ -112,28 +112,20 @@ class VacancyParser:
             return Err(DomainError(message=str(e), detail="extract_from_detailed"))
 
     # --------------------- утилиты сохранения и вывода -------------------------
-    def save_raw_vacancies(self, vacancies, filename="hh_vacancies.json") -> Result[None, DomainError]:
-        try:
-            filepath = config.DATA_RAW_DIR / filename
-            data = [v.raw_data if isinstance(v, Vacancy) else v for v in vacancies]
-            atomic_write_json(data, filepath)
-            logger.info("Сохранено", path=str(filepath))
-            return Ok(None)
-        except Exception as e:
-            return Err(DomainError(message="Save raw vacancies failed", detail=str(e)))
+    def save_raw_vacancies(self, vacancies, filename="hh_vacancies.json"):
+        filepath = config.DATA_RAW_DIR / filename
+        data = [v.raw_data if isinstance(v, Vacancy) else v for v in vacancies]
+        atomic_write_json(data, filepath)
+        logger.info("Сохранено", path=str(filepath))
 
-    def save_processed_frequencies(self, frequencies, filename="competency_frequency.json", apply_filter=True) -> Result[None, DomainError]:
-        try:
-            if apply_filter:
-                whitelist = load_it_skills()
-                if whitelist:
-                    frequencies = filter_skills_by_whitelist(frequencies, whitelist)
-            filepath = config.DATA_PROCESSED_DIR / filename
-            atomic_write_json(frequencies, filepath)
-            logger.info("Частоты сохранены", path=str(filepath))
-            return Ok(None)
-        except Exception as e:
-            return Err(DomainError(message="Save processed frequencies failed", detail=str(e)))
+    def save_processed_frequencies(self, frequencies, filename="competency_frequency.json", apply_filter=True):
+        if apply_filter:
+            whitelist = load_it_skills()
+            if whitelist:
+                frequencies = filter_skills_by_whitelist(frequencies, whitelist)
+        filepath = config.DATA_PROCESSED_DIR / filename
+        atomic_write_json(frequencies, filepath)
+        logger.info("Частоты сохранены", path=str(filepath))
 
     @staticmethod
     def _strip_html(text):
@@ -232,15 +224,12 @@ class VacancyParser:
 
         return pd.DataFrame(rows)
 
-    def save_to_excel(self, df: pd.DataFrame, filename: str) -> Result[None, DomainError]:
-        try:
-            config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-            filepath = config.REPORTS_DIR / filename
-            df.to_excel(filepath, index=False, engine="openpyxl")
-            logger.info("Excel файл сохранён", path=str(filepath))
-            return Ok(None)
-        except Exception as e:
-            return Err(DomainError(message="Save to excel failed", detail=str(e)))
+    def save_to_excel(self, df: pd.DataFrame, filename: str):
+        """Сохраняет DataFrame в Excel (в data/result/reports/)"""
+        config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        filepath = config.REPORTS_DIR / filename
+        df.to_excel(filepath, index=False, engine="openpyxl")
+        logger.info("Excel файл сохранён", path=str(filepath))
 
     def print_vacancies_list(self, vacancies: list[dict] | list[Vacancy]):
         """Выводит список вакансий (навыки: key_skills + текстовое извлечение)"""

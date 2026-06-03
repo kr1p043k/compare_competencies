@@ -58,16 +58,13 @@ class EmbeddingComparator:
     def _get_cache_path(self, name: str, level: str = "middle") -> Path:
         return self.cache_dir / f"{name}_{level}.joblib"
 
-    def embed_skills(self, skills: list[str]) -> Result[np.ndarray, DomainError]:
-        try:
-            if not skills:
-                dim = self.model.get_sentence_embedding_dimension()
-                return Ok(np.zeros((0, dim)))
-            return Ok(self.model.encode(skills, convert_to_numpy=True, show_progress_bar=False))
-        except Exception as e:
-            return Err(DomainError(message="Skill embedding failed", detail=str(e)))
+    def embed_skills(self, skills: list[str]) -> np.ndarray:
+        if not skills:
+            dim = self.model.get_sentence_embedding_dimension()
+            return np.zeros((0, dim))
+        return self.model.encode(skills, convert_to_numpy=True, show_progress_bar=False)
 
-    def build_market_index(self, all_market_skills: list[str], level: str = "middle") -> Result[None, DomainError]:
+    def build_market_index(self, all_market_skills: list[str], level: str = "middle"):
         cache_path = self._get_cache_path("market_embeddings", level)
 
         if cache_path.exists():
@@ -93,7 +90,7 @@ class EmbeddingComparator:
                     else:
                         self.market_embeddings, self.market_skills = loaded
                     logger.info("embeddings_cache_loaded", level=level)
-                    return Ok(None)
+                    return
                 except Exception as e:
                     logger.warning("market_cache_load_failed", level=level, error=str(e))
                     with suppress(Exception):
@@ -102,11 +99,7 @@ class EmbeddingComparator:
                         manifest_path.unlink()
 
         self.market_skills = all_market_skills
-        match self.embed_skills(self.market_skills):
-            case Ok(embs):
-                self.market_embeddings = embs
-            case Err(e):
-                return Err(DomainError(message="Market embedding failed", detail=str(e)))
+        self.market_embeddings = self.embed_skills(self.market_skills)
 
         try:
             fd, tmp_path = tempfile.mkstemp(dir=cache_path.parent, suffix=".joblib.tmp")
@@ -121,7 +114,7 @@ class EmbeddingComparator:
             logger.error("failed_to_save_market_embeddings", error=str(e))
             with suppress(Exception):
                 os.unlink(tmp_path)
-            return Err(DomainError(message="Save market embeddings failed", detail=str(e)))
+            raise
 
         manifest = ArtifactManifest(
             artifact_path=cache_path,
@@ -129,17 +122,12 @@ class EmbeddingComparator:
         )
         if manifest.save().is_err():
             logger.warning("market_cache_manifest_save_failed")
-        return Ok(None)
 
     def compare_student_to_market(self, student_skills: list[str]) -> Result[dict, DomainError]:
         if self.market_embeddings is None:
             return Err(DomainError(message="Сначала вызови build_market_index()"))
 
-        match self.embed_skills(student_skills):
-            case Ok(embs):
-                student_embs = embs
-            case Err(e):
-                return Err(DomainError(message="Student embedding failed in market comparison", detail=str(e)))
+        student_embs = self.embed_skills(student_skills)
 
         if len(student_embs) == 0:
             return Ok({"score": 0.0, "weighted_coverage": 0.0, "matches": [], "missing": [], "avg_similarity": 0.0})
@@ -157,28 +145,30 @@ class EmbeddingComparator:
         self,
         student_skills: list[str],
         extra_engines: dict[str, tuple[SimilarityEngine, float]] | None = None,
-    ) -> Result[ComparisonResult, DomainError]:
-        """Blends cosine similarity with extra_engines via EnsembleEngine."""
-        match self.compare_student_to_market(student_skills):
-            case Ok(base):
-                pass
-            case Err(e):
-                return Err(DomainError(message="Market comparison failed", detail=str(e)))
+    ) -> ComparisonResult:
+        """Blends cosine similarity with extra_engines via EnsembleEngine.
+
+        Usage:
+            comp.compare_student_to_market_ensemble(
+                student_skills,
+                extra_engines={"jaccard": (JaccardEngine(), 0.3)},
+            )
+        """
+        base = self.compare_student_to_market(student_skills).unwrap_or(
+            {"score": 0.0, "weighted_coverage": 0.0, "avg_similarity": 0.0, "matches": [], "missing": []}
+        )
         if not extra_engines or not self.market_skills:
-            return Ok(base)
+            return base
 
         class _CosineProxy:
             def __init__(self, outer):
                 self._outer = outer
-            def compare(self, ss, ms) -> Result[ComparisonResult, DomainError]:
+            def compare(self, ss, ms):
                 if self._outer.market_embeddings is None:
-                    return Ok({"score": 0.0, "matches": [], "weighted_coverage": 0.0, "avg_similarity": 0.0, "missing": []})
-                match self._outer.embed_skills(ss):
-                    case Ok(student_embs):
-                        if len(student_embs) == 0:
-                            return Ok({"score": 0.0, "matches": [], "weighted_coverage": 0.0, "avg_similarity": 0.0, "missing": []})
-                    case Err(e):
-                        return Err(DomainError(message="Student skill embedding failed in ensemble", detail=str(e)))
+                    return Ok({"score": 0.0, "matches": []})
+                student_embs = self._outer.embed_skills(ss)
+                if len(student_embs) == 0:
+                    return Ok({"score": 0.0, "matches": []})
                 sims = cosine_similarity(student_embs, self._outer.market_embeddings)
                 best = {}
                 for i in range(len(ss)):
@@ -200,7 +190,9 @@ class EmbeddingComparator:
             engines[name] = (engine, (1 - COSINE_WEIGHT) * weight / total_extra)
 
         ensemble = EnsembleEngine(engines)
-        return ensemble.compare(student_skills, self.market_skills)
+        return ensemble.compare(student_skills, self.market_skills).unwrap_or(
+            {"score": 0.0, "weighted_coverage": 0.0, "avg_similarity": 0.0, "matches": [], "missing": []}
+        )
 
     def _result_from_sims(self, best_sims_per_market: dict[str, float]) -> ComparisonResult:
         total_weighted = 0.0
@@ -240,45 +232,36 @@ class EmbeddingComparator:
             missing=[],
         )
 
-    def get_vacancy_embedding(self, skills: list[str]) -> Result[np.ndarray, DomainError]:
+    def get_vacancy_embedding(self, skills: list[str]) -> np.ndarray:
         if not skills:
-            return Ok(np.zeros(self.model.get_sentence_embedding_dimension()))
-        match self.embed_skills(skills):
-            case Ok(embs):
-                return Ok(np.mean(embs, axis=0))
-            case Err(e):
-                return Err(DomainError(message="Vacancy embedding failed", detail=str(e)))
+            return np.zeros(self.model.get_sentence_embedding_dimension())
+        embs = self.embed_skills(skills)
+        return np.mean(embs, axis=0)
 
     def find_closest_vacancies(
         self, student_skills: list[str], vacancies: list[dict], level: str = "middle", top_k: int = 50
-    ) -> Result[list[dict], DomainError]:
-        match self.embed_skills(student_skills):
-            case Ok(student_emb):
-                if len(student_emb) == 0:
-                    student_emb = np.zeros((1, self.model.get_sentence_embedding_dimension()))
-                else:
-                    student_emb = np.mean(student_emb, axis=0).reshape(1, -1)
-            case Err(e):
-                return Err(DomainError(message="Student skills embedding failed", detail=str(e)))
+    ) -> list[dict]:
+        student_emb = self.embed_skills(student_skills)
+        if len(student_emb) == 0:
+            student_emb = np.zeros((1, self.model.get_sentence_embedding_dimension()))
+        else:
+            student_emb = np.mean(student_emb, axis=0).reshape(1, -1)
 
         level_vacancies = [v for v in vacancies if v.get("experience") == level]
         if not level_vacancies:
             level_vacancies = vacancies
         if not level_vacancies:
             logger.warning("find_closest_vacancies_no_vacancies", level=level)
-            return Ok([])
+            return []
 
+        # Batched embedding: embed all unique skills once, then mean-pool per vacancy
         vac_skill_lists = [(i, v.get("skills", [])) for i, v in enumerate(level_vacancies)]
         all_skills = list({s for _, sk in vac_skill_lists for s in sk})
         if not all_skills:
             logger.warning("find_closest_vacancies_no_skills", level=level)
-            return Ok([])
+            return []
 
-        match self.embed_skills(all_skills):
-            case Ok(skill_embs):
-                skill_to_emb = dict(zip(all_skills, skill_embs, strict=False))
-            case Err(e):
-                return Err(DomainError(message="Vacancy skills embedding failed", detail=str(e)))
+        skill_to_emb = dict(zip(all_skills, self.embed_skills(all_skills), strict=False))
 
         vac_embs = np.zeros((len(level_vacancies), self.model.get_sentence_embedding_dimension()))
         for i, skills in vac_skill_lists:
@@ -287,15 +270,15 @@ class EmbeddingComparator:
 
         similarities = cosine_similarity(student_emb, vac_embs)[0]
         top_indices = np.argsort(similarities)[-top_k:][::-1]
-        return Ok([level_vacancies[i] for i in top_indices])
+        return [level_vacancies[i] for i in top_indices]
 
     def set_clusterer(self, clusterer: "VacancyClusterer", vacancies_data: list[dict]):
         self.clusterer = clusterer
         self.vacancies_data = vacancies_data
 
-    def compare_to_clusters(self, student_skills: list[str], top_k: int = 3) -> Result[dict[str, Any], DomainError]:
+    def compare_to_clusters(self, student_skills: list[str], top_k: int = 3) -> dict[str, Any]:
         if self.clusterer is None or not self.clusterer.is_fitted:
-            return Err(DomainError(message="Clusterer not available"))
+            return {"clusters": [], "error": "Clusterer not available"}
 
         closest = self.clusterer.find_closest_clusters(student_skills, top_k)
         result = []
@@ -311,22 +294,18 @@ class EmbeddingComparator:
                     "top_skills": cluster_skills[:10],
                 }
             )
-        return Ok({"clusters": result})
+        return {"clusters": result}
 
     def hybrid_compare(
         self, student_skills: list[str], global_weights: dict[str, float], cluster_weight: float = 0.6
-    ) -> Result[dict[str, Any], DomainError]:
-        match self.compare_student_to_market(student_skills):
-            case Ok(global_result):
-                global_score = global_result.get("avg_similarity", 0.0)
-            case Err(e):
-                return Err(DomainError(message="Global comparison failed", detail=str(e)))
+    ) -> dict[str, Any]:
+        global_result = self.compare_student_to_market(student_skills).unwrap_or(
+            {"avg_similarity": 0.0, "weighted_coverage": 0.0}
+        )
+        global_score = global_result["avg_similarity"]
 
-        match self.compare_to_clusters(student_skills, top_k=3):
-            case Ok(cluster_result):
-                clusters = cluster_result.get("clusters", [])
-            case Err(_):
-                clusters = []
+        cluster_result = self.compare_to_clusters(student_skills, top_k=3)
+        clusters = cluster_result.get("clusters", [])
         if clusters:
             best_cluster = clusters[0]
             cluster_score = best_cluster["coverage"]
@@ -339,10 +318,10 @@ class EmbeddingComparator:
         else:
             hybrid_score = global_score
 
-        return Ok({
+        return {
             "global_score": round(global_score, 4),
             "cluster_score": round(cluster_score, 4) if best_cluster else None,
             "hybrid_score": round(hybrid_score, 4),
             "best_cluster": best_cluster,
             "all_clusters": clusters,
-        })
+        }

@@ -56,7 +56,7 @@ def test_embedding_comparator_build_index(embedding_comparator):
         "html",
         "mlops",
     ]
-    assert embedding_comparator.build_market_index(all_market_skills).is_ok()
+    embedding_comparator.build_market_index(all_market_skills)
 
     student_skills = ["python", "react", "fastapi"]
     comparison = _unwrap(embedding_comparator.compare_student_to_market(student_skills))

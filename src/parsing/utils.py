@@ -270,6 +270,14 @@ def get_last_parsed_id() -> Result[int, DomainError]:
         return Ok(int(raw)) if raw else Err(DomainError(message="Empty last parsed ID file"))
     except Exception as e:
         return Err(DomainError(message="Get last parsed ID error", detail=str(e)))
+    id_file = config.DATA_PROCESSED_DIR / "last_parsed_id.txt"
+    if not id_file.exists():
+        return Err(DomainError(message="Last parsed ID file not found"))
+    try:
+        raw = id_file.read_text(encoding="utf-8").strip()
+        return Ok(int(raw)) if raw else Err(DomainError(message="Empty last parsed ID file"))
+    except Exception as e:
+        return Err(DomainError(message="Get last parsed ID error", detail=str(e)))
 
 
 def save_last_parsed_id(vacancy_id: int) -> Result[None, DomainError]:
@@ -551,11 +559,7 @@ def extract_and_count_skills(vacancies: list[dict[str, Any]], parser: VacancyPar
     if not vacancies:
         return Ok({"frequencies": {}, "tfidf_weights": {}})
     try:
-        match parser.extract_skills_from_vacancies(vacancies):
-            case Ok(result):
-                return Ok(result)
-            case Err(e):
-                return Err(DomainError(message="Skill extraction error", detail=str(e)))
+        return Ok(parser.extract_skills_from_vacancies(vacancies))
     except Exception as e:
         return Err(DomainError(message="Skill extraction error", detail=str(e)))
 
