@@ -316,9 +316,12 @@ def main():
         sys.exit(1)
 
     vacancies = read_json(args.vacancies)
-    if not vacancies:
-        logger.error("failed_to_load_vacancies")
-        sys.exit(1)
+    match vacancies:
+        case Ok(data):
+            vacancies = data
+        case Err(e):
+            logger.error("failed_to_load_vacancies", error=str(e))
+            sys.exit(1)
 
     logger.info("starting_analysis", whitelist=len(current_skills), vacancies=len(vacancies))
 

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import structlog
 
+from src import Err, Ok
 from ._config import EMOJI_TO_TEXT
 
 logger = structlog.get_logger(__name__)
@@ -32,7 +33,18 @@ def plot_skill_correlation_heatmap(
     logger.info("plotting_correlation_heatmap", top_n=top_n)
     from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 
-    skills, matrix = correlation_analyzer.get_correlation_labeled(top_n=top_n)
+    corr_result = correlation_analyzer.get_correlation_labeled(top_n=top_n)
+    match corr_result:
+        case Ok((s, m)):
+            skills, matrix = s, m
+        case Err(e):
+            logger.warning("correlation_data_unavailable", error=str(e))
+            fig, ax = plt.subplots()
+            ax.text(0.5, 0.5, "Нет данных", ha="center", va="center")
+            if save_path:
+                plt.savefig(save_path)
+            plt.close(fig)
+            return fig
 
     if len(skills) < 2:
         fig, ax = plt.subplots()

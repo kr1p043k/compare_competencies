@@ -108,9 +108,12 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
         return False
 
     raw_vacancies = read_json(vacancies_path)
-    if raw_vacancies is None:
-        logger.error("failed_to_load_vacancies", path=str(vacancies_path))
-        return False
+    match raw_vacancies:
+        case Ok(data):
+            raw_vacancies = data
+        case Err(e):
+            logger.error("failed_to_load_vacancies", path=str(vacancies_path), error=str(e))
+            return False
 
     logger.info("raw_vacancies_loaded", count=len(raw_vacancies))
 
@@ -135,7 +138,13 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
     hybrid_weights = {}
     if weights_file.exists():
         hybrid_weights = read_json(weights_file)
-        logger.info("skill_weights_loaded", count=len(hybrid_weights))
+        match hybrid_weights:
+            case Ok(data):
+                hybrid_weights = data
+                logger.info("skill_weights_loaded", count=len(hybrid_weights))
+            case Err(e):
+                logger.warning("failed_to_load_skill_weights", path=str(weights_file), error=str(e))
+                hybrid_weights = {}
 
     clusterer = VacancyClusterer(min_cluster_size=5, skill_weights=hybrid_weights)
 

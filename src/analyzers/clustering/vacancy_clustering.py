@@ -436,10 +436,12 @@ class VacancyClusterer:
         # (если other — ищем следующую по величине)
         if dominant == "other":
             stats = taxonomy.get_category_stats(top_skills)
-            for cat, count in stats.items():
-                if cat != "other" and count >= 2:
-                    dominant = cat
-                    break
+            match stats:
+                case Ok(s):
+                    for cat, count in s.items():
+                        if cat != "other" and count >= 2:
+                            dominant = cat
+                            break
 
         dominant_label = taxonomy.get_category_label_by_id(dominant)
         dominant_icon = taxonomy.get_category_icon_by_id(dominant)
@@ -447,10 +449,12 @@ class VacancyClusterer:
         # Определяем вторичную категорию (если есть)
         stats = taxonomy.get_category_stats(top_skills)
         secondary = None
-        for cat, count in stats.items():
-            if cat != dominant and cat != "other" and count >= 3:
-                secondary = taxonomy.get_category_label_by_id(cat)
-                break
+        match stats:
+            case Ok(s):
+                for cat, count in s.items():
+                    if cat != dominant and cat != "other" and count >= 3:
+                        secondary = taxonomy.get_category_label_by_id(cat)
+                        break
 
         # Формируем имя: иконка + категория
         from src.visualization._config import EMOJI_TO_TEXT
