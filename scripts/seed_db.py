@@ -7,6 +7,7 @@ Usage:
 import argparse
 import asyncio
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -28,13 +29,22 @@ from src.models.krm_models import (
     Recommendation,
     Skill,
 )
-from src.parsing.utils import load_it_skills
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 KRM_PATH = DATA_DIR / "reference" / "krm_disciplines_09.03.02.json"
 IT_SKILLS_PATH = DATA_DIR / "reference" / "it_skills.json"
 RPD_SKILLS_PATH = DATA_DIR / "reference" / "rpd_skills.json"
 RECOMMENDATIONS_PATH = DATA_DIR / "reference" / "teacher_recommendations.json"
+
+# Regex to split "ОПК-2" -> ("ОПК", "2")
+_COMP_CODE_RE = re.compile(r"^(УК|ОПК|ПК|ППК|ИП)[\s-](\d+)$")
+
+
+def _parse_comp_code(code: str) -> tuple[str, str]:
+    m = _COMP_CODE_RE.match(code)
+    if m:
+        return m.group(1), m.group(2)
+    return code, "0"
 
 
 async def create_tables(drop_first: bool = False) -> None:
@@ -43,6 +53,7 @@ async def create_tables(drop_first: bool = False) -> None:
             await conn.run_sync(Base.metadata.drop_all)
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
         await conn.run_sync(Base.metadata.create_all)
     print("Tables ready.")
 
@@ -62,14 +73,18 @@ async def seed_skills(session: AsyncSession) -> dict[str, str]:
             continue
 
         for name in names:
-            existing = await session.execute(select(Skill).where(Skill.name == name.lower()))
-            if existing.scalar_one_or_none():
-                skill_map[name.lower()] = existing.scalar_one().id
+            key = name.lower()
+            existing = await session.execute(
+                select(Skill).where(Skill.name == key)
+            )
+            row = existing.scalar_one_or_none()
+            if row:
+                skill_map[key] = row.id
                 continue
-            skill = Skill(name=name.lower(), source=source)
+            skill = Skill(name=key, source=source)
             session.add(skill)
             await session.flush()
-            skill_map[name.lower()] = skill.id
+            skill_map[key] = skill.id
 
     await session.commit()
     print(f"Skills: {len(skill_map)} in taxonomy")
@@ -100,6 +115,7 @@ async def seed_krm(session: AsyncSession, skill_map: dict[str, str]) -> None:
 
     # Create parse version
     pv = ParseVersion(
+        direction_id=direction.id,
         version=datetime.utcnow().strftime("%Y%m%d_%H%M%S"),
         total_disciplines=len(disciplines_raw),
         notes="Seed from parsed RPD JSON",
@@ -113,7 +129,6 @@ async def seed_krm(session: AsyncSession, skill_map: dict[str, str]) -> None:
     ksa_count = 0
 
     for disc_name, disc_data in sorted(disciplines_raw.items()):
-        # Create discipline
         existing = await session.execute(
             select(Discipline).where(
                 Discipline.direction_id == direction.id,
@@ -127,7 +142,7 @@ async def seed_krm(session: AsyncSession, skill_map: dict[str, str]) -> None:
             await session.flush()
             disc_count += 1
 
-        # Find English-named PDF if exists
+        # Link PDF sources
         pdfs = [
             f for f in _list_pdfs()
             if disc_name.lower().replace(" ", "") in Path(f).stem.lower().replace(" ", "")
@@ -141,6 +156,8 @@ async def seed_krm(session: AsyncSession, skill_map: dict[str, str]) -> None:
         ksa_data = disc_data.get("ksa", {})
 
         for comp_code in competencies:
+            category, number = _parse_comp_code(comp_code)
+
             existing_comp = await session.execute(
                 select(Competency).where(
                     Competency.discipline_id == disc.id,
@@ -152,20 +169,23 @@ async def seed_krm(session: AsyncSession, skill_map: dict[str, str]) -> None:
                 comp = Competency(
                     discipline_id=disc.id,
                     code=comp_code,
+                    category=category,
+                    number=number,
                     parse_version_id=pv.id,
                 )
                 session.add(comp)
                 await session.flush()
                 comp_count += 1
 
-            # KSA entries
+            # KSA entries with sort_order
             ksa_parts = ksa_data.get(comp_code, {})
             for kt in ("knowledge", "abilities", "skills"):
-                for text in ksa_parts.get(kt, []):
+                for idx, text in enumerate(ksa_parts.get(kt, [])):
                     entry = KSAEntry(
                         competency_id=comp.id,
                         ksa_type=kt,
                         original_text=text,
+                        sort_order=idx,
                         parse_version_id=pv.id,
                     )
                     session.add(entry)
@@ -190,6 +210,7 @@ async def seed_krm(session: AsyncSession, skill_map: dict[str, str]) -> None:
                         competency_id=comp.id,
                         skill_id=skill_id,
                         ksa_type="flat",
+                        source_text=skill_name,
                         match_type="fuzzy",
                         parse_version_id=pv.id,
                     )
@@ -198,7 +219,6 @@ async def seed_krm(session: AsyncSession, skill_map: dict[str, str]) -> None:
 
     await session.commit()
 
-    # Update parse version counts
     pv.total_competencies = comp_count
     pv.total_skills = cs_count
     pv.total_ksa_items = ksa_count
@@ -229,7 +249,6 @@ async def seed_recommendations(session: AsyncSession) -> None:
         if not disc:
             continue
 
-        # Find competency by code
         comp_code = rec.get("competency")
         comp_id = None
         if comp_code:

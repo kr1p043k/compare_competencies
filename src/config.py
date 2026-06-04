@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     HISTORY_DIR: Path = Field(default_factory=lambda: Path("data/history"))
 
     # ---------- база данных ----------
-    DATABASE_URL: str = "postgresql+asyncpg://krm:krm_password@localhost:5433/krm"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/compare_competencies"
     DATABASE_ECHO: bool = False
 
     # ---------- n8n ----------

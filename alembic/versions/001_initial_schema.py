@@ -18,13 +18,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Enable pgvector
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
 
     # ── Directions ──────────────────────────────────────────────────────
     op.create_table(
         "directions",
-        sa.Column("id", sa.UUID, primary_key=True),
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
         sa.Column("code", sa.String(20), unique=True, nullable=False, index=True),
         sa.Column("name", sa.Text, nullable=False),
         sa.Column("profile", sa.Text, nullable=True),
@@ -35,11 +35,18 @@ def upgrade() -> None:
     # ── Disciplines ─────────────────────────────────────────────────────
     op.create_table(
         "disciplines",
-        sa.Column("id", sa.UUID, primary_key=True),
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
         sa.Column("direction_id", sa.UUID, sa.ForeignKey("directions.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("name", sa.Text, nullable=False),
         sa.Column("name_en", sa.Text, nullable=True),
         sa.Column("description", sa.Text, nullable=True),
+        sa.Column("semester", sa.Integer, nullable=True),
+        sa.Column("hours_total", sa.Integer, nullable=True),
+        sa.Column("hours_lecture", sa.Integer, nullable=True),
+        sa.Column("hours_practice", sa.Integer, nullable=True),
+        sa.Column("hours_lab", sa.Integer, nullable=True),
+        sa.Column("hours_self", sa.Integer, nullable=True),
+        sa.Column("control_form", sa.String(20), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
@@ -47,7 +54,7 @@ def upgrade() -> None:
     # ── PDF Sources ─────────────────────────────────────────────────────
     op.create_table(
         "pdf_sources",
-        sa.Column("id", sa.UUID, primary_key=True),
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
         sa.Column("discipline_id", sa.UUID, sa.ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("filename", sa.Text, nullable=False),
         sa.Column("ocr_used", sa.Boolean, server_default=sa.false()),
@@ -61,7 +68,8 @@ def upgrade() -> None:
     # ── Parse Versions ──────────────────────────────────────────────────
     op.create_table(
         "parse_versions",
-        sa.Column("id", sa.UUID, primary_key=True),
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
+        sa.Column("direction_id", sa.UUID, sa.ForeignKey("directions.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("version", sa.String(50), nullable=False),
         sa.Column("total_disciplines", sa.Integer, server_default="0"),
         sa.Column("total_competencies", sa.Integer, server_default="0"),
@@ -74,9 +82,12 @@ def upgrade() -> None:
     # ── Competencies ────────────────────────────────────────────────────
     op.create_table(
         "competencies",
-        sa.Column("id", sa.UUID, primary_key=True),
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
         sa.Column("discipline_id", sa.UUID, sa.ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("code", sa.String(20), nullable=False),
+        sa.Column("category", sa.String(10), nullable=False),
+        sa.Column("number", sa.String(10), nullable=False),
+        sa.Column("name", sa.Text, nullable=True),
         sa.Column("description", sa.Text, nullable=True),
         sa.Column("parent_id", sa.UUID, sa.ForeignKey("competencies.id", ondelete="CASCADE"), nullable=True),
         sa.Column("sort_order", sa.Integer, server_default="0"),
@@ -85,15 +96,18 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_check_constraint("ck_comp_code_format", "competencies", "code ~ '^(УК|ОПК|ПК|ППК|ИП)[- ]\\d+'")
+    op.create_check_constraint("ck_comp_category", "competencies", "category IN ('УК', 'ОПК', 'ПК', 'ППК', 'ИП')")
+    op.create_index("idx_competencies_category", "competencies", ["category"])
 
     # ── KSA Entries ─────────────────────────────────────────────────────
     op.create_table(
         "ksa_entries",
-        sa.Column("id", sa.UUID, primary_key=True),
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
         sa.Column("competency_id", sa.UUID, sa.ForeignKey("competencies.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("ksa_type", sa.String(20), nullable=False),
         sa.Column("original_text", sa.Text, nullable=False),
         sa.Column("cleaned_text", sa.Text, nullable=True),
+        sa.Column("sort_order", sa.Integer, server_default="0"),
         sa.Column("parse_version_id", sa.UUID, sa.ForeignKey("parse_versions.id"), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
@@ -102,9 +116,10 @@ def upgrade() -> None:
     # ── Skills Taxonomy ─────────────────────────────────────────────────
     op.create_table(
         "skills",
-        sa.Column("id", sa.UUID, primary_key=True),
-        sa.Column("name", sa.Text, unique=True, nullable=False, index=True),
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
+        sa.Column("name", sa.Text, nullable=False, index=True),
         sa.Column("name_en", sa.Text, nullable=True),
+        sa.Column("description", sa.Text, nullable=True),
         sa.Column("source", sa.String(20), server_default="it_skills"),
         sa.Column("category", sa.String(100), nullable=True),
         sa.Column("embedding", Vector(384), nullable=True),
@@ -117,7 +132,7 @@ def upgrade() -> None:
     # ── Competency ↔ Skill ──────────────────────────────────────────────
     op.create_table(
         "competency_skills",
-        sa.Column("id", sa.UUID, primary_key=True),
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
         sa.Column("competency_id", sa.UUID, sa.ForeignKey("competencies.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("skill_id", sa.UUID, sa.ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("ksa_type", sa.String(20), nullable=False),
@@ -128,11 +143,12 @@ def upgrade() -> None:
     )
     op.create_check_constraint("ck_cs_ksa_type", "competency_skills", "ksa_type IN ('knowledge', 'abilities', 'skills', 'flat')")
     op.create_check_constraint("ck_cs_match_type", "competency_skills", "match_type IN ('exact', 'fuzzy', 'stem')")
+    op.create_unique_constraint("uq_cs_unique", "competency_skills", ["competency_id", "skill_id", "ksa_type", "parse_version_id"])
 
     # ── Recommendations ─────────────────────────────────────────────────
     op.create_table(
         "recommendations",
-        sa.Column("id", sa.UUID, primary_key=True),
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
         sa.Column("discipline_id", sa.UUID, sa.ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("competency_id", sa.UUID, sa.ForeignKey("competencies.id", ondelete="CASCADE"), nullable=True),
         sa.Column("suggestion", sa.Text, nullable=False),
@@ -144,19 +160,20 @@ def upgrade() -> None:
     # ── Market Skill Mappings ───────────────────────────────────────────
     op.create_table(
         "market_skill_mappings",
-        sa.Column("id", sa.UUID, primary_key=True),
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
         sa.Column("skill_id", sa.UUID, sa.ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("market_skill_name", sa.Text, nullable=False),
         sa.Column("frequency", sa.Integer, server_default="0"),
         sa.Column("weight", sa.Float, server_default="0.0"),
         sa.Column("period", sa.Date, nullable=True),
+        sa.Column("source", sa.String(50), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
     # ── Coverage Analyses ───────────────────────────────────────────────
     op.create_table(
         "coverage_analyses",
-        sa.Column("id", sa.UUID, primary_key=True),
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
         sa.Column("discipline_id", sa.UUID, sa.ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("competency_id", sa.UUID, sa.ForeignKey("competencies.id", ondelete="CASCADE"), nullable=True),
         sa.Column("total_skills", sa.Integer, server_default="0"),
