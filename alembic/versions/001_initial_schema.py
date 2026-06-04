@@ -1,4 +1,5 @@
-"""Initial KRM schema: directions, disciplines, competencies, KSA, skills, analysis.
+"""Initial schema: directions, disciplines, competencies, KSA, skills,
+students, users, market analysis.
 
 Revision ID: 001
 Revises:
@@ -18,8 +19,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
     op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
     # ── Directions ──────────────────────────────────────────────────────
     op.create_table(
@@ -28,6 +29,7 @@ def upgrade() -> None:
         sa.Column("code", sa.String(20), unique=True, nullable=False, index=True),
         sa.Column("name", sa.Text, nullable=False),
         sa.Column("profile", sa.Text, nullable=True),
+        sa.Column("opop_year", sa.Integer, nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
@@ -71,6 +73,7 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
         sa.Column("direction_id", sa.UUID, sa.ForeignKey("directions.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("version", sa.String(50), nullable=False),
+        sa.Column("opop_year", sa.Integer, nullable=True),
         sa.Column("total_disciplines", sa.Integer, server_default="0"),
         sa.Column("total_competencies", sa.Integer, server_default="0"),
         sa.Column("total_skills", sa.Integer, server_default="0"),
@@ -89,6 +92,7 @@ def upgrade() -> None:
         sa.Column("number", sa.String(10), nullable=False),
         sa.Column("name", sa.Text, nullable=True),
         sa.Column("description", sa.Text, nullable=True),
+        sa.Column("development_level", sa.String(10), nullable=True),
         sa.Column("parent_id", sa.UUID, sa.ForeignKey("competencies.id", ondelete="CASCADE"), nullable=True),
         sa.Column("sort_order", sa.Integer, server_default="0"),
         sa.Column("parse_version_id", sa.UUID, sa.ForeignKey("parse_versions.id"), nullable=True),
@@ -97,6 +101,7 @@ def upgrade() -> None:
     )
     op.create_check_constraint("ck_comp_code_format", "competencies", "code ~ '^(УК|ОПК|ПК|ППК|ИП)[- ]\\d+'")
     op.create_check_constraint("ck_comp_category", "competencies", "category IN ('УК', 'ОПК', 'ПК', 'ППК', 'ИП')")
+    op.create_check_constraint("ck_comp_dev_level", "competencies", "development_level IN ('КС-1', 'КС-2', 'КС-3')")
     op.create_index("idx_competencies_category", "competencies", ["category"])
 
     # ── KSA Entries ─────────────────────────────────────────────────────
@@ -145,17 +150,68 @@ def upgrade() -> None:
     op.create_check_constraint("ck_cs_match_type", "competency_skills", "match_type IN ('exact', 'fuzzy', 'stem')")
     op.create_unique_constraint("uq_cs_unique", "competency_skills", ["competency_id", "skill_id", "ksa_type", "parse_version_id"])
 
+    # ── Users ────────────────────────────────────────────────────────────
+    op.create_table(
+        "users",
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
+        sa.Column("email", sa.String(255), unique=True, nullable=False, index=True),
+        sa.Column("password_hash", sa.Text, nullable=False),
+        sa.Column("full_name", sa.Text, nullable=False),
+        sa.Column("role", sa.String(20), server_default="teacher"),
+        sa.Column("is_active", sa.Boolean, server_default=sa.true()),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+    op.create_check_constraint("ck_user_role", "users", "role IN ('admin', 'teacher')")
+
     # ── Recommendations ─────────────────────────────────────────────────
     op.create_table(
         "recommendations",
         sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
         sa.Column("discipline_id", sa.UUID, sa.ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("competency_id", sa.UUID, sa.ForeignKey("competencies.id", ondelete="CASCADE"), nullable=True),
+        sa.Column("user_id", sa.UUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("suggestion", sa.Text, nullable=False),
         sa.Column("suggestion_type", sa.String(20), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_check_constraint("ck_rec_type", "recommendations", "suggestion_type IN ('modify', 'add', 'remove')")
+
+    # ── Student Groups ──────────────────────────────────────────────────
+    op.create_table(
+        "student_groups",
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
+        sa.Column("direction_id", sa.UUID, sa.ForeignKey("directions.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("name", sa.String(100), nullable=False),
+        sa.Column("year", sa.Integer, nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+    op.create_unique_constraint("uq_student_group_name", "student_groups", ["name"])
+
+    # ── Students ─────────────────────────────────────────────────────────
+    op.create_table(
+        "students",
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
+        sa.Column("group_id", sa.UUID, sa.ForeignKey("student_groups.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("full_name", sa.Text, nullable=False),
+        sa.Column("email", sa.String(255), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+
+    # ── Student Skills ──────────────────────────────────────────────────
+    op.create_table(
+        "student_skills",
+        sa.Column("id", sa.UUID, primary_key=True, server_default=sa.func.gen_random_uuid()),
+        sa.Column("student_id", sa.UUID, sa.ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("skill_id", sa.UUID, sa.ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("source", sa.String(30), server_default="self_assessment"),
+        sa.Column("proficiency", sa.Float, server_default="0.0"),
+        sa.Column("assessed_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+    op.create_check_constraint("ck_ss_source", "student_skills", "source IN ('self_assessment', 'auto_extracted', 'expert', 'test')")
+    op.create_check_constraint("ck_ss_proficiency", "student_skills", "proficiency >= 0.0 AND proficiency <= 1.0")
+    op.create_unique_constraint("uq_student_skill_source", "student_skills", ["student_id", "skill_id", "source"])
 
     # ── Market Skill Mappings ───────────────────────────────────────────
     op.create_table(
@@ -186,7 +242,11 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("coverage_analyses")
     op.drop_table("market_skill_mappings")
+    op.drop_table("student_skills")
+    op.drop_table("students")
+    op.drop_table("student_groups")
     op.drop_table("recommendations")
+    op.drop_table("users")
     op.drop_table("competency_skills")
     op.drop_table("skills")
     op.drop_table("ksa_entries")

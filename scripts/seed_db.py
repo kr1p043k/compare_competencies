@@ -18,6 +18,8 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import Base, async_session_factory, engine
+from sqlalchemy.dialects.postgresql import UUID
+
 from src.models.krm_models import (
     Competency,
     CompetencySkill,
@@ -28,6 +30,7 @@ from src.models.krm_models import (
     PDFSource,
     Recommendation,
     Skill,
+    User,
 )
 
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -109,6 +112,7 @@ async def seed_krm(session: AsyncSession, skill_map: dict[str, str]) -> None:
             code="09.03.02",
             name=direction_data.get("direction_name", "09.03.02 Информационные системы и технологии"),
             profile=direction_data.get("profile", "Перспективные информационные технологии"),
+            opop_year=2024,
         )
         session.add(direction)
         await session.flush()
@@ -117,6 +121,7 @@ async def seed_krm(session: AsyncSession, skill_map: dict[str, str]) -> None:
     pv = ParseVersion(
         direction_id=direction.id,
         version=datetime.utcnow().strftime("%Y%m%d_%H%M%S"),
+        opop_year=2024,
         total_disciplines=len(disciplines_raw),
         notes="Seed from parsed RPD JSON",
     )
@@ -230,6 +235,23 @@ async def seed_krm(session: AsyncSession, skill_map: dict[str, str]) -> None:
     print(f"KSA entries: {ksa_count}")
 
 
+async def seed_users(session: AsyncSession) -> None:
+    """Seed default admin user."""
+    result = await session.execute(select(User).where(User.email == "admin@edu.ru"))
+    if result.scalar_one_or_none():
+        return
+    # Hash: admin (pgcrypto bcrypt)
+    from sqlalchemy import text
+    result = await session.execute(
+        text("SELECT crypt('admin', gen_salt('bf')) AS pw_hash")
+    )
+    pw_hash = result.scalar_one()
+    admin = User(email="admin@edu.ru", password_hash=pw_hash, full_name="Администратор", role="admin")
+    session.add(admin)
+    await session.commit()
+    print(f"User: admin@edu.ru / admin")
+
+
 async def seed_recommendations(session: AsyncSession) -> None:
     """Migrate teacher recommendations."""
     try:
@@ -292,6 +314,9 @@ async def main(drop: bool = False, version: str | None = None) -> None:
 
         print("Seeding KRM data...")
         await seed_krm(session, skill_map)
+
+        print("Seeding users...")
+        await seed_users(session)
 
         print("Seeding recommendations...")
         await seed_recommendations(session)

@@ -1,4 +1,4 @@
-"""SQLAlchemy models for KRM (disciplines, competencies, skills, analysis)."""
+"""SQLAlchemy models for main project database."""
 
 import uuid
 from datetime import datetime
@@ -25,11 +25,13 @@ class Direction(Base):
     code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     profile: Mapped[Optional[str]] = mapped_column(Text)
+    opop_year: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
 
     disciplines: Mapped[list["Discipline"]] = relationship(back_populates="direction", cascade="all, delete-orphan")
     parse_versions: Mapped[list["ParseVersion"]] = relationship(back_populates="direction", cascade="all, delete-orphan")
+    student_groups: Mapped[list["StudentGroup"]] = relationship(back_populates="direction", cascade="all, delete-orphan")
 
 
 # ─── Discipline ────────────────────────────────────────────────────────────
@@ -88,6 +90,7 @@ class ParseVersion(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     direction_id: Mapped[str] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"), nullable=False, index=True)
     version: Mapped[str] = mapped_column(String(50), nullable=False)
+    opop_year: Mapped[Optional[int]] = mapped_column(Integer)
     total_disciplines: Mapped[int] = mapped_column(Integer, default=0)
     total_competencies: Mapped[int] = mapped_column(Integer, default=0)
     total_skills: Mapped[int] = mapped_column(Integer, default=0)
@@ -113,6 +116,7 @@ class Competency(Base):
     number: Mapped[str] = mapped_column(String(10), nullable=False)
     name: Mapped[Optional[str]] = mapped_column(Text)
     description: Mapped[Optional[str]] = mapped_column(Text)
+    development_level: Mapped[Optional[str]] = mapped_column(String(10))
     parent_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     parse_version_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("parse_versions.id"))
@@ -131,6 +135,7 @@ class Competency(Base):
     __table_args__ = (
         CheckConstraint("code ~ '^(УК|ОПК|ПК|ППК|ИП)[- ]\\d+'", name="ck_comp_code_format"),
         CheckConstraint(category.in_(["УК", "ОПК", "ПК", "ППК", "ИП"]), name="ck_comp_category"),
+        CheckConstraint(development_level.in_(["КС-1", "КС-2", "КС-3"]), name="ck_comp_dev_level"),
     )
 
 
@@ -174,6 +179,7 @@ class Skill(Base):
 
     competency_skills: Mapped[list["CompetencySkill"]] = relationship(back_populates="skill", cascade="all, delete-orphan")
     market_mappings: Mapped[list["MarketSkillMapping"]] = relationship(back_populates="skill", cascade="all, delete-orphan")
+    student_skills: Mapped[list["StudentSkill"]] = relationship(back_populates="skill", cascade="all, delete-orphan")
 
     __table_args__ = (
         CheckConstraint(source.in_(["it_skills", "rpd_skills", "market"]), name="ck_skill_source"),
@@ -205,6 +211,27 @@ class CompetencySkill(Base):
     )
 
 
+# ─── User ──────────────────────────────────────────────────────────────────
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    full_name: Mapped[str] = mapped_column(Text, nullable=False)
+    role: Mapped[str] = mapped_column(String(20), default="teacher")
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    recommendations: Mapped[list["Recommendation"]] = relationship(back_populates="user")
+
+    __table_args__ = (
+        CheckConstraint(role.in_(["admin", "teacher"]), name="ck_user_role"),
+    )
+
+
 # ─── Recommendation ────────────────────────────────────────────────────────
 
 class Recommendation(Base):
@@ -213,14 +240,69 @@ class Recommendation(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     discipline_id: Mapped[str] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True)
     competency_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
+    user_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"))
     suggestion: Mapped[str] = mapped_column(Text, nullable=False)
     suggestion_type: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
     discipline: Mapped["Discipline"] = relationship(back_populates="recommendations")
+    user: Mapped[Optional["User"]] = relationship(back_populates="recommendations")
 
     __table_args__ = (
         CheckConstraint(suggestion_type.in_(["modify", "add", "remove"]), name="ck_rec_type"),
+    )
+
+
+# ─── Student Group ─────────────────────────────────────────────────────────
+
+class StudentGroup(Base):
+    __tablename__ = "student_groups"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    direction_id: Mapped[str] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    direction: Mapped["Direction"] = relationship(back_populates="student_groups")
+    students: Mapped[list["Student"]] = relationship(back_populates="group", cascade="all, delete-orphan")
+
+
+# ─── Student ───────────────────────────────────────────────────────────────
+
+class Student(Base):
+    __tablename__ = "students"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    group_id: Mapped[str] = mapped_column(UUID, ForeignKey("student_groups.id", ondelete="CASCADE"), nullable=False, index=True)
+    full_name: Mapped[str] = mapped_column(Text, nullable=False)
+    email: Mapped[Optional[str]] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    group: Mapped["StudentGroup"] = relationship(back_populates="students")
+    skills: Mapped[list["StudentSkill"]] = relationship(back_populates="student", cascade="all, delete-orphan")
+
+
+# ─── Student Skill ─────────────────────────────────────────────────────────
+
+class StudentSkill(Base):
+    __tablename__ = "student_skills"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    student_id: Mapped[str] = mapped_column(UUID, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    skill_id: Mapped[str] = mapped_column(UUID, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True)
+    source: Mapped[str] = mapped_column(String(30), default="self_assessment")
+    proficiency: Mapped[float] = mapped_column(Float, default=0.0)
+    assessed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    student: Mapped["Student"] = relationship(back_populates="skills")
+    skill: Mapped["Skill"] = relationship(back_populates="student_skills")
+
+    __table_args__ = (
+        CheckConstraint(source.in_(["self_assessment", "auto_extracted", "expert", "test"]), name="ck_ss_source"),
+        CheckConstraint("proficiency >= 0.0 AND proficiency <= 1.0", name="ck_ss_proficiency"),
+        UniqueConstraint("student_id", "skill_id", "source", name="uq_student_skill_source"),
     )
 
 
