@@ -308,7 +308,62 @@ CREATE TRIGGER trg_users_updated
     BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- ─── 21. Начальные данные ─────────────────────────────────────────────────
+-- ─── 21. Триггер: нормализация имени навыка ───────────────────────────────
+CREATE OR REPLACE FUNCTION normalize_skill_name()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.name = LOWER(TRIM(NEW.name));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_skills_name_lower
+    BEFORE INSERT OR UPDATE ON skills
+    FOR EACH ROW EXECUTE FUNCTION normalize_skill_name();
+
+-- ─── 22. Триггер: автосборка кода компетенции ─────────────────────────────
+CREATE OR REPLACE FUNCTION auto_build_competency_code()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.code IS NULL OR NEW.code = '' THEN
+        NEW.code := NEW.category || '-' || NEW.number;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_competencies_code_auto
+    BEFORE INSERT ON competencies
+    FOR EACH ROW EXECUTE FUNCTION auto_build_competency_code();
+
+-- ─── 23. Триггер: upsert навыка студента ──────────────────────────────────
+-- При повторной вставке (student_id, skill_id, source) обновляет proficiency
+CREATE OR REPLACE FUNCTION upsert_student_skill()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM student_skills
+        WHERE student_id = NEW.student_id
+          AND skill_id = NEW.skill_id
+          AND source = NEW.source
+    ) THEN
+        UPDATE student_skills
+        SET proficiency = NEW.proficiency,
+            assessed_at = NOW()
+        WHERE student_id = NEW.student_id
+          AND skill_id = NEW.skill_id
+          AND source = NEW.source;
+        RETURN NULL;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_student_skills_upsert
+    BEFORE INSERT ON student_skills
+    FOR EACH ROW EXECUTE FUNCTION upsert_student_skill();
+
+-- ─── 24. Начальные данные ────────────────────────────────────────────────
 INSERT INTO directions (code, name, profile, opop_year)
 VALUES (
     '09.03.02',

@@ -237,19 +237,23 @@ async def seed_krm(session: AsyncSession, skill_map: dict[str, str]) -> None:
 
 async def seed_users(session: AsyncSession) -> None:
     """Seed default admin user."""
-    result = await session.execute(select(User).where(User.email == "admin@edu.ru"))
+    result = await session.execute(select(User).where(User.email == "admin@compare-competencies.local"))
     if result.scalar_one_or_none():
         return
-    # Hash: admin (pgcrypto bcrypt)
     from sqlalchemy import text
     result = await session.execute(
         text("SELECT crypt('admin', gen_salt('bf')) AS pw_hash")
     )
     pw_hash = result.scalar_one()
-    admin = User(email="admin@edu.ru", password_hash=pw_hash, full_name="Администратор", role="admin")
+    admin = User(
+        email="admin@compare-competencies.local",
+        password_hash=pw_hash,
+        full_name="Администратор",
+        role="admin"
+    )
     session.add(admin)
     await session.commit()
-    print(f"User: admin@edu.ru / admin")
+    print("User: admin@compare-competencies.local / admin")
 
 
 async def seed_recommendations(session: AsyncSession) -> None:

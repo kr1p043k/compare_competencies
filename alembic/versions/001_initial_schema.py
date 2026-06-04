@@ -22,6 +22,41 @@ def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
+    # ── Helper: updated_at trigger function ─────────────────────────────
+    op.execute("""
+        CREATE OR REPLACE FUNCTION update_updated_at()
+        RETURNS TRIGGER AS $$
+        BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+        $$ LANGUAGE plpgsql
+    """)
+    # ── Helper: normalize skill name ────────────────────────────────────
+    op.execute("""
+        CREATE OR REPLACE FUNCTION normalize_skill_name()
+        RETURNS TRIGGER AS $$
+        BEGIN NEW.name = LOWER(TRIM(NEW.name)); RETURN NEW; END;
+        $$ LANGUAGE plpgsql
+    """)
+    # ── Helper: auto-build competency code ──────────────────────────────
+    op.execute("""
+        CREATE OR REPLACE FUNCTION auto_build_competency_code()
+        RETURNS TRIGGER AS $$
+        BEGIN IF NEW.code IS NULL OR NEW.code = '' THEN NEW.code := NEW.category || '-' || NEW.number; END IF; RETURN NEW; END;
+        $$ LANGUAGE plpgsql
+    """)
+    # ── Helper: upsert student skill ────────────────────────────────────
+    op.execute("""
+        CREATE OR REPLACE FUNCTION upsert_student_skill()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM student_skills WHERE student_id = NEW.student_id AND skill_id = NEW.skill_id AND source = NEW.source) THEN
+                UPDATE student_skills SET proficiency = NEW.proficiency, assessed_at = NOW() WHERE student_id = NEW.student_id AND skill_id = NEW.skill_id AND source = NEW.source;
+                RETURN NULL;
+            END IF;
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql
+    """)
+
     # ── Directions ──────────────────────────────────────────────────────
     op.create_table(
         "directions",
@@ -238,8 +273,25 @@ def upgrade() -> None:
         sa.Column("analysis_date", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
+    # ── Triggers on table events ────────────────────────────────────────
+    tables_updated_at = [
+        "directions", "disciplines", "competencies", "skills", "users",
+    ]
+    for t in tables_updated_at:
+        op.execute(f"CREATE TRIGGER trg_{t}_updated BEFORE UPDATE ON {t} FOR EACH ROW EXECUTE FUNCTION update_updated_at()")
+
+    op.execute("CREATE TRIGGER trg_skills_name_lower BEFORE INSERT OR UPDATE ON skills FOR EACH ROW EXECUTE FUNCTION normalize_skill_name()")
+    op.execute("CREATE TRIGGER trg_competencies_code_auto BEFORE INSERT ON competencies FOR EACH ROW EXECUTE FUNCTION auto_build_competency_code()")
+    op.execute("CREATE TRIGGER trg_student_skills_upsert BEFORE INSERT ON student_skills FOR EACH ROW EXECUTE FUNCTION upsert_student_skill()")
+
 
 def downgrade() -> None:
+    # Drop triggers first
+    for suffix in ["updated", "name_lower", "code_auto", "upsert"]:
+        for t in ["directions", "disciplines", "competencies", "skills", "users"]:
+            op.execute(f"DROP TRIGGER IF EXISTS trg_{t}_{suffix} ON {t} CASCADE")
+    op.execute("DROP TRIGGER IF EXISTS trg_student_skills_upsert ON student_skills CASCADE")
+
     op.drop_table("coverage_analyses")
     op.drop_table("market_skill_mappings")
     op.drop_table("student_skills")
