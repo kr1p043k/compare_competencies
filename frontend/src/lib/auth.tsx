@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export const useAuth = () => useContext(AuthContext);
 
-function authHeaders(): Record<string, string> {
+export function authHeaders(): Record<string, string> {
   try {
     const stored = localStorage.getItem("auth");
     if (stored) {

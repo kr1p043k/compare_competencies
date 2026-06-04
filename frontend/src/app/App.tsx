@@ -28,7 +28,7 @@ import { LoginPage } from "./components/LoginPage";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
 import { StudentDashboard } from "./components/StudentDashboard";
-import { useAuth, apiFetch } from "../lib/auth";
+import { authHeaders, useAuth, apiFetch } from "../lib/auth";
 import { initApiLogger } from "../lib/logger";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -362,7 +362,7 @@ export default function App() {
                 <span>{name || roleLabel}</span>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100">{roleLabel}</span>
               </div>
-              <Button variant="ghost" size="sm" onClick={logout} className="text-gray-500 hover:text-red-600">
+              <Button variant="ghost" size="sm" onClick={() => { fetch("/api/auth/logout", { method: "POST", headers: authHeaders() }).catch(() => {}); logout(); }} className="text-gray-500 hover:text-red-600">
                 <LogOut className="size-4" />
               </Button>
             </div>

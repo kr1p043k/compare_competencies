@@ -18,7 +18,7 @@ export function LoginPage({ onLogin }: { onLogin: (token: string, role: string, 
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email: username, password }),
       });
       if (!res.ok) {
         setError("Неверный логин или пароль");
@@ -47,7 +47,7 @@ export function LoginPage({ onLogin }: { onLogin: (token: string, role: string, 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">Логин</Label>
-              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin / prepod / student" required />
+              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin@... / teacher@... / student@..." required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Пароль</Label>

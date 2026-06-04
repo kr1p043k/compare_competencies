@@ -283,7 +283,23 @@ CREATE TABLE IF NOT EXISTS coverage_analyses (
 CREATE INDEX idx_ca_discipline ON coverage_analyses(discipline_id);
 CREATE INDEX idx_ca_coverage ON coverage_analyses(coverage_ratio DESC);
 
--- ─── 20. Логи запросов (бэкенд + фронтенд) ─────────────────────────────────
+-- ─── 20. Сессии пользователей ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS sessions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash      TEXT NOT NULL,                      -- HMAC-SHA256 хэш токена
+    ip_address      VARCHAR(45),                         -- IPv4 или IPv6
+    user_agent      TEXT,
+    logged_in_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_activity   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    logged_out_at   TIMESTAMPTZ
+);
+
+CREATE INDEX idx_sessions_user ON sessions(user_id);
+CREATE INDEX idx_sessions_token ON sessions(token_hash);
+CREATE INDEX idx_sessions_active ON sessions(logged_out_at) WHERE logged_out_at IS NULL;
+
+-- ─── 21. Логи запросов (бэкенд + фронтенд) ─────────────────────────────────
 CREATE TABLE IF NOT EXISTS request_logs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     method          VARCHAR(10) NOT NULL,
@@ -300,7 +316,7 @@ CREATE INDEX idx_request_logs_created ON request_logs(created_at DESC);
 CREATE INDEX idx_request_logs_user ON request_logs(user_email);
 CREATE INDEX idx_request_logs_source ON request_logs(source);
 
--- ─── 21. Триггеры автообновления updated_at ───────────────────────────────
+-- ─── 22. Триггеры автообновления updated_at ───────────────────────────────
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -329,7 +345,7 @@ CREATE TRIGGER trg_users_updated
     BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- ─── 22. Триггер: нормализация имени навыка ───────────────────────────────
+-- ─── 23. Триггер: нормализация имени навыка ───────────────────────────────
 CREATE OR REPLACE FUNCTION normalize_skill_name()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -342,7 +358,7 @@ CREATE TRIGGER trg_skills_name_lower
     BEFORE INSERT OR UPDATE ON skills
     FOR EACH ROW EXECUTE FUNCTION normalize_skill_name();
 
--- ─── 23. Триггер: автосборка кода компетенции ─────────────────────────────
+-- ─── 24. Триггер: автосборка кода компетенции ─────────────────────────────
 CREATE OR REPLACE FUNCTION auto_build_competency_code()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -357,7 +373,7 @@ CREATE TRIGGER trg_competencies_code_auto
     BEFORE INSERT ON competencies
     FOR EACH ROW EXECUTE FUNCTION auto_build_competency_code();
 
--- ─── 24. Триггер: upsert навыка студента ──────────────────────────────────
+-- ─── 25. Триггер: upsert навыка студента ──────────────────────────────────
 -- При повторной вставке (student_id, skill_id, source) обновляет proficiency
 CREATE OR REPLACE FUNCTION upsert_student_skill()
 RETURNS TRIGGER AS $$
@@ -385,7 +401,7 @@ CREATE TRIGGER trg_student_skills_upsert
     BEFORE INSERT ON student_skills
     FOR EACH ROW EXECUTE FUNCTION upsert_student_skill();
 
--- ─── 25. Начальные данные ────────────────────────────────────────────────
+-- ─── 26. Начальные данные ────────────────────────────────────────────────
 INSERT INTO directions (code, name, profile, opop_year)
 VALUES (
     '09.03.02',
@@ -394,14 +410,12 @@ VALUES (
     2024
 ) ON CONFLICT (code) DO NOTHING;
 
--- Администратор (пароль: admin, хэш через pgcrypt bcrypt)
-INSERT INTO users (email, password_hash, full_name, role)
-VALUES (
-    'admin@compare-competencies.local',
-    crypt('admin', gen_salt('bf')),
-    'Администратор',
-    'admin'
-) ON CONFLICT (email) DO NOTHING;
+-- Пользователи по умолчанию (пароль через pgcrypt bcrypt)
+INSERT INTO users (email, password_hash, full_name, role) VALUES
+    ('admin@compare-competencies.local', crypt('admin', gen_salt('bf')), 'Администратор', 'admin'),
+    ('teacher@compare-competencies.local', crypt('prepod', gen_salt('bf')), 'Преподаватель', 'teacher'),
+    ('student@compare-competencies.local', crypt('student', gen_salt('bf')), 'Студент', 'teacher')
+ON CONFLICT (email) DO NOTHING;
 
 -- =============================================================================
 -- Готово. Проверка:

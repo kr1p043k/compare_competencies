@@ -228,6 +228,7 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
 
     recommendations: Mapped[list["Recommendation"]] = relationship(back_populates="user")
+    sessions: Mapped[list["Session"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         CheckConstraint(role.in_(["admin", "teacher"]), name="ck_user_role"),
@@ -308,6 +309,23 @@ class StudentSkill(Base):
         CheckConstraint(achieved_level.in_(["КС-1", "КС-2", "КС-3"]), name="ck_ss_achieved_level"),
         UniqueConstraint("student_id", "skill_id", "source", name="uq_student_skill_source"),
     )
+
+
+# ─── Session ───────────────────────────────────────────────────────────────
+
+class Session(Base):
+    __tablename__ = "sessions"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45))
+    user_agent: Mapped[Optional[str]] = mapped_column(Text)
+    logged_in_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    last_activity: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    logged_out_at: Mapped[Optional[datetime]]
+
+    user: Mapped["User"] = relationship(back_populates="sessions")
 
 
 # ─── Request Log ───────────────────────────────────────────────────────────

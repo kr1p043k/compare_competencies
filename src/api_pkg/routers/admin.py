@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from slowapi import Limiter
@@ -18,12 +18,13 @@ from slowapi.util import get_remote_address
 from src import config
 from src.parsing.utils import load_it_skills
 from src.api_pkg.request_logger import get_logs, get_logs_by_user
+from src.api_pkg.routers.auth import require_role
 
 from src.api_pkg import deps
 
 logger = structlog.get_logger("api")
 
-router = APIRouter(tags=["admin"])
+router = APIRouter(tags=["admin"], dependencies=[Depends(require_role("admin"))])
 limiter = Limiter(key_func=get_remote_address)
 
 
@@ -319,16 +320,26 @@ async def export_full_report(request: Request):
 @router.get("/api/admin/users")
 @limiter.limit("30/minute")
 async def admin_users(request: Request):
-    users_path = Path(__file__).parent.parent.parent.parent / "users.json"
-    if not users_path.exists():
-        return {"users": []}
-    raw = json.loads(users_path.read_text(encoding="utf-8"))
+    from src.database import async_session_factory
+    from src.models.krm_models import User as UserModel
+
+    async with async_session_factory() as session:
+        result = await session.execute(select(UserModel).order_by(UserModel.created_at))
+        users = result.scalars().all()
+
     log_counts = get_logs_by_user()
-    users = [
-        {"username": k, "role": v["role"], "name": v["name"], "total_requests": log_counts.get(k, 0)}
-        for k, v in raw.items()
-    ]
-    return {"users": users}
+    return {
+        "users": [
+            {
+                "username": u.email,
+                "role": u.role,
+                "name": u.full_name,
+                "total_requests": log_counts.get(u.email, 0),
+                "is_active": u.is_active,
+            }
+            for u in users
+        ]
+    }
 
 
 @router.get("/api/admin/logs")
