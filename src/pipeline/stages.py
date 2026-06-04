@@ -91,7 +91,10 @@ class QualityScoringStage(PipelineStage):
             self._progress(90, "Генерация Excel-отчёта...")
             df = parser.aggregate_to_dataframe(vacancies, quality_report)
             excel_name = f"vacancies_{self.args.query.replace(' ', '_')}.xlsx"
-            parser.save_to_excel(df, excel_name)
+            match parser.save_to_excel(df, excel_name):
+                case Ok(_): pass
+                case Err(e):
+                    logger.warning("excel_save_failed", error=str(e))
 
         clean_pct = (total - spam_count) / total * 100 if total else 0
         self._progress(100, f"Оценка качества завершена: {total - spam_count} качественных вакансий")

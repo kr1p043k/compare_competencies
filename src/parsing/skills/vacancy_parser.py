@@ -232,12 +232,15 @@ class VacancyParser:
 
         return pd.DataFrame(rows)
 
-    def save_to_excel(self, df: pd.DataFrame, filename: str):
-        """Сохраняет DataFrame в Excel (в data/result/reports/)"""
-        config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-        filepath = config.REPORTS_DIR / filename
-        df.to_excel(filepath, index=False, engine="openpyxl")
-        logger.info("Excel файл сохранён", path=str(filepath))
+    def save_to_excel(self, df: pd.DataFrame, filename: str) -> Result[None, DomainError]:
+        try:
+            config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+            filepath = config.REPORTS_DIR / filename
+            df.to_excel(filepath, index=False, engine="openpyxl")
+            logger.info("Excel файл сохранён", path=str(filepath))
+            return Ok(None)
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail=f"save_to_excel({filename})"))
 
     def print_vacancies_list(self, vacancies: list[dict] | list[Vacancy]):
         """Выводит список вакансий (навыки: key_skills + текстовое извлечение)"""
