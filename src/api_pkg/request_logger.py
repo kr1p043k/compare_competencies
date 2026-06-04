@@ -16,12 +16,13 @@ from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
+from src import config
 from src.models.krm_models import RequestLog
 
 logger = structlog.get_logger(__name__)
 
 MAX_LOGS = 2000
-SECRET_KEY = "compare-competencies-secret-key-change-in-production"
+SECRET_KEY = config.SECRET_KEY
 FLUSH_INTERVAL = 10  # seconds
 FLUSH_BATCH = 100    # entries
 

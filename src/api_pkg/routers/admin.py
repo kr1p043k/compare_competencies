@@ -470,6 +470,15 @@ def _run_export() -> None:
     logger.info("db_export_completed")
 
 
+@router.post("/api/admin/db/backup")
+@limiter.limit("1/minute")
+async def admin_backup_db(request: Request):
+    """Create a PostgreSQL dump in data/backups/."""
+    from src.cli.backup_db import main as backup_main
+    backup_main()
+    return {"status": "ok", "message": "Backup created"}
+
+
 # ---------- Frontend log endpoint ----------
 
 

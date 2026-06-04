@@ -10,6 +10,7 @@ def main() -> None:
     import argparse
 
     from src.cli import (
+        backup_db,
         create_user,
         embeddings,
         export_json,
@@ -55,6 +56,10 @@ def main() -> None:
 
     p = sub.add_parser("rebuild", help="Полная пересборка")
     p.set_defaults(func=lambda a: rebuild.main())
+
+    p = sub.add_parser("backup", help="Бэкап БД")
+    p.add_argument("--restore", nargs="?", const="latest", help="Восстановить из бэкапа")
+    p.set_defaults(func=lambda a: backup_db.main(restore=a.restore))
 
     args = parser.parse_args()
     args.func(args)

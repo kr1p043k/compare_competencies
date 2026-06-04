@@ -69,10 +69,11 @@ class Settings(BaseSettings):
     N8N_API_KEY: SecretStr | None = None
     N8N_WEBHOOK_SECRET: SecretStr | None = None
 
-    # ---------- CORS ----------
-    ALLOWED_ORIGINS: str = "*"
-
     # ---------- безопасность ----------
+    SECRET_KEY: str = "compare-competencies-secret-key-change-in-production"
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
+    TOKEN_TTL_DAYS: int = 7
+
     MAX_REQUEST_SIZE: int = 10 * 1024 * 1024  # 10 MB
 
     # ---------- hh.ru API ----------

@@ -20,6 +20,8 @@ export function AdminDashboard() {
   const [seedLoading, setSeedLoading] = useState(false);
   const [embLoading, setEmbLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupMsg, setBackupMsg] = useState("");
   const [extLoading, setExtLoading] = useState(false);
   const [seedMsg, setSeedMsg] = useState("");
   const [embMsg, setEmbMsg] = useState("");
@@ -282,6 +284,12 @@ export function AdminDashboard() {
                   <FileText className="size-4 mr-2" />{exportLoading ? "..." : "Export DB → JSON"}
                 </Button>
                 {exportMsg && <span className="text-sm text-gray-600">{exportMsg}</span>}
+              </div>
+              <div className="flex items-center gap-4">
+                <Button onClick={() => callAction("/api/admin/db/backup", {}, setBackupMsg, setBackupLoading)} disabled={backupLoading}>
+                  {backupLoading ? "..." : "Backup DB (pg_dump)"}
+                </Button>
+                {backupMsg && <span className="text-sm text-gray-600">{backupMsg}</span>}
               </div>
             </CardContent>
           </Card>

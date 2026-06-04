@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select, text as sa_text
 
+from src import config
 from src.database import async_session_factory
 from src.models.krm_models import Session as SessionModel
 from src.models.krm_models import User
@@ -20,8 +21,8 @@ from src.models.krm_models import User
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["auth"])
 
-SECRET_KEY = "compare-competencies-secret-key-change-in-production"
-TOKEN_TTL = 86400 * 7
+SECRET_KEY = config.SECRET_KEY
+TOKEN_TTL = 86400 * config.TOKEN_TTL_DAYS
 
 
 class LoginRequest(BaseModel):
