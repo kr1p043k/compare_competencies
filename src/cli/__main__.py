@@ -14,6 +14,7 @@ def main() -> None:
         create_user,
         embeddings,
         export_json,
+        export_results,
         extend_skills,
         import_students,
         rebuild,
@@ -60,6 +61,9 @@ def main() -> None:
     p = sub.add_parser("backup", help="Бэкап БД")
     p.add_argument("--restore", nargs="?", const="latest", help="Восстановить из бэкапа")
     p.set_defaults(func=lambda a: backup_db.main(restore=a.restore))
+
+    p = sub.add_parser("export-results", help="Экспорт JSON-результатов в БД")
+    p.set_defaults(func=lambda a: export_results.main())
 
     args = parser.parse_args()
     args.func(args)

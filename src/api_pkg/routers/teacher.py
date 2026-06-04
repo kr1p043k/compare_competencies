@@ -171,3 +171,95 @@ async def krm_delete_recommendation(request: Request, index: int):
     recs.pop(index)
     _save_json(config.TEACHER_RECOMMENDATIONS_PATH, recs)
     return {"status": "ok"}
+
+
+# ---------- DB-backed coverage analysis ----------
+
+
+@router.get("/api/teacher/krm/coverage")
+@limiter.limit("30/minute")
+async def krm_coverage(request: Request):
+    """Coverage per discipline (latest analysis)."""
+    from src.database import async_session_factory
+    from src.models.krm_models import CoverageAnalysis as CAModel, Discipline
+    from sqlalchemy import select, func
+
+    async with async_session_factory() as session:
+        # latest analysis date
+        latest = await session.execute(select(func.max(CAModel.analysis_date)))
+        latest_date = latest.scalar()
+
+        result = await session.execute(
+            select(CAModel, Discipline.name)
+            .join(Discipline, CAModel.discipline_id == Discipline.id)
+            .where(CAModel.analysis_date == latest_date)
+            .order_by(CAModel.coverage_ratio.asc())
+        )
+        rows = result.all()
+
+    return {
+        "analysis_date": latest_date.isoformat() if latest_date else None,
+        "disciplines": [
+            {
+                "name": name,
+                "total_skills": ca.total_skills,
+                "matched_skills": ca.market_matched_skills,
+                "coverage_ratio": ca.coverage_ratio,
+            }
+            for ca, name in rows
+        ],
+    }
+
+
+@router.get("/api/teacher/krm/coverage/history")
+@limiter.limit("30/minute")
+async def krm_coverage_history(request: Request, discipline: str | None = None, limit: int = 20):
+    """Coverage history across analyses."""
+    from src.database import async_session_factory
+    from src.models.krm_models import CoverageAnalysis as CAModel, Discipline
+    from sqlalchemy import select
+
+    async with async_session_factory() as session:
+        query = select(CAModel, Discipline.name).join(Discipline, CAModel.discipline_id == Discipline.id)
+        if discipline:
+            query = query.where(Discipline.name.ilike(f"%{discipline}%"))
+        query = query.order_by(CAModel.analysis_date.desc()).limit(limit)
+        result = await session.execute(query)
+
+    return [
+        {
+            "discipline": name,
+            "coverage_ratio": ca.coverage_ratio,
+            "total_skills": ca.total_skills,
+            "matched_skills": ca.market_matched_skills,
+            "analysis_date": ca.analysis_date.isoformat() if ca.analysis_date else None,
+        }
+        for ca, name in result.all()
+    ]
+
+
+@router.get("/api/teacher/krm/market-skills")
+@limiter.limit("30/minute")
+async def krm_market_skills(request: Request, limit: int = 50):
+    """Top market-demanded skills."""
+    from src.database import async_session_factory
+    from src.models.krm_models import MarketSkillMapping as MSM, Skill
+    from sqlalchemy import select
+
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(MSM, Skill.name)
+            .join(Skill, MSM.skill_id == Skill.id)
+            .order_by(MSM.frequency.desc())
+            .limit(limit)
+        )
+
+    return [
+        {
+            "skill": skill_name,
+            "frequency": msm.frequency,
+            "weight": msm.weight,
+            "period": msm.period.isoformat() if msm.period else None,
+        }
+        for msm, skill_name in result.all()
+    ]

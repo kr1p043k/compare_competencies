@@ -283,7 +283,50 @@ CREATE TABLE IF NOT EXISTS coverage_analyses (
 CREATE INDEX idx_ca_discipline ON coverage_analyses(discipline_id);
 CREATE INDEX idx_ca_coverage ON coverage_analyses(coverage_ratio DESC);
 
--- ─── 20. Сессии пользователей ─────────────────────────────────────────────
+-- ─── 20. Запуски пайплайна ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    action          VARCHAR(50) NOT NULL,
+    status          VARCHAR(20) NOT NULL DEFAULT 'started'
+                    CHECK (status IN ('started', 'completed', 'failed')),
+    started_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at    TIMESTAMPTZ,
+    error_message   TEXT,
+    stats           JSONB
+);
+
+CREATE INDEX idx_pipeline_runs_action ON pipeline_runs(action);
+CREATE INDEX idx_pipeline_runs_started ON pipeline_runs(started_at DESC);
+
+-- ─── 21. Результаты анализов ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS analysis_results (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pipeline_run_id UUID REFERENCES pipeline_runs(id) ON DELETE SET NULL,
+    analysis_type   VARCHAR(50) NOT NULL
+                    CHECK (analysis_type IN ('gap', 'coverage', 'cluster', 'trend')),
+    discipline_id   UUID REFERENCES disciplines(id) ON DELETE CASCADE,
+    competency_id   UUID REFERENCES competencies(id) ON DELETE CASCADE,
+    data            JSONB NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_ar_pipeline ON analysis_results(pipeline_run_id);
+CREATE INDEX idx_ar_type ON analysis_results(analysis_type);
+CREATE INDEX idx_ar_discipline ON analysis_results(discipline_id);
+
+-- ─── 22. Снимки трендов ──────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS trend_snapshots (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pipeline_run_id UUID REFERENCES pipeline_runs(id) ON DELETE SET NULL,
+    snapshot_date   DATE NOT NULL,
+    skill_freq      JSONB NOT NULL DEFAULT '{}',
+    source          VARCHAR(50) NOT NULL DEFAULT 'hh_vacancies',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_ts_date ON trend_snapshots(snapshot_date DESC);
+
+-- ─── 23. Сессии пользователей ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sessions (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -358,7 +401,7 @@ CREATE TRIGGER trg_skills_name_lower
     BEFORE INSERT OR UPDATE ON skills
     FOR EACH ROW EXECUTE FUNCTION normalize_skill_name();
 
--- ─── 24. Триггер: автосборка кода компетенции ─────────────────────────────
+-- ─── 27. Триггер: автосборка кода компетенции ─────────────────────────────
 CREATE OR REPLACE FUNCTION auto_build_competency_code()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -373,7 +416,7 @@ CREATE TRIGGER trg_competencies_code_auto
     BEFORE INSERT ON competencies
     FOR EACH ROW EXECUTE FUNCTION auto_build_competency_code();
 
--- ─── 25. Триггер: upsert навыка студента ──────────────────────────────────
+-- ─── 28. Триггер: upsert навыка студента ──────────────────────────────────
 -- При повторной вставке (student_id, skill_id, source) обновляет proficiency
 CREATE OR REPLACE FUNCTION upsert_student_skill()
 RETURNS TRIGGER AS $$
@@ -401,7 +444,7 @@ CREATE TRIGGER trg_student_skills_upsert
     BEFORE INSERT ON student_skills
     FOR EACH ROW EXECUTE FUNCTION upsert_student_skill();
 
--- ─── 26. Начальные данные ────────────────────────────────────────────────
+-- ─── 29. Начальные данные ────────────────────────────────────────────────
 INSERT INTO directions (code, name, profile, opop_year)
 VALUES (
     '09.03.02',

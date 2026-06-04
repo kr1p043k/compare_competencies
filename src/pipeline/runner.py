@@ -345,6 +345,16 @@ def run_full_pipeline(args) -> Result[None, str]:
                 logger.error("gap_analysis_failed", error=str(err))
                 return Err(f"GAP-анализ не удался: {err}")
 
+        # Write results to PostgreSQL
+        try:
+            import asyncio
+            from src.pipeline.db_writer import save_coverage_from_json, create_pipeline_run, complete_pipeline_run
+            run_id = asyncio.run(create_pipeline_run("gap-analysis"))
+            asyncio.run(save_coverage_from_json(run_id=run_id))
+            asyncio.run(complete_pipeline_run(run_id, status="completed"))
+        except Exception as db_err:
+            logger.warning("db_write_failed", error=str(db_err))
+
     _write_pipeline_progress(93, "Генерация графиков...")
     if evaluations:
         console_header("ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ")

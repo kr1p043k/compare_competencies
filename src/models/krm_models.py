@@ -6,6 +6,7 @@ from typing import Optional
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import CheckConstraint, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -378,3 +379,53 @@ class CoverageAnalysis(Base):
     analysis_date: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
     discipline: Mapped["Discipline"] = relationship(back_populates="coverage_analyses")
+
+
+# ─── Pipeline Run ──────────────────────────────────────────────────────────
+
+class PipelineRun(Base):
+    __tablename__ = "pipeline_runs"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="started")
+    started_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    completed_at: Mapped[Optional[datetime]]
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    stats: Mapped[Optional[dict]] = mapped_column(sa.JSON())
+
+    __table_args__ = (
+        CheckConstraint(action.in_(["full-cycle", "rebuild", "train-clusters", "train-model", "gap-analysis"]), name="ck_pr_action"),
+        CheckConstraint(status.in_(["started", "completed", "failed"]), name="ck_pr_status"),
+    )
+
+
+# ─── Analysis Result ───────────────────────────────────────────────────────
+
+class AnalysisResult(Base):
+    __tablename__ = "analysis_results"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    pipeline_run_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
+    analysis_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    discipline_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"))
+    competency_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
+    data: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    __table_args__ = (
+        CheckConstraint(analysis_type.in_(["gap", "coverage", "cluster", "trend"]), name="ck_ar_type"),
+    )
+
+
+# ─── Trend Snapshot ────────────────────────────────────────────────────────
+
+class TrendSnapshot(Base):
+    __tablename__ = "trend_snapshots"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    pipeline_run_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
+    snapshot_date: Mapped[datetime] = mapped_column()
+    skill_freq: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
+    source: Mapped[str] = mapped_column(String(50), default="hh_vacancies")
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
