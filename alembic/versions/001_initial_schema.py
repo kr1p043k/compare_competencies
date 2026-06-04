@@ -178,6 +178,7 @@ def upgrade() -> None:
         sa.Column("ksa_type", sa.String(20), nullable=False),
         sa.Column("source_text", sa.Text, nullable=True),
         sa.Column("match_type", sa.String(20), server_default="fuzzy"),
+        sa.Column("required_level", sa.String(10), nullable=True),
         sa.Column("parse_version_id", sa.UUID, sa.ForeignKey("parse_versions.id"), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
@@ -241,11 +242,13 @@ def upgrade() -> None:
         sa.Column("skill_id", sa.UUID, sa.ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("source", sa.String(30), server_default="self_assessment"),
         sa.Column("proficiency", sa.Float, server_default="0.0"),
+        sa.Column("achieved_level", sa.String(10), nullable=True),
         sa.Column("assessed_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_check_constraint("ck_ss_source", "student_skills", "source IN ('self_assessment', 'auto_extracted', 'expert', 'test')")
     op.create_check_constraint("ck_ss_proficiency", "student_skills", "proficiency >= 0.0 AND proficiency <= 1.0")
+    op.create_check_constraint("ck_ss_achieved_level", "student_skills", "achieved_level IN ('КС-1', 'КС-2', 'КС-3')")
     op.create_unique_constraint("uq_student_skill_source", "student_skills", ["student_id", "skill_id", "source"])
 
     # ── Market Skill Mappings ───────────────────────────────────────────

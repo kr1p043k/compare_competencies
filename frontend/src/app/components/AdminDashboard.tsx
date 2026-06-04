@@ -1,9 +1,13 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
-import { AlertCircle, RefreshCw, Users, FileText } from "lucide-react";
+import {
+  AlertCircle, RefreshCw, Users, FileText, Database,
+  Upload, Brain, BookOpen,
+} from "lucide-react";
 import { apiFetch } from "../../lib/auth";
 
 export function AdminDashboard() {
@@ -13,14 +17,28 @@ export function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState("users");
   const [logFilter, setLogFilter] = useState("all");
+  const [seedLoading, setSeedLoading] = useState(false);
+  const [embLoading, setEmbLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [extLoading, setExtLoading] = useState(false);
+  const [seedMsg, setSeedMsg] = useState("");
+  const [embMsg, setEmbMsg] = useState("");
+  const [exportMsg, setExportMsg] = useState("");
+  const [extMsg, setExtMsg] = useState("");
+  const [impMsg, setImpMsg] = useState("");
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPass, setNewUserPass] = useState("");
+  const [newUserRole, setNewUserRole] = useState("teacher");
+  const [newUserName, setNewUserName] = useState("");
+  const [userCreated, setUserCreated] = useState("");
+  const [importJson, setImportJson] = useState("");
 
   const loadData = async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       const [uRes, lRes] = await Promise.all([
         apiFetch("/api/admin/users"),
-        apiFetch(`/api/admin/logs?limit=200`),
+        apiFetch("/api/admin/logs?limit=200"),
       ]);
       if (!uRes.ok || !lRes.ok) throw new Error("Failed to load admin data");
       const uData = await uRes.json();
@@ -38,12 +56,61 @@ export function AdminDashboard() {
 
   const filteredLogs = logFilter === "all" ? logs : logs.filter((l) => l.user === logFilter);
 
+  const callAction = async (url: string, body: any, setMsg: (s: string) => void, setLoad: (b: boolean) => void) => {
+    setLoad(true); setMsg("");
+    try {
+      const r = await apiFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      setMsg(d.message || d.status || "Done");
+    } catch (e: any) {
+      setMsg("Error: " + e.message);
+    } finally {
+      setLoad(false);
+    }
+  };
+
+  const createUser = async () => {
+    setUserCreated("");
+    try {
+      const r = await apiFetch("/api/admin/users/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newUserEmail, password: newUserPass, role: newUserRole, name: newUserName }),
+      });
+      const d = await r.json();
+      setUserCreated(d.status === "ok" ? `User created: ${d.email}` : "Failed");
+      if (d.status === "ok") { setNewUserEmail(""); setNewUserPass(""); setNewUserName(""); }
+    } catch (e: any) {
+      setUserCreated("Error: " + e.message);
+    }
+  };
+
+  const importStudents = async () => {
+    setImpMsg("");
+    try {
+      const data = JSON.parse(importJson);
+      const r = await apiFetch("/api/admin/students/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const d = await r.json();
+      setImpMsg(`Imported: ${d.imported || "?"} students`);
+    } catch (e: any) {
+      setImpMsg("Error: " + e.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Администрирование</h2>
-          <p className="text-sm text-gray-500">Управление пользователями и мониторинг</p>
+          <p className="text-sm text-gray-500">Управление системой</p>
         </div>
         <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
           <RefreshCw className={`size-4 mr-2 ${loading ? "animate-spin" : ""}`} />
@@ -59,11 +126,15 @@ export function AdminDashboard() {
       )}
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="users"><Users className="size-4 mr-2" />Пользователи</TabsTrigger>
-          <TabsTrigger value="logs"><FileText className="size-4 mr-2" />Логи запросов</TabsTrigger>
+          <TabsTrigger value="logs"><FileText className="size-4 mr-2" />Логи</TabsTrigger>
+          <TabsTrigger value="db"><Database className="size-4 mr-2" />БД</TabsTrigger>
+          <TabsTrigger value="import"><Upload className="size-4 mr-2" />Импорт</TabsTrigger>
+          <TabsTrigger value="skills"><Brain className="size-4 mr-2" />Навыки</TabsTrigger>
         </TabsList>
 
+        {/* ── Users tab ── */}
         <TabsContent value="users" className="space-y-4">
           <Card>
             <CardHeader><CardTitle className="text-lg">Зарегистрированные пользователи</CardTitle></CardHeader>
@@ -100,14 +171,32 @@ export function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-lg">Создать пользователя</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <Input placeholder="Email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} />
+              <Input placeholder="Password" type="password" value={newUserPass} onChange={(e) => setNewUserPass(e.target.value)} />
+              <Input placeholder="Full name" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
+              <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)}
+                className="w-full h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm">
+                <option value="teacher">Преподаватель</option>
+                <option value="admin">Администратор</option>
+              </select>
+              <Button onClick={createUser}>Создать</Button>
+              {userCreated && <p className="text-sm text-green-600">{userCreated}</p>}
+            </CardContent>
+          </Card>
         </TabsContent>
 
+        {/* ── Logs tab ── */}
         <TabsContent value="logs" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">История запросов</CardTitle>
-                <select value={logFilter} onChange={(e) => setLogFilter(e.target.value)} className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm">
+                <select value={logFilter} onChange={(e) => setLogFilter(e.target.value)}
+                  className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm">
                   <option value="all">Все пользователи</option>
                   {users.map((u) => <option key={u.username} value={u.username}>{u.name}</option>)}
                 </select>
@@ -150,6 +239,74 @@ export function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── DB tab ── */}
+        <TabsContent value="db" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-lg"><Database className="size-4 inline mr-2" />Управление БД</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Button onClick={() => callAction("/api/admin/db/seed", { drop: false }, setSeedMsg, setSeedLoading)} disabled={seedLoading}>
+                  {seedLoading ? "..." : "Seed DB"}
+                </Button>
+                <Button variant="outline" onClick={() => callAction("/api/admin/db/seed", { drop: true }, setSeedMsg, setSeedLoading)} disabled={seedLoading}>
+                  Drop + Seed
+                </Button>
+                {seedMsg && <span className="text-sm text-gray-600">{seedMsg}</span>}
+              </div>
+              <div className="flex items-center gap-4">
+                <Button onClick={() => callAction("/api/admin/embeddings/generate", { force: false }, setEmbMsg, setEmbLoading)} disabled={embLoading}>
+                  <Brain className="size-4 mr-2" />{embLoading ? "..." : "Generate embeddings"}
+                </Button>
+                <Button variant="outline" onClick={() => callAction("/api/admin/embeddings/generate", { force: true }, setEmbMsg, setEmbLoading)} disabled={embLoading}>
+                  Force regenerate
+                </Button>
+                {embMsg && <span className="text-sm text-gray-600">{embMsg}</span>}
+              </div>
+              <div className="flex items-center gap-4">
+                <Button onClick={() => callAction("/api/admin/export/db", {}, setExportMsg, setExportLoading)} disabled={exportLoading}>
+                  <FileText className="size-4 mr-2" />{exportLoading ? "..." : "Export DB → JSON"}
+                </Button>
+                {exportMsg && <span className="text-sm text-gray-600">{exportMsg}</span>}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Import tab ── */}
+        <TabsContent value="import" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-lg"><Upload className="size-4 inline mr-2" />Импорт студентов</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-gray-500">JSON-массив студентов:</p>
+              <textarea
+                value={importJson}
+                onChange={(e) => setImportJson(e.target.value)}
+                rows={8}
+                className="w-full p-3 rounded-lg border border-gray-300 text-sm font-mono"
+                placeholder={`[
+  {"full_name":"Иванов Иван","group_name":"ИСИТ-31","skills":"python,sql"}
+]`}
+              />
+              <Button onClick={importStudents} disabled={!importJson}>Импортировать</Button>
+              {impMsg && <p className="text-sm text-green-600">{impMsg}</p>}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Skills tab ── */}
+        <TabsContent value="skills" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-lg"><Brain className="size-4 inline mr-2" />Расширение таксономии</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-gray-500">Анализ вакансий и добавление новых навыков в it_skills.json</p>
+              <Button onClick={() => callAction("/api/admin/skills/extend", { yes: true }, setExtMsg, setExtLoading)} disabled={extLoading}>
+                {extLoading ? "..." : "Анализировать и добавить"}
+              </Button>
+              {extMsg && <p className="text-sm text-green-600">{extMsg}</p>}
             </CardContent>
           </Card>
         </TabsContent>

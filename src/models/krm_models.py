@@ -197,6 +197,7 @@ class CompetencySkill(Base):
     ksa_type: Mapped[str] = mapped_column(String(20), nullable=False)
     source_text: Mapped[Optional[str]] = mapped_column(Text)
     match_type: Mapped[str] = mapped_column(String(20), default="fuzzy")
+    required_level: Mapped[Optional[str]] = mapped_column(String(10))
     parse_version_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("parse_versions.id"))
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
@@ -207,6 +208,7 @@ class CompetencySkill(Base):
     __table_args__ = (
         CheckConstraint(ksa_type.in_(["knowledge", "abilities", "skills", "flat"]), name="ck_cs_ksa_type"),
         CheckConstraint(match_type.in_(["exact", "fuzzy", "stem"]), name="ck_cs_match_type"),
+        CheckConstraint(required_level.in_(["КС-1", "КС-2", "КС-3"]), name="ck_cs_required_level"),
         UniqueConstraint("competency_id", "skill_id", "ksa_type", "parse_version_id", name="uq_cs_unique"),
     )
 
@@ -293,6 +295,7 @@ class StudentSkill(Base):
     skill_id: Mapped[str] = mapped_column(UUID, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True)
     source: Mapped[str] = mapped_column(String(30), default="self_assessment")
     proficiency: Mapped[float] = mapped_column(Float, default=0.0)
+    achieved_level: Mapped[Optional[str]] = mapped_column(String(10))
     assessed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
@@ -302,6 +305,7 @@ class StudentSkill(Base):
     __table_args__ = (
         CheckConstraint(source.in_(["self_assessment", "auto_extracted", "expert", "test"]), name="ck_ss_source"),
         CheckConstraint("proficiency >= 0.0 AND proficiency <= 1.0", name="ck_ss_proficiency"),
+        CheckConstraint(achieved_level.in_(["КС-1", "КС-2", "КС-3"]), name="ck_ss_achieved_level"),
         UniqueConstraint("student_id", "skill_id", "source", name="uq_student_skill_source"),
     )
 

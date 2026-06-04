@@ -165,6 +165,8 @@ CREATE TABLE IF NOT EXISTS competency_skills (
     source_text       TEXT,
     match_type        VARCHAR(20) NOT NULL DEFAULT 'fuzzy'
                       CHECK (match_type IN ('exact', 'fuzzy', 'stem')),
+    required_level    VARCHAR(10)
+                      CHECK (required_level IN ('КС-1', 'КС-2', 'КС-3')),
     parse_version_id  UUID REFERENCES parse_versions(id),
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -238,6 +240,8 @@ CREATE TABLE IF NOT EXISTS student_skills (
                     CHECK (source IN ('self_assessment', 'auto_extracted', 'expert', 'test')),
     proficiency     REAL NOT NULL DEFAULT 0.0
                     CHECK (proficiency >= 0.0 AND proficiency <= 1.0),
+    achieved_level  VARCHAR(10)
+                    CHECK (achieved_level IN ('КС-1', 'КС-2', 'КС-3')),
     assessed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

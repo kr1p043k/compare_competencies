@@ -338,3 +338,122 @@ async def admin_logs(request: Request, user: str | None = None, limit: int = 100
         user = None
     entries = get_logs(user=user, limit=limit)
     return {"logs": entries, "total": len(entries)}
+
+
+# ---------- DB Management (CLI → API) ----------
+
+
+class SeedDBRequest(BaseModel):
+    drop: bool = False
+
+
+@router.post("/api/admin/db/seed")
+@limiter.limit("1/minute")
+async def admin_seed_db(request: Request, body: SeedDBRequest, background_tasks: BackgroundTasks):
+    """Seed database from JSON files (skills, disciplines, competencies)."""
+    background_tasks.add_task(_run_seed, drop=body.drop)
+    return {"status": "started", "message": "Seeding database in background"}
+
+
+def _run_seed(drop: bool = False) -> None:
+    import asyncio
+    from src.cli.seed_db import main as seed_main
+    asyncio.run(seed_main(drop=drop))
+    logger.info("db_seed_completed", drop=drop)
+
+
+class CreateUserRequest(BaseModel):
+    email: str
+    password: str
+    role: str = "teacher"
+    name: str = ""
+
+
+@router.post("/api/admin/users/create")
+@limiter.limit("10/minute")
+async def admin_create_user(request: Request, body: CreateUserRequest):
+    """Create a new user with bcrypt-hashed password."""
+    import asyncio
+    from src.cli.create_user import main as create_user_main
+    asyncio.run(create_user_main(body.email, body.password, body.role, body.name))
+    return {"status": "ok", "email": body.email, "role": body.role}
+
+
+class EmbeddingsRequest(BaseModel):
+    force: bool = False
+
+
+@router.post("/api/admin/embeddings/generate")
+@limiter.limit("1/minute")
+async def admin_generate_embeddings(request: Request, body: EmbeddingsRequest, background_tasks: BackgroundTasks):
+    """Generate sentence-transformers embeddings for all skills."""
+    background_tasks.add_task(_run_embeddings, force=body.force)
+    return {"status": "started", "message": "Generating embeddings in background"}
+
+
+def _run_embeddings(force: bool = False) -> None:
+    import asyncio
+    from src.cli.embeddings import main as emb_main
+    asyncio.run(emb_main(force=force))
+    logger.info("embeddings_generated", force=force)
+
+
+class StudentImportItem(BaseModel):
+    full_name: str
+    group_name: str
+    direction_code: str = "09.03.02"
+    skills: str = ""
+
+
+@router.post("/api/admin/students/import")
+@limiter.limit("5/minute")
+async def admin_import_students(request: Request, body: list[StudentImportItem]):
+    """Import students from JSON array."""
+    import csv
+    import io
+    import asyncio
+    from src.cli.import_students import main as import_main
+
+    # Write to temp CSV, then run import
+    tmp = io.StringIO()
+    w = csv.DictWriter(tmp, fieldnames=["full_name", "group_name", "direction_code", "skills"])
+    w.writeheader()
+    for item in body:
+        w.writerow(item.model_dump())
+    tmp.seek(0)
+
+    from pathlib import Path
+    tmp_path = Path(config.DATA_DIR) / "cache" / "_import_tmp.csv"
+    tmp_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path.write_text(tmp.getvalue(), encoding="utf-8")
+
+    asyncio.run(import_main(str(tmp_path)))
+    tmp_path.unlink(missing_ok=True)
+    return {"status": "ok", "imported": len(body)}
+
+
+@router.post("/api/admin/skills/extend")
+@limiter.limit("1/minute")
+async def admin_extend_skills(request: Request, yes: bool = True):
+    """Analyze vacancies and extend it_skills with new skills."""
+    import argparse
+    from src.cli.extend_skills import main as extend_main
+
+    args = argparse.Namespace(interactive=False, yes=yes, coverage=False, dead=False, min_frequency=2)
+    extend_main(args)
+    return {"status": "ok", "message": "Skills analysis completed"}
+
+
+@router.get("/api/admin/export/db")
+@limiter.limit("2/minute")
+async def admin_export_db(request: Request, background_tasks: BackgroundTasks):
+    """Export all DB tables to JSON files in data/export/."""
+    background_tasks.add_task(_run_export)
+    return {"status": "started", "message": "Exporting database in background"}
+
+
+def _run_export() -> None:
+    import asyncio
+    from src.cli.export_json import main as export_main
+    asyncio.run(export_main())
+    logger.info("db_export_completed")
