@@ -457,3 +457,27 @@ def _run_export() -> None:
     from src.cli.export_json import main as export_main
     asyncio.run(export_main())
     logger.info("db_export_completed")
+
+
+# ---------- Frontend log endpoint ----------
+
+
+class FrontendLogRequest(BaseModel):
+    action: str
+    detail: str = ""
+
+
+@router.post("/api/log")
+@limiter.limit("30/minute")
+async def frontend_log(request: Request, body: FrontendLogRequest):
+    """Log frontend actions (button clicks, page views, errors)."""
+    from src.api_pkg.request_logger import _log_buffer, LogEntry
+    _log_buffer.append(LogEntry(
+        method="ACTION",
+        path=body.action,
+        status=200,
+        duration_ms=0,
+        user_email=getattr(request.state, "user", None),
+        source="frontend",
+    ))
+    return {"status": "ok"}

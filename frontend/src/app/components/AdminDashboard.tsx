@@ -8,7 +8,7 @@ import {
   AlertCircle, RefreshCw, Users, FileText, Database,
   Upload, Brain, BookOpen,
 } from "lucide-react";
-import { apiFetch } from "../../lib/auth";
+import { apiFetch, logAction } from "../../lib/auth";
 
 export function AdminDashboard() {
   const [users, setUsers] = useState<any[]>([]);
@@ -57,7 +57,7 @@ export function AdminDashboard() {
   const filteredLogs = logFilter === "all" ? logs : logs.filter((l) => l.user === logFilter);
 
   const callAction = async (url: string, body: any, setMsg: (s: string) => void, setLoad: (b: boolean) => void) => {
-    setLoad(true); setMsg("");
+    setLoad(true); setMsg(""); logAction(url);
     try {
       const r = await apiFetch(url, {
         method: "POST",
@@ -71,6 +71,17 @@ export function AdminDashboard() {
     } finally {
       setLoad(false);
     }
+  };
+
+  const callExport = async () => {
+    logAction("/api/admin/export/db");
+    setExportLoading(true); setExportMsg("");
+    try {
+      const r = await apiFetch("/api/admin/export/db", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const d = await r.json();
+      setExportMsg(d.message || "Done");
+    } catch (e: any) { setExportMsg("Error: " + e.message); }
+    finally { setExportLoading(false); }
   };
 
   const createUser = async () => {
@@ -267,7 +278,7 @@ export function AdminDashboard() {
                 {embMsg && <span className="text-sm text-gray-600">{embMsg}</span>}
               </div>
               <div className="flex items-center gap-4">
-                <Button onClick={() => callAction("/api/admin/export/db", {}, setExportMsg, setExportLoading)} disabled={exportLoading}>
+                <Button onClick={callExport} disabled={exportLoading}>
                   <FileText className="size-4 mr-2" />{exportLoading ? "..." : "Export DB → JSON"}
                 </Button>
                 {exportMsg && <span className="text-sm text-gray-600">{exportMsg}</span>}

@@ -283,7 +283,24 @@ CREATE TABLE IF NOT EXISTS coverage_analyses (
 CREATE INDEX idx_ca_discipline ON coverage_analyses(discipline_id);
 CREATE INDEX idx_ca_coverage ON coverage_analyses(coverage_ratio DESC);
 
--- ─── 20. Триггеры автообновления updated_at ───────────────────────────────
+-- ─── 20. Логи запросов (бэкенд + фронтенд) ─────────────────────────────────
+CREATE TABLE IF NOT EXISTS request_logs (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    method          VARCHAR(10) NOT NULL,
+    path            TEXT NOT NULL,
+    status          INTEGER NOT NULL DEFAULT 0,
+    duration_ms     DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    user_email      VARCHAR(255),
+    source          VARCHAR(20) NOT NULL DEFAULT 'backend'
+                    CHECK (source IN ('backend', 'frontend')),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_request_logs_created ON request_logs(created_at DESC);
+CREATE INDEX idx_request_logs_user ON request_logs(user_email);
+CREATE INDEX idx_request_logs_source ON request_logs(source);
+
+-- ─── 21. Триггеры автообновления updated_at ───────────────────────────────
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -312,7 +329,7 @@ CREATE TRIGGER trg_users_updated
     BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- ─── 21. Триггер: нормализация имени навыка ───────────────────────────────
+-- ─── 22. Триггер: нормализация имени навыка ───────────────────────────────
 CREATE OR REPLACE FUNCTION normalize_skill_name()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -325,7 +342,7 @@ CREATE TRIGGER trg_skills_name_lower
     BEFORE INSERT OR UPDATE ON skills
     FOR EACH ROW EXECUTE FUNCTION normalize_skill_name();
 
--- ─── 22. Триггер: автосборка кода компетенции ─────────────────────────────
+-- ─── 23. Триггер: автосборка кода компетенции ─────────────────────────────
 CREATE OR REPLACE FUNCTION auto_build_competency_code()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -340,7 +357,7 @@ CREATE TRIGGER trg_competencies_code_auto
     BEFORE INSERT ON competencies
     FOR EACH ROW EXECUTE FUNCTION auto_build_competency_code();
 
--- ─── 23. Триггер: upsert навыка студента ──────────────────────────────────
+-- ─── 24. Триггер: upsert навыка студента ──────────────────────────────────
 -- При повторной вставке (student_id, skill_id, source) обновляет proficiency
 CREATE OR REPLACE FUNCTION upsert_student_skill()
 RETURNS TRIGGER AS $$
@@ -368,7 +385,7 @@ CREATE TRIGGER trg_student_skills_upsert
     BEFORE INSERT ON student_skills
     FOR EACH ROW EXECUTE FUNCTION upsert_student_skill();
 
--- ─── 24. Начальные данные ────────────────────────────────────────────────
+-- ─── 25. Начальные данные ────────────────────────────────────────────────
 INSERT INTO directions (code, name, profile, opop_year)
 VALUES (
     '09.03.02',

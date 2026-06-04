@@ -310,6 +310,25 @@ class StudentSkill(Base):
     )
 
 
+# ─── Request Log ───────────────────────────────────────────────────────────
+
+class RequestLog(Base):
+    __tablename__ = "request_logs"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    method: Mapped[str] = mapped_column(String(10), nullable=False)
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[int] = mapped_column(Integer, default=0)
+    duration_ms: Mapped[float] = mapped_column(Float, default=0.0)
+    user_email: Mapped[Optional[str]] = mapped_column(String(255))
+    source: Mapped[str] = mapped_column(String(20), default="backend")
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    __table_args__ = (
+        CheckConstraint(source.in_(["backend", "frontend"]), name="ck_log_source"),
+    )
+
+
 # ─── Market Skill Mapping ──────────────────────────────────────────────────
 
 class MarketSkillMapping(Base):

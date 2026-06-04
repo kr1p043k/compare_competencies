@@ -76,3 +76,12 @@ export async function apiFetch(url: string, init?: RequestInit): Promise<Respons
   const headers = { ...authHeaders(), ...(init?.headers as Record<string, string> || {}) };
   return nativeFetch(url, { ...init, headers });
 }
+
+/** Log frontend action to request_logs (fire-and-forget). */
+export function logAction(action: string, detail?: string) {
+  nativeFetch("/api/log", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ action, detail: detail || "" }),
+  }).catch(() => {});
+}

@@ -375,5 +375,8 @@ async def run_startup(app):
     )
     deps.trend_analyzer = TrendAnalyzer(skill_freq_filtered)
 
+    from src.api_pkg.request_logger import start_log_flusher
+    start_log_flusher()
+
     deps.is_ready = True
     logger.info("API готов к работе")
