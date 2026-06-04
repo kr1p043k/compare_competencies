@@ -339,9 +339,11 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             logger.warning("model_not_trained")
             return Err(ModelError(model_name="ltr_ranker", message="Model not fitted"))
 
-        student_emb = self._get_student_embedding(student_skills)
-        if student_emb is None:
-            student_emb = np.mean(list(self.skill_embeddings.values()), axis=0) if self.skill_embeddings else None
+        match self._get_student_embedding(student_skills):
+            case Ok(emb):
+                student_emb = emb
+            case Err(_):
+                student_emb = np.mean(list(self.skill_embeddings.values()), axis=0) if self.skill_embeddings else None
         if student_emb is None:
             return Err(ModelError(model_name="ltr_ranker", message="No embeddings available for prediction"))
 
@@ -400,13 +402,13 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                     hits += 1
         return hits / max(docs_with_skill, 1)
 
-    def _get_student_embedding(self, student_skills: list[str]) -> np.ndarray | None:
+    def _get_student_embedding(self, student_skills: list[str]) -> Result[np.ndarray, ModelError]:
         if not student_skills:
-            return None
+            return Err(ModelError(model_name="ltr_ranker", message="No student skills provided"))
         valid = [s for s in student_skills if s in self.skill_embeddings]
         if not valid:
-            return None
-        return np.mean([self.skill_embeddings[s] for s in valid], axis=0)
+            return Err(ModelError(model_name="ltr_ranker", message="No known skills in student profile"))
+        return Ok(np.mean([self.skill_embeddings[s] for s in valid], axis=0))
 
     def _extract_skills_from_vacancy(self, vac: dict) -> list[str]:
         from src import Ok

@@ -14,6 +14,7 @@ if __name__ == "__main__" and sys.platform == "win32":
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from src import Err, Ok
 from src.logging_config import setup_structlog
 from src.pipeline.runner import (
     rebuild,
@@ -93,14 +94,26 @@ def main():
     validate_args(args)
 
     if args.status:
-        run_status(args)
+        match run_status(args):
+            case Ok(_): pass
+            case Err(e):
+                print(f"❌ Ошибка: {e}")
+                sys.exit(1)
         return
 
     if args.train_model:
-        run_train_model(args)
+        match run_train_model(args):
+            case Ok(_): pass
+            case Err(e):
+                print(f"❌ Ошибка обучения модели: {e}")
+                sys.exit(1)
         return
 
-    run_full_pipeline(args)
+    match run_full_pipeline(args):
+        case Ok(_): pass
+        case Err(e):
+            print(f"❌ Ошибка пайплайна: {e}")
+            sys.exit(1)
 
 
 if __name__ == "__main__":

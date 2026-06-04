@@ -9,7 +9,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-from src import Err, Ok, config, timed_block
+from src import Err, Ok, Result, config, timed_block
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.models.enums import ExperienceLevel
@@ -204,18 +204,22 @@ def show_status():
     console_info("")
 
 
-def run_status(args) -> None:
-    show_status()
+def run_status(args) -> Result[None, str]:
+    try:
+        show_status()
+        return Ok(None)
+    except Exception as e:
+        return Err(str(e))
 
 
-def run_train_model(args=None) -> None:
+def run_train_model(args=None) -> Result[None, str]:
     console_header("ОБУЧЕНИЕ LTR-МОДЕЛИ")
     detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
     raw_file = detailed_file if detailed_file.exists() else basic_file
     if not raw_file.exists():
         console_info("❌ Файлы вакансий не найдены. Сначала выполните сбор.")
-        sys.exit(1)
+        return Err("Файлы вакансий не найдены")
     model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
     force = getattr(args, 'force', False) if args else False
     if model_path.exists() and not force:
@@ -225,11 +229,11 @@ def run_train_model(args=None) -> None:
             data_mtime = raw_file.stat().st_mtime
             if model_mtime > data_mtime:
                 console_info("✅ Модель уже обучена и актуальна, обучение пропущено")
-                return
+                return Ok(None)
     training_vacancies = safe_read_json(raw_file)
     if not training_vacancies:
         console_info("❌ Не удалось прочитать или файл повреждён.")
-        sys.exit(1)
+        return Err("Не удалось прочитать файл вакансий")
     console_info(f"Загружено {len(training_vacancies)} вакансий для обучения")
     logger.info("training_data_loaded", count=len(training_vacancies))
     from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
@@ -249,9 +253,10 @@ def run_train_model(args=None) -> None:
         console_info(f"R²={m['r2']:.4f}, MAE={m['mae']:.4f}, NDCG@5={m['ndcg']:.4f}")
     if not ltr_engine.is_fitted:
         console_info("❌ Обучение не удалось (недостаточно навыков)")
-        return
+        return Err("Обучение LTR-модели не удалось")
     console_info("✅ Обучение LTR-модели завершено")
     console_info(f"Модель сохранена в: {ltr_engine.model_path}")
+    return Ok(None)
 
 
 def clean_progress_files():
@@ -263,7 +268,7 @@ def clean_progress_files():
             fp.unlink()
 
 
-def run_full_pipeline(args) -> None:
+def run_full_pipeline(args) -> Result[None, str]:
     console_header("ПОЛНЫЙ ПАЙПЛАЙН: СБОР ВАКАНСИЙ + GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ")
     logger.info("pipeline_started", mode="full_pipeline")
 
@@ -285,7 +290,7 @@ def run_full_pipeline(args) -> None:
     pipeline_result = orchestrator.run(name="full_pipeline")
     if pipeline_result.is_err():
         console_info(f"❌ Пайплайн не завершён: {pipeline_result.err()}")
-        return
+        return Err(f"Пайплайн не завершён: {pipeline_result.err()}")
     run = pipeline_result.unwrap()
 
     ctx_data = {}
@@ -338,7 +343,7 @@ def run_full_pipeline(args) -> None:
                     console_header("GAP-АНАЛИЗ УСПЕШНО ЗАВЕРШЁН")
             case Err(err):
                 logger.error("gap_analysis_failed", error=str(err))
-                sys.exit(1)
+                return Err(f"GAP-анализ не удался: {err}")
 
     _write_pipeline_progress(93, "Генерация графиков...")
     if evaluations:
@@ -369,9 +374,10 @@ def run_full_pipeline(args) -> None:
     console_info(f"📋 Логи бэкенда: {config.LOG_FILE}")
     console_info("📋 Логи фронтенда: frontend/logs/app.log")
     console_info(f"⏰ Завершено за {run.elapsed:.1f} сек" if run.elapsed < 120 else f"⏰ Завершено за {run.elapsed / 60:.1f} мин")
+    return Ok(None)
 
 
-def rebuild() -> None:
+def rebuild() -> Result[None, str]:
     """Full rebuild: clean cache, run pipeline, train clusters, train model, gap analysis."""
     import shutil
 
@@ -412,6 +418,7 @@ def rebuild() -> None:
 
     console_info(f"✓ Удалено {removed_count} файлов кэша и моделей")
     logger.info("cleanup_completed", files_removed=removed_count)
+    return Ok(None)
 
 
 async def run_pipeline_task_async(args, task_progress_callback=None) -> dict[str, Any]:
