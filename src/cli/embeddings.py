@@ -1,0 +1,49 @@
+"""Generate embeddings for all skills and write to skills.embedding.
+
+Usage:
+    python -m src.cli embeddings [--force]
+"""
+
+import asyncio
+import sys
+
+import numpy as np
+
+sys.stdout.reconfigure(encoding="utf-8")
+
+from sqlalchemy import select, update
+
+from src.database import async_session_factory
+from src.models.krm_models import Skill
+
+
+async def main(force: bool = False) -> None:
+    print("Loading sentence-transformers model...")
+    from sentence_transformers import SentenceTransformer
+
+    model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+
+    async with async_session_factory() as session:
+        query = select(Skill).where(Skill.is_active == True)
+        if not force:
+            query = query.where(Skill.embedding.is_(None))
+        result = await session.execute(query)
+        skills = result.scalars().all()
+        if not skills:
+            print("No skills to process")
+            return
+        names = [s.name for s in skills]
+        print(f"Generating {len(names)} embeddings...")
+        embeddings: np.ndarray = model.encode(names, convert_to_numpy=True, show_progress_bar=True)
+        for skill, emb in zip(skills, embeddings):
+            await session.execute(update(Skill).where(Skill.id == skill.id).values(embedding=emb.tolist()))
+        await session.commit()
+        print(f"Updated {len(skills)} skills")
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--force", action="store_true")
+    args = parser.parse_args()
+    asyncio.run(main(force=args.force))

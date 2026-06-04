@@ -196,7 +196,7 @@ class ClusterTrainingStage(PipelineStage):
 
     def run(self, **kwargs) -> Result[dict, Any]:
         self._progress(0, "Обучение кластеров вакансий...")
-        from scripts.train_clusters import train_clusters
+        from src.ml.clusters import train_clusters
         self._progress(10, "Кластеризация: загрузка данных...")
         ok = train_clusters(level="all", save_report=True, interpret=True)
         if ok:

@@ -273,7 +273,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
 
         elif action == PipelineAction.TRAIN_CLUSTERS:
             pipeline_tasks[task_id].message = "Кластеризация вакансий..."
-            from scripts.train_clusters import train_clusters
+            from src.ml.clusters import train_clusters
             ok = await loop.run_in_executor(
                 None, lambda: train_clusters(level="all", save_report=True, interpret=True)
             )
@@ -373,7 +373,7 @@ async def run_pipeline_action_sync(
         )
 
     elif action == PipelineAction.TRAIN_CLUSTERS:
-        from scripts.train_clusters import train_clusters
+        from src.ml.clusters import train_clusters
         loop = asyncio.get_event_loop()
         ok = await loop.run_in_executor(
             None, lambda: train_clusters(level="all", save_report=True, interpret=True)
