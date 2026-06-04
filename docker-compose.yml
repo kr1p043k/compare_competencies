@@ -82,6 +82,27 @@ services:
     networks:
       - ai-net
 
+  # PostgreSQL для KRM (с pgvector)
+  postgres-krm:
+    image: pgvector/pgvector:pg16
+    container_name: krm-postgres
+    environment:
+      - POSTGRES_USER=krm
+      - POSTGRES_PASSWORD=krm_password
+      - POSTGRES_DB=krm
+    ports:
+      - "5433:5432"
+    volumes:
+      - krm-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U krm -d krm"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ai-net
+
 networks:
   ai-net:
     driver: bridge
@@ -91,3 +112,4 @@ volumes:
   open-webui-data:
   n8n-data:
   postgres-data:
+  krm-postgres-data:

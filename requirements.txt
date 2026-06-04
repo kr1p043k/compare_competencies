@@ -21,6 +21,10 @@ chardet>=5.0.0
 structlog==25.5.0
 tqdm>=4.67.0
 fastapi==0.116.1
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.1
+pgvector==0.3.6
 uvicorn[standard]==0.35.0
 slowapi>=0.1.9
 lightgbm>=4.6.0

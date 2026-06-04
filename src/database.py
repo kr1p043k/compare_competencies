@@ -1,0 +1,38 @@
+"""Database connection, session, and Base for KRM PostgreSQL."""
+
+from functools import lru_cache
+from typing import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
+
+from src.config import settings
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+@lru_cache(maxsize=1)
+def _engine():
+    return create_async_engine(
+        settings.DATABASE_URL,
+        echo=settings.DATABASE_ECHO,
+        pool_size=10,
+        max_overflow=20,
+    )
+
+
+@lru_cache(maxsize=1)
+def _session_factory():
+    return async_sessionmaker(_engine(), class_=AsyncSession, expire_on_commit=False)
+
+
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    async with _session_factory() as session:
+        yield session
+
+
+async def get_engine():
+    return _engine()
+

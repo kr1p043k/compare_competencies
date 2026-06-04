@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     DOMAIN_MAP_PATH: Path = Field(default_factory=lambda: Path("data/reference/domain_map.json"))
     PROFESSION_TAXONOMY_PATH: Path = Field(default_factory=lambda: Path("data/reference/profession_taxonomy.json"))
     KRM_MAPPING_PATH: Path = Field(default_factory=lambda: Path("data/reference/krm_competency_mapping.json"))
+    KRM_DISCIPLINES_PATH: Path = Field(default_factory=lambda: Path("data/reference/krm_disciplines_09.03.02.json"))
+    TEACHER_RECOMMENDATIONS_PATH: Path = Field(default_factory=lambda: Path("data/reference/teacher_recommendations.json"))
     HARD_SKILLS_PATH: Path = Field(default_factory=lambda: Path("data/reference/hard_skills.json"))
     TREND_HOT_SKILLS_PATH: Path = Field(default_factory=lambda: Path("data/reference/trend_hot_skills.json"))
     TIMEFRAME_GROUPS_PATH: Path = Field(default_factory=lambda: Path("data/reference/timeframe_groups.json"))
@@ -58,6 +60,10 @@ class Settings(BaseSettings):
 
     MODELS_DIR: Path = Field(default_factory=lambda: Path("data/models"))
     HISTORY_DIR: Path = Field(default_factory=lambda: Path("data/history"))
+
+    # ---------- база данных ----------
+    DATABASE_URL: str = "postgresql+asyncpg://krm:krm_password@localhost:5433/krm"
+    DATABASE_ECHO: bool = False
 
     # ---------- n8n ----------
     N8N_API_KEY: SecretStr | None = None

@@ -1,0 +1,22 @@
+✅ RPD parsing — done
+
+42 disciplines parsed from 49 PDFs
+18,831 skills across 133 competencies
+JSON: data/reference/krm_disciplines_09.03.02.json
+
+Backend:
+  src/api_pkg/routers/teacher.py — new KRM endpoints
+  GET /api/teacher/krm/stats
+  GET /api/teacher/krm/directions
+  GET /api/teacher/krm/disciplines
+  GET /api/teacher/krm/disciplines/{name}
+  GET /api/teacher/krm/recommendations
+  POST /api/teacher/krm/recommendations
+  DELETE /api/teacher/krm/recommendations/{id}
+
+Frontend:
+  frontend/src/app/components/TeacherDashboard.tsx — expanded
+  sidebar + competency accordion + recommendation form
+  Build passes (vite build)
+
+No commits.

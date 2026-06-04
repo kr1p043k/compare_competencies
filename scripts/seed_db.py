@@ -1,0 +1,289 @@
+"""Seed KRM database from current JSON data + it_skills + rpd_skills.
+
+Usage:
+    python scripts/seed_db.py [--drop] [--version VERSION]
+"""
+
+import argparse
+import asyncio
+import json
+import sys
+from datetime import datetime
+from pathlib import Path
+
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.database import Base, async_session_factory, engine
+from src.models.krm_models import (
+    Competency,
+    CompetencySkill,
+    Direction,
+    Discipline,
+    KSAEntry,
+    ParseVersion,
+    PDFSource,
+    Recommendation,
+    Skill,
+)
+from src.parsing.utils import load_it_skills
+
+DATA_DIR = Path(__file__).parent.parent / "data"
+KRM_PATH = DATA_DIR / "reference" / "krm_disciplines_09.03.02.json"
+IT_SKILLS_PATH = DATA_DIR / "reference" / "it_skills.json"
+RPD_SKILLS_PATH = DATA_DIR / "reference" / "rpd_skills.json"
+RECOMMENDATIONS_PATH = DATA_DIR / "reference" / "teacher_recommendations.json"
+
+
+async def create_tables(drop_first: bool = False) -> None:
+    if drop_first:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await conn.run_sync(Base.metadata.create_all)
+    print("Tables ready.")
+
+
+async def seed_skills(session: AsyncSession) -> dict[str, str]:
+    """Insert it_skills + rpd_skills, return {name: id} map."""
+    skill_map = {}
+
+    for source in ("it_skills", "rpd_skills"):
+        path = IT_SKILLS_PATH if source == "it_skills" else RPD_SKILLS_PATH
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            names = [s.strip() for s in raw if s.strip()]
+        except FileNotFoundError:
+            print(f"  {path} not found, skipping")
+            continue
+
+        for name in names:
+            existing = await session.execute(select(Skill).where(Skill.name == name.lower()))
+            if existing.scalar_one_or_none():
+                skill_map[name.lower()] = existing.scalar_one().id
+                continue
+            skill = Skill(name=name.lower(), source=source)
+            session.add(skill)
+            await session.flush()
+            skill_map[name.lower()] = skill.id
+
+    await session.commit()
+    print(f"Skills: {len(skill_map)} in taxonomy")
+    return skill_map
+
+
+async def seed_krm(session: AsyncSession, skill_map: dict[str, str]) -> None:
+    """Migrate disciplines, competencies, KSA, skills from JSON."""
+    with open(KRM_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    direction_data = data.get("09.03.02", {})
+    disciplines_raw = direction_data.get("disciplines", {})
+
+    # Create or get direction
+    result = await session.execute(
+        select(Direction).where(Direction.code == "09.03.02")
+    )
+    direction = result.scalar_one_or_none()
+    if not direction:
+        direction = Direction(
+            code="09.03.02",
+            name=direction_data.get("direction_name", "09.03.02 Информационные системы и технологии"),
+            profile=direction_data.get("profile", "Перспективные информационные технологии"),
+        )
+        session.add(direction)
+        await session.flush()
+
+    # Create parse version
+    pv = ParseVersion(
+        version=datetime.utcnow().strftime("%Y%m%d_%H%M%S"),
+        total_disciplines=len(disciplines_raw),
+        notes="Seed from parsed RPD JSON",
+    )
+    session.add(pv)
+    await session.flush()
+
+    disc_count = 0
+    comp_count = 0
+    cs_count = 0
+    ksa_count = 0
+
+    for disc_name, disc_data in sorted(disciplines_raw.items()):
+        # Create discipline
+        existing = await session.execute(
+            select(Discipline).where(
+                Discipline.direction_id == direction.id,
+                Discipline.name == disc_name,
+            )
+        )
+        disc = existing.scalar_one_or_none()
+        if not disc:
+            disc = Discipline(direction_id=direction.id, name=disc_name)
+            session.add(disc)
+            await session.flush()
+            disc_count += 1
+
+        # Find English-named PDF if exists
+        pdfs = [
+            f for f in _list_pdfs()
+            if disc_name.lower().replace(" ", "") in Path(f).stem.lower().replace(" ", "")
+        ]
+        for pdf in pdfs:
+            ps = PDFSource(discipline_id=disc.id, filename=Path(pdf).name, parse_status="parsed")
+            session.add(ps)
+
+        competencies = disc_data.get("competencies", [])
+        skills_data = disc_data.get("skills", {})
+        ksa_data = disc_data.get("ksa", {})
+
+        for comp_code in competencies:
+            existing_comp = await session.execute(
+                select(Competency).where(
+                    Competency.discipline_id == disc.id,
+                    Competency.code == comp_code,
+                )
+            )
+            comp = existing_comp.scalar_one_or_none()
+            if not comp:
+                comp = Competency(
+                    discipline_id=disc.id,
+                    code=comp_code,
+                    parse_version_id=pv.id,
+                )
+                session.add(comp)
+                await session.flush()
+                comp_count += 1
+
+            # KSA entries
+            ksa_parts = ksa_data.get(comp_code, {})
+            for kt in ("knowledge", "abilities", "skills"):
+                for text in ksa_parts.get(kt, []):
+                    entry = KSAEntry(
+                        competency_id=comp.id,
+                        ksa_type=kt,
+                        original_text=text,
+                        parse_version_id=pv.id,
+                    )
+                    session.add(entry)
+                    ksa_count += 1
+
+            # Skills (cleaned flat list)
+            for skill_name in skills_data.get(comp_code, []):
+                sk = skill_name.lower()
+                skill_id = skill_map.get(sk)
+                if not skill_id:
+                    continue
+
+                existing_cs = await session.execute(
+                    select(CompetencySkill).where(
+                        CompetencySkill.competency_id == comp.id,
+                        CompetencySkill.skill_id == skill_id,
+                        CompetencySkill.ksa_type == "flat",
+                    )
+                )
+                if not existing_cs.scalar_one_or_none():
+                    cs = CompetencySkill(
+                        competency_id=comp.id,
+                        skill_id=skill_id,
+                        ksa_type="flat",
+                        match_type="fuzzy",
+                        parse_version_id=pv.id,
+                    )
+                    session.add(cs)
+                    cs_count += 1
+
+    await session.commit()
+
+    # Update parse version counts
+    pv.total_competencies = comp_count
+    pv.total_skills = cs_count
+    pv.total_ksa_items = ksa_count
+    await session.commit()
+
+    print(f"Disciplines: {disc_count} new, {len(disciplines_raw)} total")
+    print(f"Competencies: {comp_count}")
+    print(f"Competency-Skill links: {cs_count}")
+    print(f"KSA entries: {ksa_count}")
+
+
+async def seed_recommendations(session: AsyncSession) -> None:
+    """Migrate teacher recommendations."""
+    try:
+        with open(RECOMMENDATIONS_PATH, "r", encoding="utf-8") as f:
+            recs = json.load(f)
+    except FileNotFoundError:
+        print("No recommendations to seed")
+        return
+
+    count = 0
+    for rec in recs:
+        disc_name = rec.get("discipline", "")
+        result = await session.execute(
+            select(Discipline).where(Discipline.name == disc_name)
+        )
+        disc = result.scalar_one_or_none()
+        if not disc:
+            continue
+
+        # Find competency by code
+        comp_code = rec.get("competency")
+        comp_id = None
+        if comp_code:
+            result = await session.execute(
+                select(Competency).where(
+                    Competency.discipline_id == disc.id,
+                    Competency.code == comp_code,
+                )
+            )
+            comp = result.scalar_one_or_none()
+            if comp:
+                comp_id = comp.id
+
+        r = Recommendation(
+            discipline_id=disc.id,
+            competency_id=comp_id,
+            suggestion=rec.get("suggestion", ""),
+            suggestion_type=rec.get("type", "modify"),
+        )
+        session.add(r)
+        count += 1
+
+    await session.commit()
+    print(f"Recommendations: {count}")
+
+
+def _list_pdfs() -> list[str]:
+    pdf_dir = DATA_DIR.parent / "temp" / "rpd_pdfs"
+    if pdf_dir.exists():
+        return [str(f) for f in pdf_dir.glob("*.pdf")]
+    return []
+
+
+async def main(drop: bool = False, version: str | None = None) -> None:
+    print("Creating tables...")
+    await create_tables(drop_first=drop)
+
+    async with async_session_factory() as session:
+        print("Seeding skills...")
+        skill_map = await seed_skills(session)
+
+        print("Seeding KRM data...")
+        await seed_krm(session, skill_map)
+
+        print("Seeding recommendations...")
+        await seed_recommendations(session)
+
+    print("\nDone.")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Seed KRM database")
+    parser.add_argument("--drop", action="store_true", help="Drop all tables first")
+    parser.add_argument("--version", help="Parse version label")
+    args = parser.parse_args()
+
+    asyncio.run(main(drop=args.drop, version=args.version))
