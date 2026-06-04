@@ -112,20 +112,28 @@ class VacancyParser:
             return Err(DomainError(message=str(e), detail="extract_from_detailed"))
 
     # --------------------- утилиты сохранения и вывода -------------------------
-    def save_raw_vacancies(self, vacancies, filename="hh_vacancies.json"):
-        filepath = config.DATA_RAW_DIR / filename
-        data = [v.raw_data if isinstance(v, Vacancy) else v for v in vacancies]
-        atomic_write_json(data, filepath)
-        logger.info("Сохранено", path=str(filepath))
+    def save_raw_vacancies(self, vacancies, filename="hh_vacancies.json") -> Result[None, DomainError]:
+        try:
+            filepath = config.DATA_RAW_DIR / filename
+            data = [v.raw_data if isinstance(v, Vacancy) else v for v in vacancies]
+            atomic_write_json(data, filepath)
+            logger.info("Сохранено", path=str(filepath))
+            return Ok(None)
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail=f"save_raw_vacancies({filename})"))
 
-    def save_processed_frequencies(self, frequencies, filename="competency_frequency.json", apply_filter=True):
-        if apply_filter:
-            whitelist = load_it_skills()
-            if whitelist:
-                frequencies = filter_skills_by_whitelist(frequencies, whitelist)
-        filepath = config.DATA_PROCESSED_DIR / filename
-        atomic_write_json(frequencies, filepath)
-        logger.info("Частоты сохранены", path=str(filepath))
+    def save_processed_frequencies(self, frequencies, filename="competency_frequency.json", apply_filter=True) -> Result[None, DomainError]:
+        try:
+            if apply_filter:
+                whitelist = load_it_skills()
+                if whitelist:
+                    frequencies = filter_skills_by_whitelist(frequencies, whitelist)
+            filepath = config.DATA_PROCESSED_DIR / filename
+            atomic_write_json(frequencies, filepath)
+            logger.info("Частоты сохранены", path=str(filepath))
+            return Ok(None)
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail=f"save_processed_frequencies({filename})"))
 
     @staticmethod
     def _strip_html(text):

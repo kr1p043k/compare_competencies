@@ -72,7 +72,10 @@ class SkillExtractor:
             trend_analyzer = TrendAnalyzer(skill_freq_filtered)
             trend_analyzer.save_snapshot(skill_freq_filtered, apply_whitelist=False)
 
-            parser.save_processed_frequencies(skill_freq, apply_filter=not self.args.no_filter)
+            match parser.save_processed_frequencies(skill_freq, apply_filter=not self.args.no_filter):
+                case Ok(_): pass
+                case Err(e):
+                    logger.warning("save_processed_frequencies_failed", error=str(e))
             print_top_skills(skill_freq)
 
             try:

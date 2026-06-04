@@ -156,7 +156,10 @@ class HhDataSource(DataSourceProtocol):
                 return Err(DataSourceError(message="❌ Не найдено вакансий."))
 
             console_info(f"Найдено {len(basic_vacancies)} базовых вакансий")
-            parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json")
+            match parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json"):
+                case Ok(_): pass
+                case Err(e):
+                    return Err(DataSourceError(message=f"❌ Ошибка сохранения вакансий: {e}"))
 
             if self.args.skip_details:
                 from src.models.vacancy import Vacancy
@@ -199,7 +202,10 @@ class HhDataSource(DataSourceProtocol):
                 return Err(DataSourceError(message="❌ Не найдено вакансий."))
 
             console_info(f"Найдено {len(basic_vacancies)} вакансий")
-            parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json")
+            match parser.save_raw_vacancies(basic_vacancies, filename="hh_vacancies_basic.json"):
+                case Ok(_): pass
+                case Err(e):
+                    return Err(DataSourceError(message=f"❌ Ошибка сохранения вакансий: {e}"))
 
             if self.args.skip_details:
                 from src.models.vacancy import Vacancy
