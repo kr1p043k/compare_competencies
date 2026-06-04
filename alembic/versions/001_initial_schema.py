@@ -49,7 +49,7 @@ def upgrade() -> None:
         RETURNS TRIGGER AS $$
         BEGIN
             IF EXISTS (SELECT 1 FROM student_skills WHERE student_id = NEW.student_id AND skill_id = NEW.skill_id AND source = NEW.source) THEN
-                UPDATE student_skills SET proficiency = NEW.proficiency, assessed_at = NOW() WHERE student_id = NEW.student_id AND skill_id = NEW.skill_id AND source = NEW.source;
+                UPDATE student_skills SET proficiency = NEW.proficiency, achieved_level = COALESCE(NEW.achieved_level, achieved_level), assessed_at = NOW() WHERE student_id = NEW.student_id AND skill_id = NEW.skill_id AND source = NEW.source;
                 RETURN NULL;
             END IF;
             RETURN NEW;

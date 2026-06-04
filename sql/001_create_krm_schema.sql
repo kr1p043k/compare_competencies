@@ -353,6 +353,7 @@ BEGIN
     ) THEN
         UPDATE student_skills
         SET proficiency = NEW.proficiency,
+            achieved_level = COALESCE(NEW.achieved_level, achieved_level),
             assessed_at = NOW()
         WHERE student_id = NEW.student_id
           AND skill_id = NEW.skill_id
@@ -375,6 +376,15 @@ VALUES (
     'Перспективные информационные технологии',
     2024
 ) ON CONFLICT (code) DO NOTHING;
+
+-- Администратор (пароль: admin, хэш через pgcrypt bcrypt)
+INSERT INTO users (email, password_hash, full_name, role)
+VALUES (
+    'admin@compare-competencies.local',
+    crypt('admin', gen_salt('bf')),
+    'Администратор',
+    'admin'
+) ON CONFLICT (email) DO NOTHING;
 
 -- =============================================================================
 -- Готово. Проверка:
