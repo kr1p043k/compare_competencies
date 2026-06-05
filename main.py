@@ -93,7 +93,7 @@ def validate_args(args) -> None:
         sys.exit(1)
 
 
-def main() -> Result[None, Exception]:
+def main() -> Result[None, str]:
     setup_structlog()
     args = parse_arguments()
     validate_args(args)
