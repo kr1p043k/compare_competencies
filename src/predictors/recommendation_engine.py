@@ -273,7 +273,13 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 documents = list(before_reranker.keys())
                 match self.reranker.rerank(query, documents, top_k=len(documents)):
                     case Ok(rr):
-                        reranked_scores = {s: float(sc) for s, sc in rr.top_k(len(documents))}
+                        raw = {s: float(sc) for s, sc in rr.top_k(len(documents))}
+                        vals = list(raw.values())
+                        vmin, vmax = min(vals), max(vals)
+                        if vmax > vmin:
+                            reranked_scores = {s: (v - vmin) / (vmax - vmin) for s, v in raw.items()}
+                        else:
+                            reranked_scores = {s: 0.5 for s in raw}
                         for skill in combined_scores:
                             rerank_bonus = reranked_scores.get(skill, 0.0)
                             combined_scores[skill] = 0.7 * combined_scores[skill] + 0.3 * rerank_bonus
