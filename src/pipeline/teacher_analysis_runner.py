@@ -44,7 +44,7 @@ async def run_teacher_analysis(
         logger.error("no_db_pool")
         return Err(AnalysisRunnerError(stage="db", message="Failed to create database pool"))
 
-    # — load market skills —
+    # — load market skills (HH data + it_skills taxonomy) —
     try:
         mrows = await pool.fetch(
             """SELECT DISTINCT ON (LOWER(market_skill_name)) market_skill_name, frequency
@@ -56,10 +56,26 @@ async def run_teacher_analysis(
         await close_pool()
         return Err(AnalysisRunnerError(stage="market_skills", message=str(exc)))
 
-    market_skills = {r["market_skill_name"].lower().strip(): r["frequency"] for r in mrows}
+    market_skills: dict[str, int] = {}
+    for r in mrows:
+        k = r["market_skill_name"].lower().strip()
+        if k:
+            market_skills[k] = r["frequency"]
+
+    # Merge it_skills taxonomy into market skills (use freq=1 as base for taxonomy-only skills)
+    it_skills_path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
+    if it_skills_path.exists():
+        import json
+        with open(it_skills_path, "r", encoding="utf-8") as f:
+            it_data = json.load(f)
+        for name in it_data:
+            k = name.strip().lower()
+            if k and k not in market_skills:
+                market_skills[k] = 1
+
     if not market_skills:
         logger.warning("no_market_skills_found")
-    logger.info("market_skills_loaded", count=len(market_skills))
+    logger.info("market_skills_loaded", count=len(market_skills), from_hh=len(mrows))
 
     # — load disciplines —
     dir_filter = ""
