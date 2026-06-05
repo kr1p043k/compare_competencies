@@ -15,12 +15,7 @@
         "match_type": "exact"
       },
       {
-        "skill": "generative ai",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
-        "skill": "llm",
+        "skill": "fpga",
         "frequency": 1,
         "match_type": "exact"
       },
@@ -30,17 +25,17 @@
         "match_type": "exact"
       },
       {
-        "skill": "gan",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
         "skill": "cpp для встроенных систем",
         "frequency": 1,
         "match_type": "exact"
       },
       {
-        "skill": "fpga",
+        "skill": "generative ai",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "gan",
         "frequency": 1,
         "match_type": "exact"
       },
@@ -51,6 +46,11 @@
       },
       {
         "skill": "генеративные модели",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "llm",
         "frequency": 1,
         "match_type": "exact"
       },
@@ -66,8 +66,8 @@
       "информационно-коммуникационные технологии",
       "параметрическая настройка",
       "программные средства",
-      "аппаратные платформы",
       "встроенные системы",
+      "аппаратные платформы",
       "многопоточные вычисления"
     ],
     "emerging_market_skills_not_in_rpd": [

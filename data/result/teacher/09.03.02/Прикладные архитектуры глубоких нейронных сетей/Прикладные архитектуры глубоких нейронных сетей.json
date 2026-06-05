@@ -40,22 +40,22 @@
         "match_type": "exact"
       },
       {
-        "skill": "bert",
+        "skill": "fine-tuning",
         "frequency": 1,
         "match_type": "exact"
       },
       {
-        "skill": "nlp",
+        "skill": "diffusion models",
         "frequency": 1,
         "match_type": "exact"
       },
       {
-        "skill": "мониторинг моделей",
+        "skill": "vae",
         "frequency": 1,
         "match_type": "exact"
       },
       {
-        "skill": "transfer learning",
+        "skill": "вероятностные модели",
         "frequency": 1,
         "match_type": "exact"
       }

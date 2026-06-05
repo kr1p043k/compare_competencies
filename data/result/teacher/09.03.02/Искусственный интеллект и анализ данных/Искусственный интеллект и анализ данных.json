@@ -10,11 +10,6 @@
     "coverage_level": "high",
     "top_market_matched_skills": [
       {
-        "skill": "искусственный интеллект",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
         "skill": "анализ данных",
         "frequency": 1,
         "match_type": "exact"
@@ -26,6 +21,31 @@
       },
       {
         "skill": "анализ данных",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "искусственный интеллект",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "мультиагентные системы",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "искусственный интеллект",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "прогнозирование временных рядов",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "обработка данных",
         "frequency": 1,
         "match_type": "exact"
       },
@@ -35,27 +55,7 @@
         "match_type": "exact"
       },
       {
-        "skill": "искусственный интеллект",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
-        "skill": "агентные системы",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
-        "skill": "анализ данных",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
-        "skill": "исследования в ml",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
-        "skill": "методы оптимизации",
+        "skill": "аугментация данных",
         "frequency": 1,
         "match_type": "exact"
       }

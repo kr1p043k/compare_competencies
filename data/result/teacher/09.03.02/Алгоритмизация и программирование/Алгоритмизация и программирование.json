@@ -35,12 +35,12 @@
         "match_type": "exact"
       },
       {
-        "skill": "анализ данных",
+        "skill": "отладка",
         "frequency": 1,
-        "match_type": "exact"
+        "match_type": "fuzzy"
       },
       {
-        "skill": "методы оптимизации",
+        "skill": "разработка алгоритмов",
         "frequency": 1,
         "match_type": "exact"
       },
@@ -55,9 +55,9 @@
         "match_type": "exact"
       },
       {
-        "skill": "отладка",
+        "skill": "анализ данных",
         "frequency": 1,
-        "match_type": "fuzzy"
+        "match_type": "exact"
       }
     ],
     "gaps_in_curriculum": [

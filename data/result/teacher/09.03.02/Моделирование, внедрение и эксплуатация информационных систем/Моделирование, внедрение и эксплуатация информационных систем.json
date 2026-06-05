@@ -10,17 +10,17 @@
     "coverage_level": "medium",
     "top_market_matched_skills": [
       {
-        "skill": "математический анализ",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
         "skill": "статистическое моделирование",
         "frequency": 1,
         "match_type": "exact"
       },
       {
         "skill": "постановка задачи мл",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "математический анализ",
         "frequency": 1,
         "match_type": "exact"
       },

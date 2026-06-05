@@ -10,6 +10,11 @@
     "coverage_level": "medium",
     "top_market_matched_skills": [
       {
+        "skill": "теория алгоритмов",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
         "skill": "математический анализ",
         "frequency": 1,
         "match_type": "exact"
@@ -20,7 +25,7 @@
         "match_type": "exact"
       },
       {
-        "skill": "теория алгоритмов",
+        "skill": "новые алгоритмы мл",
         "frequency": 1,
         "match_type": "exact"
       },
@@ -31,11 +36,6 @@
       },
       {
         "skill": "архитектура",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
-        "skill": "новые алгоритмы мл",
         "frequency": 1,
         "match_type": "exact"
       },
@@ -52,8 +52,8 @@
       "программные средства",
       "информационно-коммуникационные технологии",
       "математические модели",
-      "жизненный цикл информационных систем",
       "жизненный цикл",
+      "жизненный цикл информационных систем",
       "программные средства"
     ],
     "emerging_market_skills_not_in_rpd": [

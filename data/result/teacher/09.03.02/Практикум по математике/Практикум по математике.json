@@ -10,22 +10,7 @@
     "coverage_level": "high",
     "top_market_matched_skills": [
       {
-        "skill": "анализ данных",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
-        "skill": "математическая статистика",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
         "skill": "теория вероятностей",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
-        "skill": "вероятностные модели",
         "frequency": 1,
         "match_type": "exact"
       },
@@ -36,6 +21,21 @@
       },
       {
         "skill": "разработка алгоритмов",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "вероятностные модели",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "математическая статистика",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "анализ данных",
         "frequency": 1,
         "match_type": "exact"
       }

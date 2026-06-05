@@ -190,8 +190,6 @@ async def run_teacher_analysis(
     os.makedirs(out_dir, exist_ok=True)
 
     all_gaps: Counter = Counter()
-    seen_emerging: set[str] = set()
-    all_emerging: list[dict] = []
     discipline_reports: list[tuple[str, GapAnalysisResult]] = []
 
     # Build direction-level RPD sets for cross-discipline awareness
@@ -227,10 +225,6 @@ async def run_teacher_analysis(
 
         for g in coverage.gaps_list:
             all_gaps[g] += 1
-        for e in coverage.emerging:
-            if e.skill_name not in seen_emerging:
-                seen_emerging.add(e.skill_name)
-                all_emerging.append({"skill": e.skill_name, "frequency": e.frequency})
 
         result = GapAnalysisResult(discipline=coverage, recommendations=recs)
         discipline_reports.append((dname, result))
@@ -296,6 +290,15 @@ async def run_teacher_analysis(
         sum(r.discipline.coverage_ratio for _, r in discipline_reports) / len(discipline_reports), 4
     ) if discipline_reports else 0
 
+    # Direction-level emerging: skills not found in ANY discipline
+    direction_emerging_result = matcher.get_emerging(direction_rpd_norm, top_n=15)
+    direction_emerging: list[dict] = []
+    if direction_emerging_result.is_ok():
+        direction_emerging = [
+            {"skill": s, "frequency": f}
+            for s, f, _ in direction_emerging_result.unwrap()
+        ]
+
     summary = DirectionSummary(
         direction_code=dir_code,
         direction_name=direction["name"],
@@ -306,7 +309,7 @@ async def run_teacher_analysis(
         top_cross_discipline_gaps=[
             {"skill": s, "disciplines": c} for s, c in all_gaps.most_common(15)
         ],
-        top_emerging=sorted(all_emerging, key=lambda x: -x["frequency"])[:15],
+        top_emerging=direction_emerging,
         disciplines=[
             {"name": dn, "coverage_ratio": r.discipline.coverage_ratio,
              "coverage_level": r.discipline.coverage_level,
@@ -316,7 +319,7 @@ async def run_teacher_analysis(
     )
 
     summary_recs_result = rec_engine.generate_summary_recommendations(
-        [r.discipline for _, r in discipline_reports], avg_cov, len(all_gaps), all_emerging,
+        [r.discipline for _, r in discipline_reports], avg_cov, len(all_gaps), direction_emerging,
     )
     summary_recs = summary_recs_result.unwrap_or([])
 
