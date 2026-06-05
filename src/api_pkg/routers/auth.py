@@ -1,4 +1,4 @@
-"""Auth: login/logout against DB users + sessions."""
+"""Auth: login/logout against DB users + sessions (asyncpg)."""
 
 import asyncio
 import base64
@@ -11,18 +11,14 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import select, text as sa_text
 
 from src import config
-from src.database import async_session_factory
-from src.models.krm_models import Session as SessionModel
-from src.models.krm_models import User
+from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["auth"])
 
-_sk = config.SECRET_KEY
-SECRET_KEY = _sk.get_secret_value() if _sk else "insecure-dev-only"
+SECRET_KEY = config.SECRET_KEY
 TOKEN_TTL = 86400 * config.TOKEN_TTL_DAYS
 
 
@@ -89,52 +85,39 @@ def require_role(role: str):
 
 @router.post("/api/auth/login")
 async def login(body: LoginRequest, request: Request):
-    async with async_session_factory() as session:
-        result = await session.execute(
-            select(User).where(User.email == body.email, User.is_active == True)
-        )
-        user = result.scalar_one_or_none()
-        if user is None:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+    pool = get_pool()
+    row = await pool.fetchrow(
+        "SELECT id, email, role, full_name, password_hash FROM users WHERE email = $1 AND is_active = true",
+        body.email,
+    )
+    if row is None:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        # Verify password via pgcrypto
-        result = await session.execute(
-            sa_text("SELECT :input_hash = :stored_hash AS matched"),
-            {
-                "input_hash": sa_text(f"crypt({body.password!r}, {user.password_hash!r})"),
-                "stored_hash": user.password_hash,
-            },
-        )
-        # Simpler approach: run crypt() in SQL
-        verify = await session.execute(
-            sa_text(f"SELECT crypt(:pw, :hash) = :hash AS matched"),
-            {"pw": body.password, "hash": user.password_hash},
-        )
-        matched = verify.scalar_one()
-        if not matched:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+    match = await pool.fetchval(
+        "SELECT password_hash = crypt($1, password_hash) FROM users WHERE id = $2",
+        body.password, row["id"],
+    )
+    if not match:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        token = _make_token(str(user.id), user.email, user.role)
+    token = _make_token(str(row["id"]), row["email"], row["role"])
 
-        # Create session
-        token_hash = _hash_token(token)
-        ip = request.client.host if request.client else "unknown"
-        ua = request.headers.get("User-Agent", "")
-        sess = SessionModel(
-            user_id=user.id,
-            token_hash=token_hash,
-            ip_address=ip,
-            user_agent=ua,
-        )
-        session.add(sess)
-        await session.commit()
+    # Create session
+    token_hash = _hash_token(token)
+    ip = request.client.host if request.client else "unknown"
+    ua = request.headers.get("User-Agent", "")
+    await pool.execute(
+        """INSERT INTO sessions (user_id, token_hash, ip_address, user_agent)
+           VALUES ($1, $2, $3, $4)""",
+        row["id"], token_hash, ip, ua,
+    )
 
-    logger.info("user_logged_in", email=body.email, role=user.role)
+    logger.info("user_logged_in", email=body.email, role=row["role"])
     return {
         "token": token,
-        "role": user.role,
-        "name": user.full_name,
-        "username": user.email,
+        "role": row["role"],
+        "name": row["full_name"],
+        "username": row["email"],
     }
 
 
@@ -148,15 +131,11 @@ async def logout(request: Request):
     token = auth[7:]
     token_hash = _hash_token(token)
 
-    async with async_session_factory() as session:
-        from sqlalchemy import update as sa_update
-
-        await session.execute(
-            sa_update(SessionModel)
-            .where(SessionModel.token_hash == token_hash, SessionModel.logged_out_at.is_(None))
-            .values(logged_out_at=sa_text("NOW()"))
-        )
-        await session.commit()
+    pool = get_pool()
+    await pool.execute(
+        "UPDATE sessions SET logged_out_at = NOW() WHERE token_hash = $1 AND logged_out_at IS NULL",
+        token_hash,
+    )
 
     logger.info("user_logged_out", email=user_data.get("u"))
     return {"status": "ok", "message": "Logged out"}
@@ -168,14 +147,13 @@ async def me(request: Request):
     if user_data is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    async with async_session_factory() as session:
-        result = await session.execute(
-            select(User).where(User.email == user_data["u"])
-        )
-        user = result.scalar_one_or_none()
-
+    pool = get_pool()
+    row = await pool.fetchrow(
+        "SELECT email, role, full_name FROM users WHERE email = $1",
+        user_data["u"],
+    )
     return {
         "username": user_data["u"],
         "role": user_data["r"],
-        "name": user.full_name if user else "",
+        "name": row["full_name"] if row else "",
     }

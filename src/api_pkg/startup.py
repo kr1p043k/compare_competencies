@@ -32,6 +32,10 @@ async def run_startup(app):
     """Загружает все необходимые данные и модели в глобальное состояние."""
     logger.info("Запуск API-сервера, инициализация движков...")
 
+    from src.db import create_pool as _create_apgpool
+    await _create_apgpool()
+    logger.info("asyncpg pool ready")
+
     # 1. Загрузка вакансий
     detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"

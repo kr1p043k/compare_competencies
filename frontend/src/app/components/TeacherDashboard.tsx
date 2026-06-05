@@ -60,9 +60,9 @@ export function TeacherDashboard() {
     setLoading(true);
     try {
       const [s, d, r] = await Promise.all([
-        apiFetch(\\/stats\).then(r => r.ok ? r.json() : null),
-        apiFetch(\\/disciplines\).then(r => r.ok ? r.json() : []),
-        apiFetch(\\/recommendations\).then(r => r.ok ? r.json() : []),
+        apiFetch("/stats").then(r => r.ok ? r.json() : null),
+        apiFetch("/disciplines").then(r => r.ok ? r.json() : []),
+        apiFetch("/recommendations").then(r => r.ok ? r.json() : []),
       ]);
       if (s) setStats(s);
       setDisciplines(d);
@@ -78,13 +78,13 @@ export function TeacherDashboard() {
 
   const loadDiscipline = async (name: string) => {
     setShowAnalysis(false);
-    const res = await apiFetch(\\/disciplines/\\);
+    const res = await apiFetch("/disciplines/");
     if (res.ok) setSelected(await res.json());
   };
 
   const addRecommendation = async () => {
     if (!selected || !suggestion.trim()) return;
-    const res = await apiFetch(\\/recommendations\, {
+    const res = await apiFetch("/recommendations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -108,7 +108,7 @@ export function TeacherDashboard() {
   };
 
   const deleteRecommendation = async (id: number) => {
-    await apiFetch(\\/recommendations/\\, { method: "DELETE" });
+    await apiFetch("/recommendations/", { method: "DELETE" });
     setRecs(prev => prev.filter(r => r.id !== id));
   };
 
@@ -136,12 +136,12 @@ export function TeacherDashboard() {
           </h2>
           <p className="text-sm text-gray-500">
             {stats
-              ? \\ дисциплин, \ компетенций, \ навыков\
+              ? `${stats.disciplines} дисциплин, ${stats.competencies} компетенций, ${stats.skills} навыков`
               : "Рабочие программы дисциплин"}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={loadAll} disabled={loading}>
-          <RefreshCw className={\size-4 mr-2 \\} />
+          <RefreshCw className="size-4 mr-2" />
           Обновить
         </Button>
       </div>
@@ -167,7 +167,7 @@ export function TeacherDashboard() {
               <button
                 key={d.name}
                 onClick={() => loadDiscipline(d.name)}
-                className={\w-full text-left px-4 py-3 border-b border-gray-100 transition-colors hover:bg-indigo-50 \\}
+                className="w-full text-left px-4 py-3 border-b border-gray-100 transition-colors hover:bg-indigo-50"
               >
                 <div className="text-sm font-medium text-gray-900 truncate">{d.name}</div>
                 <div className="text-xs text-gray-400 mt-0.5">

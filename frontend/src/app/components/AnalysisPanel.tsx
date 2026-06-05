@@ -41,7 +41,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
 
   useEffect(() => {
     setLoading(true);
-    apiFetch(\/api/teacher/analysis/\?dir_code=\\)
+    apiFetch(`/api/teacher/analysis/${disciplineName}`)
       .then(r => r.ok ? r.json() : null)
       .then(d => setData(d))
       .catch(() => setData(null))
@@ -71,7 +71,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div>
               <div className="text-xs text-gray-500">Coverage</div>
-              <div className={\	ext-2xl font-bold \\}>
+              <div className="text-2xl font-bold">
                 {(cov * 100).toFixed(1)}%
               </div>
             </div>
@@ -93,7 +93,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
             <div className="space-y-2 mb-4">
               <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Recommendations</div>
               {recommendations.map((r, i) => (
-                <div key={i} className={\p-3 rounded-lg border text-sm \\}>
+                <div key={i} className="p-3 rounded-lg border text-sm">
                   <div className="flex items-center gap-2 mb-1">
                     <Badge variant={r.priority === "high" ? "destructive" : r.priority === "medium" ? "default" : "secondary"} className="text-xs">
                       {r.priority}
@@ -163,7 +163,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                     <span className="font-medium text-gray-700">{c.code}</span>
                     <div className="flex items-center gap-3">
                       <span className="text-gray-500">{c.matched_skills}/{c.total_skills}</span>
-                      <span className={\ont-semibold \\}>
+                      <span className="font-semibold">
                         {(c.coverage * 100).toFixed(0)}%
                       </span>
                     </div>

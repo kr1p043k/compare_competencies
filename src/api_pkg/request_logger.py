@@ -22,8 +22,7 @@ from src.models.krm_models import RequestLog
 logger = structlog.get_logger(__name__)
 
 MAX_LOGS = 2000
-_sk = config.SECRET_KEY
-SECRET_KEY = _sk.get_secret_value() if _sk else "insecure-dev-only"
+SECRET_KEY = config.SECRET_KEY
 FLUSH_INTERVAL = 10  # seconds
 FLUSH_BATCH = 100    # entries
 
@@ -62,7 +61,7 @@ class LogEntry:
         self.duration_ms = round(duration_ms, 1)
         self.user_email = user_email or "anonymous"
         self.source = source
-        self.timestamp = datetime.now(timezone.utc)
+        self.timestamp = datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 _log_buffer: deque[LogEntry] = deque(maxlen=MAX_LOGS)

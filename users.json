@@ -1,17 +1,17 @@
 {
-  "admin": {
+  "admin@compare-competencies.local": {
     "password": "admin",
     "role": "admin",
     "name": "Администратор"
   },
-  "prepod": {
-    "password": "prepod",
+  "teacher@compare-competencies.local": {
+    "password": "teacher123",
     "role": "teacher",
     "name": "Преподаватель"
   },
-  "student": {
+  "student@compare-competencies.local": {
     "password": "student",
-    "role": "student",
+    "role": "teacher",
     "name": "Студент"
   }
 }
