@@ -76,14 +76,16 @@ async def run_teacher_analysis(
         drows = await pool.fetch(
             f"""SELECT d2.id AS disc_id, d2.name AS disc_name,
                        c.id AS comp_id, c.code AS comp_code,
-                       s.name AS skill_name
+                       s.name AS skill_name,
+                       k.original_text AS ksa_text, k.ksa_type
                 FROM directions d
                 JOIN disciplines d2 ON d2.direction_id = d.id
                 JOIN competencies c ON c.discipline_id = d2.id
                 LEFT JOIN competency_skills cs ON cs.competency_id = c.id
                 LEFT JOIN skills s ON s.id = cs.skill_id
+                LEFT JOIN ksa_entries k ON k.competency_id = c.id
                 WHERE 1=1{dir_filter}{disc_filter}
-                ORDER BY d2.name, c.code""",
+                ORDER BY d2.name, c.code, k.sort_order""",
             *params,
         )
     except Exception as exc:
@@ -98,9 +100,15 @@ async def run_teacher_analysis(
             disciplines[dn] = {"id": str(r["disc_id"]), "competencies": {}}
         cc = r["comp_code"]
         if cc not in disciplines[dn]["competencies"]:
-            disciplines[dn]["competencies"][cc] = []
+            disciplines[dn]["competencies"][cc] = set()
         if r["skill_name"]:
-            disciplines[dn]["competencies"][cc].append(r["skill_name"])
+            disciplines[dn]["competencies"][cc].add(r["skill_name"])
+        if r["ksa_text"]:
+            disciplines[dn]["competencies"][cc].add(r["ksa_text"])
+    # Convert sets to lists for downstream
+    for dn in disciplines:
+        for cc in disciplines[dn]["competencies"]:
+            disciplines[dn]["competencies"][cc] = list(disciplines[dn]["competencies"][cc])
 
     if not disciplines:
         logger.error("no_disciplines_loaded", direction=direction_code)
