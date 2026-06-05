@@ -264,6 +264,33 @@ async def krm_market_skills(request: Request, limit: int = 50):
         for msm, skill_name in result.all()
     ]
 
+@router.get("/api/teacher/krm/search-runs")
+async def krm_search_runs(request: Request, limit: int = 20):
+    from src.database import async_session_factory
+    from src.models.krm_models import PipelineRun
+    from sqlalchemy import select
+
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(PipelineRun)
+            .order_by(PipelineRun.started_at.desc())
+            .limit(limit)
+        )
+        rows = result.scalars().all()
+
+    return [
+        {
+            "id": str(r.id),
+            "action": r.action,
+            "status": r.status,
+            "started_at": r.started_at.isoformat() if r.started_at else None,
+            "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+            "stats": r.stats or {},
+        }
+        for r in rows
+    ]
+
+
 @router.get("/api/teacher/analysis")
 async def get_analysis(dir_code: str = "09.03.02"):
     from pathlib import Path
