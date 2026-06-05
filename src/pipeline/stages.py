@@ -32,18 +32,23 @@ class DataCollectionStage(PipelineStage):
         self.args = args
 
     def run(self, **kwargs) -> Result[tuple, Any]:
-        self._progress(0, "Инициализация сбора вакансий с hh.ru...")
-        source = HhDataSource(self.args)
-        match source.get_vacancies():
-            case Ok((vacancies, parser)):
-                self._progress(80, f"Загружено {len(vacancies)} вакансий с hh.ru")
-                raw_file = None
-                if self.args.skip_collection:
-                    raw_file = source._find_file()
-                self._progress(100, f"Сбор завершён: {len(vacancies)} вакансий")
-                return Ok({"vacancies": vacancies, "parser": parser, "raw_file": raw_file})
-            case Err(e):
-                return Err(e.message)
+        from src.monitoring.metrics import track_pipeline_stage, vacancies_loaded as vm
+        @track_pipeline_stage("data_collection")
+        def _run():
+            self._progress(0, "Инициализация сбора вакансий с hh.ru...")
+            source = HhDataSource(self.args)
+            match source.get_vacancies():
+                case Ok((vacancies, parser)):
+                    vm.set(len(vacancies))
+                    self._progress(80, f"Загружено {len(vacancies)} вакансий с hh.ru")
+                    raw_file = None
+                    if self.args.skip_collection:
+                        raw_file = source._find_file()
+                    self._progress(100, f"Сбор завершён: {len(vacancies)} вакансий")
+                    return Ok({"vacancies": vacancies, "parser": parser, "raw_file": raw_file})
+                case Err(e):
+                    return Err(e.message)
+        return _run()
 
 
 class QualityScoringStage(PipelineStage):
@@ -211,48 +216,57 @@ class ModelTrainingStage(PipelineStage):
     pct_range = (65, 70)
 
     def run(self, **kwargs) -> Result[dict, Any]:
-        self._progress(0, "Обучение LTR-модели ранжирования...")
-        detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
-        basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
-        raw_file = detailed_file if detailed_file.exists() else basic_file
-        if not raw_file.exists():
-            self._progress(100, "Нет данных для обучения модели")
-            return Ok({"model_trained": False, "reason": "no_vacancy_file"})
+        from src.monitoring.metrics import track_pipeline_stage, ltr_model_metrics
+        @track_pipeline_stage("model_training")
+        def _run():
+            self._progress(0, "Обучение LTR-модели ранжирования...")
+            detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
+            basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+            raw_file = detailed_file if detailed_file.exists() else basic_file
+            if not raw_file.exists():
+                self._progress(100, "Нет данных для обучения модели")
+                return Ok({"model_trained": False, "reason": "no_vacancy_file"})
 
-        model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
-        if model_path.exists():
-            self._progress(5, "Проверка актуальности модели...")
-            match create_ranking_predictor(model_path=model_path):
-                case Ok(ltr_engine) if ltr_engine.is_fitted:
-                    pass
-                case _:
-                    ltr_engine = None
-            if ltr_engine:
-                model_mtime = model_path.stat().st_mtime
-                data_mtime = raw_file.stat().st_mtime
-                if model_mtime > data_mtime:
-                    self._progress(100, "Модель уже актуальна (пропускаем обучение)")
-                    return Ok({"model_trained": False, "reason": "already_up_to_date"})
+            model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
+            if model_path.exists():
+                self._progress(5, "Проверка актуальности модели...")
+                match create_ranking_predictor(model_path=model_path):
+                    case Ok(ltr_engine) if ltr_engine.is_fitted:
+                        pass
+                    case _:
+                        ltr_engine = None
+                if ltr_engine:
+                    model_mtime = model_path.stat().st_mtime
+                    data_mtime = raw_file.stat().st_mtime
+                    if model_mtime > data_mtime:
+                        self._progress(100, "Модель уже актуальна (пропускаем обучение)")
+                        return Ok({"model_trained": False, "reason": "already_up_to_date"})
 
-        training_vacancies = safe_read_json(raw_file)
-        if not training_vacancies:
-            return Err("Не удалось прочитать файл вакансий")
+            training_vacancies = safe_read_json(raw_file)
+            if not training_vacancies:
+                return Err("Не удалось прочитать файл вакансий")
 
-        self._progress(20, f"Загружено {len(training_vacancies)} вакансий для обучения LTR")
-        from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
-        ltr_engine = LTRRecommendationEngine()
-        self._progress(30, "Запуск обучения LTR-модели (может занять время)...")
-        match ltr_engine.fit(training_vacancies):
-            case Ok(_):
-                if hasattr(ltr_engine, "last_metrics"):
-                    m = ltr_engine.last_metrics
-                    self._progress(90, f"LTR: R²={m['r2']:.4f} MAE={m['mae']:.4f}")
-                if ltr_engine.is_fitted:
-                    self._progress(100, "LTR-модель ранжирования успешно обучена")
-                    return Ok({"model_trained": True})
-                return Err("Обучение модели не удалось")
-            case Err(err):
-                return Err(str(err))
+            self._progress(20, f"Загружено {len(training_vacancies)} вакансий для обучения LTR")
+            from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
+            ltr_engine = LTRRecommendationEngine()
+            self._progress(30, "Запуск обучения LTR-модели (может занять время)...")
+            match ltr_engine.fit(training_vacancies):
+                case Ok(_):
+                    if hasattr(ltr_engine, "last_metrics"):
+                        m = ltr_engine.last_metrics
+                        for k, v in m.items():
+                            try:
+                                ltr_model_metrics.labels(metric=k).set(v)
+                            except Exception:
+                                pass
+                        self._progress(90, f"LTR: R²={m['r2']:.4f} MAE={m['mae']:.4f}")
+                    if ltr_engine.is_fitted:
+                        self._progress(100, "LTR-модель ранжирования успешно обучена")
+                        return Ok({"model_trained": True})
+                    return Err("Обучение модели не удалось")
+                case Err(err):
+                    return Err(str(err))
+        return _run()
 
 
 class GapAnalysisStage(PipelineStage):
@@ -265,12 +279,18 @@ class GapAnalysisStage(PipelineStage):
         self.args = args
 
     def run(self, **kwargs) -> Result[dict, Any]:
-        num_profiles = len(self.profiles)
-        self._progress(0, f"GAP-анализ для {num_profiles} профилей...")
-        runner = GapRunner(self.profiles, self.ctx, self.args)
-        match runner.run():
-            case Ok((evaluations, recs)):
-                self._progress(100, f"GAP-анализ завершён для {num_profiles} профилей")
-                return Ok({"evaluations": evaluations, "recommendations": recs})
-            case Err(err):
-                return Err(err)
+        from src.monitoring.metrics import track_pipeline_stage, recommendations_generated
+        @track_pipeline_stage("gap_analysis")
+        def _run():
+            num_profiles = len(self.profiles)
+            self._progress(0, f"GAP-анализ для {num_profiles} профилей...")
+            runner = GapRunner(self.profiles, self.ctx, self.args)
+            match runner.run():
+                case Ok((evaluations, recs)):
+                    for pname in recs:
+                        recommendations_generated.labels(profile=pname).inc(len(recs[pname].get("recommendations", [])) if isinstance(recs[pname], dict) else 0)
+                    self._progress(100, f"GAP-анализ завершён для {num_profiles} профилей")
+                    return Ok({"evaluations": evaluations, "recommendations": recs})
+                case Err(err):
+                    return Err(err)
+        return _run()

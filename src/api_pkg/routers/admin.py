@@ -21,6 +21,11 @@ from src.api_pkg.request_logger import get_logs, get_logs_by_user
 from src.api_pkg.routers.auth import require_role
 
 from src.api_pkg import deps
+from src.monitoring.metrics import (
+    pipeline_duration, pipeline_errors, api_latency, api_requests_total,
+    recommendations_generated, ltr_training_duration, ltr_model_metrics,
+    vacancies_loaded, active_profiles, skill_count,
+)
 
 logger = structlog.get_logger("api")
 
@@ -340,6 +345,20 @@ async def admin_users(request: Request):
             for u in users
         ]
     }
+
+
+@router.get("/api/admin/monitoring")
+async def admin_monitoring(request: Request):
+    from prometheus_client.parser import text_string_to_metric_families
+    from src.monitoring.metrics import get_metrics
+    raw, _ = get_metrics()
+    families = {}
+    for f in text_string_to_metric_families(raw.decode()):
+        samples = []
+        for s in f.samples:
+            samples.append({"name": s.name, "labels": s.labels, "value": s.value})
+        families[f.name] = {"name": f.name, "type": f.type, "samples": samples}
+    return families
 
 
 @router.get("/api/admin/logs")

@@ -172,6 +172,13 @@ def create_app() -> FastAPI:
 
     app.add_middleware(N8NAuthMiddleware)
 
+    @app.get("/metrics")
+    async def metrics():
+        from src.monitoring.metrics import get_metrics
+        data, content_type = get_metrics()
+        from fastapi.responses import Response
+        return Response(content=data, media_type=content_type)
+
     return app
 
 

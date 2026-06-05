@@ -1,120 +1,107 @@
 {
   "summary": {
-    "match_score": 58.44,
-    "confidence": 49.73,
-    "market_coverage_score": 58.44,
-    "skill_coverage": 89.83,
-    "domain_coverage_score": 11.34,
-    "readiness_score": 49.73,
-    "profession_coverage": 19.17,
-    "avg_gap": 6.55,
-    "coverage": 58.44,
+    "match_score": 61.21,
+    "confidence": 51.38,
+    "market_coverage_score": 61.21,
+    "skill_coverage": 94.31,
+    "domain_coverage_score": 11.57,
+    "readiness_score": 51.38,
+    "profession_coverage": 19.69,
+    "avg_gap": 4.06,
+    "coverage": 61.21,
     "coverage_details": {
       "covered_skills_count": 8,
-      "total_market_skills": 16
+      "total_market_skills": 13
     },
-    "market_skill_coverage": 50.0
+    "market_skill_coverage": 61.54
   },
   "profession_coverage_detail": {
-    "Data Science": 19.17
+    "Data Science": 19.69
   },
   "closest_roles": [],
   "recommendations": [
     {
       "rank": 1,
       "skill": "erp",
-      "importance_score": 0.47884494865167765,
-      "priority": "MEDIUM",
+      "importance_score": 0.3179926724066759,
+      "priority": "LOW",
       "category": "missing",
-      "why_important": "🟡 Умеренный спрос.\n   'erp' (Методологии и концепции) дополнит ваш профиль и повысит привлекательность для работодателей в смежных областях.",
+      "why_important": "🟢 Дополнительное преимущество.\n   'erp' полезен для расширения кругозора в категории 'Методологии и концепции'. 📈 Растущий тренд (+0%).",
       "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'erp' и выполните проекты.",
       "expected_timeframe": "1-3 месяца",
       "expected_outcome": "Освоение 'erp' расширит ваш технический кругозор.",
       "is_soft_skill": false,
-      "market_frequency_percent": 47.88449486516777
+      "market_frequency_percent": 31.79926724066759
     },
     {
       "rank": 2,
-      "skill": "федеративное обучение",
-      "importance_score": 0.33749141968911917,
+      "skill": "администрирование 1с",
+      "importance_score": 0.30010886469673403,
       "priority": "LOW",
       "category": "missing",
-      "why_important": "🟢 Дополнительное преимущество.\n   'федеративное обучение' полезен для расширения кругозора в категории 'Безопасность'. 🔗 Ключевой навык для домена «Data Science».",
-      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'федеративное обучение' и выполните проекты.",
+      "why_important": "🟢 Дополнительное преимущество.\n   'администрирование 1с' полезен для расширения кругозора в категории 'Корпоративные системы'. 📈 Растущий тренд (+0%).",
+      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'администрирование 1с' и выполните проекты.",
       "expected_timeframe": "1-3 месяца",
-      "expected_outcome": "Освоение 'федеративное обучение' расширит ваш технический кругозор.",
+      "expected_outcome": "Освоение 'администрирование 1с' расширит ваш технический кругозор.",
       "is_soft_skill": false,
-      "market_frequency_percent": 33.749141968911914
+      "market_frequency_percent": 30.0108864696734
     },
     {
       "rank": 3,
-      "skill": "поиск аномалий",
-      "importance_score": 0.32143157627757024,
-      "priority": "LOW",
-      "category": "missing",
-      "why_important": "🟢 Дополнительное преимущество.\n   'поиск аномалий' полезен для расширения кругозора в категории 'Продвинутый ML и исследования'. 🔗 Ключевой навык для домена «Data Science».",
-      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'поиск аномалий' и выполните проекты.",
-      "expected_timeframe": "1-3 месяца",
-      "expected_outcome": "Освоение 'поиск аномалий' расширит ваш технический кругозор.",
-      "is_soft_skill": false,
-      "market_frequency_percent": 32.14315762775703
-    },
-    {
-      "rank": 4,
       "skill": "программирование 1с",
-      "importance_score": 0.30685239080399185,
+      "importance_score": 0.292685617698896,
       "priority": "LOW",
       "category": "missing",
-      "why_important": "🟢 Дополнительное преимущество.\n   'программирование 1с' полезен для расширения кругозора в категории 'Корпоративные системы'. 📈 Растущий тренд (+10%).",
+      "why_important": "🟢 Дополнительное преимущество.\n   'программирование 1с' полезен для расширения кругозора в категории 'Корпоративные системы'. 📈 Растущий тренд (+0%).",
       "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'программирование 1с' и выполните проекты.",
       "expected_timeframe": "1-3 месяца",
       "expected_outcome": "Освоение 'программирование 1с' расширит ваш технический кругозор.",
       "is_soft_skill": false,
-      "market_frequency_percent": 30.685239080399185
+      "market_frequency_percent": 29.2685617698896
+    },
+    {
+      "rank": 4,
+      "skill": "xml",
+      "importance_score": 0.2531134415158236,
+      "priority": "LOW",
+      "category": "missing",
+      "why_important": "🟢 Дополнительное преимущество.\n   'xml' полезен для расширения кругозора в категории 'Языки программирования'. 📈 Растущий тренд (+0%).",
+      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'xml' и выполните проекты.",
+      "expected_timeframe": "1-3 месяца",
+      "expected_outcome": "Освоение 'xml' расширит ваш технический кругозор.",
+      "is_soft_skill": false,
+      "market_frequency_percent": 25.31134415158236
     },
     {
       "rank": 5,
-      "skill": "текстовая аналитика",
-      "importance_score": 0.29549558244843394,
+      "skill": "a/b тестирование",
+      "importance_score": 0.2512951975519415,
       "priority": "LOW",
       "category": "missing",
-      "why_important": "🟢 Дополнительное преимущество.\n   'текстовая аналитика' полезен для расширения кругозора в категории 'LLM и Generative AI'. 🔗 Ключевой навык для домена «Data Science».",
-      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'текстовая аналитика' и выполните проекты.",
+      "why_important": "🟢 Дополнительное преимущество.\n   'a/b тестирование' полезен для расширения кругозора в категории 'other'. 🔗 Ключевой навык для домена «Data Science».",
+      "how_to_learn": "Сфокусируйтесь на основах: Практикуйте навык постоянно.",
       "expected_timeframe": "1-3 месяца",
-      "expected_outcome": "Освоение 'текстовая аналитика' расширит ваш технический кругозор.",
-      "is_soft_skill": false,
-      "market_frequency_percent": 29.549558244843393
+      "expected_outcome": "Освоение 'a/b тестирование' расширит ваш технический кругозор.",
+      "is_soft_skill": true,
+      "market_frequency_percent": 25.129519755194153
     },
     {
       "rank": 6,
       "skill": "1c предприятие",
-      "importance_score": 0.274764723191273,
+      "importance_score": 0.19764204745045397,
       "priority": "LOW",
       "category": "missing",
-      "why_important": "🟢 Дополнительное преимущество.\n   '1c предприятие' полезен для расширения кругозора в категории 'other'. 📈 Растущий тренд (+4%).",
+      "why_important": "🟢 Дополнительное преимущество.\n   '1c предприятие' полезен для расширения кругозора в категории 'other'. 📈 Растущий тренд (+0%).",
       "how_to_learn": "Сфокусируйтесь на основах: Практикуйте навык постоянно.",
       "expected_timeframe": "1-3 месяца",
       "expected_outcome": "Освоение '1c предприятие' расширит ваш технический кругозор.",
       "is_soft_skill": true,
-      "market_frequency_percent": 27.4764723191273
+      "market_frequency_percent": 19.764204745045397
     },
     {
       "rank": 7,
-      "skill": "r",
-      "importance_score": 0.2711987057927947,
-      "priority": "LOW",
-      "category": "missing",
-      "why_important": "🟢 Дополнительное преимущество.\n   'r' полезен для расширения кругозора в категории 'Языки программирования'. 🔗 Ключевой навык для домена «Data Science».",
-      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'r' и выполните проекты.",
-      "expected_timeframe": "1-3 месяца",
-      "expected_outcome": "Освоение 'r' расширит ваш технический кругозор.",
-      "is_soft_skill": false,
-      "market_frequency_percent": 27.11987057927947
-    },
-    {
-      "rank": 8,
       "skill": "rag",
-      "importance_score": 0.2590841525699304,
+      "importance_score": 0.13008740069990551,
       "priority": "LOW",
       "category": "missing",
       "why_important": "🟢 Дополнительное преимущество.\n   'rag' полезен для расширения кругозора в категории 'LLM и Generative AI'. 📈 Растущий тренд (+0%). 🔗 Ключевой навык для домена «Data Science».",
@@ -122,51 +109,38 @@
       "expected_timeframe": "1-3 месяца",
       "expected_outcome": "Освоение 'rag' расширит ваш технический кругозор.",
       "is_soft_skill": false,
-      "market_frequency_percent": 25.908415256993038
+      "market_frequency_percent": 13.008740069990552
     },
     {
-      "rank": 9,
-      "skill": "git",
-      "importance_score": 0.24367842040765092,
-      "priority": "LOW",
-      "category": "missing",
-      "why_important": "🟢 Дополнительное преимущество.\n   'git' полезен для расширения кругозора в категории 'DevOps и инфраструктура'. 📈 Растущий тренд (+0%).",
-      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'git' и выполните проекты.",
-      "expected_timeframe": "1-2 недели",
-      "expected_outcome": "Освоение 'git' расширит ваш технический кругозор.",
-      "is_soft_skill": false,
-      "market_frequency_percent": 24.36784204076509
-    },
-    {
-      "rank": 10,
+      "rank": 8,
       "skill": "java",
-      "importance_score": 0.23425858533248217,
+      "importance_score": 0.10004155206177331,
       "priority": "LOW",
       "category": "missing",
-      "why_important": "🟢 Дополнительное преимущество.\n   'java' полезен для расширения кругозора в категории 'Языки программирования'.",
+      "why_important": "🟢 Дополнительное преимущество.\n   'java' полезен для расширения кругозора в категории 'Языки программирования'. 📈 Растущий тренд (+0%).",
       "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'java' и выполните проекты.",
       "expected_timeframe": "2-6 месяцев",
       "expected_outcome": "Освоение 'java' расширит ваш технический кругозор.",
       "is_soft_skill": false,
-      "market_frequency_percent": 23.425858533248217
+      "market_frequency_percent": 10.004155206177332
     },
     {
-      "rank": 11,
-      "skill": "llm",
-      "importance_score": 0.23023583861173139,
+      "rank": 9,
+      "skill": "gitlab",
+      "importance_score": 0.09252967088208151,
       "priority": "LOW",
       "category": "missing",
-      "why_important": "🟢 Дополнительное преимущество.\n   'llm' полезен для расширения кругозора в категории 'Методологии и концепции'. 📈 Растущий тренд (+30%). 🔗 Ключевой навык для домена «Data Science».",
-      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'llm' и выполните проекты.",
+      "why_important": "🟢 Дополнительное преимущество.\n   'gitlab' полезен для расширения кругозора в категории 'DevOps и инфраструктура'. 📈 Растущий тренд (+0%).",
+      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'gitlab' и выполните проекты.",
       "expected_timeframe": "1-3 месяца",
-      "expected_outcome": "Освоение 'llm' расширит ваш технический кругозор.",
+      "expected_outcome": "Освоение 'gitlab' расширит ваш технический кругозор.",
       "is_soft_skill": false,
-      "market_frequency_percent": 23.02358386117314
+      "market_frequency_percent": 9.252967088208152
     },
     {
-      "rank": 12,
+      "rank": 10,
       "skill": "python",
-      "importance_score": 0.22992683555016388,
+      "importance_score": 0.09135543960221679,
       "priority": "LOW",
       "category": "missing",
       "why_important": "🟢 Дополнительное преимущество.\n   'python' полезен для расширения кругозора в категории 'Языки программирования'. 📈 Растущий тренд (+0%). 🔗 Ключевой навык для домена «Data Science».",
@@ -174,12 +148,51 @@
       "expected_timeframe": "1-2 месяца",
       "expected_outcome": "Освоение 'python' расширит ваш технический кругозор.",
       "is_soft_skill": false,
-      "market_frequency_percent": 22.992683555016388
+      "market_frequency_percent": 9.135543960221678
+    },
+    {
+      "rank": 11,
+      "skill": "llm",
+      "importance_score": 0.07923853351747957,
+      "priority": "LOW",
+      "category": "missing",
+      "why_important": "🟢 Дополнительное преимущество.\n   'llm' полезен для расширения кругозора в категории 'Методологии и концепции'. 📈 Растущий тренд (+0%). 🔗 Ключевой навык для домена «Data Science».",
+      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'llm' и выполните проекты.",
+      "expected_timeframe": "1-3 месяца",
+      "expected_outcome": "Освоение 'llm' расширит ваш технический кругозор.",
+      "is_soft_skill": false,
+      "market_frequency_percent": 7.923853351747957
+    },
+    {
+      "rank": 12,
+      "skill": "uml",
+      "importance_score": 0.07858874081840622,
+      "priority": "LOW",
+      "category": "missing",
+      "why_important": "🟢 Дополнительное преимущество.\n   'uml' полезен для расширения кругозора в категории 'Методологии и концепции'. 📈 Растущий тренд (+0%).",
+      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'uml' и выполните проекты.",
+      "expected_timeframe": "1-3 месяца",
+      "expected_outcome": "Освоение 'uml' расширит ваш технический кругозор.",
+      "is_soft_skill": false,
+      "market_frequency_percent": 7.858874081840622
     },
     {
       "rank": 13,
+      "skill": "dwh",
+      "importance_score": 0.07540349513210123,
+      "priority": "LOW",
+      "category": "missing",
+      "why_important": "🟢 Дополнительное преимущество.\n   'dwh' полезен для расширения кругозора в категории 'Методологии и концепции'. 📈 Растущий тренд (+0%). 🔗 Ключевой навык для домена «Data Science».",
+      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'dwh' и выполните проекты.",
+      "expected_timeframe": "1-3 месяца",
+      "expected_outcome": "Освоение 'dwh' расширит ваш технический кругозор.",
+      "is_soft_skill": false,
+      "market_frequency_percent": 7.540349513210123
+    },
+    {
+      "rank": 14,
       "skill": "kotlin",
-      "importance_score": 0.22065500454553727,
+      "importance_score": 0.066228789783996,
       "priority": "LOW",
       "category": "missing",
       "why_important": "🟢 Дополнительное преимущество.\n   'kotlin' полезен для расширения кругозора в категории 'Мобильная разработка'. 📈 Растущий тренд (+0%).",
@@ -187,33 +200,20 @@
       "expected_timeframe": "1-3 месяца",
       "expected_outcome": "Освоение 'kotlin' расширит ваш технический кругозор.",
       "is_soft_skill": false,
-      "market_frequency_percent": 22.065500454553728
-    },
-    {
-      "rank": 14,
-      "skill": "dwh",
-      "importance_score": 0.22038077525512015,
-      "priority": "LOW",
-      "category": "missing",
-      "why_important": "🟢 Дополнительное преимущество.\n   'dwh' полезен для расширения кругозора в категории 'Методологии и концепции'. 🔗 Ключевой навык для домена «Data Science».",
-      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'dwh' и выполните проекты.",
-      "expected_timeframe": "1-3 месяца",
-      "expected_outcome": "Освоение 'dwh' расширит ваш технический кругозор.",
-      "is_soft_skill": false,
-      "market_frequency_percent": 22.038077525512016
+      "market_frequency_percent": 6.6228789783996005
     },
     {
       "rank": 15,
-      "skill": "fastapi",
-      "importance_score": 0.21434009781852617,
+      "skill": "git",
+      "importance_score": 0.04849050140048445,
       "priority": "LOW",
       "category": "missing",
-      "why_important": "🟢 Дополнительное преимущество.\n   'fastapi' полезен для расширения кругозора в категории 'Фреймворки и библиотеки'. 📈 Растущий тренд (+0%).",
-      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'fastapi' и выполните проекты.",
-      "expected_timeframe": "1-3 месяца",
-      "expected_outcome": "Освоение 'fastapi' расширит ваш технический кругозор.",
+      "why_important": "🟢 Дополнительное преимущество.\n   'git' полезен для расширения кругозора в категории 'DevOps и инфраструктура'. 📈 Растущий тренд (+0%).",
+      "how_to_learn": "Сфокусируйтесь на основах: Изучите документацию 'git' и выполните проекты.",
+      "expected_timeframe": "1-2 недели",
+      "expected_outcome": "Освоение 'git' расширит ваш технический кругозор.",
       "is_soft_skill": false,
-      "market_frequency_percent": 21.434009781852616
+      "market_frequency_percent": 4.849050140048445
     }
   ],
   "domain_coverage": {
@@ -359,9 +359,9 @@
         "cap theorem",
         "транзакции"
       ],
-      "user_has": 17,
+      "user_has": 16,
       "total_required": 138,
-      "coverage": 0.12318840579710146,
+      "coverage": 0.11594202898550725,
       "importance": 0.07692307692307693
     },
     "Frontend": {
@@ -688,9 +688,9 @@
         "гомоморфное шифрование",
         "конфиденциальные вычисления"
       ],
-      "user_has": 37,
+      "user_has": 38,
       "total_required": 193,
-      "coverage": 0.19170984455958548,
+      "coverage": 0.19689119170984457,
       "importance": 0.07692307692307693
     },
     "DevOps & Infrastructure": {
@@ -1836,19 +1836,6 @@
     }
   },
   "gaps": {
-    "r": {
-      "skill": "r",
-      "gap_j": 0.2837,
-      "gap_m": 0.2837,
-      "gap_s": 0.2837,
-      "demand_j": 0.2837,
-      "demand_m": 0.2837,
-      "demand_s": 0.2837,
-      "cluster_relevance": 0.0,
-      "user_level": 0.0,
-      "importance": 0.2837,
-      "category": "missing"
-    },
     "llm": {
       "skill": "llm",
       "gap_j": 0.027917999999999995,
@@ -1876,7 +1863,7 @@
       "category": "missing"
     }
   },
-  "trend_bonuses_count": 87,
+  "trend_bonuses_count": 118,
   "dominant_domain_name": "Data Science",
   "target_profession": "Data Scientist"
 }

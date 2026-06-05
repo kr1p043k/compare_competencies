@@ -24,6 +24,7 @@ import { PipelineProgress } from "./components/PipelineProgress";
 import { DataViewer } from "./components/DataViewer";
 import { RecommendationsReport } from "./components/RecommendationsReport";
 import { PredictionsTab } from "./components/PredictionsTab";
+import { MonitoringTab } from "./components/MonitoringTab";
 import { LoginPage } from "./components/LoginPage";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
@@ -49,6 +50,7 @@ import {
   GraduationCap,
   UserCheck,
   History,
+  Activity,
 } from "lucide-react";
 
 const API = "/api";
@@ -435,6 +437,12 @@ export default function App() {
               Анализ
             </TabsTrigger>
             {role === "admin" && (
+              <TabsTrigger value="monitoring" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
+                <Activity className="size-4" />
+                Мониторинг
+              </TabsTrigger>
+            )}
+            {role === "admin" && (
               <TabsTrigger value="admin" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
                 <Shield className="size-4" />
                 Админ
@@ -632,6 +640,11 @@ export default function App() {
           <TabsContent value="predictions">
             <PredictionsTab />
           </TabsContent>
+          {role === "admin" && (
+            <TabsContent value="monitoring">
+              <MonitoringTab />
+            </TabsContent>
+          )}
           {role === "admin" && (
             <TabsContent value="admin">
               <AdminDashboard />

@@ -326,7 +326,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
     def predict_skill_impact(
         self, student_skills: list[str], missing_skills: list[str]
     ) -> Result[list[tuple[str, float, str]], ModelError]:
-        match self.predict_skill_impact_with_shap(student_skills, missing_skills, compute_shap=False):
+        match self.predict_skill_impact_with_shap(student_skills, missing_skills, compute_shap=True):
             case Ok((recs, _, _)):
                 return Ok(recs)
             case Err(e):
@@ -380,7 +380,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         impacts = []
         for i, skill in enumerate(valid_missing):
             score = float(scores[i])
-            explanation = self._generate_explanation(skill, score, shap_values, i, X) if shap_values is not None else ""
+            explanation = self._generate_explanation(skill, score, shap_values, i, X, student_skills)
             impacts.append((skill, round(score * 100, 2), explanation))
 
         return Ok((sorted(impacts, key=lambda x: x[1], reverse=True)[:15], shap_values, X))
@@ -505,34 +505,74 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         shap_values: np.ndarray | None,
         idx: int,
         X: pd.DataFrame,
+        student_skills: list[str] | None = None,
     ) -> str:
         meta = self.skill_metadata.get(skill, {})
         freq = meta.get("frequency", 0)
         level = meta.get("level", "middle")
 
+        base = ""
         if shap_values is not None and idx < len(shap_values):
             top_idx = int(np.argmax(np.abs(shap_values[idx])))
             feat_name = self.feature_names[top_idx]
             feat_val = X.iloc[idx][feat_name]
 
             if feat_name == "cosine_sim":
-                return (
+                base = (
                     f"🎯 {skill}: хорошо сочетается с вашим профилем "
                     f"(сходство {feat_val:.2f}, важность {score * 100:.1f}%)"
                 )
-            if feat_name == "co_occurrence":
-                return (
+            elif feat_name == "co_occurrence":
+                base = (
                     f"🔗 {skill}: часто встречается в вакансиях вместе с вашими навыками "
                     f"(co-occurrence {feat_val:.2f}, важность {score * 100:.1f}%)"
                 )
-            if feat_name == "level_encoded":
+            elif feat_name == "level_encoded":
                 level_str = {1: "junior", 2: "middle", 3: "senior"}.get(int(feat_val), "middle")
-                return f"📊 {skill}: востребован на уровне {level_str} (важность {score * 100:.1f}%, частота {freq})"
-            if feat_name in ("category_encoded", "category_avg_weight"):
+                base = f"📊 {skill}: востребован на уровне {level_str} (важность {score * 100:.1f}%, частота {freq})"
+            elif feat_name in ("category_encoded", "category_avg_weight"):
                 cat = self._get_skill_category(skill)
-                return f"📁 {skill}: относится к востребованной категории '{cat}' (важность {score * 100:.1f}%)"
+                base = f"📁 {skill}: относится к востребованной категории '{cat}' (важность {score * 100:.1f}%)"
 
-        return f"{skill}: важность {score * 100:.1f}% (частота {freq}, уровень {level})"
+        if not base:
+            base = f"{skill}: важность {score * 100:.1f}% (частота {freq}, уровень {level})"
+
+        cross = self._generate_cross_domain_explanation(skill, student_skills or [], score)
+        if cross:
+            base += "\n" + cross
+
+        return base
+
+    def _get_dominant_student_category(self, student_skills: list[str]) -> str:
+        cats = {}
+        for s in student_skills:
+            c = self._get_skill_category(s)
+            cats[c] = cats.get(c, 0) + 1
+        return max(cats, key=cats.get) if cats else "other"
+
+    def _generate_cross_domain_explanation(
+        self, skill: str, student_skills: list[str], score: float
+    ) -> str:
+        skill_cat = self._get_skill_category(skill)
+        student_cat = self._get_dominant_student_category(student_skills)
+        if skill_cat == student_cat or skill_cat == "other":
+            return ""
+
+        from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
+        tax = SkillTaxonomy()
+        skill_cat_label = tax.get_category_label_by_id(skill_cat) or skill_cat
+        student_cat_label = tax.get_category_label_by_id(student_cat) or student_cat
+
+        meta = self.skill_metadata.get(skill, {})
+        freq = meta.get("frequency", 0)
+
+        return (
+            f"🌍 Междисциплинарный навык: {skill} относится к «{skill_cat_label}», "
+            f"но востребован и в «{student_cat_label}». "
+            f"Встречается в {freq} вакансиях на рынке "
+            f"(важность {score * 100:.1f}%). "
+            f"Его изучение расширит вашу применимость на стыке доменов."
+        )
 
     def load_model(self, path: Path | None = None) -> Result["LTRRecommendationEngine", ModelError]:
         model_path = path or self.model_path
