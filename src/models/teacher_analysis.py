@@ -18,6 +18,13 @@ class SkillMatch:
 
 
 @dataclass
+class CrossReference:
+    skill_name: str
+    frequency: int = 0
+    discipline: str = ""
+
+
+@dataclass
 class CompetencyCoverage:
     code: str
     total_skills: int = 0
@@ -38,6 +45,8 @@ class DisciplineCoverage:
     top_matched: list[SkillMatch] = field(default_factory=list)
     gaps_list: list[str] = field(default_factory=list)
     emerging: list[SkillMatch] = field(default_factory=list)
+    truly_missing: list[SkillMatch] = field(default_factory=list)
+    cross_references: list[CrossReference] = field(default_factory=list)
     competencies: list[CompetencyCoverage] = field(default_factory=list)
 
 

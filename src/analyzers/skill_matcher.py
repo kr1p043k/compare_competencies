@@ -61,7 +61,8 @@ class SkillMatcher:
         return Ok((None, "no_match"))
 
     def get_emerging(
-        self, rpd_normalized: set[str], top_n: int = 10
+        self, rpd_normalized: set[str], top_n: int = 10,
+        also_exclude: set[str] | None = None,
     ) -> Result[list[tuple[str, int, str]], MatchingError]:
         if not self.market_skills:
             logger.warning("no_market_skills_for_emerging")
@@ -70,11 +71,18 @@ class SkillMatcher:
         for mn, mf in sorted(self.market_skills.items(), key=lambda x: -x[1]):
             if mn in rpd_normalized:
                 continue
+            if also_exclude and mn in also_exclude:
+                continue
             skip = False
             for rn in rpd_normalized:
                 if self._word_match(mn, rn) or self._word_match(rn, mn):
                     skip = True
                     break
+            if also_exclude and not skip:
+                for rn in also_exclude:
+                    if self._word_match(mn, rn) or self._word_match(rn, mn):
+                        skip = True
+                        break
             if not skip:
                 result.append((mn, mf, "emerging"))
                 if len(result) >= top_n:

@@ -2,77 +2,21 @@
   "direction": "09.03.02",
   "direction_name": "Информационные системы и технологии",
   "profile": "Перспективные информационные технологии",
-  "total_disciplines": 41,
-  "average_coverage": 0.7331,
+  "total_disciplines": 1,
+  "average_coverage": 0.9091,
   "coverage_level": "high",
-  "total_gaps_across_all": 33,
+  "total_gaps_across_all": 2,
   "top_cross_discipline_gaps": [
     {
-      "skill": "программные средства",
-      "disciplines": 17
-    },
-    {
-      "skill": "информационно-коммуникационные технологии",
-      "disciplines": 10
-    },
-    {
-      "skill": "информационные технологии",
-      "disciplines": 7
-    },
-    {
-      "skill": "математические модели",
-      "disciplines": 6
-    },
-    {
-      "skill": "программно-аппаратные комплексы",
-      "disciplines": 6
-    },
-    {
-      "skill": "мультимедиа",
-      "disciplines": 6
-    },
-    {
-      "skill": "технические средства",
-      "disciplines": 5
-    },
-    {
-      "skill": "ci/cd",
-      "disciplines": 5
-    },
-    {
-      "skill": "аппаратные платформы",
-      "disciplines": 5
-    },
-    {
-      "skill": "бизнес-задачи",
-      "disciplines": 4
-    },
-    {
-      "skill": "технологический стек",
-      "disciplines": 4
-    },
-    {
       "skill": "программная документация",
-      "disciplines": 3
-    },
-    {
-      "skill": "компьютерные сети",
-      "disciplines": 3
-    },
-    {
-      "skill": "параметрическая настройка",
-      "disciplines": 3
+      "disciplines": 1
     },
     {
       "skill": "встроенные системы",
-      "disciplines": 2
+      "disciplines": 1
     }
   ],
   "top_emerging_across_all": [
-    {
-      "skill": "python",
-      "frequency": 880
-    },
     {
       "skill": "postgresql",
       "frequency": 520
@@ -112,39 +56,18 @@
     {
       "skill": "sqlalchemy",
       "frequency": 250
-    },
-    {
-      "skill": "rest api",
-      "frequency": 240
-    },
-    {
-      "skill": "pytest",
-      "frequency": 230
-    },
-    {
-      "skill": "rabbitmq",
-      "frequency": 200
-    },
-    {
-      "skill": "nginx",
-      "frequency": 190
     }
   ],
   "recommendations": [
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Ключевые навыки рынка для внедрения: python, postgresql, sql, git, linux, docker, fastapi, django, flask, redis"
-    },
-    {
-      "type": "major_revision",
-      "priority": "high",
-      "message": "6 дисциплин имеют низкое покрытие рынка. Рекомендовано к пересмотру: Воображение, изображение, реальность, Компьютерные сети, Мультимедиа технологии, Обеспечение надежности и управление каче, Основы информационных технологий, процес"
+      "message": "Ключевые навыки рынка для внедрения: postgresql, sql, git, linux, docker, fastapi, django, flask, redis, sqlalchemy"
     },
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Добавить новые дисциплины или модули по: python, postgresql, sql, git, linux, docker, fastapi, django"
+      "message": "Добавить новые дисциплины или модули по: postgresql, sql, git, linux, docker, fastapi, django, flask"
     }
   ],
   "trends": {
@@ -255,292 +178,12 @@
   },
   "disciplines": [
     {
-      "name": "Python для научных вычислений и машинного обучения",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
       "name": "Алгоритмизация и программирование",
       "coverage_ratio": 0.9091,
       "coverage_level": "high",
       "gaps": 2,
       "emerging": 10
-    },
-    {
-      "name": "Архитектура, технологии и инструментальные средства разработки ПО с поддержкой ИИ",
-      "coverage_ratio": 0.8333,
-      "coverage_level": "high",
-      "gaps": 2,
-      "emerging": 10
-    },
-    {
-      "name": "Базы данных и СУБД",
-      "coverage_ratio": 0.875,
-      "coverage_level": "high",
-      "gaps": 3,
-      "emerging": 10
-    },
-    {
-      "name": "Байесовские и генеративные модели в искусственном интеллекте",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Безопасность жизнедеятельности",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Безопасность информационных технологий",
-      "coverage_ratio": 0.2857,
-      "coverage_level": "medium",
-      "gaps": 5,
-      "emerging": 10
-    },
-    {
-      "name": "Воображение, изображение, реальность",
-      "coverage_ratio": 0,
-      "coverage_level": "low",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Высшая математика",
-      "coverage_ratio": 0.9394,
-      "coverage_level": "high",
-      "gaps": 2,
-      "emerging": 10
-    },
-    {
-      "name": "Генеративный ИИ и МО",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Дискретная математика",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Дисциплины по ФКиС",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Иностранный язык (англ. яз., уровень А1)",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Иностранный язык (англ. яз., уровень А2)",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Иностранный язык (англ. яз., уровень В1)",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Иностранный язык (англ. яз., уровень В2)",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Иностранный язык (англ. яз., уровень С1)",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Иностранный язык (русский язык)",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Иностранный язык для деловой коммуникации",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Инструменты и инженерные практики  разработки систем ИИ",
-      "coverage_ratio": 0.8587,
-      "coverage_level": "high",
-      "gaps": 13,
-      "emerging": 10
-    },
-    {
-      "name": "Интеллектуальные системы и технологии",
-      "coverage_ratio": 0.4375,
-      "coverage_level": "medium",
-      "gaps": 9,
-      "emerging": 10
-    },
-    {
-      "name": "Инфраструктура распределённых баз данных",
-      "coverage_ratio": 0.94,
-      "coverage_level": "high",
-      "gaps": 3,
-      "emerging": 10
-    },
-    {
-      "name": "Искусственный интеллект и анализ данных",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "История России",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Компьютерные сети",
-      "coverage_ratio": 0.1818,
-      "coverage_level": "low",
-      "gaps": 9,
-      "emerging": 10
-    },
-    {
-      "name": "Машинное обучение в задачах компьютерного зрения",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Междисциплинарный проект 1",
-      "coverage_ratio": 0.2,
-      "coverage_level": "medium",
-      "gaps": 4,
-      "emerging": 10
-    },
-    {
-      "name": "Междисциплинарный проект 2",
-      "coverage_ratio": 0.2,
-      "coverage_level": "medium",
-      "gaps": 4,
-      "emerging": 10
-    },
-    {
-      "name": "Методы оптимизации",
-      "coverage_ratio": 0.7857,
-      "coverage_level": "high",
-      "gaps": 3,
-      "emerging": 10
-    },
-    {
-      "name": "Моделирование, внедрение и эксплуатация информационных систем",
-      "coverage_ratio": 0.4444,
-      "coverage_level": "medium",
-      "gaps": 5,
-      "emerging": 10
-    },
-    {
-      "name": "Мультимедиа технологии",
-      "coverage_ratio": 0.0,
-      "coverage_level": "low",
-      "gaps": 18,
-      "emerging": 10
-    },
-    {
-      "name": "Обеспечение надежности и управление качеством ИС",
-      "coverage_ratio": 0.0,
-      "coverage_level": "low",
-      "gaps": 4,
-      "emerging": 10
-    },
-    {
-      "name": "Объектно-ориентированное программирование",
-      "coverage_ratio": 0.9444,
-      "coverage_level": "high",
-      "gaps": 1,
-      "emerging": 10
-    },
-    {
-      "name": "Операционные системы",
-      "coverage_ratio": 0.5789,
-      "coverage_level": "high",
-      "gaps": 8,
-      "emerging": 10
-    },
-    {
-      "name": "Основы Python",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Основы информационных технологий, процессов и систем",
-      "coverage_ratio": 0.1429,
-      "coverage_level": "low",
-      "gaps": 12,
-      "emerging": 10
-    },
-    {
-      "name": "Основы проектной деятельности",
-      "coverage_ratio": 0,
-      "coverage_level": "low",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Практикум по математике",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Практикум по основам программирования",
-      "coverage_ratio": 0.5,
-      "coverage_level": "high",
-      "gaps": 1,
-      "emerging": 10
-    },
-    {
-      "name": "Практикум по подготовке инженерной документации",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
-    },
-    {
-      "name": "Прикладные архитектуры глубоких нейронных сетей",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10
     }
   ],
-  "generated_at": "2026-06-05T14:30:09.220062"
+  "generated_at": "2026-06-05T15:09:57.643712"
 }

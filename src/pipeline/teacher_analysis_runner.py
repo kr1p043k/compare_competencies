@@ -17,7 +17,7 @@ from src.result import Ok, Err, Result
 from src.errors import AnalysisDataError, AnalysisRunnerError, RecommendationError
 from src.db import create_pool, close_pool, get_pool
 from src.models.teacher_analysis import DirectionSummary, GapAnalysisResult
-from src.analyzers.skill_matcher import SkillMatcher
+from src.analyzers.skill_matcher import SkillMatcher, normalize as normalize_skill
 from src.analyzers.coverage_analyzer import CoverageAnalyzer
 from src.analyzers.trend_analyzer import TrendAnalyzer
 from src.predictors.curriculum_recommender import CurriculumRecommender
@@ -194,6 +194,19 @@ async def run_teacher_analysis(
     all_emerging: list[dict] = []
     discipline_reports: list[tuple[str, GapAnalysisResult]] = []
 
+    # Build direction-level RPD sets for cross-discipline awareness
+    direction_rpd_norm: set[str] = set()
+    discipline_skill_map: dict[str, set[str]] = {}
+    for dname, disc_data in disciplines.items():
+        dskills: set[str] = set()
+        for skills_list in disc_data["competencies"].values():
+            for s in skills_list:
+                n = normalize_skill(s)
+                if n and len(n) >= 3:
+                    dskills.add(n)
+                    direction_rpd_norm.add(n)
+        discipline_skill_map[dname] = dskills
+
     for dname, disc_data in sorted(disciplines.items()):
         logger.info("analyzing_discipline", discipline=dname)
         disc_out = out_dir / _safe_filename(dname)
@@ -201,6 +214,8 @@ async def run_teacher_analysis(
 
         cov_result = coverage_analyzer.analyze_discipline(
             disc_data["id"], dname, disc_data["competencies"],
+            direction_rpd_norm=direction_rpd_norm,
+            discipline_skill_map=discipline_skill_map,
         )
         if cov_result.is_err():
             logger.error("discipline_analysis_failed", discipline=dname, error=str(cov_result.err()))
@@ -238,6 +253,14 @@ async def run_teacher_analysis(
                 "emerging_market_skills_not_in_rpd": [
                     {"skill": e.skill_name, "frequency": e.frequency}
                     for e in coverage.emerging
+                ],
+                "truly_missing_market_skills": [
+                    {"skill": e.skill_name, "frequency": e.frequency}
+                    for e in coverage.truly_missing
+                ],
+                "covered_in_other_disciplines": [
+                    {"skill": cr.skill_name, "frequency": cr.frequency, "discipline": cr.discipline}
+                    for cr in coverage.cross_references
                 ],
             },
             "competencies": [

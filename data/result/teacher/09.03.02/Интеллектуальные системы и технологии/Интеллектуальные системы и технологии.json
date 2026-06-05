@@ -10,7 +10,7 @@
     "coverage_level": "medium",
     "top_market_matched_skills": [
       {
-        "skill": "математический анализ",
+        "skill": "теория алгоритмов",
         "frequency": 1,
         "match_type": "exact"
       },
@@ -20,7 +20,12 @@
         "match_type": "exact"
       },
       {
-        "skill": "теория алгоритмов",
+        "skill": "математический анализ",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "новые алгоритмы мл",
         "frequency": 1,
         "match_type": "exact"
       },
@@ -35,26 +40,21 @@
         "match_type": "exact"
       },
       {
-        "skill": "новые алгоритмы мл",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
         "skill": "анализ требований",
         "frequency": 1,
         "match_type": "exact"
       }
     ],
     "gaps_in_curriculum": [
-      "программные средства",
       "математические модели",
       "программные средства",
       "информационные технологии",
       "информационно-коммуникационные технологии",
-      "математические модели",
       "программные средства",
+      "математические модели",
+      "жизненный цикл",
       "жизненный цикл информационных систем",
-      "жизненный цикл"
+      "программные средства"
     ],
     "emerging_market_skills_not_in_rpd": [
       {
@@ -96,6 +96,95 @@
       {
         "skill": "redis",
         "frequency": 260
+      }
+    ],
+    "truly_missing_market_skills": [
+      {
+        "skill": "django",
+        "frequency": 340
+      },
+      {
+        "skill": "rabbitmq",
+        "frequency": 200
+      },
+      {
+        "skill": "nginx",
+        "frequency": 190
+      },
+      {
+        "skill": "ci/cd",
+        "frequency": 180
+      },
+      {
+        "skill": "async",
+        "frequency": 160
+      },
+      {
+        "skill": "unit tests",
+        "frequency": 150
+      },
+      {
+        "skill": "javascript",
+        "frequency": 130
+      },
+      {
+        "skill": "react",
+        "frequency": 120
+      },
+      {
+        "skill": "alembic",
+        "frequency": 110
+      },
+      {
+        "skill": "celery",
+        "frequency": 110
+      }
+    ],
+    "covered_in_other_disciplines": [
+      {
+        "skill": "python",
+        "frequency": 880,
+        "discipline": "Алгоритмизация и программирование"
+      },
+      {
+        "skill": "postgresql",
+        "frequency": 520,
+        "discipline": "Базы данных и СУБД"
+      },
+      {
+        "skill": "sql",
+        "frequency": 490,
+        "discipline": "Базы данных и СУБД"
+      },
+      {
+        "skill": "git",
+        "frequency": 460,
+        "discipline": "Инфраструктура распределённых баз данных"
+      },
+      {
+        "skill": "linux",
+        "frequency": 440,
+        "discipline": "Иностранный язык для деловой коммуникации"
+      },
+      {
+        "skill": "docker",
+        "frequency": 420,
+        "discipline": "Инструменты и инженерные практики  разработки систем ИИ"
+      },
+      {
+        "skill": "fastapi",
+        "frequency": 350,
+        "discipline": "Инструменты и инженерные практики  разработки систем ИИ"
+      },
+      {
+        "skill": "flask",
+        "frequency": 280,
+        "discipline": "Инструменты и инженерные практики  разработки систем ИИ"
+      },
+      {
+        "skill": "redis",
+        "frequency": 260,
+        "discipline": "Инструменты и инженерные практики  разработки систем ИИ"
       }
     ]
   },
@@ -254,13 +343,123 @@
   "recommendations": [
     {
       "type": "update_content",
-      "priority": "high",
-      "message": "Обновить содержание: 9 навыков из РПД не найдены на рынке. Рекомендуется пересмотреть актуальность: программные средства, математические модели, программные средства, информационные технологии, информационно-коммуникационные технологии"
+      "priority": "medium",
+      "message": "Замените «математические модели» на «django» (частота на рынке: 340)"
+    },
+    {
+      "type": "update_content",
+      "priority": "medium",
+      "message": "Замените «программные средства» на «django» (частота на рынке: 340)"
+    },
+    {
+      "type": "update_content",
+      "priority": "medium",
+      "message": "Замените «информационные технологии» на «django» (частота на рынке: 340)"
+    },
+    {
+      "type": "update_content",
+      "priority": "medium",
+      "message": "Замените «информационно-коммуникационные технологии» на «django» (частота на рынке: 340)"
+    },
+    {
+      "type": "update_content",
+      "priority": "medium",
+      "message": "Замените «программные средства» на «django» (частота на рынке: 340)"
+    },
+    {
+      "type": "update_content",
+      "priority": "medium",
+      "message": "Замените «математические модели» на «django» (частота на рынке: 340)"
+    },
+    {
+      "type": "update_content",
+      "priority": "medium",
+      "message": "Замените «жизненный цикл» на «django» (частота на рынке: 340)"
+    },
+    {
+      "type": "update_content",
+      "priority": "medium",
+      "message": "Замените «жизненный цикл информационных систем» на «django» (частота на рынке: 340)"
+    },
+    {
+      "type": "update_content",
+      "priority": "medium",
+      "message": "Замените «программные средства» на «django» (частота на рынке: 340)"
     },
     {
       "type": "add_new_content",
+      "priority": "high",
+      "message": "Добавьте «django» (частота 340) — не покрыт ни в одной дисциплине направления"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "high",
+      "message": "Добавьте «rabbitmq» (частота 200) — не покрыт ни в одной дисциплине направления"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "high",
+      "message": "Добавьте «nginx» (частота 190) — не покрыт ни в одной дисциплине направления"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "high",
+      "message": "Добавьте «ci/cd» (частота 180) — не покрыт ни в одной дисциплине направления"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "high",
+      "message": "Добавьте «async» (частота 160) — не покрыт ни в одной дисциплине направления"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "low",
+      "message": "Навык «python» (частота 880) уже преподаётся в дисциплине «Алгоритмизация и программирование» — обеспечьте междисциплинарную связь"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "low",
+      "message": "Навык «postgresql» (частота 520) уже преподаётся в дисциплине «Базы данных и СУБД» — обеспечьте междисциплинарную связь"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "low",
+      "message": "Навык «sql» (частота 490) уже преподаётся в дисциплине «Базы данных и СУБД» — обеспечьте междисциплинарную связь"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "low",
+      "message": "Навык «git» (частота 460) уже преподаётся в дисциплине «Инфраструктура распределённых баз данных» — обеспечьте междисциплинарную связь"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "low",
+      "message": "Навык «linux» (частота 440) уже преподаётся в дисциплине «Иностранный язык для деловой коммуникации» — обеспечьте междисциплинарную связь"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "low",
+      "message": "Навык «docker» (частота 420) уже преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — обеспечьте междисциплинарную связь"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "low",
+      "message": "Навык «fastapi» (частота 350) уже преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — обеспечьте междисциплинарную связь"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "low",
+      "message": "Навык «flask» (частота 280) уже преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — обеспечьте междисциплинарную связь"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "low",
+      "message": "Навык «redis» (частота 260) уже преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — обеспечьте междисциплинарную связь"
+    },
+    {
+      "type": "update_content",
       "priority": "medium",
-      "message": "Добавить в программу востребованные навыки рынка: python, postgresql, sql, git, linux"
+      "message": "Компетенции ОПК-2, ОПК-7 имеют 0% покрытие рынком — добавьте востребованные навыки"
     }
   ]
 }

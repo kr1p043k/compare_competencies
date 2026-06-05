@@ -7,7 +7,7 @@ import structlog
 
 from src.result import Ok, Err, Result
 from src.errors import CoverageError
-from src.models.teacher_analysis import CompetencyCoverage, DisciplineCoverage, SkillMatch
+from src.models.teacher_analysis import CompetencyCoverage, CrossReference, DisciplineCoverage, SkillMatch
 from src.analyzers.skill_matcher import SkillMatcher, coverage_level, normalize as normalize_skill
 
 logger = structlog.get_logger(__name__)
@@ -22,6 +22,8 @@ class CoverageAnalyzer:
         discipline_id: str,
         discipline_name: str,
         competencies: dict[str, list[str]],
+        direction_rpd_norm: set[str] | None = None,
+        discipline_skill_map: dict[str, set[str]] | None = None,
     ) -> Result[DisciplineCoverage, CoverageError]:
         if not discipline_id:
             logger.error("missing_discipline_id")
@@ -80,6 +82,7 @@ class CoverageAnalyzer:
             else:
                 gaps_list.append(s)
 
+        # Per-discipline emerging (not in THIS discipline)
         emerging_result = self.matcher.get_emerging(rpd_norm, top_n=10)
         emerging_skills: list[SkillMatch] = []
         if emerging_result.is_ok():
@@ -88,6 +91,52 @@ class CoverageAnalyzer:
                 SkillMatch(skill_name=s, frequency=f, match_type="emerging")
                 for s, f, _ in emerging_raw
             ]
+
+        # Cross-discipline: truly missing vs covered elsewhere
+        truly_missing: list[SkillMatch] = []
+        cross_refs: list[CrossReference] = []
+        if direction_rpd_norm is not None and discipline_skill_map is not None:
+            dir_result = self.matcher.get_emerging(
+                rpd_norm, top_n=30,
+                also_exclude=direction_rpd_norm,
+            )
+            if dir_result.is_ok():
+                dir_emerging = {s for s, _, _ in dir_result.unwrap()}
+                for em in emerging_skills:
+                    if em.skill_name not in dir_emerging:
+                        # Covered in another discipline — find which
+                        for dn, dskills in discipline_skill_map.items():
+                            if dn == discipline_name:
+                                continue
+                            if em.skill_name in dskills:
+                                cross_refs.append(CrossReference(
+                                    skill_name=em.skill_name,
+                                    frequency=em.frequency,
+                                    discipline=dn,
+                                ))
+                                break
+                        else:
+                            for dn, dskills in discipline_skill_map.items():
+                                if dn == discipline_name:
+                                    continue
+                                for rn in dskills:
+                                    if (self.matcher._word_match(em.skill_name, rn)
+                                        or self.matcher._word_match(rn, em.skill_name)):
+                                        cross_refs.append(CrossReference(
+                                            skill_name=em.skill_name,
+                                            frequency=em.frequency,
+                                            discipline=dn,
+                                        ))
+                                        break
+                # Truly missing (not in any discipline)
+                truly_raw = self.matcher.get_emerging(
+                    direction_rpd_norm, top_n=10,
+                )
+                if truly_raw.is_ok():
+                    truly_missing = [
+                        SkillMatch(skill_name=s, frequency=f, match_type="emerging")
+                        for s, f, _ in truly_raw.unwrap()
+                    ]
 
         total = len(matched_list) + len(gaps_list)
         ratio = round(len(matched_list) / total, 4) if total else 0
@@ -108,5 +157,7 @@ class CoverageAnalyzer:
             top_matched=sorted(matched_list, key=lambda x: -x.frequency)[:10],
             gaps_list=gaps_list[:20],
             emerging=emerging_skills,
+            truly_missing=truly_missing,
+            cross_references=cross_refs,
             competencies=comp_results,
         ))
