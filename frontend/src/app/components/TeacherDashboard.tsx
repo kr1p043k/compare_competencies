@@ -60,9 +60,9 @@ export function TeacherDashboard() {
     setLoading(true);
     try {
       const [s, d, r] = await Promise.all([
-        apiFetch("/stats").then(r => r.ok ? r.json() : null),
-        apiFetch("/disciplines").then(r => r.ok ? r.json() : []),
-        apiFetch("/recommendations").then(r => r.ok ? r.json() : []),
+        apiFetch(`${KRM_API}/stats`).then(r => r.ok ? r.json() : null),
+        apiFetch(`${KRM_API}/disciplines`).then(r => r.ok ? r.json() : []),
+        apiFetch(`${KRM_API}/recommendations`).then(r => r.ok ? r.json() : []),
       ]);
       if (s) setStats(s);
       setDisciplines(d);
@@ -78,13 +78,13 @@ export function TeacherDashboard() {
 
   const loadDiscipline = async (name: string) => {
     setShowAnalysis(false);
-    const res = await apiFetch("/disciplines/");
+    const res = await apiFetch(`${KRM_API}/disciplines/${encodeURIComponent(name)}`);
     if (res.ok) setSelected(await res.json());
   };
 
   const addRecommendation = async () => {
     if (!selected || !suggestion.trim()) return;
-    const res = await apiFetch("/recommendations", {
+    const res = await apiFetch(`${KRM_API}/recommendations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -108,7 +108,7 @@ export function TeacherDashboard() {
   };
 
   const deleteRecommendation = async (id: number) => {
-    await apiFetch("/recommendations/", { method: "DELETE" });
+    await apiFetch(`${KRM_API}/recommendations/${id}`, { method: "DELETE" });
     setRecs(prev => prev.filter(r => r.id !== id));
   };
 
@@ -136,7 +136,7 @@ export function TeacherDashboard() {
           </h2>
           <p className="text-sm text-gray-500">
             {stats
-              ? `${stats.disciplines} дисциплин, ${stats.competencies} компетенций, ${stats.skills} навыков`
+              ? `${stats.total_disciplines} дисциплин, ${stats.total_competencies} компетенций, ${stats.total_skills} навыков`
               : "Рабочие программы дисциплин"}
           </p>
         </div>
