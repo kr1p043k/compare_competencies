@@ -8,6 +8,7 @@ from src import DataSourceError, Err, Ok, Result, config
 from src.parsing.api.hh_api import HeadHunterAPI
 from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import (
+    IT_PROFESSIONAL_ROLES,
     collect_vacancies_multiple,
     interactive_config,
     load_queries_from_file,
@@ -149,6 +150,7 @@ class HhDataSource(DataSourceProtocol):
                 period_days=self.args.period,
                 max_pages=self.args.max_pages,
                 industry=self.args.industry,
+                professional_role=IT_PROFESSIONAL_ROLES,
                 max_vacancies_per_query=self.args.max_vacancies_per_query,
             )
 
@@ -192,6 +194,7 @@ class HhDataSource(DataSourceProtocol):
                 area=self.args.area_id,
                 period_days=self.args.period,
                 max_pages=self.args.max_pages,
+                professional_role=IT_PROFESSIONAL_ROLES,
             ):
                 case Ok(basic_vacancies):
                     pass

@@ -1,0 +1,75 @@
+"""Trend analyzer: skill demand trends over time."""
+from __future__ import annotations
+
+from datetime import date
+from typing import Any
+
+import structlog
+
+from src.result import Ok, Err, Result
+from src.errors import TrendError
+
+logger = structlog.get_logger(__name__)
+
+
+class TrendAnalyzer:
+    def __init__(self, snapshot_records: list[dict] | None = None):
+        self.snapshots: list[dict] = snapshot_records or []
+
+    def set_snapshots(self, records: list[dict]) -> Result[None, TrendError]:
+        if not records:
+            logger.warning("snapshots_empty")
+            return Err(TrendError(message="No snapshot records provided", reason="empty"))
+        self.snapshots = records
+        logger.info("snapshots_set", count=len(records))
+        return Ok(None)
+
+    def get_rising(self, top_n: int = 10) -> Result[list[dict], TrendError]:
+        if len(self.snapshots) < 2:
+            logger.warning("insufficient_snapshots_for_rising", count=len(self.snapshots))
+            return Err(TrendError(
+                message=f"Need ≥2 snapshots, got {len(self.snapshots)}",
+                reason="insufficient_data",
+            ))
+        if top_n < 1:
+            logger.warning("invalid_top_n", top_n=top_n)
+            return Err(TrendError(message="top_n must be ≥1", reason="invalid_args"))
+
+        latest = self.snapshots[-1].get("skill_freq", {})
+        previous = self.snapshots[-2].get("skill_freq", {})
+        changes = []
+        for skill, freq in latest.items():
+            prev_freq = previous.get(skill, 0)
+            if prev_freq > 0:
+                change = (freq - prev_freq) / prev_freq * 100
+            else:
+                change = 100.0
+            changes.append({"skill": skill, "change_pct": round(change, 1), "frequency": freq})
+        result = sorted(changes, key=lambda x: -x["change_pct"])[:top_n]
+        logger.info("rising_skills_found", count=len(result))
+        return Ok(result)
+
+    def get_declining(self, top_n: int = 10) -> Result[list[dict], TrendError]:
+        if len(self.snapshots) < 2:
+            logger.warning("insufficient_snapshots_for_declining", count=len(self.snapshots))
+            return Err(TrendError(
+                message=f"Need ≥2 snapshots, got {len(self.snapshots)}",
+                reason="insufficient_data",
+            ))
+        if top_n < 1:
+            logger.warning("invalid_top_n", top_n=top_n)
+            return Err(TrendError(message="top_n must be ≥1", reason="invalid_args"))
+
+        latest = self.snapshots[-1].get("skill_freq", {})
+        previous = self.snapshots[-2].get("skill_freq", {})
+        changes = []
+        for skill, freq in previous.items():
+            curr_freq = latest.get(skill, 0)
+            if freq > 0:
+                change = (curr_freq - freq) / freq * 100
+            else:
+                continue
+            changes.append({"skill": skill, "change_pct": round(change, 1), "frequency": curr_freq})
+        result = sorted(changes, key=lambda x: x["change_pct"])[:top_n]
+        logger.info("declining_skills_found", count=len(result))
+        return Ok(result)

@@ -123,3 +123,33 @@ class ManifestError(DomainError):
 @dataclass(frozen=True)
 class NormalizerError(DomainError):
     skill_name: str = ""
+
+
+@dataclass(frozen=True)
+class TeacherAnalysisError(DomainError):
+    pass
+
+
+@dataclass(frozen=True)
+class AnalysisDataError(TeacherAnalysisError):
+    source: str = ""
+
+
+@dataclass(frozen=True)
+class MatchingError(TeacherAnalysisError):
+    skill_name: str = ""
+
+
+@dataclass(frozen=True)
+class CoverageError(TeacherAnalysisError):
+    discipline_id: str = ""
+
+
+@dataclass(frozen=True)
+class TrendError(TeacherAnalysisError):
+    reason: str = ""
+
+
+@dataclass(frozen=True)
+class AnalysisRunnerError(TeacherAnalysisError):
+    stage: str = ""

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -8,8 +8,9 @@ import { Label } from "./ui/label";
 import { apiFetch } from "../../lib/auth";
 import {
   BookOpen, ChevronDown, ChevronRight, Plus, Trash2,
-  RefreshCw, Search, GraduationCap, Lightbulb,
+  RefreshCw, Search, GraduationCap, Lightbulb, Target,
 } from "lucide-react";
+import { AnalysisPanel } from "./AnalysisPanel";
 
 interface Discipline {
   name: string;
@@ -53,14 +54,15 @@ export function TeacherDashboard() {
   const [recType, setRecType] = useState("modify");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   const loadAll = async () => {
     setLoading(true);
     try {
       const [s, d, r] = await Promise.all([
-        apiFetch(`${KRM_API}/stats`).then(r => r.ok ? r.json() : null),
-        apiFetch(`${KRM_API}/disciplines`).then(r => r.ok ? r.json() : []),
-        apiFetch(`${KRM_API}/recommendations`).then(r => r.ok ? r.json() : []),
+        apiFetch(\\/stats\).then(r => r.ok ? r.json() : null),
+        apiFetch(\\/disciplines\).then(r => r.ok ? r.json() : []),
+        apiFetch(\\/recommendations\).then(r => r.ok ? r.json() : []),
       ]);
       if (s) setStats(s);
       setDisciplines(d);
@@ -75,13 +77,14 @@ export function TeacherDashboard() {
   useEffect(() => { loadAll(); }, []);
 
   const loadDiscipline = async (name: string) => {
-    const res = await apiFetch(`${KRM_API}/disciplines/${encodeURIComponent(name)}`);
+    setShowAnalysis(false);
+    const res = await apiFetch(\\/disciplines/\\);
     if (res.ok) setSelected(await res.json());
   };
 
   const addRecommendation = async () => {
     if (!selected || !suggestion.trim()) return;
-    const res = await apiFetch(`${KRM_API}/recommendations`, {
+    const res = await apiFetch(\\/recommendations\, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -105,7 +108,7 @@ export function TeacherDashboard() {
   };
 
   const deleteRecommendation = async (id: number) => {
-    await apiFetch(`${KRM_API}/recommendations/${id}`, { method: "DELETE" });
+    await apiFetch(\\/recommendations/\\, { method: "DELETE" });
     setRecs(prev => prev.filter(r => r.id !== id));
   };
 
@@ -133,12 +136,12 @@ export function TeacherDashboard() {
           </h2>
           <p className="text-sm text-gray-500">
             {stats
-              ? `${stats.total_disciplines} дисциплин, ${stats.total_competencies} компетенций, ${stats.total_skills.toLocaleString()} навыков`
+              ? \\ дисциплин, \ компетенций, \ навыков\
               : "Рабочие программы дисциплин"}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={loadAll} disabled={loading}>
-          <RefreshCw className={`size-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCw className={\size-4 mr-2 \\} />
           Обновить
         </Button>
       </div>
@@ -164,9 +167,7 @@ export function TeacherDashboard() {
               <button
                 key={d.name}
                 onClick={() => loadDiscipline(d.name)}
-                className={`w-full text-left px-4 py-3 border-b border-gray-100 transition-colors hover:bg-indigo-50 ${
-                  selected?.name === d.name ? "bg-indigo-50 border-l-2 border-l-indigo-600" : ""
-                }`}
+                className={\w-full text-left px-4 py-3 border-b border-gray-100 transition-colors hover:bg-indigo-50 \\}
               >
                 <div className="text-sm font-medium text-gray-900 truncate">{d.name}</div>
                 <div className="text-xs text-gray-400 mt-0.5">
@@ -188,90 +189,109 @@ export function TeacherDashboard() {
           ) : (
             <>
               <CardHeader className="border-b border-gray-200 bg-gray-50 px-5 py-4">
-                <CardTitle className="text-base text-gray-900">{selected.name}</CardTitle>
-                <CardDescription className="text-xs">
-                  {selected.competencies.length} компетенций
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base text-gray-900">{selected.name}</CardTitle>
+                    <CardDescription className="text-xs">
+                      {selected.competencies.length} компетенций
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant={showAnalysis ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowAnalysis(!showAnalysis)}
+                    className={showAnalysis ? "bg-indigo-600" : ""}
+                  >
+                    <Target className="size-3.5 mr-1" />
+                    {showAnalysis ? "Skills" : "Analysis"}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="flex-1 overflow-auto p-4 space-y-3">
-                {selected.competencies.map(comp => {
-                  const isOpen = expandedComp === comp.code;
-                  return (
-                    <div key={comp.code} className="border border-gray-200 rounded-lg overflow-hidden">
-                      <button
-                        onClick={() => setExpandedComp(isOpen ? null : comp.code)}
-                        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-                      >
-                        <div className="flex items-center gap-2">
-                          {isOpen ? <ChevronDown className="size-4 text-gray-400" /> : <ChevronRight className="size-4 text-gray-400" />}
-                          <span className="font-mono text-sm font-semibold text-indigo-700">{comp.code}</span>
-                          <Badge variant="secondary" className="text-xs">{comp.skills.length} навыков</Badge>
-                        </div>
-                      </button>
+                {showAnalysis ? (
+                  <AnalysisPanel disciplineName={selected.name} />
+                ) : (
+                  <>
+                    {selected.competencies.map(comp => {
+                      const isOpen = expandedComp === comp.code;
+                      return (
+                        <div key={comp.code} className="border border-gray-200 rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => setExpandedComp(isOpen ? null : comp.code)}
+                            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                          >
+                            <div className="flex items-center gap-2">
+                              {isOpen ? <ChevronDown className="size-4 text-gray-400" /> : <ChevronRight className="size-4 text-gray-400" />}
+                              <span className="font-mono text-sm font-semibold text-indigo-700">{comp.code}</span>
+                              <Badge variant="secondary" className="text-xs">{comp.skills.length} навыков</Badge>
+                            </div>
+                          </button>
 
-                      {isOpen && (
-                        <div className="px-4 py-3 space-y-2">
-                          {comp.skills.length === 0 && (
-                            <p className="text-sm text-gray-400 italic">Навыки не извлечены</p>
+                          {isOpen && (
+                            <div className="px-4 py-3 space-y-2">
+                              {comp.skills.length === 0 && (
+                                <p className="text-sm text-gray-400 italic">Навыки не извлечены</p>
+                              )}
+                              {comp.skills.map((s, i) => (
+                                <div key={i} className="text-sm text-gray-700 leading-relaxed border-b border-gray-100 pb-2 last:border-0">
+                                  {s}
+                                </div>
+                              ))}
+
+                              <div className="border-t border-gray-200 pt-3 mt-3">
+                                <Label className="text-xs text-gray-500 mb-1 block">Рекомендация преподавателя</Label>
+                                <Textarea
+                                  placeholder="Предложение по изменению..."
+                                  value={suggestion}
+                                  onChange={e => setSuggestion(e.target.value)}
+                                  rows={2}
+                                  className="text-sm resize-none"
+                                />
+                                <div className="flex items-center gap-2 mt-2">
+                                  <select
+                                    value={recType}
+                                    onChange={e => setRecType(e.target.value)}
+                                    className="h-8 text-xs border border-gray-300 rounded-md px-2 bg-white"
+                                  >
+                                    <option value="modify">modify</option>
+                                    <option value="add">add</option>
+                                    <option value="remove">remove</option>
+                                  </select>
+                                  <Button size="sm" onClick={addRecommendation} disabled={!suggestion.trim()}>
+                                    <Plus className="size-3 mr-1" />
+                                    Добавить
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
                           )}
-                          {comp.skills.map((s, i) => (
-                            <div key={i} className="text-sm text-gray-700 leading-relaxed border-b border-gray-100 pb-2 last:border-0">
-                              {s}
-                            </div>
-                          ))}
-
-                          <div className="border-t border-gray-200 pt-3 mt-3">
-                            <Label className="text-xs text-gray-500 mb-1 block">Рекомендация преподавателя</Label>
-                            <Textarea
-                              placeholder="Предложение по изменению..."
-                              value={suggestion}
-                              onChange={e => setSuggestion(e.target.value)}
-                              rows={2}
-                              className="text-sm resize-none"
-                            />
-                            <div className="flex items-center gap-2 mt-2">
-                              <select
-                                value={recType}
-                                onChange={e => setRecType(e.target.value)}
-                                className="h-8 text-xs border border-gray-300 rounded-md px-2 bg-white"
-                              >
-                                <option value="modify">modify</option>
-                                <option value="add">add</option>
-                                <option value="remove">remove</option>
-                              </select>
-                              <Button size="sm" onClick={addRecommendation} disabled={!suggestion.trim()}>
-                                <Plus className="size-3 mr-1" />
-                                Добавить
-                              </Button>
-                            </div>
-                          </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
 
-                {activeRecs.length > 0 && (
-                  <div className="mt-6">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                      <Lightbulb className="size-4 text-amber-500" />
-                      Рекомендации
-                    </h4>
-                    {activeRecs.map(r => (
-                      <div key={r.id} className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Badge variant="outline" className="text-xs">{r.type}</Badge>
-                            <span className="font-mono text-xs text-gray-500">{r.competency}</span>
+                    {activeRecs.length > 0 && (
+                      <div className="mt-6">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                          <Lightbulb className="size-4 text-amber-500" />
+                          Рекомендации
+                        </h4>
+                        {activeRecs.map(r => (
+                          <div key={r.id} className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className="text-xs">{r.type}</Badge>
+                                <span className="font-mono text-xs text-gray-500">{r.competency}</span>
+                              </div>
+                              <p className="text-sm text-gray-700">{r.suggestion}</p>
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => deleteRecommendation(r.id)} className="text-red-500 hover:text-red-700 shrink-0">
+                              <Trash2 className="size-4" />
+                            </Button>
                           </div>
-                          <p className="text-sm text-gray-700">{r.suggestion}</p>
-                        </div>
-                        <Button variant="ghost" size="sm" onClick={() => deleteRecommendation(r.id)} className="text-red-500 hover:text-red-700 shrink-0">
-                          <Trash2 className="size-4" />
-                        </Button>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </>

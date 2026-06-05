@@ -191,7 +191,7 @@ class HeadHunterAPI:
     # ======================================================================
     def search_vacancies(
         self, text, area, period_days=30, max_pages=20, per_page=100, industry=None, date_from=None, date_to=None,
-        since_id: int | None = None,
+        since_id: int | None = None, professional_role: str | list[str] | None = None,
     ) -> Result[list, ApiError]:
         params = {
             "text": text,
@@ -204,6 +204,8 @@ class HeadHunterAPI:
         }
         if industry:
             params["industry"] = industry
+        if professional_role is not None:
+            params["professional_role"] = professional_role
         if since_id is not None:
             params["vacancy_id_gt"] = since_id
             logger.info("search_vacancies_since_id", since_id=since_id)

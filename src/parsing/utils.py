@@ -142,6 +142,13 @@ def filter_skills_by_whitelist(skills_dict: dict[str, int], whitelist: set[str])
 # ----------------------------------------------------------------------
 
 
+IT_PROFESSIONAL_ROLES = [
+    "10", "157", "12", "156", "150", "36", "125", "165", "34", "160",
+    "104", "25", "116", "155", "112", "164", "73", "96", "107", "113",
+    "114", "148", "121", "126", "124",
+]
+
+
 def collect_vacancies_multiple(
     hh_api,
     queries: list[str],
@@ -150,6 +157,7 @@ def collect_vacancies_multiple(
     max_pages: int,
     industry: int | None = None,
     max_vacancies_per_query: int = 1000000,
+    professional_role: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     Собирает вакансии по комбинациям запросов и регионов.
@@ -172,7 +180,8 @@ def collect_vacancies_multiple(
             logger.info("search_started", query=query, area_id=area_id)
 
             match hh_api.search_vacancies(
-                text=query, area=area_id, period_days=period_days, max_pages=1, per_page=100, industry=industry
+                text=query, area=area_id, period_days=period_days, max_pages=1, per_page=100,
+                industry=industry, professional_role=professional_role,
             ):
                 case Ok(_):
                     last_resp = getattr(hh_api, "last_response", None)
@@ -183,12 +192,8 @@ def collect_vacancies_multiple(
 
             if total_found <= chunk_threshold or period_days <= date_chunk_days:
                 match hh_api.search_vacancies(
-                    text=query,
-                    area=area_id,
-                    period_days=period_days,
-                    max_pages=max_pages,
-                    per_page=100,
-                    industry=industry,
+                    text=query, area=area_id, period_days=period_days, max_pages=max_pages,
+                    per_page=100, industry=industry, professional_role=professional_role,
                 ):
                     case Ok(vacs):
                         for vac in vacs:
@@ -211,13 +216,9 @@ def collect_vacancies_multiple(
                         f"Поиск {query[:30]}... интервал {ci + 1}/{len(chunks)} ({date_from}..{date_to})",
                     )
                     match hh_api.search_vacancies(
-                        text=query,
-                        area=area_id,
-                        date_from=date_from,
-                        date_to=date_to,
-                        max_pages=max_pages,
-                        per_page=100,
-                        industry=industry,
+                        text=query, area=area_id, date_from=date_from, date_to=date_to,
+                        max_pages=max_pages, per_page=100, industry=industry,
+                        professional_role=professional_role,
                     ):
                         case Ok(vacs):
                             for vac in vacs:

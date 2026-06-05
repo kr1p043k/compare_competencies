@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from typing import Any
@@ -263,3 +263,27 @@ async def krm_market_skills(request: Request, limit: int = 50):
         }
         for msm, skill_name in result.all()
     ]
+
+@router.get("/analysis")
+async def get_analysis(dir_code: str = "09.03.02"):
+    from pathlib import Path
+    summary_path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher" / dir_code / "_summary.json"
+    if not summary_path.exists():
+        raise HTTPException(404, f"Analysis not found for {dir_code}")
+    return json.loads(summary_path.read_text(encoding="utf-8"))
+
+
+@router.get("/analysis/{discipline_name:path}")
+async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02"):
+    import re
+    from pathlib import Path
+    base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher" / dir_code
+    safe = re.sub(r'[\\/*?:"<>|]', "_", discipline_name).strip()[:80]
+    files = [f for f in base.rglob(f"{safe}.json") if f.name != "_summary.json"]
+    if not files:
+        for f in base.rglob("*.json"):
+            if f.name == "_summary.json": continue
+            if discipline_name.lower() in f.stem.lower(): files.append(f)
+    if not files:
+        raise HTTPException(404, f"'{discipline_name}' not found")
+    return json.loads(files[0].read_text(encoding="utf-8"))

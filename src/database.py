@@ -24,12 +24,20 @@ def _engine():
 
 
 @lru_cache(maxsize=1)
-def _session_factory():
+def _sessionmaker():
     return async_sessionmaker(_engine(), class_=AsyncSession, expire_on_commit=False)
 
 
+def async_session_factory() -> AsyncSession:
+    """Return a new AsyncSession (cached engine+maker, fresh session each call).
+
+    NOT async — AsyncSession() is sync (doesn't connect until used).
+    """
+    return _sessionmaker()()
+
+
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    async with _session_factory() as session:
+    async with async_session_factory() as session:
         yield session
 
 

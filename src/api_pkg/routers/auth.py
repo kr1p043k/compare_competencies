@@ -21,7 +21,8 @@ from src.models.krm_models import User
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["auth"])
 
-SECRET_KEY = config.SECRET_KEY
+_sk = config.SECRET_KEY
+SECRET_KEY = _sk.get_secret_value() if _sk else "insecure-dev-only"
 TOKEN_TTL = 86400 * config.TOKEN_TTL_DAYS
 
 

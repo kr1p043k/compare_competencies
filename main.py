@@ -22,13 +22,14 @@ from src.pipeline.runner import (
     run_status,
     run_train_model,
 )
+from src.pipeline.teacher_analysis_runner import run_teacher_analysis
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Полный пайплайн: сбор вакансий + gap-анализ + рекомендации")
     parser.add_argument("--query", "-q", type=str, default="1с разработчик")
     parser.add_argument("--area-id", "-a", type=int, default=2)
-    parser.add_argument("--max-pages", "-p", type=int, default=10)
+    parser.add_argument("--max-pages", "-p", type=int, default=1)
     parser.add_argument("--period", "-d", type=int, default=30)
     parser.add_argument("--show-vacancies", "-v", action="store_true")
     parser.add_argument("--skip-details", "-s", action="store_true")
@@ -54,6 +55,10 @@ def parse_arguments():
         help="Использовать LLM (YandexGPT) для живых объяснений рекомендаций")
     parser.add_argument("--skip-collection", action="store_true",
         help="Пропустить сбор вакансий, использовать существующие файлы")
+    parser.add_argument("--teacher-analysis", "-ta", nargs="?", const="all", default=None,
+        help="Запустить teacher analysis. Укажите код направления (09.03.02) или all")
+    parser.add_argument("--discipline", type=str, default=None,
+        help="Фильтр по дисциплине (часть названия). Работает с --teacher-analysis")
     args = parser.parse_args()
     if args.query and args.query.startswith("b64:"):
         import base64
@@ -98,6 +103,24 @@ def main():
             case Ok(_): pass
             case Err(e):
                 print(f"❌ Ошибка: {e}")
+                sys.exit(1)
+        return
+
+    if args.teacher_analysis:
+        print(f"📊 Запуск teacher analysis (направление: {args.teacher_analysis})...")
+        import asyncio
+        result = asyncio.run(run_teacher_analysis(
+            direction_code=None if args.teacher_analysis == "all" else args.teacher_analysis,
+            discipline_filter=args.discipline,
+        ))
+        match result:
+            case Ok(summary):
+                print(f"✅ Teacher analysis завершён. Покрытие: {summary.get('average_coverage', 0)*100:.1f}%")
+                print(f"   Дисциплин: {summary.get('total_disciplines', 0)}")
+                print(f"   Всего пробелов: {summary.get('total_gaps_across_all', 0)}")
+                print(f"   Результаты: {summary.get('generated_at', '')}")
+            case Err(e):
+                print(f"❌ Teacher analysis не удался: {e}")
                 sys.exit(1)
         return
 

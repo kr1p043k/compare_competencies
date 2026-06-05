@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     N8N_WEBHOOK_SECRET: SecretStr | None = None
 
     # ---------- безопасность ----------
-    SECRET_KEY: str = "compare-competencies-secret-key-change-in-production"
+    SECRET_KEY: SecretStr | None = None
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
     TOKEN_TTL_DAYS: int = 7
 
@@ -78,7 +78,7 @@ class Settings(BaseSettings):
 
     # ---------- hh.ru API ----------
     HH_USER_AGENT: str = "CompetencyAnalyzer (kok.yoko@gmx.com)"
-    REQUEST_DELAY: float = 0.5
+    REQUEST_DELAY: float = 0.1
     MAX_RETRIES: int = 3
     RETRY_DELAY: float = 2.0
 
@@ -247,6 +247,7 @@ PARSED_SKILLS_CACHE_PATH = settings.PARSED_SKILLS_CACHE_PATH
 
 ALLOWED_ORIGINS = settings.ALLOWED_ORIGINS
 MAX_REQUEST_SIZE = settings.MAX_REQUEST_SIZE
+SECRET_KEY = settings.SECRET_KEY.get_secret_value() if settings.SECRET_KEY else "insecure-dev-only"
 HH_USER_AGENT = settings.HH_USER_AGENT
 REQUEST_DELAY = settings.REQUEST_DELAY
 MAX_RETRIES = settings.MAX_RETRIES

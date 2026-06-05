@@ -3,9 +3,11 @@
 Отвечает ТОЛЬКО за извлечение навыков, не за валидацию!
 """
 
+import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 
 import structlog
 
@@ -14,6 +16,39 @@ from src.errors import DomainError
 from src.models.vacancy import Vacancy
 
 logger = structlog.get_logger(__name__)
+
+# Cyrillic → Latin homoglyph map for skill matching
+_CYR_TO_LAT = str.maketrans({
+    'а': 'a', 'А': 'a',
+    'е': 'e', 'Е': 'e',
+    'о': 'o', 'О': 'o',
+    'р': 'p', 'Р': 'p',
+    'с': 'c', 'С': 'c',
+    'у': 'y', 'У': 'y',
+    'х': 'x', 'Х': 'x',
+    'к': 'k', 'К': 'k',
+    'м': 'm', 'М': 'm',
+    'н': 'n', 'Н': 'n',
+    'в': 'b', 'В': 'b',
+})
+
+
+def _normalize_for_matching(text: str) -> str:
+    """Lowercase + replace Cyrillic homoglyphs with Latin."""
+    return text.lower().translate(_CYR_TO_LAT)
+
+
+def _load_it_skills() -> set[str]:
+    """Load skill list from it_skills.json, normalized for matching."""
+    path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "reference" / "it_skills.json"
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        skills = {_normalize_for_matching(s.strip()) for s in raw if s.strip()}
+        logger.info("it_skills_loaded", count=len(skills), path=str(path))
+        return skills
+    except Exception as exc:
+        logger.warning("it_skills_load_failed", error=str(exc), path=str(path))
+        return set()
 
 
 class SkillSource(Enum):
@@ -69,106 +104,8 @@ class SkillParser:
     Фокусируется на ИЗВЛЕЧЕНИИ, не на фильтрации.
     """
 
-    TECH_SKILLS = {
-        "python",
-        "python3",
-        "py",
-        "java",
-        "javascript",
-        "js",
-        "typescript",
-        "ts",
-        "c++",
-        "cpp",
-        "c#",
-        "csharp",
-        "php",
-        "ruby",
-        "go",
-        "golang",
-        "rust",
-        "swift",
-        "kotlin",
-        "scala",
-        "r",
-        "matlab",
-        "sql",
-        "nosql",
-        "django",
-        "flask",
-        "fastapi",
-        "spring",
-        "spring boot",
-        "react",
-        "angular",
-        "vue",
-        "tensorflow",
-        "pytorch",
-        "keras",
-        "scikit-learn",
-        "pandas",
-        "numpy",
-        "postgresql",
-        "postgres",
-        "mysql",
-        "mongodb",
-        "redis",
-        "elasticsearch",
-        "docker",
-        "kubernetes",
-        "k8s",
-        "jenkins",
-        "git",
-        "gitlab",
-        "github",
-        "aws",
-        "azure",
-        "gcp",
-        "yandex cloud",
-        "machine learning",
-        "deep learning",
-        "nlp",
-        "data science",
-        "big data",
-        "etl",
-        "neural networks",
-        "ml",
-        "dl",
-        "data analysis",
-        "data mining",
-        "statistics",
-        "scipy",
-        "matplotlib",
-        "seaborn",
-        "plotly",
-        "sklearn",
-        "xgboost",
-        "lightgbm",
-        "catboost",
-        "gradient boosting",
-        "computer vision",
-        "cv",
-        "llm",
-        "langchain",
-        "rag",
-        "transformers",
-        "bert",
-        "gpt",
-        "openai",
-        "data warehouse",
-        "data lake",
-        "spark",
-        "pyspark",
-        "hadoop",
-        "hive",
-        "kafka",
-        "airflow",
-        "mlflow",
-        "dvc",
-        "feature store",
-        "csharpmachine learning",
-        "mlops",
-    }
+    # populated in __init__ from it_skills.json; kept as fallback
+    TECH_SKILLS: set[str] = set()
 
     SKILL_MARKERS = [
         "ключевые навыки",
@@ -196,6 +133,8 @@ class SkillParser:
 
     def __init__(self):
         self.stats = ParsingStats()
+        if not SkillParser.TECH_SKILLS:
+            SkillParser.TECH_SKILLS = _load_it_skills()
 
     def parse_vacancy(self, vacancy: Vacancy) -> Result[list[ExtractedSkill], DomainError]:
         """Извлекает все навыки из вакансии"""
@@ -266,7 +205,7 @@ class SkillParser:
     def _direct_search(self, text: str, source: SkillSource) -> list[ExtractedSkill]:
         """Прямой поиск по списку TECH_SKILLS с контролем контекста"""
         skills = []
-        text_lower = text.lower()
+        text_norm = _normalize_for_matching(text)
 
         # Расширяем список техническими фразами
         extended_skills = [
@@ -287,32 +226,42 @@ class SkillParser:
 
         for tech in all_skills:
             pattern = rf"\b{re.escape(tech)}\b"
-            match = re.search(pattern, text_lower, re.IGNORECASE)
-
-            if match:
+            for match in re.finditer(pattern, text_norm):
                 # Проверяем контекст (не в "не требуется")
                 start = max(0, match.start() - 50)
-                context = text_lower[start : match.end() + 50]
+                context = text_norm[start : match.end() + 50]
 
                 # Проверяем отрицание
                 has_negation = any(neg in context for neg in self.NEGATION_WORDS)
+                if has_negation:
+                    continue
 
-                if not has_negation:
-                    skills.append(ExtractedSkill(text=tech, source=source, raw_match=tech, confidence=0.95))
-                    self._update_stats(source)
+                # Ложное срабатывание: одиночный латинский символ-омоглиф,
+                # похожий на русский предлог. Пропускаем, если это не C/C++.
+                if len(tech) == 1 and re.search(r'[а-яё]', text[match.start():match.end()], re.IGNORECASE):
+                    # Проверяем, не является ли это C/C++ (после символа идёт ++)
+                    after = text_norm[match.end():match.end() + 3]
+                    if after.startswith("++"):
+                        pass  # это C/C++ — оставляем
+                    elif re.search(r'[а-яё]', text_norm[max(0, match.start()-5):match.start()], re.IGNORECASE):
+                        continue  # окружён кириллицей — предлог
+
+                original = text[match.start():match.end()].strip()
+                skills.append(ExtractedSkill(text=original or tech, source=source, raw_match=tech, confidence=0.95))
+                self._update_stats(source)
 
         return skills
 
     def _marker_search(self, text: str, source: SkillSource) -> list[ExtractedSkill]:
         """Поиск навыков после маркеров"""
         skills = []
-        text_lower = text.lower()
+        text_norm = _normalize_for_matching(text)
 
         for marker in self.SKILL_MARKERS:
-            if marker not in text_lower:
+            if marker not in text_norm:
                 continue
 
-            parts = text_lower.split(marker)
+            parts = text_norm.split(marker)
             if len(parts) < 2:
                 continue
 
@@ -322,7 +271,7 @@ class SkillParser:
             for line in lines:
                 line = line.strip()
 
-                if 3 >= len(line) >= 100:
+                if len(line) <= 3 or len(line) >= 100:
                     continue
 
                 if any(tech in line for tech in self.TECH_SKILLS):
@@ -334,6 +283,7 @@ class SkillParser:
     def _regex_search(self, text: str, source: SkillSource) -> list[ExtractedSkill]:
         """Поиск по regex паттернам"""
         skills = []
+        text_norm = _normalize_for_matching(text)
 
         patterns = [
             (r"(?:опыт работы с|опыт с|работа с|знание|владение|умение)\s+([a-z0-9\s\+\#\-]+)", 0.85),
@@ -342,7 +292,7 @@ class SkillParser:
         ]
 
         for pattern, confidence in patterns:
-            matches = re.findall(pattern, text.lower())
+            matches = re.findall(pattern, text_norm)
             for match in matches:
                 match = match.strip()
 

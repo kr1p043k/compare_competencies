@@ -22,7 +22,8 @@ from src.models.krm_models import RequestLog
 logger = structlog.get_logger(__name__)
 
 MAX_LOGS = 2000
-SECRET_KEY = config.SECRET_KEY
+_sk = config.SECRET_KEY
+SECRET_KEY = _sk.get_secret_value() if _sk else "insecure-dev-only"
 FLUSH_INTERVAL = 10  # seconds
 FLUSH_BATCH = 100    # entries
 
