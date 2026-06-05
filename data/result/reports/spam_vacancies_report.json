@@ -1,0 +1,84 @@
+{
+  "total_vacancies": 100,
+  "clean_count": 94,
+  "spam_count": 6,
+  "spam_rate": 0.06,
+  "avg_quality_score": 0.938,
+  "spam_reasons": {
+    "нет навыков": 6
+  },
+  "spam_vacancies": [
+    {
+      "id": "133873484",
+      "name": "Программист 1С",
+      "employer": "Ижтехком",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133860470",
+      "name": "Инженер (программист 1С предприятия)",
+      "employer": "НИИ автоматизированных систем и комплексов связи Нептун",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "131093889",
+      "name": "Программист 1С",
+      "employer": "НИИ Гириконд",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133845961",
+      "name": "Консультант 1С (УТ) / Техподдержка 1С:Управление торговлей",
+      "employer": "КОРЕАНА",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133223337",
+      "name": "Руководитель проектов 1С",
+      "employer": "Koderline",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133474514",
+      "name": "Программист-стажер 1С (сервис-инженер/Junior)",
+      "employer": "Вектро Прагматик",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    }
+  ]
+}
