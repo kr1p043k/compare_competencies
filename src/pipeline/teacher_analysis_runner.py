@@ -34,6 +34,7 @@ def _safe_filename(name: str) -> str:
 async def run_teacher_analysis(
     direction_code: str | None = None,
     discipline_filter: str | None = None,
+    user_id: str | None = None,
 ) -> Result[dict, AnalysisRunnerError]:
     logger.info("analysis_started", direction=direction_code, discipline=discipline_filter)
 
@@ -43,6 +44,15 @@ async def run_teacher_analysis(
     if not pool:
         logger.error("no_db_pool")
         return Err(AnalysisRunnerError(stage="db", message="Failed to create database pool"))
+
+    # — create pipeline run —
+    from src.pipeline.db_writer import create_pipeline_run, complete_pipeline_run, save_to_analysis_results
+
+    run_id = await create_pipeline_run("teacher-analysis")
+    await pool.execute(
+        "UPDATE pipeline_runs SET user_id=$1 WHERE id=$2",
+        user_id, run_id,
+    )
 
     # — load market skills (HH data + it_skills taxonomy) —
     try:
@@ -457,6 +467,27 @@ async def run_teacher_analysis(
         logger.info("teacher_charts_generated", chart_dir=str(chart_dir))
     except Exception as exc:
         logger.warning("teacher_chart_failed", error=str(exc))
+
+    # — save to pipeline_runs + analysis_results —
+    try:
+        params = {"direction": dir_code, "discipline_filter": discipline_filter, "disciplines": len(disciplines)}
+        stats = {**params, "avg_coverage": avg_cov, "total_disciplines": len(discipline_reports)}
+        await complete_pipeline_run(run_id, status="completed", stats=stats)
+
+        from src.pipeline.db_writer import save_to_analysis_results
+        await save_to_analysis_results(
+            run_id=run_id,
+            analysis_type="teacher",
+            data={
+                "direction": dir_code,
+                "direction_name": direction["name"],
+                "disciplines": len(discipline_reports),
+                "avg_coverage": avg_cov,
+                "total_gaps": len(all_gaps),
+            },
+        )
+    except Exception as db_err:
+        logger.warning("db_write_failed", error=str(db_err))
 
     logger.info("analysis_completed",
                  direction=dir_code,

@@ -108,6 +108,15 @@ async def save_gap_analysis(data: dict, run_id: str | None = None) -> None:
     )
 
 
+async def save_to_analysis_results(run_id: str, analysis_type: str, data: dict) -> None:
+    pool = await _pool()
+    await pool.execute(
+        """INSERT INTO analysis_results (pipeline_run_id, analysis_type, data)
+           VALUES ($1, $2, $3)""",
+        run_id, analysis_type, json.dumps(data, ensure_ascii=False),
+    )
+
+
 async def save_trend_snapshot(snapshot_date: datetime, skill_freq: dict, source: str = "hh_vacancies", run_id: str | None = None) -> None:
     pool = await _pool()
     await pool.execute(
