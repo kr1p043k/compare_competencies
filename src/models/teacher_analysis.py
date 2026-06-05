@@ -52,7 +52,7 @@ class DisciplineCoverage:
 
 @dataclass
 class Recommendation:
-    type: str  # update_content | add_new_content | major_revision
+    type: str  # update_content | add_new_content | major_revision | cross_reference | review_content | foundational
     priority: str  # high | medium | low
     message: str
 

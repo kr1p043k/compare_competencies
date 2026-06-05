@@ -1,6 +1,9 @@
 ﻿"""Curriculum recommender: generates per-discipline curriculum recommendations."""
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import structlog
 
 from src.result import Ok, Err, Result
@@ -9,10 +12,29 @@ from src.models.teacher_analysis import Recommendation, DisciplineCoverage
 
 logger = structlog.get_logger(__name__)
 
+SKILL_TYPES_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "skill_types.json"
+
+
+def _load_skill_types() -> dict[str, list[str]]:
+    if not SKILL_TYPES_PATH.exists():
+        logger.warning("skill_types_file_not_found", path=str(SKILL_TYPES_PATH))
+        return {"academic": [], "professional": []}
+    with open(SKILL_TYPES_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _classify_skill(skill: str, types: dict[str, list[str]]) -> str:
+    sl = skill.lower().strip()
+    for cat in ("academic", "professional"):
+        for ref in types.get(cat, []):
+            if ref in sl or sl in ref:
+                return cat
+    return "generic"
+
 
 class CurriculumRecommender:
     def __init__(self):
-        pass
+        self.skill_types = _load_skill_types()
 
     def generate(self, coverage: DisciplineCoverage) -> Result[list[Recommendation], RecommendationError]:
         if not coverage:
@@ -21,30 +43,51 @@ class CurriculumRecommender:
 
         recs = []
 
-        # Gaps: RPD skills not found on market — flag for human review
+        # Gaps: RPD skills not found on market
         if coverage.gaps > 0:
-            sample = coverage.gaps_list[:5]
-            recs.append(Recommendation(
-                type="review_content",
-                priority="medium",
-                message=(
-                    f"Навыки из РПД не обнаружены в рыночных данных: "
-                    f"{', '.join(sample)}. Рекомендуется пересмотреть их актуальность."
-                ),
-            ))
+            acad_gaps = []
+            generic_gaps = []
+            for s in coverage.gaps_list:
+                cls = _classify_skill(s, self.skill_types)
+                if cls == "academic":
+                    acad_gaps.append(s)
+                else:
+                    generic_gaps.append(s)
+
+            if acad_gaps:
+                recs.append(Recommendation(
+                    type="foundational",
+                    priority="low",
+                    message=(
+                        f"Фундаментальные навыки, не обнаруженные на рынке: "
+                        f"{', '.join(acad_gaps[:5])}. "
+                        f"Носят общепрофессиональный характер — не требуют замены."
+                    ),
+                ))
+            if generic_gaps:
+                recs.append(Recommendation(
+                    type="review_content",
+                    priority="medium",
+                    message=(
+                        f"Навыки из РПД не обнаружены в рыночных данных: "
+                        f"{', '.join(generic_gaps[:5])}. "
+                        f"Рекомендуется пересмотреть их актуальность."
+                    ),
+                ))
 
         # Truly missing: market skills not in ANY discipline — suggest consideration
         if coverage.truly_missing:
-            top = coverage.truly_missing[:5]
-            skills_str = ", ".join(f"«{m.skill_name}» ({m.frequency})" for m in top)
-            recs.append(Recommendation(
-                type="add_new_content",
-                priority="medium",
-                message=(
-                    f"Рассмотрите возможность включения востребованных навыков, "
-                    f"отсутствующих в программе: {skills_str}."
-                ),
-            ))
+            relevant = self._filter_relevant(coverage.truly_missing, coverage.discipline_name)
+            if relevant:
+                skills_str = ", ".join(f"«{m.skill_name}» ({m.frequency})" for m in relevant[:5])
+                recs.append(Recommendation(
+                    type="add_new_content",
+                    priority="medium",
+                    message=(
+                        f"Рассмотрите возможность включения востребованных навыков, "
+                        f"отсутствующих в программе: {skills_str}."
+                    ),
+                ))
 
         # Cross-references: skills taught in other disciplines
         if coverage.cross_references:
@@ -91,6 +134,29 @@ class CurriculumRecommender:
         logger.info("recommendations_generated",
                      discipline=coverage.discipline_name, count=len(recs))
         return Ok(recs)
+
+    @staticmethod
+    def _filter_relevant(
+        skills: list, discipline_name: str
+    ) -> list:
+        """Filter truly_missing skills to those plausibly relevant to discipline."""
+        dn = discipline_name.lower().strip()
+        # Simple heuristic: match discipline name keywords against skill name
+        discipline_tokens = set(dn.replace("(", " ").replace(")", " ").replace(",", " ").split())
+        # Remove very generic tokens
+        stop = {"и", "в", "на", "с", "по", "для", "их", "средства", "технологии", "системы",
+                "программного", "обеспечения", "информационных"}
+        discipline_tokens -= stop
+        if not discipline_tokens:
+            return list(skills)
+
+        result = []
+        for m in skills:
+            sn = m.skill_name.lower().strip()
+            if any(t in sn or sn.startswith(t) for t in discipline_tokens if len(t) > 2):
+                result.append(m)
+        # If filter eliminated everything, return original (conservative — show all)
+        return result if result else list(skills)
 
     def generate_summary_recommendations(
         self, all_coverages: list[DisciplineCoverage],
