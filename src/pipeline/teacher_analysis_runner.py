@@ -478,13 +478,7 @@ async def run_teacher_analysis(
         await save_to_analysis_results(
             run_id=run_id,
             analysis_type="teacher",
-            data={
-                "direction": dir_code,
-                "direction_name": direction["name"],
-                "disciplines": len(discipline_reports),
-                "avg_coverage": avg_cov,
-                "total_gaps": len(all_gaps),
-            },
+            data=dir_summary,
         )
     except Exception as db_err:
         logger.warning("db_write_failed", error=str(db_err))

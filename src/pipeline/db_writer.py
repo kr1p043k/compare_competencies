@@ -113,7 +113,7 @@ async def save_to_analysis_results(run_id: str, analysis_type: str, data: dict) 
     await pool.execute(
         """INSERT INTO analysis_results (pipeline_run_id, analysis_type, data)
            VALUES ($1, $2, $3)""",
-        run_id, analysis_type, json.dumps(data, ensure_ascii=False),
+        run_id, analysis_type, json.dumps(data, ensure_ascii=False, default=str),
     )
 
 

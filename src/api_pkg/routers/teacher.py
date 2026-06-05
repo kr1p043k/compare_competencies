@@ -291,6 +291,37 @@ async def krm_search_runs(request: Request, limit: int = 20):
     ]
 
 
+@router.get("/api/teacher/krm/search-runs/{run_id}")
+async def krm_search_run_detail(run_id: str):
+    from src.database import async_session_factory
+    from src.models.krm_models import PipelineRun, AnalysisResult
+    from sqlalchemy import select
+
+    async with async_session_factory() as session:
+        run = await session.get(PipelineRun, run_id)
+        if not run:
+            raise HTTPException(404, "Run not found")
+
+        result = await session.execute(
+            select(AnalysisResult)
+            .where(AnalysisResult.pipeline_run_id == run_id)
+            .order_by(AnalysisResult.created_at.desc())
+        )
+        analysis = result.scalars().first()
+
+    return {
+        "run": {
+            "id": str(run.id),
+            "action": run.action,
+            "status": run.status,
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+            "stats": run.stats or {},
+        },
+        "analysis": analysis.data if analysis else None,
+    }
+
+
 @router.get("/api/teacher/analysis")
 async def get_analysis(dir_code: str = "09.03.02"):
     from pathlib import Path
