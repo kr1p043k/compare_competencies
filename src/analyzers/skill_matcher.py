@@ -38,6 +38,11 @@ class SkillMatcher:
         logger.info("market_skills_set", count=len(market_skills))
         return Ok(None)
 
+    @staticmethod
+    def _word_match(a: str, b: str) -> bool:
+        """True if 'a' appears as a whole word in 'b' (word-boundary aware)."""
+        return bool(re.search(r"(?<!\w)" + re.escape(a) + r"(?!\w)", b))
+
     def match(self, skill_name: str) -> Result[tuple[str | None, str], MatchingError]:
         n = normalize(skill_name)
         if not n or len(n) < 3:
@@ -49,7 +54,7 @@ class SkillMatcher:
             return Ok((n, "exact"))
 
         for mn in self.market_skills:
-            if n in mn or mn in n:
+            if self._word_match(n, mn) or self._word_match(mn, n):
                 logger.debug("skill_fuzzy_match", rpd_skill=n, market_skill=mn)
                 return Ok((mn, "fuzzy"))
 
@@ -67,7 +72,7 @@ class SkillMatcher:
                 continue
             skip = False
             for rn in rpd_normalized:
-                if mn in rn or rn in mn:
+                if self._word_match(mn, rn) or self._word_match(rn, mn):
                     skip = True
                     break
             if not skip:
