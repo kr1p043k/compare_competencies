@@ -24,7 +24,7 @@ from src.predictors.curriculum_recommender import CurriculumRecommender
 from src.predictors.curriculum_optimizer import CurriculumOptimizer
 
 logger = structlog.get_logger(__name__)
-OUTPUT = Path(__file__).resolve().parent.parent / "data" / "result" / "teacher"
+OUTPUT = Path(__file__).resolve().parent.parent.parent / "data" / "result" / "teacher"
 
 
 def _safe_filename(name: str) -> str:
