@@ -152,8 +152,9 @@ async def krm_get_recommendations(request: Request):
 
 
 @router.post("/api/teacher/krm/recommendations")
-@limiter.limit("30/minute")
-async def krm_add_recommendation(request: Request, rec: RecommendationIn):
+async def krm_add_recommendation(request: Request):
+    raw = await request.json()
+    rec = RecommendationIn(**raw)
     recs = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
     if not isinstance(recs, list):
         recs = []
@@ -163,7 +164,6 @@ async def krm_add_recommendation(request: Request, rec: RecommendationIn):
 
 
 @router.delete("/api/teacher/krm/recommendations/{index}")
-@limiter.limit("30/minute")
 async def krm_delete_recommendation(request: Request, index: int):
     recs = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
     if not isinstance(recs, list) or index < 0 or index >= len(recs):
@@ -264,7 +264,7 @@ async def krm_market_skills(request: Request, limit: int = 50):
         for msm, skill_name in result.all()
     ]
 
-@router.get("/analysis")
+@router.get("/api/teacher/analysis")
 async def get_analysis(dir_code: str = "09.03.02"):
     from pathlib import Path
     summary_path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher" / dir_code / "_summary.json"
@@ -273,7 +273,7 @@ async def get_analysis(dir_code: str = "09.03.02"):
     return json.loads(summary_path.read_text(encoding="utf-8"))
 
 
-@router.get("/analysis/{discipline_name:path}")
+@router.get("/api/teacher/analysis/{discipline_name:path}")
 async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02"):
     import re
     from pathlib import Path

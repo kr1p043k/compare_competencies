@@ -50,10 +50,17 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
 
   if (loading) return (
     <Card className="border border-gray-200 shadow-sm">
-      <CardContent className="p-6 text-center text-gray-500 text-sm">Loading analysis...</CardContent>
+      <CardContent className="p-6 text-center text-gray-500 text-sm">Загрузка анализа...</CardContent>
     </Card>
   );
-  if (!data) return null;
+  if (!data) return (
+    <Card className="border border-gray-200 shadow-sm">
+      <CardContent className="p-6 text-center text-gray-400 text-sm">
+        <AlertCircle className="size-8 mx-auto mb-2 opacity-40" />
+        Анализ не найден. Запустите teacher analysis через пайплайн.
+      </CardContent>
+    </Card>
+  );
 
   const { metrics, competencies, recommendations } = data;
   const cov = metrics.coverage_ratio;
