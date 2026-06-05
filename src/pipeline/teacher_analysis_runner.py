@@ -97,8 +97,8 @@ async def run_teacher_analysis(
                 FROM directions d
                 JOIN disciplines d2 ON d2.direction_id = d.id
                 JOIN competencies c ON c.discipline_id = d2.id
-                LEFT JOIN competency_skills cs ON cs.competency_id = c.id
-                LEFT JOIN skills s ON s.id = cs.skill_id
+                 LEFT JOIN competency_skills cs ON cs.competency_id = c.id
+                 LEFT JOIN skills s ON s.id = cs.skill_id AND s.source != 'market'
                 LEFT JOIN ksa_entries k ON k.competency_id = c.id
                 WHERE 1=1{dir_filter}{disc_filter}
                 ORDER BY d2.name, c.code, k.sort_order""",
