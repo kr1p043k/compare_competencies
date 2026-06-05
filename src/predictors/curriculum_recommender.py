@@ -21,37 +21,30 @@ class CurriculumRecommender:
 
         recs = []
 
-        # Gaps: RPD skills not on market — suggest replacement
+        # Gaps: RPD skills not found on market — flag for human review
         if coverage.gaps > 0:
-            for g in coverage.gaps_list:
-                replacement = self._suggest_replacement(g, coverage.truly_missing, coverage.cross_references)
-                if replacement:
-                    recs.append(Recommendation(
-                        type="update_content",
-                        priority="medium",
-                        message=(
-                            f"Замените «{g}» на «{replacement}» (частота на рынке: "
-                            f"{next((m.frequency for m in coverage.truly_missing if m.skill_name == replacement), '?')})"
-                        ),
-                    ))
-                else:
-                    recs.append(Recommendation(
-                        type="update_content",
-                        priority="medium",
-                        message=f"Исключите «{g}» — навык не востребован на рынке",
-                    ))
+            sample = coverage.gaps_list[:5]
+            recs.append(Recommendation(
+                type="review_content",
+                priority="medium",
+                message=(
+                    f"Навыки из РПД не обнаружены в рыночных данных: "
+                    f"{', '.join(sample)}. Рекомендуется пересмотреть их актуальность."
+                ),
+            ))
 
-        # Truly missing: market skills not in ANY discipline
+        # Truly missing: market skills not in ANY discipline — suggest consideration
         if coverage.truly_missing:
-            for m in coverage.truly_missing[:5]:
-                recs.append(Recommendation(
-                    type="add_new_content",
-                    priority="high" if m.frequency > 100 else "medium",
-                    message=(
-                        f"Добавьте «{m.skill_name}» (частота {m.frequency}) "
-                        f"— не покрыт ни в одной дисциплине направления"
-                    ),
-                ))
+            top = coverage.truly_missing[:5]
+            skills_str = ", ".join(f"«{m.skill_name}» ({m.frequency})" for m in top)
+            recs.append(Recommendation(
+                type="add_new_content",
+                priority="medium",
+                message=(
+                    f"Рассмотрите возможность включения востребованных навыков, "
+                    f"отсутствующих в программе: {skills_str}."
+                ),
+            ))
 
         # Cross-references: skills taught in other disciplines
         if coverage.cross_references:
@@ -61,11 +54,12 @@ class CurriculumRecommender:
                     continue
                 seen.add(cr.skill_name)
                 recs.append(Recommendation(
-                    type="add_new_content",
+                    type="cross_reference",
                     priority="low",
                     message=(
-                        f"Навык «{cr.skill_name}» (частота {cr.frequency}) уже преподаётся "
-                        f"в дисциплине «{cr.discipline}» — обеспечьте междисциплинарную связь"
+                        f"Навык «{cr.skill_name}» ({cr.frequency}) преподаётся "
+                        f"в дисциплине «{cr.discipline}» — в рамках текущей дисциплины "
+                        f"достаточно упомянуть или сослаться."
                     ),
                 ))
 
@@ -86,36 +80,17 @@ class CurriculumRecommender:
         zero_comps = [c.code for c in coverage.competencies if c.coverage == 0 and c.total_skills > 0]
         if zero_comps:
             recs.append(Recommendation(
-                type="update_content",
+                type="review_content",
                 priority="medium",
                 message=(
                     f"Компетенции {', '.join(zero_comps)} имеют 0% покрытие рынком"
-                    f" — добавьте востребованные навыки"
+                    f" — рекомендуется наполнить их востребованными навыками."
                 ),
             ))
 
         logger.info("recommendations_generated",
                      discipline=coverage.discipline_name, count=len(recs))
         return Ok(recs)
-
-    @staticmethod
-    def _suggest_replacement(gap: str, candidates: list, cross_refs: list | None = None) -> str | None:
-        gap_low = gap.lower()
-        replacements = {
-            "программная документация": "git",
-            "встроенные системы": "docker",
-            "информационно-коммуникационные технологии": "rest api",
-            "математические модели": "ml",
-            "анализ данных": "pandas",
-        }
-        all_candidates = list(candidates)
-        if cross_refs:
-            all_candidates += cross_refs
-        for g, r in replacements.items():
-            if g in gap_low or gap_low in g:
-                if any(c.skill_name == r for c in all_candidates):
-                    return r
-        return None
 
     def generate_summary_recommendations(
         self, all_coverages: list[DisciplineCoverage],
