@@ -37,8 +37,11 @@ class VacancyParser:
         try:
             if not description:
                 return Ok([])
-            extracted = self.skill_parser._extract_from_text(description, source=SkillSource.DESCRIPTION)
-            return Ok([skill.text for skill in extracted])
+            match self.skill_parser._extract_from_text(description, source=SkillSource.DESCRIPTION):
+                case Ok(extracted):
+                    return Ok([skill.text for skill in extracted])
+                case Err(e):
+                    return Err(e)
         except Exception as e:
             return Err(DomainError(message=str(e), detail="extract_skills_from_description"))
 

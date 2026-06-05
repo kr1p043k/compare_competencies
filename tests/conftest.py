@@ -36,7 +36,8 @@ def mock_sleeps():
 def pytest_configure(config):
     """Глобальный мок SentenceTransformer для всех тестов."""
     mock_model = MagicMock()
-    mock_model.encode.return_value = np.random.rand(10, 384)
+    _VEC = np.linspace(0, 1, 384)
+    mock_model.encode.side_effect = lambda texts, **kw: np.tile(_VEC, (len(texts), 1))
     mock_model.eval.return_value = mock_model
     mock_model.get_sentence_embedding_dimension.return_value = 384
 

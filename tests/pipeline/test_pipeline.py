@@ -764,7 +764,7 @@ class TestSkillExtractor:
         extractor = SkillExtractor(MagicMock())
         with patch("src.pipeline.skill_extractor.ArtifactManifest") as MockManifest:
             mock_inst = MagicMock()
-            mock_inst.is_compatible.return_value = False
+            mock_inst.is_compatible.return_value = Ok(False)
             MockManifest.load.return_value = Ok(mock_inst)
             extractor._check_manifest(cache_path)
         assert not cache_path.exists()

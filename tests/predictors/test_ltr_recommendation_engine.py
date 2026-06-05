@@ -577,7 +577,7 @@ class TestLTRLoadModel:
         engine_with_mocks.is_fitted = False
         with patch("src.predictors.ltr_recommendation_engine.ArtifactManifest") as MockManifest:
             mock_instance = MockManifest.load.return_value
-            mock_instance.is_compatible.return_value = False
+            mock_instance.is_compatible.return_value = Ok(False)
             engine_with_mocks.load_model(dummy_model_file)
         assert engine_with_mocks.is_fitted is True
 
@@ -607,7 +607,7 @@ class TestLTRLoadModel:
         engine_with_mocks.is_fitted = False
         with patch("src.predictors.ltr_recommendation_engine.ArtifactManifest") as MockManifest:
             mock_inst = MockManifest.load.return_value
-            mock_inst.is_compatible.return_value = True
+            mock_inst.is_compatible.return_value = Ok(True)
             mock_inst.metrics = {"r2": 0.9}
             engine_with_mocks.load_model(filepath)
         assert engine_with_mocks.is_fitted is True
@@ -631,7 +631,7 @@ class TestLTRLoadModel:
         engine_with_mocks.is_fitted = False
         with patch("src.predictors.ltr_recommendation_engine.ArtifactManifest") as MockManifest:
             mock_inst = MockManifest.load.return_value
-            mock_inst.is_compatible.return_value = True
+            mock_inst.is_compatible.return_value = Ok(True)
             mock_inst.metrics = {"r2": 0.9}
             engine_with_mocks.load_model(filepath)
         assert engine_with_mocks.is_fitted is True
@@ -652,7 +652,7 @@ class TestLTRLoadModel:
         engine_with_mocks.is_fitted = False
         with patch("src.predictors.ltr_recommendation_engine.ArtifactManifest") as MockManifest:
             mock_inst = MagicMock()
-            mock_inst.is_compatible.return_value = True
+            mock_inst.is_compatible.return_value = Ok(True)
             mock_inst.metrics = {"r2": 0.9}
             MockManifest.load.return_value = Ok(mock_inst)
             with patch("src.predictors.ltr_recommendation_engine.logger") as mock_logger:

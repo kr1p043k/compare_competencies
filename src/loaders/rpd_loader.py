@@ -570,12 +570,16 @@ class RPDLoader:
     # ── Private helpers ──────────────────────────────────────────────────
 
     def _is_rpd(self, fname: str) -> bool:
-        skip_keywords = ["РПП", "ГИА", "Rating", "ECTS", "BPM", "Аннотация"]
+        skip_keywords = ["Rating", "ECTS", "BPM", "Аннотация", ".sig"]
         return not any(kw in fname for kw in skip_keywords)
 
     def _discipline_name(self, fname: str) -> str:
-        name = fname.replace(".pdf", "").replace("РПД_", "").strip()
-        return name
+        name = fname.replace(".pdf", "").strip()
+        for prefix in ["РПД_", "РПП_", "ГИА_"]:
+            if name.startswith(prefix):
+                name = name[len(prefix):]
+                break
+        return name.strip()
 
     def _find_pdf(self, name: str) -> Optional[str]:
         name_lower = name.lower().replace(" ", "")

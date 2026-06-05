@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Protocol
+from abc import ABC, abstractmethod
+from typing import Any, Protocol
 
 import numpy as np
 import structlog
@@ -30,6 +31,21 @@ class RerankerResult:
         return [(self.documents[i], self.scores[i]) for i in self.ranked_indices[:k]]
 
 
+class BaseReranker(ABC):
+    @abstractmethod
+    def rerank(
+        self,
+        query: str,
+        documents: list[str],
+        top_k: int | None = None,
+    ) -> Result[RerankerResult, DomainError]:
+        ...
+
+    @property
+    @abstractmethod
+    def name(self) -> str: ...
+
+
 class Reranker(Protocol):
     def rerank(
         self,
@@ -43,7 +59,7 @@ class Reranker(Protocol):
     def name(self) -> str: ...
 
 
-class CrossEncoderReranker(Reranker):
+class CrossEncoderReranker(BaseReranker):
     def __init__(
         self,
         model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
@@ -124,3 +140,73 @@ class CrossEncoderReranker(Reranker):
     @property
     def name(self) -> str:
         return f"CrossEncoder({self.model_name})"
+
+
+class HybridReranker(BaseReranker):
+    def __init__(self, rerankers: list[tuple[BaseReranker, float]]):
+        self.rerankers = rerankers
+        logger.info("hybrid_reranker_initialized", count=len(rerankers))
+
+    @property
+    def name(self) -> str:
+        parts = [f"{w:.1f}*{r.name}" for r, w in self.rerankers]
+        return f"Hybrid({' + '.join(parts)})"
+
+    def rerank(
+        self,
+        query: str,
+        documents: list[str],
+        top_k: int | None = None,
+    ) -> Result[RerankerResult, DomainError]:
+        if not documents:
+            return Ok(RerankerResult(query=query, documents=[], scores=[], ranked_indices=[]))
+
+        all_scores: dict[str, list[float]] = {doc: [] for doc in documents}
+
+        for ranker, weight in self.rerankers:
+            match ranker.rerank(query, documents, top_k=None):
+                case Ok(result):
+                    score_map = dict(zip(result.documents, result.scores, strict=False))
+                    vals = list(score_map.values())
+                    vmin, vmax = min(vals), max(vals)
+                    if vmax > vmin:
+                        for doc in documents:
+                            raw = score_map.get(doc, 0.0)
+                            all_scores.setdefault(doc, []).append((raw - vmin) / (vmax - vmin) * weight)
+                    else:
+                        for doc in documents:
+                            all_scores.setdefault(doc, []).append(0.5 * weight)
+                case Err(e):
+                    logger.warning("hybrid_sub_reranker_failed", ranker=ranker.name, error=str(e))
+
+        blended = {doc: sum(scores) for doc, scores in all_scores.items() if scores}
+        if not blended:
+            return Ok(RerankerResult(query=query, documents=documents, scores=[0.0]*len(documents), ranked_indices=list(range(len(documents)))))
+
+        sorted_docs = sorted(blended, key=blended.get, reverse=True)
+        ranked = [documents.index(d) for d in sorted_docs if d in documents]
+        if top_k:
+            ranked = ranked[:top_k]
+
+        return Ok(RerankerResult(
+            query=query,
+            documents=documents,
+            scores=[blended[d] for d in documents],
+            ranked_indices=ranked,
+        ))
+
+
+class RerankerBuilder:
+    @staticmethod
+    def build_cross_encoder() -> CrossEncoderReranker:
+        return CrossEncoderReranker()
+
+    @staticmethod
+    def build_hybrid(
+        model_names: list[str] | None = None,
+        weights: list[float] | None = None,
+    ) -> HybridReranker:
+        names = model_names or ["cross-encoder/ms-marco-MiniLM-L-6-v2"]
+        w = weights or [1.0]
+        rerankers = [(CrossEncoderReranker(model_name=n), w[i] if i < len(w) else 1.0) for i, n in enumerate(names)]
+        return HybridReranker(rerankers)

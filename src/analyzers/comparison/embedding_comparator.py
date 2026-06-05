@@ -23,7 +23,7 @@ from src.analyzers.comparison.engines import (
     SimilarityEngine,
 )
 from src.artifacts import ArtifactManifest
-from src.parsing.api.embedding_loader import get_embedding_model
+from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
 
 if TYPE_CHECKING:
     from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
@@ -42,7 +42,8 @@ class EmbeddingComparator:
         cache_dir: str = None,
         similarity_threshold: float = 0.75,
     ):
-        self.model = get_embedding_model(model_name)
+        self.provider = EmbeddingProviderFactory.get(model_name)
+        self.model = self.provider
         if cache_dir is None:
             self.cache_dir = config.EMBEDDINGS_CACHE_DIR
         else:
@@ -72,12 +73,16 @@ class EmbeddingComparator:
             manifest_ok = True
             if manifest_path.exists():
                 match ArtifactManifest.load(cache_path):
-                    case Ok(manifest) if not manifest.is_compatible():
-                        logger.info("market_cache_invalidated_by_model",
-                            level=level,
-                            manifest_version=manifest.model_version,
-                            current_version=ArtifactManifest._get_embedding_model_version())
-                        manifest_ok = False
+                    case Ok(manifest):
+                        match manifest.is_compatible():
+                            case Ok(True):
+                                pass
+                            case _:
+                                logger.info("market_cache_invalidated_by_model",
+                                    level=level,
+                                    manifest_version=manifest.model_version,
+                                    current_version=ArtifactManifest._get_embedding_model_version())
+                                manifest_ok = False
                     case Err(err):
                         logger.warning("market_cache_manifest_load_failed", error=str(err))
                         manifest_ok = False
@@ -116,12 +121,15 @@ class EmbeddingComparator:
                 os.unlink(tmp_path)
             raise
 
-        manifest = ArtifactManifest(
-            artifact_path=cache_path,
-            metrics={"num_skills": len(self.market_skills)},
-        )
-        if manifest.save().is_err():
-            logger.warning("market_cache_manifest_save_failed")
+        try:
+            manifest = ArtifactManifest(
+                artifact_path=cache_path,
+                metrics={"num_skills": len(self.market_skills)},
+            )
+            if manifest.save().is_err():
+                logger.warning("market_cache_manifest_save_failed")
+        except Exception as e:
+            logger.warning("market_cache_manifest_save_failed", error=str(e))
 
     def compare_student_to_market(self, student_skills: list[str]) -> Result[dict, DomainError]:
         if self.market_embeddings is None:

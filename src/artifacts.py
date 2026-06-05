@@ -102,14 +102,17 @@ class ArtifactManifest:
         except Exception as e:
             return Err(ManifestError(message=str(e), artifact_path=str(manifest_path)))
 
-    def is_compatible(self) -> bool:
+    def is_compatible(self) -> Result[bool, ManifestError]:
         """Проверяет, совпадает ли версия модели эмбеддингов с текущей."""
-        current = self._get_embedding_model_version()
-        if self.model_version != current:
-            logger.warning(
-                "manifest_model_mismatch",
-                manifest_version=self.model_version,
-                current_version=current,
-            )
-            return False
-        return True
+        try:
+            current = self._get_embedding_model_version()
+            if self.model_version != current:
+                logger.warning(
+                    "manifest_model_mismatch",
+                    manifest_version=self.model_version,
+                    current_version=current,
+                )
+                return Ok(False)
+            return Ok(True)
+        except Exception as e:
+            return Err(ManifestError(message=str(e), artifact_path=str(self.artifact_path)))

@@ -141,26 +141,27 @@ class SkillParser:
         try:
             skills = []
 
-            skills.extend(self._extract_from_key_skills(vacancy))
+            match self._extract_from_key_skills(vacancy):
+                case Ok(ks):
+                    skills.extend(ks)
+                case Err(e):
+                    logger.debug("key_skills_extract_failed", error=str(e))
 
+            text_sources = []
             if vacancy.snippet:
                 if vacancy.snippet.requirement:
-                    skills.extend(
-                        self._extract_from_text(
-                            vacancy.snippet.requirement, source=SkillSource.SNIPPET_REQUIREMENT, max_text_length=500
-                        )
-                    )
+                    text_sources.append((vacancy.snippet.requirement, SkillSource.SNIPPET_REQUIREMENT, 500))
                 if vacancy.snippet.responsibility:
-                    skills.extend(
-                        self._extract_from_text(
-                            vacancy.snippet.responsibility, source=SkillSource.SNIPPET_RESPONSIBILITY, max_text_length=500
-                        )
-                    )
-
+                    text_sources.append((vacancy.snippet.responsibility, SkillSource.SNIPPET_RESPONSIBILITY, 500))
             if vacancy.description:
-                skills.extend(
-                    self._extract_from_text(vacancy.description, source=SkillSource.DESCRIPTION, max_text_length=10000)
-                )
+                text_sources.append((vacancy.description, SkillSource.DESCRIPTION, 10000))
+
+            for text, source, max_len in text_sources:
+                match self._extract_from_text(text, source=source, max_text_length=max_len):
+                    case Ok(extracted):
+                        skills.extend(extracted)
+                    case Err(e):
+                        logger.debug("text_extract_failed", source=source, error=str(e))
 
             self.stats.total_extracted += len(skills)
 
@@ -169,138 +170,133 @@ class SkillParser:
             logger.exception("parse_vacancy_failed", vacancy_id=vacancy.id)
             return Err(DomainError(message=f"Failed to parse vacancy {vacancy.id}", detail=str(e)))
 
-    def _extract_from_key_skills(self, vacancy: Vacancy) -> list[ExtractedSkill]:
+    def _extract_from_key_skills(self, vacancy: Vacancy) -> Result[list[ExtractedSkill], DomainError]:
         """Извлекает из официального поля key_skills"""
-        skills = []
+        try:
+            skills = []
+            for key_skill in vacancy.key_skills:
+                skill = ExtractedSkill(
+                    text=key_skill.name, source=SkillSource.KEY_SKILLS, raw_match=key_skill.name, confidence=1.0
+                )
+                skills.append(skill)
+                self._update_stats(SkillSource.KEY_SKILLS)
+            return Ok(skills)
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="_extract_from_key_skills"))
 
-        for key_skill in vacancy.key_skills:
-            skill = ExtractedSkill(
-                text=key_skill.name, source=SkillSource.KEY_SKILLS, raw_match=key_skill.name, confidence=1.0
-            )
-            skills.append(skill)
-            self._update_stats(SkillSource.KEY_SKILLS)
-
-        return skills
-
-    def _extract_from_text(self, text: str, source: SkillSource, max_text_length: int = 1000) -> list[ExtractedSkill]:
+    def _extract_from_text(self, text: str, source: SkillSource, max_text_length: int = 1000) -> Result[list[ExtractedSkill], DomainError]:
         """Извлекает навыки из текста несколькими методами"""
-        if not text:
-            return []
+        try:
+            if not text:
+                return Ok([])
 
-        text = text[:max_text_length]
-        # === очистка HTML ===
-        text = re.sub(r"<[^>]+>", " ", text)
-        text = re.sub(r"\s+", " ", text).strip()
-        text = text.replace("strong", "")
-        self.stats.text_length_processed += len(text)
+            text = text[:max_text_length]
+            text = re.sub(r"<[^>]+>", " ", text)
+            text = re.sub(r"\s+", " ", text).strip()
+            text = text.replace("strong", "")
+            self.stats.text_length_processed += len(text)
 
-        skills = []
+            skills = []
+            for method in (self._direct_search, self._marker_search, self._regex_search):
+                match method(text, source):
+                    case Ok(extracted):
+                        skills.extend(extracted)
+                    case Err(e):
+                        logger.debug("skill_extract_method_failed", method=method.__name__, error=str(e))
 
-        skills.extend(self._direct_search(text, source))
-        skills.extend(self._marker_search(text, source))
-        skills.extend(self._regex_search(text, source))
+            return Ok(skills)
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="_extract_from_text"))
 
-        return skills
-
-    def _direct_search(self, text: str, source: SkillSource) -> list[ExtractedSkill]:
+    def _direct_search(self, text: str, source: SkillSource) -> Result[list[ExtractedSkill], DomainError]:
         """Прямой поиск по списку TECH_SKILLS с контролем контекста"""
-        skills = []
-        text_norm = _normalize_for_matching(text)
+        try:
+            skills = []
+            text_norm = _normalize_for_matching(text)
 
-        # Расширяем список техническими фразами
-        extended_skills = [
-            "machine learning",
-            "deep learning",
-            "data science",
-            "full stack",
-            "rest api",
-            "sql database",
-            "spring boot",
-            "scikit-learn",
-        ]
+            extended_skills = [
+                "machine learning", "deep learning", "data science",
+                "full stack", "rest api", "sql database",
+                "spring boot", "scikit-learn",
+            ]
 
-        all_skills = list(self.TECH_SKILLS) + extended_skills
+            all_skills = list(self.TECH_SKILLS) + extended_skills
+            all_skills = sorted(set(all_skills), key=len, reverse=True)
 
-        # Сортируем по длине (длинные первыми)
-        all_skills = sorted(set(all_skills), key=len, reverse=True)
+            for tech in all_skills:
+                pattern = rf"\b{re.escape(tech)}\b"
+                for match in re.finditer(pattern, text_norm):
+                    start = max(0, match.start() - 50)
+                    context = text_norm[start : match.end() + 50]
 
-        for tech in all_skills:
-            pattern = rf"\b{re.escape(tech)}\b"
-            for match in re.finditer(pattern, text_norm):
-                # Проверяем контекст (не в "не требуется")
-                start = max(0, match.start() - 50)
-                context = text_norm[start : match.end() + 50]
+                    has_negation = any(neg in context for neg in self.NEGATION_WORDS)
+                    if has_negation:
+                        continue
 
-                # Проверяем отрицание
-                has_negation = any(neg in context for neg in self.NEGATION_WORDS)
-                if has_negation:
-                    continue
+                    if len(tech) == 1 and re.search(r'[а-яё]', text[match.start():match.end()], re.IGNORECASE):
+                        after = text_norm[match.end():match.end() + 3]
+                        if after.startswith("++"):
+                            pass
+                        elif re.search(r'[а-яё]', text_norm[max(0, match.start()-5):match.start()], re.IGNORECASE):
+                            continue
 
-                # Ложное срабатывание: одиночный латинский символ-омоглиф,
-                # похожий на русский предлог. Пропускаем, если это не C/C++.
-                if len(tech) == 1 and re.search(r'[а-яё]', text[match.start():match.end()], re.IGNORECASE):
-                    # Проверяем, не является ли это C/C++ (после символа идёт ++)
-                    after = text_norm[match.end():match.end() + 3]
-                    if after.startswith("++"):
-                        pass  # это C/C++ — оставляем
-                    elif re.search(r'[а-яё]', text_norm[max(0, match.start()-5):match.start()], re.IGNORECASE):
-                        continue  # окружён кириллицей — предлог
+                    original = text[match.start():match.end()].strip()
+                    skills.append(ExtractedSkill(text=original or tech, source=source, raw_match=tech, confidence=0.95))
+                    self._update_stats(source)
 
-                original = text[match.start():match.end()].strip()
-                skills.append(ExtractedSkill(text=original or tech, source=source, raw_match=tech, confidence=0.95))
-                self._update_stats(source)
+            return Ok(skills)
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="_direct_search"))
 
-        return skills
-
-    def _marker_search(self, text: str, source: SkillSource) -> list[ExtractedSkill]:
+    def _marker_search(self, text: str, source: SkillSource) -> Result[list[ExtractedSkill], DomainError]:
         """Поиск навыков после маркеров"""
-        skills = []
-        text_norm = _normalize_for_matching(text)
+        try:
+            skills = []
+            text_norm = _normalize_for_matching(text)
 
-        for marker in self.SKILL_MARKERS:
-            if marker not in text_norm:
-                continue
-
-            parts = text_norm.split(marker)
-            if len(parts) < 2:
-                continue
-
-            after_marker = parts[1][:600]
-            lines = re.split(r"[\n,•\-*;]", after_marker)
-
-            for line in lines:
-                line = line.strip()
-
-                if len(line) <= 3 or len(line) >= 100:
+            for marker in self.SKILL_MARKERS:
+                if marker not in text_norm:
                     continue
+                parts = text_norm.split(marker)
+                if len(parts) < 2:
+                    continue
+                after_marker = parts[1][:600]
+                lines = re.split(r"[\n,•\-*;]", after_marker)
+                for line in lines:
+                    line = line.strip()
+                    if len(line) <= 3 or len(line) >= 100:
+                        continue
+                    if any(tech in line for tech in self.TECH_SKILLS):
+                        skills.append(ExtractedSkill(text=line, source=source, raw_match=line, confidence=0.8))
+                        self._update_stats(source)
 
-                if any(tech in line for tech in self.TECH_SKILLS):
-                    skills.append(ExtractedSkill(text=line, source=source, raw_match=line, confidence=0.8))
-                    self._update_stats(source)
+            return Ok(skills)
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="_marker_search"))
 
-        return skills
-
-    def _regex_search(self, text: str, source: SkillSource) -> list[ExtractedSkill]:
+    def _regex_search(self, text: str, source: SkillSource) -> Result[list[ExtractedSkill], DomainError]:
         """Поиск по regex паттернам"""
-        skills = []
-        text_norm = _normalize_for_matching(text)
+        try:
+            skills = []
+            text_norm = _normalize_for_matching(text)
 
-        patterns = [
-            (r"(?:опыт работы с|опыт с|работа с|знание|владение|умение)\s+([a-z0-9\s\+\#\-]+)", 0.85),
-            (r"(?:должен (?:знать|уметь))\s+([a-z0-9\s\+\#\-]+)", 0.75),
-            (r"(?:требуется|требуется знание)\s+([a-z0-9\s\+\#\-]+)", 0.80),
-        ]
+            patterns = [
+                (r"(?:опыт работы с|опыт с|работа с|знание|владение|умение)\s+([a-z0-9\s\+\#\-]+)", 0.85),
+                (r"(?:должен (?:знать|уметь))\s+([a-z0-9\s\+\#\-]+)", 0.75),
+                (r"(?:требуется|требуется знание)\s+([a-z0-9\s\+\#\-]+)", 0.80),
+            ]
 
-        for pattern, confidence in patterns:
-            matches = re.findall(pattern, text_norm)
-            for match in matches:
-                match = match.strip()
+            for pattern, confidence in patterns:
+                matches = re.findall(pattern, text_norm)
+                for match in matches:
+                    match = match.strip()
+                    if 3 < len(match) < 100:
+                        skills.append(ExtractedSkill(text=match, source=source, raw_match=match, confidence=confidence))
+                        self._update_stats(source)
 
-                if 3 < len(match) < 100:
-                    skills.append(ExtractedSkill(text=match, source=source, raw_match=match, confidence=confidence))
-                    self._update_stats(source)
-
-        return skills
+            return Ok(skills)
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="_regex_search"))
 
     def _update_stats(self, source: SkillSource) -> None:
         """Обновляет статистику"""

@@ -118,10 +118,14 @@ class SkillExtractor:
         if not manifest_path.exists():
             return
         match ArtifactManifest.load(cache_path):
-            case Ok(manifest) if not manifest.is_compatible():
-                logger.warning("parsed_skills_cache_incompatible_manifest")
-                cache_path.unlink()
-                manifest_path.unlink()
+            case Ok(manifest):
+                match manifest.is_compatible():
+                    case Ok(True):
+                        pass
+                    case _:
+                        logger.warning("parsed_skills_cache_incompatible_manifest")
+                        cache_path.unlink()
+                        manifest_path.unlink()
             case Err(err):
                 logger.warning("parsed_skills_manifest_check_failed", error=str(err))
 

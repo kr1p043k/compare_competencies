@@ -19,7 +19,7 @@ from src.models.enums import PriorityLevel, SkillCategory, TrendType
 from src.models.student import StudentProfile
 from src.predictors.base import RecommenderPredictor
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
-from src.predictors.reranker import CrossEncoderReranker
+from src.predictors.reranker import BaseReranker, CrossEncoderReranker, RerankerBuilder
 from src.predictors.models import (
     ClosestRole,
     Recommendation,
@@ -56,7 +56,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         self.ltr_engine: LTRRecommendationEngine | None = None
 
         self.use_reranker = use_reranker
-        self.reranker: CrossEncoderReranker | None = CrossEncoderReranker() if use_reranker else None
+        self.reranker: BaseReranker | None = RerankerBuilder.build_cross_encoder() if use_reranker else None
         if use_reranker:
             logger.info("reranker_enabled")
 
@@ -276,14 +276,15 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                         raw = {s: float(sc) for s, sc in rr.top_k(len(documents))}
                         vals = list(raw.values())
                         vmin, vmax = min(vals), max(vals)
+                        reranked_norm: dict[str, float] = {}
                         if vmax > vmin:
-                            reranked_scores = {s: (v - vmin) / (vmax - vmin) for s, v in raw.items()}
+                            reranked_norm = {s: (v - vmin) / (vmax - vmin) for s, v in raw.items()}
                         else:
-                            reranked_scores = {s: 0.5 for s in raw}
+                            reranked_norm = {s: 0.5 for s in raw}
                         for skill in combined_scores:
-                            rerank_bonus = reranked_scores.get(skill, 0.0)
+                            rerank_bonus = reranked_norm.get(skill, 0.0)
                             combined_scores[skill] = 0.7 * combined_scores[skill] + 0.3 * rerank_bonus
-                        logger.info("reranker_applied", profile=profile_name, skills=len(reranked_scores))
+                        logger.info("reranker_applied", profile=profile_name, skills=len(reranked_norm))
                     case Err(e):
                         logger.warning("reranker_skipped", error=str(e))
 

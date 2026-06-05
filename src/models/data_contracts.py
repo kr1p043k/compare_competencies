@@ -1,6 +1,6 @@
 """
 Строгие Pydantic-модели для контрактов между этапами пайплайна.
-Постепенно заменяют бесформенные dict[str, Any].
+Bounded‑context модели: CollectionContext / AnalysisContext / RecommendationContext.
 """
 
 from typing import Any
@@ -20,8 +20,37 @@ class LevelVacancy(BaseModel):
     experience: str = "middle"
 
 
-class PipelineContext(BaseModel):
-    """Типизированный контекст пайплайна вместо сырого dict."""
+# ─── Collection (сбор и очистка вакансий) ──────────────────────────────
+class CollectionContext(BaseModel):
+    """Результаты сбора и фильтрации вакансий."""
+
+    raw_vacancies: list[Any] = Field(default_factory=list)
+    quality_report: dict[str, Any] = Field(default_factory=dict)
+    skip_collection: bool = False
+
+    class Config:
+        arbitrary_types_allowed = True
+
+
+# ─── Analysis (извлечение навыков, веса, уровни, кластеры, модель) ─────
+class AnalysisContext(BaseModel):
+    """Извлечённые навыки, веса, уровни, кластеры, LTR-модель."""
+
+    skill_freq: dict[str, int] = Field(default_factory=dict)
+    hybrid_weights: dict[str, float] = Field(default_factory=dict)
+    vacancies_skills: list[list[str]] = Field(default_factory=list)
+    level_vacancies_data: list[LevelVacancy] = Field(default_factory=list)
+    trend_analyzer: Any = None
+    clusters_trained: bool = False
+    model_trained: bool = False
+
+    class Config:
+        arbitrary_types_allowed = True
+
+
+# ─── Recommendation (gap-анализ + рекомендации) ───────────────────────
+class RecommendationContext(BaseModel):
+    """Профили, оценка, пробелы, рекомендации."""
 
     skill_freq: dict[str, int] = Field(default_factory=dict)
     hybrid_weights: dict[str, float] = Field(default_factory=dict)
@@ -32,6 +61,14 @@ class PipelineContext(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
+
+# ─── PipelineContext (обёртка для обратной совместимости) ─────────────
+class PipelineContext(RecommendationContext):
+    """Legacy-обёртка — унаследована от RecommendationContext.
+    Используется в GapRunner / RecommendationRunner для обратной совместимости.
+    """
+    pass
 
 
 class SkillExtractionResult(BaseModel):

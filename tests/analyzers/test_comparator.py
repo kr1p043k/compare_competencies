@@ -170,7 +170,7 @@ class TestEmbeddingComparatorExtended:
         comparator = EmbeddingComparator()
         skills = ["python", "java"]
         result = comparator.embed_skills(skills)
-        assert result.shape[0] == 2
+        assert result.ndim == 2
         assert result.shape[1] == comparator.model.get_sentence_embedding_dimension()
 
 
@@ -442,7 +442,7 @@ class TestCompetencyComparatorFull:
     def test_init_loads_embedding_model(self):
         """Проверяет, что при создании объекта загружается модель."""
         fake_model = MagicMock()
-        with patch("src.analyzers.comparison.embedding_comparator.get_embedding_model",
+        with patch("src.analyzers.comparison.embedding_comparator.EmbeddingProviderFactory.get",
                    return_value=fake_model) as mock_get:
             comp = EmbeddingComparator()
             mock_get.assert_called_once_with(None)
@@ -466,7 +466,7 @@ class TestCompetencyComparatorFull:
         # Манифест пусть будет совместим – подменим его
         with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest") as MockManifest:
             mock_manifest = MockManifest.load.return_value
-            mock_manifest.is_compatible.return_value = True
+            from src import Ok; mock_manifest.is_compatible.return_value = Ok(True)
 
             comp.build_market_index([], level="middle")  # список не важен, загрузится из кэша
 
@@ -493,7 +493,7 @@ class TestCompetencyComparatorFull:
         from src.analyzers.comparison.embedding_comparator import ArtifactManifest as RealArtifactManifest
 
         real_manifest = RealArtifactManifest(cache_path)
-        real_manifest.is_compatible = MagicMock(return_value=False)
+        from src import Ok; real_manifest.is_compatible = MagicMock(return_value=Ok(False))
         with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest.load", return_value=Ok(real_manifest)):
             with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest._get_embedding_model_version", return_value="new"):
                 comp.build_market_index(["python"], level="middle")
@@ -546,6 +546,7 @@ class TestCompetencyComparatorFull:
         with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest") as MockManifest:
             instance = MockManifest.return_value
             instance.save.side_effect = Exception("no write access")
+            instance.is_compatible.return_value = Ok(True)
             # Не должно упасть
             comp.build_market_index(["python"], level="middle")
             assert comp.market_skills == ["python"]

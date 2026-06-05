@@ -13,7 +13,12 @@ from src import Err, Ok, Result, config, timed_block
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.models.enums import ExperienceLevel
-from src.models.data_contracts import PipelineContext
+from src.models.data_contracts import (
+    AnalysisContext,
+    CollectionContext,
+    PipelineContext,
+    RecommendationContext,
+)
 from src.models.student import StudentProfile, merge_skills_hierarchically
 from src.pipeline.helpers import console_header, console_info
 from src.pipeline.orchestrator import PipelineOrchestrator
@@ -324,7 +329,7 @@ def run_full_pipeline(args) -> Result[None, str]:
     if not args.skip_gap_analysis and profiles:
         _write_pipeline_progress(72, "Инициализация GAP-анализа...")
         console_header("GAP-АНАЛИЗ И ГЕНЕРАЦИЯ РЕКОМЕНДАЦИЙ")
-        ctx = PipelineContext(
+        ctx = RecommendationContext(
             skill_freq=skill_freq,
             hybrid_weights=hybrid_weights,
             vacancies_skills=vacancies_skills,

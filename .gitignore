@@ -48,3 +48,4 @@ data/raw/
 data/cache/.hh_token_cache.json
 .codegraph/
 temp/
+temp*

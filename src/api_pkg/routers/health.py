@@ -25,6 +25,8 @@ from src.models.student import StudentProfile
 from src.predictors.recommendation_engine import RecommendationEngine
 
 from src.api_pkg import deps
+from src import config
+from src.model_registry import ModelRegistry
 
 logger = structlog.get_logger("api")
 
@@ -33,11 +35,22 @@ router = APIRouter(tags=["monitoring"])
 limiter = Limiter(key_func=get_remote_address)
 
 
+_registry: ModelRegistry | None = None
+
+
+def _get_registry() -> ModelRegistry:
+    global _registry
+    if _registry is None:
+        _registry = ModelRegistry()
+    return _registry
+
+
 @router.get("/")
 async def root():
+    v = config.VERSION if hasattr(config, "VERSION") else "2.0"
     return {
         "service": "Compare Competencies API",
-        "version": "2.0",
+        "version": v,
         "docs": "/docs",
         "health": "/health",
         "status": "/api/status",
@@ -77,11 +90,22 @@ async def write_log(entry: LogEntry):
 @router.get("/health", response_model=HealthResponse)
 @router.get("/api/health", response_model=HealthResponse)
 async def health_check():
+    registry = _get_registry()
+    ltr_model = registry.latest("ltr")
+    clusters = {
+        lvl: registry.latest(f"clusters_{lvl}")
+        for lvl in ["junior", "middle", "senior"]
+    }
     return {
         "status": "ok",
-        "version": "2.0",
+        "version": getattr(config, "VERSION", "2.0"),
         "evaluator": deps.evaluator is not None,
         "recommendation_engine": deps.recommendation_engine is not None,
+        "ltr_model_version": (ltr_model or {}).get("version"),
+        "clusters_versions": {
+            lvl: (reg or {}).get("version") for lvl, reg in clusters.items()
+        },
+        "api_ready": deps.is_ready,
     }
 
 

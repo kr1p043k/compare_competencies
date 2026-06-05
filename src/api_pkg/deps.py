@@ -1,10 +1,11 @@
-"""Dependency injection — глобальное состояние и фабрики для роутеров."""
+"""Dependency injection — DI-контейнер + глобальное состояние для роутеров."""
 
 from fastapi import HTTPException
 from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.analyzers.skills.trends import TrendAnalyzer
+from src.di import DIContainer, get_container
 from src.models.student import StudentProfile
 from src.predictors.recommendation_engine import RecommendationEngine
 
@@ -24,6 +25,23 @@ vacancy_load_error: str | None = None
 is_ready: bool = False
 _regions_cache: list[str] = []
 _regions_cache_time: float = 0
+
+
+def bootstrap_container():
+    """Register all services in DI container. Safe to call multiple times."""
+    c = get_container()
+    if c.has("profile_evaluator"):
+        return
+    c.register("profile_evaluator", lambda: evaluator)
+    c.register("recommendation_engine", lambda: recommendation_engine)
+    c.register("clusterer", lambda: clusterer)
+    c.register("trend_analyzer", lambda: trend_analyzer)
+    c.register_instance("student_profiles", student_profiles)
+    c.register_instance("skill_weights", skill_weights)
+    c.register_instance("hybrid_weights", hybrid_weights)
+    c.register_instance("skill_freq", skill_freq)
+    c.register_instance("basic_vacancies", basic_vacancies)
+    c.freeze()
 
 
 def get_evaluator() -> ProfileEvaluator:

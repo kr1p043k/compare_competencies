@@ -547,13 +547,17 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         manifest_path = model_path.with_suffix(".manifest.json")
         if manifest_path.exists():
             match ArtifactManifest.load(model_path):
-                case Ok(manifest) if not manifest.is_compatible():
-                    logger.warning("ltr_model_incompatible_manifest",
-                        path=str(model_path),
-                        manifest_version=manifest.model_version,
-                        current_version=ArtifactManifest._get_embedding_model_version())
                 case Ok(manifest):
-                    logger.info("ltr_manifest_verified", metrics=manifest.metrics)
+                    match manifest.is_compatible():
+                        case Ok(False):
+                            logger.warning("ltr_model_incompatible_manifest",
+                                path=str(model_path),
+                                manifest_version=manifest.model_version,
+                                current_version=ArtifactManifest._get_embedding_model_version())
+                        case Ok(True):
+                            logger.info("ltr_manifest_verified", metrics=manifest.metrics)
+                        case Err(err):
+                            logger.warning("ltr_manifest_compat_check_failed", error=str(err))
                 case Err(err):
                     logger.warning("ltr_manifest_load_failed", error=str(err))
 

@@ -1,0 +1,147 @@
+"""Evaluation framework — единый Evaluator ABC для всех типов анализа."""
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any
+
+from src import Ok, Result
+from src.errors import DomainError
+
+
+@dataclass
+class EvalReport:
+    evaluator_name: str
+    metric_name: str
+    metric_value: float
+    samples: int = 0
+    details: dict[str, Any] = field(default_factory=dict)
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class BaseEvaluator(ABC):
+    name: str = "base"
+
+    @abstractmethod
+    def evaluate(self, **kwargs) -> Result[EvalReport, DomainError]:
+        ...
+
+    def eval_or_default(self, **kwargs) -> EvalReport:
+        match self.evaluate(**kwargs):
+            case Ok(report):
+                return report
+            case Err(_):
+                return EvalReport(
+                    evaluator_name=self.name,
+                    metric_name="default",
+                    metric_value=0.0,
+                )
+
+
+class CoverageEvaluator(BaseEvaluator):
+    name = "coverage"
+
+    def __init__(self, threshold: float = 0.75):
+        self.threshold = threshold
+
+    def evaluate(self, **kwargs) -> Result[EvalReport, DomainError]:
+        try:
+            from src import config
+            from pathlib import Path
+
+            student_file = kwargs.get("student_file") or config.STUDENTS_DIR / "base_competency.json"
+            if not student_file.exists():
+                return Err(DomainError(message=f"Student file not found: {student_file}"))
+
+            import json
+            with open(student_file, encoding="utf-8") as f:
+                data = json.load(f)
+
+            skills = data if isinstance(data, list) else data.get("skills", [])
+            n = len(skills)
+            return Ok(EvalReport(
+                evaluator_name=self.name,
+                metric_name="coverage_ratio",
+                metric_value=n,
+                samples=n,
+                details={"threshold": self.threshold},
+            ))
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="CoverageEvaluator.evaluate"))
+
+
+class SkillMatchEvaluator(BaseEvaluator):
+    name = "skill_match"
+
+    def evaluate(self, **kwargs) -> Result[EvalReport, DomainError]:
+        try:
+            predicted = kwargs.get("predicted", [])
+            actual = kwargs.get("actual", [])
+            if not actual:
+                return Err(DomainError(message="No actual skills provided"))
+
+            predicted_set = set(predicted)
+            actual_set = set(actual)
+            tp = len(predicted_set & actual_set)
+            precision = tp / len(predicted_set) if predicted_set else 0.0
+            recall = tp / len(actual_set) if actual_set else 0.0
+            f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+
+            return Ok(EvalReport(
+                evaluator_name=self.name,
+                metric_name="f1",
+                metric_value=round(f1, 4),
+                samples=len(actual),
+                details={
+                    "precision": round(precision, 4),
+                    "recall": round(recall, 4),
+                    "tp": tp,
+                    "predicted": len(predicted_set),
+                    "actual": len(actual_set),
+                },
+            ))
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="SkillMatchEvaluator.evaluate"))
+
+
+class GapAccuracyEvaluator(BaseEvaluator):
+    name = "gap_accuracy"
+
+    def evaluate(self, **kwargs) -> Result[EvalReport, DomainError]:
+        try:
+            recommended = kwargs.get("recommended", [])
+            validation = kwargs.get("validation", {})
+            if not validation:
+                return Err(DomainError(message="No validation data provided"))
+
+            hits = sum(1 for r in recommended if r.get("skill") in validation)
+            total = len(recommended)
+            accuracy = hits / total if total > 0 else 0.0
+
+            return Ok(EvalReport(
+                evaluator_name=self.name,
+                metric_name="gap_accuracy",
+                metric_value=round(accuracy, 4),
+                samples=total,
+                details={"hits": hits, "total": total},
+            ))
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="GapAccuracyEvaluator.evaluate"))
+
+
+class EvalSuite:
+    def __init__(self, evaluators: list[BaseEvaluator] | None = None):
+        self._evaluators: list[BaseEvaluator] = evaluators or [
+            CoverageEvaluator(),
+            SkillMatchEvaluator(),
+            GapAccuracyEvaluator(),
+        ]
+
+    def add(self, evaluator: BaseEvaluator):
+        self._evaluators.append(evaluator)
+
+    def run_all(self, **kwargs) -> list[EvalReport]:
+        return [e.eval_or_default(**kwargs) for e in self._evaluators]
+
+    def summary(self, reports: list[EvalReport]) -> dict[str, float]:
+        return {f"{r.evaluator_name}/{r.metric_name}": r.metric_value for r in reports}

@@ -14,7 +14,7 @@ if __name__ == "__main__" and sys.platform == "win32":
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src import Err, Ok
+from src import Err, Ok, Result
 from src.logging_config import setup_structlog
 from src.pipeline.runner import (
     rebuild,
@@ -93,18 +93,17 @@ def validate_args(args) -> None:
         sys.exit(1)
 
 
-def main():
+def main() -> Result[None, Exception]:
     setup_structlog()
     args = parse_arguments()
     validate_args(args)
 
     if args.status:
         match run_status(args):
-            case Ok(_): pass
+            case Ok(_):
+                return Ok(None)
             case Err(e):
-                print(f"❌ Ошибка: {e}")
-                sys.exit(1)
-        return
+                return Err(e)
 
     if args.teacher_analysis:
         print(f"📊 Запуск teacher analysis (направление: {args.teacher_analysis})...")
@@ -119,25 +118,28 @@ def main():
                 print(f"   Дисциплин: {summary.get('total_disciplines', 0)}")
                 print(f"   Всего пробелов: {summary.get('total_gaps_across_all', 0)}")
                 print(f"   Результаты: {summary.get('generated_at', '')}")
+                return Ok(None)
             case Err(e):
-                print(f"❌ Teacher analysis не удался: {e}")
-                sys.exit(1)
-        return
+                return Err(e)
 
     if args.train_model:
         match run_train_model(args):
-            case Ok(_): pass
+            case Ok(_):
+                return Ok(None)
             case Err(e):
-                print(f"❌ Ошибка обучения модели: {e}")
-                sys.exit(1)
-        return
+                return Err(e)
 
     match run_full_pipeline(args):
-        case Ok(_): pass
+        case Ok(_):
+            return Ok(None)
         case Err(e):
-            print(f"❌ Ошибка пайплайна: {e}")
-            sys.exit(1)
+            return Err(e)
 
 
 if __name__ == "__main__":
-    main()
+    match main():
+        case Ok(_):
+            sys.exit(0)
+        case Err(e):
+            print(f"❌ {e}")
+            sys.exit(1)
