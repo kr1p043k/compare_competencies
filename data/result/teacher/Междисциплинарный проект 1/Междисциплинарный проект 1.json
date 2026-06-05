@@ -1,0 +1,254 @@
+{
+  "direction": "09.03.02",
+  "direction_name": "Информационные системы и технологии",
+  "discipline": "Междисциплинарный проект 1",
+  "metrics": {
+    "total_rpd_skills": 5,
+    "market_matched": 1,
+    "gaps": 4,
+    "coverage_ratio": 0.2,
+    "coverage_level": "medium",
+    "top_market_matched_skills": [
+      {
+        "skill": "искусственный интеллект",
+        "frequency": 1,
+        "match_type": "exact"
+      }
+    ],
+    "gaps_in_curriculum": [
+      "технические средства",
+      "информационные технологии",
+      "информационно-коммуникационные технологии",
+      "программные средства"
+    ],
+    "emerging_market_skills_not_in_rpd": [
+      {
+        "skill": "python",
+        "frequency": 880
+      },
+      {
+        "skill": "postgresql",
+        "frequency": 520
+      },
+      {
+        "skill": "sql",
+        "frequency": 490
+      },
+      {
+        "skill": "git",
+        "frequency": 460
+      },
+      {
+        "skill": "linux",
+        "frequency": 440
+      },
+      {
+        "skill": "docker",
+        "frequency": 420
+      },
+      {
+        "skill": "fastapi",
+        "frequency": 350
+      },
+      {
+        "skill": "django",
+        "frequency": 340
+      },
+      {
+        "skill": "flask",
+        "frequency": 280
+      },
+      {
+        "skill": "redis",
+        "frequency": 260
+      }
+    ]
+  },
+  "competencies": [
+    {
+      "code": "ОПК-2",
+      "total_skills": 5,
+      "matched_skills": 1,
+      "coverage": 0.2
+    },
+    {
+      "code": "ОПК-2.1",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ОПК-2.2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ОПК-2.3",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-14",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-14.1",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-14.2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-14.3",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-14.4",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-14.5",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-14.6",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-16.2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-17.2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-6",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-6.1",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-6.2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-12",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-12.1",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-12.2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-13",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-13.1",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-2.1",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-2.2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-2.3",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-3",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-3.1",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-3.2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    }
+  ],
+  "recommendations": [
+    {
+      "type": "update_content",
+      "priority": "medium",
+      "message": "Обновить содержание: 4 навыков из РПД не найдены на рынке. Рекомендуется пересмотреть актуальность: технические средства, информационные технологии, информационно-коммуникационные технологии, программные средства"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "medium",
+      "message": "Добавить в программу востребованные навыки рынка: python, postgresql, sql, git, linux"
+    },
+    {
+      "type": "major_revision",
+      "priority": "high",
+      "message": "Низкое покрытие рынка (20.0%). Требуется существенный пересмотр дисциплины."
+    }
+  ]
+}

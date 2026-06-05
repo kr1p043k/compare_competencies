@@ -40,5 +40,10 @@ data/cache/.hh_token_cache.json
 frontend/node_modules/
 .hypothesis/
 frontend/dist/
-data/
+data/cache/
+data/models/
+data/processed/hh_vacancies_detailed.json
+data/it_skills.backup.json
+data/raw/
+data/cache/.hh_token_cache.json
 .codegraph/

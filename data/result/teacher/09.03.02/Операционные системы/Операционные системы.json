@@ -1,0 +1,220 @@
+{
+  "direction": "09.03.02",
+  "direction_name": "Информационные системы и технологии",
+  "discipline": "Операционные системы",
+  "metrics": {
+    "total_rpd_skills": 19,
+    "market_matched": 11,
+    "gaps": 8,
+    "coverage_ratio": 0.5789,
+    "coverage_level": "high",
+    "top_market_matched_skills": [
+      {
+        "skill": "python",
+        "frequency": 880,
+        "match_type": "exact"
+      },
+      {
+        "skill": "cpp",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "fpga",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "cpp для встроенных систем",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "generative ai",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "gan",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "llm",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "llm",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "генеративные модели",
+        "frequency": 1,
+        "match_type": "exact"
+      },
+      {
+        "skill": "http",
+        "frequency": 1,
+        "match_type": "exact"
+      }
+    ],
+    "gaps_in_curriculum": [
+      "программные средства",
+      "программно-аппаратные комплексы",
+      "информационно-коммуникационные технологии",
+      "параметрическая настройка",
+      "программные средства",
+      "аппаратные платформы",
+      "встроенные системы",
+      "многопоточные вычисления"
+    ],
+    "emerging_market_skills_not_in_rpd": [
+      {
+        "skill": "postgresql",
+        "frequency": 520
+      },
+      {
+        "skill": "sql",
+        "frequency": 490
+      },
+      {
+        "skill": "git",
+        "frequency": 460
+      },
+      {
+        "skill": "linux",
+        "frequency": 440
+      },
+      {
+        "skill": "docker",
+        "frequency": 420
+      },
+      {
+        "skill": "fastapi",
+        "frequency": 350
+      },
+      {
+        "skill": "django",
+        "frequency": 340
+      },
+      {
+        "skill": "flask",
+        "frequency": 280
+      },
+      {
+        "skill": "redis",
+        "frequency": 260
+      },
+      {
+        "skill": "sqlalchemy",
+        "frequency": 250
+      }
+    ]
+  },
+  "competencies": [
+    {
+      "code": "ОПК-2",
+      "total_skills": 3,
+      "matched_skills": 0,
+      "coverage": 0.0
+    },
+    {
+      "code": "ОПК-2.2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ОПК-5",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ОПК-5.1",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ОПК-7",
+      "total_skills": 2,
+      "matched_skills": 0,
+      "coverage": 0.0
+    },
+    {
+      "code": "ОПК-7.1",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-10",
+      "total_skills": 12,
+      "matched_skills": 6,
+      "coverage": 0.5
+    },
+    {
+      "code": "ПК-10.1",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-10.2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-10.3",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-14",
+      "total_skills": 2,
+      "matched_skills": 2,
+      "coverage": 1.0
+    },
+    {
+      "code": "ПК-14.2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "ПК-14.3",
+      "total_skills": 1,
+      "matched_skills": 1,
+      "coverage": 1.0
+    },
+    {
+      "code": "ПК-9",
+      "total_skills": 2,
+      "matched_skills": 2,
+      "coverage": 1.0
+    },
+    {
+      "code": "ПК-9.4",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    }
+  ],
+  "recommendations": [
+    {
+      "type": "update_content",
+      "priority": "high",
+      "message": "Обновить содержание: 8 навыков из РПД не найдены на рынке. Рекомендуется пересмотреть актуальность: программные средства, программно-аппаратные комплексы, информационно-коммуникационные технологии, параметрическая настройка, программные средства"
+    },
+    {
+      "type": "add_new_content",
+      "priority": "medium",
+      "message": "Добавить в программу востребованные навыки рынка: postgresql, sql, git, linux, docker"
+    }
+  ]
+}

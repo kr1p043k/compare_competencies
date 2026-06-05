@@ -1,0 +1,100 @@
+{
+  "direction": "09.03.02",
+  "direction_name": "Информационные системы и технологии",
+  "discipline": "Основы проектной деятельности",
+  "metrics": {
+    "total_rpd_skills": 0,
+    "market_matched": 0,
+    "gaps": 0,
+    "coverage_ratio": 0,
+    "coverage_level": "low",
+    "top_market_matched_skills": [],
+    "gaps_in_curriculum": [],
+    "emerging_market_skills_not_in_rpd": [
+      {
+        "skill": "python",
+        "frequency": 880
+      },
+      {
+        "skill": "postgresql",
+        "frequency": 520
+      },
+      {
+        "skill": "sql",
+        "frequency": 490
+      },
+      {
+        "skill": "git",
+        "frequency": 460
+      },
+      {
+        "skill": "linux",
+        "frequency": 440
+      },
+      {
+        "skill": "docker",
+        "frequency": 420
+      },
+      {
+        "skill": "fastapi",
+        "frequency": 350
+      },
+      {
+        "skill": "django",
+        "frequency": 340
+      },
+      {
+        "skill": "flask",
+        "frequency": 280
+      },
+      {
+        "skill": "redis",
+        "frequency": 260
+      }
+    ]
+  },
+  "competencies": [
+    {
+      "code": "УК-2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-2.1",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-3",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-3.1",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    },
+    {
+      "code": "УК-3.2",
+      "total_skills": 0,
+      "matched_skills": 0,
+      "coverage": 0
+    }
+  ],
+  "recommendations": [
+    {
+      "type": "add_new_content",
+      "priority": "medium",
+      "message": "Добавить в программу востребованные навыки рынка: python, postgresql, sql, git, linux"
+    },
+    {
+      "type": "major_revision",
+      "priority": "high",
+      "message": "Низкое покрытие рынка (0.0%). Требуется существенный пересмотр дисциплины."
+    }
+  ]
+}
