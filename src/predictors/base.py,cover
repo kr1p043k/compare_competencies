@@ -1,0 +1,44 @@
+> from abc import ABC, abstractmethod
+> from typing import Any, Generic, TypeVar
+  
+> from src import Result
+  
+> T_fit = TypeVar("T_fit")
+> T_pred = TypeVar("T_pred")
+  
+  
+> class BasePredictor(ABC, Generic[T_fit, T_pred]):
+>     is_fitted: bool = False
+  
+-     @property
+-     @abstractmethod
+-     def name(self) -> str:
+-         ...
+  
+-     @abstractmethod
+-     def fit(self, *args, **kwargs) -> Result[T_fit, Exception]:
+-         ...
+  
+>     def validate(self) -> bool:
+!         return self.is_fitted
+  
+  
+> class RankingPredictor(BasePredictor[T_fit, T_pred]):
+-     @abstractmethod
+-     def predict_impact(
+-         self, student_skills: list[str], missing_skills: list[str]
+-     ) -> T_pred:
+-         ...
+  
+  
+> class RecommenderPredictor(BasePredictor[T_fit, T_pred]):
+-     @abstractmethod
+-     def generate_recommendations(
+-         self,
+-         student: Any,
+-         user_type: str = "student",
+-         precomputed_eval: dict[str, Any] | None = None,
+-         target_domains: list[str] | None = None,
+-         taxonomy: Any | None = None,
+-     ) -> T_pred:
+-         ...

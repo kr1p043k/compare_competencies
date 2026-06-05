@@ -1,0 +1,163 @@
+> """Coverage analyzer: discipline vs market coverage."""
+! from __future__ import annotations
+  
+! from collections import Counter
+  
+! import structlog
+  
+! from src.result import Ok, Err, Result
+! from src.errors import CoverageError
+! from src.models.teacher_analysis import CompetencyCoverage, CrossReference, DisciplineCoverage, SkillMatch
+! from src.analyzers.skill_matcher import SkillMatcher, coverage_level, normalize as normalize_skill
+  
+! logger = structlog.get_logger(__name__)
+  
+  
+! class CoverageAnalyzer:
+!     def __init__(self, matcher: SkillMatcher):
+!         self.matcher = matcher
+  
+!     def analyze_discipline(
+!         self,
+!         discipline_id: str,
+!         discipline_name: str,
+!         competencies: dict[str, list[str]],
+!         direction_rpd_norm: set[str] | None = None,
+!         discipline_skill_map: dict[str, set[str]] | None = None,
+!     ) -> Result[DisciplineCoverage, CoverageError]:
+!         if not discipline_id:
+!             logger.error("missing_discipline_id")
+!             return Err(CoverageError(message="discipline_id is required", discipline_id=""))
+!         if not competencies:
+!             logger.warning("discipline_no_competencies", discipline=discipline_name)
+!             return Err(CoverageError(
+!                 message=f"No competencies for {discipline_name}",
+!                 discipline_id=discipline_id,
+!             ))
+  
+!         all_rpd: list[str] = []
+!         comp_results: list[CompetencyCoverage] = []
+  
+!         for ccode, skills in competencies.items():
+!             comp_matched = 0
+!             comp_gaps = []
+!             for s in skills:
+!                 all_rpd.append(s)
+!                 match_result = self.matcher.match(s)
+!                 if match_result.is_err():
+!                     logger.warning("skill_match_failed", skill=s)
+!                     continue
+!                 m, _ = match_result.unwrap()
+!                 if m:
+!                     comp_matched += 1
+!                 else:
+!                     comp_gaps.append(s)
+!             comp_results.append(CompetencyCoverage(
+!                 code=ccode,
+!                 total_skills=len(skills),
+!                 matched_skills=comp_matched,
+!                 coverage=round(comp_matched / len(skills), 4) if skills else 0,
+!                 gap_skills=comp_gaps[:10],
+!             ))
+  
+!         matched_list: list[SkillMatch] = []
+!         gaps_list: list[str] = []
+!         rpd_norm: set[str] = set()
+  
+!         for s in all_rpd:
+!             n = normalize_skill(s)
+!             if not n or len(n) < 3:
+!                 continue
+!             rpd_norm.add(n)
+!             match_result = self.matcher.match(s)
+!             if match_result.is_err():
+!                 continue
+!             m, mtype = match_result.unwrap()
+!             if m:
+!                 matched_list.append(SkillMatch(
+!                     skill_name=s, market_match=m,
+!                     frequency=self.matcher.market_skills.get(m, 0),
+!                     match_type=mtype,
+!                 ))
+!             else:
+!                 gaps_list.append(s)
+  
+          # Per-discipline emerging (not in THIS discipline)
+!         emerging_result = self.matcher.get_emerging(rpd_norm, top_n=10)
+!         emerging_skills: list[SkillMatch] = []
+!         if emerging_result.is_ok():
+!             emerging_raw = emerging_result.unwrap()
+!             emerging_skills = [
+!                 SkillMatch(skill_name=s, frequency=f, match_type="emerging")
+!                 for s, f, _ in emerging_raw
+!             ]
+  
+          # Cross-discipline: truly missing vs covered elsewhere
+!         truly_missing: list[SkillMatch] = []
+!         cross_refs: list[CrossReference] = []
+!         if direction_rpd_norm is not None and discipline_skill_map is not None:
+!             dir_result = self.matcher.get_emerging(
+!                 rpd_norm, top_n=30,
+!                 also_exclude=direction_rpd_norm,
+!             )
+!             if dir_result.is_ok():
+!                 dir_emerging = {s for s, _, _ in dir_result.unwrap()}
+!                 for em in emerging_skills:
+!                     if em.skill_name not in dir_emerging:
+                          # Covered in another discipline — find which
+!                         for dn, dskills in discipline_skill_map.items():
+!                             if dn == discipline_name:
+!                                 continue
+!                             if em.skill_name in dskills:
+!                                 cross_refs.append(CrossReference(
+!                                     skill_name=em.skill_name,
+!                                     frequency=em.frequency,
+!                                     discipline=dn,
+!                                 ))
+!                                 break
+!                         else:
+!                             for dn, dskills in discipline_skill_map.items():
+!                                 if dn == discipline_name:
+!                                     continue
+!                                 for rn in dskills:
+!                                     if (self.matcher._word_match(em.skill_name, rn)
+!                                         or self.matcher._word_match(rn, em.skill_name)):
+!                                         cross_refs.append(CrossReference(
+!                                             skill_name=em.skill_name,
+!                                             frequency=em.frequency,
+!                                             discipline=dn,
+!                                         ))
+!                                         break
+                  # Truly missing (not in any discipline)
+!                 truly_raw = self.matcher.get_emerging(
+!                     direction_rpd_norm, top_n=10,
+!                 )
+!                 if truly_raw.is_ok():
+!                     truly_missing = [
+!                         SkillMatch(skill_name=s, frequency=f, match_type="emerging")
+!                         for s, f, _ in truly_raw.unwrap()
+!                     ]
+  
+!         total = len(matched_list) + len(gaps_list)
+!         ratio = round(len(matched_list) / total, 4) if total else 0
+  
+!         logger.info("discipline_analyzed",
+!                      discipline=discipline_name,
+!                      total=total, matched=len(matched_list),
+!                      gaps=len(gaps_list), coverage=ratio)
+  
+!         return Ok(DisciplineCoverage(
+!             discipline_id=discipline_id,
+!             discipline_name=discipline_name,
+!             total_skills=total,
+!             market_matched=len(matched_list),
+!             gaps=len(gaps_list),
+!             coverage_ratio=ratio,
+!             coverage_level=coverage_level(ratio),
+!             top_matched=sorted(matched_list, key=lambda x: -x.frequency)[:10],
+!             gaps_list=gaps_list[:20],
+!             emerging=emerging_skills,
+!             truly_missing=truly_missing,
+!             cross_references=cross_refs,
+!             competencies=comp_results,
+!         ))

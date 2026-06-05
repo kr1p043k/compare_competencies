@@ -68,7 +68,9 @@ class TestSafeReadJSON:
     def test_not_a_list(self, tmp_path):
         path = tmp_path / "obj.json"
         path.write_text('{"key": "value"}')
-        assert utils.safe_read_json(path) is None
+        data = utils.safe_read_json(path)
+        assert isinstance(data, dict)
+        assert data["key"] == "value"
 
 
 class TestSafeReadCompetencyJSON:

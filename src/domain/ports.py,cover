@@ -1,0 +1,66 @@
+> """Domain port interfaces — абстракции для внешних зависимостей."""
+  
+> from __future__ import annotations
+  
+> from typing import Any, Protocol, runtime_checkable
+  
+> from src.result import Result
+> from src.errors import DomainError, CacheError, DataSourceError
+  
+  
+> @runtime_checkable
+> class DataProvider(Protocol):
+-     def get_vacancies(self, queries: list[str], max_pages: int, **kwargs) -> Result[list[dict], DataSourceError]: ...
+  
+-     def get_student_profiles(self) -> Result[dict[str, list], DomainError]: ...
+  
+-     def get_reference_data(self, name: str) -> Result[dict, DomainError]: ...
+  
+  
+> @runtime_checkable
+> class CacheProvider(Protocol):
+-     def get(self, key: str) -> Result[Any, CacheError]: ...
+  
+-     def set(self, key: str, value: Any, ttl: int | None = None) -> Result[None, CacheError]: ...
+  
+-     def exists(self, key: str) -> bool: ...
+  
+-     def delete(self, key: str) -> Result[None, CacheError]: ...
+  
+-     def clear(self) -> Result[None, CacheError]: ...
+  
+  
+> @runtime_checkable
+> class Repository(Protocol):
+-     def save(self, entity: Any) -> Result[Any, DomainError]: ...
+  
+-     def find(self, **filters) -> Result[list, DomainError]: ...
+  
+-     def find_one(self, **filters) -> Result[Any | None, DomainError]: ...
+  
+-     def delete(self, entity: Any) -> Result[bool, DomainError]: ...
+  
+  
+> @runtime_checkable
+> class SkillProvider(Protocol):
+-     def normalize(self, skill: str) -> Result[str, DomainError]: ...
+  
+-     def extract(self, text: str) -> Result[list[str], DomainError]: ...
+  
+-     def embed(self, skills: list[str]) -> Result[list[list[float]], DomainError]: ...
+  
+  
+> @runtime_checkable
+> class VacancyProvider(Protocol):
+-     def search(self, query: str, area: int, period: int, pages: int) -> Result[list[dict], DataSourceError]: ...
+  
+-     def get_details(self, vacancy_id: str) -> Result[dict, DataSourceError]: ...
+  
+-     def get_areas(self) -> Result[list[dict], DataSourceError]: ...
+  
+  
+> @runtime_checkable
+> class ForecastProvider(Protocol):
+-     def predict(self, skill: str, history: dict[str, float], months: int) -> Result[dict[str, float], DomainError]: ...
+  
+-     def top_growing(self, forecasts: list[dict], n: int) -> list[dict]: ...

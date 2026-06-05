@@ -58,14 +58,15 @@ class TestArtifactManifest:
 
     def test_is_compatible_same_version(self, tmp_path):
         manifest = ArtifactManifest(artifact_path=tmp_path / "x.pkl", model_version="v1")
-        # подменим метод _get_embedding_model_version прямо перед вызовом
         with patch.object(ArtifactManifest, '_get_embedding_model_version', return_value='v1'):
-            assert manifest.is_compatible() is True
+            result = manifest.is_compatible()
+            assert result.is_ok() and result.unwrap() is True
 
     def test_is_compatible_different_version(self, tmp_path):
         manifest = ArtifactManifest(artifact_path=tmp_path / "x.pkl", model_version="old")
         with patch.object(ArtifactManifest, '_get_embedding_model_version', return_value='new'):
-            assert manifest.is_compatible() is False
+            result = manifest.is_compatible()
+            assert result.is_ok() and result.unwrap() is False
 
     def test_compute_data_hash(self, tmp_path):
         file_path = tmp_path / "data.txt"

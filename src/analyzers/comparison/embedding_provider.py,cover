@@ -1,0 +1,83 @@
+> """EmbeddingProvider abstraction layer for skill embeddings."""
+  
+> from abc import ABC, abstractmethod
+> from typing import Any
+  
+> import numpy as np
+  
+> from src import Ok, Result
+  
+  
+> class EmbeddingProvider(ABC):
+-     @abstractmethod
+-     def encode(self, texts: list[str], **kwargs) -> np.ndarray:
+-         ...
+  
+-     @property
+-     @abstractmethod
+-     def dimension(self) -> int:
+-         ...
+  
+-     @abstractmethod
+-     def model_version(self) -> str:
+-         ...
+  
+>     def get_sentence_embedding_dimension(self) -> int:
+>         return self.dimension
+  
+  
+> class SentenceTransformerProvider(EmbeddingProvider):
+>     def __init__(self, model_name: str | None = None, device: str | None = None):
+>         import sentence_transformers
+  
+>         from src import config
+  
+>         model_name = model_name or config.EMBEDDING_MODEL
+>         if device is None:
+>             device = getattr(config, "EMBEDDING_DEVICE", "cpu")
+>         self._model = sentence_transformers.SentenceTransformer(model_name, device=device)
+  
+>     def encode(self, texts: list[str], **kwargs) -> np.ndarray:
+>         return self._model.encode(
+>             texts,
+>             convert_to_numpy=kwargs.pop("convert_to_numpy", True),
+>             show_progress_bar=kwargs.pop("show_progress_bar", False),
+>             batch_size=kwargs.pop("batch_size", 64),
+>             **kwargs,
+>         )
+  
+>     @property
+>     def dimension(self) -> int:
+>         return self._model.get_sentence_embedding_dimension()
+  
+>     def model_version(self) -> str:
+!         try:
+!             import sentence_transformers as st
+  
+!             lib_ver = st.__version__
+!         except ImportError:
+!             lib_ver = "unknown"
+!         return f"{self._model._model_name_or_path}_st{lib_ver}"
+  
+  
+> class EmbeddingProviderFactory:
+>     _instances: dict[str, EmbeddingProvider] = {}
+  
+>     @classmethod
+>     def get(cls, model_name: str | None = None) -> EmbeddingProvider:
+>         key = model_name or "default"
+>         if key not in cls._instances:
+>             from src import config
+  
+>             if model_name:
+!                 from sentence_transformers import SentenceTransformer
+  
+!                 m = SentenceTransformer(model_name, device=config.EMBEDDING_DEVICE)
+!                 cls._instances[key] = SentenceTransformerProvider(model_name)
+>             else:
+>                 cls._instances[key] = SentenceTransformerProvider()
+>         return cls._instances[key]
+  
+>     @classmethod
+>     def clear(cls):
+!         cls._instances.clear()

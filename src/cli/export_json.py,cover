@@ -1,0 +1,72 @@
+> """Export all database tables to JSON files (data/export/).
+  
+> Usage:
+>     python -m src.cli export-json
+> """
+  
+! import asyncio
+! import json
+! import sys
+! from datetime import datetime
+! from pathlib import Path
+  
+! sys.stdout.reconfigure(encoding="utf-8")
+  
+! from sqlalchemy import inspect, select
+  
+! from src.database import async_session_factory
+! from src.models.krm_models import (
+!     Competency, CompetencySkill, CoverageAnalysis, Direction,
+!     Discipline, KSAEntry, MarketSkillMapping, ParseVersion,
+!     PDFSource, Recommendation, Skill, Student, StudentGroup,
+!     StudentSkill, User,
+! )
+  
+! OUT = Path(__file__).parent.parent.parent / "data" / "export"
+  
+! TABLES: list[tuple[str, type]] = [
+!     ("directions", Direction),
+!     ("disciplines", Discipline),
+!     ("pdf_sources", PDFSource),
+!     ("parse_versions", ParseVersion),
+!     ("competencies", Competency),
+!     ("ksa_entries", KSAEntry),
+!     ("skills", Skill),
+!     ("competency_skills", CompetencySkill),
+!     ("users", User),
+!     ("recommendations", Recommendation),
+!     ("student_groups", StudentGroup),
+!     ("students", Student),
+!     ("student_skills", StudentSkill),
+!     ("market_skill_mappings", MarketSkillMapping),
+!     ("coverage_analyses", CoverageAnalysis),
+! ]
+  
+  
+! async def main() -> None:
+!     OUT.mkdir(parents=True, exist_ok=True)
+!     async with async_session_factory() as session:
+!         for name, model in TABLES:
+!             result = await session.execute(select(model))
+!             rows = result.scalars().all()
+!             data = []
+!             for row in rows:
+!                 d = {}
+!                 for col in inspect(model).columns.keys():
+!                     val = getattr(row, col)
+!                     if isinstance(val, datetime):
+!                         d[col] = val.isoformat()
+!                     elif isinstance(val, list):
+!                         d[col] = [str(v) for v in val]
+!                     else:
+!                         d[col] = val
+!                 data.append(d)
+!             path = OUT / f"{name}.json"
+!             with open(path, "w", encoding="utf-8") as f:
+!                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+!             print(f"{name}: {len(data)} rows")
+!     print(f"\nDone. Export in {OUT}")
+  
+  
+! if __name__ == "__main__":
+!     asyncio.run(main())

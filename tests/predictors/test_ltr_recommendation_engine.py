@@ -382,16 +382,23 @@ class TestLTRExtractFeatures:
 # ---------------------------------------------------------------------------
 class TestLTRStudentEmbedding:
     def test_empty_skills(self, engine_with_mocks):
-        assert engine_with_mocks._get_student_embedding([]) is None
+        result = engine_with_mocks._get_student_embedding([])
+        assert result.is_err()
 
     def test_no_valid_skills(self, engine_with_mocks):
         engine_with_mocks.skill_embeddings = {}
-        assert engine_with_mocks._get_student_embedding(["python"]) is None
+        result = engine_with_mocks._get_student_embedding(["python"])
+        assert result.is_err()
 
     def test_valid_skills(self, engine_with_mocks):
-        emb = engine_with_mocks._get_student_embedding(["python", "sql"])
-        assert emb is not None
-        assert emb.shape == (128,)
+        result = engine_with_mocks._get_student_embedding(["python", "sql"])
+        assert result.is_ok()
+        assert result.unwrap().shape == (128,)
+
+    def test_embedding_shape(self, engine_with_mocks):
+        result = engine_with_mocks._get_student_embedding(["python"])
+        assert result.is_ok()
+        assert result.unwrap().shape == (128,)
 
 
 # ---------------------------------------------------------------------------

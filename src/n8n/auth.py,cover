@@ -1,0 +1,27 @@
+> """n8n API key auth middleware."""
+  
+> import structlog
+> from fastapi import HTTPException, Request
+> from starlette.middleware.base import BaseHTTPMiddleware
+  
+> logger = structlog.get_logger("n8n_auth")
+  
+> N8N_PREFIXES = {"/api/n8n"}
+  
+  
+> class N8NAuthMiddleware(BaseHTTPMiddleware):
+>     async def dispatch(self, request: Request, call_next):
+>         for prefix in N8N_PREFIXES:
+>             if request.url.path.startswith(prefix):
+>                 from src import config
+  
+>                 api_key = config.N8N_API_KEY
+>                 if api_key is None:
+>                     logger.error("n8n_auth_not_configured", path=request.url.path)
+>                     raise HTTPException(status_code=500, detail="N8N_API_KEY not configured")
+>                 auth = request.headers.get("Authorization", "")
+>                 if not auth.startswith("Bearer ") or auth[7:] != api_key.get_secret_value():
+>                     logger.warning("n8n_auth_failed", path=request.url.path, client=request.client.host if request.client else "unknown")
+>                     raise HTTPException(status_code=401, detail="Invalid n8n API key")
+>                 break
+>         return await call_next(request)

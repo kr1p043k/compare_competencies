@@ -1,0 +1,72 @@
+> """Кэш эмбеддингов навыков (JSON, атомарная запись)."""
+  
+> import json
+  
+> import numpy as np
+> import structlog
+> import torch
+  
+> from src import config
+> from src.parsing.api.embedding_loader import get_embedding_model
+> from src.utils import atomic_write_json
+  
+> logger = structlog.get_logger(__name__)
+  
+  
+> class SkillEmbeddingCache:
+>     def __init__(self):
+>         self._model = None
+  
+>     @property
+>     def model(self):
+>         if self._model is None:
+>             self._model = get_embedding_model()
+>             self._model.eval()
+>         return self._model
+  
+>     def _model_version(self) -> str:
+>         try:
+>             import sentence_transformers
+  
+!             lib_ver = sentence_transformers.__version__
+>         except ImportError:
+>             lib_ver = "unknown"
+>         return f"{config.EMBEDDING_MODEL}_st{lib_ver}"
+  
+>     def get_embeddings(self, skills: list[str]) -> dict[str, np.ndarray]:
+>         if not skills:
+!             return {}
+>         cache_file = config.EMBEDDINGS_CACHE_DIR / "skill_embeddings.json"
+>         cached = {}
+          # загрузка из кэша
+>         if cache_file.exists():
+>             try:
+>                 with open(cache_file, encoding="utf-8") as f:
+>                     data = json.load(f)
+>                 if data.get("model_version") != self._model_version():
+>                     logger.info("embedding_cache_version_mismatch")
+>                     cache_file.unlink()
+>                 else:
+>                     for skill in skills:
+>                         if skill in data["embeddings"]:
+>                             cached[skill] = np.array(data["embeddings"][skill])
+>                     if cached:
+>                         logger.info(f"Загружено из кэша: {len(cached)} навыков")
+>             except Exception as e:
+>                 logger.warning(f"Ошибка загрузки кэша: {e}")
+  
+>         missing = [s for s in skills if s not in cached]
+>         if missing:
+>             logger.info(f"Вычисление эмбеддингов для {len(missing)} навыков")
+>             with torch.no_grad():
+>                 new_embs = self.model.encode(missing, convert_to_numpy=True, show_progress_bar=True, batch_size=64)
+>             for skill, emb in zip(missing, new_embs, strict=False):
+>                 cached[skill] = emb
+              # атомарное сохранение
+>             data_to_save = {
+>                 "model_version": self._model_version(),
+>                 "embeddings": {s: emb.tolist() for s, emb in cached.items()},
+>             }
+>             atomic_write_json(data_to_save, cache_file)
+>             logger.info(f"Кэш обновлён: {len(cached)} навыков")
+>         return cached
