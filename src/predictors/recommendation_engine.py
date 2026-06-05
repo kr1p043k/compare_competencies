@@ -19,6 +19,7 @@ from src.models.enums import PriorityLevel, SkillCategory, TrendType
 from src.models.student import StudentProfile
 from src.predictors.base import RecommenderPredictor
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
+from src.predictors.reranker import CrossEncoderReranker
 from src.predictors.models import (
     ClosestRole,
     Recommendation,
@@ -39,6 +40,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         self,
         use_ltr: bool = True,
         use_llm: bool = False,
+        use_reranker: bool = False,
         profile_evaluator=None,
         trend_analyzer=None,
     ):
@@ -52,6 +54,11 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         self.use_llm = use_llm and bool(config.YC_API_KEY and config.YC_FOLDER_ID)
         self.use_ltr = use_ltr
         self.ltr_engine: LTRRecommendationEngine | None = None
+
+        self.use_reranker = use_reranker
+        self.reranker: CrossEncoderReranker | None = CrossEncoderReranker() if use_reranker else None
+        if use_reranker:
+            logger.info("reranker_enabled")
 
         if use_ltr:
             self.ltr_engine = LTRRecommendationEngine()
@@ -256,6 +263,35 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 if skill.lower() in domain_skills:
                     bonus += config.DOMAIN_BONUS
                 combined_scores[skill] *= bonus
+
+            before_reranker = dict(sorted(combined_scores.items(), key=lambda x: x[1], reverse=True))
+
+            if self.reranker is not None:
+                query = " ".join(s.lower() for s in student.skills)
+                if dominant_domain:
+                    query += f" {dominant_domain}"
+                documents = list(before_reranker.keys())
+                match self.reranker.rerank(query, documents, top_k=len(documents)):
+                    case Ok(rr):
+                        reranked_scores = {s: float(sc) for s, sc in rr.top_k(len(documents))}
+                        for skill in combined_scores:
+                            rerank_bonus = reranked_scores.get(skill, 0.0)
+                            combined_scores[skill] = 0.7 * combined_scores[skill] + 0.3 * rerank_bonus
+                        logger.info("reranker_applied", profile=profile_name, skills=len(reranked_scores))
+                    case Err(e):
+                        logger.warning("reranker_skipped", error=str(e))
+
+            after_reranker = dict(sorted(combined_scores.items(), key=lambda x: x[1], reverse=True))
+
+            result_dir = config.DATA_DIR / "result" / profile_name
+            result_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                atomic_write_json(
+                    {"before_reranker": before_reranker, "after_reranker": after_reranker},
+                    result_dir / "reranker_comparison.json",
+                )
+            except Exception as e:
+                logger.warning("reranker_comparison_save_failed", error=str(e))
 
             rec_objects: list[Recommendation] = []
             skill_metrics = eval_result.get("skill_metrics", {})

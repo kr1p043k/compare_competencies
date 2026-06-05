@@ -84,6 +84,7 @@ class GapRunner:
             self.recommendation_engine = RecommendationEngine(
                 use_ltr=True,
                 use_llm=self.args.use_llm,
+                use_reranker=True,
                 profile_evaluator=self.evaluator,
                 trend_analyzer=self.ctx.trend_analyzer,
             )
