@@ -43,49 +43,32 @@ class CurriculumRecommender:
 
         recs = []
 
-        # Gaps: RPD skills not found on market
-        if coverage.gaps > 0:
-            acad_gaps = []
-            generic_gaps = []
-            for s in coverage.gaps_list:
-                cls = _classify_skill(s, self.skill_types)
-                if cls == "academic":
-                    acad_gaps.append(s)
-                else:
-                    generic_gaps.append(s)
-
-            if acad_gaps:
+        # Gaps: RPD skills not found on market — one per skill
+        for s in coverage.gaps_list:
+            cls = _classify_skill(s, self.skill_types)
+            if cls == "academic":
                 recs.append(Recommendation(
                     type="foundational",
                     priority="low",
-                    message=(
-                        f"Фундаментальные навыки, не обнаруженные на рынке: "
-                        f"{', '.join(acad_gaps[:5])}. "
-                        f"Носят общепрофессиональный характер — не требуют замены."
-                    ),
+                    message=f"«{s}» — фундаментальный навык, не обнаружен на рынке. Не требует замены.",
                 ))
-            if generic_gaps:
+            else:
                 recs.append(Recommendation(
                     type="review_content",
                     priority="medium",
-                    message=(
-                        f"Навыки из РПД не обнаружены в рыночных данных: "
-                        f"{', '.join(generic_gaps[:5])}. "
-                        f"Рекомендуется пересмотреть их актуальность."
-                    ),
+                    message=f"«{s}» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность.",
                 ))
 
-        # Truly missing: market skills not in ANY discipline — suggest consideration
+        # Truly missing: market skills not in ANY discipline — one per skill
         if coverage.truly_missing:
             relevant = self._filter_relevant(coverage.truly_missing, coverage.discipline_name)
-            if relevant:
-                skills_str = ", ".join(f"«{m.skill_name}» ({m.frequency})" for m in relevant[:5])
+            for m in relevant[:5]:
                 recs.append(Recommendation(
                     type="add_new_content",
                     priority="medium",
                     message=(
-                        f"Рассмотрите возможность включения востребованных навыков, "
-                        f"отсутствующих в программе: {skills_str}."
+                        f"Рассмотрите возможность включения навыка «{m.skill_name}» "
+                        f"(частота на рынке: {m.frequency})."
                     ),
                 ))
 
@@ -108,28 +91,26 @@ class CurriculumRecommender:
 
         # Low coverage warning
         if coverage.coverage_ratio < 0.3:
-            low_comps = [c.code for c in coverage.competencies if c.coverage < 0.3 and c.total_skills > 0]
-            comp_msg = f" Низкое покрытие компетенций: {', '.join(low_comps)}." if low_comps else ""
             recs.append(Recommendation(
                 type="major_revision",
                 priority="high",
                 message=(
                     f"Низкое покрытие рынка ({coverage.coverage_ratio * 100:.1f}%)."
-                    f"{comp_msg} Требуется существенный пересмотр дисциплины."
+                    f" Требуется существенный пересмотр дисциплины."
                 ),
             ))
 
-        # Zero-coverage competencies
-        zero_comps = [c.code for c in coverage.competencies if c.coverage == 0 and c.total_skills > 0]
-        if zero_comps:
-            recs.append(Recommendation(
-                type="review_content",
-                priority="medium",
-                message=(
-                    f"Компетенции {', '.join(zero_comps)} имеют 0% покрытие рынком"
-                    f" — рекомендуется наполнить их востребованными навыками."
-                ),
-            ))
+        # Zero-coverage competencies — one per competency
+        for cc in coverage.competencies:
+            if cc.coverage == 0 and cc.total_skills > 0:
+                recs.append(Recommendation(
+                    type="review_content",
+                    priority="medium",
+                    message=(
+                        f"Компетенция «{cc.code}» имеет 0% покрытие рынком"
+                        f" — рекомендуется наполнить её востребованными навыками."
+                    ),
+                ))
 
         logger.info("recommendations_generated",
                      discipline=coverage.discipline_name, count=len(recs))
@@ -179,12 +160,15 @@ class CurriculumRecommender:
                 ),
             ))
         if top_emerging:
-            skills = [e["skill"] for e in top_emerging[:10]]
-            recs.append(Recommendation(
-                type="add_new_content",
-                priority="high",
-                message=f"Ключевые навыки рынка для внедрения: {', '.join(skills)}",
-            ))
+            for e in top_emerging[:10]:
+                recs.append(Recommendation(
+                    type="add_new_content",
+                    priority="high",
+                    message=(
+                        f"Рассмотрите внедрение навыка «{e['skill']}» "
+                        f"(частота на рынке: {e['frequency']})."
+                    ),
+                ))
 
         logger.info("summary_recommendations_generated", count=len(recs))
         return Ok(recs)

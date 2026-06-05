@@ -4,5 +4,11 @@
     "competency": "t",
     "suggestion": "t",
     "type": "add"
+  },
+  {
+    "discipline": "Базы данных и СУБД",
+    "competency": "ОПК-2",
+    "suggestion": "новое",
+    "type": "add"
   }
 ]
