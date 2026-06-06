@@ -8,6 +8,8 @@ import pytest
 # Добавляем корень проекта в путь
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+pytestmark = pytest.mark.skip(reason="Source file missing - scripts were removed")
+
 
 class TestCheckClusters:
     def test_import_module(self):

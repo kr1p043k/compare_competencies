@@ -29,10 +29,10 @@ class TestExtractSkillsFromDescription:
         assert result.unwrap() == []
 
     def test_calls_parser(self, parser_with_mocks):
-        parser_with_mocks.skill_parser._extract_from_text.return_value = [
+        parser_with_mocks.skill_parser._extract_from_text.return_value = Ok([
             ExtractedSkill("python", SkillSource.DESCRIPTION),
             ExtractedSkill("sql", SkillSource.DESCRIPTION),
-        ]
+        ])
         result = parser_with_mocks.extract_skills_from_description("Python and SQL")
         assert result.is_ok()
         skills = result.unwrap()
@@ -54,7 +54,7 @@ class TestExtractSkillsFromVacancies:
         )
         # Для одиночной валидации тоже замокаем
         parser_with_mocks.skill_validator.validate.return_value = MagicMock(is_valid=True)
-        parser_with_mocks.hybrid_calc.calculate.return_value = {"python": 0.8, "sql": 0.6}
+        parser_with_mocks.hybrid_calc.calculate.return_value = Ok({"python": 0.8, "sql": 0.6})
         parser_with_mocks.embedding_cache.get_embeddings.return_value = {
             "python": np.array([0.1, 0.2]),
             "sql": np.array([0.3, 0.4]),
@@ -91,7 +91,7 @@ class TestExtractSkillsFromVacancies:
             ExtractedSkill(s, SkillSource.KEY_SKILLS, 1.0) for s in all_skills
         ])
         parser_with_mocks.skill_validator.validate_batch.side_effect = None  # чтобы не сработал
-        parser_with_mocks.hybrid_calc.calculate.return_value = {}
+        parser_with_mocks.hybrid_calc.calculate.return_value = Ok({})
         parser_with_mocks.embedding_cache.get_embeddings.return_value = {}
 
         result = parser_with_mocks.extract_skills_from_vacancies([vac])
@@ -139,10 +139,10 @@ class TestExcel:
                       key_skills=[KeySkill("Python")])
         df = parser_with_mocks.aggregate_to_dataframe([vac])
         assert df.shape[0] == 1
-        assert "python" in df.loc[0, "Навыки"]
+        assert "python" in df.loc[0, "Навыки"].lower()
 
     def test_save_to_excel(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("src.parsing.skills.vacancy_parser.config.DATA_RESULT_DIR", tmp_path)
+        monkeypatch.setattr("src.parsing.skills.vacancy_parser.config.REPORTS_DIR", tmp_path)
         parser = VacancyParser()
         df = pd.DataFrame({"col": [1, 2]})
         parser.save_to_excel(df, "test.xlsx")
@@ -175,7 +175,7 @@ def test_extract_skills_from_vacancies_mixed(parser_with_mocks):
     # смесь dict и Vacancy, проверка, что невалидный dict пропускается
     parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([])
     parser_with_mocks.skill_validator.validate_batch.return_value = ([], [])
-    parser_with_mocks.hybrid_calc.calculate.return_value = {}
+    parser_with_mocks.hybrid_calc.calculate.return_value = Ok({})
     parser_with_mocks.embedding_cache.get_embeddings.return_value = {}
 
     invalid_dict = {"id": "bad"}
@@ -192,12 +192,12 @@ def test_extract_skills_from_vacancies_mixed(parser_with_mocks):
 
 def test_extract_skills_thread_pool_activated(parser_with_mocks, monkeypatch):
     # Более 200 навыков → ThreadPoolExecutor. Нормализация возвращает все навыки без изменений
-    monkeypatch.setattr("src.parsing.skills.vacancy_parser.SkillNormalizer.normalize_batch", lambda x: x)
+    monkeypatch.setattr("src.parsing.skills.vacancy_parser.SkillNormalizer.normalize_batch", lambda x: Ok(x))
     parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([
         ExtractedSkill(f"skill_{i}", SkillSource.KEY_SKILLS, 1.0) for i in range(250)
     ])
     parser_with_mocks.skill_validator.validate.return_value = MagicMock(is_valid=True)
-    parser_with_mocks.hybrid_calc.calculate.return_value = {}
+    parser_with_mocks.hybrid_calc.calculate.return_value = Ok({})
     parser_with_mocks.embedding_cache.get_embeddings.return_value = {}
     area = Area(1, "MSK")
     employer = Employer("1", "Corp")

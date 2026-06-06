@@ -129,13 +129,13 @@ class TestSimpleStages:
 
     def test_cluster_training_run_ok(self, args):
         s = ClusterTrainingStage()
-        with patch("scripts.train_clusters.train_clusters", return_value=True):
+        with patch("src.ml.clusters.train_clusters", return_value=True):
             result = s.run()
         assert result.is_ok()
 
     def test_cluster_training_run_fail(self, args):
         s = ClusterTrainingStage()
-        with patch("scripts.train_clusters.train_clusters", return_value=False):
+        with patch("src.ml.clusters.train_clusters", return_value=False):
             result = s.run()
         assert result.is_err()
 

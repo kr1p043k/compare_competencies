@@ -42,11 +42,14 @@ class PipelineBuilder:
 
     def run(self, initial_ctx: dict | None = None) -> Result[None, DomainError]:
         orchestrator = self.build()
-        run = orchestrator.run(initial_ctx=initial_ctx, name=self._name)
-        if run.status != "completed":
-            last_err = run.stages[-1].error if run.stages else "unknown"
-            return Err(DomainError(message=f"pipeline failed: {last_err}"))
-        return Ok(None)
+        match orchestrator.run(initial_ctx=initial_ctx, name=self._name):
+            case Ok(run):
+                if run.status != "completed":
+                    last_err = run.stages[-1].error if run.stages else "unknown"
+                    return Err(DomainError(message=f"pipeline failed: {last_err}"))
+                return Ok(None)
+            case Err(e):
+                return Err(DomainError(message=f"pipeline failed: {e}"))
 
     def __repr__(self) -> str:
         stage_names = [s.name or s.__class__.__name__ for s in self._stages]

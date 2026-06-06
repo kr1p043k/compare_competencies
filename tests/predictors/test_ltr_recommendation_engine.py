@@ -23,18 +23,18 @@ from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine, _S
 @pytest.fixture
 def mock_vacancy_parser():
     parser = MagicMock()
-    parser.extract_skills_from_vacancies.return_value = {
+    parser.extract_skills_from_vacancies.return_value = Ok({
         "frequencies": {"python": 50, "sql": 40, "docker": 30, "java": 20, "c++": 15},
         "hybrid_weights": {"python": 0.9, "sql": 0.8, "docker": 0.7, "java": 0.6, "c++": 0.5},
-    }
-    parser.extract_skills_from_description.return_value = []
+    })
+    parser.extract_skills_from_description.return_value = Ok([])
     return parser
 
 
 @pytest.fixture
 def mock_skill_filter():
     sf = MagicMock()
-    sf.get_skill_categories.return_value = {}
+    sf.get_skill_categories.return_value = Ok({})
     return sf
 
 
@@ -123,10 +123,10 @@ class TestLTRFit:
 
     def test_fit_success(self, engine_with_mocks):
         engine = engine_with_mocks
-        engine.vacancy_parser.extract_skills_from_vacancies.return_value = {
+        engine.vacancy_parser.extract_skills_from_vacancies.return_value = Ok({
             "frequencies": {"python": 50, "sql": 40, "docker": 30, "java": 20, "c++": 15},
             "hybrid_weights": {"python": 0.9, "sql": 0.8, "docker": 0.7, "java": 0.6, "c++": 0.5},
-        }
+        })
         vacancies = [{"key_skills": [{"name": "python"}, {"name": "sql"}], "experience": "middle"}] * 100
 
         with patch("src.predictors.ltr_recommendation_engine.train_test_split",
@@ -143,17 +143,18 @@ class TestLTRFit:
             patch("src.predictors.ltr_recommendation_engine.ndcg_score", return_value=0.8):
             mock_instance = MockXGB.return_value
             mock_instance.predict.return_value = np.array([0.5] * 100)
-            engine.fit(vacancies)
+            result = engine.fit(vacancies)
 
+        assert result.is_ok()
         assert engine.is_fitted is True
         mock_dump.assert_called_once()
 
     def test_fit_importance_plot_exception(self, engine_with_mocks):
         engine = engine_with_mocks
-        engine.vacancy_parser.extract_skills_from_vacancies.return_value = {
+        engine.vacancy_parser.extract_skills_from_vacancies.return_value = Ok({
             "frequencies": {"python": 50, "sql": 40, "docker": 30, "java": 20, "c++": 15},
             "hybrid_weights": {"python": 0.9, "sql": 0.8, "docker": 0.7, "java": 0.6, "c++": 0.5},
-        }
+        })
         vacancies = [{"key_skills": [{"name": "python"}, {"name": "sql"}]}] * 100
 
         with patch("src.predictors.ltr_recommendation_engine.train_test_split",
@@ -170,33 +171,36 @@ class TestLTRFit:
             patch("src.predictors.ltr_recommendation_engine.ndcg_score", return_value=0.8):
             mock_instance = MockXGB.return_value
             mock_instance.predict.return_value = np.array([0.5] * 100)
-            engine.fit(vacancies)
+            result = engine.fit(vacancies)
 
+        assert result.is_ok()
         assert engine.is_fitted is True
 
     def test_fit_insufficient_vacancies(self, engine_with_mocks):
         engine = engine_with_mocks
         vacancies = [{"key_skills": [{"name": "python"}], "experience": "middle"}] * 10
-        engine.fit(vacancies)
+        result = engine.fit(vacancies)
+        assert result.is_err()
         assert engine.is_fitted is False
 
     def test_fit_too_few_skills(self, engine_with_mocks):
         engine = engine_with_mocks
-        engine.vacancy_parser.extract_skills_from_vacancies.return_value = {
+        engine.vacancy_parser.extract_skills_from_vacancies.return_value = Ok({
             "frequencies": {"python": 10},
             "hybrid_weights": {"python": 0.9},
-        }
+        })
         vacancies = [{"key_skills": [{"name": "python"}]}] * 100
-        engine.fit(vacancies)
+        result = engine.fit(vacancies)
+        assert result.is_err()
         assert engine.is_fitted is False
 
     # в классе TestLTRFit
     def test_fit_ndcg_nan(self, engine_with_mocks):
         engine = engine_with_mocks
-        engine.vacancy_parser.extract_skills_from_vacancies.return_value = {
+        engine.vacancy_parser.extract_skills_from_vacancies.return_value = Ok({
             "frequencies": {"python": 50, "sql": 40, "docker": 30, "java": 20, "c++": 15},
             "hybrid_weights": {"python": 0.9, "sql": 0.8, "docker": 0.7, "java": 0.6, "c++": 0.5},
-        }
+        })
         vacancies = [{"key_skills": [{"name": "python"}, {"name": "sql"}]}] * 100
 
         with patch("src.predictors.ltr_recommendation_engine.train_test_split",
@@ -214,7 +218,8 @@ class TestLTRFit:
             patch("src.predictors.ltr_recommendation_engine.logger") as mock_logger:
             mock_instance = MockXGB.return_value
             mock_instance.predict.return_value = np.array([0.5] * 100)
-            engine.fit(vacancies)
+            result = engine.fit(vacancies)
+        assert result.is_ok()
         # Проверяем, что залогировалось ndcg_at_10='n/a'
         mock_logger.info.assert_any_call(
             "ltr_training_completed",
@@ -453,13 +458,13 @@ class TestLTRExtractSkillsFromVacancy:
         assert "python" in skills and "sql" in skills
 
     def test_description_skills(self, engine_with_mocks):
-        engine_with_mocks.vacancy_parser.extract_skills_from_description.return_value = ["docker"]
+        engine_with_mocks.vacancy_parser.extract_skills_from_description.return_value = Ok(["docker"])
         vac = {"key_skills": [], "description": "Работа с Docker"}
         skills = engine_with_mocks._extract_skills_from_vacancy(vac)
         assert "docker" in skills
 
     def test_snippet_fallback(self, engine_with_mocks):
-        engine_with_mocks.vacancy_parser.extract_skills_from_description.return_value = ["git"]
+        engine_with_mocks.vacancy_parser.extract_skills_from_description.return_value = Ok(["git"])
         vac = {"key_skills": [], "description": "", "snippet": {"requirement": "Знание git"}}
         skills = engine_with_mocks._extract_skills_from_vacancy(vac)
         assert "git" in skills
@@ -475,13 +480,13 @@ class TestLTRGetSkillCategory:
             assert engine_with_mocks._get_skill_category("docker") == "devops"
 
     def test_fallback_to_skill_filter(self, engine_with_mocks):
-        engine_with_mocks.skill_filter.get_skill_categories.return_value = {"frontend": ["react"]}
+        engine_with_mocks.skill_filter.get_skill_categories.return_value = Ok({"frontend": ["react"]})
         engine_with_mocks._taxonomy = MagicMock()
         engine_with_mocks._taxonomy.get_category.return_value = "other"
         assert engine_with_mocks._get_skill_category("react") == "frontend"
 
     def test_unknown(self, engine_with_mocks):
-        engine_with_mocks.skill_filter.get_skill_categories.return_value = {}
+        engine_with_mocks.skill_filter.get_skill_categories.return_value = Ok({})
         engine_with_mocks._taxonomy = MagicMock()
         engine_with_mocks._taxonomy.get_category.return_value = "other"
         assert engine_with_mocks._get_skill_category("zzz") == "other"

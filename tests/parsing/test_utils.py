@@ -19,19 +19,19 @@ class TestReadWriteJson:
         data = {"key": "value"}
         filepath = tmp_path / "test.json"
         filepath.write_text(json.dumps(data), encoding="utf-8")
-        result = utils.read_json(filepath)
+        result = utils.read_json(filepath).ok()
         assert result == data
 
     def test_read_json_file_not_found(self, tmp_path):
         filepath = tmp_path / "missing.json"
         result = utils.read_json(filepath)
-        assert result is None
+        assert result.ok() is None
 
     def test_read_json_invalid_json(self, tmp_path):
         filepath = tmp_path / "invalid.json"
         filepath.write_text("{not json", encoding="utf-8")
         result = utils.read_json(filepath)
-        assert result is None
+        assert result.ok() is None
 
     def test_write_json_success(self, tmp_path):
         data = {"key": "value"}
@@ -114,13 +114,13 @@ class TestLoadQueriesFromFile:
     def test_load_queries_from_file(self, tmp_path):
         filepath = tmp_path / "queries.txt"
         filepath.write_text("Python\nJava\n  SQL  \n", encoding="utf-8")
-        queries = utils.load_queries_from_file(filepath)
+        queries = utils.load_queries_from_file(filepath).ok()
         assert queries == ["Python", "Java", "SQL"]
 
     def test_load_queries_from_file_missing(self, tmp_path):
         filepath = tmp_path / "missing.txt"
         queries = utils.load_queries_from_file(filepath)
-        assert queries == []
+        assert queries.is_err()
 
 
 class TestSafePrint:
@@ -226,7 +226,7 @@ class TestNormalizeSkillForMatching:
 
 class TestExtractAndCountSkills:
     def test_extract_and_count_skills_empty(self):
-        result = utils.extract_and_count_skills([], MagicMock())
+        result = utils.extract_and_count_skills([], MagicMock()).ok()
         assert result == {"frequencies": {}, "tfidf_weights": {}}
 
     def test_extract_and_count_skills_success(self):
@@ -235,14 +235,14 @@ class TestExtractAndCountSkills:
             "frequencies": {"python": 10},
             "tfidf_weights": {"python": 0.9},
         }
-        result = utils.extract_and_count_skills([{"id": 1}], mock_parser)
+        result = utils.extract_and_count_skills([{"id": 1}], mock_parser).ok()
         assert result["frequencies"] == {"python": 10}
 
     def test_extract_and_count_skills_exception(self):
         mock_parser = MagicMock()
         mock_parser.extract_skills_from_vacancies.side_effect = Exception("Parser error")
         result = utils.extract_and_count_skills([{"id": 1}], mock_parser)
-        assert result == {"frequencies": {}, "tfidf_weights": {}}
+        assert result.is_err()
 
 
 class TestPrintTopCompetencies:
@@ -262,7 +262,7 @@ def test_read_json_permission_error(tmp_path):
     filepath.write_text('{"key": "value"}', encoding="utf-8")
     with patch("builtins.open", side_effect=PermissionError("Permission denied")):
         result = utils.read_json(filepath)
-        assert result is None
+        assert result.ok() is None
 
 
 def test_date_chunks():
@@ -309,7 +309,7 @@ def test_extract_and_count_skills_restore():
     mock_parser = MagicMock()
     mock_parser.extract_skills_from_vacancies.side_effect = Exception("Boom")
     result = utils.extract_and_count_skills([{"id": 1}], mock_parser)
-    assert result == {"frequencies": {}, "tfidf_weights": {}}
+    assert result.is_err()
 
 
 def test_filter_skills_by_whitelist_empty_whitelist():
@@ -373,7 +373,7 @@ def test_load_queries_from_file_error(tmp_path):
     filepath = tmp_path / "queries.txt"
     with patch("builtins.open", side_effect=OSError("error")):
         queries = utils.load_queries_from_file(filepath)
-        assert queries == []
+        assert queries.is_err()
 
 
 def test_interactive_config_region_selection_fallback():
@@ -393,7 +393,7 @@ def test_read_json_os_error(tmp_path):
     filepath.write_text('{"key":"value"}', encoding="utf-8")
     with patch("builtins.open", side_effect=OSError("Permission denied")):
         result = utils.read_json(filepath)
-        assert result is None
+        assert result.ok() is None
 
 
 def test_collect_vacancies_multiple_date_limit():

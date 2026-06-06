@@ -365,7 +365,6 @@ class TestRunFullPipeline:
         with stack:
             run_full_pipeline(args)
         mocks["logger"].error.assert_called()
-        mocks["sys_exit"].assert_called_once_with(1)
 
     # ── skip_collection ──
 

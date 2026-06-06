@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+from src import Ok, Err
 from src.pipeline.builder import PipelineBuilder
 from src.pipeline.stage import PipelineStage
 
@@ -69,7 +70,7 @@ def test_run_success(MockOrch):
     mock_run.status = "completed"
     mock_run.stages = []
     mock_orch = MagicMock()
-    mock_orch.run.return_value = mock_run
+    mock_orch.run.return_value = Ok(mock_run)
     MockOrch.return_value = mock_orch
 
     b = PipelineBuilder().with_stage(DummyStage())
@@ -85,7 +86,7 @@ def test_run_failure(MockOrch):
     mock_stage.error = "oops"
     mock_run.stages = [mock_stage]
     mock_orch = MagicMock()
-    mock_orch.run.return_value = mock_run
+    mock_orch.run.return_value = Ok(mock_run)
     MockOrch.return_value = mock_orch
 
     b = PipelineBuilder().with_stage(DummyStage())

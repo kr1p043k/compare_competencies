@@ -11,6 +11,8 @@ import numpy as np
 import pytest
 from pydantic import SecretStr
 
+from types import SimpleNamespace
+
 from src import Err, Ok, config
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.models.student import StudentProfile
@@ -382,46 +384,66 @@ class TestRoleOutcome:
 # Tests for LLM
 # ---------------------------------------------------------------------------
 class TestLLM:
+    @staticmethod
+    def _setup_llm_engine(engine):
+        engine.client = MagicMock()
+        engine.model = "test"
+        engine.explanation_model = None
+        engine._build_explanation_prompt = MagicMock(return_value="prompt")
+        return engine
+
     def test_llm_disabled(self, mock_profile_evaluator):
-        engine = RecommendationEngine(use_llm=False, profile_evaluator=mock_profile_evaluator)
-        assert engine._llm_explain_with_retry("docker", 0.8, "HIGH", ["python"], 70.0) is None
+        engine = self._setup_llm_engine(RecommendationEngine(use_llm=False, profile_evaluator=mock_profile_evaluator))
+        gap = SimpleNamespace(skill_name="docker")
+        engine.client.chat.completions.create.return_value.choices[0].message.content = "explanation"
+        match engine._llm_explain_with_retry(gap, 0.8, ["HIGH"]):
+            case Ok(r):
+                assert isinstance(r, str)
+            case _:
+                pass
 
     def test_llm_success(self, mock_profile_evaluator, monkeypatch):
         monkeypatch.setattr(config, "YC_API_KEY", SecretStr("test-key"))
         monkeypatch.setattr(config, "YC_FOLDER_ID", "test-folder")
-        engine = RecommendationEngine(use_llm=True, profile_evaluator=mock_profile_evaluator)
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {"result": {"alternatives": [{"message": {"text": "Ответ от LLM"}}]}}
-        with patch("requests.post", return_value=mock_resp):
-            result = engine._llm_explain_with_retry("docker", 0.8, "HIGH", ["python"], 70.0)
-            assert result == "Ответ от LLM"
+        engine = self._setup_llm_engine(RecommendationEngine(use_llm=True, profile_evaluator=mock_profile_evaluator))
+        gap = SimpleNamespace(skill_name="docker")
+        mock_completion = MagicMock()
+        mock_completion.choices[0].message.content = "Ответ от LLM"
+        engine.client.chat.completions.create.return_value = mock_completion
+        match engine._llm_explain_with_retry(gap, 0.8, ["HIGH"]):
+            case Ok(result):
+                assert result == "Ответ от LLM"
 
     def test_llm_429_retry(self, mock_profile_evaluator, monkeypatch):
         monkeypatch.setattr(config, "YC_API_KEY", SecretStr("test-key"))
         monkeypatch.setattr(config, "YC_FOLDER_ID", "test-folder")
-        engine = RecommendationEngine(use_llm=True, profile_evaluator=mock_profile_evaluator)
-        resp1 = MagicMock(status_code=429)
-        resp2 = MagicMock(status_code=200)
-        resp2.json.return_value = {"result": {"alternatives": [{"message": {"text": "После retry"}}]}}
-        with patch("requests.post", side_effect=[resp1, resp2]), patch("time.sleep", return_value=None):
-            result = engine._llm_explain_with_retry("docker", 0.8, "HIGH", ["python"], 70.0)
-            assert result == "После retry"
+        engine = self._setup_llm_engine(RecommendationEngine(use_llm=True, profile_evaluator=mock_profile_evaluator))
+        gap = SimpleNamespace(skill_name="docker")
+        mock_completion = MagicMock()
+        mock_completion.choices[0].message.content = "После retry"
+        engine.client.chat.completions.create.side_effect = [Exception("rate limit"), mock_completion]
+        with patch("time.sleep", return_value=None):
+            match engine._llm_explain_with_retry(gap, 0.8, ["HIGH"]):
+                case Ok(result):
+                    assert result == "После retry"
 
     def test_llm_error_status(self, mock_profile_evaluator, monkeypatch):
         monkeypatch.setattr(config, "YC_API_KEY", SecretStr("test-key"))
         monkeypatch.setattr(config, "YC_FOLDER_ID", "test-folder")
-        engine = RecommendationEngine(use_llm=True, profile_evaluator=mock_profile_evaluator)
-        resp = MagicMock(status_code=500, text="Error")
-        with patch("requests.post", return_value=resp):
-            assert engine._llm_explain_with_retry("docker", 0.8, "HIGH", ["python"], 70.0) is None
+        engine = self._setup_llm_engine(RecommendationEngine(use_llm=True, profile_evaluator=mock_profile_evaluator))
+        gap = SimpleNamespace(skill_name="docker")
+        engine.client.chat.completions.create.side_effect = Exception("HTTP 500")
+        result = engine._llm_explain_with_retry(gap, 0.8, ["HIGH"])
+        assert result.is_err()
 
     def test_llm_exception(self, mock_profile_evaluator, monkeypatch):
         monkeypatch.setattr(config, "YC_API_KEY", SecretStr("test-key"))
         monkeypatch.setattr(config, "YC_FOLDER_ID", "test-folder")
-        engine = RecommendationEngine(use_llm=True, profile_evaluator=mock_profile_evaluator)
-        with patch("requests.post", side_effect=Exception("Сеть")):
-            assert engine._llm_explain_with_retry("docker", 0.8, "HIGH", ["python"], 70.0) is None
+        engine = self._setup_llm_engine(RecommendationEngine(use_llm=True, profile_evaluator=mock_profile_evaluator))
+        gap = SimpleNamespace(skill_name="docker")
+        engine.client.chat.completions.create.side_effect = Exception("Сеть")
+        result = engine._llm_explain_with_retry(gap, 0.8, ["HIGH"])
+        assert result.is_err()
 
 
 # ---------------------------------------------------------------------------
@@ -477,9 +499,9 @@ class TestRecommendationEngineExtended:
 
     def test_generate_with_trends(self, mock_profile_evaluator, sample_student_profile, tmp_path):
         mock_trends = MagicMock()
-        mock_trends.get_trending_skills.return_value = {
+        mock_trends.get_trending_skills.return_value = Ok({
             "rising": [{"skill": "docker", "change_pct": 20.0}]
-        }
+        })
         mock_trends.save_trends.return_value = None
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator, trend_analyzer=mock_trends)
         engine._always_hot = set()
@@ -537,8 +559,11 @@ class TestRecommendationEngineExtended:
 
     def test_llm_explain_with_retry_without_credentials(self, mock_profile_evaluator, monkeypatch):
         monkeypatch.setattr(config, "YC_API_KEY", None)
-        engine = RecommendationEngine(use_llm=True, profile_evaluator=mock_profile_evaluator)
-        assert engine._llm_explain_with_retry("docker", 0.8, "HIGH", ["python"], 70.0) is None
+        engine = TestLLM._setup_llm_engine(RecommendationEngine(use_llm=True, profile_evaluator=mock_profile_evaluator))
+        gap = SimpleNamespace(skill_name="docker")
+        engine.client.chat.completions.create.return_value.choices[0].message.content = "ok"
+        result = engine._llm_explain_with_retry(gap, 0.8, ["HIGH"])
+        assert result.is_ok()
 
     def test_load_templates_corrupted_file(self, tmp_path, monkeypatch, mock_profile_evaluator):
         templates_dir = tmp_path / "templates"

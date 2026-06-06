@@ -75,7 +75,7 @@ class TestTrendAnalyzer:
             json.dump(sample_current_freq, f)
 
         snapshots = analyzer.load_all_snapshots()
-        assert len(snapshots) >= 2
+        assert len(snapshots.ok()) >= 2
 
     def test_get_snapshots_for_analysis(self, tmp_path, sample_current_freq, sample_prev_freq):
         analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
@@ -85,56 +85,56 @@ class TestTrendAnalyzer:
             json.dump(sample_current_freq, f)
 
         snapshots = analyzer.get_snapshots_for_analysis(n=1)
-        assert len(snapshots) == 1
+        assert len(snapshots.ok()) == 1
 
     def test_get_trending_skills_with_previous(self, sample_current_freq, sample_prev_freq, tmp_path):
         analyzer = TrendAnalyzer(sample_current_freq, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=sample_prev_freq)
-        assert isinstance(trends["rising"], list)
-        assert isinstance(trends["falling"], list)
-        assert any(r["skill"] == "llm" for r in trends["rising"])
-        assert any(r["skill"] == "fastapi" for r in trends["rising"])
+        assert isinstance(trends.ok()["rising"], list)
+        assert isinstance(trends.ok()["falling"], list)
+        assert any(r["skill"] == "llm" for r in trends.ok()["rising"])
+        assert any(r["skill"] == "fastapi" for r in trends.ok()["rising"])
 
     def test_get_trending_skills_no_previous_no_snapshots(self, sample_current_freq, tmp_path):
         analyzer = TrendAnalyzer(sample_current_freq, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills()
-        assert trends == {"rising": [], "falling": []}
+        assert trends.ok() == {"rising": [], "falling": []}
 
     def test_get_trending_skills_empty_current(self, sample_prev_freq, tmp_path):
         analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(previous_snapshot=sample_prev_freq)
-        assert isinstance(trends["rising"], list)
-        assert isinstance(trends["falling"], list)
+        assert isinstance(trends.ok()["rising"], list)
+        assert isinstance(trends.ok()["falling"], list)
 
     def test_get_emerging_skills(self, sample_current_freq, tmp_path):
         analyzer = TrendAnalyzer(sample_current_freq, historical_dir=tmp_path)
         emerging = analyzer.get_emerging_skills(min_weight=0.05, top_n=10)
-        assert isinstance(emerging, list)
+        assert isinstance(emerging.ok(), list)
 
     def test_get_emerging_skills_empty(self, tmp_path):
         analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
         emerging = analyzer.get_emerging_skills()
-        assert emerging == []
+        assert emerging.ok() == []
 
     def test_get_stable_skills(self, sample_current_freq, tmp_path):
         analyzer = TrendAnalyzer(sample_current_freq, historical_dir=tmp_path)
         stable = analyzer.get_stable_skills(top_n=3)
-        assert len(stable) <= 3
-        if stable:
-            assert "weight" in stable[0]
-            assert "stability" in stable[0]
+        assert len(stable.ok()) <= 3
+        if stable.ok():
+            assert "weight" in stable.ok()[0]
+            assert "stability" in stable.ok()[0]
 
     def test_get_stable_skills_empty(self, tmp_path):
         analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
         stable = analyzer.get_stable_skills()
-        assert stable == []
+        assert stable.ok() == []
 
     def test_get_stable_skills_all_equal(self, tmp_path):
         freq = {"a": 10, "b": 10, "c": 10}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         stable = analyzer.get_stable_skills()
-        assert len(stable) == 3
-        for s in stable:
+        assert len(stable.ok()) == 3
+        for s in stable.ok():
             assert s["stability"] == "STABLE"
 
     def test_get_skill_timeline(self, sample_current_freq, sample_prev_freq, tmp_path):
@@ -146,16 +146,16 @@ class TestTrendAnalyzer:
             (dt2, Path("freq_2024-02-01.json"), sample_current_freq),
         ]
         timeline = analyzer.get_skill_timeline(["python", "llm"], snapshots)
-        assert len(timeline["python"]) == 2
-        assert timeline["python"][0] == (dt1, 100)
-        assert timeline["python"][1] == (dt2, 120)
+        assert len(timeline.ok()["python"]) == 2
+        assert timeline.ok()["python"][0] == (dt1, 100)
+        assert timeline.ok()["python"][1] == (dt2, 120)
 
     def test_load_file(self, tmp_path, sample_current_freq):
         path = tmp_path / "test.json"
         with open(path, "w") as f:
             json.dump(sample_current_freq, f)
         data = TrendAnalyzer.load_file(path)
-        assert data == sample_current_freq
+        assert data.ok() == sample_current_freq
 
     def test_save_snapshot_with_validator(self, tmp_path, sample_current_freq):
         analyzer = TrendAnalyzer(sample_current_freq, historical_dir=tmp_path)
@@ -197,7 +197,7 @@ class TestTrendAnalyzerFull:
     def test_get_emerging_skills_with_specific_keywords(self, sample_freq, tmp_path):
         analyzer = TrendAnalyzer(sample_freq, historical_dir=tmp_path)
         emerging = analyzer.get_emerging_skills(min_weight=0.05, top_n=20)
-        llm_item = next((e for e in emerging if e["skill"] == "llm"), None)
+        llm_item = next((e for e in emerging.ok() if e["skill"] == "llm"), None)
         if llm_item:
             assert llm_item["potential"] == "RISING"
 
@@ -205,7 +205,7 @@ class TestTrendAnalyzerFull:
         freq = {"python": 100, "sql": 10, "docker": 8, "git": 7}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         stable = analyzer.get_stable_skills()
-        python_item = next((s for s in stable if s["skill"] == "python"), None)
+        python_item = next((s for s in stable.ok() if s["skill"] == "python"), None)
         if python_item:
             assert python_item["stability"] == "CRITICAL"
 
@@ -224,15 +224,15 @@ class TestTrendAnalyzerFull:
             (dt2, Path("f2.json"), sample_freq),
         ]
         timeline = analyzer.get_skill_timeline([], snapshots)
-        assert isinstance(timeline, dict)
-        assert len(timeline) == 0
+        assert isinstance(timeline.ok(), dict)
+        assert len(timeline.ok()) == 0
 
     def test_get_skill_timeline_missing_skill(self, sample_freq, sample_prev, tmp_path):
         analyzer = TrendAnalyzer(sample_freq, historical_dir=tmp_path)
         dt1 = datetime(2024, 1, 1)
         snapshots = [(dt1, Path("f1.json"), sample_prev)]
         timeline = analyzer.get_skill_timeline(["nonexistent"], snapshots)
-        assert timeline["nonexistent"][0][1] == 0
+        assert timeline.ok()["nonexistent"][0][1] == 0
 
     def test_extract_date_formats(self, tmp_path):
         analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
@@ -250,7 +250,7 @@ class TestTrendAnalyzerFull:
         prev = {"python": 100}
         analyzer = TrendAnalyzer(sample_freq, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(previous_snapshot=prev)
-        fastapi_in_rising = any(r["skill"] == "fastapi" for r in trends["rising"])
+        fastapi_in_rising = any(r["skill"] == "fastapi" for r in trends.ok()["rising"])
         assert not fastapi_in_rising
 
 
@@ -268,7 +268,7 @@ class TestTrendAnalyzerPlots:
         save_path = tmp_path / "trending.png"
         with patch("matplotlib.pyplot.savefig") as mock_save:
             result = analyzer.plot_trending(top_n=10, save_path=save_path, previous_snapshot=prev)
-            if result is not None:
+            if result.ok() is not None:
                 mock_save.assert_called()
 
     def test_plot_trending_no_significant_trends(self, tmp_path):
@@ -276,7 +276,7 @@ class TestTrendAnalyzerPlots:
         prev = {"python": 100, "sql": 100}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         result = analyzer.plot_trending(top_n=10, save_path=None, previous_snapshot=prev)
-        assert result is None
+        assert result.ok() is None
 
     def test_plot_timeline(self, tmp_path, freq, prev):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
@@ -293,23 +293,23 @@ class TestTrendAnalyzerPlots:
         dt1 = datetime(2024, 1, 1)
         snapshots = [(dt1, Path("f1.json"), freq)]
         result = analyzer.plot_timeline(["python"], snapshots=snapshots)
-        assert result is None
+        assert result.ok() is None
 
     def test_get_trending_skills_falling_only(self, tmp_path):
         current = {"python": 50}
         prev = {"python": 100}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=prev)
-        assert len(trends["rising"]) == 0
-        assert len(trends["falling"]) > 0
-        assert trends["falling"][0]["skill"] == "python"
-        assert trends["falling"][0]["change_pct"] == -50.0
+        assert len(trends.ok()["rising"]) == 0
+        assert len(trends.ok()["falling"]) > 0
+        assert trends.ok()["falling"][0]["skill"] == "python"
+        assert trends.ok()["falling"][0]["change_pct"] == -50.0
 
     def test_get_stable_skills_critical_threshold(self, tmp_path):
         freq = {"critical": 100, "normal": 20, "low": 15}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         stable = analyzer.get_stable_skills()
-        critical_item = next((s for s in stable if s["skill"] == "critical"), None)
+        critical_item = next((s for s in stable.ok() if s["skill"] == "critical"), None)
         assert critical_item is not None
         assert critical_item["stability"] == "CRITICAL"
 
@@ -323,7 +323,7 @@ class TestTrendAnalyzerPlots:
         snapshots = [(dt1, Path("f1.json"), prev), (dt2, Path("f2.json"), freq)]
         with patch("matplotlib.pyplot.savefig"):
             result = analyzer.plot_timeline(["python"], snapshots=snapshots, save_path=save_path)
-            assert result is not None
+            assert result.ok() is not None
 
     def test_plot_trending_with_rising_and_falling(self, tmp_path):
         current = {"python": 200, "sql": 50, "docker": 100}
@@ -341,7 +341,7 @@ class TestTrendAnalyzerPlots:
         save_path = tmp_path / "trending_rising.png"
         with patch("matplotlib.pyplot.savefig") as mock_save:
             result = analyzer.plot_trending(top_n=10, save_path=save_path, previous_snapshot=prev)
-            assert result is not None
+            assert result.ok() is not None
             mock_save.assert_called()
 
     def test_plot_timeline_with_custom_formatting(self, tmp_path, freq, prev):
@@ -397,28 +397,28 @@ class TestTrendAnalyzerPlots:
         with open(tmp_path / "freq_valid.json", "w") as f:
             json.dump(sample_current_freq, f)
         snapshots = analyzer.load_all_snapshots()
-        assert len(snapshots) == 1
+        assert len(snapshots.ok()) == 1
 
     def test_get_emerging_skills_with_cloud_keywords(self, tmp_path):
         freq = {"python": 200, "sql": 150, "aws": 12, "azure": 8, "gcp": 5, "terraform": 15}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         emerging = analyzer.get_emerging_skills(min_weight=0.03, top_n=20)
-        cloud_skills = [e for e in emerging if e["potential"] == "RISING"]
+        cloud_skills = [e for e in emerging.ok() if e["potential"] == "RISING"]
         assert len(cloud_skills) >= 0
 
     def test_get_stable_skills_with_high_threshold(self, tmp_path):
         freq = {"super_critical": 200, "critical": 100, "medium": 50, "low": 10}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         stable = analyzer.get_stable_skills()
-        super_item = next((s for s in stable if s["skill"] == "super_critical"), None)
+        super_item = next((s for s in stable.ok() if s["skill"] == "super_critical"), None)
         if super_item:
             assert super_item["stability"] == "CRITICAL"
 
     def test_save_snapshot_with_apply_whitelist_true(self, tmp_path, freq):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         path = analyzer.save_snapshot(freq, label="whitelist", apply_whitelist=True)
-        assert path.exists()
-        with open(path, encoding="utf-8") as f:
+        assert path.ok().exists()
+        with open(path.ok(), encoding="utf-8") as f:
             saved = json.load(f)
         assert isinstance(saved, dict)
 
@@ -427,8 +427,8 @@ class TestTrendAnalyzerPlots:
         prev = {"legacy_skill": 100}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=prev)
-        assert len(trends["falling"]) > 0
-        assert trends["falling"][0]["change_pct"] == -90.0
+        assert len(trends.ok()["falling"]) > 0
+        assert trends.ok()["falling"][0]["change_pct"] == -90.0
 
     def test_plot_timeline_mdates_formatting(self, tmp_path, freq, prev):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
@@ -446,7 +446,7 @@ class TestTrendAnalyzerPlots:
         snapshots = [(dt1, Path("f1.json"), prev), (dt2, Path("f2.json"), freq)]
         with patch("matplotlib.pyplot.savefig") as mock_save:
             result = analyzer.plot_timeline(["python"], snapshots=snapshots, save_path=None)
-            assert result is not None
+            assert result.ok() is not None
             mock_save.assert_not_called()
 
     def test_trend_module_can_be_imported(self):
@@ -458,16 +458,16 @@ class TestTrendAnalyzerPlots:
         prev = {"python": 100, "sql": 100}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=1.0, previous_snapshot=prev)
-        assert len(trends["rising"]) == 0
-        assert len(trends["falling"]) == 0
+        assert len(trends.ok()["rising"]) == 0
+        assert len(trends.ok()["falling"]) == 0
 
     def test_get_trending_skills_rising_only(self, tmp_path):
         current = {"python": 200, "sql": 150, "docker": 100}
         prev = {"python": 100, "sql": 100, "docker": 100}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=prev)
-        assert len(trends["rising"]) >= 1
-        assert len(trends["falling"]) == 0
+        assert len(trends.ok()["rising"]) >= 1
+        assert len(trends.ok()["falling"]) == 0
 
     def test_plot_trending_only_falling(self, tmp_path):
         current = {"python": 50, "sql": 40}
@@ -476,14 +476,14 @@ class TestTrendAnalyzerPlots:
         save_path = tmp_path / "trending_fall.png"
         with patch("matplotlib.pyplot.savefig") as mock_save:
             result = analyzer.plot_trending(top_n=10, save_path=save_path, previous_snapshot=prev)
-            assert result is not None
+            assert result.ok() is not None
             mock_save.assert_called()
 
     def test_get_emerging_skills_cloud_potential(self):
         freq = {"aws": 3, "azure": 2, "kubernetes": 1, "python": 200}
         analyzer = TrendAnalyzer(freq)
         emerging = analyzer.get_emerging_skills(min_weight=0.02, top_n=10)
-        cloud_skills = [e for e in emerging if e["skill"] in ("aws", "azure", "kubernetes")]
+        cloud_skills = [e for e in emerging.ok() if e["skill"] in ("aws", "azure", "kubernetes")]
         assert len(cloud_skills) == 3
         for cs in cloud_skills:
             assert cs["potential"] == "RISING"
@@ -492,7 +492,7 @@ class TestTrendAnalyzerPlots:
         freq = {"new_tech": 3, "python": 200}
         analyzer = TrendAnalyzer(freq)
         emerging = analyzer.get_emerging_skills(min_weight=0.02, top_n=10)
-        new_tech = next((e for e in emerging if e["skill"] == "new_tech"), None)
+        new_tech = next((e for e in emerging.ok() if e["skill"] == "new_tech"), None)
         if new_tech:
             assert new_tech["potential"] == "STABLE"
 
@@ -500,14 +500,14 @@ class TestTrendAnalyzerPlots:
         freq = {"a": 10, "b": 10, "c": 10}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         stable = analyzer.get_stable_skills(top_n=10)
-        for s in stable:
+        for s in stable.ok():
             assert s["stability"] == "STABLE"
 
     def test_get_stable_skills_critical_boundary(self, tmp_path):
         freq = {"critical": 100, "normal": 50}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         stable = analyzer.get_stable_skills(top_n=10)
-        critical_item = next((s for s in stable if s["skill"] == "critical"), None)
+        critical_item = next((s for s in stable.ok() if s["skill"] == "critical"), None)
         if critical_item:
             assert critical_item["stability"] == "STABLE"
 
@@ -515,7 +515,7 @@ class TestTrendAnalyzerPlots:
         freq = {"ultra_critical": 300, "normal": 50, "low": 25}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         stable = analyzer.get_stable_skills(top_n=10)
-        ultra = next((s for s in stable if s["skill"] == "ultra_critical"), None)
+        ultra = next((s for s in stable.ok() if s["skill"] == "ultra_critical"), None)
         if ultra:
             assert ultra["stability"] == "CRITICAL"
 
@@ -523,15 +523,15 @@ class TestTrendAnalyzerPlots:
         freq = {"new_tool": 3, "python": 200}
         analyzer = TrendAnalyzer(freq)
         emerging = analyzer.get_emerging_skills(min_weight=0.02, top_n=10)
-        new_tool = next((e for e in emerging if e["skill"] == "new_tool"), None)
+        new_tool = next((e for e in emerging.ok() if e["skill"] == "new_tool"), None)
         if new_tool:
             assert new_tool["potential"] == "STABLE"
 
     def test_save_snapshot_without_whitelist(self, tmp_path, freq):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         path = analyzer.save_snapshot(freq, label="no_filter", apply_whitelist=False)
-        assert path.exists()
-        with open(path, encoding="utf-8") as f:
+        assert path.ok().exists()
+        with open(path.ok(), encoding="utf-8") as f:
             saved = json.load(f)
         assert len(saved) == len(freq)
 
@@ -540,8 +540,8 @@ class TestTrendAnalyzerPlots:
         prev = {"python": 100}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=1.0, previous_snapshot=prev)
-        assert len(trends["rising"]) == 0
-        assert len(trends["falling"]) == 0
+        assert len(trends.ok()["rising"]) == 0
+        assert len(trends.ok()["falling"]) == 0
 
     def test_plot_timeline_returns_figure(self, freq, prev, tmp_path):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
@@ -550,29 +550,29 @@ class TestTrendAnalyzerPlots:
         snapshots = [(dt1, Path("f1.json"), prev), (dt2, Path("f2.json"), freq)]
         with patch("matplotlib.pyplot.savefig"):
             result = analyzer.plot_timeline(["python"], snapshots=snapshots)
-            assert result is not None
+            assert result.ok() is not None
 
     def test_plot_trending_returns_figure(self, tmp_path, freq, prev):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         with patch("matplotlib.pyplot.savefig"):
             result = analyzer.plot_trending(top_n=5, save_path=None, previous_snapshot=prev)
-            if result is not None:
+            if result.ok() is not None:
                 import matplotlib.figure
-                assert isinstance(result, matplotlib.figure.Figure)
+                assert isinstance(result.ok(), matplotlib.figure.Figure)
 
     def test_get_trending_skills_auto_previous_with_files(self, tmp_path):
         current = {"python": 200}
         prev = {"python": 100}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=prev)
-        assert len(trends["rising"]) > 0
-        assert trends["rising"][0]["prev_label"] == "предыдущий"
+        assert len(trends.ok()["rising"]) > 0
+        assert trends.ok()["rising"][0]["prev_label"] == "предыдущий"
 
     def test_trend_analyzer_load_file(self, tmp_path):
         test_file = tmp_path / "test.json"
         test_file.write_text('{"python": 100, "sql": 50}', encoding="utf-8")
         data = TrendAnalyzer.load_file(test_file)
-        assert data == {"python": 100, "sql": 50}
+        assert data.ok() == {"python": 100, "sql": 50}
 
     def test_get_snapshots_for_analysis_all(self, tmp_path):
         for i in range(3):
@@ -580,13 +580,13 @@ class TestTrendAnalyzerPlots:
             snap.write_text(json.dumps({"python": 100 + i * 50}))
         analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
         snapshots = analyzer.get_snapshots_for_analysis()
-        assert len(snapshots) == 3
+        assert len(snapshots.ok()) == 3
 
     def test_save_snapshot_no_whitelist_no_label(self, tmp_path, freq):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         path = analyzer.save_snapshot(freq, apply_whitelist=False)
-        assert path.exists()
-        with open(path, encoding="utf-8") as f:
+        assert path.ok().exists()
+        with open(path.ok(), encoding="utf-8") as f:
             saved = json.load(f)
         assert len(saved) == len(freq)
 
@@ -595,15 +595,15 @@ class TestTrendAnalyzerPlots:
         prev = {"python": 100}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=prev)
-        assert len(trends["rising"]) == 1
+        assert len(trends.ok()["rising"]) == 1
 
     def test_get_trending_skills_falling_edge(self, tmp_path):
         current = {"python": 90}
         prev = {"python": 100}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=prev)
-        assert len(trends["falling"]) == 1
-        assert trends["falling"][0]["change_pct"] == -10.0
+        assert len(trends.ok()["falling"]) == 1
+        assert trends.ok()["falling"][0]["change_pct"] == -10.0
 
     def test_plot_trending_no_rising_only_falling(self, tmp_path):
         current = {"python": 50}
@@ -612,7 +612,7 @@ class TestTrendAnalyzerPlots:
         save_path = tmp_path / "trending_fall.png"
         with patch("matplotlib.pyplot.savefig") as mock_save:
             result = analyzer.plot_trending(top_n=10, save_path=save_path, previous_snapshot=prev)
-            assert result is not None
+            assert result.ok() is not None
             mock_save.assert_called()
 
     def test_plot_timeline_empty_skills(self, freq, prev, tmp_path):
@@ -622,7 +622,7 @@ class TestTrendAnalyzerPlots:
         snapshots = [(dt1, Path("f1.json"), prev), (dt2, Path("f2.json"), freq)]
         with patch("matplotlib.pyplot.savefig"):
             result = analyzer.plot_timeline([], snapshots=snapshots)
-            assert result is not None
+            assert result.ok() is not None
 
 
 class TestTrendAnalyzerCLI:
@@ -630,7 +630,7 @@ class TestTrendAnalyzerCLI:
         freq = {"python": 200, "sql": 150, "aws-lambda": 5, "azure-functions": 3, "llm-integration": 4, "k8s-operator": 6}
         analyzer = TrendAnalyzer(freq)
         emerging = analyzer.get_emerging_skills(min_weight=0.04, top_n=20)
-        for e in emerging:
+        for e in emerging.ok():
             if any(kw in e["skill"] for kw in ["aws", "azure", "llm", "k8s"]):
                 assert e["potential"] == "RISING"
 
@@ -638,7 +638,7 @@ class TestTrendAnalyzerCLI:
         freq = {"python": 200, "new_tool": 3}
         analyzer = TrendAnalyzer(freq)
         emerging = analyzer.get_emerging_skills(min_weight=0.02, top_n=10)
-        new_tool = next((e for e in emerging if e["skill"] == "new_tool"), None)
+        new_tool = next((e for e in emerging.ok() if e["skill"] == "new_tool"), None)
         if new_tool:
             assert new_tool["potential"] == "STABLE"
 
@@ -646,7 +646,7 @@ class TestTrendAnalyzerCLI:
         test_file = tmp_path / "test.json"
         test_file.write_text('{"python": 100, "sql": 50}', encoding="utf-8")
         data = TrendAnalyzer.load_file(test_file)
-        assert data == {"python": 100, "sql": 50}
+        assert data.ok() == {"python": 100, "sql": 50}
 
     def test_extract_date_formats(self, tmp_path):
         analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
@@ -668,15 +668,15 @@ class TestTrendAnalyzerCLI:
         (tmp_path / "freq_broken.json").write_text("{invalid")
         (tmp_path / "freq_2024-01-01.json").write_text('{"python": 100}')
         snapshots = analyzer.load_all_snapshots()
-        assert len(snapshots) == 1
+        assert len(snapshots.ok()) == 1
 
     def test_get_snapshots_for_analysis_n(self, tmp_path):
         for i in range(5):
             snap = tmp_path / f"freq_2024-0{i+1}-01.json"
             snap.write_text(json.dumps({"python": 100 + i * 10}))
         analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
-        assert len(analyzer.get_snapshots_for_analysis()) == 5
-        assert len(analyzer.get_snapshots_for_analysis(n=2)) == 2
+        assert len(analyzer.get_snapshots_for_analysis().ok()) == 5
+        assert len(analyzer.get_snapshots_for_analysis(n=2).ok()) == 2
 
     def test_plot_timeline_without_save(self, tmp_path, sample_current_freq, sample_prev_freq):
         analyzer = TrendAnalyzer(sample_current_freq, historical_dir=tmp_path)
@@ -685,7 +685,7 @@ class TestTrendAnalyzerCLI:
         snapshots = [(dt1, Path("f1.json"), sample_prev_freq), (dt2, Path("f2.json"), sample_current_freq)]
         with patch("matplotlib.pyplot.savefig") as mock_save:
             result = analyzer.plot_timeline(["python"], snapshots=snapshots, save_path=None)
-            assert result is not None
+            assert result.ok() is not None
             mock_save.assert_not_called()
 
     def test_plot_trending_no_significant_trends(self, tmp_path):
@@ -693,7 +693,7 @@ class TestTrendAnalyzerCLI:
         prev = {"python": 100, "sql": 100}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         result = analyzer.plot_trending(top_n=10, save_path=None, previous_snapshot=prev)
-        assert result is None
+        assert result.ok() is None
 
     def test_plot_trending_only_rising(self, tmp_path):
         current = {"python": 150, "docker": 120}
@@ -701,7 +701,7 @@ class TestTrendAnalyzerCLI:
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         with patch("matplotlib.pyplot.savefig") as mock_save:
             result = analyzer.plot_trending(top_n=10, save_path=tmp_path / "test.png", previous_snapshot=prev)
-            assert result is not None
+            assert result.ok() is not None
             mock_save.assert_called()
 
     def test_get_trending_skills_with_prev_label(self, tmp_path):
@@ -709,7 +709,7 @@ class TestTrendAnalyzerCLI:
         sample_prev = {"python": 100, "sql": 95, "docker": 60}
         analyzer = TrendAnalyzer(sample_freq, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(previous_snapshot=sample_prev, prev_label="custom_label")
-        for r in trends.get("rising", []):
+        for r in trends.ok().get("rising", []):
             assert r["prev_label"] == "custom_label"
 
     def test_get_trending_skills_equal_frequencies(self, tmp_path):
@@ -717,8 +717,8 @@ class TestTrendAnalyzerCLI:
         prev = {"python": 100, "sql": 100}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(min_change_percent=1.0, previous_snapshot=prev)
-        assert len(trends["rising"]) == 0
-        assert len(trends["falling"]) == 0
+        assert len(trends.ok()["rising"]) == 0
+        assert len(trends.ok()["falling"]) == 0
 
 
 class TestTrendAnalyzerExtended:
@@ -727,9 +727,9 @@ class TestTrendAnalyzerExtended:
         analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
         trends = {"rising": [{"skill": "python", "change_pct": 10.0}], "falling": []}
         path = analyzer.save_trends(trends, tag="test")
-        assert path.exists()
+        assert path.ok().exists()
         import json
-        with open(path, encoding="utf-8") as f:
+        with open(path.ok(), encoding="utf-8") as f:
             data = json.load(f)
         assert "rising" in data
 
@@ -742,8 +742,8 @@ class TestTrendAnalyzerExtended:
         with open(tmp_path / "freq_2024-06-01.json", "w") as f:
             json.dump(freq, f)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=5.0)
-        assert len(trends["rising"]) > 0
-        for r in trends["rising"]:
+        assert len(trends.ok()["rising"]) > 0
+        for r in trends.ok()["rising"]:
             assert r["prev_label"] == "2024-01-01"
 
     def test_plot_timeline_empty_points_skip(self, tmp_path):
@@ -755,4 +755,4 @@ class TestTrendAnalyzerExtended:
         from unittest.mock import patch
         with patch("matplotlib.pyplot.savefig"), patch("matplotlib.pyplot.close"):
             result = analyzer.plot_timeline(["nonexistent", "python"], snapshots=snapshots)
-            assert result is not None
+            assert result.ok() is not None

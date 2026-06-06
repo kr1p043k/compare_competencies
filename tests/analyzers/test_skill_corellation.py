@@ -51,7 +51,7 @@ class TestSkillCorrelationAnalyzer:
         analyzer = SkillCorrelationAnalyzer()
         analyzer.fit(sample_vacancies)
 
-        top = analyzer.get_top_skills(top_n=3)
+        top = analyzer.get_top_skills(top_n=3).ok()
         assert len(top) <= 3
         assert isinstance(top, list)
         # python должен быть в топе (самый частый)
@@ -60,7 +60,7 @@ class TestSkillCorrelationAnalyzer:
     def test_get_top_skills_empty(self):
         """get_top_skills без fit"""
         analyzer = SkillCorrelationAnalyzer()
-        top = analyzer.get_top_skills(top_n=5)
+        top = analyzer.get_top_skills(top_n=5).ok()
         assert top == []
 
     def test_get_correlation_matrix(self, sample_vacancies):
@@ -68,7 +68,7 @@ class TestSkillCorrelationAnalyzer:
         analyzer = SkillCorrelationAnalyzer()
         analyzer.fit(sample_vacancies)
 
-        matrix = analyzer.get_correlation_matrix(top_n=5)
+        matrix = analyzer.get_correlation_matrix(top_n=5).ok()
         assert isinstance(matrix, np.ndarray)
         assert matrix.shape[0] <= 5
         assert matrix.shape[1] <= 5
@@ -79,7 +79,7 @@ class TestSkillCorrelationAnalyzer:
     def test_get_correlation_matrix_empty(self):
         """get_correlation_matrix без fit"""
         analyzer = SkillCorrelationAnalyzer()
-        matrix = analyzer.get_correlation_matrix(top_n=5)
+        matrix = analyzer.get_correlation_matrix(top_n=5).ok()
         assert matrix.shape == (0, 0)
 
     def test_get_correlation_labeled(self, sample_vacancies):
@@ -87,7 +87,7 @@ class TestSkillCorrelationAnalyzer:
         analyzer = SkillCorrelationAnalyzer()
         analyzer.fit(sample_vacancies)
 
-        skills, matrix = analyzer.get_correlation_labeled(top_n=5)
+        skills, matrix = analyzer.get_correlation_labeled(top_n=5).ok()
         assert isinstance(skills, list)
         assert isinstance(matrix, np.ndarray)
         assert len(skills) == matrix.shape[0]
@@ -98,7 +98,7 @@ class TestSkillCorrelationAnalyzer:
         analyzer = SkillCorrelationAnalyzer()
         analyzer.fit(sample_vacancies)
 
-        skills, matrix = analyzer.get_correlation_labeled(skills=["python", "sql", "docker"])
+        skills, matrix = analyzer.get_correlation_labeled(skills=["python", "sql", "docker"]).ok()
         assert skills == ["python", "sql", "docker"]
         assert matrix.shape == (3, 3)
 
@@ -107,7 +107,7 @@ class TestSkillCorrelationAnalyzer:
         analyzer = SkillCorrelationAnalyzer()
         analyzer.fit(sample_vacancies)
 
-        related = analyzer.get_related_skills("python", top_k=3, min_cooccurrence=1)
+        related = analyzer.get_related_skills("python", top_k=3, min_cooccurrence=1).ok()
         assert isinstance(related, list)
         if related:
             assert isinstance(related[0], tuple)
@@ -118,13 +118,13 @@ class TestSkillCorrelationAnalyzer:
         analyzer = SkillCorrelationAnalyzer()
         analyzer.fit(sample_vacancies)
 
-        related = analyzer.get_related_skills("unknown_skill")
+        related = analyzer.get_related_skills("unknown_skill").ok()
         assert related == []
 
     def test_get_related_skills_not_fitted(self):
         """get_related_skills без fit"""
         analyzer = SkillCorrelationAnalyzer()
-        related = analyzer.get_related_skills("python")
+        related = analyzer.get_related_skills("python").ok()
         assert related == []
 
     def test_high_correlation_python_sql(self, sample_vacancies):
@@ -132,7 +132,7 @@ class TestSkillCorrelationAnalyzer:
         analyzer = SkillCorrelationAnalyzer()
         analyzer.fit(sample_vacancies)
 
-        related = analyzer.get_related_skills("python", top_k=10, min_cooccurrence=1)
+        related = analyzer.get_related_skills("python", top_k=10, min_cooccurrence=1).ok()
         related_skills = [r[0] for r in related]
         # sql или docker часто встречаются с python
         assert "sql" in related_skills or "docker" in related_skills
@@ -142,7 +142,7 @@ class TestSkillCorrelationAnalyzer:
         analyzer = SkillCorrelationAnalyzer()
         analyzer.fit(sample_vacancies)
 
-        matrix = analyzer.get_correlation_matrix(top_n=5)
+        matrix = analyzer.get_correlation_matrix(top_n=5).ok()
         if len(matrix) > 0:
             assert np.allclose(matrix, matrix.T)
 
@@ -151,7 +151,7 @@ class TestSkillCorrelationAnalyzer:
         analyzer = SkillCorrelationAnalyzer()
         analyzer.fit(sample_vacancies)
 
-        matrix = analyzer.get_correlation_matrix(top_n=5)
+        matrix = analyzer.get_correlation_matrix(top_n=5).ok()
         if len(matrix) > 0:
             assert np.allclose(np.diag(matrix), 1.0)
 
@@ -160,7 +160,7 @@ class TestSkillCorrelationAnalyzer:
         analyzer = SkillCorrelationAnalyzer()
         analyzer.fit(sample_vacancies)
 
-        matrix = analyzer.get_correlation_matrix(top_n=5)
+        matrix = analyzer.get_correlation_matrix(top_n=5).ok()
         if len(matrix) > 0:
             assert np.all(matrix >= 0.0)
             assert np.all(matrix <= 1.0)

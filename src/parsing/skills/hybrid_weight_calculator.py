@@ -17,6 +17,7 @@ class HybridWeightCalculator:
         self.cache = embedding_cache or SkillEmbeddingCache()
 
     def calculate(self, vacancies: list) -> Result[dict[str, float], DomainError]:
+        bm25_weights: dict[str, float] = {}
         match self.bm25.calculate_weights(vacancies):
             case Ok(w):
                 bm25_weights = w

@@ -57,11 +57,9 @@ class TestSkillExtractorExtract:
                         with patch("src.pipeline.skill_extractor.TrendAnalyzer") as MockTA:
                             ta_instance = MagicMock()
                             MockTA.return_value = ta_instance
-                            with patch("src.pipeline.skill_extractor.print_top_skills"):
-                                with patch("src.pipeline.skill_extractor.parser") as mock_parser_mod:
-                                    mock_p = MagicMock()
-                                    mock_parser_mod.save_processed_frequencies = mock_p
-                                    result = extractor.extract(vacancies, parser, raw_file=Path("test.json"))
+                    with patch("src.pipeline.skill_extractor.print_top_skills"):
+                        parser.save_processed_frequencies.return_value = Ok(None)
+                        result = extractor.extract(vacancies, parser, raw_file=Path("test.json"))
 
         assert result.is_ok()
         freqs, weights, ta = result.unwrap()
@@ -257,13 +255,15 @@ class TestSkillExtractorExtract:
     def test_extract_top_level_exception(self, extractor, vacancies, parser, tmp_path):
         cache_file = tmp_path / "cache" / "parsed_skills_cache.json"
         cache_cfg = _make_mock_config(cache_file)
+        raw_file = tmp_path / "test.json"
+        raw_file.write_text("[]", encoding="utf-8")
 
         with patch("src.pipeline.skill_extractor.config", cache_cfg):
             with patch("src.pipeline.skill_extractor.CacheManager") as MockCM:
                 cm_instance = MagicMock()
                 MockCM.return_value = cm_instance
                 cm_instance.load.side_effect = ValueError("unexpected boom")
-                result = extractor.extract(vacancies, parser, raw_file=Path("test.json"))
+                result = extractor.extract(vacancies, parser, raw_file=raw_file)
         assert result.is_err()
 
     def test_get_file_hash(self, extractor, tmp_path):

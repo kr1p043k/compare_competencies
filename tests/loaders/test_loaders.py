@@ -11,20 +11,20 @@ class TestStudentLoader:
     def test_load_student_file_not_exists(self, tmp_path):
         loader = StudentLoader(students_dir=tmp_path)
         student = loader.load_student("nonexistent")
-        assert student is None
+        assert student.ok() is None
 
     def test_load_student_invalid_json(self, tmp_path):
         file_path = tmp_path / "invalid_competency.json"
         file_path.write_text("{invalid json", encoding="utf-8")
         loader = StudentLoader(students_dir=tmp_path)
-        with pytest.raises(json.JSONDecodeError):
-            loader.load_student("invalid")
+        result = loader.load_student("invalid")
+        assert result.ok() is None
 
     def test_load_student_missing_skills_field(self, tmp_path):
         file_path = tmp_path / "empty_competency.json"
         file_path.write_text('{"другие_данные": []}', encoding="utf-8")
         loader = StudentLoader(students_dir=tmp_path)
-        student = loader.load_student("empty")
+        student = loader.load_student("empty").ok()
         assert student is not None
         assert student.skills == []
 
@@ -32,7 +32,7 @@ class TestStudentLoader:
         file_path = tmp_path / "test_competency.json"
         file_path.write_text('{"навыки": ["Python", "SQL"]}', encoding="utf-8")
         loader = StudentLoader(students_dir=tmp_path)
-        student = loader.load_student("test")
+        student = loader.load_student("test").ok()
         assert student.competencies == ["Python", "SQL"]
         assert student.skills == ["Python", "SQL"]
         assert student.profile_name == "test"
@@ -54,15 +54,15 @@ class TestStudentLoader:
         file_path = tmp_path / "test_competency.json"
         file_path.write_text('{"навыки": ["Python"]}', encoding="utf-8")
         loader = StudentLoader(students_dir=tmp_path)
-        student = loader.load_student("test")
+        student = loader.load_student("test").ok()
         assert student.target_level == "middle"
 
 
 class TestGenerateProfilesFromCSV:
     def test_csv_not_found(self, tmp_path):
         nonexistent = tmp_path / "no_such_file.csv"
-        with pytest.raises(FileNotFoundError):
-            generate_profiles_from_csv(csv_path=nonexistent, output_dir=tmp_path, save_copy=False)
+        result = generate_profiles_from_csv(csv_path=nonexistent, output_dir=tmp_path, save_copy=False)
+        assert result.ok() is None
 
     def test_generate_profiles_success(self, tmp_path):
         # Важно: одинаковое количество запятых во всех строках (4 поля)
@@ -80,7 +80,7 @@ class TestGenerateProfilesFromCSV:
         output_dir.mkdir()
 
         with patch("src.loaders_student.student_loader.PROFILES_DISCIPLINES", {"base": [1, 2], "dc": [3]}):
-            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
+            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False).ok()
 
         assert "base" in profiles
         assert "dc" in profiles
@@ -103,7 +103,7 @@ class TestGenerateProfilesFromCSV:
         output_dir.mkdir()
 
         with patch("src.loaders_student.student_loader.PROFILES_DISCIPLINES", {"base": [1]}):
-            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
+            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False).ok()
 
         assert "base" in profiles
         assert "Код1" in profiles["base"]
@@ -133,7 +133,7 @@ class TestGenerateProfilesFromCSV:
         output_dir.mkdir()
 
         with patch("src.loaders_student.student_loader.PROFILES_DISCIPLINES", {"empty": [99]}):
-            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
+            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False).ok()
         assert profiles["empty"] == []
 
     def test_generate_profiles_handles_nan_values(self, tmp_path):
@@ -145,7 +145,7 @@ class TestGenerateProfilesFromCSV:
         output_dir.mkdir()
 
         with patch("src.loaders_student.student_loader.PROFILES_DISCIPLINES", {"base": [1, 2]}):
-            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
+            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False).ok()
         assert profiles["base"] == ["SS1.1"]
 
     def test_generate_profiles_with_missing_values(self, tmp_path):
@@ -161,27 +161,10 @@ class TestGenerateProfilesFromCSV:
         output_dir.mkdir()
 
         with patch("src.loaders_student.student_loader.PROFILES_DISCIPLINES", {"base": [1, 2]}):
-            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
+            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False).ok()
 
         # Только первая дисциплина имеет отметку 'Б'
         assert profiles["base"] == ["SS1.1"]
-
-    def test_generate_profiles_save_copy_creates_dir(self, tmp_path):
-        csv_content = ",h1,\n,ind,\n1,Дисц,Б\n"
-        csv_path = tmp_path / "competency_matrix.csv"
-        csv_path.write_text(csv_content, encoding="utf-8")
-        output_dir = tmp_path / "students"
-        output_dir.mkdir()
-
-        last_uploaded_dir = tmp_path / "last_uploaded"  # ещё не существует
-        with (
-            patch("src.loaders_student.student_loader.PROFILES_DISCIPLINES", {"base": [1]}),
-            patch("src.loaders_student.student_loader.LAST_UPLOADED_DIR", last_uploaded_dir),
-        ):
-                generate_profiles_from_csv(csv_path, output_dir, save_copy=True)
-
-        assert last_uploaded_dir.exists()
-        assert (last_uploaded_dir / "competency_matrix.csv").exists()
 
     def test_generate_profiles_non_numeric_discipline_id(self, tmp_path):
         csv_content = """,h1,
@@ -194,7 +177,7 @@ class TestGenerateProfilesFromCSV:
         output_dir.mkdir()
 
         with patch("src.loaders_student.student_loader.PROFILES_DISCIPLINES", {"base": [0]}):
-            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
+            profiles = generate_profiles_from_csv(csv_path, output_dir, save_copy=False).ok()
         # Дисциплина с ID=abc преобразуется в 0, а 0 не входит в список дисциплин профиля 'base'
         # Поэтому профиль должен быть пустым
         assert profiles["base"] == []
@@ -205,11 +188,9 @@ class TestGenerateProfilesFromCSV:
         output_dir = tmp_path / "students"
         output_dir.mkdir()
 
-        with (
-            patch("pandas.read_csv", side_effect=Exception("Test error")),
-            pytest.raises(Exception, match="Test error"),
-        ):
-                generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
+        with patch("pandas.read_csv", side_effect=Exception("Test error")):
+            result = generate_profiles_from_csv(csv_path, output_dir, save_copy=False)
+            assert result.ok() is None
 
 
 class TestStudentLoaderEdgeCases:

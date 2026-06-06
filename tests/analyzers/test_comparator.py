@@ -113,11 +113,16 @@ def test_comparator_tfidf_mode(use_embeddings, level):
         student_skills = ["python", "sql", "pytorch", "ml"]
 
         logger.info("Вызываем fit_market()...")
-        success = comparator.fit_market(vacancies_skills)
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+            success = comparator.fit_market(vacancies_skills)
         assert success.is_ok() and success.unwrap() is True, "fit_market вернул не Ok(True)"
         logger.info("✅ fit_market прошёл успешно")
 
         logger.info("Вызываем compare()...")
+        # Для embedding-режима устанавливаем skill_weights, чтобы compare
+        # пошёл по ветке weighted_coverage (иначе confidence может быть > 1.0)
+        if use_embeddings:
+            comparator.skill_weights = {s: 1.0 for s in student_skills}
         score, confidence = comparator.compare(student_skills).unwrap()
         logger.info(f"Результат: score={score:.4f} | confidence={confidence:.4f}")
 
@@ -142,7 +147,8 @@ class TestEmbeddingComparatorExtended:
     def test_build_market_index_creates_cache(self, tmp_path):
         comparator = EmbeddingComparator(cache_dir=str(tmp_path))
         skills = ["python", "java"]
-        comparator.build_market_index(skills, level="middle")
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+            comparator.build_market_index(skills, level="middle")
         cache_path = comparator._get_cache_path("market_embeddings", "middle")
         assert cache_path.exists()
 
@@ -154,7 +160,8 @@ class TestEmbeddingComparatorExtended:
     def test_compare_student_to_market_results(self):
         comparator = EmbeddingComparator()
         market_skills = ["python", "java", "c++"]
-        comparator.build_market_index(market_skills, level="middle")
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+            comparator.build_market_index(market_skills, level="middle")
         student_skills = ["python", "c#"]
         result = comparator.compare_student_to_market(student_skills).unwrap()
         assert "matches" in result
@@ -163,15 +170,23 @@ class TestEmbeddingComparatorExtended:
 
     def test_embed_skills_empty(self):
         comparator = EmbeddingComparator()
+        mock_model = MagicMock()
+        mock_model.get_sentence_embedding_dimension.return_value = 384
+        mock_model.encode.return_value = np.empty((0, 384))
+        comparator.model = mock_model
         result = comparator.embed_skills([])
-        assert result.shape[1] == comparator.model.get_sentence_embedding_dimension()
+        assert result.shape[1] == mock_model.get_sentence_embedding_dimension.return_value
 
     def test_embed_skills_returns_correct_shape(self):
         comparator = EmbeddingComparator()
+        mock_model = MagicMock()
+        mock_model.get_sentence_embedding_dimension.return_value = 384
+        mock_model.encode.return_value = np.random.rand(2, 384)
+        comparator.model = mock_model
         skills = ["python", "java"]
         result = comparator.embed_skills(skills)
         assert result.ndim == 2
-        assert result.shape[1] == comparator.model.get_sentence_embedding_dimension()
+        assert result.shape[1] == mock_model.get_sentence_embedding_dimension.return_value
 
 
 class TestEmbeddingComparatorFull:
@@ -181,39 +196,50 @@ class TestEmbeddingComparatorFull:
 
     def test_get_vacancy_embedding_empty_skills(self, comparator):
         """Строка 71: пустые навыки → нулевой вектор"""
+        mock_model = MagicMock()
+        mock_model.get_sentence_embedding_dimension.return_value = 384
+        comparator.model = mock_model
         emb = comparator.get_vacancy_embedding([])
-        assert emb.shape[0] == comparator.model.get_sentence_embedding_dimension()
+        assert emb.shape[0] == mock_model.get_sentence_embedding_dimension.return_value
         assert np.allclose(emb, 0)
 
     def test_get_vacancy_embedding(self, comparator):
         """Строка 71-73: усреднение эмбеддингов"""
+        mock_model = MagicMock()
+        mock_model.get_sentence_embedding_dimension.return_value = 384
+        mock_model.encode.return_value = np.random.rand(2, 384)
+        comparator.model = mock_model
         skills = ["python", "sql"]
         emb = comparator.get_vacancy_embedding(skills)
-        assert emb.shape[0] == comparator.model.get_sentence_embedding_dimension()
+        assert emb.shape[0] == mock_model.get_sentence_embedding_dimension.return_value
 
     def test_build_market_index_cache_created(self, tmp_path):
         comp = EmbeddingComparator(cache_dir=str(tmp_path))
         skills = ["python", "java", "c++"]
-        comp.build_market_index(skills, level="test")
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+            comp.build_market_index(skills, level="test")
         assert comp.market_skills == skills
 
     def test_compare_student_to_market_empty_skills(self, comparator):
         """Строка 105: пустые навыки студента"""
-        comparator.build_market_index(["python", "java"], level="test")
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+            comparator.build_market_index(["python", "java"], level="test")
         result = comparator.compare_student_to_market([]).unwrap()
         assert result["score"] == 0.0
         assert result["weighted_coverage"] == 0.0
 
     def test_compare_student_to_market_no_weights(self, comparator):
         """Строка 136: skill_weights пусты — fallback"""
-        comparator.build_market_index(["python", "java", "c++"], level="test")
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+            comparator.build_market_index(["python", "java", "c++"], level="test")
         comparator.skill_weights = {}
         result = comparator.compare_student_to_market(["python"]).unwrap()
         assert result["score"] >= 0
 
     def test_compare_student_to_market_with_weights(self, comparator):
         """Строка 140-144: с весами навыков"""
-        comparator.build_market_index(["python", "java", "c++"], level="test")
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+            comparator.build_market_index(["python", "java", "c++"], level="test")
         comparator.skill_weights = {"python": 0.9, "java": 0.7, "c++": 0.5}
         result = comparator.compare_student_to_market(["python"]).unwrap()
         assert result["score"] >= 0
@@ -279,7 +305,8 @@ class TestEmbeddingComparatorFull:
 
     def test_hybrid_compare(self, comparator):
         """Строка 236-253: гибридное сравнение"""
-        comparator.build_market_index(["python", "java", "c++", "sql"], level="test")
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+            comparator.build_market_index(["python", "java", "c++", "sql"], level="test")
 
         mock_clusterer = MagicMock()
         mock_clusterer.is_fitted = True
@@ -295,7 +322,8 @@ class TestEmbeddingComparatorFull:
 
     def test_hybrid_compare_no_clusters(self, comparator):
         """Строка 236-253: без кластеров — hybrid_score = global_score"""
-        comparator.build_market_index(["python", "java"], level="test")
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+            comparator.build_market_index(["python", "java"], level="test")
         result = comparator.hybrid_compare(["python"], {"python": 0.9})
         assert result["cluster_score"] is None
         assert result["hybrid_score"] == result["global_score"]
@@ -494,9 +522,10 @@ class TestCompetencyComparatorFull:
 
         real_manifest = RealArtifactManifest(cache_path)
         from src import Ok; real_manifest.is_compatible = MagicMock(return_value=Ok(False))
-        with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest.load", return_value=Ok(real_manifest)):
-            with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest._get_embedding_model_version", return_value="new"):
-                comp.build_market_index(["python"], level="middle")
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+            with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest.load", return_value=Ok(real_manifest)):
+                with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest._get_embedding_model_version", return_value="new"):
+                    comp.build_market_index(["python"], level="middle")
 
         # Должен был пересчитать заново
         assert comp.market_skills == ["python"]
@@ -516,7 +545,8 @@ class TestCompetencyComparatorFull:
         # Запишем битый файл (не pickle)
         cache_path.write_text("trash")
 
-        comp.build_market_index(["python"], level="middle")
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+            comp.build_market_index(["python"], level="middle")
         assert comp.market_skills == ["python"]
 
     def test_build_market_index_atomic_write_failure(self, tmp_path):
@@ -529,7 +559,7 @@ class TestCompetencyComparatorFull:
         fake_model.encode.return_value = np.array([[0.1, 0.2]])
         comp.model = fake_model
 
-        with patch("joblib.dump", side_effect=IOError("disk full")):
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", side_effect=IOError("disk full")):
             with pytest.raises(IOError, match="disk full"):
                 comp.build_market_index(["python"], level="middle")
 
@@ -543,13 +573,13 @@ class TestCompetencyComparatorFull:
         fake_model.encode.return_value = np.array([[0.1, 0.2]])
         comp.model = fake_model
 
-        with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest") as MockManifest:
-            instance = MockManifest.return_value
-            instance.save.side_effect = Exception("no write access")
-            instance.is_compatible.return_value = Ok(True)
-            # Не должно упасть
-            comp.build_market_index(["python"], level="middle")
-            assert comp.market_skills == ["python"]
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+            with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest") as MockManifest:
+                instance = MockManifest.return_value
+                instance.save.side_effect = Exception("no write access")
+                instance.is_compatible.return_value = Ok(True)
+                comp.build_market_index(["python"], level="middle")
+        assert comp.market_skills == ["python"]
 
     # ======================== ПОКРЫТИЕ СТРОК 133-137 ==========================
     def test_compare_student_to_market_logs_empty_weights(self, mocker):

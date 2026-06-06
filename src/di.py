@@ -36,9 +36,11 @@ class DIContainer:
             self._entries[key] = _Entry(instance=instance, singleton=True)
         else:
             self._entries[key] = _Entry(factory=factory, singleton=singleton)
+        self._registry[key] = {"singleton": singleton}
 
     def register_transient(self, key: Any, factory: Callable[[], Any]):
         self._entries[key] = _Entry(factory=factory, singleton=False)
+        self._registry[key] = {"singleton": False}
 
     def resolve(self, key: Any) -> Any:
         if key in self._entries:

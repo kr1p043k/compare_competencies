@@ -31,7 +31,7 @@ class MockRankingPredictor(RankingPredictor):
 
 class TestCreateRankingPredictor:
     def test_use_ltr_false(self):
-        assert create_ranking_predictor(use_ltr=False) is None
+        assert create_ranking_predictor(use_ltr=False).is_err()
 
     @patch("src.predictors.ltr_recommendation_engine.LTRRecommendationEngine")
     def test_use_ltr_no_model_path(self, MockLTR):
@@ -40,7 +40,7 @@ class TestCreateRankingPredictor:
         with patch("src.predictors.factory.config") as mock_config:
             mock_config.MODELS_DIR = MagicMock()
             mock_config.MODELS_DIR.exists.return_value = False
-            result = create_ranking_predictor()
+            result = create_ranking_predictor().ok()
             assert result is not None
 
     @patch("src.predictors.ltr_recommendation_engine.LTRRecommendationEngine")
@@ -50,7 +50,7 @@ class TestCreateRankingPredictor:
         MockLTR.return_value = mock_engine
         mock_path = MagicMock()
         mock_path.exists.return_value = True
-        result = create_ranking_predictor(model_path=mock_path)
+        result = create_ranking_predictor(model_path=mock_path).ok()
         assert result is not None
 
     @patch("src.predictors.ltr_recommendation_engine.LTRRecommendationEngine")
@@ -61,7 +61,7 @@ class TestCreateRankingPredictor:
         mock_path = MagicMock()
         mock_path.exists.return_value = True
         result = create_ranking_predictor(model_path=mock_path)
-        assert result is not None
+        assert result.is_err()
 
 
 class TestCreateRecommender:
@@ -69,7 +69,7 @@ class TestCreateRecommender:
     def test_default_no_ltr(self, MockEngine):
         mock_engine = MagicMock()
         MockEngine.return_value = mock_engine
-        engine = create_recommender(use_ltr=False)
+        engine = create_recommender(use_ltr=False).ok()
         assert engine is not None
 
     @patch("src.predictors.recommendation_engine.RecommendationEngine")
@@ -77,7 +77,7 @@ class TestCreateRecommender:
         mock_rp = MockRankingPredictor()
         mock_engine = MagicMock()
         MockEngine.return_value = mock_engine
-        engine = create_recommender(use_ltr=True, ranking_predictor=mock_rp)
+        engine = create_recommender(use_ltr=True, ranking_predictor=mock_rp).ok()
         assert engine.ltr_engine == mock_rp
 
     @patch("src.predictors.factory.create_ranking_predictor")
@@ -87,5 +87,5 @@ class TestCreateRecommender:
         mock_create_rp.return_value = mock_ltr
         mock_engine = MagicMock()
         MockEngine.return_value = mock_engine
-        engine = create_recommender(use_ltr=True)
+        engine = create_recommender(use_ltr=True).ok()
         assert engine is not None

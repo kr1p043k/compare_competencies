@@ -230,7 +230,7 @@ class SkillValidator:
         results = []
 
         for skill, conf in zip(skills, confidences, strict=False):
-            result = self.validate(skill, conf)
+            result = self.validate(skill, conf).ok()
             results.append(result)
             if result.is_valid:
                 valid_skills.append(result.skill)

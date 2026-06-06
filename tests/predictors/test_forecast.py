@@ -24,7 +24,7 @@ def test_forecast_engine_forecast():
     engine = SkillForecastEngine()
     freqs = {"python": 0.8, "java": 0.6, "rust": 0.3}
     engine.fit(freqs)
-    fr = engine.forecast("python")
+    fr = engine.forecast("python").ok()
     assert fr is not None
     assert fr.skill == "python"
     assert fr.current_frequency == 0.8
@@ -35,7 +35,7 @@ def test_forecast_engine_forecast():
 def test_forecast_engine_forecast_unknown_skill():
     engine = SkillForecastEngine()
     engine.fit({"python": 0.8})
-    fr = engine.forecast("unknown_skill_xyz")
+    fr = engine.forecast("unknown_skill_xyz").ok()
     assert fr is None
 
 
@@ -43,7 +43,7 @@ def test_forecast_engine_forecast_all():
     engine = SkillForecastEngine()
     freqs = {"python": 0.8, "java": 0.6, "rust": 0.3, "typescript": 0.5}
     engine.fit(freqs)
-    results = engine.forecast_all()
+    results = engine.forecast_all().ok()
     assert len(results) == 4
     assert all(isinstance(r, ForecastResult) for r in results)
 
@@ -52,7 +52,7 @@ def test_forecast_engine_top_growing():
     engine = SkillForecastEngine()
     freqs = {"python": 0.8, "java": 0.6, "rust": 0.3, "typescript": 0.5}
     engine.fit(freqs)
-    top = engine.top_growing(2)
+    top = engine.top_growing(2).ok()
     assert len(top) <= 2
     assert all(isinstance(r, ForecastResult) for r in top)
 
@@ -61,7 +61,7 @@ def test_forecast_engine_top_growing_sorted_desc():
     engine = SkillForecastEngine()
     freqs = {"python": 0.8, "java": 0.6, "rust": 0.3, "typescript": 0.5}
     engine.fit(freqs)
-    top = engine.top_growing(4)
+    top = engine.top_growing(4).ok()
     assert len(top) == 4
     for i in range(len(top) - 1):
         assert top[i].predicted_growth >= top[i + 1].predicted_growth
@@ -72,4 +72,4 @@ def test_forecast_engine_empty_fit():
     engine = SkillForecastEngine()
     engine.fit({})
     assert engine.is_fitted
-    assert engine.forecast_all() == []
+    assert engine.forecast_all().ok() == []

@@ -353,7 +353,7 @@ class TestProfileEvaluatorFull:
             use_clustering=False,  # отключаем, но проверяем структуру
         )
         context = evaluator._get_cluster_context(student, "middle")
-        assert context is None  # без кластеризации возвращает None
+        assert context.is_err()  # без кластеризации возвращает Err
 
     def test_get_cluster_context_without_model(
         self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
@@ -369,7 +369,7 @@ class TestProfileEvaluatorFull:
         # Модель не загружена для 'middle' (нет файла)
         evaluator.cluster_models_loaded = {"junior": False, "middle": False, "senior": False}
         context = evaluator._get_cluster_context(student, "middle")
-        assert context is None
+        assert context.is_err()
 
     def test_evaluate_profile_readiness_with_gap_penalty(
         self, student, skill_weights_by_level, vacancies_skills, vacancies_skills_dict
@@ -493,7 +493,7 @@ class TestProfileEvaluatorFull:
             created_at=datetime.now(),
         )
         context = evaluator._get_cluster_context(student, "middle")
-        assert context is None  # use_clustering=False
+        assert context.is_err()  # use_clustering=False
 
     def test_get_cluster_context_without_skills(self):
         """Строки 250-257: кластерный контекст без навыков студента"""
@@ -509,7 +509,7 @@ class TestProfileEvaluatorFull:
         )
         evaluator.cluster_models_loaded = {"middle": False}
         context = evaluator._get_cluster_context(student, "middle")
-        assert context is None
+        assert context.is_err()
 
     def test_evaluate_profile_fallback_warns_and_returns_recommendations(
         self, skill_weights_by_level, vacancies_skills, vacancies_skills_dict, caplog
@@ -788,11 +788,11 @@ class TestProfileEvaluatorFull:
             json.dump({"hash": hash_val, "embedding": emb.tolist()}, f)
 
         loaded = evaluator._load_cached_embedding(student)
-        assert loaded is not None
-        np.testing.assert_array_equal(loaded, emb)
+        assert loaded.is_ok()
+        np.testing.assert_array_equal(loaded.unwrap(), emb)
 
     def test_load_cached_embedding_invalid_hash(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
-        """Строки 294-295: несовпадение хэша -> возврат None."""
+        """Строки 294-295: несовпадение хэша -> возврат Err."""
         monkeypatch.setattr("src.config.STUDENT_EMB_CACHE_DIR", tmp_path)
         evaluator = ProfileEvaluator(
             skill_weights={"python": 0.9},
@@ -808,10 +808,10 @@ class TestProfileEvaluatorFull:
             json.dump({"hash": "wrong", "embedding": [1,2,3]}, f)
 
         loaded = evaluator._load_cached_embedding(student)
-        assert loaded is None
+        assert loaded.is_err()
 
     def test_load_cached_embedding_no_file(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
-        """Строка 290: файл не существует -> None."""
+        """Строка 290: файл не существует -> Err."""
         monkeypatch.setattr("src.config.STUDENT_EMB_CACHE_DIR", tmp_path)
         evaluator = ProfileEvaluator(
             skill_weights={"python": 0.9},
@@ -821,7 +821,7 @@ class TestProfileEvaluatorFull:
         student = StudentProfile(
             profile_name="nobody", competencies=[], skills=["python"], target_level="middle", created_at=datetime.now()
         )
-        assert evaluator._load_cached_embedding(student) is None
+        assert evaluator._load_cached_embedding(student).is_err()
 
     # === строки 299-311 (_save_embedding_cache) и строка 348 (manifest.save) ===
     def test_save_embedding_cache(self, tmp_path, monkeypatch, vacancies_skills, vacancies_skills_dict):
@@ -871,7 +871,7 @@ class TestProfileEvaluatorFull:
 
         with patch("src.analyzers.gap.profile_evaluator.get_embedding_model") as mock_get_model, \
             patch("src.analyzers.gap.profile_evaluator.ArtifactManifest"):
-            result = evaluator._get_or_compute_student_embedding(student)
+            result = evaluator._get_or_compute_student_embedding(student).unwrap()
             mock_get_model.assert_not_called()
         np.testing.assert_array_equal(result, emb_cached)
 
@@ -893,7 +893,7 @@ class TestProfileEvaluatorFull:
 
         with patch("src.analyzers.gap.profile_evaluator.get_embedding_model", return_value=fake_model), \
             patch("src.analyzers.gap.profile_evaluator.ArtifactManifest"):
-            result = evaluator._get_or_compute_student_embedding(student)
+            result = evaluator._get_or_compute_student_embedding(student).unwrap()
         assert result.shape == (128,)
         fake_model.encode.assert_called_once_with(student.skills, convert_to_numpy=True, show_progress_bar=False)
 
@@ -913,7 +913,7 @@ class TestProfileEvaluatorFull:
 
         with patch("src.analyzers.gap.profile_evaluator.get_embedding_model", return_value=fake_model), \
             patch("src.analyzers.gap.profile_evaluator.ArtifactManifest"):
-            result = evaluator._get_or_compute_student_embedding(student)
+            result = evaluator._get_or_compute_student_embedding(student).unwrap()
         assert result.shape == (256,)
         np.testing.assert_array_equal(result, np.zeros(256))
 
@@ -926,7 +926,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             use_clustering=False,
         )
-        assert evaluator._get_cluster_context(student, "middle") is None
+        assert evaluator._get_cluster_context(student, "middle").is_err()
 
     def test_get_cluster_context_model_not_loaded(self, student, vacancies_skills, vacancies_skills_dict):
         """Строки 371-373: модель для уровня не загружена."""
@@ -938,7 +938,7 @@ class TestProfileEvaluatorFull:
         )
         evaluator.cluster_models_loaded = {"junior": False, "middle": False, "senior": False}
         result = evaluator._get_cluster_context(student, "middle")
-        assert result is None
+        assert result.is_err()
 
     def test_get_cluster_context_exception(self, student, vacancies_skills, vacancies_skills_dict):
         """Строки 376-381: исключение при получении контекста -> возврат None."""
@@ -950,8 +950,8 @@ class TestProfileEvaluatorFull:
         )
         evaluator.cluster_models_loaded = {"middle": True}
         with patch.object(evaluator.clusterer, "get_cluster_context", side_effect=Exception("Boom")):
-            result = evaluator._get_cluster_context(student, "middle")
-        assert result is None
+            with pytest.raises(Exception, match="Boom"):
+                evaluator._get_cluster_context(student, "middle")
 
     # === строки 299-311 (_get_or_create_comparator) ===
     def test_get_or_create_comparator_creates_new(self, vacancies_skills):

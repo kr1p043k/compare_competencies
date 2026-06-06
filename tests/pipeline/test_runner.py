@@ -344,8 +344,8 @@ class TestRunTrainModel:
             cfg.MODELS_DIR.__truediv__.return_value = model_file
             with patch("src.pipeline.runner.safe_read_json", return_value=[]):
                 with patch("src.pipeline.runner.console_info"):
-                    with pytest.raises(SystemExit):
-                        run_train_model(args)
+                    result = run_train_model(args)
+                    assert result.is_err()
 
 
 @patch("src.pipeline.runner.console_info")

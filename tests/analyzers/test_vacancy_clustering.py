@@ -136,7 +136,7 @@ class TestVacancyClusterer:
 
         context = clusterer.get_cluster_context(
             profile_embedding=embedding, level="test", top_k_clusters=2, top_k_skills_per_cluster=10
-        )
+        ).unwrap()
         assert "closest_clusters" in context
         assert "skills" in context
         assert "total_skills_in_context" in context
@@ -144,7 +144,7 @@ class TestVacancyClusterer:
 
     def test_get_cluster_context_none_embedding(self):
         clusterer = VacancyClusterer()
-        context = clusterer.get_cluster_context(None)
+        context = clusterer.get_cluster_context(None).unwrap()
         assert context["total_skills_in_context"] == 0
 
     def test_save_and_load_model(self, tmp_path, sample_vacancies, monkeypatch):
