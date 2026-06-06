@@ -56,7 +56,9 @@ def test_embedding_comparator_build_index(embedding_comparator):
         "html",
         "mlops",
     ]
-    embedding_comparator.build_market_index(all_market_skills)
+    from unittest.mock import patch
+    with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
+        embedding_comparator.build_market_index(all_market_skills)
 
     student_skills = ["python", "react", "fastapi"]
     comparison = _unwrap(embedding_comparator.compare_student_to_market(student_skills))

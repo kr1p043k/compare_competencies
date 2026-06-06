@@ -293,3 +293,54 @@ def test_save_processed_frequencies_without_filter(tmp_path, monkeypatch):
     with patch("src.parsing.skills.vacancy_parser.atomic_write_json") as mock_write:
         parser.save_processed_frequencies({"python": 10}, apply_filter=False)
         mock_write.assert_called_once_with({"python": 10}, tmp_path / "competency_frequency.json")
+
+class TestVacancyParserEdgeCases:
+    def test_extract_from_detailed_with_validate(self, parser_with_mocks):
+        parser_with_mocks._validate_vacancies = MagicMock()
+        parser_with_mocks._validate_skills = MagicMock(return_value={})
+        parser_with_mocks.hybrid_calc.calculate.return_value = Ok({})
+        parser_with_mocks.embedding_cache.get_embeddings.return_value = {}
+        result = parser_with_mocks.extract_from_detailed([])
+        assert result.is_ok()
+
+    def test_extract_from_detailed_with_exception(self, parser_with_mocks):
+        parser_with_mocks._validate_vacancies = MagicMock(side_effect=RuntimeError("crash"))
+        result = parser_with_mocks.extract_from_detailed([{}])
+        assert result.is_err()
+
+    def test_save_raw_vacancies_with_vacancy_objects(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("src.parsing.skills.vacancy_parser.config.DATA_RAW_DIR", tmp_path)
+        from src.models.vacancy import Area, Employer, Vacancy
+        parser = VacancyParser()
+        area = Area(1, "M")
+        employer = Employer("1", "C")
+        vac = Vacancy(id="1", name="Dev", area=area, employer=employer, key_skills=[])
+        vac.raw_data = {"id": "1", "name": "Dev"}
+        parser.save_raw_vacancies([vac], filename="test_raw.json")
+        assert (tmp_path / "test_raw.json").exists()
+
+    def test_save_processed_frequencies_exception(self, parser_with_mocks, monkeypatch):
+        monkeypatch.setattr("src.parsing.skills.vacancy_parser.config.DATA_PROCESSED_DIR", None)
+        result = parser_with_mocks.save_processed_frequencies({"python": 10}, apply_filter=False)
+        assert result.is_err()
+
+    def test_extract_skills_from_vacancies_parse_err(self, parser_with_mocks):
+        from src.errors import DomainError
+        from src.models.vacancy import Area, Employer, Vacancy
+        parser_with_mocks.skill_parser.parse_vacancy.return_value = Err(DomainError("parse failed"))
+        parser_with_mocks.skill_validator.validate_batch.return_value = ([], [])
+        parser_with_mocks.hybrid_calc.calculate.return_value = Ok({})
+        parser_with_mocks.embedding_cache.get_embeddings.return_value = {}
+        area = Area(1, "M")
+        employer = Employer("1", "C")
+        vac = Vacancy(id="1", name="Dev", area=area, employer=employer, key_skills=[])
+        result = parser_with_mocks.extract_skills_from_vacancies([vac])
+        assert result.is_ok()
+        assert result.unwrap()["frequencies"] == {}
+
+    def test_clean_highlighttext_no_text(self):
+        assert VacancyParser.clean_highlighttext(None) == ""
+        assert VacancyParser.clean_highlighttext("") == ""
+
+    def test_strip_html_no_text(self):
+        assert VacancyParser._strip_html(None) == ""

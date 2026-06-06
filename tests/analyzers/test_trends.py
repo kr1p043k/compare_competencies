@@ -756,3 +756,62 @@ class TestTrendAnalyzerExtended:
         with patch("matplotlib.pyplot.savefig"), patch("matplotlib.pyplot.close"):
             result = analyzer.plot_timeline(["nonexistent", "python"], snapshots=snapshots)
             assert result.ok() is not None
+
+class TestTrendAnalyzerEdgeCases:
+    def test_get_trending_skills_prev_freq_zero_skipped(self, tmp_path):
+        current = {"new_skill": 100}
+        prev = {"new_skill": 0}
+        analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
+        trends = analyzer.get_trending_skills(top_n=5, min_change_percent=1.0, previous_snapshot=prev)
+        assert len(trends.ok()["rising"]) == 0
+        assert len(trends.ok()["falling"]) == 0
+
+    def test_get_trending_skills_without_previous_no_snapshots(self, tmp_path):
+        analyzer = TrendAnalyzer({"python": 100}, historical_dir=tmp_path)
+        trends = analyzer.get_trending_skills()
+        assert trends.ok()["rising"] == []
+        assert trends.ok()["falling"] == []
+
+    def test_save_trends_success(self, tmp_path, monkeypatch):
+        from src import config
+        monkeypatch.setattr(config, "DATA_RESULT_DIR", tmp_path)
+        analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
+        result = analyzer.save_trends({"rising": [{"skill": "python"}]}, tag="test")
+        assert result.is_ok()
+        assert (tmp_path / "trends" / "trends_test.json").exists()
+
+    def test_get_emerging_skills_empty_current(self, tmp_path):
+        analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
+        result = analyzer.get_emerging_skills()
+        assert result.ok() == []
+
+    def test_plot_trending_only_rising_with_prev_label(self, tmp_path):
+        from unittest.mock import patch
+        current = {"python": 200, "sql": 50, "docker": 100}
+        prev = {"python": 100, "sql": 100, "docker": 100}
+        analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
+        with patch("matplotlib.pyplot.savefig"):
+            result = analyzer.plot_trending(top_n=10, save_path=tmp_path / "trending.png", previous_snapshot=prev)
+            assert result.ok() is not None
+
+    def test_get_trending_skills_auto_previous_from_snapshots(self, tmp_path):
+        import json
+        freq = {"python": 120}
+        prev = {"python": 100}
+        analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
+        with open(tmp_path / "freq_2024-01-01.json", "w") as f:
+            json.dump(prev, f)
+        with open(tmp_path / "freq_2024-06-01.json", "w") as f:
+            json.dump(freq, f)
+        trends = analyzer.get_trending_skills(top_n=5, min_change_percent=5.0)
+        assert len(trends.ok()["rising"]) > 0
+        for r in trends.ok()["rising"]:
+            assert r["prev_label"] == "2024-01-01"
+
+    def test_get_trending_skills_rising_and_falling(self, tmp_path):
+        current = {"python": 200, "sql": 50, "docker": 100}
+        prev = {"python": 100, "sql": 100, "docker": 100}
+        analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
+        trends = analyzer.get_trending_skills(top_n=10, min_change_percent=10.0, previous_snapshot=prev)
+        assert len(trends.ok()["rising"]) >= 1
+        assert len(trends.ok()["falling"]) >= 1

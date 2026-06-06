@@ -5,7 +5,7 @@ import pytest
 
 from src import Err, Ok
 from src.errors import DomainError
-from src.predictors.reranker import RerankerResult, CrossEncoderReranker
+from src.predictors.reranker import RerankerResult, CrossEncoderReranker, HybridReranker, RerankerBuilder
 
 
 class TestRerankerResult:
@@ -114,3 +114,94 @@ class TestCrossEncoderRerankerRerank:
         r._model = mock_model
         result = r.rerank("q", ["a"])
         assert result.is_err()
+
+class TestHybridReranker:
+    def test_empty_documents(self):
+        mock_ranker = MagicMock(spec=CrossEncoderReranker)
+        hybrid = HybridReranker([(mock_ranker, 1.0)])
+        result = hybrid.rerank("q", [])
+        assert result.is_ok()
+        assert result.ok().documents == []
+
+    def test_single_reranker(self):
+        mock_ranker = MagicMock(spec=CrossEncoderReranker)
+        mock_ranker.name = "mock"
+        mock_result = RerankerResult(query="q", documents=["a", "b"], scores=[0.9, 0.1], ranked_indices=[0, 1])
+        mock_ranker.rerank.return_value = Ok(mock_result)
+        hybrid = HybridReranker([(mock_ranker, 1.0)])
+        result = hybrid.rerank("q", ["a", "b"])
+        assert result.is_ok()
+        assert result.ok().scores[0] > result.ok().scores[1]
+
+    def test_with_weight(self):
+        mock_ranker = MagicMock(spec=CrossEncoderReranker)
+        mock_ranker.name = "mock"
+        mock_result = RerankerResult(query="q", documents=["x", "y"], scores=[1.0, 0.0], ranked_indices=[0, 1])
+        mock_ranker.rerank.return_value = Ok(mock_result)
+        hybrid = HybridReranker([(mock_ranker, 0.5)])
+        result = hybrid.rerank("q", ["x", "y"])
+        assert result.is_ok()
+
+    def test_reranker_returns_err(self):
+        mock_ranker = MagicMock(spec=CrossEncoderReranker)
+        mock_ranker.name = "mock_fail"
+        mock_ranker.rerank.return_value = Err(DomainError("fail"))
+        hybrid = HybridReranker([(mock_ranker, 1.0)])
+        result = hybrid.rerank("q", ["a", "b"])
+        assert result.is_ok()
+        assert result.ok().scores == [0.0, 0.0]
+
+    def test_all_scores_equal(self):
+        mock_ranker = MagicMock(spec=CrossEncoderReranker)
+        mock_ranker.name = "mock"
+        all_equal = RerankerResult(query="q", documents=["a", "b"], scores=[0.5, 0.5], ranked_indices=[0, 1])
+        mock_ranker.rerank.return_value = Ok(all_equal)
+        hybrid = HybridReranker([(mock_ranker, 1.0)])
+        result = hybrid.rerank("q", ["a", "b"])
+        assert result.is_ok()
+        assert result.ok().scores == [0.5, 0.5]
+
+    def test_name(self):
+        mock_ranker = MagicMock(spec=CrossEncoderReranker)
+        mock_ranker.name = "mock"
+        hybrid = HybridReranker([(mock_ranker, 0.5)])
+        assert "Hybrid" in hybrid.name
+        assert "mock" in hybrid.name
+        assert "0.5" in hybrid.name
+
+
+class TestRerankerBuilder:
+    def test_build_cross_encoder(self):
+        reranker = RerankerBuilder.build_cross_encoder()
+        assert isinstance(reranker, CrossEncoderReranker)
+        assert reranker.model_name == "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+    def test_build_hybrid_default(self):
+        hybrid = RerankerBuilder.build_hybrid()
+        assert isinstance(hybrid, HybridReranker)
+        assert len(hybrid.rerankers) == 1
+
+    def test_build_hybrid_custom(self):
+        hybrid = RerankerBuilder.build_hybrid(
+            model_names=["model1", "model2"],
+            weights=[0.7, 0.3],
+        )
+        assert len(hybrid.rerankers) == 2
+        assert hybrid.rerankers[0][1] == 0.7
+        assert hybrid.rerankers[1][1] == 0.3
+
+    def test_build_hybrid_uneven_weights(self):
+        hybrid = RerankerBuilder.build_hybrid(
+            model_names=["m1", "m2", "m3"],
+            weights=[0.5],
+        )
+        assert len(hybrid.rerankers) == 3
+        assert hybrid.rerankers[0][1] == 0.5
+        assert hybrid.rerankers[1][1] == 1.0
+        assert hybrid.rerankers[2][1] == 1.0
+
+    def test_build_hybrid_no_weights(self):
+        hybrid = RerankerBuilder.build_hybrid(model_names=["m1", "m2"])
+        assert len(hybrid.rerankers) == 2
+        for _, w in hybrid.rerankers:
+            assert w == 1.0

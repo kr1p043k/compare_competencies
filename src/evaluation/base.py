@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from src import Ok, Result
+from src import Err, Ok, Result
 from src.errors import DomainError
 
 
