@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 import { BarChart3, Activity, TrendingUp, AlertCircle, RefreshCw, Server, Cpu } from "lucide-react";
 import { apiFetch } from "../../lib/auth";
 
@@ -231,15 +232,4 @@ export function MonitoringTab() {
   );
 }
 
-function Button(props: any) {
-  return (
-    <button
-      {...props}
-      className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-        props.variant === "outline"
-          ? "border border-gray-300 text-gray-700 hover:bg-gray-50"
-          : "bg-blue-600 text-white hover:bg-blue-700"
-      } ${props.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${props.className || ""}`}
-    />
-  );
-}
+

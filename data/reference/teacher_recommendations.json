@@ -10,5 +10,11 @@
     "competency": "ОПК-2",
     "suggestion": "новое",
     "type": "add"
+  },
+  {
+    "discipline": "Алгоритмизация и программирование",
+    "competency": "ОПК-3",
+    "suggestion": "ghdh",
+    "type": "add"
   }
 ]
