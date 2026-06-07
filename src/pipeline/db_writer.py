@@ -126,6 +126,80 @@ async def save_trend_snapshot(snapshot_date: datetime, skill_freq: dict, source:
     )
 
 
+async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None) -> int:
+    """Upsert vacancies from raw dicts into the vacancies table."""
+    pool = await _pool()
+    count = 0
+    for v in vacancies:
+        hh_id = int(v.get("id", 0))
+        if not hh_id:
+            continue
+        salary = v.get("salary") or {}
+        employer = v.get("employer") or {}
+        area = v.get("area") or {}
+        snippet = v.get("snippet") or {}
+        skills = [s.get("name", "") for s in v.get("key_skills", []) if s.get("name")]
+        try:
+            await pool.execute(
+                """INSERT INTO vacancies
+                   (hh_id, name, experience, salary_from, salary_to, salary_currency,
+                    employer_name, employer_id, area_name,
+                    snippet_requirement, snippet_responsibility,
+                    description, key_skills, published_at, alternate_url,
+                    pipeline_run_id, raw)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17::jsonb)
+                   ON CONFLICT (hh_id) DO UPDATE SET
+                       name=EXCLUDED.name,
+                       salary_from=EXCLUDED.salary_from,
+                       salary_to=EXCLUDED.salary_to,
+                       key_skills=EXCLUDED.key_skills,
+                       pipeline_run_id=COALESCE(EXCLUDED.pipeline_run_id, vacancies.pipeline_run_id)""",
+                hh_id,
+                v.get("name"),
+                (v.get("experience") or {}).get("id"),
+                salary.get("from"),
+                salary.get("to"),
+                salary.get("currency", "RUR"),
+                employer.get("name"),
+                employer.get("id"),
+                area.get("name"),
+                snippet.get("requirement"),
+                snippet.get("responsibility"),
+                v.get("description"),
+                json.dumps(skills),
+                v.get("published_at"),
+                v.get("alternate_url"),
+                run_id,
+                json.dumps(v, ensure_ascii=False, default=str),
+            )
+            count += 1
+        except Exception as e:
+            logger.warning("vacancy_save_failed", hh_id=hh_id, error=str(e))
+    logger.info("vacancies_saved", count=count)
+    return count
+
+
+async def export_vacancies_from_json(
+    basic_path: Path | None = None,
+    detailed_path: Path | None = None,
+    run_id: str | None = None,
+) -> int:
+    """Import vacancies from JSON files into the database."""
+    total = 0
+    for path in (basic_path, detailed_path):
+        if not path or not path.exists():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                total += await save_vacancies_batch(data, run_id)
+            elif isinstance(data, dict) and "items" in data:
+                total += await save_vacancies_batch(data["items"], run_id)
+        except Exception as e:
+            logger.warning("vacancy_json_import_failed", path=str(path), error=str(e))
+    return total
+
+
 async def export_history_trends_to_db() -> int:
     """Import all freq_*.json from data/history into trend_snapshots table."""
     total = 0

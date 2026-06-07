@@ -342,6 +342,34 @@ CREATE INDEX idx_sessions_user ON sessions(user_id);
 CREATE INDEX idx_sessions_token ON sessions(token_hash);
 CREATE INDEX idx_sessions_active ON sessions(logged_out_at) WHERE logged_out_at IS NULL;
 
+-- ─── 24. Вакансии ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS vacancies (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    hh_id               INTEGER NOT NULL,                    -- hh.ru id
+    name                TEXT NOT NULL,                       -- название вакансии
+    experience          VARCHAR(50),                         -- "between1and3"
+    salary_from         INTEGER,                             -- зарплата от
+    salary_to           INTEGER,                             -- зарплата до
+    salary_currency     VARCHAR(10),                         -- "RUR"
+    employer_name       TEXT,                                -- работодатель
+    employer_id         INTEGER,                             -- id работодателя
+    area_name           TEXT,                                -- регион
+    snippet_requirement TEXT,                                -- требования (фрагмент)
+    snippet_responsibility TEXT,                             -- обязанности (фрагмент)
+    description         TEXT,                                -- полное описание
+    key_skills          JSONB,                               -- ["Python", "SQL", ...]
+    published_at        TIMESTAMPTZ,                         -- дата публикации
+    alternate_url       TEXT,                                -- ссылка на hh.ru
+    pipeline_run_id     UUID REFERENCES pipeline_runs(id) ON DELETE SET NULL,
+    raw                 JSONB,                               -- исходный ответ HH API
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_vacancies_hh_id ON vacancies(hh_id);
+CREATE INDEX idx_vacancies_published ON vacancies(published_at DESC);
+CREATE INDEX idx_vacancies_employer ON vacancies(employer_name);
+CREATE INDEX idx_vacancies_pipeline ON vacancies(pipeline_run_id);
+
 -- ─── 21. Логи запросов (бэкенд + фронтенд) ─────────────────────────────────
 CREATE TABLE IF NOT EXISTS request_logs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

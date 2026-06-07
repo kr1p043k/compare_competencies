@@ -17,6 +17,38 @@ def _uuid() -> str:
     return str(uuid.uuid4())
 
 
+# ─── Vacancy ────────────────────────────────────────────────────────────────
+
+class Vacancy(Base):
+    __tablename__ = "vacancies"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    hh_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    experience: Mapped[Optional[str]] = mapped_column(String(50))
+    salary_from: Mapped[Optional[int]] = mapped_column(Integer)
+    salary_to: Mapped[Optional[int]] = mapped_column(Integer)
+    salary_currency: Mapped[Optional[str]] = mapped_column(String(10))
+    employer_name: Mapped[Optional[str]] = mapped_column(Text)
+    employer_id: Mapped[Optional[int]] = mapped_column(Integer)
+    area_name: Mapped[Optional[str]] = mapped_column(Text)
+    snippet_requirement: Mapped[Optional[str]] = mapped_column(Text)
+    snippet_responsibility: Mapped[Optional[str]] = mapped_column(Text)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    key_skills: Mapped[Optional[list[str]]] = mapped_column(sa.JSON())
+    published_at: Mapped[Optional[datetime]]
+    alternate_url: Mapped[Optional[str]] = mapped_column(Text)
+    pipeline_run_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
+    raw: Mapped[Optional[dict]] = mapped_column(sa.JSON())
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("hh_id", name="uq_vacancies_hh_id"),
+        sa.Index("idx_vacancies_published", "published_at"),
+        sa.Index("idx_vacancies_employer", "employer_name"),
+    )
+
+
 # ─── Direction ─────────────────────────────────────────────────────────────
 
 class Direction(Base):
