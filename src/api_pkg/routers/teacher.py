@@ -241,28 +241,15 @@ async def krm_coverage_history(request: Request, discipline: str | None = None, 
 @router.get("/api/teacher/krm/market-skills")
 @limiter.limit("30/minute")
 async def krm_market_skills(request: Request, limit: int = 50):
-    """Top market-demanded skills."""
-    from src.database import async_session_factory
-    from src.models.krm_models import MarketSkillMapping as MSM, Skill
-    from sqlalchemy import select
-
-    async with async_session_factory() as session:
-        result = await session.execute(
-            select(MSM, Skill.name)
-            .join(Skill, MSM.skill_id == Skill.id)
-            .order_by(MSM.frequency.desc())
-            .limit(limit)
-        )
-
-    return [
-        {
-            "skill": skill_name,
-            "frequency": msm.frequency,
-            "weight": msm.weight,
-            "period": msm.period.isoformat() if msm.period else None,
-        }
-        for msm, skill_name in result.all()
-    ]
+    """Top market-demanded skills (from it_skills.json)."""
+    import json
+    from pathlib import Path
+    path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
+    if not path.exists():
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        skills = json.load(f)
+    return [{"skill": s, "frequency": 1} for s in list(skills)[:limit]]
 
 @router.get("/api/teacher/krm/search-runs")
 async def krm_search_runs(request: Request, limit: int = 20):

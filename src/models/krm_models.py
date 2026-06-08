@@ -212,7 +212,6 @@ class Skill(Base):
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
 
     competency_skills: Mapped[list["CompetencySkill"]] = relationship(back_populates="skill", cascade="all, delete-orphan")
-    market_mappings: Mapped[list["MarketSkillMapping"]] = relationship(back_populates="skill", cascade="all, delete-orphan")
     student_skills: Mapped[list["StudentSkill"]] = relationship(back_populates="skill", cascade="all, delete-orphan")
 
     __table_args__ = (
@@ -380,22 +379,6 @@ class RequestLog(Base):
         CheckConstraint(source.in_(["backend", "frontend"]), name="ck_log_source"),
     )
 
-
-# ─── Market Skill Mapping ──────────────────────────────────────────────────
-
-class MarketSkillMapping(Base):
-    __tablename__ = "market_skill_mappings"
-
-    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    skill_id: Mapped[str] = mapped_column(UUID, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True)
-    market_skill_name: Mapped[str] = mapped_column(Text, nullable=False)
-    frequency: Mapped[int] = mapped_column(Integer, default=0)
-    weight: Mapped[float] = mapped_column(Float, default=0.0)
-    period: Mapped[Optional[datetime]] = mapped_column()
-    source: Mapped[Optional[str]] = mapped_column(String(50))
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-
-    skill: Mapped["Skill"] = relationship(back_populates="market_mappings")
 
 
 # ─── Coverage Analysis ─────────────────────────────────────────────────────

@@ -83,16 +83,6 @@ async def save_coverage_from_json(json_path: Path | None = None, run_id: str | N
                 disc_id, total, matched, ratio,
             )
 
-            for ms in market_skills:
-                sk_row = await conn.fetchrow("SELECT id FROM skills WHERE name=$1", ms.lower())
-                if sk_row:
-                    await conn.execute(
-                        """INSERT INTO market_skill_mappings
-                           (skill_id, market_skill_name, frequency, weight, period, source)
-                           VALUES ($1,$2,1,1.0,CURRENT_DATE,'gap_analysis')
-                           ON CONFLICT DO NOTHING""",
-                        sk_row["id"], ms,
-                    )
             count += 1
 
     logger.info("coverage_saved", disciplines=count)

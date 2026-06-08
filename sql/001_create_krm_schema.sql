@@ -60,7 +60,8 @@ CREATE TABLE IF NOT EXISTS disciplines (
     hours_practice  INTEGER,                           -- практические
     hours_lab       INTEGER,                           -- лабораторные
     hours_self      INTEGER,                           -- самостоятельная работа
-    control_form    VARCHAR(20),                       -- exam / test / coursework
+    control_form    VARCHAR(20)
+                    CHECK (control_form IN ('exam', 'test', 'coursework', 'diff_pass', 'pass')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -254,22 +255,7 @@ CREATE UNIQUE INDEX idx_student_skills_unique
 CREATE INDEX idx_student_skills_proficiency
     ON student_skills(proficiency DESC);
 
--- ─── 18. Рыночные маппинги навыков (KRM → hh.ru) ──────────────────────────
-CREATE TABLE IF NOT EXISTS market_skill_mappings (
-    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    skill_id          UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
-    market_skill_name TEXT NOT NULL,
-    frequency         INTEGER NOT NULL DEFAULT 0,
-    weight            DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-    period            DATE,
-    source            VARCHAR(50),
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_msm_skill ON market_skill_mappings(skill_id);
-CREATE INDEX idx_msm_frequency ON market_skill_mappings(frequency DESC);
-
--- ─── 19. Анализ покрытия ───────────────────────────────────────────────────
+-- ─── 18. Анализ покрытия ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS coverage_analyses (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     discipline_id         UUID NOT NULL REFERENCES disciplines(id) ON DELETE CASCADE,
@@ -283,7 +269,7 @@ CREATE TABLE IF NOT EXISTS coverage_analyses (
 CREATE INDEX idx_ca_discipline ON coverage_analyses(discipline_id);
 CREATE INDEX idx_ca_coverage ON coverage_analyses(coverage_ratio DESC);
 
--- ─── 20. Запуски пайплайна ───────────────────────────────────────────────
+-- ─── 19. Запуски пайплайна ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pipeline_runs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     action          VARCHAR(50) NOT NULL,
@@ -298,12 +284,14 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 CREATE INDEX idx_pipeline_runs_action ON pipeline_runs(action);
 CREATE INDEX idx_pipeline_runs_started ON pipeline_runs(started_at DESC);
 
--- ─── 21. Результаты анализов ─────────────────────────────────────────────
+-- ─── 20. Результаты анализов ─────────────────────────────────────────────
+
+-- !!! ВНИМАНИЕ: CHECK включает 'teacher' (добавлено для enhanced teacher analysis)
 CREATE TABLE IF NOT EXISTS analysis_results (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     pipeline_run_id UUID REFERENCES pipeline_runs(id) ON DELETE SET NULL,
     analysis_type   VARCHAR(50) NOT NULL
-                    CHECK (analysis_type IN ('gap', 'coverage', 'cluster', 'trend')),
+                    CHECK (analysis_type IN ('gap', 'coverage', 'cluster', 'trend', 'teacher')),
     discipline_id   UUID REFERENCES disciplines(id) ON DELETE CASCADE,
     competency_id   UUID REFERENCES competencies(id) ON DELETE CASCADE,
     data            JSONB NOT NULL DEFAULT '{}',
@@ -314,7 +302,7 @@ CREATE INDEX idx_ar_pipeline ON analysis_results(pipeline_run_id);
 CREATE INDEX idx_ar_type ON analysis_results(analysis_type);
 CREATE INDEX idx_ar_discipline ON analysis_results(discipline_id);
 
--- ─── 22. Снимки трендов ──────────────────────────────────────────────────
+-- ─── 21. Снимки трендов ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS trend_snapshots (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     pipeline_run_id UUID REFERENCES pipeline_runs(id) ON DELETE SET NULL,
@@ -326,7 +314,7 @@ CREATE TABLE IF NOT EXISTS trend_snapshots (
 
 CREATE INDEX idx_ts_date ON trend_snapshots(snapshot_date DESC);
 
--- ─── 23. Сессии пользователей ─────────────────────────────────────────────
+-- ─── 22. Сессии пользователей ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sessions (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -342,7 +330,7 @@ CREATE INDEX idx_sessions_user ON sessions(user_id);
 CREATE INDEX idx_sessions_token ON sessions(token_hash);
 CREATE INDEX idx_sessions_active ON sessions(logged_out_at) WHERE logged_out_at IS NULL;
 
--- ─── 24. Вакансии ─────────────────────────────────────────────────────────
+-- ─── 23. Вакансии ─────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS vacancies (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     hh_id               INTEGER NOT NULL,                    -- hh.ru id
@@ -370,7 +358,7 @@ CREATE INDEX idx_vacancies_published ON vacancies(published_at DESC);
 CREATE INDEX idx_vacancies_employer ON vacancies(employer_name);
 CREATE INDEX idx_vacancies_pipeline ON vacancies(pipeline_run_id);
 
--- ─── 21. Логи запросов (бэкенд + фронтенд) ─────────────────────────────────
+-- ─── 24. Логи запросов (бэкенд + фронтенд) ─────────────────────────────────
 CREATE TABLE IF NOT EXISTS request_logs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     method          VARCHAR(10) NOT NULL,
@@ -387,7 +375,7 @@ CREATE INDEX idx_request_logs_created ON request_logs(created_at DESC);
 CREATE INDEX idx_request_logs_user ON request_logs(user_email);
 CREATE INDEX idx_request_logs_source ON request_logs(source);
 
--- ─── 22. Триггеры автообновления updated_at ───────────────────────────────
+-- ─── 25. Триггеры автообновления updated_at ───────────────────────────────
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -416,7 +404,7 @@ CREATE TRIGGER trg_users_updated
     BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- ─── 23. Триггер: нормализация имени навыка ───────────────────────────────
+-- ─── 26. Триггер: нормализация имени навыка ───────────────────────────────
 CREATE OR REPLACE FUNCTION normalize_skill_name()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -472,7 +460,25 @@ CREATE TRIGGER trg_student_skills_upsert
     BEFORE INSERT ON student_skills
     FOR EACH ROW EXECUTE FUNCTION upsert_student_skill();
 
--- ─── 29. Начальные данные ────────────────────────────────────────────────
+-- ─── 29. LLM-взаимодействия (аудит) ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llm_interactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    analysis_run_id UUID REFERENCES pipeline_runs(id),
+    direction_id UUID REFERENCES directions(id),
+    discipline_id UUID REFERENCES disciplines(id),
+    prompt_tokens INT DEFAULT 0,
+    response_tokens INT DEFAULT 0,
+    prompt_hash TEXT,
+    response_summary TEXT,
+    model VARCHAR(50) DEFAULT 'yandexgpt',
+    duration_ms INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_run ON llm_interactions(analysis_run_id);
+CREATE INDEX IF NOT EXISTS idx_llm_dir ON llm_interactions(direction_id);
+
+-- ─── 30. Начальные данные ────────────────────────────────────────────────
 INSERT INTO directions (code, name, profile, opop_year)
 VALUES (
     '09.03.02',
@@ -493,4 +499,5 @@ ON CONFLICT (email) DO NOTHING;
 --   SELECT table_name FROM information_schema.tables
 --   WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
 --   ORDER BY table_name;
+-- Ожидается 23 таблицы (всего).
 -- =============================================================================

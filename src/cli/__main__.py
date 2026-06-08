@@ -22,6 +22,7 @@ def main() -> None:
         import_students,
         rebuild,
         seed_db,
+        teacher_analysis,
     )
 
     parser = argparse.ArgumentParser(description="compare_competencies CLI")
@@ -75,6 +76,11 @@ def main() -> None:
     p = sub.add_parser("compute-competency-trends", help="Вычислить тренды компетенций из снимков рынка")
     p.add_argument("--force", action="store_true")
     p.set_defaults(func=lambda a: compute_competency_trends.main(force=a.force))
+
+    p = sub.add_parser("teacher-analysis", help="Запустить преподавательский анализ (gap + embedding + SHAP)")
+    p.add_argument("--direction", default="09.03.02", help="Код направления (09.03.02)")
+    p.add_argument("--discipline", help="Фильтр по дисциплине (необязательно)")
+    p.set_defaults(func=lambda a: teacher_analysis.main(direction=a.direction, discipline=a.discipline))
 
     p = sub.add_parser("export-vacancies", help="Экспорт JSON-вакансий в БД")
     p.add_argument("--basic", help="Путь к hh_vacancies_basic.json")

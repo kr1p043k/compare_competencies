@@ -28,6 +28,8 @@ class EmbeddingProvider(ABC):
 
 class SentenceTransformerProvider(EmbeddingProvider):
     def __init__(self, model_name: str | None = None, device: str | None = None):
+        import os
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
         import sentence_transformers
 
         from src import config
@@ -67,15 +69,7 @@ class EmbeddingProviderFactory:
     def get(cls, model_name: str | None = None) -> EmbeddingProvider:
         key = model_name or "default"
         if key not in cls._instances:
-            from src import config
-
-            if model_name:
-                from sentence_transformers import SentenceTransformer
-
-                m = SentenceTransformer(model_name, device=config.EMBEDDING_DEVICE)
-                cls._instances[key] = SentenceTransformerProvider(model_name)
-            else:
-                cls._instances[key] = SentenceTransformerProvider()
+            cls._instances[key] = SentenceTransformerProvider(model_name)
         return cls._instances[key]
 
     @classmethod

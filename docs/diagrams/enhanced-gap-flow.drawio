@@ -1,0 +1,44 @@
+<mxfile><diagram name="Enhanced Gap Flow">
+<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="700" math="0" shadow="0">
+<root>
+<mxCell id="0"/>
+<mxCell id="1" parent="0"/>
+<mxCell id="t" value="&lt;b&gt;Enhanced Gap Analysis&lt;br&gt;Embedding + LTR + SHAP&lt;/b&gt;" style="text;html=1;fontSize=14;align=center;" vertex="1" parent="1">
+<mxGeometry x="20" y="10" width="800" height="30" as="geometry"/>
+</mxCell>
+<mxCell id="disc" value="&lt;b&gt;Дисциплина&lt;/b&gt;&lt;br&gt;список навыков" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="1">
+<mxGeometry x="30" y="80" width="140" height="60" as="geometry"/>
+</mxCell>
+<mxCell id="market" value="&lt;b&gt;Рынок&lt;/b&gt;&lt;br&gt;it_skills.json" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="1">
+<mxGeometry x="30" y="190" width="140" height="60" as="geometry"/>
+</mxCell>
+<mxCell id="embed" value="&lt;b&gt;1. EmbeddingComparator&lt;/b&gt;&lt;br&gt;SentenceTransformer&lt;br&gt;paraphrase-multilingual-mpnet-base-v2 (384d)&lt;br&gt;FAISS index → cosine sim" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;" vertex="1" parent="1">
+<mxGeometry x="280" y="80" width="200" height="90" as="geometry"/>
+</mxCell>
+<mxCell id="sem_cov" value="&lt;b&gt;semantic_coverage&lt;/b&gt;&lt;br&gt;weighted_coverage, avg_similarity, top_market_matches" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;" vertex="1" parent="1">
+<mxGeometry x="550" y="80" width="170" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="ltr" value="&lt;b&gt;2. LTR Model&lt;/b&gt;&lt;br&gt;XGBoost 3.0.3, 8 features" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;" vertex="1" parent="1">
+<mxGeometry x="280" y="220" width="200" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="ltr_score" value="&lt;b&gt;LTR scores&lt;/b&gt;&lt;br&gt;топ-10 missing с score" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;" vertex="1" parent="1">
+<mxGeometry x="550" y="220" width="170" height="60" as="geometry"/>
+</mxCell>
+<mxCell id="shap" value="&lt;b&gt;3. SHAP values&lt;/b&gt;&lt;br&gt;какая фича повлияла на score" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;" vertex="1" parent="1">
+<mxGeometry x="280" y="340" width="200" height="70" as="geometry"/>
+</mxCell>
+<mxCell id="result" value="&lt;b&gt;Результат:&lt;/b&gt;&lt;br&gt;enhanced ключ в JSON дисциплины" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;" vertex="1" parent="1">
+<mxGeometry x="550" y="340" width="170" height="60" as="geometry"/>
+</mxCell>
+<mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" source="disc" target="embed" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" source="market" target="embed" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" source="embed" target="sem_cov" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" source="disc" target="ltr" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" source="market" target="missing" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="missing" value="&lt;b&gt;missing skills&lt;/b&gt;&lt;br&gt;(рынок минус дисциплина)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#999;" vertex="1" parent="1"><mxGeometry x="30" y="300" width="140" height="50" as="geometry"/></mxCell>
+<mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" source="missing" target="ltr" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" source="ltr" target="ltr_score" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" source="ltr" target="shap" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" source="shap" target="result" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" source="ltr_score" target="result" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+</root></mxGraphModel></diagram></mxfile>

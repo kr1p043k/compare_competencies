@@ -1,9 +1,13 @@
-﻿"""Main runner: loads DB data → analyzers → predictors → data/result/teacher/."""
+﻿"""Main runner: loads DB data → analyzers → predictors → data/result/teacher/.
+
+Enhanced with embedding-based gap analysis (semantic coverage + SHAP).
+"""
 from __future__ import annotations
 
 import json
 import os
 import re
+import sys
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +15,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
+import numpy as np
 import structlog
 
 from src.result import Ok, Err, Result
@@ -25,10 +30,154 @@ from src.predictors.curriculum_optimizer import CurriculumOptimizer
 
 logger = structlog.get_logger(__name__)
 OUTPUT = Path(__file__).resolve().parent.parent.parent / "data" / "result" / "teacher"
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 
 
 def _safe_filename(name: str) -> str:
     return re.sub(r'[\\/*?:"<>|]', "_", name).strip()[:80]
+
+
+def _enhance_disciplines_with_gap_analysis(
+    disciplines: dict[str, dict],
+    market_skill_names: list[str],
+    skill_weights_dict: dict[str, float],
+    output_dir: Path,
+    dir_summary: dict,
+) -> dict:
+    """Run embedding-based coverage + LTR/SHAP for each discipline.
+
+    Falls back silently if LTR model / embeddings unavailable.
+    Returns dir_summary with enhanced fields merged in.
+    """
+    logger.info("gap_enhance_start", disciplines=len(disciplines), market_skills=len(market_skill_names))
+    if not market_skill_names:
+        logger.warning("gap_enhance_skipped_no_market_skills")
+        return dir_summary
+
+    # — 1. Build EmbeddingComparator with market skills —
+    try:
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
+        from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+
+        comp = EmbeddingComparator(similarity_threshold=0.5)
+        comp.build_market_index(market_skill_names, level="middle")
+        logger.info("market_embedding_index_built", skills=len(market_skill_names))
+    except Exception as exc:
+        logger.warning("gap_enhance_skip_embedding", error=str(exc))
+        return dir_summary
+
+    # — 2. Load LTR model for SHAP —
+    ltr_engine = None
+    ltr_model_path = MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
+    if ltr_model_path.exists():
+        try:
+            from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
+
+            ltr_engine = LTRRecommendationEngine()
+            match ltr_engine.load_model(ltr_model_path):
+                case Ok(_):
+                    logger.info("ltr_model_loaded_for_shap")
+                case Err(e):
+                    logger.warning("ltr_model_load_skipped", error=str(e))
+                    ltr_engine = None
+        except Exception as exc:
+            logger.warning("ltr_model_load_failed", error=str(exc))
+            ltr_engine = None
+
+    # — 3. Per-discipline enhancement —
+    enhanced_total = 0
+    for dname, disc_data in disciplines.items():
+        disc_skills: list[str] = []
+        for skills_list in disc_data["competencies"].values():
+            disc_skills.extend(skills_list)
+        disc_skills = list(set(s.lower().strip() for s in disc_skills if s and len(s.strip()) >= 2))
+        if not disc_skills:
+            continue
+
+        try:
+            # — embedding coverage —
+            match comp.compare_student_to_market(disc_skills):
+                case Ok(embed_result):
+                    embed_coverage = {
+                        "semantic_coverage": embed_result.get("weighted_coverage", 0),
+                        "avg_semantic_similarity": embed_result.get("avg_similarity", 0),
+                        "top_market_matches": embed_result.get("matches", [])[:10],
+                    }
+                case _:
+                    embed_coverage = {}
+        except Exception as exc:
+            logger.warning("embed_coverage_failed", discipline=dname, error=str(exc))
+            embed_coverage = {}
+
+        # — LTR scores + SHAP —
+        ltr_shap = {}
+        if ltr_engine is not None and ltr_engine.is_fitted:
+            try:
+                market_all = list(ltr_engine.skill_metadata.keys())
+                known_lower = {s.lower().strip() for s in disc_skills}
+                missing = [s for s in market_all if s.lower().strip() not in known_lower]
+
+                match ltr_engine.predict_skill_impact_with_shap(
+                    disc_skills, missing, compute_shap=True
+                ):
+                    case Ok((impacts, shap_vals, X)):
+                        shap_per_skill = {}
+                        if shap_vals is not None and X is not None and len(impacts) > 0:
+                            for i, (skill, score, _) in enumerate(impacts):
+                                if i < len(shap_vals):
+                                    row_shap = {}
+                                    for j, feat in enumerate(X.columns):
+                                        if j < shap_vals.shape[1]:
+                                            row_shap[feat] = round(float(shap_vals[i, j]), 4)
+                                    shap_per_skill[skill] = row_shap
+
+                        ltr_shap = {
+                            "ltr_scores": [{"skill": s, "score": sc} for s, sc, _ in impacts[:10]],
+                            "shap_values": shap_per_skill,
+                        }
+                    case Err(e):
+                        logger.warning("ltr_shap_skipped", discipline=dname, error=str(e))
+            except Exception as exc:
+                logger.warning("ltr_shap_error", discipline=dname, error=str(exc))
+
+        # — 4. Merge enhanced data into existing JSON —
+        disc_dir = output_dir / _safe_filename(dname)
+        json_file = disc_dir / (_safe_filename(dname) + ".json")
+        if json_file.exists():
+            try:
+                existing = json.loads(json_file.read_text(encoding="utf-8"))
+                existing["enhanced"] = {
+                    "semantic_coverage": embed_coverage,
+                    "ltr_and_shap": ltr_shap,
+                }
+                json_file.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+                enhanced_total += 1
+            except Exception as exc:
+                logger.warning("enhanced_merge_failed", discipline=dname, error=str(exc))
+
+    logger.info("gap_enhance_done", enhanced=enhanced_total, total=len(disciplines))
+
+    # — 5. Update direction summary with enhanced data —
+    if dir_summary and "disciplines" in dir_summary:
+        for d in dir_summary["disciplines"]:
+            disc_dir = output_dir / _safe_filename(d["name"])
+            json_file = disc_dir / (_safe_filename(d["name"]) + ".json")
+            if json_file.exists():
+                try:
+                    data = json.loads(json_file.read_text(encoding="utf-8"))
+                    enh = data.get("enhanced", {})
+                    sc = enh.get("semantic_coverage", {})
+                    d["semantic_coverage"] = sc.get("semantic_coverage", d.get("coverage_ratio", 0))
+                    d["avg_semantic_similarity"] = sc.get("avg_semantic_similarity", 0)
+                    ls = enh.get("ltr_and_shap", {})
+                    d["shap_count"] = len(ls.get("shap_values", {}))
+                except Exception:
+                    pass
+        dir_summary["has_enhanced_gap"] = True
+
+    return dir_summary
 
 
 async def run_teacher_analysis(
@@ -54,25 +203,24 @@ async def run_teacher_analysis(
         user_id, run_id,
     )
 
-    # — load market skills (HH data + it_skills taxonomy) —
-    try:
-        mrows = await pool.fetch(
-            """SELECT DISTINCT ON (LOWER(market_skill_name)) market_skill_name, frequency
-               FROM market_skill_mappings
-               ORDER BY LOWER(market_skill_name), frequency DESC"""
-        )
-    except Exception as exc:
-        logger.error("market_skills_query_failed", error=str(exc))
-        await close_pool()
-        return Err(AnalysisRunnerError(stage="market_skills", message=str(exc)))
-
+    # — load market skills from vacancies (real frequencies) + it_skills taxonomy —
     market_skills: dict[str, int] = {}
-    for r in mrows:
-        k = r["market_skill_name"].lower().strip()
-        if k:
-            market_skills[k] = r["frequency"]
+    vac_count = 0
+    try:
+        vrows = await pool.fetch(
+            """SELECT LOWER(TRIM(value)) AS skill, COUNT(*) AS frequency
+               FROM vacancies, jsonb_array_elements_text(key_skills) AS value
+               WHERE key_skills IS NOT NULL AND jsonb_array_length(key_skills) > 0
+               GROUP BY LOWER(TRIM(value))
+               ORDER BY frequency DESC"""
+        )
+        for r in vrows:
+            market_skills[r["skill"]] = r["frequency"]
+        vac_count = len(market_skills)
+        logger.info("market_skills_from_vacancies", count=vac_count)
+    except Exception as exc:
+        logger.warning("market_skills_vacancies_failed", error=str(exc))
 
-    # Merge it_skills taxonomy into market skills (use freq=1 as base for taxonomy-only skills)
     it_skills_path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
     if it_skills_path.exists():
         import json
@@ -85,7 +233,7 @@ async def run_teacher_analysis(
 
     if not market_skills:
         logger.warning("no_market_skills_found")
-    logger.info("market_skills_loaded", count=len(market_skills), from_hh=len(mrows))
+    logger.info("market_skills_loaded", count=len(market_skills), from_vacancies=vac_count)
 
     # — load disciplines —
     dir_filter = ""
@@ -289,6 +437,23 @@ async def run_teacher_analysis(
                      coverage=f"{coverage.coverage_ratio * 100:.1f}%",
                      gaps=coverage.gaps, emerging=len(coverage.emerging))
 
+    # — enhanced gap analysis (embedding + LTR/SHAP) —
+    try:
+        market_skill_names_for_enhance = list(market_skills.keys())
+        skill_weights_path = DATA_DIR / "processed" / "skill_weights.json"
+        sw: dict[str, float] = {}
+        if skill_weights_path.exists():
+            sw = json.loads(skill_weights_path.read_text(encoding="utf-8"))
+        _enhance_disciplines_with_gap_analysis(
+            disciplines=disciplines,
+            market_skill_names=market_skill_names_for_enhance,
+            skill_weights_dict=sw,
+            output_dir=out_dir,
+            dir_summary=None,
+        )
+    except Exception as exc:
+        logger.warning("enhanced_gap_analysis_skipped", error=str(exc))
+
     if not discipline_reports:
         logger.error("no_disciplines_analyzed")
         return Err(AnalysisRunnerError(
@@ -365,6 +530,22 @@ async def run_teacher_analysis(
         "disciplines": summary.disciplines,
         "generated_at": datetime.now().isoformat(),
     }
+
+    # — merge enhanced data from per-discipline JSONs into summary —
+    for d in dir_summary.get("disciplines", []):
+        d_file = out_dir / _safe_filename(d["name"]) / (_safe_filename(d["name"]) + ".json")
+        if d_file.exists():
+            try:
+                disc_data = json.loads(d_file.read_text(encoding="utf-8"))
+                enh = disc_data.get("enhanced", {})
+                sc = enh.get("semantic_coverage", {})
+                d["semantic_coverage"] = sc.get("semantic_coverage", d.get("coverage_ratio", 0))
+                d["avg_semantic_similarity"] = sc.get("avg_semantic_similarity", 0)
+                ls = enh.get("ltr_and_shap", {})
+                d["shap_scores"] = ls.get("ltr_scores", [])
+            except Exception:
+                pass
+    dir_summary["has_enhanced_gap"] = True
 
     try:
         (out_dir / "_summary.json").write_text(
