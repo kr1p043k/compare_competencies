@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS competencies (
                     CHECK (development_level IN ('КС-1', 'КС-2', 'КС-3')),
     parent_id       UUID REFERENCES competencies(id) ON DELETE CASCADE,
     sort_order      INTEGER NOT NULL DEFAULT 0,
+    embedding       VECTOR(768),                           -- pgvector (mean-pool навыков)
     parse_version_id UUID REFERENCES parse_versions(id),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -146,7 +147,7 @@ CREATE TABLE IF NOT EXISTS skills (
     source      VARCHAR(20) NOT NULL DEFAULT 'it_skills'
                 CHECK (source IN ('it_skills', 'rpd_skills', 'market')),
     category    VARCHAR(100),
-    embedding   VECTOR(384),                           -- pgvector для семантического поиска
+    embedding   VECTOR(768),                           -- pgvector для семантического поиска
     is_active   BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()

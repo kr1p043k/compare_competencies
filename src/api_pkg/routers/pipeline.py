@@ -3,6 +3,7 @@
 import asyncio
 import json
 import shutil
+import threading
 import time
 from enum import Enum
 from pathlib import Path
@@ -90,6 +91,8 @@ router = APIRouter(tags=["pipeline"])
 limiter = Limiter(key_func=get_remote_address)
 
 pipeline_tasks: dict[str, PipelineTaskStatus] = {}
+_running_futures: dict[str, asyncio.Task] = {}
+_cancel_events: dict[str, threading.Event] = {}
 
 
 class PipelineAction(str, Enum):
@@ -209,16 +212,24 @@ async def _rotate_progress(task_id: str, step: int = 1):
 async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
     from src.pipeline import runner as pr
 
+    _cancel_events[task_id] = threading.Event()
+    cancel_event = _cancel_events[task_id]
+
     started_at = time.time()
     pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск...", started_at, step=0)
     _save_tasks()
 
     loop = asyncio.get_event_loop()
 
+    def cancel_aware(fn, *args):
+        if cancel_event.is_set():
+            raise RuntimeError("cancelled")
+        return fn(*args)
+
     try:
         if action == PipelineAction.REBUILD:
             pipeline_tasks[task_id].message = "Запуск полной пересборки..."
-            await loop.run_in_executor(None, pr.rebuild)
+            await loop.run_in_executor(None, lambda: cancel_aware(pr.rebuild))
             msg = "Пересборка завершена."
             status = "completed"
 
@@ -258,8 +269,14 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             pipeline_tasks[task_id].step = 1
             pipeline_tasks[task_id].message = "Запуск полного цикла..."
 
-            await loop.run_in_executor(None, pr.run_full_pipeline, pipeline_args)
+            main_task = asyncio.ensure_future(
+                loop.run_in_executor(None, lambda: cancel_aware(pr.run_full_pipeline, pipeline_args))
+            )
+            _running_futures[task_id] = main_task
+            await main_task
 
+            if cancel_event.is_set():
+                return
             progress_rotator.cancel()
             msg = "Все этапы выполнены. Данные обновлены."
             status = "completed"
@@ -275,14 +292,14 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             pipeline_tasks[task_id].message = "Кластеризация вакансий..."
             from src.ml.clusters import train_clusters
             ok = await loop.run_in_executor(
-                None, lambda: train_clusters(level="all", save_report=True, interpret=True)
+                None, lambda: cancel_aware(train_clusters, level="all", save_report=True, interpret=True)
             )
             status = "completed" if ok else "failed"
             msg = "Кластеризация завершена." if ok else "Кластеризация не выполнена."
 
         elif action == PipelineAction.TRAIN_MODEL:
             pipeline_tasks[task_id].message = "Обучение модели ранжирования..."
-            await loop.run_in_executor(None, pr.run_train_model)
+            await loop.run_in_executor(None, lambda: cancel_aware(pr.run_train_model))
             msg = "Модель обучена."
             status = "completed"
 
@@ -299,35 +316,53 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
                 interactive=False, max_vacancies_per_query=2000, it_sector=False,
                 use_async=True, async_workers=3, async_threshold=10000,
             )
-            await loop.run_in_executor(None, pr.run_full_pipeline, gap_args)
+            main_task = asyncio.ensure_future(
+                loop.run_in_executor(None, lambda: cancel_aware(pr.run_full_pipeline, gap_args))
+            )
+            _running_futures[task_id] = main_task
+            await main_task
+            if cancel_event.is_set():
+                return
             progress_rotator.cancel()
             msg = "GAP-анализ завершен. Отчёты готовы."
             status = "completed"
 
         else:
-            t = pipeline_tasks.get(task_id)
-            if t and t.status == "cancelled":
+            if cancel_event.is_set():
                 return
             pipeline_tasks[task_id] = _make_task_status(
                 task_id, "failed", f"Неизвестное действие: {action}", started_at, output="")
             _save_tasks()
             return
 
-        t = pipeline_tasks.get(task_id)
-        if t and t.status == "cancelled":
+        if cancel_event.is_set():
             return
         pipeline_tasks[task_id] = _make_task_status(
             task_id, status, msg[:500], started_at, output=msg)
         _save_tasks()
 
+    except (asyncio.CancelledError, RuntimeError) as e:
+        if "cancelled" in str(e).lower() or isinstance(e, asyncio.CancelledError):
+            t = pipeline_tasks.get(task_id)
+            if t and t.status != "cancelled":
+                t.status = "cancelled"
+                t.message = "Отменено"
+                t.completed_at = time.time()
+                _save_tasks()
+        else:
+            pipeline_tasks[task_id] = _make_task_status(
+                task_id, "failed", str(e), started_at, output="")
+            _save_tasks()
     except Exception as e:
-        t = pipeline_tasks.get(task_id)
-        if t and t.status == "cancelled":
+        if cancel_event.is_set():
             return
         logger.exception("Pipeline task failed", task_id=task_id)
         pipeline_tasks[task_id] = _make_task_status(
             task_id, "failed", str(e), started_at, output="")
         _save_tasks()
+    finally:
+        _cancel_events.pop(task_id, None)
+        _running_futures.pop(task_id, None)
 
 
 def _build_args_for_sync(action: PipelineAction, **kwargs):
@@ -550,6 +585,17 @@ async def cancel_pipeline_task(task_id: str, request: Request):
     t.message = "Отменено пользователем"
     t.completed_at = time.time()
     _save_tasks()
+
+    # Signal cancellation to running pipeline
+    cancel_event = _cancel_events.get(task_id)
+    if cancel_event:
+        cancel_event.set()
+
+    # Cancel asyncio task if still running
+    running = _running_futures.get(task_id)
+    if running and not running.done():
+        running.cancel()
+
     return {"status": "cancelled", "message": "Pipeline остановлен"}
 
 

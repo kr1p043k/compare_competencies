@@ -1,5 +1,6 @@
 """Инициализация API: загрузка данных, моделей, кэша."""
 
+import asyncio
 import hashlib
 import json
 import time
@@ -63,8 +64,9 @@ async def run_startup(app):
         return
 
     try:
-        with open(raw_file, encoding="utf-8") as f:
-            basic_vacancies = json.load(f)
+        basic_vacancies = await asyncio.to_thread(
+            lambda: json.loads(raw_file.read_bytes())
+        )
     except Exception as exc:
         logger.error("Файл вакансий повреждён", error=str(exc))
         deps.vacancy_load_error = f"corrupted: {exc}"
@@ -97,28 +99,32 @@ async def run_startup(app):
         try:
             from src.parsing.api.hh_api import HeadHunterAPI
 
-            hh = HeadHunterAPI()
-            detailed = []
-            for v in tqdm(basic_vacancies, desc="Загрузка описаний"):
-                vid = v.get("id")
-                if not vid:
-                    detailed.append(v)
-                    continue
-                try:
-                    match hh.get_vacancy_details(str(vid)):
-                        case Ok(det):
-                            detailed.append(det)
-                        case Err(_):
-                            detailed.append(v)
-                except Exception:
-                    detailed.append(v)
-                time.sleep(config.REQUEST_DELAY)
-            basic_vacancies = detailed
-            detailed_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(detailed_file, "w", encoding="utf-8") as f:
-                json.dump(detailed, f, ensure_ascii=False, indent=2)
-            raw_file = detailed_file
-            logger.info("Детали загружены и сохранены", count=len(detailed))
+            def _fetch_details(vacancies):
+                hh = HeadHunterAPI()
+                detailed = []
+                for v in tqdm(vacancies, desc="Загрузка описаний"):
+                    vid = v.get("id")
+                    if not vid:
+                        detailed.append(v)
+                        continue
+                    try:
+                        match hh.get_vacancy_details(str(vid)):
+                            case Ok(det):
+                                detailed.append(det)
+                            case Err(_):
+                                detailed.append(v)
+                    except Exception:
+                        detailed.append(v)
+                    time.sleep(config.REQUEST_DELAY)
+                detailed_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(detailed_file, "w", encoding="utf-8") as f:
+                    json.dump(detailed, f, ensure_ascii=False, indent=2)
+                return detailed, detailed_file
+
+            _result = await asyncio.to_thread(_fetch_details, basic_vacancies)
+            basic_vacancies = _result[0]
+            raw_file = _result[1]
+            logger.info("Детали загружены и сохранены", count=len(basic_vacancies))
         except Exception as e:
             logger.warning("Не удалось загрузить описания", error=str(e))
 

@@ -192,8 +192,7 @@ class Settings(BaseSettings):
         base = info.data.get("BASE_DIR", Path("."))
         return base / v
 
-    @model_validator(mode="after")
-    def _ensure_dirs(self):
+    def ensure_dirs(self):
         dirs = [
             self.DATA_RAW_DIR,
             self.DATA_PROCESSED_DIR,
@@ -212,7 +211,6 @@ class Settings(BaseSettings):
         ]
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
-        return self
 
 
 # ---------------------------------------------------------------------------
@@ -251,7 +249,12 @@ TOKEN_TTL_DAYS = settings.TOKEN_TTL_DAYS
 
 KRM_DISCIPLINES_PATH = settings.KRM_DISCIPLINES_PATH
 TEACHER_RECOMMENDATIONS_PATH = settings.TEACHER_RECOMMENDATIONS_PATH
-SECRET_KEY = settings.SECRET_KEY.get_secret_value() if settings.SECRET_KEY else "insecure-dev-only"
+if settings.SECRET_KEY is None:
+    raise RuntimeError(
+        "SECRET_KEY не задан. Укажите его в .env: "
+        "SECRET_KEY=$(openssl rand -hex 32)"
+    )
+SECRET_KEY = settings.SECRET_KEY.get_secret_value()
 HH_USER_AGENT = settings.HH_USER_AGENT
 REQUEST_DELAY = settings.REQUEST_DELAY
 MAX_RETRIES = settings.MAX_RETRIES
@@ -285,7 +288,6 @@ PCA_MIN_FEATURES = settings.PCA_MIN_FEATURES
 GLOBAL_RANDOM_SEED = settings.GLOBAL_RANDOM_SEED
 
 REFERENCE_DIR = settings.REFERENCE_DIR
-IT_SKILLS_PATH = settings.IT_SKILLS_PATH
 SKILL_TAXONOMY_PATH = settings.SKILL_TAXONOMY_PATH
 DOMAIN_MAP_PATH = settings.DOMAIN_MAP_PATH
 PROFESSION_TAXONOMY_PATH = settings.PROFESSION_TAXONOMY_PATH

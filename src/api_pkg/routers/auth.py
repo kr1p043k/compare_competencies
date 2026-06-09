@@ -148,6 +148,18 @@ async def me(request: Request):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     pool = get_pool()
+
+    # Verify session not logged out
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:]
+    token_hash = _hash_token(token)
+    session_row = await pool.fetchrow(
+        "SELECT logged_out_at FROM sessions WHERE token_hash = $1",
+        token_hash,
+    )
+    if session_row is None or session_row["logged_out_at"] is not None:
+        raise HTTPException(status_code=401, detail="Session expired")
+
     row = await pool.fetchrow(
         "SELECT email, role, full_name FROM users WHERE email = $1",
         user_data["u"],
