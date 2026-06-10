@@ -17,6 +17,38 @@ def _uuid() -> str:
     return str(uuid.uuid4())
 
 
+# ─── Vacancy ────────────────────────────────────────────────────────────────
+
+class Vacancy(Base):
+    __tablename__ = "vacancies"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    hh_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    experience: Mapped[Optional[str]] = mapped_column(String(50))
+    salary_from: Mapped[Optional[int]] = mapped_column(Integer)
+    salary_to: Mapped[Optional[int]] = mapped_column(Integer)
+    salary_currency: Mapped[Optional[str]] = mapped_column(String(10))
+    employer_name: Mapped[Optional[str]] = mapped_column(Text)
+    employer_id: Mapped[Optional[int]] = mapped_column(Integer)
+    area_name: Mapped[Optional[str]] = mapped_column(Text)
+    snippet_requirement: Mapped[Optional[str]] = mapped_column(Text)
+    snippet_responsibility: Mapped[Optional[str]] = mapped_column(Text)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    key_skills: Mapped[Optional[list[str]]] = mapped_column(sa.JSON())
+    published_at: Mapped[Optional[datetime]]
+    alternate_url: Mapped[Optional[str]] = mapped_column(Text)
+    pipeline_run_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
+    raw: Mapped[Optional[dict]] = mapped_column(sa.JSON())
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("hh_id", name="uq_vacancies_hh_id"),
+        sa.Index("idx_vacancies_published", "published_at"),
+        sa.Index("idx_vacancies_employer", "employer_name"),
+    )
+
+
 # ─── Direction ─────────────────────────────────────────────────────────────
 
 class Direction(Base):
@@ -120,6 +152,7 @@ class Competency(Base):
     development_level: Mapped[Optional[str]] = mapped_column(String(10))
     parent_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    embedding: Mapped[Optional[list[float]]] = mapped_column(Vector(768))
     parse_version_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("parse_versions.id"))
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -173,13 +206,12 @@ class Skill(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String(20), default="it_skills")
     category: Mapped[Optional[str]] = mapped_column(String(100))
-    embedding: Mapped[Optional[list[float]]] = mapped_column(Vector(384))
+    embedding: Mapped[Optional[list[float]]] = mapped_column(Vector(768))
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
 
     competency_skills: Mapped[list["CompetencySkill"]] = relationship(back_populates="skill", cascade="all, delete-orphan")
-    market_mappings: Mapped[list["MarketSkillMapping"]] = relationship(back_populates="skill", cascade="all, delete-orphan")
     student_skills: Mapped[list["StudentSkill"]] = relationship(back_populates="skill", cascade="all, delete-orphan")
 
     __table_args__ = (
@@ -348,22 +380,6 @@ class RequestLog(Base):
     )
 
 
-# ─── Market Skill Mapping ──────────────────────────────────────────────────
-
-class MarketSkillMapping(Base):
-    __tablename__ = "market_skill_mappings"
-
-    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    skill_id: Mapped[str] = mapped_column(UUID, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True)
-    market_skill_name: Mapped[str] = mapped_column(Text, nullable=False)
-    frequency: Mapped[int] = mapped_column(Integer, default=0)
-    weight: Mapped[float] = mapped_column(Float, default=0.0)
-    period: Mapped[Optional[datetime]] = mapped_column()
-    source: Mapped[Optional[str]] = mapped_column(String(50))
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-
-    skill: Mapped["Skill"] = relationship(back_populates="market_mappings")
-
 
 # ─── Coverage Analysis ─────────────────────────────────────────────────────
 
@@ -429,3 +445,24 @@ class TrendSnapshot(Base):
     skill_freq: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
     source: Mapped[str] = mapped_column(String(50), default="hh_vacancies")
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
+# ─── Competency Trend ───────────────────────────────────────────────────
+
+class CompetencyTrend(Base):
+    __tablename__ = "competency_trends"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    competency_id: Mapped[str] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"), nullable=False, index=True)
+    trend_direction: Mapped[str] = mapped_column(String(10), nullable=False)
+    change_pct: Mapped[float] = mapped_column(Float, default=0.0)
+    snapshot_date: Mapped[datetime] = mapped_column()
+    skill_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    competency: Mapped["Competency"] = relationship()
+
+    __table_args__ = (
+        CheckConstraint(trend_direction.in_(["rising", "falling", "stable"]), name="ck_ct_direction"),
+        UniqueConstraint("competency_id", "snapshot_date", name="uq_ct_comp_date"),
+    )

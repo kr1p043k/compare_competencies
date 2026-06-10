@@ -30,8 +30,20 @@ class DIContainer:
         self._parent = parent
         self._entries: dict[Any, _Entry] = {}
         self._registry: dict[Any, dict] = {}
+        self._frozen: bool = False
+
+    def register_instance(self, key: Any, instance: Any):
+        if self._frozen:
+            raise RuntimeError(f"Cannot register_instance({key}): container is frozen")
+        self._entries[key] = _Entry(instance=instance, singleton=True)
+        self._registry[key] = {"singleton": True}
+
+    def freeze(self):
+        self._frozen = True
 
     def register(self, key: Any, factory: Callable[[], Any] | None = None, instance: Any = None, singleton: bool = True):
+        if self._frozen:
+            raise RuntimeError(f"Cannot register({key}): container is frozen")
         if instance is not None:
             self._entries[key] = _Entry(instance=instance, singleton=True)
         else:

@@ -8,12 +8,10 @@ import asyncio
 import sys
 sys.stdout.reconfigure(encoding="utf-8")
 
-from src.pipeline.db_writer import export_file_results_to_db
-
-
 async def main() -> None:
+    from src.pipeline.db_writer import export_vacancies_from_json
     print("Exporting file results to DB...")
-    count = await export_file_results_to_db()
+    count = await export_vacancies_from_json()
     print(f"Done. {count} records written.")
 
 

@@ -11,14 +11,18 @@ def main() -> None:
 
     from src.cli import (
         backup_db,
+        compute_competency_trends,
+        compute_competency_vectors,
         create_user,
         embeddings,
         export_json,
         export_results,
+        export_vacancies,
         extend_skills,
         import_students,
         rebuild,
         seed_db,
+        teacher_analysis,
     )
 
     parser = argparse.ArgumentParser(description="compare_competencies CLI")
@@ -64,6 +68,24 @@ def main() -> None:
 
     p = sub.add_parser("export-results", help="Экспорт JSON-результатов в БД")
     p.set_defaults(func=lambda a: export_results.main())
+
+    p = sub.add_parser("compute-competency-vectors", help="Вычислить эмбеддинги компетенций через mean pool навыков")
+    p.add_argument("--force", action="store_true")
+    p.set_defaults(func=lambda a: compute_competency_vectors.main(force=a.force))
+
+    p = sub.add_parser("compute-competency-trends", help="Вычислить тренды компетенций из снимков рынка")
+    p.add_argument("--force", action="store_true")
+    p.set_defaults(func=lambda a: compute_competency_trends.main(force=a.force))
+
+    p = sub.add_parser("teacher-analysis", help="Запустить преподавательский анализ (gap + embedding + SHAP)")
+    p.add_argument("--direction", default="09.03.02", help="Код направления (09.03.02)")
+    p.add_argument("--discipline", help="Фильтр по дисциплине (необязательно)")
+    p.set_defaults(func=lambda a: teacher_analysis.main(direction=a.direction, discipline=a.discipline))
+
+    p = sub.add_parser("export-vacancies", help="Экспорт JSON-вакансий в БД")
+    p.add_argument("--basic", help="Путь к hh_vacancies_basic.json")
+    p.add_argument("--detailed", help="Путь к hh_vacancies_detailed.json")
+    p.set_defaults(func=lambda a: export_vacancies.main(basic_path=a.basic, detailed_path=a.detailed))
 
     args = parser.parse_args()
     args.func(args)

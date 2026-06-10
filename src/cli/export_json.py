@@ -17,7 +17,7 @@ from sqlalchemy import inspect, select
 from src.database import async_session_factory
 from src.models.krm_models import (
     Competency, CompetencySkill, CoverageAnalysis, Direction,
-    Discipline, KSAEntry, MarketSkillMapping, ParseVersion,
+    Discipline, KSAEntry, ParseVersion,
     PDFSource, Recommendation, Skill, Student, StudentGroup,
     StudentSkill, User,
 )
@@ -38,7 +38,6 @@ TABLES: list[tuple[str, type]] = [
     ("student_groups", StudentGroup),
     ("students", Student),
     ("student_skills", StudentSkill),
-    ("market_skill_mappings", MarketSkillMapping),
     ("coverage_analyses", CoverageAnalysis),
 ]
 

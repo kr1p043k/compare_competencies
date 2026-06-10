@@ -325,12 +325,12 @@ async def export_full_report(request: Request):
 @router.get("/api/admin/users")
 @limiter.limit("30/minute")
 async def admin_users(request: Request):
+    from sqlalchemy import text
     from src.database import async_session_factory
-    from src.models.krm_models import User as UserModel
 
     async with async_session_factory() as session:
-        result = await session.execute(select(UserModel).order_by(UserModel.created_at))
-        users = result.scalars().all()
+        result = await session.execute(text("SELECT * FROM users ORDER BY created_at"))
+        users = result.fetchall()
 
     log_counts = get_logs_by_user()
     return {
@@ -403,9 +403,8 @@ class CreateUserRequest(BaseModel):
 @limiter.limit("10/minute")
 async def admin_create_user(request: Request, body: CreateUserRequest):
     """Create a new user with bcrypt-hashed password."""
-    import asyncio
     from src.cli.create_user import main as create_user_main
-    asyncio.run(create_user_main(body.email, body.password, body.role, body.name))
+    await create_user_main(body.email, body.password, body.role, body.name)
     return {"status": "ok", "email": body.email, "role": body.role}
 
 
@@ -441,7 +440,6 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
     """Import students from JSON array."""
     import csv
     import io
-    import asyncio
     from src.cli.import_students import main as import_main
 
     # Write to temp CSV, then run import
@@ -457,7 +455,7 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
     tmp_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path.write_text(tmp.getvalue(), encoding="utf-8")
 
-    asyncio.run(import_main(str(tmp_path)))
+    await import_main(str(tmp_path))
     tmp_path.unlink(missing_ok=True)
     return {"status": "ok", "imported": len(body)}
 

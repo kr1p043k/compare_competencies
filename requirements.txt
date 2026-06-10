@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ============================================
 # FIXED VERSIONS - ТОЛЬКО ЭТИ ВЕРСИИ РАБОТАЮТ
 # ============================================
@@ -71,3 +72,38 @@ python-multipart==0.0.6
 tenacity==8.2.3
 python-dateutil==2.8.2
 loguru==0.7.2
+=======
+requests==2.32.4
+pandas==2.3.1
+numpy==2.2.6
+pydantic==2.13.4
+pydantic-settings==2.14.1
+matplotlib==3.10.3
+seaborn==0.13.2
+openpyxl>=3.1.0
+aiohttp==3.12.14
+scikit-learn==1.8.0
+sentence-transformers==5.3.0
+torch>=2.5.0
+rapidfuzz>=3.12.0
+rank-bm25>=0.2.2
+python-dotenv>=1.0.0
+pymorphy3>=2.0.0
+xgboost==3.0.3
+shap==0.51.0
+joblib>=1.4.0
+chardet>=5.0.0
+structlog==25.5.0
+tqdm>=4.67.0
+fastapi==0.116.1
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.1
+pgvector==0.3.6
+uvicorn[standard]==0.35.0
+slowapi>=0.1.9
+lightgbm>=4.6.0
+faiss-cpu>=1.13.2
+prometheus-client>=0.21.0
+psycopg2-binary>=2.9.10
+>>>>>>> 000f53efe6c95924e29e7c86ad5ee5e4cb8ab1c0

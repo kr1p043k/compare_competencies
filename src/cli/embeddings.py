@@ -21,7 +21,8 @@ async def main(force: bool = False) -> None:
     print("Loading sentence-transformers model...")
     from sentence_transformers import SentenceTransformer
 
-    model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+    from src import config
+    model = SentenceTransformer(config.EMBEDDING_MODEL)
 
     async with async_session_factory() as session:
         query = select(Skill).where(Skill.is_active == True)

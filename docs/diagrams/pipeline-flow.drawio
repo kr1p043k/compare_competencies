@@ -1,0 +1,16 @@
+<mxfile><diagram name="Pipeline Flow">
+<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="900" math="0" shadow="0">
+<root>
+<mxCell id="0"/>
+<mxCell id="1" parent="0"/>
+<mxCell id="t" value="&lt;b&gt;Full Pipeline — 8 stages + Teacher Analysis&lt;/b&gt;" style="text;html=1;fontSize=14;align=center;" vertex="1" parent="1"><mxGeometry x="20" y="10" width="1100" height="30" as="geometry"/></mxCell>
+<mxCell id="s1" value="&lt;b&gt;1. Data Collection&lt;/b&gt;&lt;br&gt;hh.ru API → json" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="1"><mxGeometry x="40" y="70" width="120" height="60" as="geometry"/></mxCell>
+<mxCell id="s2" value="&lt;b&gt;2. Skill Extraction&lt;/b&gt;&lt;br&gt;Парсинг навыков" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="1"><mxGeometry x="200" y="70" width="120" height="60" as="geometry"/></mxCell>
+<mxCell id="s3" value="&lt;b&gt;3. Level Building&lt;/b&gt;&lt;br&gt;Junior/Middle/Senior" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="1"><mxGeometry x="360" y="70" width="120" height="60" as="geometry"/></mxCell>
+<mxCell id="s4" value="&lt;b&gt;4. Weight Cleaning&lt;/b&gt;&lt;br&gt;Фильтрация шума" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="1"><mxGeometry x="520" y="70" width="120" height="60" as="geometry"/></mxCell>
+<mxCell id="s5" value="&lt;b&gt;5. Quality Scoring&lt;/b&gt;&lt;br&gt;Оценка вакансий" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="1"><mxGeometry x="680" y="70" width="120" height="60" as="geometry"/></mxCell>
+<mxCell id="s6" value="&lt;b&gt;6. Cluster Training&lt;/b&gt;&lt;br&gt;FAISS + k-means" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="1"><mxGeometry x="200" y="180" width="120" height="60" as="geometry"/></mxCell>
+<mxCell id="s7" value="&lt;b&gt;7. Model Training&lt;/b&gt;&lt;br&gt;XGBoost LTR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="1"><mxGeometry x="360" y="180" width="120" height="60" as="geometry"/></mxCell>
+<mxCell id="s8" value="&lt;b&gt;8. Gap Analysis&lt;/b&gt;&lt;br&gt;Профиль vs Рынок" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;" vertex="1" parent="1"><mxGeometry x="520" y="180" width="120" height="60" as="geometry"/></mxCell>
+<mxCell id="ta1" value="&lt;b&gt;Teacher Analysis:&lt;/b&gt;&lt;br&gt;Load DB → Match Coverage →&lt;br&gt;Recommend → Enhanced + SHAP → JSON" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;" vertex="1" parent="1"><mxGeometry x="40" y="300" width="600" height="50" as="geometry"/></mxCell>
+</root></mxGraphModel></diagram></mxfile>
