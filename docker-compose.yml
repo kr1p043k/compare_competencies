@@ -1,5 +1,4 @@
 services:
-  # Ваш проект Competency Gap Analyzer
   backend:
     build: .
     container_name: compare-competencies-api
@@ -10,14 +9,33 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
+      - ./uploads:/app/uploads
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     networks:
       - ai-net
+      - monitoring
+    depends_on:
+      competency-postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@competency-postgres:5432/${POSTGRES_DB:-compare_competencies}
+      - OLLAMA_URL=http://ollama:11434
+    labels:
+      - "prometheus.scrape=true"
+      - "prometheus.port=8000"
+      - "prometheus.path=/metrics"
 
-  # Ollama сервер для запуска DeepSeek
   ollama:
     image: ollama/ollama:latest
-    container_name: ollama-deepseek
+    container_name: ollama-qwen
     ports:
       - "11434:11434"
     volumes:
@@ -25,16 +43,11 @@ services:
     restart: unless-stopped
     networks:
       - ai-net
-    # Если на сервере есть NVIDIA GPU — раскомментируйте:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+      - monitoring
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    command: serve
 
-  # Open Web UI — веб-интерфейс для чата с DeepSeek
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
@@ -49,8 +62,8 @@ services:
     restart: unless-stopped
     networks:
       - ai-net
+      - monitoring
 
-  # n8n — платформа автоматизации workflow
   n8n:
     image: n8nio/n8n:latest
     container_name: n8n
@@ -64,12 +77,23 @@ services:
       - WEBHOOK_URL=http://localhost:5678
       - GENERIC_TIMEZONE=Europe/Moscow
       - N8N_PROTOCOL=http
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=n8n-postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=n8n_password_change_me
+      - DB_POSTGRESDB_DATABASE=n8n
+      - N8N_METRICS=true
+      - N8N_METRICS_INCLUDE_DEFAULT_METRICS=true
+    depends_on:
+      n8n-postgres:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - ai-net
+      - monitoring
 
-  # PostgreSQL для n8n (prod)
-  postgres:
+  n8n-postgres:
     image: postgres:16-alpine
     container_name: n8n-postgres
     environment:
@@ -77,34 +101,122 @@ services:
       - POSTGRES_PASSWORD=n8n_password_change_me
       - POSTGRES_DB=n8n
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - n8n-postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
       - ai-net
+      - monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # PostgreSQL — закомментировано, используется локальный на 5432
-  # postgres:
-  #   image: pgvector/pgvector:pg16
-  #   container_name: competency-postgres
-  #   environment:
-  #     - POSTGRES_USER=postgres
-  #     - POSTGRES_PASSWORD=postgres
-  #     - POSTGRES_DB=compare_competencies
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - postgres-data:/var/lib/postgresql/data
-  #   restart: unless-stopped
-  #   networks:
-  #     - ai-net
+  competency-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: competency-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-compare_competencies}
+    ports:
+      - "5432:5432"
+    volumes:
+      - competency-postgres-data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    networks:
+      - ai-net
+      - monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # PROMETHEUS - ИСПРАВЛЕНО
+  # ============================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # ============================================
+  # GRAFANA - ИСПРАВЛЕНО
+  # ============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./grafana/data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # ============================================
+  # POSTGRES EXPORTER - ИСПРАВЛЕНО
+  # ============================================
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres-exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@competency-postgres:5432/${POSTGRES_DB:-compare_competencies}?sslmode=disable
+    ports:
+      - "9187:9187"
+    restart: unless-stopped
+    networks:
+      - monitoring
+    depends_on:
+      - competency-postgres
+
+  # ============================================
+  # NODE EXPORTER
+  # ============================================
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+    restart: unless-stopped
+    networks:
+      - monitoring
 
 networks:
   ai-net:
+    driver: bridge
+  monitoring:
     driver: bridge
 
 volumes:
   ollama-data:
   open-webui-data:
   n8n-data:
-  postgres-data:
-  # postgres-data:
+  n8n-postgres-data:
+  competency-postgres-data:

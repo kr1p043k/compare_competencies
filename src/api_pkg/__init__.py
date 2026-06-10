@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from src.monitoring.metrics import get_metrics
 
 from src import config
 from src.api_pkg import deps as deps  # noqa: F401
@@ -53,6 +54,11 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.get("/metrics")
+    async def metrics():
+        """эндпоинт на метрики Prometheus"""
+        return get_metrics()
 
     @app.middleware("http")
     async def limit_body_size_middleware(request: Request, call_next):

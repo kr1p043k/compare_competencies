@@ -1,0 +1,147 @@
+{
+  "dashboard": {
+    "title": "Competency Gap Analyzer",
+    "panels": [
+      {
+        "title": "Pipeline Stage Duration",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(pipeline_stage_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{stage}} - P95"
+          }
+        ]
+      },
+      {
+        "title": "Pipeline Errors",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(pipeline_errors_total)",
+            "legendFormat": "Total errors"
+          }
+        ]
+      },
+      {
+        "title": "API Request Duration",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{method}} {{path}} - P95"
+          }
+        ]
+      },
+      {
+        "title": "API Requests Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(api_requests_total[5m])",
+            "legendFormat": "{{method}} {{path}} ({{status}})"
+          }
+        ]
+      },
+      {
+        "title": "Recommendations Generated",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(recommendations_generated_total)",
+            "legendFormat": "Total"
+          }
+        ]
+      },
+      {
+        "title": "LTR Training Duration",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(ltr_training_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95 duration"
+          }
+        ]
+      },
+      {
+        "title": "LTR Model Metrics",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "ltr_model_metric",
+            "legendFormat": "{{metric}}"
+          }
+        ]
+      },
+      {
+        "title": "Vacancies Loaded",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "vacancies_loaded_total",
+            "legendFormat": "Total"
+          }
+        ]
+      },
+      {
+        "title": "Active Profiles",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "active_profiles_total",
+            "legendFormat": "Profiles"
+          }
+        ]
+      },
+      {
+        "title": "Unique Skills",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "skill_count_total",
+            "legendFormat": "Skills"
+          }
+        ]
+      },
+      {
+        "title": "SHAP Computation Duration",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(shap_computation_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95 duration"
+          }
+        ]
+      },
+      {
+        "title": "Database Connections (pg_stat_database)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "pg_stat_database_numbackends",
+            "legendFormat": "{{datname}}"
+          }
+        ]
+      },
+      {
+        "title": "Container CPU Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(container_cpu_usage_seconds_total{name!=\"\"}[5m])) by (name)",
+            "legendFormat": "{{name}}"
+          }
+        ]
+      },
+      {
+        "title": "Container Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(container_memory_usage_bytes{name!=\"\"}) by (name)",
+            "legendFormat": "{{name}}"
+          }
+        ]
+      }
+    ]
+  }
+}
