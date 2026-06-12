@@ -30,6 +30,7 @@ logger = structlog.get_logger("api")
 
 
 async def run_startup(app):
+    config.settings.ensure_dirs()
     """Загружает все необходимые данные и модели в глобальное состояние."""
     logger.info("Запуск API-сервера, инициализация движков...")
 

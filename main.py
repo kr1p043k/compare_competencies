@@ -14,7 +14,7 @@ if __name__ == "__main__" and sys.platform == "win32":
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src import Err, Ok, Result
+from src import Err, Ok, Result, config
 from src.logging_config import setup_structlog
 from src.pipeline.runner import (
     rebuild,
@@ -94,6 +94,7 @@ def validate_args(args) -> None:
 
 
 def main() -> Result[None, str]:
+    config.settings.ensure_dirs()
     setup_structlog()
     args = parse_arguments()
     validate_args(args)
