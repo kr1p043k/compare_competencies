@@ -1,6 +1,5 @@
 .PHONY: help install install-dev lint format test train clusters rebuild run-api clean
 .PHONY: docker-build docker-up docker-down docker-logs docker-shell docker-clean
-.PHONY: docker-dev docker-prod docker-exec
 
 # ============================================
 # Существующие команды
@@ -28,9 +27,6 @@ help:
 	@echo "  make docker-logs  - посмотреть логи"
 	@echo "  make docker-shell - войти в контейнер"
 	@echo "  make docker-clean - удалить контейнер и volumes"
-	@echo "  make docker-dev   - запустить в режиме разработки"
-	@echo "  make docker-prod  - запустить в production режиме"
-	@echo "  make docker-exec  - выполнить команду (используйте CMD=\"...\")"
 
 install:
 	uv pip install -e .
@@ -39,12 +35,12 @@ install-dev:
 	uv pip install -e ".[dev]"
 
 lint:
-	ruff check src/ scripts/ main.py
-	ruff format --check src/ scripts/ main.py
+	ruff check src/ main.py
+	ruff format --check src/ main.py
 
 format:
-	ruff check --fix src/ scripts/ main.py
-	ruff format src/ scripts/ main.py
+	ruff check --fix src/ main.py
+	ruff format src/ main.py
 
 test:
 	pytest tests/ -v
@@ -76,7 +72,6 @@ clean:
 DOCKER_COMPOSE := docker-compose
 DOCKER_IMAGE := competency-gap-analyzer
 DOCKER_CONTAINER := competency-gap-analyzer
-DOCKER_CONTAINER_DEV := competency-gap-analyzer-dev
 
 # Проверка наличия docker-compose или docker compose
 DOCKER_COMPOSE_CMD := $(shell command -v docker-compose 2>/dev/null || echo "docker compose")
@@ -116,41 +111,18 @@ docker-clean:
 	$(DOCKER_COMPOSE_CMD) down -v
 	@echo " Контейнер и volumes удалены"
 
-# Режим разработки (с монтированием кода для hot-reload)
-docker-dev:
-	@echo " Запуск в режиме разработки..."
-	@mkdir -p data/cache data/result data/processed data/history logs
-	docker build -f Dockerfile.dev -t $(DOCKER_IMAGE)-dev .
-	docker run -it --rm \
-		-p 8000:8000 \
-		-v $(PWD)/src:/app/src \
-		-v $(PWD)/scripts:/app/scripts \
-		-v $(PWD)/data:/app/data \
-		-v $(PWD)/logs:/app/logs \
-		-v $(PWD)/.env:/app/.env:ro \
-		--name $(DOCKER_CONTAINER_DEV) \
-		$(DOCKER_IMAGE)-dev
+# Статус контейнера
+docker-status:
+	@echo " Статус контейнера:"
+	$(DOCKER_COMPOSE_CMD) ps
+	@echo ""
+	@echo " Использование ресурсов:"
+	docker stats --no-stream $(DOCKER_CONTAINER)
 
-# Production режим с дополнительными параметрами
-docker-prod:
-	@echo " Запуск в production режиме..."
-	@mkdir -p data/cache data/result data/processed data/history logs
-	@if [ ! -f .env ]; then \
-		echo "⚠️  Файл .env не найден, создаю из .env.example"; \
-		cp .env.example .env; \
-	fi
-	$(DOCKER_COMPOSE_CMD) -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-	@echo " Production режим запущен"
-
-# Выполнение произвольной команды в контейнере
-# Использование: make docker-exec CMD="python main.py --train-model"
-docker-exec:
-	@if [ -z "$(CMD)" ]; then \
-		echo " Ошибка: укажите команду через CMD=\"...\""; \
-		echo "Пример: make docker-exec CMD=\"python main.py --train-model\""; \
-		exit 1; \
-	fi
-	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) $(CMD)
+# Просмотр логов ошибок
+docker-errors:
+	@echo " Последние ошибки:"
+	$(DOCKER_COMPOSE_CMD) logs --tail=50 | grep -i error || echo " Ошибок не найдено"
 
 # Запуск gap-анализа через Docker
 docker-gap:
@@ -166,24 +138,6 @@ docker-fetch:
 docker-train:
 	@echo " Обучение модели в Docker..."
 	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) python main.py --train-model
-
-# Кластеризация через Docker
-docker-clusters:
-	@echo " Кластеризация в Docker..."
-	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) python -m src.cli teacher-analysis --discipline all
-
-# Статус контейнера
-docker-status:
-	@echo " Статус контейнера:"
-	$(DOCKER_COMPOSE_CMD) ps
-	@echo ""
-	@echo " Использование ресурсов:"
-	docker stats --no-stream $(DOCKER_CONTAINER)
-
-# Просмотр логов ошибок
-docker-errors:
-	@echo " Последние ошибки:"
-	$(DOCKER_COMPOSE_CMD) logs --tail=50 | grep -i error || echo " Ошибок не найдено"
 
 # Импорт данных студентов через Docker
 docker-import-students:

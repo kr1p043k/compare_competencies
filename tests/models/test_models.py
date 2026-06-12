@@ -17,10 +17,8 @@ from src.models.hh_responses import (
     parse_response,
 )
 from unittest.mock import patch, MagicMock
-from src.models.comparison import ComparisonReport, GapResult
 from src.models.market_metrics import DomainMetrics, SkillMetrics
 from src.models.student import (
-    ProfileComparison,
     ProfileEvaluation,
     StudentProfile,
     merge_skills_hierarchically,
@@ -52,23 +50,6 @@ def test_student_profile_with_embedding():
     student = StudentProfile(profile_name="test", skills=["python"], embedding=emb)
     assert student.embedding is not None
     assert len(student.embedding) == 384
-
-def test_profile_comparison_to_dict_for_json_no_best(sample_student):
-    """to_dict_for_json без best_evaluation"""
-    eval1 = ProfileEvaluation(
-        profile_name="test",
-        student=sample_student,
-        level="middle",
-        market_coverage_score=70.0,
-        skill_coverage=65.0,
-        domain_coverage_score=60.0,
-        readiness_score=68.0,
-    )
-    pc = ProfileComparison(evaluations=[eval1])
-    # Не вызываем compute_aggregates — best_evaluation = None
-    result = pc.to_dict_for_json()
-    assert result["total_profiles"] == 1
-    assert result["best_profile"]["profile_name"] == "test"
 
 def test_merge_skills_hierarchically_overlap():
     """merge_skills_hierarchically с пересекающимися навыками"""
@@ -115,54 +96,7 @@ def test_profile_evaluation_creation(sample_student):
     assert "middle" in repr(eval_result)
 
 
-# ==================== ProfileComparison ====================
 
-
-def test_profile_comparison_empty():
-    pc = ProfileComparison()
-    assert pc.average_readiness == 0.0
-    assert pc.best_evaluation is None
-
-
-def test_profile_comparison_with_evaluations(sample_student):
-    eval1 = ProfileEvaluation(
-        profile_name="base",
-        student=sample_student,
-        level="junior",
-        market_coverage_score=60.0,
-        skill_coverage=55.0,
-        domain_coverage_score=50.0,
-        readiness_score=58.0,
-    )
-    eval2 = ProfileEvaluation(
-        profile_name="advanced",
-        student=sample_student,
-        level="senior",
-        market_coverage_score=85.0,
-        skill_coverage=80.0,
-        domain_coverage_score=75.0,
-        readiness_score=82.0,
-    )
-    pc = ProfileComparison(evaluations=[eval1, eval2])
-    pc.compute_aggregates()
-    assert pc.average_readiness == 70.0
-    assert pc.best_evaluation.profile_name == "advanced"
-
-
-def test_profile_comparison_to_dict(sample_student):
-    eval1 = ProfileEvaluation(
-        profile_name="test",
-        student=sample_student,
-        level="middle",
-        market_coverage_score=70.0,
-        skill_coverage=65.0,
-        domain_coverage_score=60.0,
-        readiness_score=68.0,
-    )
-    pc = ProfileComparison(evaluations=[eval1])
-    result = pc.to_dict_for_json()
-    assert result["total_profiles"] == 1
-    assert "best_profile" in result
 
 
 # ==================== merge_skills_hierarchically ====================
@@ -183,100 +117,7 @@ def test_merge_skills_order_preserved():
     assert result == ["top", "mid", "base"]
 
 
-# ==================== GapResult ====================
 
-
-class TestGapResult:
-    def test_valid_gap_result(self):
-        gap = GapResult(
-            skill="Python",
-            gap_j=0.5,
-            gap_m=0.3,
-            gap_s=0.1,
-            max_gap=0.5,
-            cluster_relevance=0.8,
-            demand=0.9,
-            priority="HIGH",
-        )
-        assert gap.skill == "Python"
-        assert gap.priority == "HIGH"
-
-    def test_gap_result_defaults(self):
-        gap = GapResult(skill="Python")
-        assert gap.gap_j == 0.0
-        assert gap.gap_m == 0.0
-        assert gap.gap_s == 0.0
-        assert gap.priority == "LOW"
-
-    def test_gap_result_serialization(self):
-        gap = GapResult(skill="Python", priority="MEDIUM")
-        data = gap.model_dump()
-        assert data["skill"] == "Python"
-        assert data["priority"] == "MEDIUM"
-
-
-class TestComparisonReport:
-    @pytest.fixture
-    def sample_evaluation(self, sample_student):
-        return ProfileEvaluation(
-            profile_name="base",
-            student=sample_student,
-            level="middle",
-            market_coverage_score=70.0,
-            skill_coverage=65.0,
-            domain_coverage_score=60.0,
-            readiness_score=68.0,
-        )
-
-    def test_valid_comparison_report(self, sample_evaluation):
-        report = ComparisonReport(
-            total_profiles=1,
-            profiles=["base"],
-            average_readiness=68.0,
-            average_market_coverage=70.0,
-            average_skill_coverage=65.0,
-            average_domain_coverage=60.0,
-            best_profile="base",
-            best_readiness=68.0,
-            best_market_coverage=70.0,
-            evaluations=[sample_evaluation],
-            overall_recommendations=["Учить Docker"],
-        )
-        assert report.total_profiles == 1
-        assert report.best_profile == "base"
-
-    def test_comparison_report_empty_gaps(self, sample_evaluation):
-        report = ComparisonReport(
-            total_profiles=1,
-            profiles=["base"],
-            average_readiness=50.0,
-            average_market_coverage=50.0,
-            average_skill_coverage=50.0,
-            average_domain_coverage=50.0,
-            best_profile="base",
-            best_readiness=50.0,
-            best_market_coverage=50.0,
-            evaluations=[sample_evaluation],
-        )
-        assert report.high_priority_gaps == []
-        assert report.overall_recommendations == []
-
-    def test_comparison_report_to_dict(self, sample_evaluation):
-        report = ComparisonReport(
-            total_profiles=1,
-            profiles=["base"],
-            average_readiness=70.0,
-            average_market_coverage=70.0,
-            average_skill_coverage=70.0,
-            average_domain_coverage=70.0,
-            best_profile="base",
-            best_readiness=70.0,
-            best_market_coverage=70.0,
-            evaluations=[sample_evaluation],
-        )
-        data = report.to_dict()
-        assert data["total_profiles"] == 1
-        assert "best_profile" in data
 
 
 # ==================== SkillMetrics ====================
