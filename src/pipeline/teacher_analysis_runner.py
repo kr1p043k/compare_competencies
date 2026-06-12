@@ -633,13 +633,13 @@ async def run_teacher_analysis(
             ccov = [c.coverage * 100 for c in comps]
             fig, ax = plt.subplots(figsize=(max(6, len(comps) * 0.5), 4))
             ccolors = ["#2ecc71" if v >= 50 else "#f39c12" if v >= 20 else "#e74c3c" for v in ccov]
-            ax.bar(range(len(cnames)), ccov, color=ccolors, width=0.6)
+            cbars = ax.bar(range(len(cnames)), ccov, color=ccolors, width=0.6)
             ax.set_ylabel("Покрытие %")
             ax.set_title(f"Компетенции — {dn[:40]}", fontsize=11)
             ax.set_xticks(range(len(cnames)))
             ax.set_xticklabels(cnames, rotation=45, ha="right", fontsize=8)
-            for bar, v in zip(bars, ccov):
-                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5,
+            for cb, v in zip(cbars, ccov):
+                ax.text(cb.get_x() + cb.get_width() / 2, cb.get_height() + 0.5,
                         f"{v:.0f}%", ha="center", fontsize=7)
             fig.tight_layout()
             fig.savefig(chart_dir / fname, dpi=150)

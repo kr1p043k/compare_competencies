@@ -1,0 +1,1092 @@
+{
+  "level": "all",
+  "total_vacancies": 6458,
+  "num_clusters": 88,
+  "clusters": [
+    {
+      "label": "Cluster 0",
+      "size": 12,
+      "top_skills": [
+        "Ozon Офис и Коммерция",
+        "ozon офис и коммерция",
+        "Ozon офис и коммерция"
+      ]
+    },
+    {
+      "label": "Cluster 1",
+      "size": 12,
+      "top_skills": [
+        "Unreal Engine",
+        "VFX"
+      ]
+    },
+    {
+      "label": "Cluster 2",
+      "size": 12,
+      "top_skills": [
+        "проверка гипотез"
+      ]
+    },
+    {
+      "label": "Cluster 3",
+      "size": 12,
+      "top_skills": [
+        "ETL"
+      ]
+    },
+    {
+      "label": "Cluster 4",
+      "size": 12,
+      "top_skills": [
+        "базы знаний",
+        "Базы Знаний",
+        "Базы знаний",
+        "Управление знаниями‎",
+        "Обучение персонала",
+        "Работа с большим объемом информации"
+      ]
+    },
+    {
+      "label": "Cluster 5",
+      "size": 12,
+      "top_skills": [
+        "Английский язык",
+        "Kubernetes"
+      ]
+    },
+    {
+      "label": "Cluster 6",
+      "size": 12,
+      "top_skills": [
+        "Unity"
+      ]
+    },
+    {
+      "label": "Cluster 7",
+      "size": 12,
+      "top_skills": [
+        "Data Science",
+        "data science",
+        "Проверка гипотез"
+      ]
+    },
+    {
+      "label": "Cluster 8",
+      "size": 12,
+      "top_skills": [
+        "Jira",
+        "jira"
+      ]
+    },
+    {
+      "label": "Cluster 9",
+      "size": 12,
+      "top_skills": [
+        "DevOps",
+        "devops",
+        "ROS",
+        "ERP"
+      ]
+    },
+    {
+      "label": "Cluster 10",
+      "size": 12,
+      "top_skills": [
+        "DWH",
+        "DevOps",
+        "дашборды"
+      ]
+    },
+    {
+      "label": "Cluster 11",
+      "size": 12,
+      "top_skills": [
+        "Unity",
+        "Gamedev",
+        "Разработка компьютерных Игр",
+        "Гейм-дизайн",
+        "GameDev",
+        "Shader",
+        "ГДД",
+        "Figma",
+        "UI/UX",
+        "Управление командой"
+      ]
+    },
+    {
+      "label": "Cluster 12",
+      "size": 12,
+      "top_skills": [
+        "Figma",
+        "Figmа"
+      ]
+    },
+    {
+      "label": "Cluster 13",
+      "size": 12,
+      "top_skills": [
+        "Ручное тестирование",
+        "Postman"
+      ]
+    },
+    {
+      "label": "Cluster 14",
+      "size": 12,
+      "top_skills": [
+        "микросервисная архитектура",
+        "Swagger",
+        "RabbitMQ",
+        "Openshift",
+        "SQL",
+        "Java",
+        "Apache Kafka",
+        "Kubernetes",
+        "API"
+      ]
+    },
+    {
+      "label": "Cluster 15",
+      "size": 12,
+      "top_skills": [
+        "node.js",
+        "React",
+        "Node.js",
+        "Kotlin",
+        "Java"
+      ]
+    },
+    {
+      "label": "Cluster 16",
+      "size": 12,
+      "top_skills": [
+        "SCRUM",
+        "Agile",
+        "scrum",
+        "Scrum",
+        "OpenAPI",
+        "Классификация",
+        "agile",
+        "анализ требований",
+        "Swagger",
+        "Системный анализ"
+      ]
+    },
+    {
+      "label": "Cluster 17",
+      "size": 12,
+      "top_skills": [
+        "Kubernetes"
+      ]
+    },
+    {
+      "label": "Cluster 18",
+      "size": 12,
+      "top_skills": [
+        "Big Data",
+        "BIG DATA",
+        "искусственный интеллект",
+        "Big data",
+        "LLM",
+        "SQL",
+        "Базы данных"
+      ]
+    },
+    {
+      "label": "Cluster 19",
+      "size": 12,
+      "top_skills": [
+        "Unreal Engine",
+        "Unity",
+        "C++",
+        "ImGUI",
+        "Локализация продукта",
+        "ImGui",
+        "Python",
+        "Алгоритмы и структуры данных",
+        "ООП"
+      ]
+    },
+    {
+      "label": "Cluster 20",
+      "size": 12,
+      "top_skills": [
+        "PostgreSQL",
+        "отказоустойчивость",
+        "Java",
+        "СУБД"
+      ]
+    },
+    {
+      "label": "Cluster 21",
+      "size": 12,
+      "top_skills": [
+        "Spring Boot",
+        "Java",
+        "ООП"
+      ]
+    },
+    {
+      "label": "Cluster 22",
+      "size": 12,
+      "top_skills": [
+        "коммуникация",
+        "Коммуникация",
+        "Управление коммуникациями",
+        "Проектный менеджмент",
+        "Деловая коммуникация"
+      ]
+    },
+    {
+      "label": "Cluster 23",
+      "size": 12,
+      "top_skills": [
+        "Figma",
+        "Веб-дизайн",
+        "Adobe Photoshop",
+        "Графический дизайн",
+        "Adobe Illustrator",
+        "Web-дизайн",
+        "Прототипирование",
+        "Sketch",
+        "Axure",
+        "прототипирование"
+      ]
+    },
+    {
+      "label": "Cluster 24",
+      "size": 12,
+      "top_skills": [
+        "Анализ требований",
+        "анализ требований",
+        "bkлючaя pacпpeдe"
+      ]
+    },
+    {
+      "label": "Cluster 25",
+      "size": 12,
+      "top_skills": [
+        "RAG",
+        "NLP",
+        "классификация",
+        "LLM"
+      ]
+    },
+    {
+      "label": "Cluster 26",
+      "size": 12,
+      "top_skills": [
+        "React Native",
+        "Jest",
+        "Android",
+        "iOS",
+        "Swift",
+        "React",
+        "REST API",
+        "TypeScript",
+        "Flutter",
+        "Android SDK"
+      ]
+    },
+    {
+      "label": "Cluster 27",
+      "size": 12,
+      "top_skills": [
+        "системный анализ",
+        "Системный анализ"
+      ]
+    },
+    {
+      "label": "Cluster 28",
+      "size": 12,
+      "top_skills": [
+        "Grafana",
+        "Zabbix",
+        "Prometheus",
+        "Kotlin",
+        "Java"
+      ]
+    },
+    {
+      "label": "Cluster 29",
+      "size": 12,
+      "top_skills": [
+        "Руководство коллективом",
+        "Организаторские навыки",
+        "Лидерство",
+        "Управление командой",
+        "Java"
+      ]
+    },
+    {
+      "label": "Cluster 30",
+      "size": 12,
+      "top_skills": [
+        "B2B Продажи",
+        "Развитие продаж",
+        "Управление продажами",
+        "Активные продажи",
+        "Навыки продаж",
+        "Навыки переговоров",
+        "Поиск и привлечение клиентов",
+        "Холодные продажи",
+        "Планирование продаж",
+        "Прямые продажи"
+      ]
+    },
+    {
+      "label": "Cluster 31",
+      "size": 12,
+      "top_skills": [
+        "Swift",
+        "Objective-C",
+        "iOS",
+        "IOS",
+        "коммуникация"
+      ]
+    },
+    {
+      "label": "Cluster 32",
+      "size": 12,
+      "top_skills": [
+        "Golang",
+        "Linux",
+        "Git",
+        "Python",
+        "Управление командой"
+      ]
+    },
+    {
+      "label": "Cluster 33",
+      "size": 12,
+      "top_skills": [
+        "Swift",
+        "iOS",
+        "SwiftUI",
+        "git",
+        "XML",
+        "CI/CD",
+        "UIKit",
+        "MVP",
+        "Objective-C",
+        "REST API"
+      ]
+    },
+    {
+      "label": "Cluster 34",
+      "size": 12,
+      "top_skills": [
+        "JAVA",
+        "Docker",
+        "Kubernetes",
+        "SQL",
+        "API",
+        "CI/CD",
+        "Java"
+      ]
+    },
+    {
+      "label": "Cluster 35",
+      "size": 12,
+      "top_skills": [
+        "OpenGL",
+        "CMake",
+        "DirectX",
+        "Vulkan",
+        "Metal",
+        "Программирование 3D-графики",
+        "C++",
+        "Unreal Engine",
+        "Графика",
+        "Рендеринг"
+      ]
+    },
+    {
+      "label": "Cluster 36",
+      "size": 12,
+      "top_skills": [
+        "Микросервисная архитектура",
+        "Системный анализ",
+        "User Story",
+        "BPMN",
+        "SQL",
+        "UML"
+      ]
+    },
+    {
+      "label": "Cluster 37",
+      "size": 12,
+      "top_skills": [
+        "Linux",
+        "Техническая поддержка",
+        "PowerShell",
+        "Администрирование Linux",
+        "Администрирование серверов Linux",
+        "Windows",
+        "Zabbix",
+        "Администрирование",
+        "Настройка сетевых подключений",
+        "Техническая документация"
+      ]
+    },
+    {
+      "label": "Cluster 38",
+      "size": 12,
+      "top_skills": [
+        "Linux",
+        "Администрирование Linux",
+        "linux",
+        "VMware",
+        "ASTRA LINUX",
+        "Администрирование серверов Linux",
+        "Debian",
+        "Kubernetes",
+        "TCP/IP",
+        "Информационная безопасность"
+      ]
+    },
+    {
+      "label": "Cluster 39",
+      "size": 12,
+      "top_skills": [
+        "Торговая площадка",
+        "Маркетплейс",
+        "ElasticSearch",
+        "ClickHouse",
+        "рекомендательные системы",
+        "PostgreSQL",
+        "Golang",
+        "Kubernetes",
+        "LLM",
+        "Git"
+      ]
+    },
+    {
+      "label": "Cluster 40",
+      "size": 12,
+      "top_skills": [
+        "Android",
+        "android",
+        "Kotlin",
+        "Android SDK",
+        "Java"
+      ]
+    },
+    {
+      "label": "Cluster 41",
+      "size": 12,
+      "top_skills": [
+        "Android"
+      ]
+    },
+    {
+      "label": "Cluster 42",
+      "size": 12,
+      "top_skills": [
+        "Защита персональных данных",
+        "Тестирование безопасности",
+        "Аудит информационной безопасности",
+        "Разработка внутренней документации",
+        "Управление информационной безопасностью",
+        "Разработка политики информационной безопасности",
+        "Уязвимости защиты",
+        "187-ФЗ",
+        "АСУ",
+        "Расследование инцидентов информационной безопасности"
+      ]
+    },
+    {
+      "label": "Cluster 43",
+      "size": 12,
+      "top_skills": [
+        "Информационная безопасность",
+        "Аудит информационной безопасности",
+        "Разработка политики информационной безопасности"
+      ]
+    },
+    {
+      "label": "Cluster 44",
+      "size": 12,
+      "top_skills": [
+        "Pytest",
+        "Интеграционное тестирование",
+        "Тестирование backend",
+        "Теория тестирования",
+        "Функциональное тестирование",
+        "SQL",
+        "Нагрузочное тестирование",
+        "Тестирование",
+        "Ручное тестирование",
+        "Python"
+      ]
+    },
+    {
+      "label": "Cluster 45",
+      "size": 12,
+      "top_skills": [
+        "Модульное тестирование",
+        "Интеграционное тестирование",
+        "TestNG",
+        "Нагрузочное тестирование",
+        "Функциональное тестирование",
+        "Регрессионное тестирование",
+        "Test case",
+        "Тестирование API",
+        "Selenide",
+        "Allure"
+      ]
+    },
+    {
+      "label": "Cluster 46",
+      "size": 12,
+      "top_skills": [
+        "PyTest",
+        "Pytest",
+        "Автоматизация тестирования",
+        "нагрузочное тестирование",
+        "Docker",
+        "тестирование ПО",
+        "Linux",
+        "Python",
+        "Git"
+      ]
+    },
+    {
+      "label": "Cluster 47",
+      "size": 12,
+      "top_skills": [
+        "FastAPI",
+        "PYTHON",
+        "Python",
+        "LLM",
+        "devops",
+        "Rust",
+        "python",
+        "Управление командой"
+      ]
+    },
+    {
+      "label": "Cluster 48",
+      "size": 12,
+      "top_skills": [
+        "Python",
+        "python",
+        "ООП"
+      ]
+    },
+    {
+      "label": "Cluster 49",
+      "size": 12,
+      "top_skills": [
+        "SQL",
+        "Работа с базами данных",
+        "MySQL",
+        "MS SQL Server",
+        "SSIS",
+        "PostgreSQL",
+        "ETL",
+        "анализ требований",
+        "UML",
+        "индексы"
+      ]
+    },
+    {
+      "label": "Cluster 50",
+      "size": 12,
+      "top_skills": [
+        "Разработка технических заданий",
+        "Разработка технической документации",
+        "Разработка эксплуатационной документации",
+        "ЕСПД",
+        "Разработка пользовательской документации",
+        "ЕСКД",
+        "ГОСТ 19",
+        "Техническая документация",
+        "ГОСТ 34",
+        "Постановка задач разработчикам"
+      ]
+    },
+    {
+      "label": "Cluster 51",
+      "size": 12,
+      "top_skills": [
+        "Linux",
+        "PKI",
+        "SIEM"
+      ]
+    },
+    {
+      "label": "Cluster 52",
+      "size": 12,
+      "top_skills": [
+        "UML",
+        "uml"
+      ]
+    },
+    {
+      "label": "Cluster 53",
+      "size": 12,
+      "top_skills": [
+        "LLM"
+      ]
+    },
+    {
+      "label": "Cluster 54",
+      "size": 12,
+      "top_skills": [
+        "java",
+        "Java"
+      ]
+    },
+    {
+      "label": "Cluster 55",
+      "size": 12,
+      "top_skills": [
+        "ГИС",
+        "Складская логистика",
+        "дашборды"
+      ]
+    },
+    {
+      "label": "Cluster 56",
+      "size": 12,
+      "top_skills": [
+        "дашборды"
+      ]
+    },
+    {
+      "label": "Cluster 57",
+      "size": 12,
+      "top_skills": [
+        "JavaScript",
+        "TypeScript",
+        "React",
+        "REST API"
+      ]
+    },
+    {
+      "label": "Cluster 58",
+      "size": 12,
+      "top_skills": [
+        "SQLAlchemy",
+        "Django",
+        "Celery",
+        "FastAPI",
+        "redis",
+        "RabbitMQ",
+        "Gitlab",
+        "asyncio",
+        "PostgreSQL",
+        "Python"
+      ]
+    },
+    {
+      "label": "Cluster 59",
+      "size": 12,
+      "top_skills": [
+        "Golang",
+        "Scala",
+        "C++",
+        "Kotlin",
+        "Python",
+        "OWASP Top 10",
+        "SAST",
+        "C/C++",
+        "Java",
+        "Backend"
+      ]
+    },
+    {
+      "label": "Cluster 60",
+      "size": 12,
+      "top_skills": [
+        "Redux",
+        "TypeScript",
+        "JavaScript",
+        "Vue.js",
+        "CSS",
+        "Vue",
+        "LESS",
+        "Ajax",
+        "AJAX",
+        "HTML"
+      ]
+    },
+    {
+      "label": "Cluster 61",
+      "size": 12,
+      "top_skills": [
+        "CSS",
+        "HTML",
+        "JavaScript",
+        "React",
+        "Веб-программирование",
+        "CSS3",
+        "TypeScript",
+        "HTML5",
+        "Верстка"
+      ]
+    },
+    {
+      "label": "Cluster 62",
+      "size": 12,
+      "top_skills": [
+        "Продуктовая стратегия",
+        "Стратегический менеджмент",
+        "Product Management",
+        "Разработка продуктовой концепции",
+        "Разработка стратегии развития",
+        "Управление портфелем продуктов",
+        "Стратегический анализ внешней среды",
+        "Международные рынки",
+        "Вывод продукта на рынок",
+        "Запуск новых продуктов"
+      ]
+    },
+    {
+      "label": "Cluster 63",
+      "size": 12,
+      "top_skills": [
+        "Управление персоналом",
+        "Scrum",
+        "MS Excel",
+        "Agile",
+        "Ведение переговоров",
+        "Project management",
+        "Бизнес-планирование",
+        "Google Docs",
+        "Организаторские навыки",
+        "Бизнес-анализ"
+      ]
+    },
+    {
+      "label": "Cluster 64",
+      "size": 12,
+      "top_skills": [
+        "Анализ данных",
+        "Математическая статистика",
+        "A/B тесты",
+        "анализ данных",
+        "математическая статистика",
+        "текстовая аналитика",
+        "сбор данных",
+        "Статистический анализ",
+        "Визуализация данных",
+        "Python"
+      ]
+    },
+    {
+      "label": "Cluster 65",
+      "size": 12,
+      "top_skills": [
+        "Python",
+        "SQL"
+      ]
+    },
+    {
+      "label": "Cluster 66",
+      "size": 12,
+      "top_skills": [
+        "Tableau",
+        "Python",
+        "SQL",
+        "API"
+      ]
+    },
+    {
+      "label": "Cluster 67",
+      "size": 12,
+      "top_skills": [
+        "Математический анализ",
+        "Data Analysis",
+        "NoSQL",
+        "Математическая статистика",
+        "Power BI",
+        "Big Data",
+        "Визуализация",
+        "Data Engineer",
+        "Agile",
+        "Hadoop"
+      ]
+    },
+    {
+      "label": "Cluster 68",
+      "size": 12,
+      "top_skills": [
+        "Разработка технических заданий",
+        "Постановка задач разработчикам",
+        "Системный анализ",
+        "Бухгалтерский учет",
+        "Анализ требований",
+        "1С: Предприятие 8",
+        "Анализ данных",
+        "Автоматизация процессов",
+        "Описание бизнес-процессов",
+        "Бизнес-анализ"
+      ]
+    },
+    {
+      "label": "Cluster 69",
+      "size": 12,
+      "top_skills": [
+        "TestNG",
+        "java",
+        "Hibernate",
+        "TeamCity",
+        "JUnit",
+        "Liquibase",
+        "Junit",
+        "jpa",
+        "Spring Boot",
+        "Scrum"
+      ]
+    },
+    {
+      "label": "Cluster 70",
+      "size": 12,
+      "top_skills": [
+        "Настройка ПК",
+        "Ремонт ПК",
+        "Установка ПО",
+        "Удаленное администрирование",
+        "Техническое обслуживание",
+        "Настройка роутеров",
+        "Техническая поддержка пользователей",
+        "Установка драйверов",
+        "Настройка сетевых подключений",
+        "Настройка ПО"
+      ]
+    },
+    {
+      "label": "Cluster 71",
+      "size": 12,
+      "top_skills": [
+        "ERP",
+        "внедрение ERP",
+        "ERP-системы на базе 1С"
+      ]
+    },
+    {
+      "label": "Cluster 72",
+      "size": 12,
+      "top_skills": [
+        "ERP",
+        "ERP-системы на базе 1С"
+      ]
+    },
+    {
+      "label": "Cluster 73",
+      "size": 12,
+      "top_skills": [
+        "1С ERP",
+        "ERP",
+        "ERP-системы на базе 1С"
+      ]
+    },
+    {
+      "label": "Cluster 74",
+      "size": 12,
+      "top_skills": []
+    },
+    {
+      "label": "Cluster 75",
+      "size": 12,
+      "top_skills": [
+        "spring boot",
+        "Bitrix24",
+        "Blender 3D",
+        "ZBrush",
+        "Adobe Substance 3D Painter",
+        "Spring Boot",
+        "Ruby",
+        "Java"
+      ]
+    },
+    {
+      "label": "Cluster 76",
+      "size": 12,
+      "top_skills": [
+        "Gradle",
+        "Hibernate",
+        "Vault",
+        "RabbitMQ",
+        "Docker",
+        "Redis",
+        "Spring Framework",
+        "Apache Kafka",
+        "PostgreSQL",
+        "Spring Boot"
+      ]
+    },
+    {
+      "label": "Cluster 77",
+      "size": 12,
+      "top_skills": [
+        "MS Excel",
+        "Apache Kafka",
+        "JavaScript",
+        "Apache Maven",
+        "C++",
+        "Kotlin",
+        "Java Applets",
+        "Scala",
+        "HTML",
+        "Spring Framework"
+      ]
+    },
+    {
+      "label": "Cluster 78",
+      "size": 12,
+      "top_skills": [
+        "Clickhouse",
+        "Greenplum",
+        "ETL",
+        "DWH",
+        "Hive",
+        "Python",
+        "SQL",
+        "Системный анализ",
+        "дашборды"
+      ]
+    },
+    {
+      "label": "Cluster 79",
+      "size": 12,
+      "top_skills": [
+        "Linux",
+        "Git",
+        "СХД",
+        "BMC",
+        "BIOS",
+        "Коммутация",
+        "C/C++",
+        "Разработка ПО",
+        "LTE",
+        "OSI"
+      ]
+    },
+    {
+      "label": "Cluster 80",
+      "size": 12,
+      "top_skills": [
+        "Bash",
+        "Azure",
+        "Jenkins",
+        "IaC",
+        "NETWORK",
+        "CircleCI",
+        "Настройка серверов",
+        "Perl",
+        "Локальные сети",
+        "Сборка ПК"
+      ]
+    },
+    {
+      "label": "Cluster 81",
+      "size": 12,
+      "top_skills": [
+        "C++",
+        "Linux",
+        "Python",
+        "TCP/IP",
+        "OSI"
+      ]
+    },
+    {
+      "label": "Cluster 82",
+      "size": 12,
+      "top_skills": [
+        "Terraform",
+        "GitLab",
+        "Ansible",
+        "Bash",
+        "Airflow",
+        "Prometheus",
+        "Grafana",
+        "Spark",
+        "Gitlab",
+        "GitLab CI/CD"
+      ]
+    },
+    {
+      "label": "Cluster 83",
+      "size": 12,
+      "top_skills": [
+        "Elasticsearch",
+        "ClickHouse",
+        "Prometheus",
+        "Grafana",
+        "RabbitMQ",
+        "Zabbix",
+        "ГИС",
+        "kpyпneйший фeдepaльnый пpoekт abтomaтизaции и peиnжиnиpиnгa coциaльnoй cфepы:",
+        "бoлee 100 тыc. bnyтpennиx пoльзobaтeлeй",
+        "coбытийnaя moдeль paбoты c дannыmи"
+      ]
+    },
+    {
+      "label": "Cluster 84",
+      "size": 12,
+      "top_skills": [
+        "Proxy",
+        "FIrewall",
+        "NAT",
+        "CCNA",
+        "DHCP",
+        "DNS",
+        "RTL",
+        "SystemVerilog",
+        "ARM",
+        "ASIC"
+      ]
+    },
+    {
+      "label": "Cluster 85",
+      "size": 12,
+      "top_skills": [
+        "топология",
+        "CI/CD",
+        "Rust",
+        "CCNP",
+        "SOC",
+        "PCI DSS",
+        "Efros",
+        "Directum",
+        "PS Core",
+        "BSC"
+      ]
+    },
+    {
+      "label": "Cluster 86",
+      "size": 12,
+      "top_skills": [
+        "Linux",
+        "STL",
+        "cmake",
+        "C++",
+        "CI/CD",
+        "C/C++",
+        "SIP",
+        "MCU",
+        "Oracle 11G",
+        "Oracle Database Server 11-12"
+      ]
+    },
+    {
+      "label": "Cluster 87",
+      "size": 12,
+      "top_skills": [
+        "MS SQL Server",
+        "SQL",
+        "RedHat",
+        "MSSQL",
+        "SLA",
+        "Cisco UCCE",
+        "CVP",
+        "UCCE",
+        "Cisco CVP",
+        "ACL"
+      ]
+    }
+  ],
+  "generated_at": "2026-06-08 16:06:50.789141"
+}

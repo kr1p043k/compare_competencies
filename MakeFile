@@ -53,13 +53,13 @@ train:
 	python main.py --train-model
 
 clusters:
-	python scripts/train_clusters.py --level all
+	python -m src.cli teacher-analysis --discipline all
 
 rebuild:
-	python scripts/full_rebuild.py
+	python -m src.cli rebuild
 
 run-api:
-	uvicorn src.api:app --reload --port 8000
+	uvicorn src.api_pkg:app --reload --port 8000
 
 clean:
 	rm -rf data/processed/parsed_skills.pkl
@@ -170,7 +170,7 @@ docker-train:
 # Кластеризация через Docker
 docker-clusters:
 	@echo " Кластеризация в Docker..."
-	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) python scripts/train_clusters.py --level all
+	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) python -m src.cli teacher-analysis --discipline all
 
 # Статус контейнера
 docker-status:
@@ -191,7 +191,7 @@ docker-import-students:
 		echo " Укажите файл: make docker-import-students FILE=/app/data/students/students.csv"; \
 		exit 1; \
 	fi
-	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) python scripts/import_students.py $(FILE)
+	$(DOCKER_COMPOSE_CMD) exec $(DOCKER_CONTAINER) python -m src.cli import-students $(FILE)
 
 # Бэкап данных из контейнера
 docker-backup:

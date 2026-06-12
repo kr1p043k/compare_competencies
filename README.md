@@ -2,7 +2,7 @@
 
 Анализ соответствия учебных компетенций студентов требованиям IT-рынка (hh.ru).
 
-Собирает вакансии, нормализует навыки, выполняет gap-анализ, формирует персонализированные рекомендации через ML (XGBoost + SHAP) с Prometheus-мониторингом и FAISS-индексами.
+Собирает вакансии, нормализует навыки, выполняет gap-анализ, формирует персонализированные рекомендации через ML (XGBoost + SHAP) с Prometheus/Grafana-мониторингом, n8n-автоматизацией и LLM-интеграцией.
 
 ## Возможности
 
@@ -13,8 +13,8 @@
 - **ML-ранжирование** — XGBoost LTR + SHAP (всегда включён), предсказание важности навыков (0-100%), кросс-доменные объяснения
 - **Кластеризация** — KMeans/HDBSCAN + авто k по silhouette, человекочитаемые имена
 - **Тренды** — динамика спроса по историческим снимкам, временные ряды топ-10
-- **Мониторинг** — Prometheus-метрики пайплайна, API, LTR; административная панель во фронтенде
-- **Векторный поиск** — FAISS (FlatIP / HNSW), обёртка готовых индексов
+- **Мониторинг** — Prometheus-метрики пайплайна, API, LTR; Grafana-дашборды; административная панель во фронтенде
+- **Автоматизация** — n8n-воркфлоу: nightly pipeline, student onboarding, trend alerts, weekly reports
 - **Визуализация** — радары, тепловые карты, покрытие, профессии (300 DPI)
 
 ## Структура проекта
@@ -125,17 +125,10 @@
 │   ├── 📄 postcss.config.mjs
 │   └── 📄 pnpm-workspace.yaml
 │
-├── 📁 scripts/
-│   ├── 📄 check_clusters.py            # Проверка кластеров
-│   ├── 📄 extend_it_skills.py          # Расширение белого списка навыков
-│   ├── 📄 full_rebuild.py              # Пересборка проекта
-│   └── 📄 train_clusters.py            # Обучение кластеров
-│
 ├── 📁 src/
 │   │   # Корень
 │   ├── 📄 config.py                    # Pydantic Settings (пути, API, модели)
 │   ├── 📄 logging_config.py            # structlog
-│   ├── 📄 api.py                       # FastAPI (legacy)
 │   ├── 📄 artifacts.py                 # Манифест артефактов
 │   ├── 📄 cache_manager.py             # Менеджер кэша (JSON/joblib)
 │   ├── 📄 decorators.py                # Декораторы (кэш, retry, timeout)
@@ -220,6 +213,12 @@
 │   │   ├── 📄 factory.py               # Фабрика
 │   │   └── 📄 models.py                # Pydantic-модели
 │
+│   # ML-эксперименты
+│   ├── 📁 ml/
+│   │   ├── 📄 clusters.py              # Vacancy clustering
+│   │   ├── 📄 tracker.py               # Трекинг ML-экспериментов
+│   │   └── 📄 registry.py              # Реестр моделей
+│   │
 │   # Модели
 │   ├── 📁 models/
 │   │   ├── 📄 vacancy.py               # Vacancy, KeySkill, Salary
@@ -237,16 +236,52 @@
 │   │   └── 📄 metrics.py                # Prometheus: Histogram, Counter, Gauge
 │   │                                      # Pipeline, API, LTR-метрики
 │   │
-│   # Векторный поиск
-│   ├── 📁 vector_search/
-│   │   ├── 📄 faiss_index.py            # FAISS (FlatIP / HNSW)
-│   │   └── 📄 __init__.py               # create_faiss_index()
+│   # Доменные порты
+│   ├── 📁 domain/
+│   │   └── 📄 ports.py                   # Абстракции доменной модели
 │   │
-│   # Остальное
+│   # Инфраструктура
+│   ├── 📁 infrastructure/
+│   │   ├── 📄 hh_provider.py             # Провайдер hh.ru
+│   │   └── 📄 file_provider.py           # Файловый провайдер
+│   │
+│   # Загрузчики РПД
+│   ├── 📁 loaders/
+│   │   ├── 📄 rpd_loader.py              # Загрузка РПД
+│   │   └── 📄 rpd_skill_cleaner.py       # Очистка навыков РПД
+│   │
+│   # CLI-утилиты
+│   ├── 📁 cli/
+│   │   ├── 📄 __main__.py                # python -m src.cli <command>
+│   │   ├── 📄 seed_db.py                 # Наполнение БД
+│   │   ├── 📄 backup_db.py               # Бэкап/восстановление БД
+│   │   ├── 📄 create_user.py             # Создание пользователя
+│   │   ├── 📄 embeddings.py              # Управление эмбеддингами
+│   │   ├── 📄 import_students.py         # Импорт студентов из CSV
+│   │   ├── 📄 export_json.py             # Экспорт в JSON
+│   │   ├── 📄 export_results.py          # Экспорт результатов в БД
+│   │   ├── 📄 rebuild.py                 # Пересборка данных
+│   │   ├── 📄 extend_skills.py           # Расширение it_skills
+│   │   ├── 📄 teacher_analysis.py        # Teacher analysis
+│   │   ├── 📄 fix_rpd_data.py            # Исправление данных РПД
+│   │   ├── 📄 dedup_disciplines.py       # Дедупликация дисциплин
+│   │   └── 📄 compute_competency_trends.py
+│   │
+│   # Оценка качества
+│   ├── 📁 evaluation/
+│   │   ├── 📄 metrics.py                 # Метрики оценки
+│   │   ├── 📄 base.py                    # Базовый класс
+│   │   └── 📄 report.py                  # Отчёты
+│   │
+│   # Верификация
+│   ├── 📁 ground_truth/
+│   │   └── 📄 hh_proxy.py                # HHGroundTruth
+│   │
+│   # Оценка качества вакансий
 │   ├── 📁 scoring/
-│   │   └── 📄 vacancy_quality_scorer.py    # Спам-фильтр (9 критериев)
+│   │   └── 📄 vacancy_quality_scorer.py  # Спам-фильтр (9 критериев)
 │   ├── 📁 loaders_student/
-│   │   └── 📄 student_loader.py        # Загрузка профилей
+│   │   └── 📄 student_loader.py          # Загрузка профилей
 │   ├── 📁 n8n/
 │   │   ├── 📄 auth.py
 │   │   ├── 📄 webhooks.py
@@ -265,7 +300,7 @@
 │       ├── 📄 clusters.py              # Кластеры
 │       └── 📄 orchestration.py         # Сохранение графиков
 │
-├── 📁 tests/                           # pytest (86% coverage)
+├── 📁 tests/                           # pytest (~74% coverage)
 │   ├── 📄 conftest.py
 │   ├── 📁 analyzers/
 │   ├── 📁 api/
@@ -305,9 +340,10 @@ pip install -r requirements-dev.txt
 python main.py --it-sector --excel
 
 # 3. Или пошагово:
-python scripts/train_clusters.py --level all           # кластеризация
 python main.py --train-model                           # LTR-модель
 python main.py --skip-collection                       # gap-анализ без сбора
+python main.py --teacher-analysis                      # teacher analysis
+python -m src.cli rebuild                              # пересборка данных
 
 # 4. API
 uvicorn src.api_pkg:app --host 0.0.0.0 --port 8000 --reload
@@ -329,7 +365,7 @@ pytest --cov=src --cov-report=term --ignore=tests/test_api.py
 ```
 
 - 1900+ тестов, 74% покрытие (0 failed), 79 skipped
-- E2E-тест пайплайна, тесты мониторинга, SHAP, FAISS, векторизации
+- E2E-тест пайплайна, тесты мониторинга, SHAP, векторизации
 - Ключевые: vacany_quality_scorer (100%), engines (94%), data_source (93%)
 
 ## Примеры
@@ -339,6 +375,15 @@ python main.py --query "Data Scientist" --area-id 2 --max-pages 5 --excel
 python main.py --queries-file queries.txt --regions 1,2 --excel
 python main.py --interactive
 ```
+
+## Мониторинг и инфраструктура
+
+Проект разворачивается через Docker Compose:
+- **Prometheus** (:9090) — сбор метрик с backend, postgres-exporter, node-exporter
+- **Grafana** (:3001) — визуализация метрик, дашборды pipeline / API / LTR
+- **n8n** (:5678) — автоматизация: nightly pipeline, student onboarding, trend alerts, weekly report
+- **Ollama** (:11434) — локальная LLM (Qwen) для генерации рекомендаций
+- **PostgreSQL / pgvector** (:5432) — основная БД с поддержкой векторного поиска
 
 ## Документация
 
