@@ -1,4 +1,5 @@
-from datetime import datetime
+import re
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -19,27 +20,21 @@ _forecast_cache: dict[str, float] | None = None
 
 
 def _get_vacancy_meta() -> dict:
-    """vacancies_count, data_from, data_to из hh_vacancies_basic.json"""
-    meta = {"vacancies_count": 0, "data_from": None, "data_to": None}
-    path: Path = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
-    if not path.exists():
-        return meta
-    raw = safe_read_json(path)
-    if not isinstance(raw, list):
-        return meta
-    dates: list[datetime] = []
-    for v in raw:
-        published = v.get("published_at")
-        if published:
-            try:
-                dt = datetime.fromisoformat(published.replace("+0300", "+03:00").replace("+0400", "+04:00"))
-                dates.append(dt)
-            except (ValueError, TypeError):
-                pass
-    if dates:
-        meta["vacancies_count"] = len(raw)
-        meta["data_from"] = min(dates).strftime("%Y-%m-%d")
-        meta["data_to"] = max(dates).strftime("%Y-%m-%d")
+    """vacancies_count, data_from, data_to по последнему снимку + сегодня."""
+    meta = {"vacancies_count": 0, "data_from": None, "data_to": date.today().isoformat()}
+    freq_path = config.COMPETENCY_FREQ_PATH
+    if freq_path.exists():
+        raw = safe_read_json(freq_path)
+        if isinstance(raw, dict):
+            meta["vacancies_count"] = len(raw)
+    history_dir: Path = config.DATA_DIR / "history"
+    if history_dir.is_dir():
+        snaps = sorted(history_dir.glob("freq_*.json"))
+        if snaps:
+            latest_name = snaps[-1].stem
+            m = re.search(r"(\d{4}-\d{2}-\d{2})", latest_name)
+            if m:
+                meta["data_from"] = m.group(1)
     return meta
 
 
