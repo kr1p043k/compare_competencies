@@ -1,4 +1,7 @@
+from datetime import datetime
+from pathlib import Path
 from typing import Any
+
 import structlog
 from fastapi import APIRouter, HTTPException, Query, Request
 from slowapi import Limiter
@@ -13,6 +16,31 @@ router = APIRouter(tags=["forecast"])
 limiter = Limiter(key_func=get_remote_address)
 
 _forecast_cache: dict[str, float] | None = None
+
+
+def _get_vacancy_meta() -> dict:
+    """vacancies_count, data_from, data_to из hh_vacancies_basic.json"""
+    meta = {"vacancies_count": 0, "data_from": None, "data_to": None}
+    path: Path = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+    if not path.exists():
+        return meta
+    raw = safe_read_json(path)
+    if not isinstance(raw, list):
+        return meta
+    dates: list[datetime] = []
+    for v in raw:
+        published = v.get("published_at")
+        if published:
+            try:
+                dt = datetime.fromisoformat(published.replace("+0300", "+03:00").replace("+0400", "+04:00"))
+                dates.append(dt)
+            except (ValueError, TypeError):
+                pass
+    if dates:
+        meta["vacancies_count"] = len(raw)
+        meta["data_from"] = min(dates).strftime("%Y-%m-%d")
+        meta["data_to"] = max(dates).strftime("%Y-%m-%d")
+    return meta
 
 
 def _get_forecast_data() -> dict[str, float]:
@@ -91,7 +119,8 @@ async def get_top_forecasts(
             if direction == "declining":
                 all_results = sorted(all_results, key=lambda x: x.predicted_growth)[:n]
             items = [_serialize(r, direction) for r in all_results[:n]]
-            return {"direction": direction, "n": n, "months": months, "forecasts": items}
+            meta = _get_vacancy_meta()
+            return {"direction": direction, "n": n, "months": months, "forecasts": items, **meta}
         case Err(e):
             raise HTTPException(status_code=500, detail=str(e))
 

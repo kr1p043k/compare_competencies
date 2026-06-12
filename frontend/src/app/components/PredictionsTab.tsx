@@ -37,6 +37,9 @@ export function PredictionsTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<ForecastItem | null>(null);
+  const [vacanciesCount, setVacanciesCount] = useState<number>(0);
+  const [dataFrom, setDataFrom] = useState<string | null>(null);
+  const [dataTo, setDataTo] = useState<string | null>(null);
   const [krmRoles, setKrmRoles] = useState<string[]>([]);
   const [selectedRole, setSelectedRole] = useState<string>("");
   const [krmCompetencies, setKrmCompetencies] = useState<KrmRole | null>(null);
@@ -55,6 +58,9 @@ export function PredictionsTab() {
       if (!res.ok) throw new Error("Failed to load forecasts");
       const data = await res.json();
       setForecasts(data.forecasts || []);
+      setVacanciesCount(data.vacancies_count || 0);
+      setDataFrom(data.data_from || null);
+      setDataTo(data.data_to || null);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -119,7 +125,7 @@ export function PredictionsTab() {
                 </div>
                 <div>
                   <CardTitle className="text-xl font-semibold text-gray-900">Топ растущих навыков</CardTitle>
-                  <CardDescription>Прогноз популярности на 12 месяцев (Prophet + ETS)</CardDescription>
+                  <CardDescription>Прогноз популярности на 12 месяцев (Prophet + ETS) · {vacanciesCount ? `${vacanciesCount} вакансий` : "—"} · {dataFrom && dataTo ? `${dataFrom}–${dataTo}` : "—"}</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -150,7 +156,7 @@ export function PredictionsTab() {
                 </div>
                 <div>
                   <CardTitle className="text-xl font-semibold text-gray-900">Падающие навыки</CardTitle>
-                  <CardDescription>Навыки с отрицательным прогнозом роста</CardDescription>
+                  <CardDescription>Навыки с отрицательным прогнозом роста · {vacanciesCount ? `${vacanciesCount} вакансий` : "—"} · {dataFrom && dataTo ? `${dataFrom}–${dataTo}` : "—"}</CardDescription>
                 </div>
               </div>
             </CardHeader>
