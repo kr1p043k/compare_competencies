@@ -9,11 +9,12 @@ from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.analyzers.skills.trends import TrendAnalyzer
 from src.di import DIContainer, get_container
 from src.models.student import StudentProfile
+from src.predictors.prophet_forecast import ProphetForecastEngine
 from src.predictors.recommendation_engine import RecommendationEngine
 
 # Module-level globals — устанавливаются в startup.py, read-only после инициализации.
 # Защищены блокировкой для избежания race condition при параллельных запросах во время startup.
-_init_lock = Lock()
+init_lock = Lock()
 
 evaluator: ProfileEvaluator | None = None
 recommendation_engine: RecommendationEngine | None = None
@@ -28,6 +29,7 @@ taxonomy: SkillTaxonomy | None = None
 current_skills_set: set[str] = set()
 basic_vacancies: list = []
 vacancy_load_error: str | None = None
+prophet_engine: ProphetForecastEngine | None = None
 is_ready: bool = False
 _regions_cache: list[str] = []
 _regions_cache_time: float = 0
@@ -98,6 +100,12 @@ def get_skill_freq() -> dict[str, int]:
 
 def get_hybrid_weights() -> dict[str, float]:
     return hybrid_weights
+
+
+def get_prophet_engine() -> ProphetForecastEngine:
+    if prophet_engine is None:
+        raise HTTPException(status_code=503, detail="Forecast engine not initialized")
+    return prophet_engine
 
 
 def validate_regions(regions: list[str]) -> list[str]:

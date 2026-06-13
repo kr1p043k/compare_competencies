@@ -16,6 +16,12 @@ class GapAnalyzer:
     def __init__(self, skill_weights_by_level: dict[str, dict[str, float]]):
         self.skill_weights_by_level = skill_weights_by_level
 
+    _LEVEL_KEY: dict[ExperienceLevel, str] = {
+        ExperienceLevel.JUNIOR: "j",
+        ExperienceLevel.MIDDLE: "m",
+        ExperienceLevel.SENIOR: "s",
+    }
+
     def compute_metrics(self, user_skills: list[str], user_levels: dict[str, float]) -> Result[dict[str, SkillMetrics], DomainError]:
         metrics: dict[str, SkillMetrics] = {}
         all_weights = {}
@@ -24,7 +30,7 @@ class GapAnalyzer:
         max_weight = max(all_weights.values()) if all_weights else 1.0
 
         for level in ExperienceLevel:
-            level_key = level[0]
+            level_key = self._LEVEL_KEY[level]
             for skill, market_weight in self.skill_weights_by_level.get(level, {}).items():
                 if skill not in metrics:
                     user_lvl = user_levels.get(skill, 0.0)

@@ -248,6 +248,11 @@ function ForecastRow({ item, rank, expanded, onToggle }: { item: ForecastItem; r
             <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Через год</div><div className="text-lg font-semibold text-gray-900">{(item.next_year_frequency * 100).toFixed(1)}%</div></div>
             <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Уверенность</div><div className="text-lg font-semibold text-gray-900">{(item.confidence * 100).toFixed(0)}%</div></div>
           </div>
+          {item.uncertainty_upper && item.uncertainty_lower && (
+            <div className="text-xs text-gray-400 text-center mb-2">
+              Доверительный интервал 80%: [{item.uncertainty_lower.toFixed(2)} – {item.uncertainty_upper.toFixed(2)}]
+            </div>
+          )}
           {item.forecast_steps && item.forecast_steps.length > 1 && (
             <div className="mt-2"><MiniChart data={item.forecast_steps} /></div>
           )}

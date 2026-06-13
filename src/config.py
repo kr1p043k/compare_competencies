@@ -192,6 +192,16 @@ class Settings(BaseSettings):
         base = info.data.get("BASE_DIR", Path("."))
         return base / v
 
+    @field_validator("SECRET_KEY", mode="after")
+    @classmethod
+    def validate_secret_key(cls, v: SecretStr | None) -> SecretStr:
+        if v is None or not v.get_secret_value():
+            raise ValueError(
+                "SECRET_KEY не задан. Укажите его в .env: "
+                "SECRET_KEY=$(openssl rand -hex 32)"
+            )
+        return v
+
     def ensure_dirs(self):
         dirs = [
             self.DATA_RAW_DIR,
@@ -249,11 +259,6 @@ TOKEN_TTL_DAYS = settings.TOKEN_TTL_DAYS
 
 KRM_DISCIPLINES_PATH = settings.KRM_DISCIPLINES_PATH
 TEACHER_RECOMMENDATIONS_PATH = settings.TEACHER_RECOMMENDATIONS_PATH
-if settings.SECRET_KEY is None:
-    raise RuntimeError(
-        "SECRET_KEY не задан. Укажите его в .env: "
-        "SECRET_KEY=$(openssl rand -hex 32)"
-    )
 SECRET_KEY = settings.SECRET_KEY.get_secret_value()
 HH_USER_AGENT = settings.HH_USER_AGENT
 REQUEST_DELAY = settings.REQUEST_DELAY

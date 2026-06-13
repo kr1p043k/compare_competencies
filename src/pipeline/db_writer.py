@@ -129,20 +129,22 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
         area = v.get("area") or {}
         snippet = v.get("snippet") or {}
         skills = [s.get("name", "") for s in v.get("key_skills", []) if s.get("name")]
+        parsed = v.get("extracted_skills") or v.get("raw_data", {}).get("extracted_skills")
         try:
             await pool.execute(
                 """INSERT INTO vacancies
                    (hh_id, name, experience, salary_from, salary_to, salary_currency,
                     employer_name, employer_id, area_name,
                     snippet_requirement, snippet_responsibility,
-                    description, key_skills, published_at, alternate_url,
+                    description, key_skills, parsed_skills, published_at, alternate_url,
                     pipeline_run_id, raw)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17::jsonb)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17,$18::jsonb)
                    ON CONFLICT (hh_id) DO UPDATE SET
                        name=EXCLUDED.name,
                        salary_from=EXCLUDED.salary_from,
                        salary_to=EXCLUDED.salary_to,
                        key_skills=EXCLUDED.key_skills,
+                       parsed_skills=COALESCE(EXCLUDED.parsed_skills, vacancies.parsed_skills),
                        pipeline_run_id=COALESCE(EXCLUDED.pipeline_run_id, vacancies.pipeline_run_id)""",
                 hh_id,
                 v.get("name"),
@@ -157,6 +159,7 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
                 snippet.get("responsibility"),
                 v.get("description"),
                 json.dumps(skills),
+                json.dumps(parsed) if parsed else None,
                 v.get("published_at"),
                 v.get("alternate_url"),
                 run_id,

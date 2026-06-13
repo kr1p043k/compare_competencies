@@ -48,14 +48,14 @@ def _read_pipeline_progress() -> dict:
     return _read_progress_file(PIPELINE_PROGRESS_FILE)
 
 
-def _resolve_area_ids(regions_str: str) -> str:
+async def _resolve_area_ids(regions_str: str) -> str:
     parts = [p.strip() for p in regions_str.split(",") if p.strip()]
     ids = []
     for p in parts:
         if p.isdigit():
             ids.append(p)
         else:
-            aid = _resolve_city_name(p)
+            aid = await asyncio.to_thread(_resolve_city_name_sync, p)
             if aid:
                 ids.append(str(aid))
             else:
@@ -64,7 +64,7 @@ def _resolve_area_ids(regions_str: str) -> str:
     return ",".join(ids) if ids else "0"
 
 
-def _resolve_city_name(name: str) -> int | None:
+def _resolve_city_name_sync(name: str) -> int | None:
     global _areas_cache
     if _areas_cache is None:
         try:
@@ -240,7 +240,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             max_pages = kwargs.get("max_pages", 20)
             period = kwargs.get("period", 30)
 
-            regions = _resolve_area_ids(regions_raw) if regions_raw not in ("0", "") else "113"
+            regions = await _resolve_area_ids(regions_raw) if regions_raw not in ("0", "") else "113"
             logger.info("regions_resolved", raw=regions_raw, resolved=regions)
 
             for fp in (PIPELINE_PROGRESS_FILE, GAP_PROGRESS_FILE):

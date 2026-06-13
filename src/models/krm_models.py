@@ -36,6 +36,7 @@ class Vacancy(Base):
     snippet_responsibility: Mapped[Optional[str]] = mapped_column(Text)
     description: Mapped[Optional[str]] = mapped_column(Text)
     key_skills: Mapped[Optional[list[str]]] = mapped_column(sa.JSON())
+    parsed_skills: Mapped[Optional[list[str]]] = mapped_column(sa.JSON())
     published_at: Mapped[Optional[datetime]]
     alternate_url: Mapped[Optional[str]] = mapped_column(Text)
     pipeline_run_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))

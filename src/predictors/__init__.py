@@ -9,6 +9,7 @@ from src.predictors.models import (
 )
 from src.predictors.recommendation_engine import RecommendationEngine
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
+from src.predictors.prophet_forecast import ProphetForecastEngine
 from src.predictors.skill_forecast import SkillForecastEngine, ForecastResult
 from src.predictors.reranker import CrossEncoderReranker, RerankerResult
 
@@ -19,6 +20,7 @@ __all__ = [
     "RecommendationEngine",
     "LTRRecommendationEngine",
     "SkillForecastEngine",
+    "ProphetForecastEngine",
     "ForecastResult",
     "create_ranking_predictor",
     "create_recommender",

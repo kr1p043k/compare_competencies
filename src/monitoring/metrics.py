@@ -75,6 +75,12 @@ shap_computation_duration = Histogram(
     buckets=(0.1, 0.5, 1.0, 2.0, 5.0, 10.0),
 )
 
+forecast_accuracy = Gauge(
+    "forecast_accuracy_mape",
+    "Forecast MAPE per skill",
+    ["skill"],
+)
+
 
 def track_pipeline_stage(stage_name: str):
     def decorator(func):

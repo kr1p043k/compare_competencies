@@ -386,8 +386,35 @@ async def run_startup(app):
     )
     deps.trend_analyzer = TrendAnalyzer(skill_freq_filtered)
 
+    # 11. Prophet Forecast Engine
+    from src.predictors.prophet_forecast import ProphetForecastEngine, load_time_series
+    from src.database import async_session_factory
+
+    try:
+        async with async_session_factory() as session:
+            match await load_time_series(session):
+                case Ok(snapshots):
+                    prophet = ProphetForecastEngine()
+                    match prophet.fit(snapshots, fallback_freqs=deps.skill_freq):
+                        case Ok(_):
+                            deps.prophet_engine = prophet
+                            logger.info("prophet_engine_ready",
+                                        prophet_skills=len(prophet._models),
+                                        snapshots=len(snapshots))
+                        case Err(e):
+                            deps.prophet_engine = None
+                            logger.warning("prophet_engine_fit_failed", error=str(e))
+                case Err(e):
+                    deps.prophet_engine = None
+                    logger.info("prophet_engine_unavailable_use_fallback",
+                                detail=str(e))
+    except Exception as e:
+        deps.prophet_engine = None
+        logger.warning("prophet_engine_init_error", error=str(e))
+
     from src.api_pkg.request_logger import start_log_flusher
     start_log_flusher()
 
-    deps.is_ready = True
+    with deps.init_lock:
+        deps.is_ready = True
     logger.info("API готов к работе")
