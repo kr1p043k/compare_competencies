@@ -10,6 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
+
 revision: str = "90d02040d3d1"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
@@ -17,20 +18,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Накатываем миграцию — добавляем колонку и индекс."""
-    op.add_column(
-        "vacancies",
-        sa.Column("parsed_skills", sa.JSON(), nullable=True),
-    )
-    op.create_index(
-        "idx_vacancies_parsed_pub",
-        "vacancies",
-        ["published_at"],
-        postgresql_where=sa.text("parsed_skills IS NOT NULL"),
-    )
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    op.execute("ALTER TABLE vacancies ADD COLUMN IF NOT EXISTS parsed_skills JSON")
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS idx_vacancies_parsed_pub
+        ON vacancies (published_at) WHERE parsed_skills IS NOT NULL
+    """)
 
 
 def downgrade() -> None:
-    """Откатываем — удаляем индекс и колонку."""
-    op.drop_index("idx_vacancies_parsed_pub")
-    op.drop_column("vacancies", "parsed_skills")
+    op.execute("DROP INDEX IF EXISTS idx_vacancies_parsed_pub")
+    op.execute("ALTER TABLE vacancies DROP COLUMN IF EXISTS parsed_skills")

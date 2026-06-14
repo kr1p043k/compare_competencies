@@ -4,6 +4,7 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from src.config import settings
@@ -38,6 +39,8 @@ async def run_async_migrations():
     """Запуск миграций в асинхронном режиме."""
     connectable = create_async_engine(settings.DATABASE_URL)
     async with connectable.connect() as connection:
+        await connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await connection.run_sync(Base.metadata.create_all)
         await connection.run_sync(do_run_migrations)
 
 

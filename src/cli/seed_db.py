@@ -16,7 +16,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from sqlalchemy import select, text
 
-from src.database import Base, async_session_factory, engine
+from src.database import Base, async_session_factory, get_engine
 from src.models.krm_models import (
     Competency,
     CompetencySkill,
@@ -47,6 +47,7 @@ def _parse_comp_code(code: str) -> tuple[str, str]:
 
 
 async def create_tables(drop_first: bool = False) -> None:
+    engine = await get_engine()
     if drop_first:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)

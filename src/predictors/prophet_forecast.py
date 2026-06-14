@@ -8,7 +8,6 @@ from datetime import date, datetime
 
 import pandas as pd
 import structlog
-from prophet import Prophet
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +15,11 @@ from src import Err, Ok, Result
 from src.errors import DomainError
 from src.predictors.base import BasePredictor
 from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
+
+try:
+    from prophet import Prophet
+except ImportError:
+    Prophet = None  # type: ignore[assignment]
 
 logger = structlog.get_logger(__name__)
 

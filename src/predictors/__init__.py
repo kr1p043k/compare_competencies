@@ -9,8 +9,12 @@ from src.predictors.models import (
 )
 from src.predictors.recommendation_engine import RecommendationEngine
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
-from src.predictors.prophet_forecast import ProphetForecastEngine
 from src.predictors.skill_forecast import SkillForecastEngine, ForecastResult
+
+try:
+    from src.predictors.prophet_forecast import ProphetForecastEngine
+except ImportError:
+    ProphetForecastEngine = None  # type: ignore[assignment,misc]
 from src.predictors.reranker import CrossEncoderReranker, RerankerResult
 
 __all__ = [

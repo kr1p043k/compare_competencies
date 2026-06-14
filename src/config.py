@@ -200,6 +200,11 @@ class Settings(BaseSettings):
                 "SECRET_KEY не задан. Укажите его в .env: "
                 "SECRET_KEY=$(openssl rand -hex 32)"
             )
+        if v.get_secret_value() in ("change-me-to-random-string", "change_me", "change_me_please"):
+            raise ValueError(
+                "SECRET_KEY имеет значение-заглушку. Замените на случайную строку: "
+                "SECRET_KEY=$(openssl rand -hex 32)"
+            )
         return v
 
     def ensure_dirs(self):
