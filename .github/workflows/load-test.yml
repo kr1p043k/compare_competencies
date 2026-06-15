@@ -1,0 +1,46 @@
+name: Загрузка тестов
+
+on:
+  schedule:
+    - cron: '0 4 * * *'  # каждую ночь в 4 утра МСК
+  workflow_dispatch:
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Start services
+        run: docker-compose up -d
+      
+      - name: Wait for API
+        run: |
+          until curl -s http://localhost:8000/api/health; do
+            sleep 5
+          done
+      
+      - name: Install k6
+        run: |
+          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+      
+      - name: Run load test
+        run: k6 run tests/load/k6_script.js --out json=tests/load/reports/results.json
+      
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-results
+          path: tests/load/reports/
+      
+      - name: Check thresholds
+        run: |
+          # Проверка что ошибки < 5%
+          ERROR_RATE=$(jq '.metrics.errors.rate' tests/load/reports/results.json)
+          if (( $(echo "$ERROR_RATE > 0.05" | bc -l) )); then
+            echo "Error rate too high: $ERROR_RATE"
+            exit 1
+          fi
