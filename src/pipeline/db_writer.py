@@ -110,6 +110,10 @@ async def save_to_analysis_results(run_id: str, analysis_type: str, data: dict) 
 async def save_trend_snapshot(snapshot_date: datetime, skill_freq: dict, source: str = "hh_vacancies", run_id: str | None = None) -> None:
     pool = await _pool()
     await pool.execute(
+        "DELETE FROM trend_snapshots WHERE snapshot_date=$1 AND source=$2",
+        snapshot_date, source,
+    )
+    await pool.execute(
         """INSERT INTO trend_snapshots (pipeline_run_id, snapshot_date, skill_freq, source)
            VALUES ($1,$2,$3::jsonb,$4)""",
         run_id, snapshot_date, json.dumps(skill_freq, ensure_ascii=False), source,

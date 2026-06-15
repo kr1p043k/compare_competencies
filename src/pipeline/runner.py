@@ -365,6 +365,20 @@ def run_full_pipeline(args) -> Result[None, str]:
         except Exception as db_err:
             logger.warning("db_write_failed", error=str(db_err))
 
+        # Write trend snapshots to PostgreSQL
+        try:
+            from src.pipeline.db_writer import export_history_trends_to_db
+
+            async def _write_trends():
+                count = await export_history_trends_to_db()
+                return count
+
+            trend_count = asyncio.run(_write_trends())
+            console_info(f"✓ Trend snapshots written to DB: {trend_count}")
+            logger.info("trend_snapshots_written", count=trend_count)
+        except Exception as db_err:
+            logger.warning("trend_snapshots_write_failed", error=str(db_err))
+
     _write_pipeline_progress(93, "Генерация графиков...")
     if evaluations:
         console_header("ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ")
