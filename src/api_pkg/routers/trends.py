@@ -83,6 +83,8 @@ async def get_competency_trends(
             for cid, sname in skill_rows:
                 comp_skills.setdefault(str(cid), []).append(sname)
             for r in results:
-                r["skills"] = comp_skills.get(r["competency_id"], [])
+                skills = comp_skills.get(r["competency_id"], [])
+                r["skills"] = skills
+                r["skill_count"] = len(skills)
 
         return {"total": len(results), "trends": results}
