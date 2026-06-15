@@ -1,1 +1,400 @@
-Generic single-database configuration.
+# 🗄️ Alembic — Управление миграциями базы данных
+
+Alembic используется для управления изменениями схемы PostgreSQL в проекте Competency Platform.
+
+## Содержание
+
+- [Быстрый старт](#быстрый-старт)
+- [Структура миграций](#структура-миграций)
+- [Основные команды](#основные-команды)
+- [Работа с миграциями](#работа-с-миграциями)
+- [Устранение проблем](#устранение-проблем)
+- [Лучшие практики](#лучшие-практики)
+
+## FastStart
+
+### Локальная разработка
+
+```bash
+# 1. Установка зависимостей
+pip install alembic
+
+# 2. Инициализация Alembic (если не инициализирован)
+alembic init alembic
+
+# 3. Настройка подключения к БД
+# Редактируем alembic.ini
+sqlalchemy.url = postgresql+asyncpg://user:pass@localhost:5432/dbname
+
+# 4. Создание миграции
+alembic revision -m "description"
+
+# 5. Применение миграций
+alembic upgrade head
+
+# 6. Откат миграции
+alembic downgrade -1
+```
+
+### В Docker-контейнере
+
+```bash
+# Подключение к контейнеру бекенда
+docker exec -it compare-competencies-api bash
+
+# Проверка статуса миграций
+alembic current
+
+# Применение всех миграций
+alembic upgrade head
+
+# Просмотр истории
+alembic history
+```
+
+## 📁 Структура миграций
+
+```
+alembic/
+├── versions/           # Директория с файлами миграций
+│   ├── 90d02040d3d1_add_parsed_skills_to_vacancies.py
+│   └── ...
+├── env.py             # Конфигурация окружения (async support)
+├── script.py.mako     # Шаблон для новых миграций
+└── README.md          # Этот файл
+```
+
+## 🔧 Основные команды
+
+### Просмотр и информация
+
+```bash
+# Текущая версия БД
+alembic current
+
+# История всех миграций
+alembic history
+
+# Показать SQL для миграции без выполнения
+alembic upgrade head --sql
+
+# Детальный лог
+alembic -v upgrade head
+```
+
+### Применение миграций
+
+```bash
+# Применить все миграции до последней
+alembic upgrade head
+
+# Применить конкретную миграцию
+alembic upgrade +1
+alembic upgrade 90d02040d3d1
+
+# Применить миграции до определенной версии
+alembic upgrade 90d02040d3d1
+```
+
+### Откат миграций
+
+```bash
+# Откатить последнюю миграцию
+alembic downgrade -1
+
+# Откатить до конкретной версии
+alembic downgrade 90d02040d3d1
+
+# Откатить все миграции до нуля
+alembic downgrade base
+```
+
+### Создание миграций
+
+```bash
+# Создать пустую миграцию
+alembic revision -m "add_new_table"
+
+# Создать автоматическую миграцию (сравнение с моделями)
+alembic revision --autogenerate -m "auto_migration"
+
+# Создать миграцию с конкретным ID
+alembic revision -m "description" --rev-id custom_id
+```
+
+## 📝 Работа с миграциями
+
+### Создание новой миграции вручную (файл test как пример)
+
+1. **Создайте файл миграции:**
+```bash
+alembic revision -m "add_user_preferences_table"
+```
+
+2. **Отредактируйте сгенерированный файл:**
+
+```python
+"""add user preferences table
+
+Revision ID: a1b2c3d4e5f6
+Revises: 90d02040d3d1
+Create Date: 2026-06-15 10:00:00.000000
+"""
+from typing import Sequence, Union
+from alembic import op
+import sqlalchemy as sa
+
+# revision identifiers
+revision: str = 'a1b2c3d4e5f6'
+down_revision: Union[str, None] = '90d02040d3d1'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+def upgrade() -> None:
+    # Создание таблицы
+    op.create_table(
+        'user_preferences',
+        sa.Column('id', sa.UUID(), nullable=False),
+        sa.Column('user_id', sa.UUID(), nullable=False),
+        sa.Column('preferences', sa.JSON(), nullable=True),
+        sa.Column('created_at', sa.TIMESTAMP(timezone=True), 
+                  server_default=sa.text('NOW()'), nullable=False),
+        sa.PrimaryKeyConstraint('id'),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE')
+    )
+    
+    # Создание индексов
+    op.create_index('idx_user_prefs_user', 'user_preferences', ['user_id'])
+    
+def downgrade() -> None:
+    op.drop_index('idx_user_prefs_user')
+    op.drop_table('user_preferences')
+```
+
+### Создание автоматической миграции
+
+```python
+# 1. Измените модели SQLAlchemy
+# 2. Сгенерируйте миграцию
+alembic revision --autogenerate -m "update_models"
+
+# 3. Проверьте сгенерированный код
+# 4. Примените миграцию
+alembic upgrade head
+```
+
+### Безопасные операции
+
+```python
+# Добавление колонки с проверкой существования
+def upgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('vacancies')]
+    
+    if 'parsed_skills' not in columns:
+        op.add_column('vacancies', sa.Column('parsed_skills', sa.JSON(), nullable=True))
+
+# Создание индекса с проверкой
+def upgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    indexes = [idx['name'] for idx in inspector.get_indexes('vacancies')]
+    
+    if 'idx_vacancies_parsed_pub' not in indexes:
+        op.create_index(
+            'idx_vacancies_parsed_pub',
+            'vacancies',
+            ['published_at'],
+            postgresql_where=sa.text("parsed_skills IS NOT NULL")
+        )
+
+# Добавление данных
+def upgrade() -> None:
+    op.execute("""
+        INSERT INTO directions (code, name, profile, opop_year)
+        VALUES ('09.03.03', 'Прикладная информатика', 'Бизнес-аналитика', 2025)
+        ON CONFLICT (code) DO NOTHING
+    """)
+```
+
+## Устранение проблем
+
+### Проблема 1: Миграция не применяется
+
+```bash
+# Проверьте текущую версию
+alembic current
+
+# Принудительно установите версию
+alembic stamp head
+
+# Очистите и примените заново
+alembic downgrade base
+alembic upgrade head
+```
+
+### Проблема 2: Конфликт версий
+
+```bash
+# Просмотр истории
+alembic history
+
+# Откат до стабильной версии
+alembic downgrade <stable_revision>
+
+# Создание новой миграции от этой версии
+alembic revision -m "fix_conflict"
+```
+
+### Проблема 3: Ошибка при autogenerate
+
+```python
+# В env.py убедитесь, что импортированы все модели
+from src.database import Base
+import src.models.krm_models  # все модели должны быть импортированы
+
+target_metadata = Base.metadata
+```
+
+### Проблема 4: Async PostgreSQL ошибка
+
+```python
+# В env.py уже настроена async поддержка:
+from sqlalchemy.ext.asyncio import create_async_engine
+
+async def run_async_migrations():
+    connectable = create_async_engine(settings.DATABASE_URL)
+    async with connectable.connect() as connection:
+        await connection.run_sync(do_run_migrations)
+```
+
+## Лучшие практики
+
+### 1. **Именование миграций**
+
+```bash
+# Хорошие имена:
+add_user_preferences_table
+add_parsed_skills_to_vacancies
+update_competency_embedding_index
+fix_foreign_key_cascade
+
+# Плохие имена:
+update
+fix_bug
+temp_migration
+```
+
+### 2. **Проверка перед применением**
+
+```bash
+# Всегда проверяйте миграцию в development окружении
+alembic upgrade head --sql > migration.sql
+
+# Проверьте SQL вручную
+cat migration.sql | grep -E "CREATE|ALTER|DROP"
+
+# Сделайте бэкап БД перед применением в production
+pg_dump -U user dbname > backup_$(date +%Y%m%d).sql
+```
+
+### 3. **Идемпотентность миграций**
+
+```python
+# Всегда добавляйте проверки существования
+def upgrade():
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    
+    # Проверка существования таблицы
+    if not inspector.has_table('new_table'):
+        op.create_table('new_table', ...)
+    
+    # Проверка существования колонки
+    columns = [col['name'] for col in inspector.get_columns('users')]
+    if 'preferences' not in columns:
+        op.add_column('users', sa.Column('preferences', sa.JSON()))
+```
+
+### 4. **Git Workflow**
+
+```bash
+# Всегда коммитьте миграции в Git
+git add alembic/versions/
+git commit -m "Add migration: add_parsed_skills_to_vacancies"
+
+# Не редактируйте примененные миграции
+# Вместо этого создайте новую миграцию для исправлений
+```
+
+### 5. **Production деплой**
+
+```yaml
+# В docker-compose.prod.yml
+backend:
+  command: >
+    sh -c "
+      alembic upgrade head &&
+      uvicorn src.api_pkg:app --host 0.0.0.0 --port 8000
+    "
+```
+
+## 🔄 Интеграция с CI/CD
+
+### GitHub Actions workflow
+
+```yaml
+- name: Run database migrations
+  run: |
+    docker exec -i competency-postgres psql -U ${{ secrets.DB_USER }} -d ${{ secrets.DB_NAME }} < backup.sql
+    docker exec -i compare-competencies-api alembic upgrade head
+```
+
+### Pre-commit hook
+
+```bash
+#!/bin/bash
+# .git/hooks/pre-commit
+
+echo "Checking for unapplied migrations..."
+alembic current > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "⚠️  Migration check failed. Run 'alembic upgrade head'"
+    exit 1
+fi
+```
+
+## 📊 Мониторинг миграций
+
+```sql
+-- Просмотр истории миграций в БД
+SELECT * FROM alembic_version;
+
+-- Просмотр всех примененных миграций
+SELECT * FROM alembic_version 
+ORDER BY version_num DESC;
+```
+
+## 📚 Полезные ссылки
+
+- [Официальная документация Alembic](https://alembic.sqlalchemy.org/)
+- [Alembic с async SQLAlchemy](https://alembic.sqlalchemy.org/en/latest/cookbook.html#using-asyncio-with-alembic)
+- [Миграции в production](https://alembic.sqlalchemy.org/en/latest/cookbook.html#production-use)
+
+## ❓ Частые вопросы
+
+**Q: Что делать, если миграция не применяется в Docker?**
+A: Проверьте, что БД доступна: `docker exec -it competency-postgres pg_isready`
+
+**Q: Можно ли откатить миграцию после применения?**
+A: Да, используйте `alembic downgrade -1`. Но в production лучше создать новую миграцию.
+
+**Q: Как мигрировать большие таблицы?**
+A: Используйте batch операции: `op.execute("ALTER TABLE large_table ADD COLUMN new_col TYPE")`
+
+**Q: Нужно ли версионировать alembic/versions?**
+A: Да, все миграции должны быть в Git.
+
+**Q: Как объединить несколько миграций?**
+A: Используйте `alembic merge -m "merge two heads" head1 head2`
