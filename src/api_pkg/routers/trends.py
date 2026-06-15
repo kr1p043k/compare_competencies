@@ -10,7 +10,7 @@ from src import Err, Ok
 from src.analyzers.skills.trends import TrendAnalyzer
 from src.database import async_session_factory
 from src.models.api_responses import TrendsResponse
-from src.models.krm_models import Competency, CompetencyTrend
+from src.models.krm_models import Competency, CompetencySkill, CompetencyTrend, Skill
 
 from src.api_pkg import deps
 
@@ -56,10 +56,12 @@ async def get_competency_trends(
         rows = await session.execute(query.limit(limit))
         seen: set[str] = set()
         results = []
+        comp_ids = []
         for ct, code, name in rows.unique().all():
             if code in seen:
                 continue
             seen.add(code)
+            comp_ids.append(ct.competency_id)
             results.append({
                 "competency_id": str(ct.competency_id),
                 "code": code,
@@ -68,5 +70,19 @@ async def get_competency_trends(
                 "change_pct": ct.change_pct,
                 "skill_count": ct.skill_count,
                 "snapshot_date": str(ct.snapshot_date),
+                "skills": [],
             })
+
+        if comp_ids:
+            skill_rows = await session.execute(
+                select(CompetencySkill.competency_id, Skill.name)
+                .join(Skill, Skill.id == CompetencySkill.skill_id)
+                .where(CompetencySkill.competency_id.in_(comp_ids))
+            )
+            comp_skills: dict[str, list[str]] = {}
+            for cid, sname in skill_rows:
+                comp_skills.setdefault(str(cid), []).append(sname)
+            for r in results:
+                r["skills"] = comp_skills.get(r["competency_id"], [])
+
         return {"total": len(results), "trends": results}

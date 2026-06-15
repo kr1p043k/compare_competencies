@@ -21,6 +21,7 @@ interface CompetencyTrendItem {
   change_pct: number;
   skill_count: number;
   snapshot_date: string;
+  skills: string[];
 }
 
 interface Discipline {
@@ -69,6 +70,7 @@ export function TeacherDashboard() {
   const [trends, setTrends] = useState<CompetencyTrendItem[]>([]);
   const [trendsFilter, setTrendsFilter] = useState<string>("all");
   const [trendsLoading, setTrendsLoading] = useState(false);
+  const [expandedTrend, setExpandedTrend] = useState<string | null>(null);
 
   const loadAll = async () => {
     setLoading(true);
@@ -287,32 +289,49 @@ export function TeacherDashboard() {
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-100 border rounded-lg">
-                    {trends.map((t) => (
-                      <div key={t.competency_id} className="flex items-center justify-between px-3 py-2.5 text-sm hover:bg-gray-50">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="font-mono text-xs font-semibold text-indigo-700 shrink-0">{t.code}</span>
-                          <span className="text-gray-600 truncate">{t.name}</span>
+                    {trends.map((t) => {
+                      const isExpanded = expandedTrend === t.competency_id;
+                      return (
+                        <div key={t.competency_id} className="border-b border-gray-100 last:border-0">
+                          <button
+                            onClick={() => setExpandedTrend(isExpanded ? null : t.competency_id)}
+                            className="w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-gray-50 transition-colors text-left"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {isExpanded ? <ChevronDown className="size-3.5 text-gray-400 shrink-0" /> : <ChevronRight className="size-3.5 text-gray-400 shrink-0" />}
+                              <span className="font-mono text-xs font-semibold text-indigo-700 shrink-0">{t.code}</span>
+                              <span className="text-gray-600 truncate">{t.name}</span>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="text-xs text-gray-400">{t.skill_count} skills</span>
+                              <span className={`font-semibold text-xs flex items-center gap-0.5 ${
+                                t.direction === "rising" ? "text-green-600" :
+                                t.direction === "falling" ? "text-red-600" : "text-gray-500"
+                              }`}>
+                                {t.direction === "rising" ? <TrendingUp className="size-3" /> :
+                                 t.direction === "falling" ? <TrendingDown className="size-3" /> :
+                                 <Minus className="size-3" />}
+                                {t.change_pct > 0 ? "+" : ""}{t.change_pct.toFixed(1)}%
+                              </span>
+                            </div>
+                          </button>
+                          {isExpanded && t.skills.length > 0 && (
+                            <div className="px-3 pb-3 flex flex-wrap gap-1.5 border-t border-gray-100 pt-2">
+                              {t.skills.map((s, i) => (
+                                <Badge key={i} variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200 text-xs">
+                                  {s}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {isExpanded && t.skills.length === 0 && (
+                            <div className="px-3 pb-3 text-xs text-gray-400 italic border-t border-gray-100 pt-2">
+                              No skills linked to this competency
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-xs text-gray-400">{t.skill_count} skills</span>
-                          <span className={`font-semibold text-xs flex items-center gap-0.5 ${
-                            t.direction === "rising" ? "text-green-600" :
-                            t.direction === "falling" ? "text-red-600" : "text-gray-500"
-                          }`}>
-                            {t.direction === "rising" ? <TrendingUp className="size-3" /> :
-                             t.direction === "falling" ? <TrendingDown className="size-3" /> :
-                             <Minus className="size-3" />}
-                            {t.change_pct > 0 ? "+" : ""}{t.change_pct.toFixed(1)}%
-                          </span>
-                          <Badge variant={
-                            t.direction === "rising" ? "default" :
-                            t.direction === "falling" ? "destructive" : "secondary"
-                          } className="text-xs capitalize">
-                            {t.direction === "rising" ? "rising" : t.direction === "falling" ? "falling" : "stable"}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
