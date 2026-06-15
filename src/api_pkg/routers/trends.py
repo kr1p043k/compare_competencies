@@ -10,7 +10,7 @@ from src import Err, Ok
 from src.analyzers.skills.trends import TrendAnalyzer
 from src.database import async_session_factory
 from src.models.api_responses import TrendsResponse
-from src.models.krm_models import Competency, CompetencySkill, CompetencyTrend, Skill
+from src.models.krm_models import Competency, CompetencySkill, CompetencyTrend, Skill, TrendSnapshot
 
 from src.api_pkg import deps
 
@@ -73,18 +73,52 @@ async def get_competency_trends(
                 "skills": [],
             })
 
+        # Fetch skills for each competency + latest snapshots for per-skill trend
         if comp_ids:
             skill_rows = await session.execute(
                 select(CompetencySkill.competency_id, Skill.name)
                 .join(Skill, Skill.id == CompetencySkill.skill_id)
                 .where(CompetencySkill.competency_id.in_(comp_ids))
             )
-            comp_skills: dict[str, list[str]] = {}
+            comp_skills: dict[str, list[tuple[str, str]]] = {}
             for cid, sname in skill_rows:
-                comp_skills.setdefault(str(cid), []).append(sname)
+                comp_skills.setdefault(str(cid), []).append((sname, sname))
+
+            snap_rows = await session.execute(
+                select(TrendSnapshot).order_by(TrendSnapshot.snapshot_date.desc()).limit(2)
+            )
+            snaps = snap_rows.scalars().all()
+            prev_freq: dict = {}
+            cur_freq: dict = {}
+            if len(snaps) >= 2:
+                cur_freq = snaps[0].skill_freq or {}
+                prev_freq = snaps[1].skill_freq or {}
+            elif len(snaps) == 1:
+                cur_freq = snaps[0].skill_freq or {}
+
             for r in results:
-                skills = comp_skills.get(r["competency_id"], [])
-                r["skills"] = skills
-                r["skill_count"] = len(skills)
+                raw = comp_skills.get(r["competency_id"], [])
+                skill_list = []
+                for sname, _ in raw:
+                    cur_val = cur_freq.get(sname, 0) or 0
+                    prev_val = prev_freq.get(sname, 0) or 0
+                    if prev_val > 0:
+                        change_pct = round((cur_val - prev_val) / prev_val * 100, 1)
+                        if change_pct >= 5:
+                            direction = "rising"
+                        elif change_pct <= -5:
+                            direction = "falling"
+                        else:
+                            direction = "stable"
+                    else:
+                        change_pct = 0
+                        direction = "stable"
+                    skill_list.append({
+                        "name": sname,
+                        "direction": direction,
+                        "change_pct": change_pct,
+                    })
+                r["skills"] = skill_list
+                r["skill_count"] = len(skill_list)
 
         return {"total": len(results), "trends": results}

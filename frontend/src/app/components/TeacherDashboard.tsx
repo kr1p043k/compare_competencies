@@ -21,7 +21,7 @@ interface CompetencyTrendItem {
   change_pct: number;
   skill_count: number;
   snapshot_date: string;
-  skills: string[];
+  skills: { name: string; direction: string; change_pct: number }[];
 }
 
 interface Discipline {
@@ -319,11 +319,18 @@ export function TeacherDashboard() {
                             </div>
                           </button>
                           {isExpanded && t.skills.length > 0 && (
-                            <div className="px-3 pb-3 flex flex-wrap gap-1.5 border-t border-gray-100 pt-2">
+                            <div className="px-3 pb-3 border-t border-gray-100 pt-2 space-y-1">
                               {t.skills.map((s, i) => (
-                                <Badge key={i} variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200 text-xs">
-                                  {s}
-                                </Badge>
+                                <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                                  <span className="text-gray-700">{s.name}</span>
+                                  <span className={`font-medium flex items-center gap-0.5 ${
+                                    s.direction === "rising" ? "text-green-600" :
+                                    s.direction === "falling" ? "text-red-600" : "text-gray-400"
+                                  }`}>
+                                    {s.direction === "rising" ? "↑" : s.direction === "falling" ? "↓" : "→"}
+                                    {s.change_pct > 0 ? "+" : ""}{s.change_pct}%
+                                  </span>
+                                </div>
                               ))}
                             </div>
                           )}
