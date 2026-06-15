@@ -4,7 +4,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from src import Err, Ok
 from src.analyzers.skills.trends import TrendAnalyzer
@@ -42,14 +42,14 @@ async def get_trends(
 async def get_competency_trends(
     request: Request,
     direction: str | None = Query(None, regex="^(rising|falling|stable)$"),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(200, ge=1, le=500),
 ):
     """Get competency trends from DB, optionally filtered by direction."""
     async with async_session_factory() as session:
         query = (
             select(CompetencyTrend, Competency.code, Competency.name)
             .join(Competency, Competency.id == CompetencyTrend.competency_id)
-            .order_by(CompetencyTrend.snapshot_date.desc(), abs(CompetencyTrend.change_pct).desc())
+            .order_by(CompetencyTrend.snapshot_date.desc(), func.abs(CompetencyTrend.change_pct).desc())
         )
         if direction:
             query = query.where(CompetencyTrend.trend_direction == direction)
