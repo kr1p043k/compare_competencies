@@ -382,10 +382,13 @@ export function TeacherDashboard() {
                         onClick={() => setExpandedComp(isOpen ? null : comp.code)}
                         className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
                       >
-                        <div className="flex items-center gap-2">
-                          {isOpen ? <ChevronDown className="size-4 text-gray-400" /> : <ChevronRight className="size-4 text-gray-400" />}
-                          <span className="font-mono text-sm font-semibold text-indigo-700">{comp.code}</span>
-                          <Badge variant="secondary" className="text-xs">{comp.skills.length} навыков</Badge>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isOpen ? <ChevronDown className="size-4 text-gray-400 shrink-0" /> : <ChevronRight className="size-4 text-gray-400 shrink-0" />}
+                          <span className="font-mono text-sm font-semibold text-indigo-700 shrink-0">{comp.code}</span>
+                          {comp.skills.length > 0 && (
+                            <span className="text-xs text-gray-500 truncate">{comp.skills[0]}</span>
+                          )}
+                          <Badge variant="secondary" className="text-xs shrink-0">{comp.skills.length} навыков</Badge>
                         </div>
                       </button>
 
