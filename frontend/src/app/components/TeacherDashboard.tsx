@@ -66,7 +66,8 @@ export function TeacherDashboard() {
   const [recType, setRecType] = useState("modify");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<"skills" | "analysis" | "trends">("trends");
+  const [viewMode, setViewMode] = useState<"skills" | "analysis" | "trends">("skills");
+  const [skillTrendMap, setSkillTrendMap] = useState<Record<string, { direction: string; change_pct: number }>>({});
   const [trends, setTrends] = useState<CompetencyTrendItem[]>([]);
   const [trendsFilter, setTrendsFilter] = useState<string>("all");
   const [trendsLoading, setTrendsLoading] = useState(false);
@@ -106,8 +107,26 @@ export function TeacherDashboard() {
     }
   };
 
+  const fetchSkillTrends = async () => {
+    try {
+      const res = await apiFetch("/api/competency-trends?limit=500");
+      if (!res.ok) return;
+      const data = await res.json();
+      const map: Record<string, { direction: string; change_pct: number }> = {};
+      for (const t of data.trends || []) {
+        for (const s of t.skills || []) {
+          map[s.name] = { direction: s.direction, change_pct: s.change_pct };
+        }
+      }
+      setSkillTrendMap(map);
+    } catch (e) {
+      console.error("Failed to load skill trends", e);
+    }
+  };
+
   useEffect(() => {
     if (viewMode === "trends") fetchTrends(trendsFilter);
+    if (viewMode === "skills") fetchSkillTrends();
   }, [viewMode, trendsFilter]);
 
   const loadDiscipline = async (name: string) => {
@@ -372,15 +391,29 @@ export function TeacherDashboard() {
                       </button>
 
                       {isOpen && (
-                        <div className="px-4 py-3 space-y-2">
+                        <div className="px-4 py-3 space-y-1">
                           {comp.skills.length === 0 && (
                             <p className="text-sm text-gray-400 italic">Навыки не извлечены</p>
                           )}
-                          {comp.skills.map((s, i) => (
-                            <div key={i} className="text-sm text-gray-700 leading-relaxed border-b border-gray-100 pb-2 last:border-0">
-                              {s}
-                            </div>
-                          ))}
+                          {comp.skills.map((s, i) => {
+                            const tr = skillTrendMap[s];
+                            return (
+                              <div key={i} className="flex items-center justify-between text-sm py-0.5 border-b border-gray-100 last:border-0">
+                                <span className="text-gray-700">{s}</span>
+                                {tr ? (
+                                  <span className={`font-medium text-xs flex items-center gap-0.5 ${
+                                    tr.direction === "rising" ? "text-green-600" :
+                                    tr.direction === "falling" ? "text-red-600" : "text-gray-400"
+                                  }`}>
+                                    {tr.direction === "rising" ? "↑" : tr.direction === "falling" ? "↓" : "→"}
+                                    {tr.change_pct > 0 ? "+" : ""}{tr.change_pct}%
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-300">—</span>
+                                )}
+                              </div>
+                            );
+                          })}
 
                           <div className="border-t border-gray-200 pt-3 mt-3">
                             <Label className="text-xs text-gray-500 mb-1 block">Рекомендация преподавателя</Label>
