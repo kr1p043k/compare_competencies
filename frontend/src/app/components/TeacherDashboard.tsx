@@ -319,10 +319,9 @@ export function TeacherDashboard() {
                             <div className="flex items-center gap-2 min-w-0">
                               {isExpanded ? <ChevronDown className="size-3.5 text-gray-400 shrink-0" /> : <ChevronRight className="size-3.5 text-gray-400 shrink-0" />}
                               <span className="font-mono text-xs font-semibold text-indigo-700 shrink-0">{t.code}</span>
-                              <span className="text-xs text-gray-500">—</span>
-                              <span className="text-gray-600 truncate text-xs italic">
-                                {t.name ? `"${t.name}"` : "—"}
-                              </span>
+                              {t.name && t.name !== t.code && (
+                                <span className="text-gray-600 truncate text-xs">{t.name}</span>
+                              )}
                             </div>
                             <div className="flex items-center gap-3 shrink-0">
                               <span className="text-xs text-gray-400">{t.skill_count} skills</span>
