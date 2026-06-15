@@ -38,9 +38,9 @@ async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], Doma
             ps::text AS skill,
             COUNT(DISTINCT v.id) AS freq
         FROM vacancies v
-        CROSS JOIN LATERAL jsonb_array_elements_text(v.parsed_skills) AS ps
+        CROSS JOIN LATERAL jsonb_array_elements_text(v.parsed_skills::jsonb) AS ps
         WHERE v.parsed_skills IS NOT NULL
-          AND v.parsed_skills != '[]'::jsonb
+          AND v.parsed_skills::text != '[]'
           AND v.published_at IS NOT NULL
         GROUP BY month, ps::text
         ORDER BY month

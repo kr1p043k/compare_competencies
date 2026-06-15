@@ -19,7 +19,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    op.execute("ALTER TABLE vacancies ADD COLUMN IF NOT EXISTS parsed_skills JSON")
+    op.execute("ALTER TABLE vacancies ADD COLUMN IF NOT EXISTS parsed_skills JSONB")
     op.execute("""
         CREATE INDEX IF NOT EXISTS idx_vacancies_parsed_pub
         ON vacancies (published_at) WHERE parsed_skills IS NOT NULL
