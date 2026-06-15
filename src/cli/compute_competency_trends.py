@@ -102,7 +102,7 @@ async def main(force: bool = False) -> None:
                 session.add(ct)
 
             await session.commit()
-            print(f"Trends computed for {date.date()}: {len(comp_skills_map)} competencies")
+            print(f"Trends computed for {date}: {len(comp_skills_map)} competencies")
 
     print("Done")
 
