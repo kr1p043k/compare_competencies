@@ -9,8 +9,19 @@ import { apiFetch } from "../../lib/auth";
 import {
   BookOpen, ChevronDown, ChevronRight, Plus, Trash2,
   RefreshCw, Search, GraduationCap, Lightbulb, Target,
+  TrendingUp, TrendingDown, Minus,
 } from "lucide-react";
 import { AnalysisPanel } from "./AnalysisPanel";
+
+interface CompetencyTrendItem {
+  competency_id: string;
+  code: string;
+  name: string;
+  direction: "rising" | "falling" | "stable";
+  change_pct: number;
+  skill_count: number;
+  snapshot_date: string;
+}
 
 interface Discipline {
   name: string;
@@ -54,7 +65,10 @@ export function TeacherDashboard() {
   const [recType, setRecType] = useState("modify");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [viewMode, setViewMode] = useState<"skills" | "analysis" | "trends">("trends");
+  const [trends, setTrends] = useState<CompetencyTrendItem[]>([]);
+  const [trendsFilter, setTrendsFilter] = useState<string>("all");
+  const [trendsLoading, setTrendsLoading] = useState(false);
 
   const loadAll = async () => {
     setLoading(true);
@@ -76,8 +90,26 @@ export function TeacherDashboard() {
 
   useEffect(() => { loadAll(); }, []);
 
+  const fetchTrends = async (direction?: string) => {
+    setTrendsLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: "100" });
+      if (direction && direction !== "all") params.set("direction", direction);
+      const res = await apiFetch(`/api/competency-trends?${params}`);
+      if (res.ok) setTrends((await res.json()).trends);
+    } catch (e) {
+      console.error("Failed to load competency trends", e);
+    } finally {
+      setTrendsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === "trends") fetchTrends(trendsFilter);
+  }, [viewMode, trendsFilter]);
+
   const loadDiscipline = async (name: string) => {
-    setShowAnalysis(false);
+    setViewMode("skills");
     const res = await apiFetch(`${KRM_API}/disciplines/${encodeURIComponent(name)}`);
     if (res.ok) setSelected(await res.json());
   };
@@ -179,123 +211,204 @@ export function TeacherDashboard() {
         </Card>
 
         <Card className="border border-gray-200 shadow-sm h-[calc(100vh-280px)] flex flex-col">
-          {!selected ? (
-            <div className="flex-1 flex items-center justify-center text-gray-400">
-              <div className="text-center">
-                <BookOpen className="size-12 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Выберите дисциплину из списка</p>
+          <CardHeader className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base text-gray-900">
+                  {viewMode === "trends" ? "Тренды компетенций" : selected?.name || "Teacher Dashboard"}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {viewMode === "trends" ? `${trends.length} компетенций` : selected ? `${selected.competencies.length} компетенций` : ""}
+                </CardDescription>
               </div>
-            </div>
-          ) : (
-            <>
-              <CardHeader className="border-b border-gray-200 bg-gray-50 px-5 py-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base text-gray-900">{selected.name}</CardTitle>
-                    <CardDescription className="text-xs">
-                      {selected.competencies.length} компетенций
-                    </CardDescription>
-                  </div>
-                  <Button
-                    variant={showAnalysis ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setShowAnalysis(!showAnalysis)}
-                    className={showAnalysis ? "bg-indigo-600" : ""}
-                  >
-                    <Target className="size-3.5 mr-1" />
-                    {showAnalysis ? "Skills" : "Analysis"}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 overflow-auto p-4 space-y-3">
-                {showAnalysis ? (
-                  <AnalysisPanel disciplineName={selected.name} />
-                ) : (
+              <div className="flex gap-1">
+                {selected && (
                   <>
-                    {selected.competencies.map(comp => {
-                      const isOpen = expandedComp === comp.code;
-                      return (
-                        <div key={comp.code} className="border border-gray-200 rounded-lg overflow-hidden">
-                          <button
-                            onClick={() => setExpandedComp(isOpen ? null : comp.code)}
-                            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-                          >
-                            <div className="flex items-center gap-2">
-                              {isOpen ? <ChevronDown className="size-4 text-gray-400" /> : <ChevronRight className="size-4 text-gray-400" />}
-                              <span className="font-mono text-sm font-semibold text-indigo-700">{comp.code}</span>
-                              <Badge variant="secondary" className="text-xs">{comp.skills.length} навыков</Badge>
-                            </div>
-                          </button>
-
-                          {isOpen && (
-                            <div className="px-4 py-3 space-y-2">
-                              {comp.skills.length === 0 && (
-                                <p className="text-sm text-gray-400 italic">Навыки не извлечены</p>
-                              )}
-                              {comp.skills.map((s, i) => (
-                                <div key={i} className="text-sm text-gray-700 leading-relaxed border-b border-gray-100 pb-2 last:border-0">
-                                  {s}
-                                </div>
-                              ))}
-
-                              <div className="border-t border-gray-200 pt-3 mt-3">
-                                <Label className="text-xs text-gray-500 mb-1 block">Рекомендация преподавателя</Label>
-                                <Textarea
-                                  placeholder="Предложение по изменению..."
-                                  value={suggestion}
-                                  onChange={e => setSuggestion(e.target.value)}
-                                  rows={2}
-                                  className="text-sm resize-none"
-                                />
-                                <div className="flex items-center gap-2 mt-2">
-                                  <select
-                                    value={recType}
-                                    onChange={e => setRecType(e.target.value)}
-                                    className="h-8 text-xs border border-gray-300 rounded-md px-2 bg-white"
-                                  >
-                                    <option value="modify">modify</option>
-                                    <option value="add">add</option>
-                                    <option value="remove">remove</option>
-                                  </select>
-                                  <Button size="sm" onClick={addRecommendation} disabled={!suggestion.trim()}>
-                                    <Plus className="size-3 mr-1" />
-                                    Добавить
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {activeRecs.length > 0 && (
-                      <div className="mt-6">
-                        <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                          <Lightbulb className="size-4 text-amber-500" />
-                          Рекомендации
-                        </h4>
-                        {activeRecs.map(r => (
-                          <div key={r.id} className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="outline" className="text-xs">{r.type}</Badge>
-                                <span className="font-mono text-xs text-gray-500">{r.competency}</span>
-                              </div>
-                              <p className="text-sm text-gray-700">{r.suggestion}</p>
-                            </div>
-                            <Button variant="ghost" size="sm" onClick={() => deleteRecommendation(r.id)} className="text-red-500 hover:text-red-700 shrink-0">
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <Button
+                      variant={viewMode === "skills" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setViewMode("skills")}
+                      className={viewMode === "skills" ? "bg-indigo-600" : ""}
+                    >
+                      <BookOpen className="size-3.5 mr-1" />
+                      Skills
+                    </Button>
+                    <Button
+                      variant={viewMode === "analysis" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setViewMode("analysis")}
+                      className={viewMode === "analysis" ? "bg-indigo-600" : ""}
+                    >
+                      <Target className="size-3.5 mr-1" />
+                      Analysis
+                    </Button>
                   </>
                 )}
-              </CardContent>
-            </>
-          )}
+                <Button
+                  variant={viewMode === "trends" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => { setViewMode("trends"); setSelected(null); }}
+                  className={viewMode === "trends" ? "bg-indigo-600" : ""}
+                >
+                  <TrendingUp className="size-3.5 mr-1" />
+                  Trends
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-auto p-4 space-y-3">
+            {viewMode === "trends" ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Direction</span>
+                  {["all", "rising", "falling", "stable"].map(d => (
+                    <button
+                      key={d}
+                      onClick={() => setTrendsFilter(d)}
+                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                        trendsFilter === d
+                          ? "bg-indigo-600 text-white border-indigo-600"
+                          : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {d === "all" ? "All" : d === "rising" ? "↑ Rising" : d === "falling" ? "↓ Falling" : "→ Stable"}
+                    </button>
+                  ))}
+                </div>
+                {trendsLoading ? (
+                  <div className="text-center text-gray-400 text-sm py-8">
+                    <RefreshCw className="size-5 mx-auto mb-2 animate-spin" />
+                    Loading trends...
+                  </div>
+                ) : trends.length === 0 ? (
+                  <div className="text-center text-gray-400 text-sm py-8">
+                    <TrendingUp className="size-8 mx-auto mb-2 opacity-30" />
+                    No competency trends data. Run pipeline first.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100 border rounded-lg">
+                    {trends.map((t) => (
+                      <div key={t.competency_id} className="flex items-center justify-between px-3 py-2.5 text-sm hover:bg-gray-50">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-mono text-xs font-semibold text-indigo-700 shrink-0">{t.code}</span>
+                          <span className="text-gray-600 truncate">{t.name}</span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-xs text-gray-400">{t.skill_count} skills</span>
+                          <span className={`font-semibold text-xs flex items-center gap-0.5 ${
+                            t.direction === "rising" ? "text-green-600" :
+                            t.direction === "falling" ? "text-red-600" : "text-gray-500"
+                          }`}>
+                            {t.direction === "rising" ? <TrendingUp className="size-3" /> :
+                             t.direction === "falling" ? <TrendingDown className="size-3" /> :
+                             <Minus className="size-3" />}
+                            {t.change_pct > 0 ? "+" : ""}{t.change_pct.toFixed(1)}%
+                          </span>
+                          <Badge variant={
+                            t.direction === "rising" ? "default" :
+                            t.direction === "falling" ? "destructive" : "secondary"
+                          } className="text-xs capitalize">
+                            {t.direction === "rising" ? "rising" : t.direction === "falling" ? "falling" : "stable"}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : !selected ? (
+              <div className="flex-1 flex items-center justify-center text-gray-400 min-h-[400px]">
+                <div className="text-center">
+                  <BookOpen className="size-12 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">Выберите дисциплину из списка</p>
+                </div>
+              </div>
+            ) : viewMode === "analysis" ? (
+              <AnalysisPanel disciplineName={selected.name} />
+            ) : (
+              <>
+                {selected.competencies.map(comp => {
+                  const isOpen = expandedComp === comp.code;
+                  return (
+                    <div key={comp.code} className="border border-gray-200 rounded-lg overflow-hidden">
+                      <button
+                        onClick={() => setExpandedComp(isOpen ? null : comp.code)}
+                        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          {isOpen ? <ChevronDown className="size-4 text-gray-400" /> : <ChevronRight className="size-4 text-gray-400" />}
+                          <span className="font-mono text-sm font-semibold text-indigo-700">{comp.code}</span>
+                          <Badge variant="secondary" className="text-xs">{comp.skills.length} навыков</Badge>
+                        </div>
+                      </button>
+
+                      {isOpen && (
+                        <div className="px-4 py-3 space-y-2">
+                          {comp.skills.length === 0 && (
+                            <p className="text-sm text-gray-400 italic">Навыки не извлечены</p>
+                          )}
+                          {comp.skills.map((s, i) => (
+                            <div key={i} className="text-sm text-gray-700 leading-relaxed border-b border-gray-100 pb-2 last:border-0">
+                              {s}
+                            </div>
+                          ))}
+
+                          <div className="border-t border-gray-200 pt-3 mt-3">
+                            <Label className="text-xs text-gray-500 mb-1 block">Рекомендация преподавателя</Label>
+                            <Textarea
+                              placeholder="Предложение по изменению..."
+                              value={suggestion}
+                              onChange={e => setSuggestion(e.target.value)}
+                              rows={2}
+                              className="text-sm resize-none"
+                            />
+                            <div className="flex items-center gap-2 mt-2">
+                              <select
+                                value={recType}
+                                onChange={e => setRecType(e.target.value)}
+                                className="h-8 text-xs border border-gray-300 rounded-md px-2 bg-white"
+                              >
+                                <option value="modify">modify</option>
+                                <option value="add">add</option>
+                                <option value="remove">remove</option>
+                              </select>
+                              <Button size="sm" onClick={addRecommendation} disabled={!suggestion.trim()}>
+                                <Plus className="size-3 mr-1" />
+                                Добавить
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {activeRecs.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                      <Lightbulb className="size-4 text-amber-500" />
+                      Рекомендации
+                    </h4>
+                    {activeRecs.map(r => (
+                      <div key={r.id} className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="text-xs">{r.type}</Badge>
+                            <span className="font-mono text-xs text-gray-500">{r.competency}</span>
+                          </div>
+                          <p className="text-sm text-gray-700">{r.suggestion}</p>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => deleteRecommendation(r.id)} className="text-red-500 hover:text-red-700 shrink-0">
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
         </Card>
       </div>
     </div>
