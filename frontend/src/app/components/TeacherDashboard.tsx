@@ -103,9 +103,9 @@ export function TeacherDashboard() {
       .catch(() => setAnalysis(null));
   }, [selectedDir]);
 
-  async function loadDiscipline(id: string) {
+  async function loadDiscipline(name: string) {
     try {
-      const data = await api(`/teacher/krm/disciplines/${id}`);
+      const data = await api(`/teacher/krm/disciplines/${encodeURIComponent(name)}`);
       setSelected(data as DisciplineDetail);
       setShowAnalysis(false);
     } catch {}
@@ -117,7 +117,7 @@ export function TeacherDashboard() {
       await api("/teacher/krm/recommendations", {
         method: "POST",
         body: JSON.stringify({
-          discipline_id: selected.id,
+          discipline_id: selected.name,
           competency_id: expandedComp || null,
           suggestion: suggestion.trim(),
           suggestion_type: recType,
@@ -279,7 +279,7 @@ export function TeacherDashboard() {
             return (
               <div
                 key={d.name}
-                onClick={() => loadDiscipline(d.id)}
+                onClick={() => loadDiscipline(d.name)}
                 style={{
                   padding: "10px 16px",
                   cursor: "pointer",
@@ -470,7 +470,7 @@ export function TeacherDashboard() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#c4b5fd", marginBottom: 8 }}>Disciplines Breakdown</div>
                 {analysis.disciplines.map((d, i) => (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f1f3a", fontSize: 12, cursor: "pointer" }}
-                    onClick={() => { const found = disciplines.find((dd) => dd.name === d.name); if (found) loadDiscipline(found.id); }}
+                    onClick={() => { const found = disciplines.find((dd) => dd.name === d.name); if (found) loadDiscipline(found.name); }}
                   >
                     <span style={{ color: "#e0e0e0", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
                     <div style={{ display: "flex", gap: 12 }}>
