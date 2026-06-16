@@ -160,14 +160,14 @@ export function TeacherDashboard() {
     display: "flex",
     height: "calc(100vh - 100px)",
     fontFamily: "system-ui, -apple-system, sans-serif",
-    color: "#e0e0e0",
-    background: "#1a1a2e",
+    color: "#111827",
+    background: "#fff",
   };
 
   const sidebarStyle: React.CSSProperties = {
     width: 380,
     minWidth: 380,
-    borderRight: "1px solid #2d2d4a",
+    borderRight: "1px solid #e5e7eb",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
@@ -180,27 +180,28 @@ export function TeacherDashboard() {
   };
 
   const card: React.CSSProperties = {
-    background: "#0f0f23",
+    background: "#fff",
     borderRadius: 8,
-    border: "1px solid #2d2d4a",
+    border: "1px solid #e5e7eb",
     padding: 14,
     marginBottom: 10,
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
   };
 
   function covColor(cov: number) {
-    return cov > 0.5 ? "#6ee7b7" : cov > 0.2 ? "#fbbf24" : "#fca5a5";
+    return cov > 0.5 ? "#059669" : cov > 0.2 ? "#d97706" : "#dc2626";
   }
 
   return (
     <div style={containerStyle}>
       <div style={sidebarStyle}>
-        <div style={{ padding: "16px", borderBottom: "1px solid #2d2d4a" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h1 style={{ fontSize: 18, margin: 0, color: "#fff" }}>
-              KRM Teacher
-            </h1>
-            {stats && (
-                  <div style={{ fontSize: 11, color: "#666", textAlign: "right" }}>
+          <div style={{ padding: "16px", borderBottom: "1px solid #e5e7eb" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h1 style={{ fontSize: 18, margin: 0, color: "#111827" }}>
+                KRM Teacher
+              </h1>
+              {stats && (
+                  <div style={{ fontSize: 11, color: "#6b7280", textAlign: "right" }}>
                     <div>{(stats as any).total_disciplines ?? (stats as any).total_reports ?? 0} disc</div>
                     <div>{(stats as any).total_competencies ?? Object.keys((stats as any).by_profession || {}).length} comp</div>
                     <div>{((stats as any).total_skills ?? 0).toLocaleString()} skills</div>
@@ -216,10 +217,10 @@ export function TeacherDashboard() {
               width: "100%",
               marginTop: 10,
               padding: "6px 8px",
-              background: "#16213e",
-              border: "1px solid #2d2d4a",
+              background: "#fff",
+              border: "1px solid #e5e7eb",
               borderRadius: 6,
-              color: "#e0e0e0",
+              color: "#111827",
               fontSize: 12,
               outline: "none",
             }}
@@ -236,7 +237,7 @@ export function TeacherDashboard() {
               style={{
                 marginTop: 10,
                 padding: "8px 12px",
-                background: "#16213e",
+                background: "#f9fafb",
                 border: `1px solid ${covColor(analysis.average_coverage)}`,
                 borderRadius: 6,
                 cursor: "pointer",
@@ -244,12 +245,12 @@ export function TeacherDashboard() {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#c4b5fd", fontWeight: 600 }}>Analysis</span>
+                <span style={{ color: "#7c3aed", fontWeight: 600 }}>Analysis</span>
                 <span style={{ color: covColor(analysis.average_coverage), fontWeight: 700 }}>
                   {(analysis.average_coverage * 100).toFixed(1)}%
                 </span>
               </div>
-              <div style={{ color: "#666", marginTop: 2 }}>
+              <div style={{ color: "#6b7280", marginTop: 2 }}>
                 {analysis.total_disciplines} disciplines, {analysis.total_gaps_across_all} gaps
               </div>
             </div>
@@ -263,10 +264,10 @@ export function TeacherDashboard() {
               width: "100%",
               marginTop: 10,
               padding: "8px 12px",
-              background: "#16213e",
-              border: "1px solid #2d2d4a",
+              background: "#fff",
+              border: "1px solid #e5e7eb",
               borderRadius: 6,
-              color: "#e0e0e0",
+              color: "#111827",
               fontSize: 13,
               outline: "none",
               boxSizing: "border-box",
@@ -283,13 +284,13 @@ export function TeacherDashboard() {
                 style={{
                   padding: "10px 16px",
                   cursor: "pointer",
-                  borderBottom: "1px solid #252545",
+                  borderBottom: "1px solid #e5e7eb",
                   background:
-                    selected?.name === d.name ? "#16213e" : "transparent",
+                    selected?.name === d.name ? "#eef2ff" : "transparent",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#c4b5fd" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#7c3aed" }}>
                     {d.name}
                   </div>
                   {discAnalysis && (
@@ -302,7 +303,7 @@ export function TeacherDashboard() {
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
                   {d.competencies_count} comps / {d.skills_count} skills
                   {discAnalysis && ` / ${discAnalysis.gaps} gaps`}
                 </div>
@@ -314,7 +315,7 @@ export function TeacherDashboard() {
 
       <div style={mainStyle}>
         {!selected && !showAnalysis && (
-          <div style={{ textAlign: "center", marginTop: 80, color: "#555", fontSize: 14 }}>
+          <div style={{ textAlign: "center", marginTop: 80, color: "#9ca3af", fontSize: 14 }}>
             Select a discipline or open analysis
           </div>
         )}
@@ -330,8 +331,8 @@ export function TeacherDashboard() {
               cursor: "pointer",
               fontSize: 12,
               fontWeight: analysisMode === "coverage" ? 700 : 400,
-              background: analysisMode === "coverage" ? "#7c3aed" : "#16213e",
-              color: analysisMode === "coverage" ? "#fff" : "#a78bfa",
+              background: analysisMode === "coverage" ? "#7c3aed" : "#f9fafb",
+              color: analysisMode === "coverage" ? "#fff" : "#7c3aed",
             }}
           >
             Coverage
@@ -345,8 +346,8 @@ export function TeacherDashboard() {
               cursor: "pointer",
               fontSize: 12,
               fontWeight: analysisMode === "trends" ? 700 : 400,
-              background: analysisMode === "trends" ? "#7c3aed" : "#16213e",
-              color: analysisMode === "trends" ? "#fff" : "#a78bfa",
+              background: analysisMode === "trends" ? "#7c3aed" : "#f9fafb",
+              color: analysisMode === "trends" ? "#fff" : "#7c3aed",
             }}
           >
             Competency Trends
@@ -355,8 +356,8 @@ export function TeacherDashboard() {
 
         {analysisMode === "coverage" && analysis && (<>
           <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-                <div style={card}>
-                  <div style={{ fontSize: 11, color: "#666" }}>Average Coverage</div>
+            <div style={card}>
+              <div style={{ fontSize: 11, color: "#6b7280" }}>Average Coverage</div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: covColor(analysis.average_coverage) }}>
                     {(analysis.average_coverage * 100).toFixed(1)}%
                   </div>
@@ -365,13 +366,13 @@ export function TeacherDashboard() {
                   </div>
                 </div>
                 <div style={card}>
-                  <div style={{ fontSize: 11, color: "#666" }}>Total Gaps</div>
+                  <div style={{ fontSize: 11, color: "#6b7280" }}>Total Gaps</div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: "#fca5a5" }}>
                     {analysis.total_gaps_across_all}
                   </div>
                 </div>
                 <div style={card}>
-                  <div style={{ fontSize: 11, color: "#666" }}>Disciplines</div>
+                  <div style={{ fontSize: 11, color: "#6b7280" }}>Disciplines</div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: "#93c5fd" }}>
                     {analysis.total_disciplines}
                   </div>
@@ -381,33 +382,33 @@ export function TeacherDashboard() {
               {/* Direction-level recommendations */}
               {analysis.recommendations.length > 0 && (
                 <div style={card}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "#c4b5fd", marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>
                     Recommendations
                   </div>
                   {analysis.recommendations.map((r, i) => (
-                    <div key={i} style={{ padding: "8px 10px", marginBottom: 6, background: "#16213e", borderRadius: 6, borderLeft: `3px solid ${r.priority === "high" ? "#7f1d1d" : r.priority === "medium" ? "#713f12" : "#1e3a5f"}`, fontSize: 12 }}>
+                    <div key={i} style={{ padding: "8px 10px", marginBottom: 6, background: "#f9fafb", borderRadius: 6, borderLeft: `3px solid ${r.priority === "high" ? "#7f1d1d" : r.priority === "medium" ? "#713f12" : "#1e3a5f"}`, fontSize: 12 }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
                         <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: r.priority === "high" ? "#7f1d1d" : r.priority === "medium" ? "#713f12" : "#1e3a5f", color: r.priority === "high" ? "#fca5a5" : r.priority === "medium" ? "#fde68a" : "#93c5fd", fontWeight: 600 }}>{r.priority}</span>
-                        <span style={{ fontSize: 11, color: "#888" }}>{r.type}</span>
+                        <span style={{ fontSize: 11, color: "#9ca3af" }}>{r.type}</span>
                       </div>
-                      <div style={{ color: "#ccc", lineHeight: 1.4 }}>{r.message}</div>
+                      <div style={{ color: "#4b5563", lineHeight: 1.4 }}>{r.message}</div>
                     </div>
                   ))}
                 </div>
               )}
 
               <div style={card}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#c4b5fd", marginBottom: 8 }}>Top Cross-Discipline Gaps</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Top Cross-Discipline Gaps</div>
                 {analysis.top_cross_discipline_gaps.map((g, i) => (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid #1f1f3a", fontSize: 12 }}>
                     <span style={{ color: "#fca5a5" }}>{g.skill}</span>
-                    <span style={{ color: "#888" }}>{g.disciplines} disciplines</span>
+                    <span style={{ color: "#9ca3af" }}>{g.disciplines} disciplines</span>
                   </div>
                 ))}
               </div>
 
               <div style={card}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#c4b5fd", marginBottom: 8 }}>Emerging Market Skills</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Emerging Market Skills</div>
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                   {analysis.top_emerging_across_all.map((s, i) => (
                     <span key={i} style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: "#1e3a5f", color: "#93c5fd", margin: 2 }}>
@@ -423,7 +424,7 @@ export function TeacherDashboard() {
                     <div style={{ ...card, flex: 1, minWidth: 200 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: "#6ee7b7", marginBottom: 8 }}>Rising Skills</div>
                       {analysis.trends.rising.map((t, i) => (
-                        <div key={i} style={{ fontSize: 11, padding: "2px 0", color: "#ccc" }}>
+                        <div key={i} style={{ fontSize: 11, padding: "2px 0", color: "#4b5563" }}>
                           {t.skill} <span style={{ color: "#6ee7b7" }}>+{t.change_pct}%</span>
                         </div>
                       ))}
@@ -433,7 +434,7 @@ export function TeacherDashboard() {
                     <div style={{ ...card, flex: 1, minWidth: 200 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: "#fca5a5", marginBottom: 8 }}>Declining Skills</div>
                       {analysis.trends.declining.map((t, i) => (
-                        <div key={i} style={{ fontSize: 11, padding: "2px 0", color: "#ccc" }}>
+                        <div key={i} style={{ fontSize: 11, padding: "2px 0", color: "#4b5563" }}>
                           {t.skill} <span style={{ color: "#fca5a5" }}>{t.change_pct}%</span>
                         </div>
                       ))}
@@ -443,7 +444,7 @@ export function TeacherDashboard() {
               )}
 
               <div style={card}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#c4b5fd", marginBottom: 8 }}>Disciplines Breakdown</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Disciplines Breakdown</div>
                 {analysis.disciplines.map((d, i) => (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f1f3a", fontSize: 12, cursor: "pointer" }}
                     onClick={() => { const found = disciplines.find((dd) => dd.name === d.name); if (found) loadDiscipline(found.name); }}
@@ -464,7 +465,7 @@ export function TeacherDashboard() {
         {/* Discipline detail */}
         {selected && (
           <>
-            <h2 style={{ fontSize: 20, margin: "0 0 20px", color: "#fff" }}>
+            <h2 style={{ fontSize: 20, margin: "0 0 20px", color: "#111827" }}>
               {selected.name}
             </h2>
 
@@ -487,24 +488,24 @@ export function TeacherDashboard() {
                     onClick={() => setExpandedComp(isOpen ? null : comp.code)}
                     style={{
                       padding: "10px 16px",
-                      background: "#16213e",
+                      background: "#f9fafb",
                       cursor: "pointer",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
                     }}
                   >
-                    <span style={{ fontWeight: 600, color: "#a78bfa" }}>
+                    <span style={{ fontWeight: 600, color: "#7c3aed" }}>
                       {comp.code}
                     </span>
-                    <span style={{ fontSize: 12, color: "#666" }}>
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>
                       {comp.skills.length} skills {isOpen ? "v" : ">"}
                     </span>
                   </div>
                   {isOpen && (
                     <div style={{ padding: "8px 16px 12px" }}>
                       {comp.skills.length === 0 && (
-                        <div style={{ color: "#555", fontSize: 12 }}>
+                        <div style={{ color: "#9ca3af", fontSize: 12 }}>
                           No skills extracted
                         </div>
                       )}
@@ -536,7 +537,7 @@ export function TeacherDashboard() {
                           style={{
                             width: "100%",
                             padding: "8px",
-                            background: "#0f0f23",
+                            background: "#fff",
                             border: "1px solid #2d2d4a",
                             borderRadius: 6,
                             color: "#e0e0e0",
@@ -559,7 +560,7 @@ export function TeacherDashboard() {
                             onChange={(e) => setRecType(e.target.value)}
                             style={{
                               padding: "6px 8px",
-                              background: "#0f0f23",
+                              background: "#fff",
                               border: "1px solid #2d2d4a",
                               borderRadius: 6,
                               color: "#e0e0e0",
@@ -595,7 +596,7 @@ export function TeacherDashboard() {
 
             {recs.length > 0 && (
               <div style={{ marginTop: 32 }}>
-                <h3 style={{ fontSize: 14, margin: "0 0 12px", color: "#a78bfa" }}>
+                <h3 style={{ fontSize: 14, margin: "0 0 12px", color: "#7c3aed" }}>
                   Recommendations
                 </h3>
                 {recs
@@ -606,13 +607,13 @@ export function TeacherDashboard() {
                       style={{
                         padding: "8px 12px",
                         marginBottom: 6,
-                        background: "#0f0f23",
+                        background: "#fff",
                         borderRadius: 6,
                         borderLeft: "3px solid #7c3aed",
                         fontSize: 12,
                       }}
                     >
-                      <div style={{ color: "#888", marginBottom: 4 }}>
+                      <div style={{ color: "#9ca3af", marginBottom: 4 }}>
                         [{r.type}] {r.competency}
                       </div>
                       <div>{r.suggestion}</div>
