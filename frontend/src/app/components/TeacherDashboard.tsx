@@ -88,7 +88,7 @@ export function TeacherDashboard() {
       setStats(s);
       setDisciplines(d as Discipline[]);
       setRecs(r as Recommendation[]);
-      setDirections(dirs as Direction[]);
+      setDirections(Array.isArray(dirs) ? (dirs as Direction[]) : [dirs as Direction]);
       setLoading(false);
     }).catch((e) => {
       console.error("TeacherDashboard init failed", e);
