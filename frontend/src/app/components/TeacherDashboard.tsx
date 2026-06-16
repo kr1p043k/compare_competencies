@@ -81,14 +81,17 @@ export function TeacherDashboard() {
   useEffect(() => {
     Promise.all([
       api("/teacher/stats"),
-      api("/teacher/disciplines"),
-      api("/teacher/recommendations"),
-      api("/teacher/directions"),
+      api("/teacher/krm/disciplines"),
+      api("/teacher/krm/recommendations"),
+      api("/teacher/krm/directions"),
     ]).then(([s, d, r, dirs]) => {
       setStats(s);
       setDisciplines(d as Discipline[]);
       setRecs(r as Recommendation[]);
       setDirections(dirs as Direction[]);
+      setLoading(false);
+    }).catch((e) => {
+      console.error("TeacherDashboard init failed", e);
       setLoading(false);
     });
   }, []);
@@ -102,7 +105,7 @@ export function TeacherDashboard() {
 
   async function loadDiscipline(id: string) {
     try {
-      const data = await api(`/teacher/disciplines/${id}`);
+      const data = await api(`/teacher/krm/disciplines/${id}`);
       setSelected(data as DisciplineDetail);
       setShowAnalysis(false);
     } catch {}
@@ -111,7 +114,7 @@ export function TeacherDashboard() {
   async function addRec() {
     if (!selected || !suggestion.trim()) return;
     try {
-      await api("/teacher/recommendations", {
+      await api("/teacher/krm/recommendations", {
         method: "POST",
         body: JSON.stringify({
           discipline_id: selected.id,
@@ -136,7 +139,7 @@ export function TeacherDashboard() {
 
   async function deleteRec(id: string) {
     try {
-      await api(`/teacher/recommendations/${id}`, { method: "DELETE" });
+      await api(`/teacher/krm/recommendations/${id}`, { method: "DELETE" });
       setRecs((prev) => prev.filter((r) => r.id !== id));
     } catch {}
   }
