@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../api";
-import AnalysisPanel from "./AnalysisPanel";
+import { AnalysisPanel } from "./AnalysisPanel";
 import CompetencyTrendsPanel from "./CompetencyTrendsPanel";
 
 const API = "/api/teacher";
@@ -62,7 +62,7 @@ type Stats = {
   total_skills: number;
 };
 
-export default function TeacherDashboard() {
+export function TeacherDashboard() {
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [selected, setSelected] = useState<DisciplineDetail | null>(null);
   const [expandedComp, setExpandedComp] = useState<string | null>(null);
