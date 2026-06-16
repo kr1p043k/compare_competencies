@@ -63,7 +63,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
     background: "#fff",
     borderRadius: 8,
     border: "1px solid #e5e7eb",
-    padding: 14,
+    padding: "12px 18px",
     marginBottom: 10,
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
   };
@@ -121,32 +121,32 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
           flexWrap: "wrap",
         }}
       >
-        <div style={card}>
-          <div style={{ fontSize: 11, color: "#6b7280" }}>Компетенций</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "#7c3aed" }}>
+          <div style={card}>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>Компетенций</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#7c3aed" }}>
             {displayed.length}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 11, color: "#6b7280" }}>Растут</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "#059669" }}>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>Растут</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#059669" }}>
             {rising}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 11, color: "#6b7280" }}>Стабильно</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "#d97706" }}>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>Стабильно</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#d97706" }}>
             {stable}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 11, color: "#6b7280" }}>Падают</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "#dc2626" }}>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>Падают</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#dc2626" }}>
             {falling}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 11, color: "#6b7280" }}>Средний тренд</div>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>Средний тренд</div>
           <div
             style={{
               fontSize: 20,
@@ -235,23 +235,23 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                   style={{
                     fontWeight: 600,
                     color: "#7c3aed",
-                    fontSize: 13,
+                    fontSize: 14,
                   }}
                 >
                   {comp.code}
                 </span>
-                <span style={{ fontSize: 11, color: "#6b7280" }}>
-                  {comp.skill_count} skill{comp.skill_count !== 1 ? "s" : ""}
+                <span style={{ fontSize: 12, color: "#6b7280" }}>
+                  {comp.skill_count} навык{comp.skill_count !== 1 ? "а" : ""}
                   {comp.active_skills_count !== undefined &&
                     comp.active_skills_count !== comp.skill_count && (
                       <span
                         style={{
-                          fontSize: 10,
+                          fontSize: 11,
                           color: "#9ca3af",
                           marginLeft: 4,
                         }}
                       >
-                        ({comp.active_skills_count} tracked)
+                        ({comp.active_skills_count} в тренде)
                       </span>
                     )}
                 </span>
@@ -266,7 +266,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                 <span
                   style={{
                     fontWeight: 700,
-                    fontSize: 14,
+                    fontSize: 15,
                     color: clsColor,
                   }}
                 >
@@ -279,7 +279,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                     display: "inline-block",
                     padding: "2px 8px",
                     borderRadius: 4,
-                    fontSize: 11,
+                    fontSize: 12,
                     background:
                       comp.direction === "rising"
                         ? "#d1fae5"
@@ -312,16 +312,18 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                       style={{
                         display: "flex",
                         justifyContent: "space-between",
-                        padding: "4px 0",
-                        fontSize: 12,
+                        alignItems: "center",
+                        padding: "6px 0",
+                        fontSize: 13,
                         borderBottom: "1px solid #e5e7eb",
                       }}
                     >
-                      <span style={{ color: "#4b5563" }}>{sk.name}</span>
+                      <span style={{ color: "#374151", fontWeight: 500 }}>{sk.name}</span>
                       <span
                         style={{
                           color: trendColor(sk.change_pct),
                           fontWeight: 600,
+                          fontSize: 13,
                         }}
                       >
                         {trendArrow(sk.change_pct)}{" "}
@@ -331,7 +333,8 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                           style={{
                             color: "#9ca3af",
                             fontWeight: 400,
-                            marginLeft: 4,
+                            marginLeft: 6,
+                            fontSize: 12,
                           }}
                         >
                           (freq: {sk.frequency})
@@ -342,7 +345,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                     {sk.history && sk.history.length > 1 && (
                       <div
                         style={{
-                          padding: "8px 0 12px",
+                          padding: "12px 0 16px",
                           fontSize: 11,
                           color: "#6b7280",
                         }}
@@ -351,12 +354,12 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                           style={{
                             display: "flex",
                             alignItems: "flex-end",
-                            gap: 4,
-                            height: 40,
+                            gap: 6,
+                            height: 60,
                             padding: "4px 0",
                           }}
                         >
-                          {sk.history.map((h, hi) => {
+                          {[...sk.history].reverse().map((h, hi) => {
                             const maxFreq = Math.max(
                               ...sk.history!.map((x) => x.freq)
                             );
@@ -365,31 +368,48 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                             return (
                               <div
                                 key={hi}
-                                title={`${h.date}: ${h.freq}`}
                                 style={{
                                   flex: 1,
-                                  height: `${Math.max(pct, 2)}%`,
-                                  background: "#7c3aed",
-                                  borderRadius: "2px 2px 0 0",
-                                  minWidth: 12,
-                                  opacity: 0.7 + 0.3 * (pct / 100),
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "center",
+                                  justifyContent: "flex-end",
+                                  height: "100%",
                                 }}
-                              />
+                              >
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    color: "#4b5563",
+                                    marginBottom: 2,
+                                  }}
+                                >
+                                  {h.freq}
+                                </span>
+                                <div
+                                  title={`${h.date}: ${h.freq}`}
+                                  style={{
+                                    width: "100%",
+                                    height: `${Math.max(pct, 2)}%`,
+                                    background: "#7c3aed",
+                                    borderRadius: "3px 3px 0 0",
+                                    minWidth: 16,
+                                    opacity: 0.7 + 0.3 * (pct / 100),
+                                  }}
+                                />
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    color: "#6b7280",
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  {h.date.slice(5)}
+                                </span>
+                              </div>
                             );
                           })}
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            marginTop: 2,
-                          }}
-                        >
-                          {sk.history.map((h, hi) => (
-                            <span key={hi} style={{ fontSize: 9 }}>
-                              {h.date.slice(5)}
-                            </span>
-                          ))}
                         </div>
                       </div>
                     )}
