@@ -446,24 +446,3 @@ class TrendSnapshot(Base):
     skill_freq: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
     source: Mapped[str] = mapped_column(String(50), default="hh_vacancies")
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-
-
-# ─── Competency Trend ───────────────────────────────────────────────────
-
-class CompetencyTrend(Base):
-    __tablename__ = "competency_trends"
-
-    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    competency_id: Mapped[str] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"), nullable=False, index=True)
-    trend_direction: Mapped[str] = mapped_column(String(10), nullable=False)
-    change_pct: Mapped[float] = mapped_column(Float, default=0.0)
-    snapshot_date: Mapped[datetime] = mapped_column()
-    skill_count: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-
-    competency: Mapped["Competency"] = relationship()
-
-    __table_args__ = (
-        CheckConstraint(trend_direction.in_(["rising", "falling", "stable"]), name="ck_ct_direction"),
-        UniqueConstraint("competency_id", "snapshot_date", name="uq_ct_comp_date"),
-    )
