@@ -383,35 +383,35 @@ export function TeacherDashboard() {
               {analysis.recommendations.length > 0 && (
                 <div style={card}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>
-                    Recommendations
+                    Рекомендации
                   </div>
                   {analysis.recommendations.map((r, i) => (
-                    <div key={i} style={{ padding: "8px 10px", marginBottom: 6, background: "#f9fafb", borderRadius: 6, borderLeft: `3px solid ${r.priority === "high" ? "#7f1d1d" : r.priority === "medium" ? "#713f12" : "#1e3a5f"}`, fontSize: 12 }}>
+                    <div key={i} style={{ padding: "8px 10px", marginBottom: 6, background: "#f9fafb", borderRadius: 6, borderLeft: `3px solid ${r.priority === "high" ? "#dc2626" : r.priority === "medium" ? "#d97706" : "#2563eb"}`, fontSize: 12 }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
-                        <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: r.priority === "high" ? "#7f1d1d" : r.priority === "medium" ? "#713f12" : "#1e3a5f", color: r.priority === "high" ? "#fca5a5" : r.priority === "medium" ? "#fde68a" : "#93c5fd", fontWeight: 600 }}>{r.priority}</span>
-                        <span style={{ fontSize: 11, color: "#9ca3af" }}>{r.type}</span>
+                        <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: r.priority === "high" ? "#fee2e2" : r.priority === "medium" ? "#fef3c7" : "#dbeafe", color: r.priority === "high" ? "#dc2626" : r.priority === "medium" ? "#92400e" : "#1d4ed8", fontWeight: 600 }}>{r.priority === "high" ? "высокий" : r.priority === "medium" ? "средний" : "низкий"}</span>
+                        <span style={{ fontSize: 11, color: "#6b7280" }}>{r.type}</span>
                       </div>
-                      <div style={{ color: "#4b5563", lineHeight: 1.4 }}>{r.message}</div>
+                      <div style={{ color: "#374151", lineHeight: 1.4 }}>{r.message}</div>
                     </div>
                   ))}
                 </div>
               )}
 
-              <div style={card}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Top Cross-Discipline Gaps</div>
+                 <div style={card}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Междисциплинарные разрывы</div>
                 {analysis.top_cross_discipline_gaps.map((g, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid #1f1f3a", fontSize: 12 }}>
-                    <span style={{ color: "#fca5a5" }}>{g.skill}</span>
-                    <span style={{ color: "#9ca3af" }}>{g.disciplines} disciplines</span>
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid #e5e7eb", fontSize: 12 }}>
+                    <span style={{ color: "#b91c1c", fontWeight: 500 }}>{g.skill}</span>
+                    <span style={{ color: "#6b7280" }}>{g.disciplines} дисциплин</span>
                   </div>
                 ))}
               </div>
 
               <div style={card}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Emerging Market Skills</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Востребованные навыки рынка</div>
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                   {analysis.top_emerging_across_all.map((s, i) => (
-                    <span key={i} style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: "#1e3a5f", color: "#93c5fd", margin: 2 }}>
+                    <span key={i} style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: "#e0e7ff", color: "#4338ca", margin: 2 }}>
                       {s.skill} <span style={{ opacity: 0.5 }}>×{s.frequency}</span>
                     </span>
                   ))}
@@ -422,20 +422,20 @@ export function TeacherDashboard() {
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   {analysis.trends.rising?.length > 0 && (
                     <div style={{ ...card, flex: 1, minWidth: 200 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "#6ee7b7", marginBottom: 8 }}>Rising Skills</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#059669", marginBottom: 8 }}>Растущие навыки</div>
                       {analysis.trends.rising.map((t, i) => (
                         <div key={i} style={{ fontSize: 11, padding: "2px 0", color: "#4b5563" }}>
-                          {t.skill} <span style={{ color: "#6ee7b7" }}>+{t.change_pct}%</span>
+                          {t.skill} <span style={{ color: "#059669" }}>+{t.change_pct}%</span>
                         </div>
                       ))}
                     </div>
                   )}
                   {analysis.trends.declining?.length > 0 && (
                     <div style={{ ...card, flex: 1, minWidth: 200 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "#fca5a5", marginBottom: 8 }}>Declining Skills</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#dc2626", marginBottom: 8 }}>Падающие навыки</div>
                       {analysis.trends.declining.map((t, i) => (
                         <div key={i} style={{ fontSize: 11, padding: "2px 0", color: "#4b5563" }}>
-                          {t.skill} <span style={{ color: "#fca5a5" }}>{t.change_pct}%</span>
+                          {t.skill} <span style={{ color: "#dc2626" }}>{t.change_pct}%</span>
                         </div>
                       ))}
                     </div>
@@ -444,16 +444,16 @@ export function TeacherDashboard() {
               )}
 
               <div style={card}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Disciplines Breakdown</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Разбивка по дисциплинам</div>
                 {analysis.disciplines.map((d, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f1f3a", fontSize: 12, cursor: "pointer" }}
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #e5e7eb", fontSize: 12, cursor: "pointer" }}
                     onClick={() => { const found = disciplines.find((dd) => dd.name === d.name); if (found) loadDiscipline(found.name); }}
                   >
-                    <span style={{ color: "#e0e0e0", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
+                    <span style={{ color: "#374151", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
                     <div style={{ display: "flex", gap: 12 }}>
                       <span style={{ color: covColor(d.coverage_ratio), fontWeight: 600 }}>{(d.coverage_ratio * 100).toFixed(1)}%</span>
-                      <span style={{ color: "#fca5a5" }}>{d.gaps}g</span>
-                      <span style={{ color: "#93c5fd" }}>{d.emerging}e</span>
+                      <span style={{ color: "#dc2626" }}>{d.gaps}g</span>
+                      <span style={{ color: "#2563eb" }}>{d.emerging}e</span>
                     </div>
                   </div>
                 ))}
