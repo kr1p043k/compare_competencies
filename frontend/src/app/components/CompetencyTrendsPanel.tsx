@@ -6,30 +6,22 @@ type SkillTrend = {
   change_pct: number;
   frequency: number;
   prev_frequency: number;
+  history?: { date: string; freq: number }[];
 };
 
 type CompetencyTrend = {
   code: string;
   name: string;
-  skills_count: number;
-  aggregate_trend_pct: number;
-  classification: string;
+  skill_count: number;
+  active_skills_count: number;
+  change_pct: number;
+  direction: string;
   skills: SkillTrend[];
 };
 
-type TrendsData = {
-  direction_code: string;
-  direction_name: string;
-  snapshot_latest: string;
-  snapshot_previous: string;
-  competencies: CompetencyTrend[];
-  summary: {
-    total_competencies: number;
-    rising: number;
-    falling: number;
-    stable: number;
-    average_trend_pct: number;
-  };
+type TrendsResponse = {
+  total: number;
+  trends: CompetencyTrend[];
 };
 
 type Props = {
@@ -49,16 +41,18 @@ function trendColor(pct: number): string {
 }
 
 export default function CompetencyTrendsPanel({ dirCode }: Props) {
-  const [data, setData] = useState<TrendsData | null>(null);
+  const [data, setData] = useState<TrendsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    api(`/competency-trends?dir_code=${dirCode}&classification=${filter}`)
+    const params = new URLSearchParams({ limit: "200" });
+    if (filter && filter !== "all") params.set("direction", filter);
+    api(`/competency-trends?${params}`)
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -88,13 +82,25 @@ export default function CompetencyTrendsPanel({ dirCode }: Props) {
     );
   }
 
-  if (!data || data.competencies.length === 0) {
+  if (!data || data.trends.length === 0) {
     return (
       <div style={{ color: "#555", fontSize: 13, padding: 12 }}>
         No competency trends data. Run teacher analysis first.
       </div>
     );
   }
+
+  const rising = data.trends.filter((c) => c.direction === "rising").length;
+  const stable = data.trends.filter((c) => c.direction === "stable").length;
+  const falling = data.trends.filter((c) => c.direction === "falling").length;
+  const avgTrend = data.trends.length
+    ? data.trends.reduce((s, c) => s + c.change_pct, 0) / data.trends.length
+    : 0;
+
+  const filtered =
+    filter && filter !== "all"
+      ? data.trends.filter((c) => c.direction === filter)
+      : data.trends;
 
   return (
     <div>
@@ -109,49 +115,39 @@ export default function CompetencyTrendsPanel({ dirCode }: Props) {
       >
         <div style={card}>
           <div style={{ fontSize: 11, color: "#666" }}>Total Competencies</div>
-          <div
-            style={{ fontSize: 20, fontWeight: 700, color: "#c4b5fd" }}
-          >
-            {data.summary.total_competencies}
+          <div style={{ fontSize: 20, fontWeight: 700, color: "#c4b5fd" }}>
+            {data.total}
           </div>
         </div>
         <div style={card}>
           <div style={{ fontSize: 11, color: "#666" }}>Rising</div>
-          <div
-            style={{ fontSize: 20, fontWeight: 700, color: "#6ee7b7" }}
-          >
-            {data.summary.rising}
+          <div style={{ fontSize: 20, fontWeight: 700, color: "#6ee7b7" }}>
+            {rising}
           </div>
         </div>
         <div style={card}>
           <div style={{ fontSize: 11, color: "#666" }}>Stable</div>
-          <div
-            style={{ fontSize: 20, fontWeight: 700, color: "#fbbf24" }}
-          >
-            {data.summary.stable}
+          <div style={{ fontSize: 20, fontWeight: 700, color: "#fbbf24" }}>
+            {stable}
           </div>
         </div>
         <div style={card}>
           <div style={{ fontSize: 11, color: "#666" }}>Falling</div>
-          <div
-            style={{ fontSize: 20, fontWeight: 700, color: "#fca5a5" }}
-          >
-            {data.summary.falling}
+          <div style={{ fontSize: 20, fontWeight: 700, color: "#fca5a5" }}>
+            {falling}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 11, color: "#666" }}>
-            Avg Trend
-          </div>
+          <div style={{ fontSize: 11, color: "#666" }}>Avg Trend</div>
           <div
             style={{
               fontSize: 20,
               fontWeight: 700,
-              color: trendColor(data.summary.average_trend_pct),
+              color: trendColor(avgTrend),
             }}
           >
-            {data.summary.average_trend_pct > 0 ? "+" : ""}
-            {data.summary.average_trend_pct}%
+            {avgTrend > 0 ? "+" : ""}
+            {avgTrend.toFixed(1)}%
           </div>
         </div>
       </div>
@@ -165,42 +161,40 @@ export default function CompetencyTrendsPanel({ dirCode }: Props) {
           flexWrap: "wrap",
         }}
       >
-        {["all", "rising", "stable", "falling"].map((f) => (
+        {[
+          { key: null as string | null, label: `All (${data.total})` },
+          { key: "rising", label: `Rising (${rising})` },
+          { key: "stable", label: `Stable (${stable})` },
+          { key: "falling", label: `Falling (${falling})` },
+        ].map((f) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
+            key={f.key || "all"}
+            onClick={() => setFilter(f.key)}
             style={{
               padding: "4px 12px",
               border: "none",
               borderRadius: 4,
               cursor: "pointer",
               fontSize: 12,
-              fontWeight: filter === f ? 700 : 400,
-              background:
-                filter === f ? "#7c3aed" : "#16213e",
-              color: filter === f ? "#fff" : "#a78bfa",
+              fontWeight: filter === f.key ? 700 : 400,
+              background: filter === f.key ? "#7c3aed" : "#16213e",
+              color: filter === f.key ? "#fff" : "#a78bfa",
             }}
           >
-            {f === "all"
-              ? `All (${data.summary.total_competencies})`
-              : f === "rising"
-              ? `Rising (${data.summary.rising})`
-              : f === "stable"
-              ? `Stable (${data.summary.stable})`
-              : `Falling (${data.summary.falling})`}
+            {f.label}
           </button>
         ))}
       </div>
 
       {/* Competency rows */}
-      {data.competencies.map((comp) => {
+      {filtered.map((comp) => {
         const isOpen = expanded === comp.code;
         const clsColor =
-          comp.classification === "rising"
+          comp.direction === "rising"
             ? "#6ee7b7"
-            : comp.classification === "falling"
-            ? "#fca5a5"
-            : "#fbbf24";
+            : comp.direction === "falling"
+              ? "#fca5a5"
+              : "#fbbf24";
         return (
           <div
             key={comp.code}
@@ -211,7 +205,6 @@ export default function CompetencyTrendsPanel({ dirCode }: Props) {
               overflow: "hidden",
             }}
           >
-            {/* Header row */}
             <div
               onClick={() => setExpanded(isOpen ? null : comp.code)}
               style={{
@@ -240,12 +233,19 @@ export default function CompetencyTrendsPanel({ dirCode }: Props) {
                   {comp.code}
                 </span>
                 <span style={{ fontSize: 11, color: "#666" }}>
-                  {comp.skills_count} skill{comp.skills_count !== 1 ? "s" : ""}
-                  {comp.active_skills_count !== undefined && comp.active_skills_count !== comp.skills_count && (
-                    <span style={{ fontSize: 10, color: "#888", marginLeft: 4 }}>
-                      ({comp.active_skills_count} tracked)
-                    </span>
-                  )}
+                  {comp.skill_count} skill{comp.skill_count !== 1 ? "s" : ""}
+                  {comp.active_skills_count !== undefined &&
+                    comp.active_skills_count !== comp.skill_count && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          color: "#888",
+                          marginLeft: 4,
+                        }}
+                      >
+                        ({comp.active_skills_count} tracked)
+                      </span>
+                    )}
                 </span>
               </div>
               <div
@@ -262,9 +262,9 @@ export default function CompetencyTrendsPanel({ dirCode }: Props) {
                     color: clsColor,
                   }}
                 >
-                  {trendArrow(comp.aggregate_trend_pct)}{" "}
-                  {comp.aggregate_trend_pct > 0 ? "+" : ""}
-                  {comp.aggregate_trend_pct}%
+                  {trendArrow(comp.change_pct)}{" "}
+                  {comp.change_pct > 0 ? "+" : ""}
+                  {comp.change_pct}%
                 </span>
                 <span
                   style={{
@@ -273,16 +273,16 @@ export default function CompetencyTrendsPanel({ dirCode }: Props) {
                     borderRadius: 4,
                     fontSize: 11,
                     background:
-                      comp.classification === "rising"
+                      comp.direction === "rising"
                         ? "#065f46"
-                        : comp.classification === "falling"
-                        ? "#7f1d1d"
-                        : "#713f12",
+                        : comp.direction === "falling"
+                          ? "#7f1d1d"
+                          : "#713f12",
                     color: clsColor,
                     fontWeight: 600,
                   }}
                 >
-                  {comp.classification}
+                  {comp.direction}
                 </span>
                 <span style={{ fontSize: 12, color: "#555" }}>
                   {isOpen ? "v" : ">"}
@@ -299,36 +299,92 @@ export default function CompetencyTrendsPanel({ dirCode }: Props) {
                   </div>
                 )}
                 {comp.skills.map((sk, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      padding: "4px 0",
-                      fontSize: 12,
-                      borderBottom: "1px solid #1f1f3a",
-                    }}
-                  >
-                    <span style={{ color: "#ccc" }}>{sk.name}</span>
-                    <span
+                  <div key={i}>
+                    <div
                       style={{
-                        color: trendColor(sk.change_pct),
-                        fontWeight: 600,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        padding: "4px 0",
+                        fontSize: 12,
+                        borderBottom: "1px solid #1f1f3a",
                       }}
                     >
-                      {trendArrow(sk.change_pct)}{" "}
-                      {sk.change_pct > 0 ? "+" : ""}
-                      {sk.change_pct}%
+                      <span style={{ color: "#ccc" }}>{sk.name}</span>
                       <span
                         style={{
-                          color: "#555",
-                          fontWeight: 400,
-                          marginLeft: 4,
+                          color: trendColor(sk.change_pct),
+                          fontWeight: 600,
                         }}
                       >
-                        (freq: {sk.frequency})
+                        {trendArrow(sk.change_pct)}{" "}
+                        {sk.change_pct > 0 ? "+" : ""}
+                        {sk.change_pct}%
+                        <span
+                          style={{
+                            color: "#555",
+                            fontWeight: 400,
+                            marginLeft: 4,
+                          }}
+                        >
+                          (freq: {sk.frequency})
+                        </span>
                       </span>
-                    </span>
+                    </div>
+                    {/* History chart */}
+                    {sk.history && sk.history.length > 1 && (
+                      <div
+                        style={{
+                          padding: "8px 0 12px",
+                          fontSize: 11,
+                          color: "#666",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-end",
+                            gap: 4,
+                            height: 40,
+                            padding: "4px 0",
+                          }}
+                        >
+                          {sk.history.map((h, hi) => {
+                            const maxFreq = Math.max(
+                              ...sk.history!.map((x) => x.freq)
+                            );
+                            const pct =
+                              maxFreq > 0 ? (h.freq / maxFreq) * 100 : 0;
+                            return (
+                              <div
+                                key={hi}
+                                title={`${h.date}: ${h.freq}`}
+                                style={{
+                                  flex: 1,
+                                  height: `${Math.max(pct, 2)}%`,
+                                  background: "#7c3aed",
+                                  borderRadius: "2px 2px 0 0",
+                                  minWidth: 12,
+                                  opacity: 0.7 + 0.3 * (pct / 100),
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            marginTop: 2,
+                          }}
+                        >
+                          {sk.history.map((h, hi) => (
+                            <span key={hi} style={{ fontSize: 9 }}>
+                              {h.date.slice(5)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -336,18 +392,6 @@ export default function CompetencyTrendsPanel({ dirCode }: Props) {
           </div>
         );
       })}
-
-      {/* Timestamps */}
-      <div
-        style={{
-          fontSize: 11,
-          color: "#555",
-          marginTop: 16,
-          textAlign: "right",
-        }}
-      >
-        Snapshots: {data.snapshot_previous} → {data.snapshot_latest}
-      </div>
     </div>
   );
 }
