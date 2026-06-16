@@ -26,6 +26,7 @@ type TrendsResponse = {
 
 type Props = {
   dirCode: string;
+  competencyCodes?: string[];
 };
 
 function trendArrow(pct: number): string {
@@ -35,12 +36,12 @@ function trendArrow(pct: number): string {
 }
 
 function trendColor(pct: number): string {
-  if (pct > 5) return "#6ee7b7";
-  if (pct < -5) return "#fca5a5";
-  return "#fbbf24";
+  if (pct > 5) return "#059669";
+  if (pct < -5) return "#dc2626";
+  return "#d97706";
 }
 
-export default function CompetencyTrendsPanel({ dirCode }: Props) {
+export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Props) {
   const [data, setData] = useState<TrendsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,17 +91,19 @@ export default function CompetencyTrendsPanel({ dirCode }: Props) {
     );
   }
 
-  const rising = data.trends.filter((c) => c.direction === "rising").length;
-  const stable = data.trends.filter((c) => c.direction === "stable").length;
-  const falling = data.trends.filter((c) => c.direction === "falling").length;
-  const avgTrend = data.trends.length
-    ? data.trends.reduce((s, c) => s + c.change_pct, 0) / data.trends.length
+  const displayed = competencyCodes
+    ? data.trends.filter((c) => competencyCodes.includes(c.code))
+    : data.trends;
+  const rising = displayed.filter((c) => c.direction === "rising").length;
+  const stable = displayed.filter((c) => c.direction === "stable").length;
+  const falling = displayed.filter((c) => c.direction === "falling").length;
+  const avgTrend = displayed.length
+    ? displayed.reduce((s, c) => s + c.change_pct, 0) / displayed.length
     : 0;
 
-  const filtered =
-    filter && filter !== "all"
-      ? data.trends.filter((c) => c.direction === filter)
-      : data.trends;
+  const filtered = data.trends
+    .filter((c) => !competencyCodes || competencyCodes.includes(c.code))
+    .filter((c) => !filter || filter === "all" || c.direction === filter);
 
   return (
     <div>

@@ -460,7 +460,12 @@ export function TeacherDashboard() {
               </div>
             </>)}
 
-          {analysisMode === "trends" && <CompetencyTrendsPanel dirCode={selectedDir} />}
+          {analysisMode === "trends" && (
+            <CompetencyTrendsPanel
+              dirCode={selectedDir}
+              competencyCodes={selected ? selected.competencies.map((c) => c.code) : undefined}
+            />
+          )}
 
         {/* Discipline detail */}
         {selected && (
