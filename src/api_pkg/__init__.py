@@ -140,6 +140,9 @@ def create_app() -> FastAPI:
     from src.api_pkg.routers.vacancies import router as vacancies_router
 
     app.include_router(vacancies_router)
+    from src.api_pkg.routers.vacancies_by_skill import router as vacancies_skill_router
+
+    app.include_router(vacancies_skill_router)
     from src.api_pkg.routers.results import router as results_router
 
     app.include_router(results_router)

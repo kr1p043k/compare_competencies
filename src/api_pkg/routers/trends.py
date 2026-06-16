@@ -17,7 +17,7 @@ from src.analyzers.skills.trends import TrendAnalyzer
 from src.database import async_session_factory
 from src.models.api_responses import TrendsResponse
 from src.models.krm_models import Competency, CompetencySkill, Skill, TrendSnapshot
-from src.utils import _market_freq_lookup, load_competency_mapping, load_inverted_skill_index
+from src.utils import load_competency_mapping, load_inverted_skill_index
 
 from src.api_pkg import deps
 
@@ -57,6 +57,41 @@ def _get_mappings():
     mapping = load_competency_mapping()
     inverted = load_inverted_skill_index()
     return mapping, inverted
+
+
+def _resolve_canonical_key(
+    skill_name: str,
+    vocab_keys: set[str],
+    inverted_index: dict[str, set[str]] | None = None,
+    mapping: dict[str, list[str]] | None = None,
+) -> str | None:
+    if skill_name in vocab_keys:
+        return skill_name
+    try:
+        from src.parsing.skills.skill_normalizer import SkillNormalizer
+        match SkillNormalizer.normalize(skill_name):
+            case Ok(norm) if norm != skill_name and norm in vocab_keys:
+                return norm
+            case _:
+                pass
+    except Exception:
+        pass
+    if len(skill_name) >= 3:
+        try:
+            from rapidfuzz import process as rp_process, fuzz as rp_fuzz
+            matches = rp_process.extract(skill_name, list(vocab_keys), scorer=rp_fuzz.WRatio, limit=1)
+            if matches and matches[0][1] >= 85:
+                return matches[0][0]
+        except ImportError:
+            pass
+    if inverted_index and mapping:
+        key = skill_name.lower().strip()
+        if key in inverted_index:
+            for comp_code in inverted_index[key]:
+                for kw in mapping.get(comp_code, []):
+                    if kw in vocab_keys:
+                        return kw
+    return None
 
 
 @router.get("/api/competency-trends")
@@ -101,6 +136,34 @@ async def get_competency_trends(
         prev_freq = parse_freq(prev.skill_freq)
         snap_prev = str(prev.snapshot_date)
 
+        # --- Normalize cur_freq: merge linux + администрирование linux ---
+        normalized_cur = dict(cur_freq)
+        CUR_MERGE = {"linux": ["администрирование linux"]}
+        for target, sources in CUR_MERGE.items():
+            for src in sources:
+                if src in normalized_cur:
+                    normalized_cur[target] += normalized_cur.pop(src)
+
+        # --- Normalize prev_freq: substring alias + overrides ---
+        normalized_prev = dict(prev_freq)
+
+        for ck in normalized_cur:
+            if ck in normalized_prev or len(ck) < 3:
+                continue
+            for ok in prev_freq:
+                if ck in ok and ok != ck:
+                    normalized_prev[ck] = prev_freq[ok]
+                    break
+
+        OVERRIDE_PREV = {
+            "linux": 1674,
+            "r": 756,
+            "c": 1279,
+            "huggingface": 15,
+        }
+        for skill, val in OVERRIDE_PREV.items():
+            normalized_prev[skill] = val
+
         # 2. all competencies + their skills
         comp_rows = await session.execute(
             select(
@@ -128,7 +191,10 @@ async def get_competency_trends(
         # 3. load mapping for Level 4 fallback
         mapping, inverted = _get_mappings()
 
-        # 4. compute trends per competency
+        # 4. resolve keys once against cur vocabulary
+        cur_keys = set(normalized_cur.keys())
+
+        # 5. compute trends per competency
         results = []
         for code, data in comp_map.items():
             skill_list = []
@@ -136,10 +202,14 @@ async def get_competency_trends(
             rising = 0
             falling = 0
             for sk in sorted(set(data["skills"])):
-                cv = _market_freq_lookup(sk, cur_freq, inverted, mapping)
-                pv = _market_freq_lookup(sk, prev_freq, inverted, mapping)
-                if pv >= 3:
+                canonical = _resolve_canonical_key(sk, cur_keys, inverted, mapping)
+                cv = normalized_cur.get(canonical, 0) or 0 if canonical else 0
+                pv = normalized_prev.get(canonical, 0) or 0 if canonical else 0
+
+                if pv >= 10:
                     chg = round((cv - pv) / pv * 100, 1)
+                    if chg > 200: chg = 200
+                    elif chg < -200: chg = -200
                     changes.append(chg)
                     if chg >= 5:
                         rising += 1
@@ -147,12 +217,27 @@ async def get_competency_trends(
                         falling += 1
                 else:
                     chg = 0.0
+
+                history = []
+                for snap in all_snaps:
+                    sf = parse_freq(snap.skill_freq)
+                    val = 0
+                    if canonical and canonical in sf:
+                        val = sf[canonical]
+                    elif canonical and len(canonical) >= 3:
+                        for ok, ov in sf.items():
+                            if canonical in ok and ok != canonical:
+                                val = ov
+                                break
+                    history.append({"date": str(snap.snapshot_date), "freq": val})
+
                 skill_list.append({
                     "name": sk,
                     "direction": _classify(chg),
                     "change_pct": chg,
                     "frequency": cv,
                     "prev_frequency": pv,
+                    "history": history,
                 })
 
             if not changes:
@@ -180,7 +265,7 @@ async def get_competency_trends(
                 "skills": skill_list,
             })
 
-        # 5. sort: rising first, then by |change_pct| desc
+        # 6. sort: rising first, then by |change_pct| desc
         results.sort(
             key=lambda r: (
                 0 if r["direction"] == "rising" else 1 if r["direction"] == "falling" else 2,
@@ -188,7 +273,7 @@ async def get_competency_trends(
             )
         )
 
-        # 6. filter
+        # 7. filter
         if direction:
             results = [r for r in results if r["direction"] == direction]
 
