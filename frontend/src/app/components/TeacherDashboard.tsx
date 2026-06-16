@@ -319,66 +319,42 @@ export function TeacherDashboard() {
           </div>
         )}
 
-        {/* Direction analysis view */}
-        {showAnalysis && analysis && (
-          <>
-            <h2 style={{ fontSize: 20, margin: "0 0 6px", color: "#fff" }}>
-              {analysis.direction_name} ({analysis.direction})
-            </h2>
-            <div style={{ fontSize: 12, color: "#888", marginBottom: 20 }}>
-              Profile: {analysis.profile} · Generated: {analysis.generated_at}
-            </div>
+        {/* Always visible mode toggle */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <button
+            onClick={() => setAnalysisMode("coverage")}
+            style={{
+              padding: "6px 14px",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: analysisMode === "coverage" ? 700 : 400,
+              background: analysisMode === "coverage" ? "#7c3aed" : "#16213e",
+              color: analysisMode === "coverage" ? "#fff" : "#a78bfa",
+            }}
+          >
+            Coverage
+          </button>
+          <button
+            onClick={() => setAnalysisMode("trends")}
+            style={{
+              padding: "6px 14px",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: analysisMode === "trends" ? 700 : 400,
+              background: analysisMode === "trends" ? "#7c3aed" : "#16213e",
+              color: analysisMode === "trends" ? "#fff" : "#a78bfa",
+            }}
+          >
+            Competency Trends
+          </button>
+        </div>
 
-            {/* Analysis mode toggle */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-              <button
-                onClick={() => setAnalysisMode("coverage")}
-                style={{
-                  padding: "6px 14px",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  fontSize: 12,
-                  fontWeight: analysisMode === "coverage" ? 700 : 400,
-                  background:
-                    analysisMode === "coverage"
-                      ? "#7c3aed"
-                      : "#16213e",
-                  color:
-                    analysisMode === "coverage" ? "#fff" : "#a78bfa",
-                }}
-              >
-                Coverage
-              </button>
-              <button
-                onClick={() => setAnalysisMode("trends")}
-                style={{
-                  padding: "6px 14px",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  fontSize: 12,
-                  fontWeight: analysisMode === "trends" ? 700 : 400,
-                  background:
-                    analysisMode === "trends"
-                      ? "#7c3aed"
-                      : "#16213e",
-                  color:
-                    analysisMode === "trends" ? "#fff" : "#a78bfa",
-                }}
-              >
-                Competency Trends
-              </button>
-            </div>
-
-            {analysisMode === "trends" ? (
-              <CompetencyTrendsPanel dirCode={selectedDir} />
-            ) : (
-              <></>
-            )}
-
-            {analysisMode === "coverage" && (<>
-              <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        {analysisMode === "coverage" && analysis && (<>
+          <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
                 <div style={card}>
                   <div style={{ fontSize: 11, color: "#666" }}>Average Coverage</div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: covColor(analysis.average_coverage) }}>
@@ -482,11 +458,11 @@ export function TeacherDashboard() {
                 ))}
               </div>
             </>)}
-          </>
-        )}
+
+          {analysisMode === "trends" && <CompetencyTrendsPanel dirCode={selectedDir} />}
 
         {/* Discipline detail */}
-        {selected && !showAnalysis && (
+        {selected && (
           <>
             <h2 style={{ fontSize: 20, margin: "0 0 20px", color: "#fff" }}>
               {selected.name}
