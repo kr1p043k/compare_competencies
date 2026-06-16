@@ -200,12 +200,12 @@ export function TeacherDashboard() {
               KRM Teacher
             </h1>
             {stats && (
-              <div style={{ fontSize: 11, color: "#666", textAlign: "right" }}>
-                <div>{stats.total_disciplines} disc</div>
-                <div>{stats.total_competencies} comp</div>
-                <div>{stats.total_skills.toLocaleString()} skills</div>
-              </div>
-            )}
+                  <div style={{ fontSize: 11, color: "#666", textAlign: "right" }}>
+                    <div>{(stats as any).total_disciplines ?? (stats as any).total_reports ?? 0} disc</div>
+                    <div>{(stats as any).total_competencies ?? Object.keys((stats as any).by_profession || {}).length} comp</div>
+                    <div>{((stats as any).total_skills ?? 0).toLocaleString()} skills</div>
+                  </div>
+                )}
           </div>
 
           {/* Direction selector */}
