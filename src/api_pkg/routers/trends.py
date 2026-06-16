@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import statistics
 from functools import lru_cache
 from typing import Any
 
@@ -134,10 +135,10 @@ async def get_competency_trends(
             changes: list[float] = []
             rising = 0
             falling = 0
-            for sk in data["skills"]:
+            for sk in sorted(set(data["skills"])):
                 cv = _market_freq_lookup(sk, cur_freq, inverted, mapping)
                 pv = _market_freq_lookup(sk, prev_freq, inverted, mapping)
-                if pv > 0:
+                if pv >= 3:
                     chg = round((cv - pv) / pv * 100, 1)
                     changes.append(chg)
                     if chg >= 5:
@@ -150,12 +151,14 @@ async def get_competency_trends(
                     "name": sk,
                     "direction": _classify(chg),
                     "change_pct": chg,
+                    "frequency": cv,
+                    "prev_frequency": pv,
                 })
 
             if not changes:
                 continue
 
-            agg = round(sum(changes) / len(changes), 1)
+            agg = round(statistics.median(changes), 1)
             total_ch = len(changes)
             stable = total_ch - rising - falling
             if rising > falling and rising > stable:
