@@ -10,6 +10,7 @@ import structlog
 
 from src import config
 from src.db import create_pool, close_pool, get_pool
+from src.utils import extract_date_from_filename
 
 logger = structlog.get_logger(__name__)
 
@@ -198,16 +199,17 @@ async def export_vacancies_from_json(
 
 
 async def export_history_trends_to_db() -> int:
-    """Import all freq_*.json from data/history into trend_snapshots table."""
+    """Import all freq_*.json from data/history into trend_snapshots table.
+    Skips files that don't have a parsable date in their filename.
+    """
     total = 0
     for f in sorted(config.HISTORY_DIR.glob("freq_*.json")):
         try:
+            d = extract_date_from_filename(f)
+            if d is None:
+                logger.warning("trend_import_skipped_unparsable_date", file=f.name)
+                continue
             data = json.loads(f.read_text(encoding="utf-8"))
-            date_str = f.stem.split("_")[-1] if "_" in f.stem else f.stem
-            try:
-                d = datetime.strptime(date_str[:10], "%Y-%m-%d")
-            except ValueError:
-                d = datetime.utcnow()
             await save_trend_snapshot(d, data)
             total += 1
         except Exception as e:

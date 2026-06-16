@@ -1,7 +1,10 @@
 import json
 import logging
 import os
+import re
 import tempfile
+from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -197,4 +200,114 @@ def validate_safe_path_result(user_path: str | Path, base_dir: Path | None = Non
         return Err(DomainError(message="Path validation failed", detail=str(e)))
 
 
+def extract_date_from_filename(filepath: Path) -> datetime | None:
+    """Извлекает дату из имени freq_*.json.
+    
+    Поддерживает форматы:
+      freq_2026-04-15.json         -> 2026-04-15
+      freq_2026-04-15-120000.json  -> 2026-04-15 12:00:00
+      freq_2026-04-15 120000.json  -> 2026-04-15 12:00:00
+    Возвращает None если дату не удалось распарсить.
+    """
+    stem = filepath.stem.replace("freq_", "")
+    formats = ["%Y-%m-%d-%H%M%S", "%Y-%m-%d", "%Y-%m-%d %H%M%S"]
+    for fmt in formats:
+        try:
+            return datetime.strptime(stem, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def build_inverted_skill_index(mapping: dict[str, list[str]]) -> dict[str, set[str]]:
+    """Строит inverted index: skill_keyword -> set(competency_codes).
+    
+    Из mapping {competency_code: [keyword1, keyword2, ...]} делает
+    {keyword1: {comp_code}, keyword2: {comp_code}, ...}
+    """
+    idx: dict[str, set[str]] = defaultdict(set)
+    for comp_code, keywords in mapping.items():
+        for kw in keywords:
+            kw_norm = kw.lower().strip()
+            idx[kw_norm].add(comp_code)
+    return dict(idx)
+
+
+def load_inverted_skill_index() -> dict[str, set[str]]:
+    """Загружает оба mapping-файла и возвращает объединённый inverted index."""
+    from src.config import (
+        KRM_MAPPING_PATH,
+    )
+    idx: dict[str, set[str]] = defaultdict(set)
+
+    for path in [COMPETENCY_MAPPING_FILE, KRM_MAPPING_PATH]:
+        try:
+            if path and path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                for comp_code, keywords in data.items():
+                    for kw in keywords:
+                        kw_norm = kw.lower().strip()
+                        idx[kw_norm].add(comp_code)
+        except Exception:
+            logger.warning("inverted_index_load_failed", path=str(path))
+    return dict(idx)
+
+
+def _market_freq_lookup(
+    skill_name: str,
+    freq_map: dict[str, int],
+    inverted_index: dict[str, set[str]] | None = None,
+    mapping: dict[str, list[str]] | None = None,
+    _norm_cache: dict[str, str] | None = None,
+) -> int:
+    """4-level lookup chain for skill name -> market frequency.
+
+    Level 1: direct key lookup
+    Level 2: SkillNormalizer.normalize() -> lookup
+    Level 3: fuzzy match (rapidfuzz WRatio >= 85)
+    Level 4: bridging through competency_mapping inverted index
+    """
+    # Level 1
+    v = freq_map.get(skill_name, 0) or 0
+    if v:
+        return v
+
+    # Level 2
+    from src.parsing.skills.skill_normalizer import SkillNormalizer
+    match SkillNormalizer.normalize(skill_name):
+        case Ok(norm) if norm != skill_name:
+            v = freq_map.get(norm, 0) or 0
+            if v:
+                return v
+            skill_name = norm
+        case _:
+            pass
+
+    # Level 3
+    try:
+        from rapidfuzz import process as rp_process
+        from rapidfuzz import fuzz as rp_fuzz
+        matches = rp_process.extract(skill_name, list(freq_map.keys()), scorer=rp_fuzz.WRatio, limit=1)
+        if matches and matches[0][1] >= 85:
+            return freq_map[matches[0][0]]
+    except ImportError:
+        pass
+
+    # Level 4: bridging through mapping inverted index
+    if inverted_index and mapping and skill_name.lower().strip() in inverted_index:
+        comp_codes = inverted_index[skill_name.lower().strip()]
+        for comp_code in comp_codes:
+            keywords = mapping.get(comp_code, [])
+            for kw in keywords:
+                v = freq_map.get(kw, 0) or 0
+                if v:
+                    return v
+                # try normalized
+                match SkillNormalizer.normalize(kw):
+                    case Ok(norm):
+                        v = freq_map.get(norm, 0) or 0
+                        if v:
+                            return v
+
+    return 0
 

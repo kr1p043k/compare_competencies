@@ -18,7 +18,7 @@ import structlog
 from src import Result, Ok, Err, config
 from src.errors import DomainError
 from src.models.enums import TrendType
-from src.utils import validate_safe_path
+from src.utils import extract_date_from_filename, validate_safe_path
 
 logger = structlog.get_logger(__name__)
 
@@ -83,16 +83,12 @@ class TrendAnalyzer:
 
     @staticmethod
     def _extract_date(filepath: Path) -> datetime:
-        """Извлекает дату из имени файла вида freq_2026-04-15.json или freq_2026-04-15-120000.json."""
-        stem = filepath.stem.replace("freq_", "")
-        # Пробуем с временем
-        formats = ["%Y-%m-%d-%H%M%S", "%Y-%m-%d", "%Y-%m-%d %H%M%S"]
-        for fmt in formats:
-            try:
-                return datetime.strptime(stem, fmt)
-            except ValueError:
-                continue
-        # Fallback — дата модификации файла
+        """Извлекает дату из имени файла вида freq_2026-04-15.json или freq_2026-04-15-120000.json.
+        Falls back to file mtime if date cannot be parsed.
+        """
+        d = extract_date_from_filename(filepath)
+        if d is not None:
+            return d
         return datetime.fromtimestamp(filepath.stat().st_mtime)
 
     @staticmethod

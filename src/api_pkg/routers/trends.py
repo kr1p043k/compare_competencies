@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from typing import Any
 
 import structlog
@@ -15,6 +16,7 @@ from src.analyzers.skills.trends import TrendAnalyzer
 from src.database import async_session_factory
 from src.models.api_responses import TrendsResponse
 from src.models.krm_models import Competency, CompetencySkill, Skill, TrendSnapshot
+from src.utils import _market_freq_lookup, load_competency_mapping, load_inverted_skill_index
 
 from src.api_pkg import deps
 
@@ -47,6 +49,13 @@ def _classify(change_pct: float) -> str:
     if change_pct < -5:
         return "falling"
     return "stable"
+
+
+@lru_cache(maxsize=1)
+def _get_mappings():
+    mapping = load_competency_mapping()
+    inverted = load_inverted_skill_index()
+    return mapping, inverted
 
 
 @router.get("/api/competency-trends")
@@ -115,7 +124,10 @@ async def get_competency_trends(
             if row.skill_name:
                 comp_map[code]["skills"].append(row.skill_name)
 
-        # 3. compute trends per competency
+        # 3. load mapping for Level 4 fallback
+        mapping, inverted = _get_mappings()
+
+        # 4. compute trends per competency
         results = []
         for code, data in comp_map.items():
             skill_list = []
@@ -123,8 +135,8 @@ async def get_competency_trends(
             rising = 0
             falling = 0
             for sk in data["skills"]:
-                cv = cur_freq.get(sk, 0) or 0
-                pv = prev_freq.get(sk, 0) or 0
+                cv = _market_freq_lookup(sk, cur_freq, inverted, mapping)
+                pv = _market_freq_lookup(sk, prev_freq, inverted, mapping)
                 if pv > 0:
                     chg = round((cv - pv) / pv * 100, 1)
                     changes.append(chg)
@@ -165,7 +177,7 @@ async def get_competency_trends(
                 "skills": skill_list,
             })
 
-        # 4. sort: rising first, then by |change_pct| desc
+        # 5. sort: rising first, then by |change_pct| desc
         results.sort(
             key=lambda r: (
                 0 if r["direction"] == "rising" else 1 if r["direction"] == "falling" else 2,
@@ -173,7 +185,7 @@ async def get_competency_trends(
             )
         )
 
-        # 5. filter
+        # 6. filter
         if direction:
             results = [r for r in results if r["direction"] == direction]
 
