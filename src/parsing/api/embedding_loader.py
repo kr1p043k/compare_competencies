@@ -17,6 +17,7 @@ def get_embedding_model(model_name: str = None):
         model_name = model_name or config.EMBEDDING_MODEL
         kwargs = {}
         if config.HF_TOKEN:
+            os.environ["HF_TOKEN"] = config.HF_TOKEN.get_secret_value()
             kwargs["token"] = config.HF_TOKEN.get_secret_value()
 
         for attempt, endpoint in enumerate([None, HF_MIRROR]):
