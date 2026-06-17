@@ -1,10 +1,13 @@
 ﻿from __future__ import annotations
 
 import json
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -309,9 +312,30 @@ async def krm_search_run_detail(run_id: str):
     }
 
 
+@router.post("/api/teacher/krm/run-analysis")
+async def run_teacher_analysis_endpoint(
+    background_tasks: BackgroundTasks,
+    dir_code: str = "09.03.02",
+):
+    async def _run():
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "src.cli", "teacher-analysis", "--direction", dir_code],
+                capture_output=True, text=True, timeout=600,
+                cwd=Path(__file__).resolve().parent.parent.parent.parent,
+            )
+            logger.info("teacher_analysis_cli_done", returncode=result.returncode, stderr=result.stderr[-500:] if result.stderr else "")
+        except subprocess.TimeoutExpired:
+            logger.error("teacher_analysis_cli_timeout")
+        except Exception as exc:
+            logger.error("teacher_analysis_cli_error", error=str(exc))
+
+    background_tasks.add_task(_run)
+    return {"status": "started", "direction": dir_code}
+
+
 @router.get("/api/teacher/analysis")
 async def get_analysis(dir_code: str = "09.03.02"):
-    from pathlib import Path
     summary_path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher" / dir_code / "_summary.json"
     if not summary_path.exists():
         raise HTTPException(404, f"Analysis not found for {dir_code}")

@@ -77,6 +77,7 @@ export function TeacherDashboard() {
   const [analysis, setAnalysis] = useState<DirectionAnalysis | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends">("coverage");
+  const [runLoading, setRunLoading] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -229,6 +230,41 @@ export function TeacherDashboard() {
               <option key={d.code} value={d.code}>{d.code} - {d.name}</option>
             ))}
           </select>
+
+          {/* Run analysis button */}
+          <button
+            onClick={async () => {
+              setRunLoading(true);
+              try {
+                await api("/teacher/krm/run-analysis", { method: "POST" });
+                // wait a bit then reload
+                setTimeout(async () => {
+                  try {
+                    const a = await api(`/teacher/analysis?dir_code=${selectedDir}`);
+                    setAnalysis(a);
+                  } catch {}
+                  setRunLoading(false);
+                }, 3000);
+              } catch {
+                setRunLoading(false);
+              }
+            }}
+            disabled={runLoading}
+            style={{
+              width: "100%",
+              marginTop: 10,
+              padding: "8px 12px",
+              background: runLoading ? "#9ca3af" : "#7c3aed",
+              color: "#fff",
+              border: "none",
+              borderRadius: 6,
+              cursor: runLoading ? "default" : "pointer",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            {runLoading ? "Анализ запущен..." : "Запустить анализ"}
+          </button>
 
           {/* Analysis summary button */}
           {analysis && (
