@@ -44,6 +44,10 @@ async def get_trends(
             raise HTTPException(status_code=500, detail=str(err))
 
 
+def _skill_words(name: str) -> set[str]:
+    return set(name.lower().replace("-", " ").split())
+
+
 def _classify(change_pct: float) -> str:
     if change_pct > 5:
         return "rising"
@@ -150,8 +154,11 @@ async def get_competency_trends(
         for ck in normalized_cur:
             if ck in normalized_prev or len(ck) < 3:
                 continue
+            ck_words = _skill_words(ck)
+            if not ck_words:
+                continue
             for ok in prev_freq:
-                if ck in ok and ok != ck:
+                if ck in ok and ok != ck and ck_words <= _skill_words(ok):
                     normalized_prev[ck] = prev_freq[ok]
                     break
 
