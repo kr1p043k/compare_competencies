@@ -18,7 +18,6 @@ from src.database import async_session_factory
 from src.models.krm_models import (
     Competency,
     CompetencySkill,
-    CompetencyTrend,
     Skill,
     TrendSnapshot,
 )
