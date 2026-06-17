@@ -60,7 +60,7 @@ class TrendAnalyzer:
             if not ck_words:
                 continue
             for ok in list(previous.keys()):
-                if ck in ok and ok != ck and ck_words <= _skill_words(ok):
+                if ok != ck and ck_words <= _skill_words(ok):
                     previous[ck] = previous[ok]
                     break
 
@@ -109,7 +109,7 @@ class TrendAnalyzer:
             if not ck_words:
                 continue
             for ok in list(previous.keys()):
-                if ck in ok and ok != ck and ck_words <= _skill_words(ok):
+                if ok != ck and ck_words <= _skill_words(ok):
                     previous[ck] = previous[ok]
                     break
 

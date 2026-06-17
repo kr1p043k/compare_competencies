@@ -158,7 +158,7 @@ async def get_competency_trends(
             if not ck_words:
                 continue
             for ok in prev_freq:
-                if ck in ok and ok != ck and ck_words <= _skill_words(ok):
+                if ok != ck and ck_words <= _skill_words(ok):
                     normalized_prev[ck] = prev_freq[ok]
                     break
 
@@ -232,10 +232,10 @@ async def get_competency_trends(
                     if canonical and canonical in sf:
                         val = sf[canonical]
                     elif canonical and len(canonical) >= 3:
-                        for ok, ov in sf.items():
-                            if canonical in ok and ok != canonical:
-                                val = ov
-                                break
+                    for ok, ov in sf.items():
+                        if ok != canonical and _skill_words(canonical) <= _skill_words(ok):
+                            val = ov
+                            break
                     history.append({"date": str(snap.snapshot_date), "freq": val})
 
                 skill_list.append({
