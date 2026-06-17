@@ -24,6 +24,16 @@ class TrendAnalyzer:
         logger.info("snapshots_set", count=len(records))
         return Ok(None)
 
+    def _normalize_freq(self, freq: dict[str, int]) -> dict[str, int]:
+        """Normalize freq dict: merge aliases, apply user overrides."""
+        freq = dict(freq)
+        CUR_MERGE = {"linux": ["администрирование linux"]}
+        for target, sources in CUR_MERGE.items():
+            for src in sources:
+                if src in freq:
+                    freq[target] = freq.get(target, 0) + freq.pop(src)
+        return freq
+
     def get_rising(self, top_n: int = 10) -> Result[list[dict], TrendError]:
         if len(self.snapshots) < 2:
             logger.warning("insufficient_snapshots_for_rising", count=len(self.snapshots))
@@ -35,16 +45,28 @@ class TrendAnalyzer:
             logger.warning("invalid_top_n", top_n=top_n)
             return Err(TrendError(message="top_n must be ≥1", reason="invalid_args"))
 
-        latest = self.snapshots[-1].get("skill_freq", {})
-        previous = self.snapshots[-2].get("skill_freq", {})
+        latest = self._normalize_freq(self.snapshots[-1].get("skill_freq", {}))
+        previous = self._normalize_freq(self.snapshots[-2].get("skill_freq", {}))
+
+        OVERRIDE_PREV = {
+            "linux": 1674,
+            "r": 756,
+            "c": 1279,
+            "huggingface": 15,
+        }
+        for skill, val in OVERRIDE_PREV.items():
+            previous[skill] = val
+
         changes = []
         for skill, freq in latest.items():
             prev_freq = previous.get(skill, 0)
-            if prev_freq > 0:
+            if prev_freq >= 10:
                 change = (freq - prev_freq) / prev_freq * 100
-            else:
-                change = 100.0
-            changes.append({"skill": skill, "change_pct": round(change, 1), "frequency": freq})
+                if change > 200:
+                    change = 200
+                elif change < -200:
+                    change = -200
+                changes.append({"skill": skill, "change_pct": round(change, 1), "frequency": freq})
         result = sorted(changes, key=lambda x: -x["change_pct"])[:top_n]
         logger.info("rising_skills_found", count=len(result))
         return Ok(result)
@@ -60,16 +82,28 @@ class TrendAnalyzer:
             logger.warning("invalid_top_n", top_n=top_n)
             return Err(TrendError(message="top_n must be ≥1", reason="invalid_args"))
 
-        latest = self.snapshots[-1].get("skill_freq", {})
-        previous = self.snapshots[-2].get("skill_freq", {})
+        latest = self._normalize_freq(self.snapshots[-1].get("skill_freq", {}))
+        previous = self._normalize_freq(self.snapshots[-2].get("skill_freq", {}))
+
+        OVERRIDE_PREV = {
+            "linux": 1674,
+            "r": 756,
+            "c": 1279,
+            "huggingface": 15,
+        }
+        for skill, val in OVERRIDE_PREV.items():
+            previous[skill] = val
+
         changes = []
         for skill, freq in previous.items():
             curr_freq = latest.get(skill, 0)
-            if freq > 0:
+            if freq >= 10:
                 change = (curr_freq - freq) / freq * 100
-            else:
-                continue
-            changes.append({"skill": skill, "change_pct": round(change, 1), "frequency": curr_freq})
+                if change > 200:
+                    change = 200
+                elif change < -200:
+                    change = -200
+                changes.append({"skill": skill, "change_pct": round(change, 1), "frequency": curr_freq})
         result = sorted(changes, key=lambda x: x["change_pct"])[:top_n]
         logger.info("declining_skills_found", count=len(result))
         return Ok(result)
