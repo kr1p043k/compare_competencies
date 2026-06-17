@@ -21,6 +21,7 @@ def main() -> None:
         export_vacancies,
         extend_skills,
         import_students,
+        populate_parsed_skills,
         rebuild,
         seed_db,
         teacher_analysis,
@@ -82,6 +83,9 @@ def main() -> None:
     p.add_argument("--direction", default="09.03.02", help="Код направления (09.03.02)")
     p.add_argument("--discipline", help="Фильтр по дисциплине (необязательно)")
     p.set_defaults(func=lambda a: teacher_analysis.main(direction=a.direction, discipline=a.discipline))
+
+    p = sub.add_parser("populate-parsed-skills", help="Заполнить parsed_skills в БД перепарсингом вакансий")
+    p.set_defaults(func=lambda a: asyncio.run(populate_parsed_skills.main()))
 
     p = sub.add_parser("export-vacancies", help="Экспорт JSON-вакансий в БД")
     p.add_argument("--basic", help="Путь к hh_vacancies_basic.json")
