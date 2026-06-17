@@ -164,7 +164,6 @@ async def get_competency_trends(
 
         OVERRIDE_PREV = {
             "linux": 1674,
-            "r": 756,
             "c": 1279,
             "huggingface": 15,
         }
@@ -232,10 +231,10 @@ async def get_competency_trends(
                     if canonical and canonical in sf:
                         val = sf[canonical]
                     elif canonical and len(canonical) >= 3:
-                    for ok, ov in sf.items():
-                        if ok != canonical and _skill_words(canonical) <= _skill_words(ok):
-                            val = ov
-                            break
+                        for ok, ov in sf.items():
+                            if ok != canonical and _skill_words(canonical) <= _skill_words(ok):
+                                val = ov
+                                break
                     history.append({"date": str(snap.snapshot_date), "freq": val})
 
                 skill_list.append({

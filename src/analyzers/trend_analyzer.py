@@ -66,7 +66,6 @@ class TrendAnalyzer:
 
         OVERRIDE_PREV = {
             "linux": 1674,
-            "r": 756,
             "c": 1279,
             "huggingface": 15,
         }
@@ -115,7 +114,6 @@ class TrendAnalyzer:
 
         OVERRIDE_PREV = {
             "linux": 1674,
-            "r": 756,
             "c": 1279,
             "huggingface": 15,
         }
