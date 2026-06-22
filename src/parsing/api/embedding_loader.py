@@ -18,6 +18,7 @@ def get_embedding_model(model_name: str = None):
         if config.HF_TOKEN:
             os.environ["HF_TOKEN"] = config.HF_TOKEN.get_secret_value()
             kwargs["token"] = config.HF_TOKEN.get_secret_value()
+        os.environ["HF_HUB_OFFLINE"] = "1"
 
         from sentence_transformers import SentenceTransformer
 
