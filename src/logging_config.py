@@ -88,3 +88,4 @@ def setup_structlog(console_level: int = None):
     logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
