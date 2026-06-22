@@ -19,8 +19,12 @@ def get_embedding_model(model_name: str = None):
             os.environ["HF_TOKEN"] = config.HF_TOKEN.get_secret_value()
             kwargs["token"] = config.HF_TOKEN.get_secret_value()
         os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
-        from sentence_transformers import SentenceTransformer
+        import sentence_transformers
+        import logging
+        logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+        SentenceTransformer = sentence_transformers.SentenceTransformer
 
         for attempt, endpoint in enumerate([None, HF_MIRROR]):
             try:
