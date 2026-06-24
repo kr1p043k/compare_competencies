@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     DEFAULT_PER_PAGE: int = 100
 
     # ---------- профили дисциплин ----------
-    PROFILES_DISCIPLINES: dict = {
+    PROFILES_DISCIPLINES: dict[str, list[int]] = {
         "base": [1, 2, 3, 4, 5, 6, 9, 10, 13],
         "dc": [1, 2, 3, 4, 5, 6, 9, 10, 13, 14, 18, 20, 22, 24, 25],
         "top_dc": [1, 2, 3, 4, 5, 6, 9, 10, 13, 14, 18, 20, 22, 24, 25, 7, 8, 11, 12, 19, 21, 23],
@@ -169,6 +169,8 @@ class Settings(BaseSettings):
         "DOMAIN_MAP_PATH",
         "PROFESSION_TAXONOMY_PATH",
         "KRM_MAPPING_PATH",
+        "KRM_DISCIPLINES_PATH",
+        "TEACHER_RECOMMENDATIONS_PATH",
         "HARD_SKILLS_PATH",
         "TREND_HOT_SKILLS_PATH",
         "TIMEFRAME_GROUPS_PATH",

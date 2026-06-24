@@ -82,15 +82,21 @@ class HeadHunterAPIAsync:
             if not config.HH_CLIENT_ID or not config.HH_CLIENT_SECRET:
                 return Err(ApiError(message="HH credentials not set for async", endpoint="token"))
 
-            sync_api = HeadHunterAPI()
-            if (
-                hasattr(sync_api, "_token")
-                and sync_api._token
-                and hasattr(sync_api, "_token_expires_at")
-                and time.time() < sync_api._token_expires_at
-            ):
-                self._token = sync_api._token
-                self._token_expires_at = sync_api._token_expires_at
+            def _try_reuse_token():
+                sync_api = HeadHunterAPI()
+                if (
+                    hasattr(sync_api, "_token")
+                    and sync_api._token
+                    and hasattr(sync_api, "_token_expires_at")
+                    and time.time() < sync_api._token_expires_at
+                ):
+                    return sync_api._token, sync_api._token_expires_at
+                return None, 0.0
+
+            token, expires_at = await asyncio.to_thread(_try_reuse_token)
+            if token:
+                self._token = token
+                self._token_expires_at = expires_at
                 logger.info("token_reused_from_sync_api")
                 return Ok(True)
 

@@ -29,14 +29,12 @@ class DIContainer:
     def __init__(self, parent: DIContainer | None = None):
         self._parent = parent
         self._entries: dict[Any, _Entry] = {}
-        self._registry: dict[Any, dict] = {}
         self._frozen: bool = False
 
     def register_instance(self, key: Any, instance: Any):
         if self._frozen:
             raise RuntimeError(f"Cannot register_instance({key}): container is frozen")
         self._entries[key] = _Entry(instance=instance, singleton=True)
-        self._registry[key] = {"singleton": True}
 
     def freeze(self):
         self._frozen = True
@@ -48,11 +46,11 @@ class DIContainer:
             self._entries[key] = _Entry(instance=instance, singleton=True)
         else:
             self._entries[key] = _Entry(factory=factory, singleton=singleton)
-        self._registry[key] = {"singleton": singleton}
 
     def register_transient(self, key: Any, factory: Callable[[], Any]):
+        if self._frozen:
+            raise RuntimeError(f"Cannot register_transient({key}): container is frozen")
         self._entries[key] = _Entry(factory=factory, singleton=False)
-        self._registry[key] = {"singleton": False}
 
     def resolve(self, key: Any) -> Any:
         if key in self._entries:

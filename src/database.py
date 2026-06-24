@@ -41,6 +41,6 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-async def get_engine():
+def get_engine():
     return _engine()
 

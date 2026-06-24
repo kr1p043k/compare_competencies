@@ -102,7 +102,7 @@ class TestOrchestratorRetryPolicy:
         with patch("src.pipeline.orchestrator.write_progress"):
             result = orch.run()
         assert result.is_ok()
-        assert orch.retry_policy.max_retries == 1
+        assert orch.num_retries == 1
 
     def test_failure_with_event_logged(self):
         bus = EventBus()

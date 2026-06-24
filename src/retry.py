@@ -1,7 +1,12 @@
-"""Centralized retry policy with exponential backoff."""
+"""Centralized retry policy with exponential backoff.
+
+Sync `execute()` — для синхронных контекстов (CLI, thread pool).
+Async `execute_async()` — для async-контекстов (API endpoints).
+"""
 
 from __future__ import annotations
 
+import asyncio
 import random
 import time
 from typing import Any, Callable, TypeVar
@@ -33,6 +38,10 @@ class RetryPolicy:
         self.retryable_exceptions = retryable_exceptions or (Exception,)
 
     def execute(self, fn: Callable[..., Result[T, DomainError]], *args: Any, **kwargs: Any) -> Result[T, DomainError]:
+        """Sync retry with time.sleep — для синхронных контекстов (CLI, thread pool).
+        
+        Для async-контекстов используйте `execute_async()`.
+        """
         last_error: DomainError | None = None
         for attempt in range(self.max_retries + 1):
             try:
@@ -62,6 +71,43 @@ class RetryPolicy:
                     delay = self._backoff(attempt)
                     logger.warning("retry_exception", attempt=attempt + 1, delay=round(delay, 2), error=str(e))
                     time.sleep(delay)
+                    continue
+                return Err(DomainError(message=f"failed after {self.max_retries} retries: {e}"))
+        return Err(last_error or DomainError(message="retry policy exhausted"))
+
+    async def execute_async(
+        self, fn: Callable[..., Result[T, DomainError]], *args: Any, **kwargs: Any
+    ) -> Result[T, DomainError]:
+        """Async retry with await asyncio.sleep — не блокирует event loop."""
+        last_error: DomainError | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                result = fn(*args, **kwargs)
+                match result:
+                    case Ok(_):
+                        return result
+                    case Err(e):
+                        last_error = e
+                        if attempt < self.max_retries:
+                            delay = self._backoff(attempt)
+                            logger.warning(
+                                "retry_attempt",
+                                attempt=attempt + 1,
+                                max_retries=self.max_retries,
+                                delay=round(delay, 2),
+                                error=str(e),
+                            )
+                            await asyncio.sleep(delay)
+                            continue
+                        return Err(e)
+            except Exception as e:
+                if not isinstance(e, self.retryable_exceptions):
+                    return Err(DomainError(message=f"non-retryable: {e}"))
+                last_error = DomainError(message=str(e))
+                if attempt < self.max_retries:
+                    delay = self._backoff(attempt)
+                    logger.warning("retry_exception", attempt=attempt + 1, delay=round(delay, 2), error=str(e))
+                    await asyncio.sleep(delay)
                     continue
                 return Err(DomainError(message=f"failed after {self.max_retries} retries: {e}"))
         return Err(last_error or DomainError(message="retry policy exhausted"))

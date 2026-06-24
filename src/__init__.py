@@ -32,6 +32,7 @@ __all__ = [
     "Result",
     "timed",
     "timed_async",
+    "timed_block",
     "DomainError",
     "VacancyError",
     "VacancyNotFoundError",

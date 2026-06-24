@@ -9,7 +9,6 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from src.monitoring.metrics import get_metrics
 
@@ -18,7 +17,19 @@ from src.api_pkg import deps as deps  # noqa: F401
 
 logger = structlog.get_logger("api")
 
-limiter = Limiter(key_func=get_remote_address)
+
+def _rate_limit_key(request: Request) -> str:
+    """Rate limit by user email (from JWT) if authenticated, else by IP."""
+    user = getattr(request.state, "user", None)
+    if user and isinstance(user, dict):
+        email = user.get("email")
+        if email:
+            return f"user:{email}"
+    client_ip = request.client.host if request.client else "unknown"
+    return f"ip:{client_ip}"
+
+
+limiter = Limiter(key_func=_rate_limit_key)
 
 
 def create_app() -> FastAPI:
