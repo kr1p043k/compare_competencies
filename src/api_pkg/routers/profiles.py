@@ -26,7 +26,7 @@ router = APIRouter(tags=["profiles"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-@router.get("/api/profiles/compare", response_model=ProfilesCompareResponse)
+@router.get("/profiles/compare", response_model=ProfilesCompareResponse)
 @limiter.limit("20/minute")
 async def compare_profiles(
     request: Request,
@@ -50,7 +50,7 @@ async def compare_profiles(
     return {"profiles": evaluations}
 
 
-@router.get("/api/profiles/{profile}", response_model=ProfileShort)
+@router.get("/profiles/{profile}", response_model=ProfileShort)
 @limiter.limit("60/minute")
 async def get_profile(
     request: Request,
@@ -110,7 +110,7 @@ async def get_profile_profession_evaluation(request: Request, profile: str):
             raise HTTPException(status_code=500, detail=str(err))
 
 
-@router.get("/api/recommendations/{profile}", response_model=dict)
+@router.get("/recommendations/{profile}", response_model=dict)
 @limiter.limit("30/minute")
 async def get_recommendations(
     request: Request,
@@ -128,7 +128,7 @@ async def get_recommendations(
             raise HTTPException(status_code=500, detail=str(err))
 
 
-@router.get("/api/skills/missing", response_model=MissingSkillsResponse)
+@router.get("/skills/missing", response_model=MissingSkillsResponse)
 @limiter.limit("30/minute")
 async def missing_skills(
     request: Request,
@@ -148,7 +148,7 @@ async def missing_skills(
     return {"missing_skills": [{"skill": s, "frequency": f} for s, f in sorted_skills]}
 
 
-@router.get("/api/skills/dead", response_model=DeadSkillsResponse)
+@router.get("/skills/dead", response_model=DeadSkillsResponse)
 @limiter.limit("30/minute")
 async def dead_skills(
     request: Request,

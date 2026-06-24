@@ -20,7 +20,7 @@ router = APIRouter(tags=["market"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-@router.get("/api/market/top-skills", response_model=TopSkillsResponse)
+@router.get("/market/top-skills", response_model=TopSkillsResponse)
 @limiter.limit("60/minute")
 async def get_top_skills(
     request: Request,
@@ -31,7 +31,7 @@ async def get_top_skills(
     return {"skills": [{"skill": s, "weight": round(w, 4)} for s, w in top]}
 
 
-@router.get("/api/market/skill/{skill}", response_model=SkillInfoResponse)
+@router.get("/market/skill/{skill}", response_model=SkillInfoResponse)
 @limiter.limit("60/minute")
 async def get_skill_info(
     request: Request,
@@ -55,7 +55,7 @@ async def get_skill_info(
     }
 
 
-@router.get("/api/market-competencies", response_model=MarketCompetenciesResponse)
+@router.get("/market-competencies", response_model=MarketCompetenciesResponse)
 @limiter.limit("60/minute")
 async def get_market_competencies(
     request: Request,

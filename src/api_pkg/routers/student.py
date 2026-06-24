@@ -21,7 +21,7 @@ class LogActionRequest(BaseModel):
     profile: str = ""
 
 
-@router.get("/api/student/history")
+@router.get("/student/history")
 @limiter.limit("30/minute")
 async def student_history(request: Request, limit: int = 50):
     user = getattr(request.state, "user", None)
@@ -31,7 +31,7 @@ async def student_history(request: Request, limit: int = 50):
     return {"history": entries, "total": len(entries)}
 
 
-@router.post("/api/student/log-action")
+@router.post("/student/log-action")
 @limiter.limit("20/minute")
 async def student_log_action(request: Request, body: LogActionRequest):
     user = getattr(request.state, "user", None)

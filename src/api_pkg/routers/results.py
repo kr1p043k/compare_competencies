@@ -19,7 +19,7 @@ router = APIRouter(tags=["results"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-@router.get("/api/results/summary", response_model=dict)
+@router.get("/results/summary", response_model=dict)
 @limiter.limit("30/minute")
 async def get_results_summary(
     request: Request,
@@ -38,7 +38,7 @@ async def get_results_summary(
     }
 
 
-@router.get("/api/results/recommendations/{profile}", response_model=dict)
+@router.get("/results/recommendations/{profile}", response_model=dict)
 @limiter.limit("30/minute")
 async def get_recommendations_result(
     request: Request,
@@ -65,7 +65,7 @@ async def get_recommendations_result(
     }
 
 
-@router.get("/api/results/images/{profile}/{image_type}")
+@router.get("/results/images/{profile}/{image_type}")
 @limiter.limit("60/minute")
 async def get_profile_image(
     request: Request,
@@ -87,7 +87,7 @@ async def get_profile_image(
     return FileResponse(image_path, media_type="image/png")
 
 
-@router.get("/api/results/images/coverage-comparison")
+@router.get("/results/images/coverage-comparison")
 @limiter.limit("30/minute")
 async def get_coverage_comparison_image(request: Request):
     image_path = config.REPORTS_DIR / "coverage_comparison.png"
@@ -98,7 +98,7 @@ async def get_coverage_comparison_image(request: Request):
     return FileResponse(image_path, media_type="image/png")
 
 
-@router.get("/api/results/images/skills-heatmap")
+@router.get("/results/images/skills-heatmap")
 @limiter.limit("30/minute")
 async def get_skills_heatmap_image(request: Request):
     image_path = config.REPORTS_DIR / "skills_heatmap.png"
@@ -107,7 +107,7 @@ async def get_skills_heatmap_image(request: Request):
     return FileResponse(image_path, media_type="image/png")
 
 
-@router.get("/api/results/images/skill-correlation")
+@router.get("/results/images/skill-correlation")
 @limiter.limit("30/minute")
 async def get_skill_correlation_image(request: Request):
     image_path = config.REPORTS_DIR / "skill_correlation_heatmap.png"

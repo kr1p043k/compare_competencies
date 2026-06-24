@@ -65,14 +65,14 @@ def _save_whitelist(skills: list[str]):
 # ---------- Whitelist ----------
 
 
-@router.get("/api/admin/whitelist")
+@router.get("//admin/whitelist")
 @limiter.limit("30/minute")
 async def get_whitelist(request: Request):
     skills = _load_whitelist()
     return {"skills": skills, "total": len(skills)}
 
 
-@router.post("/api/admin/whitelist/add")
+@router.post("//admin/whitelist/add")
 @limiter.limit("10/minute")
 async def whitelist_add(request: Request, body: WhitelistAddRequest):
     current = set(_load_whitelist())
@@ -95,7 +95,7 @@ async def whitelist_add(request: Request, body: WhitelistAddRequest):
     }
 
 
-@router.post("/api/admin/whitelist/remove")
+@router.post("//admin/whitelist/remove")
 @limiter.limit("10/minute")
 async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
     current = set(_load_whitelist())
@@ -118,7 +118,7 @@ async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
     }
 
 
-@router.post("/api/admin/whitelist/backup", response_model=WhitelistBackupResponse)
+@router.post("//admin/whitelist/backup", response_model=WhitelistBackupResponse)
 @limiter.limit("5/minute")
 async def whitelist_backup(request: Request):
     backup_dir = config.DATA_DIR / "backups"
@@ -138,7 +138,7 @@ async def whitelist_backup(request: Request):
 # ---------- Student profiles ----------
 
 
-@router.get("/api/admin/students")
+@router.get("//admin/students")
 @limiter.limit("30/minute")
 async def list_students(request: Request):
     students_dir = config.DATA_DIR / "students"
@@ -180,7 +180,7 @@ class PipelineTriggerRequest(BaseModel):
     run_gap_analysis: bool = True
 
 
-@router.post("/api/admin/pipeline/trigger")
+@router.post("//admin/pipeline/trigger")
 @limiter.limit("2/minute")
 async def admin_trigger_pipeline(
     request: Request, body: PipelineTriggerRequest, background_tasks: BackgroundTasks
@@ -231,7 +231,7 @@ def _format_experience(exp: Any) -> str:
     return ""
 
 
-@router.get("/api/admin/export/excel")
+@router.get("//admin/export/excel")
 @limiter.limit("3/minute")
 async def export_excel(request: Request):
     import json
@@ -298,7 +298,7 @@ async def export_excel(request: Request):
     )
 
 
-@router.get("/api/admin/export/full-report")
+@router.get("//admin/export/full-report")
 @limiter.limit("2/minute")
 async def export_full_report(request: Request):
     from fastapi.responses import StreamingResponse
@@ -322,7 +322,7 @@ async def export_full_report(request: Request):
     )
 
 
-@router.get("/api/admin/users")
+@router.get("//admin/users")
 @limiter.limit("30/minute")
 async def admin_users(request: Request):
     from sqlalchemy import text
@@ -347,7 +347,7 @@ async def admin_users(request: Request):
     }
 
 
-@router.get("/api/admin/monitoring")
+@router.get("//admin/monitoring")
 async def admin_monitoring(request: Request):
     from prometheus_client.parser import text_string_to_metric_families
     from src.monitoring.metrics import get_metrics
@@ -361,7 +361,7 @@ async def admin_monitoring(request: Request):
     return families
 
 
-@router.get("/api/admin/logs")
+@router.get("//admin/logs")
 @limiter.limit("30/minute")
 async def admin_logs(request: Request, user: str | None = None, limit: int = 100):
     if user and user == "all":
@@ -377,7 +377,7 @@ class SeedDBRequest(BaseModel):
     drop: bool = False
 
 
-@router.post("/api/admin/db/seed")
+@router.post("//admin/db/seed")
 @limiter.limit("1/minute")
 async def admin_seed_db(request: Request, body: SeedDBRequest, background_tasks: BackgroundTasks):
     """Seed database from JSON files (skills, disciplines, competencies)."""
@@ -399,7 +399,7 @@ class CreateUserRequest(BaseModel):
     name: str = ""
 
 
-@router.post("/api/admin/users/create")
+@router.post("//admin/users/create")
 @limiter.limit("10/minute")
 async def admin_create_user(request: Request, body: CreateUserRequest):
     """Create a new user with bcrypt-hashed password."""
@@ -412,7 +412,7 @@ class EmbeddingsRequest(BaseModel):
     force: bool = False
 
 
-@router.post("/api/admin/embeddings/generate")
+@router.post("//admin/embeddings/generate")
 @limiter.limit("1/minute")
 async def admin_generate_embeddings(request: Request, body: EmbeddingsRequest, background_tasks: BackgroundTasks):
     """Generate sentence-transformers embeddings for all skills."""
@@ -434,7 +434,7 @@ class StudentImportItem(BaseModel):
     skills: str = ""
 
 
-@router.post("/api/admin/students/import")
+@router.post("//admin/students/import")
 @limiter.limit("5/minute")
 async def admin_import_students(request: Request, body: list[StudentImportItem]):
     """Import students from JSON array."""
@@ -460,7 +460,7 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
     return {"status": "ok", "imported": len(body)}
 
 
-@router.post("/api/admin/skills/extend")
+@router.post("//admin/skills/extend")
 @limiter.limit("1/minute")
 async def admin_extend_skills(request: Request, yes: bool = True):
     """Analyze vacancies and extend it_skills with new skills."""
@@ -472,7 +472,7 @@ async def admin_extend_skills(request: Request, yes: bool = True):
     return {"status": "ok", "message": "Skills analysis completed"}
 
 
-@router.get("/api/admin/export/db")
+@router.get("//admin/export/db")
 @limiter.limit("2/minute")
 async def admin_export_db(request: Request, background_tasks: BackgroundTasks):
     """Export all DB tables to JSON files in data/export/."""
@@ -487,7 +487,7 @@ def _run_export() -> None:
     logger.info("db_export_completed")
 
 
-@router.post("/api/admin/db/backup")
+@router.post("//admin/db/backup")
 @limiter.limit("1/minute")
 async def admin_backup_db(request: Request):
     """Create a PostgreSQL dump in data/backups/."""
@@ -496,7 +496,7 @@ async def admin_backup_db(request: Request):
     return {"status": "ok", "message": "Backup created"}
 
 
-@router.post("/api/admin/db/export-results")
+@router.post("//admin/db/export-results")
 @limiter.limit("1/minute")
 async def admin_export_results(request: Request, background_tasks: BackgroundTasks):
     """Migrate existing JSON pipeline results to PostgreSQL."""
@@ -518,7 +518,7 @@ class FrontendLogRequest(BaseModel):
     detail: str = ""
 
 
-@router.post("/api/log")
+@router.post("/log")
 @limiter.limit("30/minute")
 async def frontend_log(request: Request, body: FrontendLogRequest):
     """Log frontend actions (button clicks, page views, errors)."""

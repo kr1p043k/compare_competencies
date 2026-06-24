@@ -110,7 +110,7 @@ def _detect_method(engine: ProphetForecastEngine | SkillForecastEngine, skill: s
     return "genetic"
 
 
-@router.get("/api/forecast/all")
+@router.get("/forecast/all")
 @limiter.limit("30/minute")
 async def get_all_forecasts(request: Request, months: int = Query(12, ge=1, le=24)):
     match _get_forecast_engine():
@@ -126,7 +126,7 @@ async def get_all_forecasts(request: Request, months: int = Query(12, ge=1, le=2
             raise HTTPException(status_code=503, detail=str(e))
 
 
-@router.get("/api/forecast/top")
+@router.get("/forecast/top")
 @limiter.limit("30/minute")
 async def get_top_forecasts(
     request: Request,
@@ -150,7 +150,7 @@ async def get_top_forecasts(
             raise HTTPException(status_code=503, detail=str(e))
 
 
-@router.get("/api/forecast/{skill}")
+@router.get("/forecast/{skill}")
 @limiter.limit("60/minute")
 async def get_skill_forecast(skill: str, request: Request, months: int = Query(12, ge=1, le=24)):
     match _get_forecast_engine():

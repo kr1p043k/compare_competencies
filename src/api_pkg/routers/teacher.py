@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import subprocess
@@ -48,7 +48,7 @@ def _save_json(path, data) -> None:
 
 # ---------- endpoints ----------
 
-@router.get("/api/teacher/stats")
+@router.get("/teacher/stats")
 @limiter.limit("30/minute")
 async def teacher_stats(request: Request):
     result_dir = config.DATA_RESULT_DIR
@@ -69,7 +69,7 @@ async def teacher_stats(request: Request):
     return {"total_reports": len(reports), "by_profession": by_profession}
 
 
-@router.get("/api/teacher/krm/stats")
+@router.get("/teacher/krm/stats")
 @limiter.limit("30/minute")
 async def krm_stats(request: Request):
     data = _load_json(config.KRM_DISCIPLINES_PATH)
@@ -89,7 +89,7 @@ async def krm_stats(request: Request):
     }
 
 
-@router.get("/api/teacher/krm/directions")
+@router.get("/teacher/krm/directions")
 @limiter.limit("30/minute")
 async def krm_directions(request: Request):
     data = _load_json(config.KRM_DISCIPLINES_PATH)
@@ -101,7 +101,7 @@ async def krm_directions(request: Request):
     }
 
 
-@router.get("/api/teacher/krm/disciplines")
+@router.get("/teacher/krm/disciplines")
 @limiter.limit("30/minute")
 async def krm_disciplines(request: Request):
     data = _load_json(config.KRM_DISCIPLINES_PATH)
@@ -116,7 +116,7 @@ async def krm_disciplines(request: Request):
     ]
 
 
-@router.get("/api/teacher/krm/disciplines/{discipline_name:path}")
+@router.get("/teacher/krm/disciplines/{discipline_name:path}")
 @limiter.limit("30/minute")
 async def krm_discipline_detail(request: Request, discipline_name: str):
     data = _load_json(config.KRM_DISCIPLINES_PATH)
@@ -145,7 +145,7 @@ async def krm_discipline_detail(request: Request, discipline_name: str):
     }
 
 
-@router.get("/api/teacher/krm/recommendations")
+@router.get("/teacher/krm/recommendations")
 @limiter.limit("30/minute")
 async def krm_get_recommendations(request: Request):
     recs = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
@@ -154,7 +154,7 @@ async def krm_get_recommendations(request: Request):
     return []
 
 
-@router.post("/api/teacher/krm/recommendations")
+@router.post("/teacher/krm/recommendations")
 async def krm_add_recommendation(request: Request):
     raw = await request.json()
     rec = RecommendationIn(**raw)
@@ -166,7 +166,7 @@ async def krm_add_recommendation(request: Request):
     return {"status": "ok", "id": len(recs) - 1}
 
 
-@router.delete("/api/teacher/krm/recommendations/{index}")
+@router.delete("/teacher/krm/recommendations/{index}")
 async def krm_delete_recommendation(request: Request, index: int):
     recs = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
     if not isinstance(recs, list) or index < 0 or index >= len(recs):
@@ -179,7 +179,7 @@ async def krm_delete_recommendation(request: Request, index: int):
 # ---------- DB-backed coverage analysis ----------
 
 
-@router.get("/api/teacher/krm/coverage")
+@router.get("/teacher/krm/coverage")
 @limiter.limit("30/minute")
 async def krm_coverage(request: Request):
     """Coverage per discipline (latest analysis)."""
@@ -214,7 +214,7 @@ async def krm_coverage(request: Request):
     }
 
 
-@router.get("/api/teacher/krm/coverage/history")
+@router.get("/teacher/krm/coverage/history")
 @limiter.limit("30/minute")
 async def krm_coverage_history(request: Request, discipline: str | None = None, limit: int = 20):
     """Coverage history across analyses."""
@@ -241,7 +241,7 @@ async def krm_coverage_history(request: Request, discipline: str | None = None, 
     ]
 
 
-@router.get("/api/teacher/krm/market-skills")
+@router.get("/teacher/krm/market-skills")
 @limiter.limit("30/minute")
 async def krm_market_skills(request: Request, limit: int = 50):
     """Top market-demanded skills (from it_skills.json)."""
@@ -254,7 +254,7 @@ async def krm_market_skills(request: Request, limit: int = 50):
         skills = json.load(f)
     return [{"skill": s, "frequency": 1} for s in list(skills)[:limit]]
 
-@router.get("/api/teacher/krm/search-runs")
+@router.get("/teacher/krm/search-runs")
 async def krm_search_runs(request: Request, limit: int = 20):
     from src.database import async_session_factory
     from src.models.krm_models import PipelineRun
@@ -281,7 +281,7 @@ async def krm_search_runs(request: Request, limit: int = 20):
     ]
 
 
-@router.get("/api/teacher/krm/search-runs/{run_id}")
+@router.get("/teacher/krm/search-runs/{run_id}")
 async def krm_search_run_detail(run_id: str):
     from src.database import async_session_factory
     from src.models.krm_models import PipelineRun, AnalysisResult
@@ -312,7 +312,7 @@ async def krm_search_run_detail(run_id: str):
     }
 
 
-@router.post("/api/teacher/krm/run-analysis")
+@router.post("/teacher/krm/run-analysis")
 async def run_teacher_analysis_endpoint(
     background_tasks: BackgroundTasks,
     dir_code: str = "09.03.02",
@@ -334,7 +334,7 @@ async def run_teacher_analysis_endpoint(
     return {"status": "started", "direction": dir_code}
 
 
-@router.get("/api/teacher/analysis")
+@router.get("/teacher/analysis")
 async def get_analysis(dir_code: str = "09.03.02"):
     summary_path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher" / dir_code / "_summary.json"
     if not summary_path.exists():
@@ -342,7 +342,7 @@ async def get_analysis(dir_code: str = "09.03.02"):
     return json.loads(summary_path.read_text(encoding="utf-8"))
 
 
-@router.get("/api/teacher/analysis/{discipline_name:path}")
+@router.get("/teacher/analysis/{discipline_name:path}")
 async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02"):
     import re
     from pathlib import Path

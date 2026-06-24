@@ -22,7 +22,7 @@ router = APIRouter(tags=["taxonomy"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-@router.get("/api/taxonomy/coverage", response_model=TaxonomyCoverageResponse)
+@router.get("/taxonomy/coverage", response_model=TaxonomyCoverageResponse)
 @limiter.limit("20/minute")
 async def taxonomy_coverage(
     request: Request,
@@ -55,7 +55,7 @@ async def taxonomy_coverage(
     return {"coverage": coverage}
 
 
-@router.get("/api/taxonomy/professions", response_model=ProfessionsResponse)
+@router.get("/taxonomy/professions", response_model=ProfessionsResponse)
 @limiter.limit("60/minute")
 async def get_professions(request: Request):
     try:

@@ -9,7 +9,7 @@ from src.database import async_session_factory
 router = APIRouter(tags=["vacancies"])
 
 
-@router.get("/api/vacancies/by-skill")
+@router.get("/vacancies/by-skill")
 async def get_vacancies_by_skill(
     skill: str = Query(...),
     snapshot_date: str = Query(...),

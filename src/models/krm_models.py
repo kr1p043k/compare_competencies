@@ -278,8 +278,12 @@ class Recommendation(Base):
     discipline_id: Mapped[str] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True)
     competency_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
     user_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"))
+    direction_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"))
     suggestion: Mapped[str] = mapped_column(Text, nullable=False)
     suggestion_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    source: Mapped[Optional[str]] = mapped_column(String(20))
+    llm_request_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"))
+    confidence: Mapped[Optional[float]] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
     discipline: Mapped["Discipline"] = relationship(back_populates="recommendations")
@@ -287,6 +291,7 @@ class Recommendation(Base):
 
     __table_args__ = (
         CheckConstraint(suggestion_type.in_(["modify", "add", "remove"]), name="ck_rec_type"),
+        CheckConstraint(source.in_(["shap", "llm", "llm_fallback"]), name="ck_rec_source"),
     )
 
 
@@ -331,6 +336,8 @@ class StudentSkill(Base):
     source: Mapped[str] = mapped_column(String(30), default="self_assessment")
     proficiency: Mapped[float] = mapped_column(Float, default=0.0)
     achieved_level: Mapped[Optional[str]] = mapped_column(String(10))
+    direction_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("directions.id", ondelete="SET NULL"))
+    competency_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="SET NULL"))
     assessed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
@@ -389,6 +396,7 @@ class CoverageAnalysis(Base):
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     discipline_id: Mapped[str] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True)
+    direction_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"))
     competency_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
     total_skills: Mapped[int] = mapped_column(Integer, default=0)
     market_matched_skills: Mapped[int] = mapped_column(Integer, default=0)
@@ -412,7 +420,7 @@ class PipelineRun(Base):
     stats: Mapped[Optional[dict]] = mapped_column(sa.JSON())
 
     __table_args__ = (
-        CheckConstraint(action.in_(["full-cycle", "rebuild", "train-clusters", "train-model", "gap-analysis"]), name="ck_pr_action"),
+        CheckConstraint(action.in_(["full-cycle", "rebuild", "train-clusters", "train-model", "gap-analysis", "teacher-analysis", "data-collection"]), name="ck_pr_action"),
         CheckConstraint(status.in_(["started", "completed", "failed"]), name="ck_pr_status"),
     )
 
@@ -425,13 +433,14 @@ class AnalysisResult(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     pipeline_run_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
     analysis_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    direction_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"))
     discipline_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"))
     competency_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
     data: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
     __table_args__ = (
-        CheckConstraint(analysis_type.in_(["gap", "coverage", "cluster", "trend"]), name="ck_ar_type"),
+        CheckConstraint(analysis_type.in_(["gap", "coverage", "cluster", "trend", "teacher-analysis"]), name="ck_ar_type"),
     )
 
 
@@ -446,3 +455,57 @@ class TrendSnapshot(Base):
     skill_freq: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
     source: Mapped[str] = mapped_column(String(50), default="hh_vacancies")
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
+# ─── LLM Interaction (аудит) ──────────────────────────────────────────────
+
+class LLMInteraction(Base):
+    __tablename__ = "llm_interactions"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    analysis_run_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("pipeline_runs.id"))
+    direction_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("directions.id"))
+    discipline_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("disciplines.id"))
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    response_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    prompt_hash: Mapped[Optional[str]] = mapped_column(Text)
+    response_summary: Mapped[Optional[str]] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(String(50), default="yandexgpt")
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
+# ─── LLM Recommendation (кэш запросов) ────────────────────────────────────
+
+class LLMRecommendation(Base):
+    __tablename__ = "llm_recommendations"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    request_hash: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
+    model_used: Mapped[str] = mapped_column(String(20), nullable=False)
+    response_json: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    __table_args__ = (
+        CheckConstraint(model_used.in_(["qwen3.6", "gemma4", "qwen_local", "deepseek_local"]), name="ck_llm_model"),
+    )
+
+
+# ─── Profile Evaluation (история оценок) ──────────────────────────────────
+
+class ProfileEvaluation(Base):
+    __tablename__ = "profile_evaluations"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    user_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"))
+    discipline_id: Mapped[str] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False)
+    evaluation_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    input_summary: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
+    result_summary: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
+    llm_request_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    __table_args__ = (
+        CheckConstraint(evaluation_type.in_(["gap", "coverage", "full"]), name="ck_pe_type"),
+    )

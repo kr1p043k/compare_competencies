@@ -19,7 +19,7 @@ router = APIRouter(tags=["vacancies"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-@router.get("/api/vacancies", response_model=VacanciesResponse)
+@router.get("/vacancies", response_model=VacanciesResponse)
 @limiter.limit("60/minute")
 async def get_vacancies(
     request: Request,
@@ -119,7 +119,7 @@ async def get_vacancies(
     }
 
 
-@router.get("/api/vacancies/info")
+@router.get("/vacancies/info")
 async def get_vacancies_info():
     import os, json
     from datetime import datetime
@@ -144,7 +144,7 @@ async def get_vacancies_info():
     return info
 
 
-@router.get("/api/vacancies/{vacancy_id}", response_model=VacancyDetailResponse)
+@router.get("/vacancies/{vacancy_id}", response_model=VacancyDetailResponse)
 @limiter.limit("60/minute")
 async def get_vacancy_detail(
     request: Request,
@@ -175,7 +175,7 @@ async def get_vacancy_detail(
     raise HTTPException(status_code=404, detail="Вакансия не найдена")
 
 
-@router.get("/api/vacancies/stats/summary", response_model=VacancyStatsResponse)
+@router.get("/vacancies/stats/summary", response_model=VacancyStatsResponse)
 @limiter.limit("30/minute")
 async def get_vacancies_stats(
     request: Request,
