@@ -12,11 +12,10 @@ from src.errors import TrendError
 logger = structlog.get_logger(__name__)
 
 
-def _skill_words(name: str) -> set[str]:
-    return set(name.lower().replace("-", " ").split())
+from src.utils import skill_words
 
 
-class TrendAnalyzer:
+class SnapshotTrendAnalyzer:
     def __init__(self, snapshot_records: list[dict] | None = None):
         self.snapshots: list[dict] = snapshot_records or []
 
@@ -56,11 +55,11 @@ class TrendAnalyzer:
         for ck in list(latest.keys()):
             if ck in previous or len(ck) < 3:
                 continue
-            ck_words = _skill_words(ck)
+            ck_words = skill_words(ck)
             if not ck_words:
                 continue
             for ok in list(previous.keys()):
-                if ok != ck and ck_words <= _skill_words(ok):
+                if ok != ck and ck_words <= skill_words(ok):
                     previous[ck] = previous[ok]
                     break
 
@@ -104,11 +103,11 @@ class TrendAnalyzer:
         for ck in list(latest.keys()):
             if ck in previous or len(ck) < 3:
                 continue
-            ck_words = _skill_words(ck)
+            ck_words = skill_words(ck)
             if not ck_words:
                 continue
             for ok in list(previous.keys()):
-                if ok != ck and ck_words <= _skill_words(ok):
+                if ok != ck and ck_words <= skill_words(ok):
                     previous[ck] = previous[ok]
                     break
 

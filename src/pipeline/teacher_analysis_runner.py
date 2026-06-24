@@ -24,7 +24,7 @@ from src.db import create_pool, close_pool, get_pool
 from src.models.teacher_analysis import DirectionSummary, GapAnalysisResult
 from src.analyzers.skill_matcher import SkillMatcher, normalize as normalize_skill
 from src.analyzers.coverage_analyzer import CoverageAnalyzer
-from src.analyzers.trend_analyzer import TrendAnalyzer
+from src.analyzers.trend_analyzer import SnapshotTrendAnalyzer
 from src.predictors.curriculum_recommender import CurriculumRecommender
 from src.predictors.curriculum_optimizer import CurriculumOptimizer
 
@@ -339,7 +339,7 @@ async def run_teacher_analysis(
     # — init services —
     matcher = SkillMatcher(market_skills)
     coverage_analyzer = CoverageAnalyzer(matcher)
-    trend_analyzer = TrendAnalyzer(snapshots)
+    trend_analyzer = SnapshotTrendAnalyzer(snapshots)
     rec_engine = CurriculumRecommender()
     optimizer = CurriculumOptimizer()
 

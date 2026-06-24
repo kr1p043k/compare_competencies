@@ -135,7 +135,7 @@ def create_app() -> FastAPI:
 
     def _mount(router, tag=""):
         app.include_router(router, prefix="/api")
-        app.include_router(router, prefix="/api/v1")
+        app.include_router(router, prefix="/api/v1", include_in_schema=False)
 
     from src.api_pkg.routers.profiles import router as profiles_router
     _mount(profiles_router)

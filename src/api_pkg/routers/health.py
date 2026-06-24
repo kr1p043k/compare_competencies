@@ -11,18 +11,10 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
-from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
-from src.analyzers.skills.trends import TrendAnalyzer
 from src.models.api_responses import (
     HealthResponse,
     ReadyResponse,
-    RegionsResponse,
-    StatusResponse,
 )
-from src.models.enums import ExperienceLevel
-from src.models.student import StudentProfile
-from src.predictors.recommendation_engine import RecommendationEngine
 
 from src.api_pkg import deps
 from src import config
@@ -124,68 +116,4 @@ async def ready_check():
     return {"status": status, "components": components}
 
 
-@router.get("/api/status", response_model=StatusResponse)
-async def get_status(
-    profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
-    clusterer_instance: VacancyClusterer = Depends(deps.get_clusterer),
-    trend_analyzer_instance: TrendAnalyzer = Depends(deps.get_trend_analyzer),
-    engine: RecommendationEngine = Depends(deps.get_recommendation_engine),
-    taxonomy_instance: SkillTaxonomy | None = Depends(deps.get_taxonomy),
-    weights: dict[str, float] = Depends(deps.get_skill_weights),
-):
-    return {
-        "vacancies_loaded": len(deps.basic_vacancies) > 0,
-        "skill_weights_count": len(weights),
-        "taxonomy_loaded": taxonomy_instance is not None,
-        "whitelist_size": len(deps.current_skills_set),
-        "profiles_available": list(profiles.keys()),
-        "clusters": {
-            lvl: clusterer_instance.load_model(lvl) and clusterer_instance.is_fitted
-            for lvl in ExperienceLevel
-        },
-        "trends_available": trend_analyzer_instance is not None,
-        "recommendation_engine_ready": engine is not None and engine.is_fitted,
-    }
 
-
-@router.get("/api/regions", response_model=RegionsResponse)
-@limiter.limit("60/minute")
-async def get_regions(
-    request: Request,
-    vacancies: list = Depends(deps.get_basic_vacancies),
-):
-    """Возвращает список всех доступных регионов/городов из загруженных вакансий"""
-    current_time = time.time()
-    if deps._regions_cache and (current_time - deps._regions_cache_time) < 300:
-        return RegionsResponse(
-            regions=deps._regions_cache,
-            total=len(deps._regions_cache),
-            default="Все регионы",
-        )
-
-    try:
-        regions_set = set()
-        for vac in vacancies:
-            if isinstance(vac.get("area"), dict):
-                area_name = vac["area"].get("name")
-                if area_name:
-                    regions_set.add(area_name)
-            region = vac.get("region") or vac.get("area_name")
-            if isinstance(region, str) and region:
-                regions_set.add(region)
-
-        regions_list = sorted({r.strip() for r in regions_set if r and str(r).strip()})
-        deps._regions_cache = regions_list
-        deps._regions_cache_time = current_time
-
-        return RegionsResponse(
-            regions=regions_list,
-            total=len(regions_list),
-            default="Все регионы",
-        )
-
-    except Exception as e:
-        logger.error("Ошибка при получении регионов", error=str(e))
-        raise HTTPException(
-            status_code=500, detail="Не удалось извлечь список регионов"
-        )
