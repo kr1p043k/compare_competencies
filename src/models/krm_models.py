@@ -56,9 +56,10 @@ class Direction(Base):
     __tablename__ = "directions"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     profile: Mapped[Optional[str]] = mapped_column(Text)
+    supervisor: Mapped[Optional[str]] = mapped_column(String(255))
     opop_year: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -66,6 +67,10 @@ class Direction(Base):
     disciplines: Mapped[list["Discipline"]] = relationship(back_populates="direction", cascade="all, delete-orphan")
     parse_versions: Mapped[list["ParseVersion"]] = relationship(back_populates="direction", cascade="all, delete-orphan")
     student_groups: Mapped[list["StudentGroup"]] = relationship(back_populates="direction", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("code", "profile", name="uq_directions_code_profile"),
+    )
 
 
 # ─── Discipline ────────────────────────────────────────────────────────────
