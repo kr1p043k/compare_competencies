@@ -87,7 +87,18 @@ def upgrade() -> None:
                 supervisor = EXCLUDED.supervisor
         """)
 
-    # ─── 5. Добавить/обновить преподавателей ─────────────────────────────────
+    # ─── 5. Удалить старые teacher-аккаунты (@edu → @sfedu.ru) ──────────────
+    OLD_EMAILS = [
+        "karapetyants.an@edu",
+        "vatulyan.ka@edu",
+        "mahno.vv@edu",
+        "husainov.nsh@edu",
+        "mihalkovich.ss@edu",
+    ]
+    for old in OLD_EMAILS:
+        op.execute(f"DELETE FROM users WHERE email = '{old}'")
+
+    # ─── 6. Добавить новых преподавателей ────────────────────────────────────
     for email, full_name in TEACHERS:
         name_safe = full_name.replace("'", "''")
         op.execute(f"""

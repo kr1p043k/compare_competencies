@@ -22,6 +22,10 @@ def upgrade() -> None:
         ALTER TABLE analysis_results DROP CONSTRAINT IF EXISTS analysis_results_analysis_type_check
     """)
     op.execute("""
+        UPDATE analysis_results SET analysis_type = 'teacher-analysis'
+        WHERE analysis_type = 'teacher' OR analysis_type = 'teacher-analysis'
+    """)
+    op.execute("""
         ALTER TABLE analysis_results ADD CONSTRAINT analysis_results_analysis_type_check
             CHECK (analysis_type IN ('gap', 'coverage', 'cluster', 'trend', 'teacher-analysis'))
     """)
