@@ -136,16 +136,29 @@ async def get_top_forecasts(
 ):
     match _get_forecast_engine():
         case Ok(engine):
-            match engine.top_growing(n=n * 2, months=months):
-                case Ok(all_results):
-                    if direction == "declining":
-                        all_results = sorted(all_results, key=lambda x: x.predicted_growth)[:n]
-                    method = _detect_method(engine)
-                    items = [_serialize(r, direction, method) for r in all_results[:n]]
-                    meta = await _get_vacancy_meta()
-                    return {"direction": direction, "n": n, "months": months, "forecasts": items, **meta}
-                case Err(e):
-                    raise HTTPException(status_code=500, detail=str(e))
+            meta = await _get_vacancy_meta()
+            if isinstance(engine, ProphetForecastEngine):
+                if direction == "declining":
+                    match engine.top_declining(n=n, months=months):
+                        case Ok(results):
+                            items = [_serialize(r, direction, "prophet") for r in results]
+                        case Err(e):
+                            raise HTTPException(status_code=500, detail=str(e))
+                else:
+                    match engine.top_growing(n=n, months=months):
+                        case Ok(results):
+                            items = [_serialize(r, direction, "prophet") for r in results]
+                        case Err(e):
+                            raise HTTPException(status_code=500, detail=str(e))
+            else:
+                match engine.top_growing(n=n * 2, months=months):
+                    case Ok(all_results):
+                        if direction == "declining":
+                            all_results = sorted(all_results, key=lambda x: x.predicted_growth)[:n]
+                        items = [_serialize(r, direction, "genetic") for r in all_results[:n]]
+                    case Err(e):
+                        raise HTTPException(status_code=500, detail=str(e))
+            return {"direction": direction, "n": n, "months": months, "forecasts": items, **meta}
         case Err(e):
             raise HTTPException(status_code=503, detail=str(e))
 

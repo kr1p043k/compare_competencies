@@ -54,6 +54,8 @@ class GeneticForecastSkill:
 
 
 class SkillForecastEngine(BasePredictor):
+    MIN_FREQ = 10
+
     def __init__(self):
         self._population: dict[str, GeneticForecastSkill] = {}
         self._is_fitted = False
@@ -119,7 +121,17 @@ class SkillForecastEngine(BasePredictor):
     def top_growing(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
+                results = [r for r in results if r.current_frequency >= self.MIN_FREQ]
                 results.sort(key=lambda x: x.predicted_growth, reverse=True)
                 return Ok(results[:n])
+            case Err(err):
+                return Err(err)
+
+    def top_declining(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
+        match self.forecast_all(months):
+            case Ok(results):
+                results = [r for r in results if r.current_frequency >= self.MIN_FREQ]
+                results.sort(key=lambda x: x.predicted_growth)
+                return Ok([r for r in results if r.predicted_growth < 0][:n])
             case Err(err):
                 return Err(err)

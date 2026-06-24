@@ -55,13 +55,17 @@ async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], Doma
 
 
 class ProphetForecastEngine(BasePredictor):
-    """Forecast engine using Prophet for skills with >= 2 history points,
-    falling back to GeneticForecastSkill for the rest."""
+    """Forecast engine using Prophet for skills with >= 3 history points and
+    actual frequency >= MIN_FREQ, falling back to GeneticForecastSkill."""
+
+    MIN_FREQ = 10
+    MAX_GROWTH_CAP = 20.0
 
     def __init__(self):
         self._models: dict[str, Prophet] = {}
         self._fallback_engine: SkillForecastEngine | None = None
         self._skill_history: dict[str, list[tuple[date, float]]] = {}
+        self._last_actual_freq: dict[str, float] = {}
         self._is_fitted = False
 
     @property
@@ -102,7 +106,9 @@ class ProphetForecastEngine(BasePredictor):
 
         history = self._gather_history(snapshots)
         for skill, points in history.items():
-            if len(points) >= 2:
+            last_actual = points[-1][1]
+            self._last_actual_freq[skill] = last_actual
+            if len(points) >= 3 and last_actual >= self.MIN_FREQ:
                 try:
                     self._models[skill] = self._fit_prophet_for_skill(skill, points)
                 except Exception as e:
@@ -138,16 +144,18 @@ class ProphetForecastEngine(BasePredictor):
             model = self._models[skill]
             future = model.make_future_dataframe(periods=months, freq="ME")
             forecast = model.predict(future)
-            current_idx = max(0, len(forecast) - months - 1)
-            current_row = forecast.iloc[current_idx]
             last_row = forecast.iloc[-1]
-            current_freq = max(float(current_row["yhat"]), 0.0)
             next_freq = max(float(last_row["yhat"]), 0.0)
-            growth = (next_freq - current_freq) / max(current_freq, 0.001)
+
+            last_actual = self._last_actual_freq.get(skill, 0.0)
+            baseline = max(last_actual, self.MIN_FREQ)
+            growth = (next_freq - baseline) / baseline
+            growth = max(min(growth, self.MAX_GROWTH_CAP), -self.MAX_GROWTH_CAP)
+
             conf = min(1.0, 1.0 - float(last_row["yhat_upper"] - last_row["yhat_lower"]) / max(next_freq, 0.001))
             return Ok(ForecastResult(
                 skill=skill,
-                current_frequency=round(current_freq, 4),
+                current_frequency=round(last_actual, 4),
                 predicted_growth=round(growth, 4),
                 confidence=round(max(conf, 0.0), 4),
                 next_year_frequency=round(next_freq, 4),
@@ -177,7 +185,17 @@ class ProphetForecastEngine(BasePredictor):
     def top_growing(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
+                results = [r for r in results if r.current_frequency >= self.MIN_FREQ]
                 results.sort(key=lambda x: x.predicted_growth, reverse=True)
                 return Ok(results[:n])
+            case Err(e):
+                return Err(e)
+
+    def top_declining(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
+        match self.forecast_all(months):
+            case Ok(results):
+                results = [r for r in results if r.current_frequency >= self.MIN_FREQ]
+                results.sort(key=lambda x: x.predicted_growth)
+                return Ok([r for r in results if r.predicted_growth < 0][:n])
             case Err(e):
                 return Err(e)
