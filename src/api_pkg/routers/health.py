@@ -1,15 +1,12 @@
-"""Health, readiness, status, regions и логи."""
+"""Health, readiness и логи."""
 
 import json
-import time
 from datetime import datetime
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src.models.api_responses import (
     HealthResponse,
@@ -23,8 +20,6 @@ from src.model_registry import ModelRegistry
 logger = structlog.get_logger("api")
 
 router = APIRouter(tags=["monitoring"])
-
-limiter = Limiter(key_func=get_remote_address)
 
 
 _registry: ModelRegistry | None = None
