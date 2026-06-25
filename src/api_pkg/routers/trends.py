@@ -228,7 +228,7 @@ async def get_competency_trends(
                         val = sf[canonical]
                     elif canonical and len(canonical) >= 3:
                         for ok, ov in sf.items():
-                            if ok != canonical and _skill_words(canonical) <= skill_words(ok):
+                            if ok != canonical and skill_words(canonical) <= skill_words(ok):
                                 val = ov
                                 break
                     history.append({"date": str(snap.snapshot_date), "freq": val})
