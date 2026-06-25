@@ -206,30 +206,50 @@ async def run_teacher_analysis(
     # — load market skills from vacancies (real frequencies) + it_skills taxonomy —
     market_skills: dict[str, int] = {}
     vac_count = 0
-    try:
-        vrows = await pool.fetch(
-            """SELECT LOWER(TRIM(value)) AS skill, COUNT(*) AS frequency
-               FROM vacancies, jsonb_array_elements_text(key_skills) AS value
-               WHERE key_skills IS NOT NULL AND jsonb_array_length(key_skills) > 0
-               GROUP BY LOWER(TRIM(value))
-               ORDER BY frequency DESC"""
-        )
-        for r in vrows:
-            market_skills[r["skill"]] = r["frequency"]
-        vac_count = len(market_skills)
-        logger.info("market_skills_from_vacancies", count=vac_count)
-    except Exception as exc:
-        logger.warning("market_skills_vacancies_failed", error=str(exc))
 
-    it_skills_path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
-    if it_skills_path.exists():
-        import json
-        with open(it_skills_path, "r", encoding="utf-8") as f:
-            it_data = json.load(f)
-        for name in it_data:
-            k = name.strip().lower()
-            if k and k not in market_skills:
-                market_skills[k] = 1
+    # Кэш: market_skills пересчитываются только при изменении вакансий
+    from src.cache_manager import CacheManager
+    _cache_dir = config.DATA_CACHE_DIR
+    _cache_mgr = CacheManager(_cache_dir)
+    _vac_hash = await pool.fetchval(
+        "SELECT MD5(COALESCE(MAX(created_at)::text, '0')) FROM vacancies "
+        "WHERE key_skills IS NOT NULL AND jsonb_array_length(key_skills) > 0"
+    )
+    _cache_key = "teacher_market_skills"
+    match _cache_mgr.load(_cache_key):
+        case Ok(cached):
+            if isinstance(cached, dict) and cached.get("hash") == _vac_hash:
+                market_skills = cached["skills"]
+                vac_count = cached.get("count", 0)
+                logger.info("market_skills_loaded_from_cache", count=len(market_skills))
+
+    if not market_skills:
+        try:
+            vrows = await pool.fetch(
+                """SELECT LOWER(TRIM(value)) AS skill, COUNT(*) AS frequency
+                   FROM vacancies, jsonb_array_elements_text(key_skills) AS value
+                   WHERE key_skills IS NOT NULL AND jsonb_array_length(key_skills) > 0
+                   GROUP BY LOWER(TRIM(value))
+                   ORDER BY frequency DESC"""
+            )
+            for r in vrows:
+                market_skills[r["skill"]] = r["frequency"]
+            vac_count = len(market_skills)
+            logger.info("market_skills_from_vacancies", count=vac_count)
+        except Exception as exc:
+            logger.warning("market_skills_vacancies_failed", error=str(exc))
+
+        it_skills_path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
+        if it_skills_path.exists():
+            import json
+            with open(it_skills_path, "r", encoding="utf-8") as f:
+                it_data = json.load(f)
+            for name in it_data:
+                k = name.strip().lower()
+                if k and k not in market_skills:
+                    market_skills[k] = 1
+
+        _cache_mgr.save(_cache_key, {"hash": _vac_hash, "skills": market_skills, "count": vac_count})
 
     if not market_skills:
         logger.warning("no_market_skills_found")
@@ -347,6 +367,23 @@ async def run_teacher_analysis(
     out_dir = OUTPUT / dir_code
     os.makedirs(out_dir, exist_ok=True)
 
+    # Skip если данные не изменились с последнего полного pipeline
+    summary_path = out_dir / "_summary.json"
+    if summary_path.exists():
+        try:
+            last_run = await pool.fetchval(
+                "SELECT MAX(completed_at) FROM pipeline_runs "
+                "WHERE status = 'completed' AND action IN ('full-cycle', 'hh-import')"
+            )
+            summary_mtime = summary_path.stat().st_mtime
+            if last_run and summary_mtime > last_run.timestamp():
+                logger.info("skipping_analysis_data_unchanged", direction=dir_code)
+                import json
+                with open(summary_path, "r", encoding="utf-8") as _sf:
+                    return Ok(json.load(_sf))
+        except Exception:
+            pass
+
     all_gaps: Counter = Counter()
     discipline_reports: list[tuple[str, GapAnalysisResult]] = []
 
@@ -363,7 +400,12 @@ async def run_teacher_analysis(
                     direction_rpd_norm.add(n)
         discipline_skill_map[dname] = dskills
 
-    for dname, disc_data in sorted(disciplines.items()):
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import threading
+
+    _discipline_lock = threading.Lock()
+
+    def _analyze_one(dname, disc_data):
         logger.info("analyzing_discipline", discipline=dname)
         disc_out = out_dir / _safe_filename(dname)
         os.makedirs(disc_out, exist_ok=True)
@@ -375,17 +417,17 @@ async def run_teacher_analysis(
         )
         if cov_result.is_err():
             logger.error("discipline_analysis_failed", discipline=dname, error=str(cov_result.err()))
-            continue
+            return None
         coverage = cov_result.unwrap()
 
         recs_result = rec_engine.generate(coverage)
         recs = recs_result.unwrap_or([])
 
-        for g in coverage.gaps_list:
-            all_gaps[g] += 1
+        with _discipline_lock:
+            for g in coverage.gaps_list:
+                all_gaps[g] += 1
 
         result = GapAnalysisResult(discipline=coverage, recommendations=recs)
-        discipline_reports.append((dname, result))
 
         disc_data_out = {
             "direction": dir_code,
@@ -432,10 +474,25 @@ async def run_teacher_analysis(
             )
         except Exception as exc:
             logger.error("discipline_file_write_failed", discipline=dname, error=str(exc))
-            continue
+            return None
         logger.info("discipline_done", discipline=dname,
                      coverage=f"{coverage.coverage_ratio * 100:.1f}%",
                      gaps=coverage.gaps, emerging=len(coverage.emerging))
+        return (dname, result)
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {
+            pool.submit(_analyze_one, dname, disc_data): dname
+            for dname, disc_data in sorted(disciplines.items())
+        }
+        for future in as_completed(futures):
+            dname = futures[future]
+            try:
+                res = future.result()
+                if res is not None:
+                    discipline_reports.append(res)
+            except Exception as e:
+                logger.error("discipline_parallel_failed", discipline=dname, error=str(e))
 
     # — enhanced gap analysis (embedding + LTR/SHAP) —
     try:
