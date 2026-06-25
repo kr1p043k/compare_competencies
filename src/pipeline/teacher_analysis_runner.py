@@ -706,6 +706,25 @@ async def run_teacher_analysis(
     except Exception as exc:
         logger.warning("teacher_chart_failed", error=str(exc))
 
+    # — save to coverage_analyses —
+    try:
+        for _, result in discipline_reports:
+            dc = result.discipline
+            if dc and dc.discipline_id:
+                dir_id = direction.get("id") if direction else None
+                cov_ratio = round(dc.coverage_ratio, 4)
+                await pool.execute(
+                    """INSERT INTO coverage_analyses
+                       (discipline_id, direction_id, total_skills,
+                        market_matched_skills, coverage_ratio, analysis_date)
+                       VALUES ($1, $2, $3, $4, $5, NOW())""",
+                    dc.discipline_id, dir_id,
+                    dc.total_skills, dc.market_matched, cov_ratio,
+                )
+        logger.info("coverage_analyses_saved", count=len(discipline_reports))
+    except Exception as exc:
+        logger.warning("coverage_analyses_save_failed", error=str(exc))
+
     # — save to pipeline_runs + analysis_results —
     try:
         params = {"direction": dir_code, "discipline_filter": discipline_filter, "disciplines": len(disciplines)}

@@ -1,5 +1,6 @@
 """Health, readiness и логи."""
 
+import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
@@ -54,21 +55,25 @@ class LogEntry(BaseModel):
 _LOG_FILE = Path(__file__).parent.parent.parent.parent / "frontend" / "logs" / "app.log"
 
 
+def _write_log_sync(entry: LogEntry) -> None:
+    _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(
+        {
+            "time": entry.timestamp or datetime.now().isoformat(),
+            "level": entry.level,
+            "message": entry.message,
+            "data": entry.data,
+        },
+        ensure_ascii=False,
+    )
+    with open(_LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+
 @router.post("/api/log")
 async def write_log(entry: LogEntry):
     try:
-        _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        line = json.dumps(
-            {
-                "time": entry.timestamp or datetime.now().isoformat(),
-                "level": entry.level,
-                "message": entry.message,
-                "data": entry.data,
-            },
-            ensure_ascii=False,
-        )
-        with open(_LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(line + "\n")
+        await asyncio.to_thread(_write_log_sync, entry)
     except Exception as e:
         logger.error("log_write_failed", error=str(e))
     return {"ok": True}
