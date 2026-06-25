@@ -31,8 +31,8 @@ logger = structlog.get_logger("api")
 
 async def run_startup(app):
     config.settings.ensure_dirs()
-    """Загружает все необходимые данные и модели в глобальное состояние."""
-    logger.info("Запуск API-сервера, инициализация движков...")
+    """Загружает минимально необходимые данные, остальное — фоном."""
+    logger.info("Запуск API-сервера, быстрая инициализация...")
 
     from src.db import create_pool as _create_apgpool
     await _create_apgpool()
@@ -61,6 +61,7 @@ async def run_startup(app):
         deps.student_profiles = {}
         for lvl in ExperienceLevel:
             deps.clusterer.load_model(lvl)
+        deps.is_ready = True
         logger.info("API запущен в режиме ожидания данных")
         return
 
@@ -89,11 +90,13 @@ async def run_startup(app):
         deps.student_profiles = {}
         for lvl in ExperienceLevel:
             deps.clusterer.load_model(lvl)
+        deps.is_ready = True
         logger.info("API запущен в режиме ожидания данных")
         return
 
     logger.info("Загружено вакансий", count=len(basic_vacancies))
 
+    # --- ДОЗАГРУЗКА ОПИСАНИЙ (только если basic, без описаний) ---
     has_descriptions = any(v.get("description") for v in basic_vacancies[:10])
     if not has_descriptions and basic_vacancies:
         logger.warning("Вакансии без описаний — загружаю детали...")
@@ -206,191 +209,150 @@ async def run_startup(app):
     whitelist = load_it_skills()
     deps.current_skills_set = whitelist
 
-    # 5. Подготовка данных по уровням
-    level_analyzer = SkillLevelAnalyzer()
-    level_vacancies_data = []
-    vacancies_skills = []
+    # 5. Быстрые данные
+    deps.hybrid_weights = hybrid_weights
+    deps.basic_vacancies = basic_vacancies
+    deps.competency_mapping = load_competency_mapping()
 
-    for vac in basic_vacancies:
-        vac_skills = []
-        if "extracted_skills" in vac:
-            vac_skills = vac["extracted_skills"]
-        else:
-            desc = vac.get("description", "")
-            snip = vac.get("snippet") or {}
-            req = snip.get("requirement", "")
-            resp = snip.get("responsibility", "")
-            combined = f"{desc} {req} {resp}"
+    from src.api_pkg.request_logger import start_log_flusher
+    start_log_flusher()
+
+    with deps.init_lock:
+        deps.is_ready = True
+    logger.info("API готов к работе (фоновый разогрев продолжается)")
+
+    # 6. Фоновый разогрев — все тяжёлые движки
+    asyncio.create_task(_warmup_background(parser, basic_vacancies, hybrid_weights))
+
+
+async def _warmup_background(parser, basic_vacancies, hybrid_weights):
+    """Загружает тяжёлые компоненты после старта API."""
+    logger.info("Фоновый разогрев: уровень анализа, evaluator, тренды, Prophet...")
+
+    try:
+        # Уровневый анализ вакансий (шаг 5)
+        level_analyzer = SkillLevelAnalyzer()
+        level_vacancies_data = []
+        vacancies_skills = []
+
+        for vac in basic_vacancies:
             vac_skills = []
-            match parser.extract_skills_from_description(combined):
-                case Ok(sk):
-                    vac_skills = sk
-                case _:
-                    pass
+            if "extracted_skills" in vac:
+                vac_skills = vac["extracted_skills"]
+            else:
+                desc = vac.get("description", "")
+                snip = vac.get("snippet") or {}
+                req = snip.get("requirement", "")
+                resp = snip.get("responsibility", "")
+                combined = f"{desc} {req} {resp}"
+                vac_skills = []
+                match parser.extract_skills_from_description(combined):
+                    case Ok(sk):
+                        vac_skills = sk
+                    case _:
+                        pass
 
-        experience = ExperienceLevel.MIDDLE
-        if "experience" in vac:
-            exp_obj = vac["experience"]
-            if isinstance(exp_obj, dict):
-                exp_id = exp_obj.get("id", "").lower()
-                if "less1" in exp_id or "junior" in exp_id or "no_experience" in exp_id:
+            experience = ExperienceLevel.MIDDLE
+            if "experience" in vac:
+                exp_obj = vac["experience"]
+                if isinstance(exp_obj, dict):
+                    exp_id = exp_obj.get("id", "").lower()
+                    if "less1" in exp_id or "junior" in exp_id or "no_experience" in exp_id:
+                        experience = ExperienceLevel.JUNIOR
+                    elif "between1and3" in exp_id or "between3and6" in exp_id:
+                        experience = ExperienceLevel.MIDDLE
+                    elif "between6and10" in exp_id or "morethan10" in exp_id:
+                        experience = ExperienceLevel.SENIOR
+                elif isinstance(exp_obj, str):
+                    exp_lower = exp_obj.lower()
+                    if "junior" in exp_lower or "нет опыта" in exp_lower or "стажер" in exp_lower:
+                        experience = ExperienceLevel.JUNIOR
+                    elif "senior" in exp_lower or "более 6" in exp_lower:
+                        experience = ExperienceLevel.SENIOR
+            if experience == ExperienceLevel.MIDDLE:
+                name = vac.get("name", "").lower()
+                if "junior" in name or "младший" in name or "стажер" in name or "intern" in name:
                     experience = ExperienceLevel.JUNIOR
-                elif "between1and3" in exp_id or "between3and6" in exp_id:
-                    experience = ExperienceLevel.MIDDLE
-                elif "between6and10" in exp_id or "morethan10" in exp_id:
+                elif "senior" in name or "старший" in name or "ведущий" in name:
                     experience = ExperienceLevel.SENIOR
-            elif isinstance(exp_obj, str):
-                exp_lower = exp_obj.lower()
-                if (
-                    "junior" in exp_lower
-                    or "нет опыта" in exp_lower
-                    or "стажер" in exp_lower
-                ):
-                    experience = ExperienceLevel.JUNIOR
-                elif "senior" in exp_lower or "более 6" in exp_lower:
-                    experience = ExperienceLevel.SENIOR
-        if experience == ExperienceLevel.MIDDLE:
-            name = vac.get("name", "").lower()
-            if (
-                "junior" in name
-                or "младший" in name
-                or "стажер" in name
-                or "intern" in name
-            ):
-                experience = ExperienceLevel.JUNIOR
-            elif "senior" in name or "старший" in name or "ведущий" in name:
-                experience = ExperienceLevel.SENIOR
-        if vac_skills:
-            level_vacancies_data.append(
-                {
+            if vac_skills:
+                level_vacancies_data.append({
                     "skills": vac_skills,
                     "description": vac.get("description", ""),
                     "experience": experience,
-                }
-            )
-            vacancies_skills.append(vac_skills)
+                })
+                vacancies_skills.append(vac_skills)
 
-    level_analyzer.analyze_vacancies(level_vacancies_data)
+        level_analyzer.analyze_vacancies(level_vacancies_data)
 
-    # 6. Веса по уровням
-    skill_weights_by_level = {}
-    for level in ExperienceLevel:
-        match level_analyzer.get_weights_for_level(deps.skill_weights, level):
-            case Ok(w):
-                skill_weights_by_level[level] = w
-            case Err(err):
-                logger.error("get_weights_for_level_failed", level=str(level), error=str(err))
-                skill_weights_by_level[level] = {}
+        # Веса по уровням
+        skill_weights_by_level = {}
+        for level in ExperienceLevel:
+            match level_analyzer.get_weights_for_level(deps.skill_weights, level):
+                case Ok(w):
+                    skill_weights_by_level[level] = w
+                case Err(err):
+                    logger.error("get_weights_for_level_failed", level=str(level), error=str(err))
+                    skill_weights_by_level[level] = {}
 
-    # 7. Студенческие профили
-    deps.competency_mapping = load_competency_mapping()
+        logger.info("Фоновый разогрев: уровень анализа завершён")
+    except Exception as e:
+        logger.warning("Фоновый разогрев: уровень анализа не удался", error=str(e))
+        level_vacancies_data = []
+        vacancies_skills = []
+        skill_weights_by_level = {}
 
-    def load_student_codes(name: str) -> list[str]:
-        path = config.DATA_DIR / "students" / f"{name}_competency.json"
-        if not path.exists():
-            path = config.DATA_DIR / "students" / f"{name}.json"
-        try:
-            with open(path, encoding="utf-8") as f:
-                data = json.load(f)
-            return (
-                data.get("компетенции") or data.get("навыки") or data.get("codes") or []
-            )
-        except Exception:
-            return []
-
-    def map_codes(codes):
-        if not deps.competency_mapping:
-            return codes
-        skills = set()
-        for code in codes:
-            code_norm = "".join(c for c in code if c.isalnum()).upper()
-            for key, value in deps.competency_mapping.items():
-                key_norm = "".join(c for c in key if c.isalnum()).upper()
-                if code_norm == key_norm:
-                    skills.update(value)
-                    break
-        return list(skills)
-
-    profile_levels = {
-        "base": ExperienceLevel.JUNIOR,
-        "dc": ExperienceLevel.MIDDLE,
-        "top_dc": ExperienceLevel.SENIOR,
-    }
-    for pname, target in profile_levels.items():
-        codes = load_student_codes(pname)
-        if pname == "top_dc":
-            top_codes = load_student_codes("top_dc")
-            dc_codes = load_student_codes("dc")
-            base_codes = load_student_codes("base")
-            top_skills = map_codes(top_codes)
-            dc_skills = map_codes(dc_codes)
-            base_skills = map_codes(base_codes)
-            skills = merge_skills_hierarchically(top_skills, dc_skills, base_skills)
-        else:
-            skills = map_codes(codes)
-        def _unwrap(s):
-            match SkillNormalizer.normalize(s):
-                case Ok(n):
-                    return n
-                case _:
-                    return None
-
-        skills = [n for s in skills if (n := _unwrap(s))]
-        skills = list(dict.fromkeys(skills))
-        deps.student_profiles[pname] = StudentProfile(
-            profile_name=pname,
-            competencies=codes,
-            skills=skills,
-            target_level=target,
-        )
-
-    # 8. ProfileEvaluator и RecommendationEngine
-    deps.hybrid_weights = hybrid_weights
-    deps.basic_vacancies = basic_vacancies
-
-    deps.evaluator = ProfileEvaluator(
-        skill_weights=deps.skill_weights,
-        vacancies_skills=vacancies_skills,
-        vacancies_skills_dict=level_vacancies_data,
-        hybrid_weights=hybrid_weights,
-        skill_weights_by_level=skill_weights_by_level,
-    )
-    deps.recommendation_engine = RecommendationEngine(
-        use_ltr=True, use_llm=False, profile_evaluator=deps.evaluator
-    )
-    deps.recommendation_engine.comparator = CompetencyComparator(
-        ngram_range=(1, 2),
-        min_df=1,
-        max_df=0.95,
-        use_embeddings=True,
-        level=ComparisonLevel.MIDDLE,
-        similarity_threshold=0.80,
-    )
-    match deps.recommendation_engine.fit(vacancies_skills, skill_weights=hybrid_weights):
-        case Ok(_):
-            logger.info("recommendation_engine_fitted")
-        case Err(err):
-            logger.error("recommendation_engine_fit_failed", error=str(err))
-
-    # 9. Кластеры
-    for lvl in ExperienceLevel:
-        if not deps.clusterer.load_model(lvl):
-            logger.warning("Модель кластеров не найдена", level=str(lvl))
-
-    # 10. Тренды
-    whitelist_set = load_it_skills()
-    skill_freq_filtered = (
-        filter_skills_by_whitelist(deps.skill_freq, whitelist_set)
-        if whitelist_set
-        else deps.skill_freq
-    )
-    deps.trend_analyzer = TrendAnalyzer(skill_freq_filtered)
-
-    # 11. Prophet Forecast Engine
-    from src.predictors.prophet_forecast import ProphetForecastEngine, load_time_series
-    from src.database import async_session_factory
-
+    # ProfileEvaluator и RecommendationEngine
     try:
+        deps.evaluator = ProfileEvaluator(
+            skill_weights=deps.skill_weights,
+            vacancies_skills=vacancies_skills,
+            vacancies_skills_dict=level_vacancies_data,
+            hybrid_weights=hybrid_weights,
+            skill_weights_by_level=skill_weights_by_level,
+        )
+        deps.recommendation_engine = RecommendationEngine(
+            use_ltr=True, use_llm=False, profile_evaluator=deps.evaluator
+        )
+        deps.recommendation_engine.comparator = CompetencyComparator(
+            ngram_range=(1, 2), min_df=1, max_df=0.95,
+            use_embeddings=True, level=ComparisonLevel.MIDDLE, similarity_threshold=0.80,
+        )
+        match deps.recommendation_engine.fit(vacancies_skills, skill_weights=hybrid_weights):
+            case Ok(_):
+                logger.info("recommendation_engine_fitted")
+            case Err(err):
+                logger.error("recommendation_engine_fit_failed", error=str(err))
+        logger.info("Фоновый разогрев: evaluator + recommendation готовы")
+    except Exception as e:
+        logger.warning("Фоновый разогрев: evaluator не удался", error=str(e))
+
+    # Кластеры
+    try:
+        for lvl in ExperienceLevel:
+            if not deps.clusterer.load_model(lvl):
+                logger.warning("Модель кластеров не найдена", level=str(lvl))
+        logger.info("Фоновый разогрев: кластеры загружены")
+    except Exception as e:
+        logger.warning("Фоновый разогрев: кластеры не загружены", error=str(e))
+
+    # Тренды
+    try:
+        whitelist_set = deps.current_skills_set or load_it_skills()
+        skill_freq_filtered = (
+            filter_skills_by_whitelist(deps.skill_freq, whitelist_set)
+            if whitelist_set else deps.skill_freq
+        )
+        deps.trend_analyzer = TrendAnalyzer(skill_freq_filtered)
+        logger.info("Фоновый разогрев: trend_analyzer готов")
+    except Exception as e:
+        logger.warning("Фоновый разогрев: trend_analyzer не загружен", error=str(e))
+
+    # Prophet
+    try:
+        from src.predictors.prophet_forecast import ProphetForecastEngine, load_time_series
+        from src.database import async_session_factory
+
         async with async_session_factory() as session:
             match await load_time_series(session):
                 case Ok(snapshots):
@@ -406,15 +368,67 @@ async def run_startup(app):
                             logger.warning("prophet_engine_fit_failed", error=str(e))
                 case Err(e):
                     deps.prophet_engine = None
-                    logger.info("prophet_engine_unavailable_use_fallback",
-                                detail=str(e))
+                    logger.info("prophet_engine_unavailable_use_fallback", detail=str(e))
+        logger.info("Фоновый разогрев: Prophet готов")
     except Exception as e:
         deps.prophet_engine = None
-        logger.warning("prophet_engine_init_error", error=str(e))
+        logger.warning("Фоновый разогрев: Prophet не загружен", error=str(e))
 
-    from src.api_pkg.request_logger import start_log_flusher
-    start_log_flusher()
+    # Студенческие профили
+    try:
+        deps.competency_mapping = deps.competency_mapping or load_competency_mapping()
 
-    with deps.init_lock:
-        deps.is_ready = True
-    logger.info("API готов к работе")
+        def load_student_codes(name):
+            path = config.DATA_DIR / "students" / f"{name}_competency.json"
+            if not path.exists():
+                path = config.DATA_DIR / "students" / f"{name}.json"
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                return data.get("компетенции") or data.get("навыки") or data.get("codes") or []
+            except Exception:
+                return []
+
+        def map_codes(codes):
+            if not deps.competency_mapping:
+                return codes
+            skills = set()
+            for code in codes:
+                code_norm = "".join(c for c in code if c.isalnum()).upper()
+                for key, value in deps.competency_mapping.items():
+                    key_norm = "".join(c for c in key if c.isalnum()).upper()
+                    if code_norm == key_norm:
+                        skills.update(value)
+                        break
+            return list(skills)
+
+        profile_levels = {"base": ExperienceLevel.JUNIOR, "dc": ExperienceLevel.MIDDLE, "top_dc": ExperienceLevel.SENIOR}
+        for pname, target in profile_levels.items():
+            codes = load_student_codes(pname)
+            if pname == "top_dc":
+                top_codes = load_student_codes("top_dc")
+                dc_codes = load_student_codes("dc")
+                base_codes = load_student_codes("base")
+                top_skills = map_codes(top_codes)
+                dc_skills = map_codes(dc_codes)
+                base_skills = map_codes(base_codes)
+                skills = merge_skills_hierarchically(top_skills, dc_skills, base_skills)
+            else:
+                skills = map_codes(codes)
+
+            def _unwrap(s):
+                match SkillNormalizer.normalize(s):
+                    case Ok(n):
+                        return n
+                    case _:
+                        return None
+            skills = [n for s in skills if (n := _unwrap(s))]
+            skills = list(dict.fromkeys(skills))
+            deps.student_profiles[pname] = StudentProfile(
+                profile_name=pname, competencies=codes, skills=skills, target_level=target,
+            )
+        logger.info("Фоновый разогрев: студенческие профили готовы")
+    except Exception as e:
+        logger.warning("Фоновый разогрев: студенческие профили не загружены", error=str(e))
+
+    logger.info("Фоновый разогрев завершён")

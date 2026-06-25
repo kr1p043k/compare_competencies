@@ -496,20 +496,6 @@ async def admin_backup_db(request: Request):
     return {"status": "ok", "message": "Backup created"}
 
 
-@router.post("/admin/db/export-results")
-@limiter.limit("1/minute")
-async def admin_export_results(request: Request, background_tasks: BackgroundTasks):
-    """Migrate existing JSON pipeline results to PostgreSQL."""
-    background_tasks.add_task(_run_export_results)
-    return {"status": "started", "message": "Exporting results in background"}
-
-
-def _run_export_results() -> None:
-    import asyncio
-    from src.cli.export_results import main as er_main
-    asyncio.run(er_main())
-
-
 # ---------- Frontend log endpoint ----------
 
 
