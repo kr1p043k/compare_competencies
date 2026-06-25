@@ -125,10 +125,26 @@ async def get_vacancies_info():
     from datetime import datetime
     from src import config
     from src.api_pkg import deps
+    from src.db import get_pool
+
     f = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     bf = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
     raw = f if f.exists() else bf
     info = {"count": 0, "file_modified": None, "date_range": None, "load_error": deps.vacancy_load_error}
+
+    pool = get_pool()
+    last = await pool.fetchrow(
+        "SELECT completed_at, stats FROM pipeline_runs "
+        "WHERE action = 'full-cycle' AND status = 'completed' "
+        "ORDER BY completed_at DESC LIMIT 1"
+    )
+    total = await pool.fetchval(
+        "SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL"
+    )
+    info["last_updated"] = str(last["completed_at"]) if last else None
+    info["total_vacancies"] = total or 0
+    info["last_pipeline_stats"] = last["stats"] if last else None
+
     if raw.exists():
         mtime = os.path.getmtime(raw)
         info["file_modified"] = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")

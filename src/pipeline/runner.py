@@ -9,6 +9,8 @@ import matplotlib
 
 matplotlib.use("Agg")
 
+from datetime import date, datetime
+
 from src import Err, Ok, Result, config, timed_block
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.parsing.skills.skill_normalizer import SkillNormalizer
@@ -277,6 +279,18 @@ def run_full_pipeline(args) -> Result[None, str]:
     console_header("ПОЛНЫЙ ПАЙПЛАЙН: СБОР ВАКАНСИЙ + GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ")
     logger.info("pipeline_started", mode="full_pipeline")
 
+    # Определить дату последнего сбора для инкрементального запуска
+    try:
+        from src.db import get_pool
+        pool = get_pool()
+        row = pool.fetchrow(
+            "SELECT MAX(completed_at) AS d FROM pipeline_runs "
+            "WHERE action = 'full-cycle' AND status = 'completed'"
+        )
+        args._date_from = row["d"].strftime("%Y-%m-%d") if row and row["d"] else None
+    except Exception:
+        args._date_from = None
+
     _write_pipeline_progress(0, "Инициализация...")
 
     stages = [DataCollectionStage(args)]
@@ -378,6 +392,37 @@ def run_full_pipeline(args) -> Result[None, str]:
             logger.info("trend_snapshots_written", count=trend_count)
         except Exception as db_err:
             logger.warning("trend_snapshots_write_failed", error=str(db_err))
+
+        # Сохранить pipeline_run для full-cycle со статистикой
+        try:
+            pool = get_pool()
+            total = pool.fetchval("SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL")
+            new_vacs = (pool.fetchval(
+                "SELECT COUNT(*) FROM vacancies WHERE created_at::date >= $1::date",
+                args._date_from
+            ) if args._date_from else total) or 0
+            rid = asyncio.run(create_pipeline_run("full-cycle"))
+            asyncio.run(complete_pipeline_run(
+                rid, status="completed",
+                stats={
+                    "vacancy_count": total or 0,
+                    "new_vacancies": new_vacs,
+                    "date_from": args._date_from,
+                    "date_to": str(date.today()),
+                },
+            ))
+            logger.info("pipeline_run_saved", run_id=rid, stats={"vacancy_count": total, "new_vacancies": new_vacs})
+        except Exception as db_err:
+            logger.warning("pipeline_run_save_failed", error=str(db_err))
+
+        # Auto-reload API engines
+        try:
+            import asyncio as _asyncio
+            from src.api_pkg.startup import run_startup
+            _asyncio.run(run_startup(None))
+            logger.info("api_reloaded_after_pipeline")
+        except Exception as reload_err:
+            logger.warning("api_reload_failed", error=str(reload_err))
 
     _write_pipeline_progress(93, "Генерация графиков...")
     if evaluations:

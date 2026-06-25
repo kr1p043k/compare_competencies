@@ -500,6 +500,18 @@ async def get_pipeline_status(request: Request):
         "top_dc": (BASE_DIR / "data" / "result" / "top_dc" / "full_recommendations_top_dc.json").exists(),
     }
     skill_weights_exist = (BASE_DIR / "data" / "processed" / "skill_weights.json").exists()
+
+    from src.db import get_pool
+    pool = get_pool()
+    last = await pool.fetchrow(
+        "SELECT completed_at, stats FROM pipeline_runs "
+        "WHERE action = 'full-cycle' AND status = 'completed' "
+        "ORDER BY completed_at DESC LIMIT 1"
+    )
+    total = await pool.fetchval(
+        "SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL"
+    )
+
     return {
         "clusters": clusters_exist,
         "clusters_all_ready": all(clusters_exist.values()),
@@ -507,6 +519,9 @@ async def get_pipeline_status(request: Request):
         "recommendations": recommendations_exist,
         "recommendations_all_ready": all(recommendations_exist.values()),
         "skill_weights": skill_weights_exist,
+        "last_update": str(last["completed_at"]) if last else None,
+        "total_vacancies": total or 0,
+        "last_pipeline_stats": last["stats"] if last else None,
     }
 
 
