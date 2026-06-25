@@ -117,11 +117,21 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
             <div className="mb-4">
               <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Top Market-Matched Skills</div>
               <div className="flex flex-wrap gap-1.5">
-                {metrics.top_market_matched_skills.map((s, i) => (
-                  <Badge key={i} variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200">
-                    {s.skill} <span className="opacity-50 ml-1">×{s.frequency}</span>
-                  </Badge>
-                ))}
+                {metrics.top_market_matched_skills.map((s, i) => {
+                  const mtColors: Record<string,string> = {
+                    exact: "bg-green-50 text-green-700 border-green-300",
+                    fuzzy: "bg-yellow-50 text-yellow-700 border-yellow-300",
+                    semantic: "bg-blue-50 text-blue-700 border-blue-300",
+                  };
+                  const cls = mtColors[s.match_type] || "bg-gray-50 text-gray-500";
+                  return (
+                    <Badge key={i} variant="outline" className={`${cls} border text-xs`}>
+                      {s.skill}
+                      <span className="opacity-60 mx-1">×{s.frequency}</span>
+                      <span className="text-[10px] opacity-50">{s.match_type}</span>
+                    </Badge>
+                  );
+                })}
               </div>
             </div>
           )}

@@ -112,6 +112,10 @@ class CurriculumRecommender:
                     ),
                 ))
 
+        # Дедупликация: убрать повторяющиеся сообщения
+        seen: set[str] = set()
+        recs = [r for r in recs if not (r.message in seen or seen.add(r.message))]
+
         logger.info("recommendations_generated",
                      discipline=coverage.discipline_name, count=len(recs))
         return Ok(recs)

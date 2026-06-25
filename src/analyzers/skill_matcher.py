@@ -1,9 +1,10 @@
-"""Skill matching: normalize, exact, fuzzy, substring matching."""
+"""Skill matching: normalize, exact, fuzzy, semantic (embedding)."""
 from __future__ import annotations
 
 import re
 from typing import Any
 
+import numpy as np
 import structlog
 
 from src.result import Ok, Err, Result
@@ -12,6 +13,7 @@ from src.errors import MatchingError
 logger = structlog.get_logger(__name__)
 
 NORMALIZE_RE = re.compile(r"[^\w\s-]")
+SEMANTIC_THRESHOLD = 0.78
 
 
 def normalize(s: str) -> str:
@@ -27,14 +29,25 @@ def coverage_level(ratio: float) -> str:
 
 
 class SkillMatcher:
-    def __init__(self, market_skills: dict[str, int] | None = None):
+    def __init__(self, market_skills: dict[str, int] | None = None,
+                 embedding_provider: Any | None = None):
         self.market_skills: dict[str, int] = market_skills or {}
+        self._embedding_provider = embedding_provider
+        self._market_embeddings: np.ndarray | None = None
+        self._market_names: list[str] = []
+        self._semantic_cache: dict[str, str] = {}
 
     def set_market(self, market_skills: dict[str, int]) -> Result[None, MatchingError]:
         if not market_skills:
             logger.warning("market_skills_empty")
             return Err(MatchingError(skill_name="", message="Empty market skills map"))
         self.market_skills = market_skills
+        self._semantic_cache.clear()
+        if self._embedding_provider and market_skills:
+            names = list(market_skills.keys())
+            embs = self._embedding_provider.encode(names, show_progress_bar=False)
+            self._market_embeddings = embs / np.linalg.norm(embs, axis=1, keepdims=True)
+            self._market_names = names
         logger.info("market_skills_set", count=len(market_skills))
         return Ok(None)
 
@@ -42,6 +55,21 @@ class SkillMatcher:
     def _word_match(a: str, b: str) -> bool:
         """True if 'a' appears as a whole word in 'b' (word-boundary aware)."""
         return bool(re.search(r"(?<!\w)" + re.escape(a) + r"(?!\w)", b))
+
+    def _semantic_match(self, n: str) -> tuple[str | None, str]:
+        if n in self._semantic_cache:
+            return (self._semantic_cache[n], "semantic")
+        if self._market_embeddings is None or self._embedding_provider is None:
+            return (None, "no_match")
+        qemb = self._embedding_provider.encode([n])
+        qemb /= np.linalg.norm(qemb)
+        sims = self._market_embeddings @ qemb.T
+        best = int(np.argmax(sims))
+        score = float(sims[best])
+        if score >= SEMANTIC_THRESHOLD:
+            self._semantic_cache[n] = self._market_names[best]
+            return (self._market_names[best], "semantic")
+        return (None, "no_match")
 
     def match(self, skill_name: str) -> Result[tuple[str | None, str], MatchingError]:
         n = normalize(skill_name)
@@ -58,7 +86,10 @@ class SkillMatcher:
                 logger.debug("skill_fuzzy_match", rpd_skill=n, market_skill=mn)
                 return Ok((mn, "fuzzy"))
 
-        return Ok((None, "no_match"))
+        mn, mt = self._semantic_match(n)
+        if mn:
+            logger.debug("skill_semantic_match", rpd_skill=n, market_skill=mn)
+        return Ok((mn, mt))
 
     def get_emerging(
         self, rpd_normalized: set[str], top_n: int = 10,

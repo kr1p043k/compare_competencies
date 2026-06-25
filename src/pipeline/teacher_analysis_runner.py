@@ -357,7 +357,8 @@ async def run_teacher_analysis(
     logger.info("snapshots_loaded", count=len(snapshots))
 
     # — init services —
-    matcher = SkillMatcher(market_skills)
+    from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+    matcher = SkillMatcher(market_skills, embedding_provider=EmbeddingProviderFactory.get())
     coverage_analyzer = CoverageAnalyzer(matcher)
     trend_analyzer = SnapshotTrendAnalyzer(snapshots)
     rec_engine = CurriculumRecommender()
