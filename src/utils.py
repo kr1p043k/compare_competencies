@@ -21,6 +21,10 @@ from src.errors import DomainError
 logger = structlog.get_logger(__name__)
 
 
+def skill_words(name: str) -> set[str]:
+    return set(name.lower().replace("-", " ").split())
+
+
 def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
     """Возвращает логгер с указанным именем (устаревшая, используйте structlog)."""
     logger = logging.getLogger(name)
