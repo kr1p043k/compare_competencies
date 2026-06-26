@@ -1,6 +1,8 @@
 services:
   backend:
-    image: ghcr.io/kr1p043k/compare_competencies:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: compare-competencies-api
     ports:
       - "8000:8000"
@@ -10,13 +12,14 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./uploads:/app/uploads
+      - ./cache:/root/.cache  # Для кеша моделей HF
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 30s
     networks:
       - ai-net
       - monitoring
@@ -28,10 +31,45 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@competency-postgres:5432/${POSTGRES_DB:-compare_competencies}
       - OLLAMA_URL=http://ollama:11434
+      # Hugging Face настройки
+      - HF_HOME=/root/.cache/huggingface
+      - HF_HUB_CACHE=/root/.cache/huggingface
+      - TRANSFORMERS_CACHE=/root/.cache/huggingface
+      - HF_HUB_OFFLINE=0
+      - TRANSFORMERS_OFFLINE=0
+      - HF_ENDPOINT=https://hf-mirror.com  # Зеркало для России
     labels:
       - "prometheus.scrape=true"
       - "prometheus.port=8000"
       - "prometheus.path=/metrics"
+
+  # ============================================
+  # ✅ ФРОНТЕНД
+  # ============================================
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://backend:8000
+    container_name: compare-competencies-frontend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    networks:
+      - ai-net
+      - monitoring
+    depends_on:
+      - backend
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   ollama:
     image: ollama/ollama:latest
