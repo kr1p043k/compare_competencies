@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -15,54 +15,53 @@ function figmaAssetResolver() {
   }
 }
 
-export default defineConfig({
-  plugins: [
-    figmaAssetResolver(),
-    react(),
-    tailwindcss(),
-  ],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
-  },
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
   
-  // ============================================
-  // 🔧 НАСТРОЙКИ СЕРВЕРА
-  // ============================================
-  server: {
-    port: 3000,           // Порт для разработки
-    host: true,           // Слушать все сетевые интерфейсы (0.0.0.0)
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/health': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-        secure: false,
-      },
-    }
-  },
-
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-    assetsDir: 'assets',
-    rollupOptions: {
-      output: {
-        manualChunks(id: string) {
-          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) return 'vendor-react';
-          if (id.includes('node_modules/recharts')) return 'vendor-recharts';
-          if (id.includes('node_modules/lucide-react')) return 'vendor-icons';
-          if (id.includes('node_modules/motion')) return 'vendor-motion';
-          if (id.includes('node_modules')) return 'vendor-other';
-        },
+  return {
+    plugins: [
+      figmaAssetResolver(),
+      react(),
+      tailwindcss(),
+    ],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, './src'),
       },
     },
-  },
+    
+    base: '/',
+    
+    server: {
+      port: 3000,
+      host: true,
+      proxy: {
+        '/api': {
+          target: env.VITE_API_URL || 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/health': {
+          target: env.VITE_API_URL || 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+      }
+    },
 
-  assetsInclude: ['**/*.svg', '**/*.csv'],
+    build: {
+      outDir: 'dist',
+      emptyOutDir: true,
+      assetsDir: 'assets',
+      sourcemap: false,
+      // Убираем manualChunks - все в один файл
+      rollupOptions: {
+        output: {
+          manualChunks: undefined
+        }
+      },
+    },
+
+    assetsInclude: ['**/*.svg', '**/*.csv'],
+  }
 })
