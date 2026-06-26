@@ -206,7 +206,7 @@ async def run_startup(app):
     from src.api_pkg.request_logger import start_log_flusher
     start_log_flusher()
 
-    with deps.init_lock:
+    async with deps.init_lock:
         deps.is_ready = True
     logger.info("API готов к работе (фоновая инициализация продолжается)")
 

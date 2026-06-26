@@ -1,6 +1,6 @@
 """Dependency injection — DI-контейнер + глобальное состояние для роутеров."""
 
-from threading import Lock
+import asyncio
 
 from fastapi import HTTPException
 from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
@@ -14,7 +14,7 @@ from src.predictors.recommendation_engine import RecommendationEngine
 
 # Module-level globals — устанавливаются в startup.py, read-only после инициализации.
 # Защищены блокировкой для избежания race condition при параллельных запросах во время startup.
-init_lock = Lock()
+init_lock = asyncio.Lock()
 
 evaluator: ProfileEvaluator | None = None
 recommendation_engine: RecommendationEngine | None = None
