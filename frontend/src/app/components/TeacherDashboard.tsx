@@ -520,7 +520,7 @@ export function TeacherDashboard() {
                   key={comp.code}
                   style={{
                     marginBottom: 8,
-                    border: "1px solid #2d2d4a",
+                    border: "1px solid #d1d5db",
                     borderRadius: 8,
                     overflow: "hidden",
                   }}
@@ -566,7 +566,7 @@ export function TeacherDashboard() {
                       <div
                         style={{
                           marginTop: 12,
-                          borderTop: "1px solid #2d2d4a",
+                          borderTop: "1px solid #d1d5db",
                           paddingTop: 12,
                         }}
                       >

@@ -22,10 +22,10 @@ limiter = Limiter(key_func=get_remote_address)
 # ---------- models ----------
 
 class RecommendationIn(BaseModel):
-    discipline: str
-    competency: str
+    discipline_id: str
+    competency_id: str
     suggestion: str
-    type: str = "modify"
+    suggestion_type: str = "modify"
 
 
 class RecommendationOut(RecommendationIn):
