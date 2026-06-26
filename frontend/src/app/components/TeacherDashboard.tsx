@@ -77,6 +77,7 @@ export function TeacherDashboard() {
   const [analysis, setAnalysis] = useState<DirectionAnalysis | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends">("coverage");
+  const [showAddForm, setShowAddForm] = useState(false);
   const [runLoading, setRunLoading] = useState(false);
 
   useEffect(() => {
@@ -115,7 +116,7 @@ export function TeacherDashboard() {
   async function addRec() {
     if (!selected || !suggestion.trim()) return;
     try {
-      await api("/teacher/krm/recommendations", {
+      const resp = await api("/teacher/krm/recommendations", {
         method: "POST",
         body: JSON.stringify({
           discipline_id: selected.name,
@@ -127,18 +128,18 @@ export function TeacherDashboard() {
       setRecs((prev) => [
         ...prev,
         {
-          id: String(Date.now()),
-          discipline: selected.name,
-          competency: expandedComp || "",
+          id: resp.id,
+          discipline_id: selected.name,
+          competency_id: expandedComp || "",
           suggestion: suggestion.trim(),
-          type: recType,
+          suggestion_type: recType,
         },
       ]);
       setSuggestion("");
     } catch {}
   }
 
-  async function deleteRec(id: string) {
+  async function deleteRec(id: number) {
     try {
       await api(`/teacher/krm/recommendations/${id}`, { method: "DELETE" });
       setRecs((prev) => prev.filter((r) => r.id !== id));
@@ -553,130 +554,89 @@ export function TeacherDashboard() {
                       {comp.skills.map((sk, i) => (
                         <div
                           key={i}
-                          style={{
-                            padding: "4px 0",
-                            fontSize: 12,
-                            lineHeight: 1.5,
-                            borderBottom: "1px solid #1f1f3a",
-                          }}
+                          className="py-1 text-xs leading-relaxed border-b border-gray-100"
                         >
                           {sk.name}
                         </div>
                       ))}
-                      <div
-                        style={{
-                          marginTop: 12,
-                          borderTop: "1px solid #d1d5db",
-                          paddingTop: 12,
-                        }}
-                      >
-                        <textarea
-                          placeholder="Your recommendation for this competency..."
-                          value={suggestion}
-                          onChange={(e) => setSuggestion(e.target.value)}
-                          rows={2}
-                          style={{
-                            width: "100%",
-                            padding: "8px",
-                            background: "#fff",
-                            border: "1px solid #d1d5db",
-                            borderRadius: 6,
-                            color: "#1f2937",
-                            fontSize: 12,
-                            resize: "vertical",
-                            outline: "none",
-                            boxSizing: "border-box",
-                          }}
-                        />
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            marginTop: 8,
-                            alignItems: "center",
-                          }}
-                        >
-                          <select
-                            value={recType}
-                            onChange={(e) => setRecType(e.target.value)}
-                            style={{
-                              padding: "6px 8px",
-                              background: "#fff",
-                              border: "1px solid #d1d5db",
-                              borderRadius: 6,
-                              color: "#1f2937",
-                              fontSize: 12,
-                              outline: "none",
-                            }}
-                          >
-                            <option value="modify">Modify</option>
-                            <option value="add">Add</option>
-                            <option value="remove">Remove</option>
-                          </select>
-                          <button
-                            onClick={addRec}
-                            style={{
-                              padding: "6px 14px",
-                              background: "#7c3aed",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: 6,
-                              cursor: "pointer",
-                              fontSize: 12,
-                            }}
-                          >
-                            Add Recommendation
-                          </button>
-                        </div>
-                      </div>
                     </div>
                   )}
                 </div>
               );
             })}
 
-            {recs.length > 0 && (
-              <div style={{ marginTop: 32 }}>
-                <h3 style={{ fontSize: 14, margin: "0 0 12px", color: "#7c3aed" }}>
-                  Recommendations
-                </h3>
-                {recs
-                  .filter((r) => r.discipline === selected.name)
+            <div className="mt-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center justify-center w-8 h-8 bg-purple-600 rounded-lg">
+                  <span className="text-white text-sm font-bold">!</span>
+                </div>
+                <h3 className="text-sm font-semibold text-gray-900">Recommendations</h3>
+                <span className="text-xs text-gray-400">({recs.filter((r) => r.discipline_id === selected?.name).length})</span>
+                <button
+                  onClick={() => setShowAddForm(!showAddForm)}
+                  className="ml-auto text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors cursor-pointer border-0"
+                >
+                  {showAddForm ? "Cancel" : "Add Recommendation"}
+                </button>
+              </div>
+              {showAddForm && (
+                <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <textarea
+                    placeholder="Your recommendation for this competency..."
+                    value={suggestion}
+                    onChange={(e) => setSuggestion(e.target.value)}
+                    rows={2}
+                    className="w-full p-2 text-sm border border-gray-300 rounded-lg resize-vertical outline-none box-border"
+                    style={{ background: "#fff", color: "#1f2937" }}
+                  />
+                  <div className="flex gap-2 mt-2 items-center">
+                    <select
+                      value={recType}
+                      onChange={(e) => setRecType(e.target.value)}
+                      className="h-9 px-2 text-sm bg-white border border-gray-300 rounded-lg outline-none text-gray-900"
+                    >
+                      <option value="modify">Modify</option>
+                      <option value="add">Add</option>
+                      <option value="remove">Remove</option>
+                    </select>
+                    <button
+                      onClick={() => { addRec(); setShowAddForm(false); }}
+                      className="h-9 px-4 text-sm bg-purple-600 text-white border-0 rounded-lg cursor-pointer hover:bg-purple-700 transition-colors"
+                    >
+                      Send
+                    </button>
+                  </div>
+                </div>
+              )}
+              {recs.filter((r) => r.discipline_id === selected?.name).length === 0 ? (
+                <div className="text-xs text-gray-400 bg-gray-50 rounded-lg p-4 text-center">
+                  No recommendations for this discipline yet
+                </div>
+              ) : (
+                recs
+                  .filter((r) => r.discipline_id === selected?.name)
                   .map((r, i) => (
                     <div
                       key={i}
+                      className="border border-gray-100 rounded-lg p-3 mb-2 text-sm"
                       style={{
-                        padding: "8px 12px",
-                        marginBottom: 6,
-                        background: "#fff",
-                        borderRadius: 6,
                         borderLeft: "3px solid #7c3aed",
-                        fontSize: 12,
                       }}
                     >
-                      <div style={{ color: "#9ca3af", marginBottom: 4 }}>
-                        [{r.type}] {r.competency}
+                      <div className="text-gray-400 mb-1 text-xs">
+                        [{r.suggestion_type}] {r.competency_id}
                       </div>
-                      <div>{r.suggestion}</div>
+                      <div className="text-gray-900">{r.suggestion}</div>
                       <button
                         onClick={() => deleteRec(r.id)}
-                        style={{
-                          marginTop: 6,
-                          padding: "2px 8px",
-                          background: "transparent",
-                          color: "#ef4444",
-                          border: "1px solid #ef4444",
-                          borderRadius: 4,
-                          cursor: "pointer",
-                          fontSize: 11,
-                        }}
+                        className="mt-2 text-xs text-red-500 border border-red-500 rounded px-2 py-0.5 hover:bg-red-50 transition-colors bg-transparent cursor-pointer"
                       >
                         Delete
                       </button>
                     </div>
-                  ))}
-              </div>
-            )}
+                  ))
+              )}
+            </div>
           </>
         )}
       </div>
