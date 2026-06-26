@@ -39,7 +39,7 @@ type Competency = {
   id: string;
   code: string;
   name: string;
-  skills: { id: string; name: string }[];
+  skills: string[];
 };
 
 type DisciplineDetail = {
@@ -49,11 +49,11 @@ type DisciplineDetail = {
 };
 
 type Recommendation = {
-  id: string;
-  discipline: string;
-  competency: string;
+  id: number;
+  discipline_id: string;
+  competency_id: string;
   suggestion: string;
-  type: string;
+  suggestion_type: string;
 };
 
 type Stats = {
@@ -535,7 +535,7 @@ export function TeacherDashboard() {
                   ) : (
                     comp.skills.map((sk, i) => (
                       <div key={i} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 last:border-0">
-                        {sk.name}
+                        {sk}
                       </div>
                     ))
                   )}
@@ -614,7 +614,7 @@ export function TeacherDashboard() {
                       }}
                     >
                       <div className="text-gray-400 mb-1 text-xs">
-                        [{r.suggestion_type}] {r.competency_id}
+                        [{r.suggestion_type}] {r.competency_id || "all competencies"}
                       </div>
                       <div className="text-gray-900">{r.suggestion}</div>
                       <button
