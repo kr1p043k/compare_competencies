@@ -579,9 +579,9 @@ export function TeacherDashboard() {
                             width: "100%",
                             padding: "8px",
                             background: "#fff",
-                            border: "1px solid #2d2d4a",
+                            border: "1px solid #d1d5db",
                             borderRadius: 6,
-                            color: "#e0e0e0",
+                            color: "#1f2937",
                             fontSize: 12,
                             resize: "vertical",
                             outline: "none",
@@ -602,9 +602,9 @@ export function TeacherDashboard() {
                             style={{
                               padding: "6px 8px",
                               background: "#fff",
-                              border: "1px solid #2d2d4a",
+                              border: "1px solid #d1d5db",
                               borderRadius: 6,
-                              color: "#e0e0e0",
+                              color: "#1f2937",
                               fontSize: 12,
                               outline: "none",
                             }}
