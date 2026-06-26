@@ -614,7 +614,7 @@ export function TeacherDashboard() {
                       }}
                     >
                       <div className="text-gray-400 mb-1 text-xs">
-                        [{r.suggestion_type}] {r.competency_id || "all competencies"}
+                        [{r.suggestion_type}] {r.competency_id}
                       </div>
                       <div className="text-gray-900">{r.suggestion}</div>
                       <button
