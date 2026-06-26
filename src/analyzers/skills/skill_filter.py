@@ -44,7 +44,6 @@ class SkillFilter:
                 return set(json.load(f))
         except Exception:
             return set()
-        logger.info("skill_filter_initialized", reference_skills_count=len(self.reference_skills))
 
     def filter_weights(self, skill_weights: dict[str, float], min_weight: float = 0.01) -> Result[dict[str, float], DomainError]:
         """

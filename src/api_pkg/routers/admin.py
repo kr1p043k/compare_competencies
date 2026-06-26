@@ -243,8 +243,8 @@ async def export_excel(request: Request):
     if not raw_file.exists():
         raise HTTPException(status_code=404, detail="No vacancy data found")
 
-    with open(raw_file, encoding="utf-8") as f:
-        vacancies = json.load(f)
+    import asyncio
+    vacancies = await asyncio.to_thread(lambda: json.loads(raw_file.read_bytes()))
 
     rows = []
     for vac in vacancies:

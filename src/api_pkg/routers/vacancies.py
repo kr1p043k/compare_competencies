@@ -149,8 +149,8 @@ async def get_vacancies_info():
         mtime = os.path.getmtime(raw)
         info["file_modified"] = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
         try:
-            with open(raw, encoding="utf-8") as fh:
-                data = json.load(fh)
+            import asyncio
+            data = await asyncio.to_thread(lambda: json.loads(raw.read_bytes()))
             info["count"] = len(data)
             dates = sorted(set(v.get("published_at", "")[:10] for v in data if v.get("published_at")))
             if dates:

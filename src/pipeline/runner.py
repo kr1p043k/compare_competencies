@@ -230,13 +230,16 @@ def run_train_model(args=None) -> Result[None, str]:
     model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
     force = getattr(args, 'force', False) if args else False
     if model_path.exists() and not force:
-        ltr_engine = create_ranking_predictor(model_path=model_path)
-        if ltr_engine and ltr_engine.is_fitted:
-            model_mtime = model_path.stat().st_mtime
-            data_mtime = raw_file.stat().st_mtime
-            if model_mtime > data_mtime:
-                console_info("✅ Модель уже обучена и актуальна, обучение пропущено")
-                return Ok(None)
+        from src import Ok, Err, Result
+        match create_ranking_predictor(model_path=model_path):
+            case Ok(engine) if engine.is_fitted:
+                model_mtime = model_path.stat().st_mtime
+                data_mtime = raw_file.stat().st_mtime
+                if model_mtime > data_mtime:
+                    console_info("✅ Модель уже обучена и актуальна, обучение пропущено")
+                    return Ok(None)
+            case _:
+                pass
     training_vacancies = safe_read_json(raw_file)
     if not training_vacancies:
         console_info("❌ Не удалось прочитать или файл повреждён.")
@@ -282,11 +285,12 @@ def run_full_pipeline(args) -> Result[None, str]:
     # Определить дату последнего сбора для инкрементального запуска
     try:
         from src.db import get_pool
+        import asyncio
         pool = get_pool()
-        row = pool.fetchrow(
+        row = asyncio.run(pool.fetchrow(
             "SELECT MAX(completed_at) AS d FROM pipeline_runs "
             "WHERE action = 'full-cycle' AND status = 'completed'"
-        )
+        ))
         args._date_from = row["d"].strftime("%Y-%m-%d") if row and row["d"] else None
     except Exception:
         args._date_from = None

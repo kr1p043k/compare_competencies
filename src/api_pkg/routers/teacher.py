@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import asyncio
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -319,14 +319,19 @@ async def run_teacher_analysis_endpoint(
 ):
     async def _run():
         try:
-            result = subprocess.run(
-                [sys.executable, "-m", "src.cli", "teacher-analysis", "--direction", dir_code],
-                capture_output=True, text=True, timeout=600,
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, "-m", "src.cli", "teacher-analysis",
+                "--direction", dir_code,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
                 cwd=Path(__file__).resolve().parent.parent.parent.parent,
             )
-            logger.info("teacher_analysis_cli_done", returncode=result.returncode, stderr=result.stderr[-500:] if result.stderr else "")
-        except subprocess.TimeoutExpired:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+            logger.info("teacher_analysis_cli_done", returncode=proc.returncode,
+                         stderr=stderr.decode("utf-8", errors="ignore")[-500:])
+        except asyncio.TimeoutError:
             logger.error("teacher_analysis_cli_timeout")
+            if proc and proc.returncode is None:
+                proc.kill()
         except Exception as exc:
             logger.error("teacher_analysis_cli_error", error=str(exc))
 

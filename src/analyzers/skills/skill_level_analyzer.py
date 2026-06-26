@@ -87,7 +87,8 @@ class SkillLevelAnalyzer:
         max_level = max(levels_count.items(), key=lambda x: x[1])[0]
         total = sum(levels_count.values())
 
-        threshold = self.level_thresholds.get("junior", 0.3)
+        dominant_level = max_level
+        threshold = self.level_thresholds.get(dominant_level.lower(), 0.3)
         if len([level_name for level_name in levels_count if levels_count[level_name] / total > threshold]) >= 2:
             return "all_levels"
 
