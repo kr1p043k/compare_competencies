@@ -23,7 +23,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 class RecommendationIn(BaseModel):
     discipline_id: str
-    competency_id: str
+    competency_id: str | None = None
     suggestion: str
     suggestion_type: str = "modify"
 

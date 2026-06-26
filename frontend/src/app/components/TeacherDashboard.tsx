@@ -572,7 +572,7 @@ export function TeacherDashboard() {
                     </select>
                   )}
                   <textarea
-                    placeholder="Your recommendation for this competency..."
+                    placeholder={recType === "add" ? "Your recommendation for this discipline..." : "Your recommendation for this competency..."}
                     value={suggestion}
                     onChange={(e) => setSuggestion(e.target.value)}
                     rows={2}
@@ -582,7 +582,7 @@ export function TeacherDashboard() {
                   <div className="flex gap-2 mt-2 items-center">
                     <select
                       value={recType}
-                      onChange={(e) => setRecType(e.target.value)}
+                      onChange={(e) => { setRecType(e.target.value); setSelectedCompetency(""); }}
                       className="h-9 px-2 text-sm bg-white border border-gray-300 rounded-lg outline-none text-gray-900"
                     >
                       <option value="modify">Modify</option>
