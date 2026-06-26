@@ -65,7 +65,7 @@ type Stats = {
 export function TeacherDashboard() {
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [selected, setSelected] = useState<DisciplineDetail | null>(null);
-  const [expandedComp, setExpandedComp] = useState<string | null>(null);
+
   const [stats, setStats] = useState<Stats | null>(null);
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [suggestion, setSuggestion] = useState("");
@@ -78,6 +78,7 @@ export function TeacherDashboard() {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends">("coverage");
   const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedCompetency, setSelectedCompetency] = useState("");
   const [runLoading, setRunLoading] = useState(false);
 
   useEffect(() => {
@@ -116,11 +117,12 @@ export function TeacherDashboard() {
   async function addRec() {
     if (!selected || !suggestion.trim()) return;
     try {
+      const compId = recType === "add" ? "" : selectedCompetency;
       const resp = await api("/teacher/krm/recommendations", {
         method: "POST",
         body: JSON.stringify({
           discipline_id: selected.name,
-          competency_id: expandedComp || null,
+          competency_id: compId || null,
           suggestion: suggestion.trim(),
           suggestion_type: recType,
         }),
@@ -130,7 +132,7 @@ export function TeacherDashboard() {
         {
           id: resp.id,
           discipline_id: selected.name,
-          competency_id: expandedComp || "",
+          competency_id: compId || "",
           suggestion: suggestion.trim(),
           suggestion_type: recType,
         },
@@ -514,56 +516,32 @@ export function TeacherDashboard() {
             {/* Analysis panel for this discipline */}
             <AnalysisPanel disciplineName={selected.name} />
 
-            {selected.competencies.map((comp) => {
-              const isOpen = expandedComp === comp.code;
-              return (
-                <div
-                  key={comp.code}
-                  style={{
-                    marginBottom: 8,
-                    border: "1px solid #d1d5db",
-                    borderRadius: 8,
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    onClick={() => setExpandedComp(isOpen ? null : comp.code)}
-                    style={{
-                      padding: "10px 16px",
-                      background: "#f9fafb",
-                      cursor: "pointer",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, color: "#7c3aed" }}>
-                      {comp.code}
-                    </span>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>
-                      {comp.skills.length} skills {isOpen ? "v" : ">"}
-                    </span>
-                  </div>
-                  {isOpen && (
-                    <div style={{ padding: "8px 16px 12px" }}>
-                      {comp.skills.length === 0 && (
-                        <div style={{ color: "#9ca3af", fontSize: 12 }}>
-                          No skills extracted
-                        </div>
-                      )}
-                      {comp.skills.map((sk, i) => (
-                        <div
-                          key={i}
-                          className="py-1 text-xs leading-relaxed border-b border-gray-100"
-                        >
-                          {sk.name}
-                        </div>
-                      ))}
-                    </div>
+            {selected.competencies.map((comp) => (
+              <div
+                key={comp.code}
+                className="mb-2 border border-gray-200 rounded-lg overflow-hidden"
+              >
+                <div className="px-4 py-2.5 bg-gray-50 flex items-center gap-2">
+                  <span className="font-semibold text-sm text-purple-600">
+                    {comp.code}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {comp.skills.length} skills
+                  </span>
+                </div>
+                <div className="px-4 py-2">
+                  {comp.skills.length === 0 ? (
+                    <div className="text-xs text-gray-400">No skills extracted</div>
+                  ) : (
+                    comp.skills.map((sk, i) => (
+                      <div key={i} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 last:border-0">
+                        {sk.name}
+                      </div>
+                    ))
                   )}
                 </div>
-              );
-            })}
+              </div>
+            ))}
 
             <div className="mt-6">
               <div className="flex items-center gap-3 mb-3">
@@ -581,6 +559,18 @@ export function TeacherDashboard() {
               </div>
               {showAddForm && (
                 <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  {(recType === "modify" || recType === "remove") && (
+                    <select
+                      value={selectedCompetency}
+                      onChange={(e) => setSelectedCompetency(e.target.value)}
+                      className="w-full h-9 px-2 mb-2 text-sm bg-white border border-gray-300 rounded-lg outline-none text-gray-900"
+                    >
+                      <option value="">-- Select competency --</option>
+                      {selected?.competencies.map((c) => (
+                        <option key={c.code} value={c.code}>{c.code}</option>
+                      ))}
+                    </select>
+                  )}
                   <textarea
                     placeholder="Your recommendation for this competency..."
                     value={suggestion}
@@ -600,7 +590,7 @@ export function TeacherDashboard() {
                       <option value="remove">Remove</option>
                     </select>
                     <button
-                      onClick={() => { addRec(); setShowAddForm(false); }}
+                      onClick={() => { addRec(); setShowAddForm(false); setSelectedCompetency(""); }}
                       className="h-9 px-4 text-sm bg-purple-600 text-white border-0 rounded-lg cursor-pointer hover:bg-purple-700 transition-colors"
                     >
                       Send
