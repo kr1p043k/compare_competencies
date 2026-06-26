@@ -153,7 +153,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         market_emb = np.mean(list(self.skill_embeddings.values()), axis=0) if self.skill_embeddings else None
 
         for skill in all_skills:
-            target = self.skill_metadata[skill]["hybrid_weight_normalized"]
+            base_target = self.skill_metadata[skill]["hybrid_weight_normalized"]
 
             for domain_profile in _SYNTHETIC_DOMAIN_PROFILES:
                 student_skills = [s for s in domain_profile if s in self.skill_embeddings]
@@ -163,6 +163,8 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                     else market_emb
                 )
                 features = self._extract_features(skill, student_emb, student_skills)
+                relevance = 1.0 if skill in domain_profile else 0.2
+                target = base_target * relevance
                 X_rows.append(features)
                 y_rows.append(target)
 

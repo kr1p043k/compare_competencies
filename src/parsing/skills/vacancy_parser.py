@@ -211,9 +211,11 @@ class VacancyParser:
             try:
                 from src.parsing.skills.skill_normalizer import SkillNormalizer
 
-                deduped = SkillNormalizer.deduplicate(all_skills)
-                if isinstance(deduped, list):
-                    all_skills = deduped
+                match SkillNormalizer.deduplicate(all_skills):
+                    case Ok(deduped):
+                        all_skills = deduped
+                    case _:
+                        pass
             except Exception:
                 pass
 
@@ -284,9 +286,11 @@ class VacancyParser:
             try:
                 from src.parsing.skills.skill_normalizer import SkillNormalizer
 
-                deduped = SkillNormalizer.deduplicate(all_skills)
-                if isinstance(deduped, list):
-                    all_skills = deduped
+                match SkillNormalizer.deduplicate(all_skills):
+                    case Ok(deduped):
+                        all_skills = deduped
+                    case _:
+                        pass
             except Exception:
                 pass
 

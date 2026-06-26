@@ -20,6 +20,7 @@ def _engine():
         echo=settings.DATABASE_ECHO,
         pool_size=10,
         max_overflow=20,
+        pool_recycle=1800,
     )
 
 

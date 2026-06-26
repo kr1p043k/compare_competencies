@@ -48,15 +48,10 @@ class BM25Ranker:
                 logger.warning("stop_lemmas_load_failed_using_defaults", path=str(path), error=str(e))
         return _DEFAULT_STOP_LEMMAS
 
-    def _compute_corpus_hash(self, vacancies: list) -> str:  # <-- переименован
-        total_ids = 0
-        count = 0
-        for v in vacancies:
-            vid = v.get("id", "") if isinstance(v, dict) else v.id
-            if vid:
-                total_ids += int(vid) if str(vid).isdigit() else hash(str(vid))
-                count += 1
-        return f"{count}:{total_ids}"
+    def _compute_corpus_hash(self, vacancies: list) -> str:
+        import hashlib, json
+        ids = sorted(v.get("id", "") if isinstance(v, dict) else v.id for v in vacancies if v)
+        return hashlib.sha256(json.dumps(ids, ensure_ascii=False).encode()).hexdigest()[:16]
 
     def _extract_vacancy_text(self, vac) -> str:
         parts = []

@@ -1,4 +1,4 @@
-"""Инициализация API: загрузка данных, моделей, кэша."""
+﻿"""Инициализация API: загрузка данных, моделей, кэша."""
 
 import asyncio
 import hashlib
@@ -29,6 +29,24 @@ import src.api_pkg.deps as deps
 logger = structlog.get_logger("api")
 
 
+def _set_waiting_mode():
+    deps.vacancy_load_error = "not_found"
+    deps.skill_freq = {}
+    deps.skill_weights = {}
+    deps.taxonomy = None
+    deps.current_skills_set = set()
+    deps.competency_mapping = {}
+    deps.hybrid_weights = {}
+    deps.basic_vacancies = []
+    deps.evaluator = None
+    deps.recommendation_engine = None
+    deps.trend_analyzer = None
+    deps.student_profiles = {}
+    for lvl in ExperienceLevel:
+        deps.clusterer.load_model(lvl)
+    deps.is_ready = True
+
+
 async def run_startup(app):
     config.settings.ensure_dirs()
     """Загружает минимально необходимые данные, остальное — фоном."""
@@ -47,22 +65,7 @@ async def run_startup(app):
 
     if not raw_file.exists():
         logger.warning("Нет файлов вакансий — режим ожидания. Запустите pipeline для сбора данных.")
-        deps.vacancy_load_error = "not_found"
-        deps.skill_freq = {}
-        deps.skill_weights = {}
-        deps.taxonomy = None
-        deps.current_skills_set = set()
-        deps.competency_mapping = {}
-        deps.hybrid_weights = {}
-        deps.basic_vacancies = []
-        deps.evaluator = None
-        deps.recommendation_engine = None
-        deps.trend_analyzer = None
-        deps.student_profiles = {}
-        for lvl in ExperienceLevel:
-            deps.clusterer.load_model(lvl)
-        deps.is_ready = True
-        logger.info("API запущен в режиме ожидания данных")
+        _set_waiting_mode()
         return
 
     try:
@@ -77,21 +80,7 @@ async def run_startup(app):
         deps.vacancy_load_error = None
     if not basic_vacancies:
         logger.warning("Нет данных в файле вакансий — режим ожидания")
-        deps.skill_freq = {}
-        deps.skill_weights = {}
-        deps.taxonomy = None
-        deps.current_skills_set = set()
-        deps.competency_mapping = {}
-        deps.hybrid_weights = {}
-        deps.basic_vacancies = []
-        deps.evaluator = None
-        deps.recommendation_engine = None
-        deps.trend_analyzer = None
-        deps.student_profiles = {}
-        for lvl in ExperienceLevel:
-            deps.clusterer.load_model(lvl)
-        deps.is_ready = True
-        logger.info("API запущен в режиме ожидания данных")
+        _set_waiting_mode()
         return
 
     logger.info("Загружено вакансий", count=len(basic_vacancies))
@@ -219,15 +208,15 @@ async def run_startup(app):
 
     with deps.init_lock:
         deps.is_ready = True
-    logger.info("API готов к работе (фоновый разогрев продолжается)")
+    logger.info("API готов к работе (фоновая инициализация продолжается)")
 
-    # 6. Фоновый разогрев — все тяжёлые движки
+    # 6. фоновая инициализация — все тяжёлые движки
     asyncio.create_task(_warmup_background(parser, basic_vacancies, hybrid_weights))
 
 
 async def _warmup_background(parser, basic_vacancies, hybrid_weights):
     """Загружает тяжёлые компоненты после старта API."""
-    logger.info("Фоновый разогрев: уровень анализа, evaluator, тренды, Prophet...")
+    logger.info("фоновая инициализация: уровень анализа, evaluator, тренды, Prophet...")
 
     try:
         # Уровневый анализ вакансий (шаг 5)
@@ -295,9 +284,9 @@ async def _warmup_background(parser, basic_vacancies, hybrid_weights):
                     logger.error("get_weights_for_level_failed", level=str(level), error=str(err))
                     skill_weights_by_level[level] = {}
 
-        logger.info("Фоновый разогрев: уровень анализа завершён")
+        logger.info("фоновая инициализация: уровень анализа завершён")
     except Exception as e:
-        logger.warning("Фоновый разогрев: уровень анализа не удался", error=str(e))
+        logger.warning("фоновая инициализация: уровень анализа не удался", error=str(e))
         level_vacancies_data = []
         vacancies_skills = []
         skill_weights_by_level = {}
@@ -323,18 +312,18 @@ async def _warmup_background(parser, basic_vacancies, hybrid_weights):
                 logger.info("recommendation_engine_fitted")
             case Err(err):
                 logger.error("recommendation_engine_fit_failed", error=str(err))
-        logger.info("Фоновый разогрев: evaluator + recommendation готовы")
+        logger.info("фоновая инициализация: evaluator + recommendation готовы")
     except Exception as e:
-        logger.warning("Фоновый разогрев: evaluator не удался", error=str(e))
+        logger.warning("фоновая инициализация: evaluator не удался", error=str(e))
 
     # Кластеры
     try:
         for lvl in ExperienceLevel:
             if not deps.clusterer.load_model(lvl):
                 logger.warning("Модель кластеров не найдена", level=str(lvl))
-        logger.info("Фоновый разогрев: кластеры загружены")
+        logger.info("фоновая инициализация: кластеры загружены")
     except Exception as e:
-        logger.warning("Фоновый разогрев: кластеры не загружены", error=str(e))
+        logger.warning("фоновая инициализация: кластеры не загружены", error=str(e))
 
     # Тренды
     try:
@@ -344,9 +333,9 @@ async def _warmup_background(parser, basic_vacancies, hybrid_weights):
             if whitelist_set else deps.skill_freq
         )
         deps.trend_analyzer = TrendAnalyzer(skill_freq_filtered)
-        logger.info("Фоновый разогрев: trend_analyzer готов")
+        logger.info("фоновая инициализация: trend_analyzer готов")
     except Exception as e:
-        logger.warning("Фоновый разогрев: trend_analyzer не загружен", error=str(e))
+        logger.warning("фоновая инициализация: trend_analyzer не загружен", error=str(e))
 
     # Prophet
     try:
@@ -369,10 +358,10 @@ async def _warmup_background(parser, basic_vacancies, hybrid_weights):
                 case Err(e):
                     deps.prophet_engine = None
                     logger.info("prophet_engine_unavailable_use_fallback", detail=str(e))
-        logger.info("Фоновый разогрев: Prophet готов")
+        logger.info("фоновая инициализация: Prophet готов")
     except Exception as e:
         deps.prophet_engine = None
-        logger.warning("Фоновый разогрев: Prophet не загружен", error=str(e))
+        logger.warning("фоновая инициализация: Prophet не загружен", error=str(e))
 
     # Студенческие профили
     try:
@@ -427,8 +416,8 @@ async def _warmup_background(parser, basic_vacancies, hybrid_weights):
             deps.student_profiles[pname] = StudentProfile(
                 profile_name=pname, competencies=codes, skills=skills, target_level=target,
             )
-        logger.info("Фоновый разогрев: студенческие профили готовы")
+        logger.info("фоновая инициализация: студенческие профили готовы")
     except Exception as e:
-        logger.warning("Фоновый разогрев: студенческие профили не загружены", error=str(e))
+        logger.warning("фоновая инициализация: студенческие профили не загружены", error=str(e))
 
-    logger.info("Фоновый разогрев завершён")
+    logger.info("Фоновая инициализация завершена. API готов к работе")

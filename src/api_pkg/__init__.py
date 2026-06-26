@@ -39,6 +39,10 @@ def create_app() -> FastAPI:
 
         await run_startup(app)
         yield
+        from src.db import close_pool
+        from src.database import get_engine
+        await close_pool()
+        await get_engine().dispose()
         logger.info("API shutting down...")
 
     app = FastAPI(

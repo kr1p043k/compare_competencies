@@ -1,5 +1,6 @@
 import random
 from dataclasses import dataclass, field
+from src import config
 from typing import Any
 
 import structlog
@@ -69,6 +70,7 @@ class SkillForecastEngine(BasePredictor):
         return self._is_fitted
 
     def fit(self, skill_frequencies: dict[str, float] | None = None, **kwargs) -> Result["SkillForecastEngine", Exception]:
+        random.seed(config.GLOBAL_RANDOM_SEED)
         freqs = skill_frequencies or {}
         self._population = {}
         for skill, freq in freqs.items():
@@ -83,7 +85,9 @@ class SkillForecastEngine(BasePredictor):
         if not self._population:
             return
         for skill_forecast in self._population.values():
-            skill_forecast.fitness_score = skill_forecast.predict() / max(skill_forecast.current_freq, 0.01)
+            predicted = skill_forecast.predict()
+            cf = max(skill_forecast.current_freq, 0.01)
+            skill_forecast.fitness_score = 1.0 / (1.0 + abs(predicted - cf) / cf)
         sorted_forecasts = sorted(
             self._population.values(),
             key=lambda x: x.fitness_score,
@@ -100,11 +104,19 @@ class SkillForecastEngine(BasePredictor):
             return Err(DomainError(message=f"Skill '{skill}' not found in forecast population"))
         predicted = sf.predict(months)
         growth = (predicted - sf.current_freq) / max(sf.current_freq, 0.01)
+        predictions = [s.predict(months) for s in self._population.values()]
+        if len(predictions) > 1:
+            import numpy as np
+            std_pred = float(np.std(predictions))
+            mean_pred = float(np.mean(predictions))
+            confidence = max(0.0, min(1.0, 1.0 - std_pred / max(abs(mean_pred), 0.001)))
+        else:
+            confidence = 0.5
         return Ok(ForecastResult(
             skill=skill,
             current_frequency=sf.current_freq,
             predicted_growth=growth,
-            confidence=min(abs(growth) * 2, 0.95),
+            confidence=round(confidence, 4),
             next_year_frequency=predicted,
         ))
 
