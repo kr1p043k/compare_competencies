@@ -1,27 +1,55 @@
 """Write pipeline results to PostgreSQL via asyncpg (raw SQL, no SQLAlchemy)."""
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
+import weakref
 from datetime import datetime
 from pathlib import Path
 
+import asyncpg
 import structlog
 
 from src import config
-from src.db import create_pool, close_pool, get_pool
+from src.db import DATABASE_URL, DB_POOL_MAX, DB_POOL_MIN, close_pool, create_pool, get_pool
 from src.utils import extract_date_from_filename
 
 logger = structlog.get_logger(__name__)
 
+# Per-event-loop pool cache.
+# WeakKeyDictionary auto-removes entries when temporary loops (created by
+# asyncio.run() in executor threads) are garbage-collected — no leaks.
+_loop_pools: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
 
 async def _pool():
-    """Ensure pool exists and return it."""
+    """Get a pool valid for the current event loop.
+
+    Returns the global pool when called from the loop it was created in.
+    Creates a dedicated pool for executor-thread temporary loops.
+    """
+    loop = asyncio.get_running_loop()
+
+    if loop in _loop_pools:
+        return _loop_pools[loop]
+
     try:
-        return get_pool()
-    except RuntimeError:
-        await create_pool()
-        return get_pool()
+        p = get_pool()
+        async with p.acquire() as conn:
+            await conn.execute("SELECT 1")
+        _loop_pools[loop] = p
+        return p
+    except Exception:
+        pass
+
+    p = await asyncpg.create_pool(
+        DATABASE_URL,
+        min_size=DB_POOL_MIN,
+        max_size=DB_POOL_MAX,
+    )
+    _loop_pools[loop] = p
+    return p
 
 
 async def create_pipeline_run(action: str) -> str:
@@ -95,7 +123,7 @@ async def save_gap_analysis(data: dict, run_id: str | None = None) -> None:
     await pool.execute(
         """INSERT INTO analysis_results (pipeline_run_id, analysis_type, data)
            VALUES ($1,'gap',$2)""",
-        run_id, json.dumps(data, ensure_ascii=False),
+        run_id, json.dumps(data, ensure_ascii=False, default=str),
     )
 
 

@@ -399,22 +399,27 @@ def run_full_pipeline(args) -> Result[None, str]:
 
         # Сохранить pipeline_run для full-cycle со статистикой
         try:
-            pool = get_pool()
-            total = pool.fetchval("SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL")
-            new_vacs = (pool.fetchval(
-                "SELECT COUNT(*) FROM vacancies WHERE created_at::date >= $1::date",
-                args._date_from
-            ) if args._date_from else total) or 0
-            rid = asyncio.run(create_pipeline_run("full-cycle"))
-            asyncio.run(complete_pipeline_run(
-                rid, status="completed",
-                stats={
-                    "vacancy_count": total or 0,
-                    "new_vacancies": new_vacs,
-                    "date_from": args._date_from,
-                    "date_to": str(date.today()),
-                },
-            ))
+            from src.pipeline.db_writer import _pool as _exec_pool
+
+            async def _save_pipeline_run():
+                pool = await _exec_pool()
+                total = await pool.fetchval("SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL")
+                new_vacs = (await pool.fetchval(
+                    "SELECT COUNT(*) FROM vacancies WHERE created_at::date >= $1::date",
+                    args._date_from
+                ) if args._date_from else total) or 0
+                rid = await create_pipeline_run("full-cycle")
+                await complete_pipeline_run(
+                    rid, status="completed",
+                    stats={
+                        "vacancy_count": total or 0,
+                        "new_vacancies": new_vacs,
+                        "date_from": str(args._date_from) if args._date_from else None,
+                        "date_to": str(date.today()),
+                    },
+                )
+                return rid, total, new_vacs
+            rid, total, new_vacs = asyncio.run(_save_pipeline_run())
             logger.info("pipeline_run_saved", run_id=rid, stats={"vacancy_count": total, "new_vacancies": new_vacs})
         except Exception as db_err:
             logger.warning("pipeline_run_save_failed", error=str(db_err))

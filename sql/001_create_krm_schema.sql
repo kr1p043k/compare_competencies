@@ -34,17 +34,20 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- ─── 5. Направление (09.03.02, 09.03.01, ...) ──────────────────────────────
+-- UNIQUE(code) был заменён на UNIQUE(code, profile) для поддержки нескольких
+-- профилей с одинаковым кодом (например 09.03.01 с двумя профилями).
 CREATE TABLE IF NOT EXISTS directions (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code        VARCHAR(20) UNIQUE NOT NULL,         -- "09.03.02"
+    code        VARCHAR(20) NOT NULL,                -- "09.03.02"
     name        TEXT NOT NULL,                        -- "Информационные системы и технологии"
     profile     TEXT,                                 -- "Перспективные информационные технологии"
+    supervisor  VARCHAR(255),                         -- ФИО руководителя направления
     opop_year   INTEGER,                              -- год OPOP (2024, 2025...)
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_directions_code ON directions(code);
+CREATE UNIQUE INDEX uq_directions_code_profile ON directions(code, profile);
 CREATE INDEX idx_directions_opop ON directions(opop_year);
 
 -- ─── 6. Дисциплина ────────────────────────────────────────────────────────
@@ -196,19 +199,25 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
 
 -- ─── 14. Рекомендации преподавателя ────────────────────────────────────────
+-- llm_request_id FK добавляется ALTER TABLE после создания llm_recommendations
 CREATE TABLE IF NOT EXISTS recommendations (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     discipline_id   UUID NOT NULL REFERENCES disciplines(id) ON DELETE CASCADE,
     competency_id   UUID REFERENCES competencies(id) ON DELETE SET NULL,
     user_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+    direction_id    UUID REFERENCES directions(id) ON DELETE CASCADE,
     suggestion      TEXT NOT NULL,
     suggestion_type VARCHAR(20) NOT NULL
                     CHECK (suggestion_type IN ('modify', 'add', 'remove')),
+    source          VARCHAR(20)
+                    CHECK (source IN ('shap', 'llm', 'llm_fallback')),
+    confidence      FLOAT CHECK (confidence >= 0 AND confidence <= 1),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_recommendations_discipline ON recommendations(discipline_id);
 CREATE INDEX idx_recommendations_user ON recommendations(user_id);
+CREATE INDEX idx_rec_direction ON recommendations(direction_id);
 
 -- ─── 15. Учебные группы ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS student_groups (
@@ -238,6 +247,8 @@ CREATE TABLE IF NOT EXISTS student_skills (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     student_id      UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
     skill_id        UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    direction_id    UUID REFERENCES directions(id) ON DELETE SET NULL,
+    competency_id   UUID REFERENCES competencies(id) ON DELETE SET NULL,
     source          VARCHAR(30) NOT NULL DEFAULT 'self_assessment'
                     CHECK (source IN ('self_assessment', 'auto_extracted', 'expert', 'test')),
     proficiency     REAL NOT NULL DEFAULT 0.0
@@ -261,6 +272,7 @@ CREATE TABLE IF NOT EXISTS coverage_analyses (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     discipline_id         UUID NOT NULL REFERENCES disciplines(id) ON DELETE CASCADE,
     competency_id         UUID REFERENCES competencies(id) ON DELETE CASCADE,
+    direction_id          UUID REFERENCES directions(id) ON DELETE CASCADE,
     total_skills          INTEGER NOT NULL DEFAULT 0,
     market_matched_skills INTEGER NOT NULL DEFAULT 0,
     coverage_ratio        DOUBLE PRECISION NOT NULL DEFAULT 0.0,
@@ -269,13 +281,19 @@ CREATE TABLE IF NOT EXISTS coverage_analyses (
 
 CREATE INDEX idx_ca_discipline ON coverage_analyses(discipline_id);
 CREATE INDEX idx_ca_coverage ON coverage_analyses(coverage_ratio DESC);
+CREATE INDEX idx_ca_direction ON coverage_analyses(direction_id);
 
 -- ─── 19. Запуски пайплайна ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pipeline_runs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    action          VARCHAR(50) NOT NULL,
+    action          VARCHAR(50) NOT NULL
+                    CHECK (action IN (
+                        'full-cycle', 'rebuild', 'train-clusters', 'train-model',
+                        'gap-analysis', 'teacher-analysis', 'data-collection'
+                    )),
     status          VARCHAR(20) NOT NULL DEFAULT 'started'
                     CHECK (status IN ('started', 'completed', 'failed')),
+    user_id         UUID REFERENCES users(id) ON DELETE SET NULL,
     started_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     completed_at    TIMESTAMPTZ,
     error_message   TEXT,
@@ -286,13 +304,12 @@ CREATE INDEX idx_pipeline_runs_action ON pipeline_runs(action);
 CREATE INDEX idx_pipeline_runs_started ON pipeline_runs(started_at DESC);
 
 -- ─── 20. Результаты анализов ─────────────────────────────────────────────
-
--- !!! ВНИМАНИЕ: CHECK включает 'teacher' (добавлено для enhanced teacher analysis)
 CREATE TABLE IF NOT EXISTS analysis_results (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     pipeline_run_id UUID REFERENCES pipeline_runs(id) ON DELETE SET NULL,
     analysis_type   VARCHAR(50) NOT NULL
-                    CHECK (analysis_type IN ('gap', 'coverage', 'cluster', 'trend', 'teacher')),
+                    CHECK (analysis_type IN ('gap', 'coverage', 'cluster', 'trend', 'teacher-analysis')),
+    direction_id    UUID REFERENCES directions(id) ON DELETE CASCADE,
     discipline_id   UUID REFERENCES disciplines(id) ON DELETE CASCADE,
     competency_id   UUID REFERENCES competencies(id) ON DELETE CASCADE,
     data            JSONB NOT NULL DEFAULT '{}',
@@ -302,6 +319,7 @@ CREATE TABLE IF NOT EXISTS analysis_results (
 CREATE INDEX idx_ar_pipeline ON analysis_results(pipeline_run_id);
 CREATE INDEX idx_ar_type ON analysis_results(analysis_type);
 CREATE INDEX idx_ar_discipline ON analysis_results(discipline_id);
+CREATE INDEX idx_ar_direction ON analysis_results(direction_id);
 
 -- ─── 21. Снимки трендов ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS trend_snapshots (
@@ -347,6 +365,7 @@ CREATE TABLE IF NOT EXISTS vacancies (
     snippet_responsibility TEXT,                             -- обязанности (фрагмент)
     description         TEXT,                                -- полное описание
     key_skills          JSONB,                               -- ["Python", "SQL", ...]
+    parsed_skills       JSONB,                               -- нормализованные навыки (из pipeline)
     published_at        TIMESTAMPTZ,                         -- дата публикации
     alternate_url       TEXT,                                -- ссылка на hh.ru
     pipeline_run_id     UUID REFERENCES pipeline_runs(id) ON DELETE SET NULL,
@@ -355,7 +374,8 @@ CREATE TABLE IF NOT EXISTS vacancies (
 );
 
 CREATE UNIQUE INDEX idx_vacancies_hh_id ON vacancies(hh_id);
-CREATE INDEX idx_vacancies_published ON vacancies(published_at DESC);
+CREATE INDEX idx_vacancies_published ON vacancies(published_at DESC)
+    WHERE parsed_skills IS NOT NULL;
 CREATE INDEX idx_vacancies_employer ON vacancies(employer_name);
 CREATE INDEX idx_vacancies_pipeline ON vacancies(pipeline_run_id);
 
@@ -479,26 +499,116 @@ CREATE TABLE IF NOT EXISTS llm_interactions (
 CREATE INDEX IF NOT EXISTS idx_llm_run ON llm_interactions(analysis_run_id);
 CREATE INDEX IF NOT EXISTS idx_llm_dir ON llm_interactions(direction_id);
 
--- ─── 30. Начальные данные ────────────────────────────────────────────────
-INSERT INTO directions (code, name, profile, opop_year)
-VALUES (
-    '09.03.02',
-    'Информационные системы и технологии',
-    'Перспективные информационные технологии',
-    2025
-) ON CONFLICT (code) DO NOTHING;
+-- ─── 30. Кэш запросов к LLM ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS llm_recommendations (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    request_hash    TEXT NOT NULL,
+    prompt_text     TEXT NOT NULL,
+    model_used      VARCHAR(20) NOT NULL
+                    CHECK (model_used IN ('qwen3.6', 'gemma4', 'qwen_local', 'deepseek_local')),
+    response_json   JSONB NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_llm_req_hash ON llm_recommendations(request_hash);
+
+COMMENT ON TABLE llm_recommendations IS
+    'Кэш и аудит запросов к LLM. request_hash — для dedup повторных запросов.';
+COMMENT ON COLUMN llm_recommendations.model_used IS
+    'Какая модель ответила: qwen3.6/gemma4 на H100 или qwen_local/deepseek_local (fallback)';
+COMMENT ON COLUMN llm_recommendations.response_json IS
+    'Полный JSON-ответ LLM (рекомендации, confidence, объяснения)';
+
+-- ─── 31. Связь рекомендаций с LLM-запросами (FK, отложенная из-за цикла) ──
+ALTER TABLE recommendations
+    ADD COLUMN IF NOT EXISTS llm_request_id UUID
+        REFERENCES llm_recommendations(id) ON DELETE SET NULL;
+
+-- ─── 32. История оценок профиля ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS profile_evaluations (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id           UUID REFERENCES users(id) ON DELETE SET NULL,
+    discipline_id     UUID NOT NULL REFERENCES disciplines(id) ON DELETE CASCADE,
+    evaluation_type   VARCHAR(20) NOT NULL
+                      CHECK (evaluation_type IN ('gap', 'coverage', 'full')),
+    input_summary     JSONB NOT NULL DEFAULT '{}',
+    result_summary    JSONB NOT NULL DEFAULT '{}',
+    llm_request_id    UUID REFERENCES llm_recommendations(id) ON DELETE SET NULL,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_prof_eval_user ON profile_evaluations(user_id);
+CREATE INDEX idx_prof_eval_discipline ON profile_evaluations(discipline_id);
+
+COMMENT ON TABLE profile_evaluations IS
+    'История оценок профиля: gap, coverage или полный анализ с привязкой к LLM-запросу';
+
+-- ─── 33. Начальные данные ────────────────────────────────────────────────
+-- Направления (используется ON CONFLICT на (code, profile))
+INSERT INTO directions (code, name, profile, supervisor, opop_year) VALUES
+    ('09.03.02', 'Перспективные информационные технологии',
+     'Перспективные информационные технологии', 'Хусаинов Н.Ш.', 2025),
+    ('01.03.01', 'Математика, механика и математическое моделирование',
+     'Математика, механика и математическое моделирование', 'Карапетянц А.Н.', 2025),
+    ('01.03.02', 'Математическое моделирование и искусственный интеллект',
+     'Математическое моделирование и искусственный интеллект', 'Махно В.В.', 2025),
+    ('09.03.04', 'Методы и средства разработки программного обеспечения',
+     'Методы и средства разработки программного обеспечения', 'Хусаинов Н.Ш.', 2025),
+    ('09.03.01', 'Программирование и системная интеграция ИТ-решений',
+     'Программирование и системная интеграция ИТ-решений', 'Хусаинов Н.Ш.', 2025),
+    ('09.03.01', 'Технологии искусственного интеллекта',
+     'Технологии искусственного интеллекта', 'Хусаинов Н.Ш.', 2025),
+    ('02.03.02', 'Фундаментальная информатика и информационные технологии',
+     'Фундаментальная информатика и информационные технологии', 'Михалкович С.С.', 2025)
+ON CONFLICT (code, profile) DO UPDATE SET
+    name = EXCLUDED.name,
+    supervisor = EXCLUDED.supervisor;
 
 -- Пользователи по умолчанию (пароль через pgcrypt bcrypt)
 INSERT INTO users (email, password_hash, full_name, role) VALUES
     ('admin@compare-competencies.local', crypt('admin', gen_salt('bf')), 'Администратор', 'admin'),
-    ('teacher@compare-competencies.local', crypt('prepod', gen_salt('bf')), 'Преподаватель', 'teacher'),
-    ('student@compare-competencies.local', crypt('student', gen_salt('bf')), 'Студент', 'teacher')
+    ('teacher@compare-competencies.local', crypt('prepod', gen_salt('bf')), 'Преподаватель', 'teacher')
 ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO users (email, password_hash, full_name, role) VALUES
+    ('karapetyants@sfedu.ru', crypt('teacher123', gen_salt('bf')), 'Карапетянц Алексей Николаевич', 'teacher'),
+    ('vvmakhno@sfedu.ru', crypt('teacher123', gen_salt('bf')), 'Махно Виктория Викторовна', 'teacher'),
+    ('khusainov@sfedu.ru', crypt('teacher123', gen_salt('bf')), 'Хусаинов Наиль Шавяктович', 'teacher'),
+    ('miks@sfedu.ru', crypt('teacher123', gen_salt('bf')), 'Михалкович Станислав Станиславович', 'teacher'),
+    ('asviridov@sfedu.ru', crypt('teacher123', gen_salt('bf')), 'Свиридов Александр Славьевич', 'teacher'),
+    ('skucherov@sfedu.ru', crypt('teacher123', gen_salt('bf')), 'Кучеров Сергей Александрович', 'teacher')
+ON CONFLICT (email) DO UPDATE SET
+    full_name = EXCLUDED.full_name,
+    role = 'teacher',
+    is_active = TRUE;
+
+-- Удаление не-IT дисциплин (общеобразовательные, не влияющие на анализ рынка)
+DELETE FROM disciplines WHERE name IN (
+    'Безопасность жизнедеятельности',
+    'Дисциплины по ФКиС',
+    'История России',
+    'Иностранный язык (англ. яз., уровень А1)',
+    'Иностранный язык (англ. яз., уровень А2)',
+    'Иностранный язык (англ. яз., уровень В1)',
+    'Иностранный язык (англ. яз., уровень В2)',
+    'Иностранный язык (англ. яз., уровень С1)',
+    'Иностранный язык (русский язык)',
+    'Иностранный язык для деловой коммуникации',
+    'Воображение, изображение, реальность',
+    'Основы проектной деятельности',
+    'Практикум по подготовке инженерной документации'
+);
 
 -- =============================================================================
 -- Готово. Проверка:
 --   SELECT table_name FROM information_schema.tables
 --   WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
 --   ORDER BY table_name;
--- Ожидается 23 таблицы (всего).
+-- Ожидается 25 таблиц (всего).
+-- Добавлены: llm_recommendations, profile_evaluations (из sql/004_llm_recommendations.sql)
+-- Изменены: directions (supervisor + composite UNIQUE), recommendations (4 cols),
+-- student_skills (2 cols), pipeline_runs (user_id + expanded CHECK),
+-- analysis_results (direction_id + teacher-analysis), coverage_analyses (direction_id),
+-- vacancies (parsed_skills).
+-- Исключены: market_skill_mappings (dead, дропнута 006_market_skill_mappings_drop.sql).
 -- =============================================================================
