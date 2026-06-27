@@ -37,7 +37,7 @@ deploy() {
   docker compose down
 
   echo "Validating config..."
-  docker compose config > /dev/null
+  docker compose config -q
 
   echo "Starting services..."
   docker compose up -d --build
