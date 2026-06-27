@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  TrendingUp, TrendingDown, BarChart3, Sparkles, Target,
+  TrendingUp, TrendingDown, BarChart3, Sparkles,
   ChevronDown, ChevronUp, AlertCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
@@ -24,13 +24,6 @@ interface ForecastItem {
   uncertainty_lower?: number;
 }
 
-interface KrmRole {
-  role: string;
-  sheet: string;
-  competencies: string[];
-  categories: Record<string, string>;
-}
-
 export function PredictionsTab() {
   const [activeTab, setActiveTab] = useState("growing");
   const [forecasts, setForecasts] = useState<ForecastItem[]>([]);
@@ -40,14 +33,9 @@ export function PredictionsTab() {
   const [vacanciesCount, setVacanciesCount] = useState<number>(0);
   const [dataFrom, setDataFrom] = useState<string | null>(null);
   const [dataTo, setDataTo] = useState<string | null>(null);
-  const [krmRoles, setKrmRoles] = useState<string[]>([]);
-  const [selectedRole, setSelectedRole] = useState<string>("");
-  const [krmCompetencies, setKrmCompetencies] = useState<KrmRole | null>(null);
-  const [krmSheet, setKrmSheet] = useState("КРМ_09");
 
   useEffect(() => {
     loadForecasts("growing");
-    loadKrmRoles();
   }, []);
 
   const loadForecasts = async (direction: string) => {
@@ -73,31 +61,6 @@ export function PredictionsTab() {
     loadForecasts(tab);
   };
 
-  const loadKrmRoles = async () => {
-    try {
-      const res = await fetch(`/api/forecast/krm/roles?sheet=${krmSheet}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setKrmRoles(data.roles || []);
-    } catch (_) { }
-  };
-
-  const loadKrmCompetencies = async (role: string) => {
-    try {
-      const res = await fetch(`/api/forecast/krm/competencies?role=${encodeURIComponent(role)}&sheet=${krmSheet}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setKrmCompetencies(data);
-    } catch (_) { }
-  };
-
-  const handleRoleSelect = (role: string) => {
-    setSelectedRole(role);
-    loadKrmCompetencies(role);
-  };
-
-  const chartHeight = 120;
-
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
@@ -109,10 +72,6 @@ export function PredictionsTab() {
           <TabsTrigger value="declining" className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm">
             <TrendingDown className="size-4 text-red-600" />
             Падающие
-          </TabsTrigger>
-          <TabsTrigger value="krm" className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            <Target className="size-4 text-blue-600" />
-            KRM Матрица
           </TabsTrigger>
         </TabsList>
 
@@ -162,57 +121,6 @@ export function PredictionsTab() {
             </CardHeader>
             <CardContent className="p-6">
               {forecasts.map((f, i) => (<ForecastRow key={f.skill} item={f} rank={i + 1} expanded={selectedSkill?.skill === f.skill} onToggle={() => setSelectedSkill(selectedSkill?.skill === f.skill ? null : f)} />))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="krm" className="space-y-4">
-          <Card className="border border-gray-200 shadow-sm">
-            <CardHeader className="border-b border-gray-200 bg-gray-50">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-lg">
-                  <Target className="size-5 text-white" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl font-semibold text-gray-900">КРМ v2 Матрица компетенций</CardTitle>
-                  <CardDescription>Выберите роль чтобы увидеть требуемые компетенции</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="mb-4">
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Уровень</label>
-                <select value={krmSheet} onChange={(e) => { setKrmSheet(e.target.value); setSelectedRole(""); setKrmCompetencies(null); }} className="h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm">
-                  <option value="КРМ_09">КРМ 09 (Бакалавриат)</option>
-                  <option value="КРМ_10">КРМ 10 (Магистратура)</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto mb-4">
-                {krmRoles.map(role => (
-                  <button key={role} onClick={() => handleRoleSelect(role)}
-                    className={`text-left px-3 py-2 rounded-lg text-sm border transition-colors ${selectedRole === role ? "bg-blue-50 border-blue-300 text-blue-700" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-                    {role}
-                  </button>
-                ))}
-              </div>
-              {krmCompetencies && (
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-3">Компетенции для {krmCompetencies.role}:</h4>
-                  {Object.entries(
-                    krmCompetencies.competencies.reduce<Record<string, string[]>>((acc, c) => {
-                      const cat = krmCompetencies?.categories?.[c] || "Other";
-                      if (!acc[cat]) acc[cat] = [];
-                      acc[cat].push(c);
-                      return acc;
-                    }, {})
-                  ).map(([cat, comps]) => (
-                    <div key={cat} className="mb-3">
-                      <Badge className="mb-1 bg-gray-100 text-gray-700 border-0">{cat} ({comps.length})</Badge>
-                      <div className="flex flex-wrap gap-1.5">{comps.map(c => <Badge key={c} variant="outline" className="text-xs bg-white">{c}</Badge>)}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
