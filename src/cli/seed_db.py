@@ -47,7 +47,7 @@ def _parse_comp_code(code: str) -> tuple[str, str]:
 
 
 async def create_tables(drop_first: bool = False) -> None:
-    engine = await get_engine()
+    engine = get_engine()
     if drop_first:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
@@ -172,15 +172,34 @@ async def seed_krm(session, skill_map: dict[str, str]) -> None:
 
 
 async def seed_users(session) -> None:
-    result = await session.execute(select(User).where(User.email == "admin@compare-competencies.local"))
-    if result.scalar_one_or_none():
+    users_file = Path(__file__).parent.parent.parent / "users.json"
+    if not users_file.exists():
+        print("users.json not found, skipping users seed")
         return
+    with open(users_file, "r", encoding="utf-8") as f:
+        raw = json.load(f)
     from sqlalchemy import text as sa_text
-    result = await session.execute(sa_text("SELECT crypt('admin', gen_salt('bf')) AS pw_hash"))
-    pw_hash = result.scalar_one()
-    session.add(User(email="admin@compare-competencies.local", password_hash=pw_hash, full_name="╨Р╨┤╨╝╨╕╨╜╨╕╤Б╤В╤А╨░╤В╨╛╤А", role="admin"))
-    await session.commit()
-    print("User: admin@compare-competencies.local / admin")
+    created = 0
+    for email, info in raw.items():
+        existing = await session.execute(select(User).where(User.email == email))
+        if existing.scalar_one_or_none():
+            continue
+        result = await session.execute(
+            sa_text("SELECT crypt(:pw, gen_salt('bf')) AS pw_hash"),
+            {"pw": info["password"]},
+        )
+        pw_hash = result.scalar_one()
+        session.add(User(
+            email=email,
+            password_hash=pw_hash,
+            full_name=info.get("name", email.split("@")[0]),
+            role=info["role"],
+        ))
+        created += 1
+        print(f"  User created: {email} ({info['role']})")
+    if created:
+        await session.commit()
+    print(f"Users: {created} created, rest already exist")
 
 
 async def seed_recommendations(session) -> None:

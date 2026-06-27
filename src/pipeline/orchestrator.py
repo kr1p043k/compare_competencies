@@ -11,8 +11,6 @@ from src.pipeline.stage import PipelineStage
 from src import Err, Ok, Result
 from src.errors import PipelineError
 from src.pipeline.event_bus import EventBus, PipelineEvent
-from src.retry import RetryPolicy
-
 logger = structlog.get_logger(__name__)
 
 
@@ -48,7 +46,6 @@ class PipelineOrchestrator:
         self.stages = stages
         self.num_retries = num_retries
         self.event_bus = event_bus or EventBus()
-        self.retry_policy = RetryPolicy(max_retries=num_retries, base_delay=0.5, backoff_factor=1.5)
 
     def run(
         self,

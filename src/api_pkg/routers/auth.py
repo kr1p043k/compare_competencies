@@ -83,7 +83,7 @@ def require_role(role: str):
     return dependency
 
 
-@router.post("/api/auth/login")
+@router.post("/auth/login")
 async def login(body: LoginRequest, request: Request):
     pool = get_pool()
     row = await pool.fetchrow(
@@ -121,7 +121,7 @@ async def login(body: LoginRequest, request: Request):
     }
 
 
-@router.post("/api/auth/logout")
+@router.post("/auth/logout")
 async def logout(request: Request):
     user_data = get_current_user(request)
     if user_data is None:
@@ -141,7 +141,7 @@ async def logout(request: Request):
     return {"status": "ok", "message": "Logged out"}
 
 
-@router.get("/api/auth/me")
+@router.get("/auth/me")
 async def me(request: Request):
     user_data = get_current_user(request)
     if user_data is None:

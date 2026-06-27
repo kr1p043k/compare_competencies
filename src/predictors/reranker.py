@@ -184,7 +184,8 @@ class HybridReranker(BaseReranker):
             return Ok(RerankerResult(query=query, documents=documents, scores=[0.0]*len(documents), ranked_indices=list(range(len(documents)))))
 
         sorted_docs = sorted(blended, key=blended.get, reverse=True)
-        ranked = [documents.index(d) for d in sorted_docs if d in documents]
+        doc_to_idx = {d: i for i, d in enumerate(documents)}
+        ranked = [doc_to_idx[d] for d in sorted_docs if d in doc_to_idx]
         if top_k:
             ranked = ranked[:top_k]
 

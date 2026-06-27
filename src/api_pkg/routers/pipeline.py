@@ -384,7 +384,7 @@ def _build_args_for_sync(action: PipelineAction, **kwargs):
     return argparse.Namespace(**base)
 
 
-@router.post("/api/pipeline/{action}", response_model=PipelineResponse)
+@router.post("/pipeline/{action}", response_model=PipelineResponse)
 @limiter.limit("5/minute")
 async def run_pipeline_action_sync(
     request: Request,
@@ -460,7 +460,7 @@ async def run_pipeline_action_sync(
     )
 
 
-@router.get("/api/pipeline/active", response_model=PipelineTaskStatus | None)
+@router.get("/pipeline/active", response_model=PipelineTaskStatus | None)
 @limiter.limit("30/minute")
 async def get_active_pipeline_task(request: Request):
     for t in pipeline_tasks.values():
@@ -469,7 +469,7 @@ async def get_active_pipeline_task(request: Request):
     return None
 
 
-@router.get("/api/pipeline/task/{task_id}", response_model=PipelineTaskStatus)
+@router.get("/pipeline/task/{task_id}", response_model=PipelineTaskStatus)
 @limiter.limit("60/minute")
 async def get_pipeline_task_status(request: Request, task_id: str):
     if task_id not in pipeline_tasks:
@@ -477,7 +477,7 @@ async def get_pipeline_task_status(request: Request, task_id: str):
     return pipeline_tasks[task_id]
 
 
-@router.get("/api/pipeline/tasks", response_model=PipelineTaskListResponse)
+@router.get("/pipeline/tasks", response_model=PipelineTaskListResponse)
 @limiter.limit("30/minute")
 async def list_pipeline_tasks(request: Request, limit: int = Query(10, ge=1, le=50)):
     tasks = list(pipeline_tasks.values())
@@ -485,7 +485,7 @@ async def list_pipeline_tasks(request: Request, limit: int = Query(10, ge=1, le=
     return {"tasks": tasks[:limit], "total": len(tasks)}
 
 
-@router.get("/api/pipeline/status", response_model=dict)
+@router.get("/pipeline/status", response_model=dict)
 @limiter.limit("30/minute")
 async def get_pipeline_status(request: Request):
     clusters_exist = {
@@ -500,6 +500,18 @@ async def get_pipeline_status(request: Request):
         "top_dc": (BASE_DIR / "data" / "result" / "top_dc" / "full_recommendations_top_dc.json").exists(),
     }
     skill_weights_exist = (BASE_DIR / "data" / "processed" / "skill_weights.json").exists()
+
+    from src.db import get_pool
+    pool = get_pool()
+    last = await pool.fetchrow(
+        "SELECT completed_at, stats FROM pipeline_runs "
+        "WHERE action = 'full-cycle' AND status = 'completed' "
+        "ORDER BY completed_at DESC LIMIT 1"
+    )
+    total = await pool.fetchval(
+        "SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL"
+    )
+
     return {
         "clusters": clusters_exist,
         "clusters_all_ready": all(clusters_exist.values()),
@@ -507,10 +519,13 @@ async def get_pipeline_status(request: Request):
         "recommendations": recommendations_exist,
         "recommendations_all_ready": all(recommendations_exist.values()),
         "skill_weights": skill_weights_exist,
+        "last_update": str(last["completed_at"]) if last else None,
+        "total_vacancies": total or 0,
+        "last_pipeline_stats": last["stats"] if last else None,
     }
 
 
-@router.post("/api/pipeline/rebuild", response_model=PipelineResponse)
+@router.post("/pipeline/rebuild", response_model=PipelineResponse)
 @limiter.limit("2/minute")
 async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
     task_id = f"rebuild_{int(time.time())}"
@@ -524,7 +539,7 @@ async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
     )
 
 
-@router.post("/api/pipeline/refresh-cache", response_model=CacheRefreshResponse)
+@router.post("/pipeline/refresh-cache", response_model=CacheRefreshResponse)
 @limiter.limit("5/minute")
 async def refresh_cache(request: Request):
     cache_dirs = [
@@ -547,7 +562,7 @@ async def refresh_cache(request: Request):
     }
 
 
-@router.post("/api/pipeline/reload-api", response_model=PipelineResponse)
+@router.post("/pipeline/reload-api", response_model=PipelineResponse)
 @limiter.limit("3/minute")
 async def reload_api(request: Request):
     try:
@@ -573,7 +588,7 @@ async def reload_api_data():
     await _reload_api_data()
 
 
-@router.post("/api/pipeline/cancel/{task_id}")
+@router.post("/pipeline/cancel/{task_id}")
 @limiter.limit("10/minute")
 async def cancel_pipeline_task(task_id: str, request: Request):
     if task_id not in pipeline_tasks:
@@ -599,7 +614,7 @@ async def cancel_pipeline_task(task_id: str, request: Request):
     return {"status": "cancelled", "message": "Pipeline остановлен"}
 
 
-@router.get("/api/pipeline/gap-progress/{task_id}", response_model=GapProgressResponse)
+@router.get("/pipeline/gap-progress/{task_id}", response_model=GapProgressResponse)
 @limiter.limit("60/minute")
 async def get_gap_progress(task_id: str, request: Request):
     gp = _read_gap_progress()
@@ -616,7 +631,7 @@ async def get_gap_progress(task_id: str, request: Request):
 _ws_clients: set[WebSocket] = set()
 
 
-@router.websocket("/api/pipeline/ws")
+@router.websocket("/pipeline/ws")
 async def pipeline_ws(websocket: WebSocket):
     await websocket.accept()
     _ws_clients.add(websocket)

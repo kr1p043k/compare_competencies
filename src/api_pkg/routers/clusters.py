@@ -50,7 +50,7 @@ async def clusters_summary(
     return result
 
 
-@router.get("/api/clusters/{level}", response_model=ClustersByLevelResponse)
+@router.get("/clusters/{level}", response_model=ClustersByLevelResponse)
 @limiter.limit("60/minute")
 async def get_clusters(
     request: Request,

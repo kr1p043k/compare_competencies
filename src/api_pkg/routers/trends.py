@@ -17,7 +17,7 @@ from src.analyzers.skills.trends import TrendAnalyzer
 from src.database import async_session_factory
 from src.models.api_responses import TrendsResponse
 from src.models.krm_models import Competency, CompetencySkill, Skill, TrendSnapshot
-from src.utils import load_competency_mapping, load_inverted_skill_index
+from src.utils import load_competency_mapping, load_inverted_skill_index, skill_words
 
 from src.api_pkg import deps
 
@@ -27,7 +27,7 @@ router = APIRouter(tags=["trends"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-@router.get("/api/trends", response_model=TrendsResponse)
+@router.get("/trends", response_model=TrendsResponse)
 @limiter.limit("60/minute")
 async def get_trends(
     request: Request,
@@ -42,10 +42,6 @@ async def get_trends(
             return {"trends": trends}
         case Err(err):
             raise HTTPException(status_code=500, detail=str(err))
-
-
-def _skill_words(name: str) -> set[str]:
-    return set(name.lower().replace("-", " ").split())
 
 
 def _classify(change_pct: float) -> str:
@@ -98,7 +94,7 @@ def _resolve_canonical_key(
     return None
 
 
-@router.get("/api/competency-trends")
+@router.get("/competency-trends")
 @limiter.limit("60/minute")
 async def get_competency_trends(
     request: Request,
@@ -154,11 +150,11 @@ async def get_competency_trends(
         for ck in normalized_cur:
             if ck in normalized_prev or len(ck) < 3:
                 continue
-            ck_words = _skill_words(ck)
+            ck_words = skill_words(ck)
             if not ck_words:
                 continue
             for ok in prev_freq:
-                if ok != ck and ck_words <= _skill_words(ok):
+                if ok != ck and ck_words <= skill_words(ok):
                     normalized_prev[ck] = prev_freq[ok]
                     break
 
@@ -232,7 +228,7 @@ async def get_competency_trends(
                         val = sf[canonical]
                     elif canonical and len(canonical) >= 3:
                         for ok, ov in sf.items():
-                            if ok != canonical and _skill_words(canonical) <= _skill_words(ok):
+                            if ok != canonical and skill_words(canonical) <= skill_words(ok):
                                 val = ov
                                 break
                     history.append({"date": str(snap.snapshot_date), "freq": val})

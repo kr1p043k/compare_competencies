@@ -114,8 +114,10 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
     # build cluster summaries with TF-IDF-like scoring
     global_skill_freq: Counter = Counter()
     cluster_skill_freqs: list[Counter] = []
+    cluster_sizes: list[int] = []
     for cl_id in unique_labels:
         indices = [i for i, l in enumerate(labels_list) if l == cl_id]
+        cluster_sizes.append(len(indices))
         cluster_vacs = [prepared[i] for i in indices]
         cf: Counter = Counter()
         for v in cluster_vacs:
@@ -126,7 +128,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
 
     n_clusters = len(unique_labels)
     clusters_out = []
-    for cl_id, cf in zip(unique_labels, cluster_skill_freqs):
+    for cl_id, cf, size in zip(unique_labels, cluster_skill_freqs, cluster_sizes):
         scored = []
         for sk, freq in cf.most_common(50):
             if len(sk) <= 2 or sk.lower() in _CLUSTER_STOP:
@@ -142,7 +144,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
         top_skills = [s for s, _ in scored[:10]]
         clusters_out.append({
             "label": f"Cluster {cl_id}",
-            "size": len(indices),
+            "size": size,
             "top_skills": top_skills,
         })
 

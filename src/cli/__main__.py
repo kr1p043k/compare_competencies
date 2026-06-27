@@ -33,12 +33,12 @@ def main() -> None:
     p = sub.add_parser("seed-db", help="Наполнить БД из JSON")
     p.add_argument("--drop", action="store_true")
     p.add_argument("--version", help="Parse version label")
-    p.set_defaults(func=lambda a: seed_db.main(drop=a.drop, version=a.version))
+    p.set_defaults(func=lambda a: asyncio.run(seed_db.main(drop=a.drop, version=a.version)))
 
     p = sub.add_parser("create-user", help="Создать пользователя")
     p.add_argument("email")
     p.add_argument("password")
-    p.add_argument("--role", default="teacher", choices=["admin", "teacher"])
+    p.add_argument("--role", default="teacher", choices=["admin", "teacher", "student"])
     p.add_argument("--name", default="")
     p.set_defaults(func=lambda a: create_user.main(a.email, a.password, a.role, a.name))
 

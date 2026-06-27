@@ -20,6 +20,7 @@ def _engine():
         echo=settings.DATABASE_ECHO,
         pool_size=10,
         max_overflow=20,
+        pool_recycle=1800,
     )
 
 
@@ -41,6 +42,6 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-async def get_engine():
+def get_engine():
     return _engine()
 

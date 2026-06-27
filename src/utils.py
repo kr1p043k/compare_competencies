@@ -21,6 +21,66 @@ from src.errors import DomainError
 logger = structlog.get_logger(__name__)
 
 
+def skill_words(name: str) -> set[str]:
+    return set(name.lower().replace("-", " ").split())
+
+
+def extract_experience(vac: dict | Any) -> str:
+    """Извлекает уровень опыта (junior/middle/senior) из данных вакансии."""
+    from src.models.enums import ExperienceLevel
+
+    def _from_dict(d):
+        exp_obj = d.get("experience", {})
+        if isinstance(exp_obj, dict):
+            exp_id = exp_obj.get("id", "").lower()
+            if any(x in exp_id for x in ["less1", "junior", "no_experience"]):
+                return "junior"
+            if any(x in exp_id for x in ["between1and3", "between3and6"]):
+                return "middle"
+            if any(x in exp_id for x in ["between6and10", "morethan10"]):
+                return "senior"
+        elif isinstance(exp_obj, str):
+            el = exp_obj.lower()
+            if any(x in el for x in ["junior", "нет опыта", "стажер"]):
+                return "junior"
+            if any(x in el for x in ["senior", "более 6"]):
+                return "senior"
+        name = d.get("name", "") or ""
+        nl = name.lower()
+        if any(x in nl for x in ["junior", "младший", "стажер", "intern"]):
+            return "junior"
+        if any(x in nl for x in ["senior", "старший", "ведущий"]):
+            return "senior"
+        return "middle"
+
+    if isinstance(vac, dict):
+        return _from_dict(vac)
+    # Vacancy object
+    exp_obj = getattr(vac, "experience", None)
+    if exp_obj:
+        if hasattr(exp_obj, "id"):
+            eid = exp_obj.id.lower()
+            if any(x in eid for x in ["less1", "junior", "no_experience"]):
+                return "junior"
+            if any(x in eid for x in ["between1and3", "between3and6"]):
+                return "middle"
+            if any(x in eid for x in ["between6and10", "morethan10"]):
+                return "senior"
+        elif isinstance(exp_obj, str):
+            el = exp_obj.lower()
+            if any(x in el for x in ["junior", "нет опыта", "стажер"]):
+                return "junior"
+            if any(x in el for x in ["senior", "более 6"]):
+                return "senior"
+    name = (getattr(vac, "name", None) or "")
+    nl = name.lower() if isinstance(name, str) else ""
+    if any(x in nl for x in ["junior", "младший", "стажер", "intern"]):
+        return "junior"
+    if any(x in nl for x in ["senior", "старший", "ведущий"]):
+        return "senior"
+    return "middle"
+
+
 def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
     """Возвращает логгер с указанным именем (устаревшая, используйте structlog)."""
     logger = logging.getLogger(name)

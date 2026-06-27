@@ -1,27 +1,55 @@
 """Write pipeline results to PostgreSQL via asyncpg (raw SQL, no SQLAlchemy)."""
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
+import weakref
 from datetime import datetime
 from pathlib import Path
 
+import asyncpg
 import structlog
 
 from src import config
-from src.db import create_pool, close_pool, get_pool
+from src.db import DATABASE_URL, DB_POOL_MAX, DB_POOL_MIN, close_pool, create_pool, get_pool
 from src.utils import extract_date_from_filename
 
 logger = structlog.get_logger(__name__)
 
+# Per-event-loop pool cache.
+# WeakKeyDictionary auto-removes entries when temporary loops (created by
+# asyncio.run() in executor threads) are garbage-collected — no leaks.
+_loop_pools: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
 
 async def _pool():
-    """Ensure pool exists and return it."""
+    """Get a pool valid for the current event loop.
+
+    Returns the global pool when called from the loop it was created in.
+    Creates a dedicated pool for executor-thread temporary loops.
+    """
+    loop = asyncio.get_running_loop()
+
+    if loop in _loop_pools:
+        return _loop_pools[loop]
+
     try:
-        return get_pool()
-    except RuntimeError:
-        await create_pool()
-        return get_pool()
+        p = get_pool()
+        async with p.acquire() as conn:
+            await conn.execute("SELECT 1")
+        _loop_pools[loop] = p
+        return p
+    except Exception:
+        pass
+
+    p = await asyncpg.create_pool(
+        DATABASE_URL,
+        min_size=DB_POOL_MIN,
+        max_size=DB_POOL_MAX,
+    )
+    _loop_pools[loop] = p
+    return p
 
 
 async def create_pipeline_run(action: str) -> str:
@@ -122,9 +150,9 @@ async def save_trend_snapshot(snapshot_date: datetime, skill_freq: dict, source:
 
 
 async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None) -> int:
-    """Upsert vacancies from raw dicts into the vacancies table."""
+    """Upsert vacancies from raw dicts into the vacancies table (batch)."""
     pool = await _pool()
-    count = 0
+    rows = []
     for v in vacancies:
         hh_id = int(v.get("id", 0))
         if not hh_id:
@@ -135,46 +163,37 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
         snippet = v.get("snippet") or {}
         skills = [s.get("name", "") for s in v.get("key_skills", []) if s.get("name")]
         parsed = v.get("extracted_skills") or v.get("raw_data", {}).get("extracted_skills")
-        try:
-            await pool.execute(
-                """INSERT INTO vacancies
-                   (hh_id, name, experience, salary_from, salary_to, salary_currency,
-                    employer_name, employer_id, area_name,
-                    snippet_requirement, snippet_responsibility,
-                    description, key_skills, parsed_skills, published_at, alternate_url,
-                    pipeline_run_id, raw)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17,$18::jsonb)
-                   ON CONFLICT (hh_id) DO UPDATE SET
-                       name=EXCLUDED.name,
-                       salary_from=EXCLUDED.salary_from,
-                       salary_to=EXCLUDED.salary_to,
-                       key_skills=EXCLUDED.key_skills,
-                       parsed_skills=COALESCE(EXCLUDED.parsed_skills, vacancies.parsed_skills),
-                       pipeline_run_id=COALESCE(EXCLUDED.pipeline_run_id, vacancies.pipeline_run_id)""",
-                hh_id,
-                v.get("name"),
-                (v.get("experience") or {}).get("id"),
-                salary.get("from"),
-                salary.get("to"),
-                salary.get("currency", "RUR"),
-                employer.get("name"),
-                employer.get("id"),
-                area.get("name"),
-                snippet.get("requirement"),
-                snippet.get("responsibility"),
-                v.get("description"),
-                json.dumps(skills),
-                json.dumps(parsed) if parsed else None,
-                v.get("published_at"),
-                v.get("alternate_url"),
-                run_id,
-                json.dumps(v, ensure_ascii=False, default=str),
-            )
-            count += 1
-        except Exception as e:
-            logger.warning("vacancy_save_failed", hh_id=hh_id, error=str(e))
-    logger.info("vacancies_saved", count=count)
-    return count
+        rows.append((
+            hh_id, v.get("name"), (v.get("experience") or {}).get("id"),
+            salary.get("from"), salary.get("to"), salary.get("currency", "RUR"),
+            employer.get("name"), employer.get("id"), area.get("name"),
+            snippet.get("requirement"), snippet.get("responsibility"),
+            v.get("description"), json.dumps(skills),
+            json.dumps(parsed) if parsed else None,
+            v.get("published_at"), v.get("alternate_url"), run_id,
+            json.dumps(v, ensure_ascii=False, default=str),
+        ))
+    if not rows:
+        return 0
+    await pool.executemany(
+        """INSERT INTO vacancies
+           (hh_id, name, experience, salary_from, salary_to, salary_currency,
+            employer_name, employer_id, area_name,
+            snippet_requirement, snippet_responsibility,
+            description, key_skills, parsed_skills, published_at, alternate_url,
+            pipeline_run_id, raw)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17,$18::jsonb)
+           ON CONFLICT (hh_id) DO UPDATE SET
+               name=EXCLUDED.name,
+               salary_from=EXCLUDED.salary_from,
+               salary_to=EXCLUDED.salary_to,
+               key_skills=EXCLUDED.key_skills,
+               parsed_skills=COALESCE(EXCLUDED.parsed_skills, vacancies.parsed_skills),
+               pipeline_run_id=COALESCE(EXCLUDED.pipeline_run_id, vacancies.pipeline_run_id)""",
+        rows,
+    )
+    logger.info("vacancies_saved", count=len(rows))
+    return len(rows)
 
 
 async def export_vacancies_from_json(

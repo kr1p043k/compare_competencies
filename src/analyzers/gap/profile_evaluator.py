@@ -81,7 +81,13 @@ class ProfileEvaluator:
             return Err(DomainError(message="skill_weights_by_level не были переданы в конструктор"))
 
         user_skills_list = student.skills
-        user_levels = {skill: 1.0 for skill in user_skills_list}
+        from src.models.enums import ExperienceLevel
+        _base_level = {
+            ExperienceLevel.JUNIOR: 0.3,
+            ExperienceLevel.MIDDLE: 0.6,
+            ExperienceLevel.SENIOR: 0.9,
+        }.get(student.target_level, 0.5)
+        user_levels = {skill: getattr(student, 'skill_levels', {}).get(skill, _base_level) for skill in user_skills_list}
         user_skills_set = set(s.lower().strip() for s in user_skills_list)
 
         # === Фильтрация навыков по целевой профессии/домену ===

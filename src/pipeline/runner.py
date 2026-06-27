@@ -9,6 +9,8 @@ import matplotlib
 
 matplotlib.use("Agg")
 
+from datetime import date, datetime
+
 from src import Err, Ok, Result, config, timed_block
 from src.loaders_student.student_loader import generate_profiles_from_csv
 from src.parsing.skills.skill_normalizer import SkillNormalizer
@@ -228,13 +230,16 @@ def run_train_model(args=None) -> Result[None, str]:
     model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
     force = getattr(args, 'force', False) if args else False
     if model_path.exists() and not force:
-        ltr_engine = create_ranking_predictor(model_path=model_path)
-        if ltr_engine and ltr_engine.is_fitted:
-            model_mtime = model_path.stat().st_mtime
-            data_mtime = raw_file.stat().st_mtime
-            if model_mtime > data_mtime:
-                console_info("✅ Модель уже обучена и актуальна, обучение пропущено")
-                return Ok(None)
+        from src import Ok, Err, Result
+        match create_ranking_predictor(model_path=model_path):
+            case Ok(engine) if engine.is_fitted:
+                model_mtime = model_path.stat().st_mtime
+                data_mtime = raw_file.stat().st_mtime
+                if model_mtime > data_mtime:
+                    console_info("✅ Модель уже обучена и актуальна, обучение пропущено")
+                    return Ok(None)
+            case _:
+                pass
     training_vacancies = safe_read_json(raw_file)
     if not training_vacancies:
         console_info("❌ Не удалось прочитать или файл повреждён.")
@@ -276,6 +281,19 @@ def clean_progress_files():
 def run_full_pipeline(args) -> Result[None, str]:
     console_header("ПОЛНЫЙ ПАЙПЛАЙН: СБОР ВАКАНСИЙ + GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ")
     logger.info("pipeline_started", mode="full_pipeline")
+
+    # Определить дату последнего сбора для инкрементального запуска
+    try:
+        from src.db import get_pool
+        import asyncio
+        pool = get_pool()
+        row = asyncio.run(pool.fetchrow(
+            "SELECT MAX(completed_at) AS d FROM pipeline_runs "
+            "WHERE action = 'full-cycle' AND status = 'completed'"
+        ))
+        args._date_from = row["d"].strftime("%Y-%m-%d") if row and row["d"] else None
+    except Exception:
+        args._date_from = None
 
     _write_pipeline_progress(0, "Инициализация...")
 
@@ -378,6 +396,42 @@ def run_full_pipeline(args) -> Result[None, str]:
             logger.info("trend_snapshots_written", count=trend_count)
         except Exception as db_err:
             logger.warning("trend_snapshots_write_failed", error=str(db_err))
+
+        # Сохранить pipeline_run для full-cycle со статистикой
+        try:
+            from src.pipeline.db_writer import _pool as _exec_pool
+
+            async def _save_pipeline_run():
+                pool = await _exec_pool()
+                total = await pool.fetchval("SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL")
+                new_vacs = (await pool.fetchval(
+                    "SELECT COUNT(*) FROM vacancies WHERE created_at::date >= $1::date",
+                    args._date_from
+                ) if args._date_from else total) or 0
+                rid = await create_pipeline_run("full-cycle")
+                await complete_pipeline_run(
+                    rid, status="completed",
+                    stats={
+                        "vacancy_count": total or 0,
+                        "new_vacancies": new_vacs,
+                        "date_from": str(args._date_from) if args._date_from else None,
+                        "date_to": str(date.today()),
+                    },
+                )
+                return rid, total, new_vacs
+            rid, total, new_vacs = asyncio.run(_save_pipeline_run())
+            logger.info("pipeline_run_saved", run_id=rid, stats={"vacancy_count": total, "new_vacancies": new_vacs})
+        except Exception as db_err:
+            logger.warning("pipeline_run_save_failed", error=str(db_err))
+
+        # Auto-reload API engines
+        try:
+            import asyncio as _asyncio
+            from src.api_pkg.startup import run_startup
+            _asyncio.run(run_startup(None))
+            logger.info("api_reloaded_after_pipeline")
+        except Exception as reload_err:
+            logger.warning("api_reload_failed", error=str(reload_err))
 
     _write_pipeline_progress(93, "Генерация графиков...")
     if evaluations:

@@ -9,7 +9,6 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from src.monitoring.metrics import get_metrics
 
@@ -18,7 +17,19 @@ from src.api_pkg import deps as deps  # noqa: F401
 
 logger = structlog.get_logger("api")
 
-limiter = Limiter(key_func=get_remote_address)
+
+def _rate_limit_key(request: Request) -> str:
+    """Rate limit by user email (from JWT) if authenticated, else by IP."""
+    user = getattr(request.state, "user", None)
+    if user and isinstance(user, dict):
+        email = user.get("email")
+        if email:
+            return f"user:{email}"
+    client_ip = request.client.host if request.client else "unknown"
+    return f"ip:{client_ip}"
+
+
+limiter = Limiter(key_func=_rate_limit_key)
 
 
 def create_app() -> FastAPI:
@@ -28,6 +39,10 @@ def create_app() -> FastAPI:
 
         await run_startup(app)
         yield
+        from src.db import close_pool
+        from src.database import get_engine
+        await close_pool()
+        await get_engine().dispose()
         logger.info("API shutting down...")
 
     app = FastAPI(
@@ -120,58 +135,43 @@ def create_app() -> FastAPI:
         )
 
     from src.api_pkg.routers.health import router as health_router
+    app.include_router(health_router)  # /, /health, /ready (without /api)
 
-    app.include_router(health_router)
+    def _mount(router, tag=""):
+        app.include_router(router, prefix="/api")
+        app.include_router(router, prefix="/api/v1", include_in_schema=False)
+
     from src.api_pkg.routers.profiles import router as profiles_router
-
-    app.include_router(profiles_router)
+    _mount(profiles_router)
     from src.api_pkg.routers.market import router as market_router
-
-    app.include_router(market_router)
+    _mount(market_router)
     from src.api_pkg.routers.clusters import router as clusters_router
-
-    app.include_router(clusters_router)
+    _mount(clusters_router)
     from src.api_pkg.routers.trends import router as trends_router
-
-    app.include_router(trends_router)
+    _mount(trends_router)
     from src.api_pkg.routers.taxonomy import router as taxonomy_router
-
-    app.include_router(taxonomy_router)
+    _mount(taxonomy_router)
     from src.api_pkg.routers.vacancies import router as vacancies_router
-
-    app.include_router(vacancies_router)
+    _mount(vacancies_router)
     from src.api_pkg.routers.vacancies_by_skill import router as vacancies_skill_router
-
-    app.include_router(vacancies_skill_router)
+    _mount(vacancies_skill_router)
     from src.api_pkg.routers.results import router as results_router
-
-    app.include_router(results_router)
+    _mount(results_router)
     from src.api_pkg.routers.pipeline import router as pipeline_router
-
-    app.include_router(pipeline_router)
+    _mount(pipeline_router)
     from src.api_pkg.routers.admin import router as admin_router
-
-    app.include_router(admin_router)
-
+    _mount(admin_router)
     from src.api_pkg.routers.forecast import router as forecast_router
-
-    app.include_router(forecast_router)
-
+    _mount(forecast_router)
     from src.api_pkg.routers.auth import router as auth_router
-
-    app.include_router(auth_router)
-
+    _mount(auth_router)
     from src.api_pkg.routers.teacher import router as teacher_router
-
-    app.include_router(teacher_router)
-
+    _mount(teacher_router)
     from src.api_pkg.routers.student import router as student_router
-
-    app.include_router(student_router)
+    _mount(student_router)
 
     from src.n8n.webhooks import router as n8n_webhook_router
-
-    app.include_router(n8n_webhook_router)
+    app.include_router(n8n_webhook_router)  # no versioning
 
     from src.api_pkg.request_logger import RequestLogMiddleware
 

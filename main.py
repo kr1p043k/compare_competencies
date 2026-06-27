@@ -67,7 +67,6 @@ def parse_arguments():
 
 
 def validate_args(args) -> None:
-    from src import config
     errors = []
     if args.train_model:
         detailed_ok = (config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json").exists()
@@ -78,7 +77,6 @@ def validate_args(args) -> None:
                 "(hh_vacancies_detailed.json или hh_vacancies_basic.json). Сначала выполните сбор данных."
             )
     if args.skip_collection and not args.train_model:
-        from src import config
         detailed_exists = (config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json").exists()
         basic_exists = (config.DATA_RAW_DIR / "hh_vacancies_basic.json").exists()
         if not detailed_exists and not basic_exists:

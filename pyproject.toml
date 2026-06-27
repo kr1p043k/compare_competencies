@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta:__legacy__"
 
 [project]
 name = "compare-competencies"
@@ -31,7 +31,6 @@ markers = [
 
 [tool.coverage.run]
 omit = [
-    "src/api.py",
     "src/logging_config.py",
 ]
 
@@ -41,7 +40,6 @@ strict = true
 show_error_codes = true
 warn_unused_ignores = true
 
-# Third-party stubs
 ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
@@ -50,4 +48,3 @@ module = [
     "hdbscan", "shap", "fastapi.*", "pydantic.*", "slowapi.*",
     "structlog",
 ]
-ignore_missing_imports = true
