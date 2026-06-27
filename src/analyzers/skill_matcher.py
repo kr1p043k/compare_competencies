@@ -46,7 +46,9 @@ class SkillMatcher:
         if self._embedding_provider and market_skills:
             names = list(market_skills.keys())
             embs = self._embedding_provider.encode(names, show_progress_bar=False)
-            self._market_embeddings = embs / np.linalg.norm(embs, axis=1, keepdims=True)
+            norms = np.linalg.norm(embs, axis=1, keepdims=True)
+            norms[norms == 0] = 1.0
+            self._market_embeddings = embs / norms
             self._market_names = names
         logger.info("market_skills_set", count=len(market_skills))
         return Ok(None)
@@ -62,7 +64,9 @@ class SkillMatcher:
         if self._market_embeddings is None or self._embedding_provider is None:
             return (None, "no_match")
         qemb = self._embedding_provider.encode([n])
-        qemb /= np.linalg.norm(qemb)
+        qnorm = np.linalg.norm(qemb)
+        if qnorm > 0:
+            qemb /= qnorm
         sims = self._market_embeddings @ qemb.T
         best = int(np.argmax(sims))
         score = float(sims[best])
