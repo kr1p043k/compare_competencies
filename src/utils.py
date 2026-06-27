@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import re
 import tempfile
@@ -79,28 +78,6 @@ def extract_experience(vac: dict | Any) -> str:
     if any(x in nl for x in ["senior", "старший", "ведущий"]):
         return "senior"
     return "middle"
-
-
-def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
-    """Возвращает логгер с указанным именем (устаревшая, используйте structlog)."""
-    logger = logging.getLogger(name)
-    if logger.handlers:
-        return logger
-
-    logger.setLevel(level)
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
-
-    file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(formatter)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-    return logger
 
 
 def load_competency_mapping() -> dict[str, list[str]]:
