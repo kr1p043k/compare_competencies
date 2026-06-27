@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash   TEXT NOT NULL,                     -- crypt(пароль, gen_salt('bf'))
     full_name       TEXT NOT NULL,
     role            VARCHAR(20) NOT NULL DEFAULT 'teacher'
-                    CHECK (role IN ('admin', 'teacher')),
+                    CHECK (role IN ('admin', 'teacher', 'student')),
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -492,7 +492,7 @@ VALUES (
 INSERT INTO users (email, password_hash, full_name, role) VALUES
     ('admin@compare-competencies.local', crypt('admin', gen_salt('bf')), 'Администратор', 'admin'),
     ('teacher@compare-competencies.local', crypt('prepod', gen_salt('bf')), 'Преподаватель', 'teacher'),
-    ('student@compare-competencies.local', crypt('student', gen_salt('bf')), 'Студент', 'teacher')
+    ('student@compare-competencies.local', crypt('student', gen_salt('bf')), 'Студент', 'student')
 ON CONFLICT (email) DO NOTHING;
 
 -- =============================================================================

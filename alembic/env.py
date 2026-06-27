@@ -38,9 +38,8 @@ def do_run_migrations(connection):
 async def run_async_migrations():
     """Запуск миграций в асинхронном режиме."""
     connectable = create_async_engine(settings.DATABASE_URL)
-    async with connectable.connect() as connection:
+    async with connectable.begin() as connection:
         await connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        await connection.run_sync(Base.metadata.create_all)
         await connection.run_sync(do_run_migrations)
 
 
