@@ -36,8 +36,8 @@ def _extract_user(request: Request) -> str | None:
         parts = token.split(".")
         if len(parts) != 2:
             return None
-        payload_b64 = parts[0] + "=" * (4 - len(parts[0]) % 4)
-        sig_b64 = parts[1] + "=" * (4 - len(parts[1]) % 4)
+        payload_b64 = parts[0] + "=" * ((4 - len(parts[0]) % 4) % 4)
+        sig_b64 = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
         payload = base64.urlsafe_b64decode(payload_b64).decode()
         expected_sig = base64.urlsafe_b64decode(sig_b64)
         actual_sig = hmac.new(SECRET_KEY.encode(), payload.encode(), hashlib.sha256).digest()
