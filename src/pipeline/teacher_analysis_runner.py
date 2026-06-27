@@ -18,6 +18,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 import numpy as np
 import structlog
 
+from src import config
 from src.result import Ok, Err, Result
 from src.errors import AnalysisDataError, AnalysisRunnerError, RecommendationError
 from src.db import create_pool, close_pool, get_pool
@@ -353,7 +354,6 @@ async def run_teacher_analysis(
             d["skill_freq"] = json.loads(d["skill_freq"])
         snapshots.append(d)
 
-    await close_pool()
     logger.info("snapshots_loaded", count=len(snapshots))
 
     # — init services —
