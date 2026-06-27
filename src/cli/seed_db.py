@@ -1,4 +1,4 @@
-﻿"""Seed database from JSON data + it_skills + rpd_skills.
+"""Seed database from JSON data + it_skills + rpd_skills.
 
 Usage:
     python -m src.cli seed-db [--drop]
@@ -36,7 +36,7 @@ IT_SKILLS_PATH = DATA_DIR / "reference" / "it_skills.json"
 RPD_SKILLS_PATH = DATA_DIR / "reference" / "rpd_skills.json"
 RECOMMENDATIONS_PATH = DATA_DIR / "reference" / "teacher_recommendations.json"
 
-_COMP_CODE_RE = re.compile(r"^(╨г╨Ъ|╨Ю╨Я╨Ъ|╨Я╨Ъ|╨Я╨Я╨Ъ|╨Ш╨Я)[\s-](\d+)$")
+_COMP_CODE_RE = re.compile(r"^(УК|ОПК|ПК|ППК|ИП)[\s-](\d+)$")
 
 
 def _parse_comp_code(code: str) -> tuple[str, str]:
@@ -96,8 +96,8 @@ async def seed_krm(session, skill_map: dict[str, str]) -> None:
     if not direction:
         direction = Direction(
             code="09.03.02",
-            name=direction_data.get("direction_name", "09.03.02 ╨Ш╨╜╤Д╨╛╤А╨╝╨░╤Ж╨╕╨╛╨╜╨╜╤Л╨╡ ╤Б╨╕╤Б╤В╨╡╨╝╤Л ╨╕ ╤В╨╡╤Е╨╜╨╛╨╗╨╛╨│╨╕╨╕"),
-            profile=direction_data.get("profile", "╨Я╨╡╤А╤Б╨┐╨╡╨║╤В╨╕╨▓╨╜╤Л╨╡ ╨╕╨╜╤Д╨╛╤А╨╝╨░╤Ж╨╕╨╛╨╜╨╜╤Л╨╡ ╤В╨╡╤Е╨╜╨╛╨╗╨╛╨│╨╕╨╕"),
+            name=direction_data.get("direction_name", "09.03.02 Информационные системы и технологии"),
+            profile=direction_data.get("profile", "Перспективные информационные технологии"),
             opop_year=2024,
         )
         session.add(direction)

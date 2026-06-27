@@ -1,4 +1,4 @@
-﻿"""Main runner: loads DB data → analyzers → predictors → data/result/teacher/.
+"""Main runner: loads DB data → analyzers → predictors → data/result/teacher/.
 
 Enhanced with embedding-based gap analysis (semantic coverage + SHAP).
 """

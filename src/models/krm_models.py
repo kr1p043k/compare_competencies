@@ -1,4 +1,4 @@
-﻿"""SQLAlchemy models for main project database."""
+"""SQLAlchemy models for main project database."""
 
 import uuid
 from datetime import datetime, timezone

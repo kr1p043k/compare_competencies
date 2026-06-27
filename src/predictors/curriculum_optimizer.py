@@ -1,4 +1,4 @@
-﻿"""Curriculum optimizer: suggests structural program changes."""
+"""Curriculum optimizer: suggests structural program changes."""
 from __future__ import annotations
 
 import structlog
