@@ -72,6 +72,10 @@ async def get_profile_image(
     profile: str,
     image_type: str,
 ):
+    import re
+    if not re.match(r"^[a-zA-Z0-9_-]+$", profile):
+        raise HTTPException(status_code=400, detail="Invalid profile name")
+
     safe_types = ["radar", "ml_importance", "cluster_insights", "deficits", "skills_heatmap", "skill_correlation"]
     if image_type not in safe_types:
         raise HTTPException(status_code=400, detail="Invalid image type")
@@ -84,7 +88,12 @@ async def get_profile_image(
             status_code=404, detail=f"Image not found: {image_type}_{profile}.png"
         )
 
-    return FileResponse(image_path, media_type="image/png")
+    resolved = image_path.resolve()
+    allowed = config.DATA_DIR.resolve() / "result"
+    if allowed not in resolved.parents:
+        raise HTTPException(status_code=400, detail="Invalid image path")
+
+    return FileResponse(resolved, media_type="image/png")
 
 
 @router.get("/results/images/coverage-comparison")

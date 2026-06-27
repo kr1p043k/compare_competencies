@@ -567,7 +567,7 @@ ON CONFLICT (code, profile) DO UPDATE SET
 -- Пользователи по умолчанию (пароль через pgcrypt bcrypt)
 INSERT INTO users (email, password_hash, full_name, role) VALUES
     ('admin@compare-competencies.local', crypt('admin', gen_salt('bf')), 'Администратор', 'admin'),
-    ('teacher@compare-competencies.local', crypt('prepod', gen_salt('bf')), 'Преподаватель', 'teacher')
+    ('teacher@compare-competencies.local', crypt('teacher123', gen_salt('bf')), 'Преподаватель', 'teacher')
 ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO users (email, password_hash, full_name, role) VALUES

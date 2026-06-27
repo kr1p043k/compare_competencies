@@ -21,7 +21,11 @@ export function LoginPage({ onLogin }: { onLogin: (token: string, role: string, 
         body: JSON.stringify({ email: username, password }),
       });
       if (!res.ok) {
-        setError("Неверный логин или пароль");
+        if (res.status >= 500) {
+          setError("Сервер временно недоступен. Попробуйте позже.");
+        } else {
+          setError("Неверный логин или пароль");
+        }
         return;
       }
       const data = await res.json();

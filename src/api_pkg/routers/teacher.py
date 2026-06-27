@@ -341,16 +341,24 @@ async def run_teacher_analysis_endpoint(
 
 @router.get("/teacher/analysis")
 async def get_analysis(dir_code: str = "09.03.02"):
-    summary_path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher" / dir_code / "_summary.json"
-    if not summary_path.exists():
+    import re
+    if not re.match(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$", dir_code):
+        raise HTTPException(status_code=400, detail="Invalid direction code format")
+    base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher"
+    resolved = (base / dir_code / "_summary.json").resolve()
+    if base.resolve() not in resolved.parents:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if not resolved.exists():
         raise HTTPException(404, f"Analysis not found for {dir_code}")
-    return json.loads(summary_path.read_text(encoding="utf-8"))
+    return json.loads(resolved.read_text(encoding="utf-8"))
 
 
 @router.get("/teacher/analysis/{discipline_name:path}")
 async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02"):
     import re
     from pathlib import Path
+    if not re.match(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$", dir_code):
+        raise HTTPException(status_code=400, detail="Invalid direction code format")
     base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher" / dir_code
     safe = re.sub(r'[\\/*?:"<>|]', "_", discipline_name).strip()[:80]
     files = [f for f in base.rglob(f"{safe}.json") if f.name != "_summary.json"]

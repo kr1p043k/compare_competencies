@@ -138,11 +138,17 @@ async def get_vacancies_info():
         "WHERE action = 'full-cycle' AND status = 'completed' "
         "ORDER BY completed_at DESC LIMIT 1"
     )
-    total = await pool.fetchval(
-        "SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL"
-    )
+    try:
+        total = await pool.fetchval(
+            "SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL"
+        )
+        info["total_vacancies"] = total or 0
+    except Exception as exc:
+        logger.warning("vacancies_info_db_unavailable", error=str(exc))
+        info["total_vacancies"] = 0
+        info["db_available"] = False
+
     info["last_updated"] = str(last["completed_at"]) if last else None
-    info["total_vacancies"] = total or 0
     info["last_pipeline_stats"] = last["stats"] if last else None
 
     if raw.exists():

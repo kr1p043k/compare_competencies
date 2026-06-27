@@ -85,40 +85,45 @@ def require_role(role: str):
 
 @router.post("/auth/login")
 async def login(body: LoginRequest, request: Request):
-    pool = get_pool()
-    row = await pool.fetchrow(
-        "SELECT id, email, role, full_name, password_hash FROM users WHERE email = $1 AND is_active = true",
-        body.email,
-    )
-    if row is None:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    try:
+        pool = get_pool()
+        row = await pool.fetchrow(
+            "SELECT id, email, role, full_name, password_hash FROM users WHERE email = $1 AND is_active = true",
+            body.email,
+        )
+        if row is None:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    match = await pool.fetchval(
-        "SELECT password_hash = crypt($1, password_hash) FROM users WHERE id = $2",
-        body.password, row["id"],
-    )
-    if not match:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        match = await pool.fetchval(
+            "SELECT password_hash = crypt($1, password_hash) FROM users WHERE id = $2",
+            body.password, row["id"],
+        )
+        if not match:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = _make_token(str(row["id"]), row["email"], row["role"])
+        token = _make_token(str(row["id"]), row["email"], row["role"])
 
-    # Create session
-    token_hash = _hash_token(token)
-    ip = request.client.host if request.client else "unknown"
-    ua = request.headers.get("User-Agent", "")
-    await pool.execute(
-        """INSERT INTO sessions (user_id, token_hash, ip_address, user_agent)
-           VALUES ($1, $2, $3, $4)""",
-        row["id"], token_hash, ip, ua,
-    )
+        token_hash = _hash_token(token)
+        ip = request.client.host if request.client else "unknown"
+        ua = request.headers.get("User-Agent", "")
+        await pool.execute(
+            """INSERT INTO sessions (user_id, token_hash, ip_address, user_agent)
+               VALUES ($1, $2, $3, $4)""",
+            row["id"], token_hash, ip, ua,
+        )
 
-    logger.info("user_logged_in", email=body.email, role=row["role"])
-    return {
-        "token": token,
-        "role": row["role"],
-        "name": row["full_name"],
-        "username": row["email"],
-    }
+        logger.info("user_logged_in", email=body.email, role=row["role"])
+        return {
+            "token": token,
+            "role": row["role"],
+            "name": row["full_name"],
+            "username": row["email"],
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("login_db_error", error=str(exc))
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
 
 @router.post("/auth/logout")
