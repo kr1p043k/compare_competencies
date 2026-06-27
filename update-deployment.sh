@@ -1,45 +1,67 @@
-cd ~/competency-platform
+#!/bin/bash
+set -e
 
-set -e  # exit on error
+echo "=== Starting deployment ==="
+BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
 
-echo "Starting deployment update..."
+backup() {
+  echo "=== Backup ==="
+  mkdir -p backups
 
-# Backup
-echo "Creating backup..."
-./backup.sh
-docker exec -t competency-postgres pg_dump -U competency_user compare_competencies > backup_$(date +%Y%m%d_%H%M%S).sql
+  for volume in $(docker volume ls -q | grep competency-); do
+    echo "Backing up volume: $volume"
+    docker run --rm \
+      -v $volume:/data \
+      -v "$(pwd)/backups:/backup" \
+      alpine tar czf /backup/${volume}_${BACKUP_DATE}.tar.gz -C /data .
+  done
 
-# Stop services
-echo "Stopping services..."
-docker compose down
+  echo "Backing up database..."
+  docker exec -t competency-postgres pg_dump -U postgres compare_competencies \
+    > backups/db_${BACKUP_DATE}.sql
 
-# Backup old compose file
-cp docker-compose.yml docker-compose.yml.old
+  echo "Backup complete: ${BACKUP_DATE}"
+}
 
-# Validate new config
-echo "Validating new configuration..."
-docker compose config > /dev/null
+deploy() {
+  backup
 
-# Start with new config
-echo "Starting with new configuration..."
-docker compose up -d --wait --timeout 60
+  echo "=== Deploy ==="
 
-# Check health
-echo "Checking health..."
-sleep 10
-if curl -f http://localhost:8000/health; then
-    echo "Update successful!"
+  cp docker-compose.yml docker-compose.yml.old
+
+  echo "Pulling latest code..."
+  git pull origin main
+
+  echo "Stopping services..."
+  docker compose down
+
+  echo "Validating config..."
+  docker compose config > /dev/null
+
+  echo "Starting services..."
+  docker compose up -d --build
+
+  echo "Health check..."
+  sleep 10
+  if curl -sf http://localhost:8000/health; then
+    echo "Deploy successful!"
     docker compose ps
-else
+  else
     echo "Health check failed! Rolling back..."
     docker compose down
     mv docker-compose.yml.old docker-compose.yml
     docker compose up -d
     exit 1
-fi
+  fi
 
-# Cleanup
-echo "🧹 Cleaning up old images..."
-docker system prune -f
+  echo "Cleanup..."
+  docker image prune -f
 
-echo "Update complete!"
+  echo "=== Deploy complete ==="
+}
+
+case "${1:-deploy}" in
+  backup) backup ;;
+  deploy) deploy ;;
+esac
