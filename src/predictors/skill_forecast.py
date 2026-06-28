@@ -19,6 +19,7 @@ class ForecastResult:
     predicted_growth: float
     confidence: float
     next_year_frequency: float
+    engine_used: str = "prophet"
 
 
 GENE_POOL = [
@@ -70,7 +71,7 @@ class SkillForecastEngine(BasePredictor):
         return self._is_fitted
 
     def fit(self, skill_frequencies: dict[str, float] | None = None, **kwargs) -> Result["SkillForecastEngine", Exception]:
-        random.seed(config.GLOBAL_RANDOM_SEED)
+        self._rng = random.Random(config.GLOBAL_RANDOM_SEED)
         freqs = skill_frequencies or {}
         self._population = {}
         for skill, freq in freqs.items():
@@ -118,6 +119,7 @@ class SkillForecastEngine(BasePredictor):
             predicted_growth=growth,
             confidence=round(confidence, 4),
             next_year_frequency=predicted,
+            engine_used="genetic",
         ))
 
     def forecast_all(self, months: int = 12) -> Result[list[ForecastResult], DomainError]:

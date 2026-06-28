@@ -166,9 +166,13 @@ class ProphetForecastEngine(BasePredictor):
                 predicted_growth=round(growth, 4),
                 confidence=round(max(conf, 0.0), 4),
                 next_year_frequency=round(next_freq, 4),
+                engine_used="prophet",
             ))
         if self._fallback_engine:
-            return self._fallback_engine.forecast(skill, months)
+            result = self._fallback_engine.forecast(skill, months)
+            if result.is_ok():
+                result.ok().engine_used = "genetic_fallback"
+            return result
         return Err(DomainError(f"Skill '{skill}' not found"))
 
     def forecast_all(self, months: int = 12) -> Result[list[ForecastResult], DomainError]:

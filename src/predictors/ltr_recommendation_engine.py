@@ -129,7 +129,6 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             ))
 
         logger.info("ltr_training_started", vacancies=len(vacancies))
-        np.random.seed(config.GLOBAL_RANDOM_SEED)
 
         match self.vacancy_parser.extract_skills_from_vacancies(vacancies):
             case Ok(result):

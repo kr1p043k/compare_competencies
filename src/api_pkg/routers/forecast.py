@@ -98,6 +98,7 @@ def _serialize(r: ForecastResult, direction: str | None = None, method: str = "g
         "confidence": round(r.confidence, 4),
         "next_year_frequency": round(r.next_year_frequency, 4),
         "method": method,
+        "engine_used": getattr(r, "engine_used", method),
         "trend_direction": direction or ("growing" if r.predicted_growth > 0 else "declining"),
     }
 
