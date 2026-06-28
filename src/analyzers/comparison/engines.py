@@ -50,10 +50,19 @@ class JaccardEngine:
         student_skills: list[str],
         market_skills: list[str],
     ) -> Result[ComparisonResult, DomainError]:
+        # Token index: each token → list of student skill indices containing it
+        token_index: dict[str, list[int]] = {}
+        for i, ss in enumerate(student_skills):
+            for token in ss.lower().split():
+                token_index.setdefault(token, []).append(i)
+
         best_sims: dict[str, float] = {}
         for ms in market_skills:
+            candidates: set[int] = set()
+            for token in ms.lower().split():
+                candidates.update(token_index.get(token, []))
             best = max(
-                (fuzz.token_sort_ratio(ss.lower(), ms.lower()) / 100.0 for ss in student_skills),
+                (fuzz.token_sort_ratio(student_skills[i].lower(), ms.lower()) / 100.0 for i in candidates),
                 default=0.0,
             )
             if best >= self.threshold:

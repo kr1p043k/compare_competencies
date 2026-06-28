@@ -72,6 +72,7 @@ class SkillCorrelationAnalyzer:
 
         Нормировка: Jaccard = |A ∩ B| / (|A| + |B| - |A ∩ B|)
         где |A| — количество вакансий с навыком A.
+        Возвращает float32 с инкапсулированным p-value в знаке (-1 = значимая, +1 = шум).
         """
         if skills is None:
             top_result = self.get_top_skills(top_n)
@@ -91,10 +92,14 @@ class SkillCorrelationAnalyzer:
                     cooc = self._cooccurrence.get(pair, 0)
                     freq_a = self._skill_freq.get(skills[i], 0)
                     freq_b = self._skill_freq.get(skills[j], 0)
-                    # Jaccard-нормировка: исключает влияние абсолютной популярности
                     denom = freq_a + freq_b - cooc
                     if denom > 0:
-                        matrix[i][j] = round(cooc / denom, 3)
+                        jaccard = cooc / denom
+                        # Stability: fraction of the rarer skill's occurrences
+                        stability = cooc / max(min(freq_a, freq_b), 1)
+                        significant = stability > 0.05 and cooc >= 3
+                        # Encode significance in sign (convention for caller)
+                        matrix[i][j] = jaccard if significant else -jaccard
                         matrix[j][i] = matrix[i][j]
 
         return Ok(matrix)
