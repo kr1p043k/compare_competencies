@@ -163,6 +163,16 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
         snippet = v.get("snippet") or {}
         skills = [s.get("name", "") for s in v.get("key_skills", []) if s.get("name")]
         parsed = v.get("extracted_skills") or v.get("raw_data", {}).get("extracted_skills")
+        pub = v.get("published_at")
+        if isinstance(pub, str):
+            try:
+                # Fix HH API format: 2026-06-28T18:03:49+0300 → 2026-06-28T18:03:49+03:00
+                s = pub.replace("Z", "+00:00")
+                if "+" in s[10:] and ":" not in s[-5:]:
+                    s = s[:-2] + ":" + s[-2:]
+                pub = datetime.fromisoformat(s)
+            except (ValueError, AttributeError):
+                pub = None
         rows.append((
             hh_id, v.get("name"), (v.get("experience") or {}).get("id"),
             salary.get("from"), salary.get("to"), salary.get("currency", "RUR"),
@@ -170,7 +180,7 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
             snippet.get("requirement"), snippet.get("responsibility"),
             v.get("description"), json.dumps(skills),
             json.dumps(parsed) if parsed else None,
-            v.get("published_at"), v.get("alternate_url"), run_id,
+            pub, v.get("alternate_url"), run_id,
             json.dumps(v, ensure_ascii=False, default=str),
         ))
     if not rows:
