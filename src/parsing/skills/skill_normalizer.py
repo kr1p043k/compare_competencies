@@ -24,7 +24,7 @@ class SkillNormalizer:
         "javascript": ["js", "java script"],
         "typescript": ["ts", "type script"],
         "go": ["golang", "go lang"],
-        "csharp": ["c#", "c sharp", ".net"],
+        "csharp": ["c#", "c sharp"],
         "cpp": ["c++", "c plus plus", "С++", "C++"],
         "rust": ["rustlang"],
         "swift": ["swiftui"],

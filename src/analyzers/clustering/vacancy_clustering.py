@@ -42,7 +42,7 @@ class VacancyClusterer:
         max_clusters: int = 40,
         random_state: int = 42,
         use_hdbscan_fallback: bool = True,
-        min_cluster_size: int = 5,
+        min_cluster_size: int = 15,
         skill_weights: dict[str, float] | None = None,
     ):
         self.n_clusters = n_clusters
@@ -177,7 +177,12 @@ class VacancyClusterer:
             if len(set(labels)) < 2:
                 continue
             try:
-                score = silhouette_score(x, labels, metric="cosine")
+                if n_samples > 500:
+                    rng = np.random.RandomState(42)
+                    idx = rng.choice(n_samples, 500, replace=False)
+                    score = silhouette_score(x[idx], labels[idx], metric="cosine")
+                else:
+                    score = silhouette_score(x, labels, metric="cosine")
             except Exception:
                 continue
             logger.debug("kmeans_silhouette", k=k, silhouette=round(score, 4))

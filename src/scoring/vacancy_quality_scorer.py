@@ -266,6 +266,8 @@ class VacancyQualityScorer:
                     deductions += 0.2
 
             score = max(0.0, 1.0 - deductions)
+            import math
+            spam_prob = 1.0 / (1.0 + math.exp(-10 * (self.spam_threshold - score)))
             is_spam = score < self.spam_threshold
             return Ok(QualityScore(
                 vacancy_id=vacancy.id,
