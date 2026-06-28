@@ -1,94 +1,32 @@
 {
-  "total_vacancies": 100,
-  "clean_count": 93,
-  "spam_count": 7,
-  "spam_rate": 0.07,
-  "avg_quality_score": 0.938,
+  "total_vacancies": 225,
+  "clean_count": 224,
+  "spam_count": 1,
+  "spam_rate": 0.004,
+  "avg_quality_score": 0.952,
   "spam_reasons": {
-    "нет навыков": 7
+    "NO_KEY_SKILLS": 1,
+    "SUSPICIOUS_EMPLOYER": 1,
+    "PROMO_DESCRIPTION": 1
   },
   "spam_vacancies": [
     {
-      "id": "133474514",
-      "name": "Программист-стажер 1С (сервис-инженер/Junior)",
-      "employer": "Вектро Прагматик",
-      "score": 0.4,
+      "id": "132896101",
+      "name": "Data Scientist в команду LLM Train",
+      "employer": "HeadHunter",
+      "score": 0.44999999999999996,
       "flags": [
         {
-          "reason": "нет навыков",
-          "detail": "No skills in key_skills, description, or snippet"
-        }
-      ]
-    },
-    {
-      "id": "122017344",
-      "name": "Специалист по автоматизации (1С аналитик)",
-      "employer": "Транспортно-логистическая группа «Трансойл»",
-      "score": 0.4,
-      "flags": [
+          "reason": "NO_KEY_SKILLS",
+          "detail": "No key skills (but found in description/snippet)"
+        },
         {
-          "reason": "нет навыков",
-          "detail": "No skills in key_skills, description, or snippet"
-        }
-      ]
-    },
-    {
-      "id": "133729121",
-      "name": "Программист 1С",
-      "employer": "ПКФ Снарк",
-      "score": 0.4,
-      "flags": [
+          "reason": "SUSPICIOUS_EMPLOYER",
+          "detail": "Employer: HeadHunter"
+        },
         {
-          "reason": "нет навыков",
-          "detail": "No skills in key_skills, description, or snippet"
-        }
-      ]
-    },
-    {
-      "id": "133906248",
-      "name": "Аналитик 1С (сопровождение)",
-      "employer": "НТА",
-      "score": 0.4,
-      "flags": [
-        {
-          "reason": "нет навыков",
-          "detail": "No skills in key_skills, description, or snippet"
-        }
-      ]
-    },
-    {
-      "id": "133873484",
-      "name": "Программист 1С",
-      "employer": "Ижтехком",
-      "score": 0.4,
-      "flags": [
-        {
-          "reason": "нет навыков",
-          "detail": "No skills in key_skills, description, or snippet"
-        }
-      ]
-    },
-    {
-      "id": "133860470",
-      "name": "Инженер (программист 1С предприятия)",
-      "employer": "НИИ автоматизированных систем и комплексов связи Нептун",
-      "score": 0.4,
-      "flags": [
-        {
-          "reason": "нет навыков",
-          "detail": "No skills in key_skills, description, or snippet"
-        }
-      ]
-    },
-    {
-      "id": "131093889",
-      "name": "Программист 1С",
-      "employer": "НИИ Гириконд",
-      "score": 0.4,
-      "flags": [
-        {
-          "reason": "нет навыков",
-          "detail": "No skills in key_skills, description, or snippet"
+          "reason": "PROMO_DESCRIPTION",
+          "detail": "Promotional text detected"
         }
       ]
     }

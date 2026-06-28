@@ -1,4 +1,4 @@
-﻿"""Curriculum recommender: generates per-discipline curriculum recommendations."""
+"""Curriculum recommender: generates per-discipline curriculum recommendations."""
 from __future__ import annotations
 
 import json

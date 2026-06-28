@@ -4,6 +4,7 @@ areas
 __pycache__
 venv
 .venv
+venv312/
 competency_frequency_mapped.json
 test/test_output
 *.jpg
@@ -55,4 +56,6 @@ data/
 data/result/reports/env
 env
 env
-.github
+
+# Backup files
+backups/

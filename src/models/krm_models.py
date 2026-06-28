@@ -1,4 +1,4 @@
-﻿"""SQLAlchemy models for main project database."""
+"""SQLAlchemy models for main project database."""
 
 import uuid
 from datetime import datetime, timezone
@@ -270,7 +270,7 @@ class User(Base):
     sessions: Mapped[list["Session"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
-        CheckConstraint(role.in_(["admin", "teacher"]), name="ck_user_role"),
+        CheckConstraint(role.in_(["admin", "teacher", "student"]), name="ck_user_role"),
     )
 
 

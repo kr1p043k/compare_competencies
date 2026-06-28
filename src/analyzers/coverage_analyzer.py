@@ -1,4 +1,4 @@
-﻿"""Coverage analyzer: discipline vs market coverage."""
+"""Coverage analyzer: discipline vs market coverage."""
 from __future__ import annotations
 
 from collections import Counter

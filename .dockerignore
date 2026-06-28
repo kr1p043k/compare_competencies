@@ -1,0 +1,15 @@
+.venv
+__pycache__
+*.pyc
+.git
+.env
+data/
+logs/
+uploads/
+cache/
+prometheus/data
+grafana/data
+backups/
+*.md
+*.sh
+*.ps1

@@ -11,7 +11,7 @@
   },
   "student@compare-competencies.local": {
     "password": "student",
-    "role": "teacher",
+    "role": "student",
     "name": "Студент"
   }
 }

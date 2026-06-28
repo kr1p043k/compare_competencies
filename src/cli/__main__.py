@@ -38,7 +38,7 @@ def main() -> None:
     p = sub.add_parser("create-user", help="Создать пользователя")
     p.add_argument("email")
     p.add_argument("password")
-    p.add_argument("--role", default="teacher", choices=["admin", "teacher"])
+    p.add_argument("--role", default="teacher", choices=["admin", "teacher", "student"])
     p.add_argument("--name", default="")
     p.set_defaults(func=lambda a: asyncio.run(create_user.main(a.email, a.password, a.role, a.name)))
 
