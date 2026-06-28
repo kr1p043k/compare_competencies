@@ -1,28 +1,219 @@
 {
-  "total_vacancies": 225,
-  "clean_count": 224,
-  "spam_count": 1,
-  "spam_rate": 0.004,
-  "avg_quality_score": 0.952,
+  "total_vacancies": 913,
+  "clean_count": 896,
+  "spam_count": 17,
+  "spam_rate": 0.019,
+  "avg_quality_score": 0.958,
   "spam_reasons": {
-    "NO_KEY_SKILLS": 1,
-    "SUSPICIOUS_EMPLOYER": 1,
-    "PROMO_DESCRIPTION": 1
+    "нет навыков": 17,
+    "PROMO_DESCRIPTION": 2
   },
   "spam_vacancies": [
     {
-      "id": "132896101",
-      "name": "Data Scientist в команду LLM Train",
-      "employer": "HeadHunter",
-      "score": 0.44999999999999996,
+      "id": "134228944",
+      "name": "Технический писатель",
+      "employer": "СПб ГКУ Санкт-Петербургский информационно-аналитический центр",
+      "score": 0.4,
       "flags": [
         {
-          "reason": "NO_KEY_SKILLS",
-          "detail": "No key skills (but found in description/snippet)"
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134546033",
+      "name": "Ведущий технический писатель",
+      "employer": "ИнфоТеКС",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134160832",
+      "name": "Специалист по информационной безопасности",
+      "employer": "Специальный Технологический Центр (ООО СТЦ)",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "131715232",
+      "name": "Специалист по информационной безопасности (Проектировщик систем защиты информации)",
+      "employer": "Арман",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133715546",
+      "name": "Сервисный инженер 1С / Специалист технической поддержки 1С",
+      "employer": "Диалог ИТ",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "132652464",
+      "name": "Инженер по применению продукции (ПЛК Regul)",
+      "employer": "РегЛаб",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134572614",
+      "name": "Инженер центра обработки данных (ЦОД)",
+      "employer": "Evercode Lab",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133646104",
+      "name": "Инженер по надежности/отказобезопасности",
+      "employer": "Компания «Кронштадт»",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133382794",
+      "name": "Консультант (внедрение и сопровождение ПО)",
+      "employer": "НПК КАТАРСИС",
+      "score": 0.19999999999999996,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
         },
         {
-          "reason": "SUSPICIOUS_EMPLOYER",
-          "detail": "Employer: HeadHunter"
+          "reason": "PROMO_DESCRIPTION",
+          "detail": "Promotional text detected"
+        }
+      ]
+    },
+    {
+      "id": "132537442",
+      "name": "Менеджер по развитию B2B продуктов. TravelTech",
+      "employer": "Суточно.ру",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133223337",
+      "name": "Руководитель проектов 1С",
+      "employer": "Koderline",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134584784",
+      "name": "Product Owner / Product Manager",
+      "employer": "Loyalty Labs",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133051512",
+      "name": "AppSec Архитектор",
+      "employer": "Nexign (АО Нэксайн)",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "119227637",
+      "name": "Руководитель IT проектов",
+      "employer": "СОЛВО",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134254108",
+      "name": "Менеджер образовательных проектов",
+      "employer": "Леста Игры",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134443939",
+      "name": "Продуктовый дизайнер",
+      "employer": "ЮДС Медиа",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134380906",
+      "name": "Продакт-менеджер / Product manager (Рег.решения - сервис для предпринимателей)",
+      "employer": "Рунити",
+      "score": 0.19999999999999996,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
         },
         {
           "reason": "PROMO_DESCRIPTION",

@@ -1,4 +1,5 @@
-from locust import HttpUser, task, between, events """Тут происходят темки с hard-тестом"""
+"""Тут происходят темки с hard-тестом"""
+from locust import HttpUser, task, between, events 
 import json
 import random
 

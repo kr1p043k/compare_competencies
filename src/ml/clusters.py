@@ -1,6 +1,7 @@
 """Vacancy clustering module: train and analyze clusters."""
 
 import json
+import math
 import re
 import sys
 from datetime import datetime
