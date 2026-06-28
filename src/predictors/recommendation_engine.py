@@ -52,6 +52,16 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         self.trend_analyzer = trend_analyzer
 
         self.use_llm = use_llm and bool(config.YC_API_KEY and config.YC_FOLDER_ID)
+        self.client = None
+        self.explanation_model = None
+        if self.use_llm:
+            try:
+                from openai import OpenAI
+                self.client = OpenAI(api_key=config.YC_API_KEY, base_url="https://llm.api.cloud.yandex.net/v1")
+                self.explanation_model = config.YANDEXGPT_MODEL or "yandexgpt-lite"
+            except Exception as exc:
+                logger.warning("llm_client_init_failed", error=str(exc))
+                self.use_llm = False
         self.use_ltr = use_ltr
         self.ltr_engine: LTRRecommendationEngine | None = None
 
@@ -634,7 +644,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         for attempt in range(3):
             try:
                 completion = self.client.chat.completions.create(
-                    model=self.explanation_model or self.model,
+                    model=self.explanation_model or "yandexgpt-lite",
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.3,
                     max_tokens=512,
