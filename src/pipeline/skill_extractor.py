@@ -70,7 +70,8 @@ class SkillExtractor:
             whitelist = load_it_skills()
             skill_freq_filtered = filter_skills_by_whitelist(skill_freq, whitelist) if whitelist else skill_freq
             trend_analyzer = TrendAnalyzer(skill_freq_filtered)
-            trend_analyzer.save_snapshot(skill_freq_filtered, apply_whitelist=False)
+            source_type = "full_market" if getattr(self.args, 'it_sector', False) else "targeted_query"
+            trend_analyzer.save_snapshot(skill_freq_filtered, apply_whitelist=False, source_type=source_type)
 
             match parser.save_processed_frequencies(skill_freq, apply_filter=not self.args.no_filter):
                 case Ok(_): pass

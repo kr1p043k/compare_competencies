@@ -34,12 +34,14 @@ class TrendAnalyzer:
     # ------------------------------------------------------------------
     # Работа со снимками
     # ------------------------------------------------------------------
-    def save_snapshot(self, frequencies: dict[str, float], label: str = None, apply_whitelist: bool = True) -> Result[Path, DomainError]:
-        """Сохраняет текущий снимок и возвращает путь к файлу."""
+    def save_snapshot(self, frequencies: dict[str, float], label: str = None, apply_whitelist: bool = True,
+                      source_type: str = "full_market", profession: str | None = None) -> Result[Path, DomainError]:
+        """Сохраняет снимок с _meta и возвращает путь к файлу.
+        source_type: 'full_market' (ит-рынок) или 'targeted_query' (по профессии/запросу).
+        """
         try:
             if apply_whitelist:
                 from src.parsing.skills.skill_validator import SkillValidator
-
                 validator = SkillValidator()
                 filtered = {}
                 for skill, freq in frequencies.items():
@@ -49,19 +51,40 @@ class TrendAnalyzer:
                 frequencies = filtered
                 logger.info("snapshot_filtered", skills_count=len(frequencies))
 
-            timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-            filename = f"freq_{label or timestamp}.json"
+            now = datetime.now()
+            month = now.strftime("%Y-%m")
+            day = now.strftime("%Y-%m-%d")
+
+            meta = {
+                "_meta": {
+                    "type": source_type,
+                    "snapshot_date": day,
+                    "vacancy_count": None,
+                    "source": "it_sector" if source_type == "full_market" else "profession_query",
+                }
+            }
+            if profession:
+                meta["_meta"]["profession"] = profession
+
+            out = dict(meta)
+            for k, v in frequencies.items():
+                out[k] = v
+
+            prefix = "freq_market" if source_type == "full_market" else "freq_profession"
+            suffix = f"_{profession}" if profession else ""
+            filename = f"{prefix}{suffix}_{month}.json"
             path = self.history_dir / filename
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(frequencies, f, ensure_ascii=False, indent=2)
-            logger.info("snapshot_saved", path=str(path))
+                json.dump(out, f, ensure_ascii=False, indent=2)
+            logger.info("snapshot_saved", path=str(path), type=source_type)
             return Ok(path)
         except Exception as e:
             return Err(DomainError(f"Failed to save snapshot: {e}"))
 
-    def load_all_snapshots(self) -> Result[list[tuple[datetime, Path, dict[str, float]]], DomainError]:
+    def load_all_snapshots(self, filter_type: str | None = "full_market") -> Result[list[tuple[datetime, Path, dict[str, float]]], DomainError]:
         """
-        Загружает все снимки из history_dir.
+        Загружает снимки из history_dir.
+        filter_type: 'full_market' (только рыночные), 'profession' (только по профессиям), None (все).
         Возвращает список (datetime, путь, данные), отсортированный по дате.
         """
         try:
@@ -71,9 +94,14 @@ class TrendAnalyzer:
         snapshots = []
         for fpath in files:
             try:
-                dt = self._extract_date(fpath)
                 with open(fpath, encoding="utf-8") as f:
-                    data = json.load(f)
+                    raw = json.load(f)
+                meta = raw.get("_meta", {})
+                ftype = meta.get("type", "full_market")
+                if filter_type is not None and ftype != filter_type:
+                    continue
+                data = {k: v for k, v in raw.items() if k != "_meta"}
+                dt = self._extract_date(fpath)
                 snapshots.append((dt, fpath, data))
             except Exception as e:
                 logger.warning("snapshot_load_failed", filename=fpath.name, error=str(e))
@@ -83,9 +111,24 @@ class TrendAnalyzer:
 
     @staticmethod
     def _extract_date(filepath: Path) -> datetime:
-        """Извлекает дату из имени файла вида freq_2026-04-15.json или freq_2026-04-15-120000.json.
+        """Извлекает дату из имени файла freq_market_2026-04.json или freq_market_2026-06.json.
         Falls back to file mtime if date cannot be parsed.
         """
+        meta = None
+        try:
+            meta = json.loads(filepath.read_text(encoding="utf-8")).get("_meta")
+        except Exception:
+            pass
+        if meta and meta.get("snapshot_date"):
+            try:
+                d = datetime.strptime(str(meta["snapshot_date"]), "%Y-%m-%d")
+                return d
+            except ValueError:
+                try:
+                    d = datetime.strptime(str(meta["snapshot_date"]), "%Y-%m")
+                    return d
+                except ValueError:
+                    pass
         d = extract_date_from_filename(filepath)
         if d is not None:
             return d
