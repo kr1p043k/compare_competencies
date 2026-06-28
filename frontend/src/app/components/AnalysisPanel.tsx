@@ -10,6 +10,7 @@ interface CompetencyCov {
   total_skills: number;
   matched_skills: number;
   coverage: number;
+  weighted_coverage?: number;
 }
 
 interface Rec {
@@ -27,6 +28,7 @@ interface DisciplineAnalysis {
     market_matched: number;
     gaps: number;
     coverage_ratio: number;
+    weighted_coverage?: number;
     coverage_level: string;
     top_market_matched_skills: { skill: string; frequency: number; match_type: string }[];
     gaps_in_curriculum: string[];
@@ -65,6 +67,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
 
   const { metrics, competencies, recommendations } = data;
   const cov = metrics.coverage_ratio;
+  const wcov = metrics.weighted_coverage;
 
   return (
     <div className="space-y-4 mt-6">
@@ -78,11 +81,19 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
         <CardContent className="p-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div>
-              <div className="text-xs text-gray-500">Coverage</div>
+              <div className="text-xs text-gray-500">Binary Coverage</div>
               <div className="text-2xl font-bold">
                 {(cov * 100).toFixed(1)}%
               </div>
             </div>
+            {wcov !== undefined && (
+              <div>
+                <div className="text-xs text-gray-500">Weighted Coverage</div>
+                <div className="text-2xl font-bold text-indigo-600">
+                  {(wcov * 100).toFixed(1)}%
+                </div>
+              </div>
+            )}
             <div>
               <div className="text-xs text-gray-500">RPD Skills</div>
               <div className="text-lg font-semibold text-gray-900">{metrics.total_rpd_skills}</div>

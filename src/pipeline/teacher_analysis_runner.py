@@ -453,6 +453,7 @@ async def run_teacher_analysis(
                 "market_matched": coverage.market_matched,
                 "gaps": coverage.gaps,
                 "coverage_ratio": coverage.coverage_ratio,
+                "weighted_coverage": coverage.weighted_coverage,
                 "coverage_level": coverage.coverage_level,
                 "top_market_matched_skills": [
                     {"skill": m.skill_name, "frequency": m.frequency, "match_type": m.match_type}
