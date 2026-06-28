@@ -339,6 +339,71 @@ async def run_teacher_analysis_endpoint(
     return {"status": "started", "direction": dir_code}
 
 
+@router.get("/teacher/krm/competencies/tree")
+async def competency_tree(dir_code: str = "09.03.02"):
+    """Competency tree with hierarchy built from parent_id and coverage data."""
+    import re
+    if not re.match(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$", dir_code):
+        raise HTTPException(status_code=400, detail="Invalid direction code format")
+    from src.database import async_session_factory
+    from src.models.krm_models import Competency as CompModel, CoverageAnalysis, Direction, Discipline
+    from sqlalchemy import select, func
+
+    async with async_session_factory() as session:
+        latest = await session.execute(select(func.max(CoverageAnalysis.analysis_date)))
+        latest_date = latest.scalar()
+
+        cov_subq = select(
+            CoverageAnalysis.discipline_id,
+            CoverageAnalysis.competency_id,
+            func.avg(CoverageAnalysis.coverage_ratio).label("weighted_coverage"),
+        ).where(CoverageAnalysis.analysis_date == latest_date).group_by(
+            CoverageAnalysis.discipline_id, CoverageAnalysis.competency_id
+        ).subquery()
+
+        comps = await session.execute(
+            select(CompModel, cov_subq.c.weighted_coverage)
+            .outerjoin(cov_subq, cov_subq.c.competency_id == CompModel.id)
+            .join(Discipline, Discipline.id == CompModel.discipline_id)
+            .join(Direction, Direction.id == Discipline.direction_id)
+            .where(Direction.code == dir_code)
+            .order_by(CompModel.sort_order, CompModel.code)
+        )
+        rows = comps.all()
+    node_map: dict[str, dict] = {}
+    roots: list[dict] = []
+
+    for (comp, wc) in rows:
+        node = {
+            "id": comp.id,
+            "code": comp.code,
+            "name": comp.name or "",
+            "category": comp.category,
+            "number": comp.number,
+            "weighted_coverage": round(float(wc) if wc else 0, 4),
+            "discipline_id": comp.discipline_id,
+            "children": [],
+        }
+        node_map[comp.id] = node
+
+    for comp_id, node in node_map.items():
+        comp_next = next((c for c in rows if c[0].id == comp_id), None)
+        if comp_next and comp_next[0].parent_id and comp_next[0].parent_id in node_map:
+            node_map[comp_next[0].parent_id]["children"].append(node)
+        else:
+            roots.append(node)
+
+    def sort_key(n: dict) -> tuple:
+        m = re.match(r"(\D+)(\d+(?:\.\d+)?)", n["code"])
+        return (m.group(1), float(m.group(2))) if m else (n["code"], 0)
+
+    for node in node_map.values():
+        node["children"].sort(key=sort_key)
+    roots.sort(key=sort_key)
+
+    return {"direction_code": dir_code, "competencies": roots}
+
+
 @router.get("/teacher/analysis")
 async def get_analysis(dir_code: str = "09.03.02"):
     import re
