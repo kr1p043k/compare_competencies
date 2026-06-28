@@ -37,21 +37,50 @@ from src.predictors.models import SkillImpact
 
 logger = structlog.get_logger(__name__)
 
-# Доменные профили синтетических студентов.
-# Модель учится рекомендовать контекстуально: Docker — бэкендеру,
-# но не тому, кто уже в DevOps.
-_SYNTHETIC_DOMAIN_PROFILES: list[list[str]] = [
-    [],  # нет опыта
-    ["python", "sql", "git"],  # базовый backend
-    ["javascript", "react", "html", "css", "git"],  # frontend
-    ["python", "pandas", "numpy", "jupyter", "sql"],  # data analyst
-    ["docker", "kubernetes", "linux", "bash", "terraform"],  # devops
-    ["java", "spring", "postgresql", "rest api", "git"],  # enterprise backend
-    ["python", "tensorflow", "sklearn", "numpy", "pandas"],  # ML engineer
-    ["python", "fastapi", "postgresql", "redis", "docker"],  # python backend senior
-    ["kotlin", "android", "retrofit", "room", "git"],  # mobile android
-    ["go", "grpc", "docker", "kafka", "postgresql"],  # go backend
-]
+def _load_profession_profiles() -> list[list[str]]:
+    """Load profession profiles from profession_taxonomy.json + krm_competency_mapping.json."""
+    profiles: list[list[str]] = [[]]  # empty profile (no experience)
+    try:
+        import json
+        from pathlib import Path
+        from src import config
+        prof_path = config.REFERENCE_DIR / "profession_taxonomy.json"
+        krm_path = config.REFERENCE_DIR / "krm_competency_mapping.json"
+        if not prof_path.exists() or not krm_path.exists():
+            raise FileNotFoundError("profession taxonomy files not found")
+        taxonomy = json.loads(prof_path.read_text(encoding="utf-8"))
+        krm = json.loads(krm_path.read_text(encoding="utf-8"))
+        professions = taxonomy.get("professions", {})
+        seen: set[str] = set()
+        for prof_name, prof_data in professions.items():
+            codes = prof_data.get("competency_codes", [])
+            skills: set[str] = set()
+            for code in codes:
+                for kw in krm.get(code, []):
+                    kw_norm = kw.lower().strip()
+                    if kw_norm and len(kw_norm) > 2 and kw_norm not in seen:
+                        seen.add(kw_norm)
+                        skills.add(kw_norm)
+            if skills:
+                profiles.append(sorted(skills)[:30])
+        logger.info("loaded_profession_profiles", count=len(profiles) - 1)
+    except Exception as exc:
+        logger.warning("failed_to_load_profession_profiles_using_defaults", error=str(exc))
+        profiles = [[],
+            ["python", "sql", "git"],
+            ["javascript", "react", "html", "css", "git"],
+            ["python", "pandas", "numpy", "jupyter", "sql"],
+            ["docker", "kubernetes", "linux", "bash", "terraform"],
+            ["java", "spring", "postgresql", "rest api", "git"],
+            ["python", "tensorflow", "sklearn", "numpy", "pandas"],
+            ["python", "fastapi", "postgresql", "redis", "docker"],
+            ["kotlin", "android", "retrofit", "room", "git"],
+            ["go", "grpc", "docker", "kafka", "postgresql"],
+        ]
+    return profiles
+
+
+_SYNTHETIC_DOMAIN_PROFILES: list[list[str]] = _load_profession_profiles()
 
 
 class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[SkillImpact]]):
@@ -163,7 +192,12 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                     else market_emb
                 )
                 features = self._extract_features(skill, student_emb, student_skills)
-                relevance = 1.0 if skill in domain_profile else 0.2
+                if skill in domain_profile:
+                    relevance = 1.0
+                elif any(skill in other for other in _SYNTHETIC_DOMAIN_PROFILES if other is not domain_profile):
+                    relevance = 0.5
+                else:
+                    relevance = 0.3
                 target = base_target * relevance
                 X_rows.append(features)
                 y_rows.append(target)
