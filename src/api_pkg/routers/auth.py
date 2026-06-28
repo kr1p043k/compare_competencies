@@ -97,6 +97,18 @@ def require_role(role: str):
     return dependency
 
 
+def require_any_role(*roles: str):
+    """Allow access if user has any of the given roles (admin always allowed)."""
+    async def dependency(request: Request):
+        user = await get_current_user(request)
+        if user is None:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        if user.get("r") != "admin" and user.get("r") not in roles:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return user
+    return dependency
+
+
 @router.post("/auth/login")
 async def login(body: LoginRequest, request: Request):
     try:

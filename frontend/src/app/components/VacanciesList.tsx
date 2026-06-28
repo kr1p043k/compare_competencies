@@ -810,7 +810,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               size="sm"
               onClick={async () => {
                 try {
-                  const r = await fetch("/api/admin/export/excel");
+                  const r = await fetch("/api/teacher/export/vacancies");
                   if (r.ok) {
                     const blob = await r.blob();
                     const url = URL.createObjectURL(blob);

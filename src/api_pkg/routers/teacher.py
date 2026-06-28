@@ -8,6 +8,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -337,6 +338,59 @@ async def run_teacher_analysis_endpoint(
 
     background_tasks.add_task(_run)
     return {"status": "started", "direction": dir_code}
+
+
+@router.get("/teacher/export/vacancies")
+@limiter.limit("3/minute")
+async def export_vacancies_excel(request: Request):
+    """Export vacancies to Excel (accessible by teachers)."""
+    import json
+    import pandas as pd
+
+    detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
+    basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+    raw_file = detailed_file if detailed_file.exists() else basic_file
+    if not raw_file.exists():
+        raise HTTPException(status_code=404, detail="No vacancy data found")
+
+    import asyncio
+    vacancies = await asyncio.to_thread(lambda: json.loads(raw_file.read_bytes()))
+
+    rows = []
+    for vac in vacancies:
+        name = vac.get("name", "")
+        employer = vac.get("employer", {})
+        employer_name = employer.get("name", "") if isinstance(employer, dict) else ""
+        area = vac.get("area", {})
+        area_name = area.get("name", "") if isinstance(area, dict) else ""
+        salary = vac.get("salary") or {}
+        salary_from = salary.get("from") if isinstance(salary, dict) else None
+        salary_to = salary.get("to") if isinstance(salary, dict) else None
+        skills = vac.get("extracted_skills", []) or vac.get("key_skills", [])
+        if isinstance(skills, list):
+            skill_names = [s.get("name", str(s)) if isinstance(s, dict) else str(s) for s in skills if s]
+            skills_str = ", ".join(skill_names[:15])
+        else:
+            skills_str = ""
+        exp = vac.get("experience") or {}
+        exp_text = exp.get("name", "") if isinstance(exp, dict) else str(exp)
+        vid = str(vac.get("id", ""))
+        is_spam_flag = vac.get("is_spam", False)
+        spam_reason = vac.get("spam_reason", "") or ""
+        is_spam = "Да" if is_spam_flag else "Нет"
+        rows.append({"ID": vid, "Название": name, "Работодатель": employer_name, "Город": area_name,
+                     "Зарплата от": salary_from, "Зарплата до": salary_to, "Опыт": exp_text,
+                     "Спам": is_spam, "Причина спама": spam_reason,
+                     "Навыки": skills_str, "Ссылка": vac.get("alternate_url", "")})
+
+    df = pd.DataFrame(rows)
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    excel_path = config.REPORTS_DIR / "vacancies_export.xlsx"
+    df.to_excel(excel_path, index=False, engine="openpyxl")
+    if not excel_path.exists():
+        raise HTTPException(status_code=500, detail="Excel export failed")
+    return FileResponse(str(excel_path), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        filename="vacancies_export.xlsx")
 
 
 @router.get("/teacher/krm/competencies/tree")

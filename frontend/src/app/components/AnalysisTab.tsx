@@ -82,7 +82,7 @@ export function AnalysisTab({ selectedProfile, onProfileChange, pipelineQuery, p
 
   const handleDownloadExcel = async () => {
     try {
-      const response = await fetch(`/api/admin/export/excel`);
+      const response = await fetch(`/api/teacher/export/vacancies`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
