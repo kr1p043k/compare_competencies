@@ -18,7 +18,7 @@ from slowapi.util import get_remote_address
 from src import config
 from src.parsing.utils import load_it_skills
 from src.api_pkg.request_logger import get_logs, get_logs_by_user
-from src.api_pkg.routers.auth import require_role
+from src.api_pkg.routers.auth import require_any_role
 
 from src.api_pkg import deps
 from src.monitoring.metrics import (
@@ -29,7 +29,7 @@ from src.monitoring.metrics import (
 
 logger = structlog.get_logger("api")
 
-router = APIRouter(tags=["admin"], dependencies=[Depends(require_role("admin"))])
+router = APIRouter(tags=["admin"], dependencies=[Depends(require_any_role("admin", "teacher"))])
 limiter = Limiter(key_func=get_remote_address)
 
 
