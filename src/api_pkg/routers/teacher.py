@@ -52,22 +52,39 @@ def _save_json(path, data) -> None:
 @router.get("/teacher/stats")
 @limiter.limit("30/minute")
 async def teacher_stats(request: Request):
-    result_dir = config.DATA_RESULT_DIR
-    if not result_dir.exists():
-        return {"total_reports": 0, "by_profession": []}
+    """Real discipline/competency/skill counts from KRM data + vacancy stats."""
+    result = {"disciplines": 0, "competencies": 0, "skills": 0, "vacancies": 0}
 
-    reports = []
-    for f in result_dir.glob("*recommendations_*.json"):
-        parts = f.stem.replace("recommendations_", "").split("_")
-        prof = parts[0] if parts else "unknown"
-        reports.append(prof)
+    try:
+        krm = json.loads((config.REFERENCE_DIR / "krm_disciplines_09.03.02.json").read_text(encoding="utf-8"))
+        dir_data = next(iter(krm.values()))
+        disciplines = dir_data.get("disciplines", {})
+        result["disciplines"] = len(disciplines)
+        comp_set: set[str] = set()
+        skill_count = 0
+        for dname, ddata in disciplines.items():
+            for comp in ddata.get("competencies", []):
+                comp_set.add(comp)
+                skill_count += len(ddata.get("skills", {}).get(comp, []))
+        result["competencies"] = len(comp_set)
+        result["skills"] = skill_count
+    except Exception:
+        pass
 
-    prof_counts: dict[str, int] = {}
-    for p in reports:
-        prof_counts[p] = prof_counts.get(p, 0) + 1
+    try:
+        pool = get_pool()
+        result["vacancies"] = await pool.fetchval("SELECT COUNT(*) FROM vacancies") or 0
+    except Exception:
+        try:
+            raw_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
+            if not raw_file.exists():
+                raw_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+            if raw_file.exists():
+                result["vacancies"] = len(json.loads(raw_file.read_text(encoding="utf-8")))
+        except Exception:
+            pass
 
-    by_profession = [{"profession": k, "reports": v} for k, v in sorted(prof_counts.items(), key=lambda x: -x[1])]
-    return {"total_reports": len(reports), "by_profession": by_profession}
+    return result
 
 
 @router.get("/teacher/krm/stats")

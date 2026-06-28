@@ -394,20 +394,31 @@ export function TeacherDashboard() {
         </div>
 
         {analysisMode === "coverage" && analysis && (<>
+          {/* When a discipline is selected, show its coverage instead of direction average */}
+          {(() => {
+            const discData = selected && analysis.disciplines
+              ? analysis.disciplines.find((d: any) => d.name === selected.name)
+              : null;
+            const cov = discData ? discData.coverage_ratio : analysis.average_coverage;
+            const gaps = discData ? discData.gaps : analysis.total_gaps_across_all;
+            const level = discData ? discData.coverage_level : analysis.coverage_level;
+          return (<>
           <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
             <div style={card}>
-              <div style={{ fontSize: 11, color: "#6b7280" }}>Average Coverage</div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: covColor(analysis.average_coverage) }}>
-                    {(analysis.average_coverage * 100).toFixed(1)}%
+              <div style={{ fontSize: 11, color: "#6b7280" }}>
+                {discData ? `Coverage: ${selected.name}` : "Average Coverage"}
+              </div>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: covColor(cov) }}>
+                    {(cov * 100).toFixed(1)}%
                   </div>
-                  <div style={{ fontSize: 11, color: covColor(analysis.average_coverage), fontWeight: 600 }}>
-                    {analysis.coverage_level.toUpperCase()}
+                  <div style={{ fontSize: 11, color: covColor(cov), fontWeight: 600 }}>
+                    {(level || "").toUpperCase()}
                   </div>
                 </div>
                 <div style={card}>
-                  <div style={{ fontSize: 11, color: "#6b7280" }}>Total Gaps</div>
+                  <div style={{ fontSize: 11, color: "#6b7280" }}>Gaps</div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: "#fca5a5" }}>
-                    {analysis.total_gaps_across_all}
+                    {gaps}
                   </div>
                 </div>
                 <div style={card}>
@@ -417,6 +428,7 @@ export function TeacherDashboard() {
                   </div>
                 </div>
               </div>
+          </>)})()}
 
               {/* Direction-level recommendations */}
               {analysis.recommendations.length > 0 && (

@@ -167,13 +167,14 @@ class TrendAnalyzer:
         self,
         top_n: int = 20,
         min_change_percent: float = 5.0,
+        min_frequency: int = 5,
         previous_snapshot: dict = None,
         prev_label: str = "предыдущий",
     ) -> Result[dict[str, list[dict]], DomainError]:
         """
         Сравнивает текущий снимок с предыдущим (переданным или историческим).
+        min_frequency — минимальная частота навыка в предыдущем снимке (фильтр шума).
         """
-        # Определяем предыдущий снимок
         if previous_snapshot is not None:
             prev_data = previous_snapshot
         else:
@@ -191,7 +192,7 @@ class TrendAnalyzer:
 
         for skill, current_freq in self.current.items():
             prev_freq = prev_data.get(skill, 0)
-            if prev_freq == 0:
+            if prev_freq < min_frequency:
                 continue
             change_pct = ((current_freq - prev_freq) / prev_freq) * 100
             entry = {
