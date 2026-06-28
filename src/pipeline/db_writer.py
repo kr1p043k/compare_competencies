@@ -219,7 +219,7 @@ async def export_vacancies_from_json(
 
 async def export_history_trends_to_db() -> int:
     """Import all freq_*.json from data/history into trend_snapshots table.
-    Handles _meta format — only full_market snapshots go into market trends.
+    Handles _meta format — profession snapshots get profession name as source.
     """
     total = 0
     for f in sorted(config.HISTORY_DIR.glob("freq_*.json")):
@@ -228,6 +228,13 @@ async def export_history_trends_to_db() -> int:
             meta = raw.pop("_meta", {})
             data = raw
             snapshot_type = meta.get("type", "full_market")
+            profession = meta.get("profession")
+
+            # source identifies the snapshot type
+            if profession:
+                source = f"profession_{profession}"
+            else:
+                source = "hh_vacancies"
 
             d = extract_date_from_filename(f)
             if d is None and meta.get("snapshot_date"):
@@ -239,7 +246,7 @@ async def export_history_trends_to_db() -> int:
                 logger.warning("trend_import_skipped_unparsable_date", file=f.name)
                 continue
 
-            await save_trend_snapshot(d, data)
+            await save_trend_snapshot(d, data, source=source)
             total += 1
         except Exception as e:
             logger.warning("trend_import_failed", file=f.name, error=str(e))
