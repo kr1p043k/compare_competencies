@@ -13,7 +13,9 @@ logger = structlog.get_logger(__name__)
 
 
 class GapAnalyzer:
-    def __init__(self, skill_weights_by_level: dict[str, dict[str, float]]):
+    def __init__(self, skill_weights_by_level: dict[str, dict[str, float]] | dict[str, float]):
+        if skill_weights_by_level and not isinstance(next(iter(skill_weights_by_level.values())), dict):
+            skill_weights_by_level = {"all": skill_weights_by_level}
         self.skill_weights_by_level = skill_weights_by_level
 
     _LEVEL_KEY: dict[ExperienceLevel, str] = {

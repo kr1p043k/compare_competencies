@@ -35,10 +35,7 @@ class ProfileEvaluator:
         hybrid_weights: dict[str, float] | None = None,
         use_clustering: bool = True,
         skill_weights_by_level: dict[str, dict[str, float]] | None = None,
-        readiness_weights: tuple[float, float, float] = (0.5, 0.3, 0.2),
-        level_difficulty: dict[str, float] | None = None,
     ):
-        self.skill_weights = skill_weights
         self.hybrid_weights = hybrid_weights or {}
         self.vacancies_skills = vacancies_skills
         self.vacancies_skills_dict = vacancies_skills_dict
@@ -46,7 +43,6 @@ class ProfileEvaluator:
         self.clusterer = VacancyClusterer()
         self.use_clustering = use_clustering
         self.domain_analyzer = DomainAnalyzer()
-        self.readiness_weights = readiness_weights
 
         self.skill_weights_by_level = skill_weights_by_level or {}
         if self.skill_weights_by_level:
@@ -273,8 +269,7 @@ class ProfileEvaluator:
         readiness = (
             config.READINESS_MARKET_WEIGHT * market_coverage_score
             + config.READINESS_SKILL_WEIGHT * (strong_count / market_div * 100)
-            + config.READINESS_DOMAIN_WEIGHT * (weak_count / market_div * 100)
-            + config.READINESS_GAP_PENALTY_WEIGHT * domain_coverage_score
+            + config.READINESS_GAP_PENALTY_WEIGHT * (weak_count / market_div * 100)
         )
 
         total_gap = sum((m.gap_j + m.gap_m + m.gap_s) / 3 for m in metrics.values())
@@ -303,7 +298,7 @@ class ProfileEvaluator:
             skill_coverage=round(skill_coverage, 2),
             domain_coverage_score=round(domain_coverage_score, 2),
             readiness_score=readiness_score,
-            avg_gap=round(avg_gap * 100, 2),
+            avg_gap=round(min(avg_gap, 1.0) * 100, 2),
             skill_metrics={s: asdict(m) for s, m in metrics.items()},
             domain_coverage={d: asdict(dm) for d, dm in domain_coverages.items()},
             cluster_context=cluster_context_val,

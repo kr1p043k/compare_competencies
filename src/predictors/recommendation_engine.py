@@ -12,7 +12,6 @@ from sklearn.preprocessing import MinMaxScaler
 from src import Err, Ok, RecommendationError, Result, config
 from src.errors import DomainError
 from src.analyzers.comparison.comparator import CompetencyComparator
-from src.analyzers.gap.gap_analyzer import GapAnalyzer
 from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.models.enums import PriorityLevel, SkillCategory, TrendType
@@ -157,7 +156,6 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             return Err(RecommendationError(message="skill_weights_required", profile=""))
 
         self.comparator.fit_market(vacancies_skills)
-        self.gap_analyzer = GapAnalyzer(skill_weights)
         self.comparator.set_skill_weights(skill_weights)
         self.is_fitted = True
         logger.info(
