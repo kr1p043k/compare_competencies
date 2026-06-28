@@ -75,7 +75,7 @@ class TestDIContainer:
         c = DIContainer()
         c.register("svc", instance="old")
         c.register("svc", factory=lambda: "new")
-        c._registry["svc"]["singleton"] = False
+        c._entries["svc"]._singleton = False
         assert c.resolve("svc") == "new"
 
     def test_resolve_overrides_instance(self):

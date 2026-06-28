@@ -101,8 +101,15 @@ class TestInit:
     def test_init_with_llm_keys(self, monkeypatch):
         monkeypatch.setattr(config, "YC_API_KEY", SecretStr("test-key"))
         monkeypatch.setattr(config, "YC_FOLDER_ID", "test-folder")
-        engine = RecommendationEngine(use_llm=True)
-        assert engine.use_llm is True
+        import sys
+        from unittest.mock import MagicMock
+        sys.modules["openai"] = MagicMock()
+        try:
+            engine = RecommendationEngine(use_llm=True)
+            assert engine.use_llm is True
+            assert engine.client is not None
+        finally:
+            sys.modules.pop("openai", None)
 
     def test_init_disable_ltr(self, mock_profile_evaluator):
         engine = RecommendationEngine(use_ltr=False, profile_evaluator=mock_profile_evaluator)

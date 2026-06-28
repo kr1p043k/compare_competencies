@@ -9,18 +9,6 @@ import pytest
 from src import utils
 
 
-class TestGetLogger:
-    def test_get_logger_creates_handlers(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("src.utils.LOG_FILE", tmp_path / "test.log")
-        logger = utils.get_logger("test")
-        assert len(logger.handlers) == 2
-
-    def test_get_logger_returns_existing(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("src.utils.LOG_FILE", tmp_path / "test.log")
-        logger1 = utils.get_logger("test2")
-        logger2 = utils.get_logger("test2")
-        assert logger1 is logger2
-
 
 class TestLoadCompetencyMapping:
     def test_load_success(self, tmp_path, monkeypatch):

@@ -8,12 +8,12 @@ from fastapi.testclient import TestClient
 sys.modules['shap'] = MagicMock()
 sys.modules['cv2'] = MagicMock()
 
-# Mock sentence_transformers BEFORE importing src.api to prevent real import
+# Mock sentence_transformers BEFORE importing src.api_pkg to prevent real import
 _sent_original = sys.modules.get('sentence_transformers')
 _sent_mock = MagicMock()
 _sent_mock.__version__ = "0.0.0"
 sys.modules['sentence_transformers'] = _sent_mock
-from src.api import app
+from src.api_pkg import app
 from src.models.student import StudentProfile
 
 client = TestClient(app)
@@ -25,8 +25,8 @@ def _profile():
 
 @pytest.fixture(autouse=True)
 def mock_globals():
-    """Подменяет глобальные переменные src.api на моки перед каждым тестом."""
-    import src.api as _api
+    """Подменяет глобальные переменные src.api_pkg на моки перед каждым тестом."""
+    import src.api_pkg as _api
     _originals = {}
     _mocks = {
         'evaluator': MagicMock(),
@@ -60,8 +60,8 @@ class TestHealth:
 
 class TestRecommendations:
     def test_existing(self):
-        import src.api
-        src.api.recommendation_engine.generate_recommendations.return_value = {"summary": {}, "recommendations": []}
+        import src.api_pkg
+        src.api_pkg.recommendation_engine.generate_recommendations.return_value = {"summary": {}, "recommendations": []}
         r = client.get("/api/recommendations/base")
         assert r.status_code == 200
 
@@ -78,16 +78,16 @@ class TestMarket:
         assert len(data["skills"]) == 2
 
     def test_skill_info(self):
-        import src.api
-        src.api.taxonomy.get_category_label.return_value = "Lang"
-        src.api.taxonomy.get_category_icon.return_value = "💻"
+        import src.api_pkg
+        src.api_pkg.taxonomy.get_category_label.return_value = "Lang"
+        src.api_pkg.taxonomy.get_category_icon.return_value = "💻"
         r = client.get("/api/market/skill/python")
         assert r.status_code == 200
         assert r.json()["skill"] == "python"
 
     def test_skill_info_no_taxonomy(self):
-        import src.api
-        src.api.taxonomy = None
+        import src.api_pkg
+        src.api_pkg.taxonomy = None
         r = client.get("/api/market/skill/python")
         assert r.status_code == 200
         assert r.json()["category"] == "unknown"
@@ -95,11 +95,11 @@ class TestMarket:
 
 class TestClusters:
     def test_cluster_by_level(self):
-        import src.api
-        src.api.clusterer.n_clusters_ = 2
-        src.api.clusterer._generate_cluster_name.side_effect = lambda cid: f"Cluster{cid}"
-        src.api.clusterer.get_top_skills_in_cluster.return_value = ["a", "b"]
-        src.api.clusterer.load_model.return_value = True
+        import src.api_pkg
+        src.api_pkg.clusterer.n_clusters_ = 2
+        src.api_pkg.clusterer._generate_cluster_name.side_effect = lambda cid: f"Cluster{cid}"
+        src.api_pkg.clusterer.get_top_skills_in_cluster.return_value = ["a", "b"]
+        src.api_pkg.clusterer.load_model.return_value = True
         r = client.get("/api/clusters/junior")
         assert r.status_code == 200
         data = r.json()
@@ -107,20 +107,20 @@ class TestClusters:
         assert len(data["clusters"]) == 2
 
     def test_cluster_not_loaded(self):
-        import src.api
-        src.api.clusterer.is_fitted = False
-        src.api.clusterer.load_model.return_value = False
+        import src.api_pkg
+        src.api_pkg.clusterer.is_fitted = False
+        src.api_pkg.clusterer.load_model.return_value = False
         r = client.get("/api/clusters/senior")
         assert r.status_code == 503
 
     def test_clusters_summary(self):
-        import src.api
-        src.api.clusterer.is_fitted = True
-        src.api.clusterer.n_clusters_ = 3
-        src.api.clusterer.clusterer_type = "kmeans"
-        src.api.clusterer._generate_cluster_name.return_value = "C0"
-        src.api.clusterer.get_top_skills_in_cluster.return_value = ["py", "sql"]
-        src.api.clusterer.load_model.return_value = True
+        import src.api_pkg
+        src.api_pkg.clusterer.is_fitted = True
+        src.api_pkg.clusterer.n_clusters_ = 3
+        src.api_pkg.clusterer.clusterer_type = "kmeans"
+        src.api_pkg.clusterer._generate_cluster_name.return_value = "C0"
+        src.api_pkg.clusterer.get_top_skills_in_cluster.return_value = ["py", "sql"]
+        src.api_pkg.clusterer.load_model.return_value = True
         r = client.get("/api/clusters/summary")
         assert r.status_code == 200
         data = r.json()
@@ -128,9 +128,9 @@ class TestClusters:
             assert lvl in data
 
     def test_clusters_summary_unfitted(self):
-        import src.api
-        src.api.clusterer.is_fitted = False
-        src.api.clusterer.load_model.return_value = False
+        import src.api_pkg
+        src.api_pkg.clusterer.is_fitted = False
+        src.api_pkg.clusterer.load_model.return_value = False
         r = client.get("/api/clusters/summary")
         assert r.status_code == 200
         data = r.json()
@@ -140,8 +140,8 @@ class TestClusters:
 
 class TestProfilesCompare:
     def test_compare(self):
-        import src.api
-        src.api.evaluator.evaluate_profile.return_value = {
+        import src.api_pkg
+        src.api_pkg.evaluator.evaluate_profile.return_value = {
             "market_coverage_score": 70, "skill_coverage": 60,
             "domain_coverage_score": 50, "readiness_score": 65,
             "market_skill_coverage": 40
@@ -151,8 +151,8 @@ class TestProfilesCompare:
         assert "base" in r.json()["profiles"]
 
     def test_compare_error(self):
-        import src.api
-        src.api.evaluator.evaluate_profile.side_effect = Exception("fail")
+        import src.api_pkg
+        src.api_pkg.evaluator.evaluate_profile.side_effect = Exception("fail")
         r = client.get("/api/profiles/compare")
         assert r.status_code == 200
         assert "error" in r.json()["profiles"]["base"]
@@ -160,43 +160,43 @@ class TestProfilesCompare:
 
 class TestTrends:
     def test_trends(self):
-        import src.api
-        src.api.trend_analyzer.get_trending_skills.return_value = {"rising": [], "falling": []}
+        import src.api_pkg
+        src.api_pkg.trend_analyzer.get_trending_skills.return_value = {"rising": [], "falling": []}
         r = client.get("/api/trends")
         assert r.status_code == 200
 
     def test_trends_error(self):
-        import src.api
-        src.api.trend_analyzer.get_trending_skills.side_effect = Exception("boom")
+        import src.api_pkg
+        src.api_pkg.trend_analyzer.get_trending_skills.side_effect = Exception("boom")
         r = client.get("/api/trends")
         assert r.status_code == 500
 
 
 class TestTaxonomyCoverage:
     def test_coverage(self):
-        import src.api
-        src.api.taxonomy.get_all_categories.return_value = ["cat1"]
-        src.api.taxonomy.get_skills_in_category.return_value = ["python", "java"]
-        src.api.taxonomy.get_category_label_by_id.return_value = "Test"
-        src.api.taxonomy.get_category_icon_by_id.return_value = "🧪"
-        src.api.current_skills_set = {"python"}
+        import src.api_pkg
+        src.api_pkg.taxonomy.get_all_categories.return_value = ["cat1"]
+        src.api_pkg.taxonomy.get_skills_in_category.return_value = ["python", "java"]
+        src.api_pkg.taxonomy.get_category_label_by_id.return_value = "Test"
+        src.api_pkg.taxonomy.get_category_icon_by_id.return_value = "🧪"
+        src.api_pkg.current_skills_set = {"python"}
         r = client.get("/api/taxonomy/coverage")
         assert r.status_code == 200
         assert r.json()["coverage"]["cat1"]["covered"] == 1
 
     def test_no_taxonomy(self):
-        import src.api
-        src.api.taxonomy = None
+        import src.api_pkg
+        src.api_pkg.taxonomy = None
         r = client.get("/api/taxonomy/coverage")
         assert r.status_code == 503
 
 
 class TestSkills:
     def test_missing(self):
-        import src.api
-        src.api.skill_freq = {"docker": 5, "k8s": 3}
-        src.api.current_skills_set = {"python"}
-        with patch('src.api.SkillValidator') as mock_validator:
+        import src.api_pkg
+        src.api_pkg.skill_freq = {"docker": 5, "k8s": 3}
+        src.api_pkg.current_skills_set = {"python"}
+        with patch('src.api_pkg.SkillValidator') as mock_validator:
             mock_validator.return_value.validate.return_value.is_valid = True
             r = client.get("/api/skills/missing")
         assert r.status_code == 200
@@ -205,9 +205,9 @@ class TestSkills:
         assert skills[0]["skill"] == "docker"
 
     def test_dead(self):
-        import src.api
-        src.api.skill_freq = {"python": 10}
-        src.api.current_skills_set = {"python", "sql"}
+        import src.api_pkg
+        src.api_pkg.skill_freq = {"python": 10}
+        src.api_pkg.current_skills_set = {"python", "sql"}
         r = client.get("/api/skills/dead")
         assert r.status_code == 200
         assert "sql" in r.json()["dead_skills"]
@@ -215,10 +215,10 @@ class TestSkills:
 
 class TestStatus:
     def test_status(self):
-        import src.api
-        src.api.clusterer.load_model.return_value = True
-        src.api.clusterer.is_fitted = True
-        src.api.recommendation_engine.is_fitted = True
+        import src.api_pkg
+        src.api_pkg.clusterer.load_model.return_value = True
+        src.api_pkg.clusterer.is_fitted = True
+        src.api_pkg.recommendation_engine.is_fitted = True
         r = client.get("/api/status")
         assert r.status_code == 200
         data = r.json()
