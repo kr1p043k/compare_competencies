@@ -358,14 +358,23 @@ async def run_teacher_analysis(
 
     # — init services —
     from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+    from src.analyzers.discipline_relevance import DisciplineAwareScorer
+    _discipline_scorer = DisciplineAwareScorer()
+    _discipline_scorer.load()
     matcher = SkillMatcher(market_skills, embedding_provider=EmbeddingProviderFactory.get())
-    coverage_analyzer = CoverageAnalyzer(matcher, discipline_scorer=discipline_scorer)
+    coverage_analyzer = CoverageAnalyzer(matcher, discipline_scorer=_discipline_scorer)
     trend_analyzer = SnapshotTrendAnalyzer(snapshots)
     rec_engine = CurriculumRecommender()
     optimizer = CurriculumOptimizer()
-    from src.analyzers.discipline_relevance import DisciplineAwareScorer
-    discipline_scorer = DisciplineAwareScorer()
-    discipline_scorer.load()
+
+    profession_taxonomy: dict = {}
+    try:
+        prof_path = config.REFERENCE_DIR / "profession_taxonomy.json"
+        if prof_path.exists():
+            profession_taxonomy = json.loads(prof_path.read_text(encoding="utf-8")).get("professions", {})
+            logger.info("profession_taxonomy_loaded", professions=len(profession_taxonomy))
+    except Exception:
+        pass
 
     dir_code = direction["code"]
     out_dir = OUTPUT / dir_code
@@ -431,7 +440,7 @@ async def run_teacher_analysis(
         filtered: list = []
         for r in recs:
             skill = r.skill_name or r.type
-            relevance = discipline_scorer.compute_relevance(skill, dname)
+            relevance = _discipline_scorer.compute_relevance(skill, dname)
             if relevance.level == "UNRELATED":
                 r.priority = "low"
                 r.message += " (низкая релевантность дисциплине)"
@@ -601,6 +610,7 @@ async def run_teacher_analysis(
             "declining": declining_result.unwrap_or([]),
         },
         "disciplines": summary.disciplines,
+        "target_professions": list(profession_taxonomy.keys())[:10],
         "generated_at": datetime.now().isoformat(),
     }
 
