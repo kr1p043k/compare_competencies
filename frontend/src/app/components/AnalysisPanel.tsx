@@ -3,6 +3,7 @@ import { apiFetch } from "../../lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { AlertCircle, TrendingUp, TrendingDown, Lightbulb, Target } from "lucide-react";
+import { CompetencyTree } from "./CompetencyTree";
 
 interface CompetencyCov {
   code: string;
@@ -174,19 +175,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
           {competencies.length > 0 && (
             <div>
               <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Per-Competency Coverage</div>
-              <div className="divide-y divide-gray-100 border rounded-lg">
-                {competencies.map((c) => (
-                  <div key={c.code} className="flex items-center justify-between px-3 py-2 text-sm">
-                    <span className="font-medium text-gray-700">{c.code}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-gray-500">{c.matched_skills}/{c.total_skills}</span>
-                      <span className="font-semibold">
-                        {(c.coverage * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <CompetencyTree competencies={competencies} />
             </div>
           )}
         </CardContent>
