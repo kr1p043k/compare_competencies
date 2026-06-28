@@ -33,13 +33,9 @@ async def _collect_loop():
 async def _try_collect():
     """Direct HH API collection, saves JSON + DB."""
     import asyncpg
-    from src import config
+    from src import config, Ok, Result
     from src.parsing.api.hh_api import HeadHunterAPI
-    from src.parsing.utils import (
-        get_areas, 
-        IT_PROFESSIONAL_ROLES, 
-        IT_PROFESSIONAL_QUERIES,
-    )
+    from src.parsing.utils import IT_PROFESSIONAL_ROLES
 
     db_url = config.settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
     try:
@@ -78,38 +74,22 @@ async def _try_collect():
     for role_id in IT_PROFESSIONAL_ROLES:
         try:
             result = api.search_vacancies(
-                query="",
+                text="",
                 area=area_id,
-                period=period,
+                period_days=period,
                 max_pages=max_pages,
                 professional_role=role_id,
             )
-            match result:
-                case Ok(vacs):
-                    for v in vacs:
-                        vid = v.get("id")
-                        if vid and vid not in seen_ids:
-                            seen_ids.add(vid)
-                            all_vacancies.append(v)
-                case _:
-                    pass
+            if result.is_ok():
+                for v in result.ok():
+                    vid = v.get("id")
+                    if vid and vid not in seen_ids:
+                        seen_ids.add(vid)
+                        all_vacancies.append(v)
         except Exception as exc:
             logger.warning("collect_role_failed", role=role_id, error=str(exc))
 
-    for query in IT_PROFESSIONAL_QUERIES:
-        try:
-            result = api.search_vacancies(query=query, area=area_id, period=period, max_pages=max_pages)
-            match result:
-                case Ok(vacs):
-                    for v in vacs:
-                        vid = v.get("id")
-                        if vid and vid not in seen_ids:
-                            seen_ids.add(vid)
-                            all_vacancies.append(v)
-                case _:
-                    pass
-        except Exception as exc:
-            logger.warning("collect_query_failed", query=query, error=str(exc))
+
 
     if not all_vacancies:
         logger.info("collect_no_new_vacancies")
@@ -119,7 +99,7 @@ async def _try_collect():
     detailed_path = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     try:
         import json as j
-        existing = json.loads(detailed_path.read_text(encoding="utf-8")) if detailed_path.exists() else []
+        existing = j.loads(detailed_path.read_text(encoding="utf-8")) if detailed_path.exists() else []
         existing_ids = {v.get("id") for v in existing if v.get("id")}
         merged = existing + [v for v in all_vacancies if v.get("id") and v["id"] not in existing_ids]
         detailed_path.write_text(j.dumps(merged, ensure_ascii=False, default=str), encoding="utf-8")
@@ -127,7 +107,13 @@ async def _try_collect():
     except Exception as exc:
         logger.warning("collect_json_save_failed", error=str(exc))
 
-    # Save to DB
+    # Save to DB (ensure IDs are int)
+    for v in all_vacancies:
+        if isinstance(v.get("id"), str):
+            try:
+                v["id"] = int(v["id"])
+            except (ValueError, TypeError):
+                pass
     from src.pipeline.db_writer import save_vacancies_batch
     await save_vacancies_batch(all_vacancies)
 

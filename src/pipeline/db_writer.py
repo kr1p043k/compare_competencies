@@ -166,7 +166,7 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
         rows.append((
             hh_id, v.get("name"), (v.get("experience") or {}).get("id"),
             salary.get("from"), salary.get("to"), salary.get("currency", "RUR"),
-            employer.get("name"), employer.get("id"), area.get("name"),
+            employer.get("name"), int(employer["id"]) if employer.get("id") else None, area.get("name"),
             snippet.get("requirement"), snippet.get("responsibility"),
             v.get("description"), json.dumps(skills),
             json.dumps(parsed) if parsed else None,
