@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections import Counter
 
+import numpy as np
 import structlog
 
 from src.result import Ok, Err, Result
@@ -14,8 +15,9 @@ logger = structlog.get_logger(__name__)
 
 
 class CoverageAnalyzer:
-    def __init__(self, matcher: SkillMatcher):
+    def __init__(self, matcher: SkillMatcher, discipline_scorer=None):
         self.matcher = matcher
+        self._discipline_scorer = discipline_scorer
 
     def analyze_discipline(
         self,
@@ -108,18 +110,42 @@ class CoverageAnalyzer:
                 dir_emerging = {s for s, _, _ in dir_result.unwrap()}
                 for em in emerging_skills:
                     if em.skill_name not in dir_emerging:
-                        # Covered in another discipline — find which
-                        for dn, dskills in discipline_skill_map.items():
-                            if dn == discipline_name:
-                                continue
-                            if em.skill_name in dskills:
-                                cross_refs.append(CrossReference(
-                                    skill_name=em.skill_name,
-                                    frequency=em.frequency,
-                                    discipline=dn,
-                                ))
-                                break
-                        else:
+                        found = False
+                        if self._discipline_scorer is not None:
+                            self._discipline_scorer._ensure_embeddings()
+                            for dn in discipline_skill_map:
+                                if dn == discipline_name:
+                                    continue
+                                disc_emb = self._discipline_scorer.get_discipline_embedding(dn)
+                                if disc_emb is not None:
+                                    from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+                                    prov = EmbeddingProviderFactory.get()
+                                    sk_emb = prov.encode([em.skill_name], show_progress_bar=False)[0]
+                                    sk_norm = np.linalg.norm(sk_emb)
+                                    if sk_norm > 0:
+                                        sk_emb = sk_emb / sk_norm
+                                        sim = float(np.dot(sk_emb, disc_emb))
+                                        if sim > 0.55:
+                                            cross_refs.append(CrossReference(
+                                                skill_name=em.skill_name,
+                                                frequency=em.frequency,
+                                                discipline=dn,
+                                            ))
+                                            found = True
+                                            break
+                        if not found:
+                            for dn, dskills in discipline_skill_map.items():
+                                if dn == discipline_name:
+                                    continue
+                                if em.skill_name in dskills:
+                                    cross_refs.append(CrossReference(
+                                        skill_name=em.skill_name,
+                                        frequency=em.frequency,
+                                        discipline=dn,
+                                    ))
+                                    found = True
+                                    break
+                        if not found:
                             for dn, dskills in discipline_skill_map.items():
                                 if dn == discipline_name:
                                     continue
@@ -131,8 +157,10 @@ class CoverageAnalyzer:
                                             frequency=em.frequency,
                                             discipline=dn,
                                         ))
+                                        found = True
                                         break
-                # Truly missing (not in any discipline)
+                                if found:
+                                    break
                 truly_raw = self.matcher.get_emerging(
                     direction_rpd_norm, top_n=10,
                 )

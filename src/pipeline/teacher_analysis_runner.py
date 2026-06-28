@@ -359,7 +359,7 @@ async def run_teacher_analysis(
     # — init services —
     from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
     matcher = SkillMatcher(market_skills, embedding_provider=EmbeddingProviderFactory.get())
-    coverage_analyzer = CoverageAnalyzer(matcher)
+    coverage_analyzer = CoverageAnalyzer(matcher, discipline_scorer=discipline_scorer)
     trend_analyzer = SnapshotTrendAnalyzer(snapshots)
     rec_engine = CurriculumRecommender()
     optimizer = CurriculumOptimizer()
