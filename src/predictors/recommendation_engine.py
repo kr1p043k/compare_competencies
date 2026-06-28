@@ -269,12 +269,29 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                     s.lower() for s in self.profile_evaluator.domain_analyzer.domain_map.get(dominant_domain, [])
                 )
 
+            # Role relevance: skills from closest cluster get a boost
+            role_similarity = 0.0
+            role_skills: set[str] = set()
+            if closest_clusters:
+                top_cluster = closest_clusters[0]
+                role_similarity = top_cluster.get("similarity", 0)
+                cid = top_cluster.get("id")
+                if cid is not None and hasattr(self.profile_evaluator, "clusterer") and self.profile_evaluator.clusterer:
+                    try:
+                        role_skills = set(
+                            s.lower() for s in self.profile_evaluator.clusterer.get_top_skills_in_cluster(cid, top_n=50)
+                        )
+                    except Exception:
+                        role_skills = set(cluster_skills_map.keys())
+
             for skill in list(combined_scores.keys()):
                 bonus = 1.0
                 if skill in trend_bonuses:
                     bonus += trend_bonuses[skill]
                 if skill.lower() in domain_skills:
                     bonus += config.DOMAIN_BONUS
+                if role_similarity > 0.3 and skill.lower() in role_skills:
+                    bonus += role_similarity * 0.2
                 combined_scores[skill] *= bonus
 
             before_reranker = dict(sorted(combined_scores.items(), key=lambda x: x[1], reverse=True))
@@ -382,17 +399,21 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             )
 
             profession_coverage = eval_result.get("profession_coverage", 0)
+            sk_cov = eval_result.get("skill_coverage", 0)
+            dm_cov = eval_result.get("domain_coverage_score", 0)
+            mkt_cov = eval_result.get("market_coverage_score", 0)
+            rdns = eval_result.get("readiness_score", 0)
             result = RecommendationResult(
                 summary=RecommendationSummary(
-                    match_score=eval_result.get("market_coverage_score", 0),
-                    confidence=eval_result.get("readiness_score", 0),
-                    market_coverage_score=eval_result.get("market_coverage_score", 0),
-                    skill_coverage=eval_result.get("skill_coverage", 0),
-                    domain_coverage_score=eval_result.get("domain_coverage_score", 0),
-                    readiness_score=eval_result.get("readiness_score", 0),
+                    match_score=round((sk_cov + mkt_cov + rdns) / 3.0, 2),
+                    confidence=round(rdns / 100.0, 4),
+                    market_coverage_score=mkt_cov,
+                    skill_coverage=sk_cov,
+                    domain_coverage_score=dm_cov,
+                    readiness_score=rdns,
                     profession_coverage=profession_coverage,
                     avg_gap=eval_result.get("avg_gap", 0),
-                    coverage=eval_result.get("market_coverage_score", 0),
+                    coverage=mkt_cov,
                     coverage_details={
                         "covered_skills_count": len(student_set & set(eval_result.get("skill_metrics", {}).keys())),
                         "total_market_skills": len(eval_result.get("skill_metrics", {})),
@@ -461,6 +482,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                         f"({round(covered / total * 100, 1) if total > 0 else 0}%). "
                         f"Рекомендации ниже помогут закрыть пробелы."
                     ),
+                    "cluster_skills": list(cluster_all_skills)[:50] if cluster_all_skills else [],
                 }
             )
         return roles
@@ -509,8 +531,22 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         similarity = top_role["semantic_similarity"]
         coverage = top_role["coverage_percent"]
         total_skills = int(top_role["skills_covered"].split("/")[1]) if "/" in top_role["skills_covered"] else 50
-        new_coverage = round((coverage * total_skills / 100 + 1) / total_skills * 100, 1)
+
+        cluster_skills = top_role.get("cluster_skills", [])
+        skill_is_relevant = skill.lower() in (s.lower() for s in cluster_skills)
+
+        if skill_is_relevant and total_skills > 0:
+            new_coverage = round((coverage * total_skills / 100 + 1) / total_skills * 100, 1)
+        else:
+            new_coverage = coverage
         improvement = round(new_coverage - coverage, 1)
+
+        if not skill_is_relevant:
+            return (
+                f"Освоение '{skill}' расширит ваш технический кругозор. "
+                f"Навык не входит в топ ключевых навыков для роли «{role_name}», "
+                f"но может быть полезен в смежных областях."
+            )
         return (
             f"После освоения '{skill}' ваше покрытие навыков для роли "
             f"«{role_name}» вырастет с {coverage}% до {new_coverage}% (+{improvement}%). "

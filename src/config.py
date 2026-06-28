@@ -126,8 +126,8 @@ class Settings(BaseSettings):
     BLEND_LTR_WEIGHT: float = 0.4
     DOMAIN_BONUS: float = 0.1
     DIVERSIFY_MAX_PER_CATEGORY: int = 3
-    PRIORITY_HIGH_THRESHOLD: float = 0.7
-    PRIORITY_MEDIUM_THRESHOLD: float = 0.4
+    PRIORITY_HIGH_THRESHOLD: float = 0.4
+    PRIORITY_MEDIUM_THRESHOLD: float = 0.2
     TREND_ALWAYS_HOT_BONUS: float = 0.15
 
     READINESS_MARKET_WEIGHT: float = 0.50

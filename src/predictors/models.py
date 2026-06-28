@@ -43,6 +43,7 @@ class ClosestRole(BaseModel):
     skills_covered: str = ""
     coverage_percent: float = 0.0
     coverage_explanation: str = ""
+    cluster_skills: list[str] = []
 
 
 class RecommendationResult(BaseModel):
