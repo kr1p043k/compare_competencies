@@ -158,8 +158,9 @@ class ProphetForecastEngine(BasePredictor):
             uncertainty = float(last_row["yhat_upper"] - last_row["yhat_lower"])
             conf = max(0.0, 1.0 - uncertainty / max(next_freq, 1.0))
             # Penalize confidence when few data points
-            if n_points < 6:
-                conf *= n_points / 6.0
+            n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
+            if n_pts < 6:
+                conf *= n_pts / 6.0
             return Ok(ForecastResult(
                 skill=skill,
                 current_frequency=round(last_actual, 4),

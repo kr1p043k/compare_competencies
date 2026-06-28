@@ -62,10 +62,7 @@ class SkillForecastEngine(BasePredictor):
         Reads freq_market_*.json files from data/history/ to build
         time series per skill. If unavailable, falls back to flat forecast.
         """
-        from src import config as cfg
-        from pathlib import Path
-
-        history_dir = cfg.HISTORY_DIR
+        history_dir = config.HISTORY_DIR
         snapshots: list[tuple[date, dict]] = []
         import json
 
@@ -88,6 +85,9 @@ class SkillForecastEngine(BasePredictor):
 
         if len(snapshots) < 2:
             logger.warning("trend_fallback_insufficient_data", snapshots=len(snapshots))
+            if skill_frequencies:
+                for skill, freq in skill_frequencies.items():
+                    self._models[skill] = {"slope": 0.0, "intercept": freq, "n": 1, "rmse": 0.0, "mape": 0.0, "last_freq": freq}
             self._is_fitted = True
             return Ok(self)
 
@@ -104,7 +104,7 @@ class SkillForecastEngine(BasePredictor):
             x = np.array([(d - snapshots[0][0]).days for d in skill_dates[skill]], dtype=float)
             y = np.array(skill_freqs[skill], dtype=float)
             if len(x) < 2:
-                self._models[skill] = {"slope": 0.0, "intercept": y[0] if len(y) > 0 else 0.0, "n": len(x)}
+                self._models[skill] = {"slope": 0.0, "intercept": y[0] if len(y) > 0 else 0.0, "n": len(x), "last_freq": float(y[-1]) if len(y) > 0 else 0.0}
                 continue
             slope, intercept = np.polyfit(x, y, 1)
             residuals = y - (slope * x + intercept)
@@ -169,6 +169,10 @@ class SkillForecastEngine(BasePredictor):
             next_year_frequency=round(max(predicted, 0.0), 4),
             engine_used="trend",
         ))
+
+    def forecast(self, skill: str, months: int = 12) -> Result[ForecastResult, DomainError]:
+        """Alias for predict() — used by ProphetForecastEngine."""
+        return self.predict(skill, months)
 
     def forecast_all(self, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         results = []
