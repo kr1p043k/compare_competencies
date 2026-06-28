@@ -158,6 +158,8 @@ def create_app() -> FastAPI:
     _mount(admin_router)
     from src.api_pkg.routers.forecast import router as forecast_router
     _mount(forecast_router)
+    from src.api_pkg.routers.trends_by_profession import router as trends_prof_router
+    _mount(trends_prof_router)
     from src.api_pkg.routers.auth import router as auth_router
     _mount(auth_router)
     from src.api_pkg.routers.teacher import router as teacher_router

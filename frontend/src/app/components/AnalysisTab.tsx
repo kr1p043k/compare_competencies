@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Badge } from "./ui/badge";
 import {
   Search,
   Download,
@@ -12,6 +13,7 @@ import {
   BookOpen,
   MapPin,
   Briefcase,
+  Users,
 } from "lucide-react";
 import { RecommendationsReport } from "./RecommendationsReport";
 import { MetricsExplanation } from "./MetricsExplanation";
@@ -31,6 +33,36 @@ export function AnalysisTab({ selectedProfile, onProfileChange, pipelineQuery, p
   const [localData, setLocalData] = useState<any>(null);
   const effectiveLoading = loading || externalLoading;
   const effectiveData = analysisData ?? localData;
+
+  // Profession trends
+  const [professions, setProfessions] = useState<{ name: string }[]>([]);
+  const [selectedProf, setSelectedProf] = useState("");
+  const [profSkills, setProfSkills] = useState<{ skill: string; frequency: number }[]>([]);
+  const [profLoading, setProfLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/trends/professions")
+      .then((r) => r.ok ? r.json() : { professions: [] })
+      .then((d) => setProfessions(d.professions || []))
+      .catch(() => {});
+  }, []);
+
+  const loadProfessionTrends = async (prof: string) => {
+    setSelectedProf(prof);
+    if (!prof) return;
+    setProfLoading(true);
+    try {
+      const r = await fetch(`/api/trends/by-profession?profession=${encodeURIComponent(prof)}&limit=30`);
+      if (r.ok) {
+        const d = await r.json();
+        setProfSkills(d.skills || []);
+      }
+    } catch (e) {
+      console.error("Failed to load profession trends:", e);
+    } finally {
+      setProfLoading(false);
+    }
+  };
 
   const handleMarketSearch = async () => {
     setLoading(true);
@@ -235,6 +267,56 @@ export function AnalysisTab({ selectedProfile, onProfileChange, pipelineQuery, p
 
 
         </div>
+      </motion.div>
+
+      {/* Profession Trends */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-600 rounded-lg">
+                <Users className="size-5 text-white" />
+              </div>
+              <div>
+                <CardTitle>Тренды по профессиям</CardTitle>
+                <CardDescription>Самые востребованные навыки в выбранной профессии</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <Select value={selectedProf} onValueChange={loadProfessionTrends}>
+              <SelectTrigger className="h-11 border-2 mb-4">
+                <SelectValue placeholder="Выберите профессию..." />
+              </SelectTrigger>
+              <SelectContent>
+                {professions.map((p) => (
+                  <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {profLoading && <div className="text-center text-slate-500 py-4">Загрузка...</div>}
+
+            {!profLoading && profSkills.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {profSkills.map((s) => (
+                  <Badge key={s.skill} variant="secondary" className="px-3 py-1.5 text-sm">
+                    {s.skill}
+                    <span className="ml-2 text-xs opacity-60">×{s.frequency}</span>
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {!profLoading && selectedProf && profSkills.length === 0 && (
+              <div className="text-center text-slate-400 py-4">Нет данных для этой профессии</div>
+            )}
+          </CardContent>
+        </Card>
       </motion.div>
 
       {/* Metrics Explanation */}
