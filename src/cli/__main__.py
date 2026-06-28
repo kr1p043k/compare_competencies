@@ -24,6 +24,7 @@ def main() -> None:
         populate_parsed_skills,
         rebuild,
         seed_db,
+        snapshot_professions,
         teacher_analysis,
     )
 
@@ -91,6 +92,10 @@ def main() -> None:
     p.add_argument("--basic", help="Путь к hh_vacancies_basic.json")
     p.add_argument("--detailed", help="Путь к hh_vacancies_detailed.json")
     p.set_defaults(func=lambda a: asyncio.run(export_vacancies.main(basic_path=a.basic, detailed_path=a.detailed)))
+
+    p = sub.add_parser("snapshot-professions", help="Создать снимки частот навыков по каждой IT-профессии")
+    p.add_argument("--force", action="store_true")
+    p.set_defaults(func=lambda a: snapshot_professions.main(force=a.force))
 
     args = parser.parse_args()
     args.func(args)
