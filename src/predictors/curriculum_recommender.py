@@ -48,14 +48,12 @@ class CurriculumRecommender:
             cls = _classify_skill(s, self.skill_types)
             if cls == "academic":
                 recs.append(Recommendation(
-                    type="foundational",
-                    priority="low",
+                    type="foundational", priority="low", skill_name=s,
                     message=f"«{s}» — фундаментальный навык, не обнаружен на рынке. Не требует замены.",
                 ))
             else:
                 recs.append(Recommendation(
-                    type="review_content",
-                    priority="medium",
+                    type="review_content", priority="medium", skill_name=s,
                     message=f"«{s}» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность.",
                 ))
 
@@ -64,8 +62,7 @@ class CurriculumRecommender:
             relevant = self._filter_relevant(coverage.truly_missing, coverage.discipline_name)
             for m in relevant[:5]:
                 recs.append(Recommendation(
-                    type="add_new_content",
-                    priority="medium",
+                    type="add_new_content", priority="medium", skill_name=m.skill_name,
                     message=(
                         f"Рассмотрите возможность включения навыка «{m.skill_name}» "
                         f"(частота на рынке: {m.frequency})."
@@ -80,8 +77,7 @@ class CurriculumRecommender:
                     continue
                 seen.add(cr.skill_name)
                 recs.append(Recommendation(
-                    type="cross_reference",
-                    priority="low",
+                    type="cross_reference", priority="low", skill_name=cr.skill_name,
                     message=(
                         f"Навык «{cr.skill_name}» ({cr.frequency}) преподаётся "
                         f"в дисциплине «{cr.discipline}» — в рамках текущей дисциплины "

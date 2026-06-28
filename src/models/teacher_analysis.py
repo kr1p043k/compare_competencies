@@ -55,9 +55,10 @@ class DisciplineCoverage:
 
 @dataclass
 class Recommendation:
-    type: str  # update_content | add_new_content | major_revision | cross_reference | review_content | foundational
-    priority: str  # high | medium | low
+    type: str       # "foundational" | "review_content" | "add_new_content" | "cross_reference" | "major_revision"
+    priority: str   # "high" | "medium" | "low"
     message: str
+    skill_name: str = ""
 
 
 @dataclass

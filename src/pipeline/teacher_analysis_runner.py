@@ -363,6 +363,9 @@ async def run_teacher_analysis(
     trend_analyzer = SnapshotTrendAnalyzer(snapshots)
     rec_engine = CurriculumRecommender()
     optimizer = CurriculumOptimizer()
+    from src.analyzers.discipline_relevance import DisciplineAwareScorer
+    discipline_scorer = DisciplineAwareScorer()
+    discipline_scorer.load()
 
     dir_code = direction["code"]
     out_dir = OUTPUT / dir_code
@@ -423,6 +426,17 @@ async def run_teacher_analysis(
 
         recs_result = rec_engine.generate(coverage)
         recs = recs_result.unwrap_or([])
+
+        # Filter recommendations by discipline relevance
+        filtered: list = []
+        for r in recs:
+            skill = r.skill_name or r.type
+            relevance = discipline_scorer.compute_relevance(skill, dname)
+            if relevance.level == "UNRELATED":
+                r.priority = "low"
+                r.message += " (низкая релевантность дисциплине)"
+            filtered.append(r)
+        recs = filtered
 
         with _discipline_lock:
             for g in coverage.gaps_list:
