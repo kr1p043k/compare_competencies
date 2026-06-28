@@ -350,8 +350,13 @@ async def run_teacher_analysis(
     snapshots = []
     for r in srows:
         d = dict(r)
-        if isinstance(d.get("skill_freq"), str):
-            d["skill_freq"] = json.loads(d["skill_freq"])
+        sf = d.get("skill_freq")
+        if isinstance(sf, dict):
+            pass
+        elif isinstance(sf, str):
+            d["skill_freq"] = json.loads(sf)
+        else:
+            d["skill_freq"] = {}
         snapshots.append(d)
 
     logger.info("snapshots_loaded", count=len(snapshots))
