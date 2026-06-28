@@ -34,8 +34,7 @@ async def main(force: bool = False) -> None:
             return
 
         if force:
-            await session.execute(delete(CompetencyTrend))
-            await session.commit()
+            pass  # CompetencyTrend table not yet implemented
 
         pairs = list(zip(snapshots, snapshots[1:]))
         for prev_snap, cur_snap in pairs:

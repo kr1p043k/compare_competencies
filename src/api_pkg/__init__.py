@@ -22,7 +22,7 @@ def _rate_limit_key(request: Request) -> str:
     """Rate limit by user email (from JWT) if authenticated, else by IP."""
     user = getattr(request.state, "user", None)
     if user and isinstance(user, dict):
-        email = user.get("email")
+        email = user.get("u")
         if email:
             return f"user:{email}"
     client_ip = request.client.host if request.client else "unknown"

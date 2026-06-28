@@ -27,6 +27,7 @@ class ValidationReason(Enum):
     TOO_SHORT = "Слишком короткий (<3 символов)"
     TOO_LONG = "Слишком длинный (>4 слов или >50 символов)"
     IN_BLACKLIST = "В чёрном списке"
+    LOW_CONFIDENCE = "Низкая уверенность"
     NOT_IN_WHITELIST = "Нет в белом списке"
     EMPTY = "Пустой"
     ONLY_DIGITS = "Только цифры"
@@ -154,7 +155,7 @@ class SkillValidator:
             skill_lower = skill.lower()
 
             if confidence < self.min_confidence:
-                reasons.append(ValidationReason.IN_BLACKLIST)
+                reasons.append(ValidationReason.LOW_CONFIDENCE)
 
             if len(skill) < self.min_length:
                 reasons.append(ValidationReason.TOO_SHORT)

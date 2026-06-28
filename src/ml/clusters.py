@@ -138,7 +138,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
             # boost if skill is in known taxonomy
             taxonomy_boost = 2.0 if sk.lower() in _known_skills else 0.5
             n_with_skill = sum(1 for other_cf in cluster_skill_freqs if other_cf[sk] > 0)
-            idf = n_clusters / max(n_with_skill, 1)
+            idf = math.log(max(n_clusters / max(n_with_skill, 1), 1.0))
             scored.append((sk, freq * idf * taxonomy_boost))
         scored.sort(key=lambda x: -x[1])
         top_skills = [s for s, _ in scored[:10]]

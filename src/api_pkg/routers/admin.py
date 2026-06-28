@@ -462,14 +462,14 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
 
 @router.post("/admin/skills/extend")
 @limiter.limit("1/minute")
-async def admin_extend_skills(request: Request, yes: bool = True):
+async def admin_extend_skills(request: Request, background_tasks: BackgroundTasks, yes: bool = True):
     """Analyze vacancies and extend it_skills with new skills."""
     import argparse
     from src.cli.extend_skills import main as extend_main
 
     args = argparse.Namespace(interactive=False, yes=yes, coverage=False, dead=False, min_frequency=2)
-    extend_main(args)
-    return {"status": "ok", "message": "Skills analysis completed"}
+    background_tasks.add_task(extend_main, args)
+    return {"status": "ok", "message": "Skills analysis started in background"}
 
 
 @router.get("/admin/export/db")

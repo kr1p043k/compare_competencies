@@ -132,7 +132,7 @@ class Settings(BaseSettings):
 
     READINESS_MARKET_WEIGHT: float = 0.50
     READINESS_SKILL_WEIGHT: float = 0.20
-    READINESS_DOMAIN_WEIGHT: float = 0.15
+    READINESS_DOMAIN_WEIGHT: float = -0.15
     READINESS_GAP_PENALTY_WEIGHT: float = 0.10
 
     SKILL_STRONG_GAP_THRESHOLD: float = 0.2
