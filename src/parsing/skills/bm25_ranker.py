@@ -150,10 +150,8 @@ class BM25Ranker:
                 logger.warning("Нет валидных n-грамм для BM25")
                 return Ok({})
 
-            total = len(vacancies)
-            max_docs = max(200, min(2000, total // 10))
-            if len(corpus_docs) > max_docs:
-                corpus_docs = [corpus_docs[i] for i in np.argsort([len(d) for d in corpus_docs])[-max_docs:]]
+            # Используем все доступные вакансии — BM25Okapi сам нормализует длину doc через b=0.75
+            # Чем больше корпус, тем точнее IDF
 
             bm25 = BM25Okapi(corpus_docs)
             weights = {}
