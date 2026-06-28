@@ -124,11 +124,16 @@ class ProfileEvaluator:
         match self._get_cluster_context(student, target_level):
             case Ok(cluster_context):
                 cluster_context_val = cluster_context
+                all_weights: dict[str, float] = {}
+                for level_data in self.skill_weights_by_level.values():
+                    all_weights.update(level_data)
+                max_weight = max(all_weights.values()) if all_weights else 1.0
                 for skill, metric in metrics.items():
                     if skill in cluster_context.get("skills", {}):
                         metric.cluster_relevance = cluster_context["skills"][skill]
                     else:
-                        metric.cluster_relevance = 0.15 * getattr(metric, "cluster_relevance", 0.0)
+                        freq = all_weights.get(skill, 0.0)
+                        metric.cluster_relevance = 0.1 + 0.4 * (freq / max_weight)
             case Err(_):
                 cluster_context_val = None
 
