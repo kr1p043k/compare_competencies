@@ -64,17 +64,31 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def get_current_user(request: Request) -> dict[str, Any] | None:
+async def get_current_user(request: Request) -> dict[str, Any] | None:
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return None
     token = auth[7:]
-    return _decode_token(token)
+    data = _decode_token(token)
+    if data is None:
+        return None
+    try:
+        pool = get_pool()
+        token_hash = _hash_token(token)
+        session = await pool.fetchrow(
+            "SELECT logged_out_at FROM sessions WHERE token_hash = $1 AND logged_out_at IS NULL",
+            token_hash,
+        )
+        if session is None:
+            return None
+    except Exception:
+        pass
+    return data
 
 
 def require_role(role: str):
     async def dependency(request: Request):
-        user = get_current_user(request)
+        user = await get_current_user(request)
         if user is None:
             raise HTTPException(status_code=401, detail="Unauthorized")
         if user.get("r") != role and user.get("r") != "admin":
@@ -128,7 +142,7 @@ async def login(body: LoginRequest, request: Request):
 
 @router.post("/auth/logout")
 async def logout(request: Request):
-    user_data = get_current_user(request)
+    user_data = await get_current_user(request)
     if user_data is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -148,23 +162,11 @@ async def logout(request: Request):
 
 @router.get("/auth/me")
 async def me(request: Request):
-    user_data = get_current_user(request)
+    user_data = await get_current_user(request)
     if user_data is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     pool = get_pool()
-
-    # Verify session not logged out
-    auth = request.headers.get("Authorization", "")
-    token = auth[7:]
-    token_hash = _hash_token(token)
-    session_row = await pool.fetchrow(
-        "SELECT logged_out_at FROM sessions WHERE token_hash = $1",
-        token_hash,
-    )
-    if session_row is None or session_row["logged_out_at"] is not None:
-        raise HTTPException(status_code=401, detail="Session expired")
-
     row = await pool.fetchrow(
         "SELECT email, role, full_name FROM users WHERE email = $1",
         user_data["u"],
