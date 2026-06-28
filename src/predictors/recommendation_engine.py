@@ -108,6 +108,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             self._timeframe_hard = {"java", "kubernetes", "aws", "machine learning", "tensorflow"}
 
         self._cached_trend_bonuses: dict[str, float] | None = None
+        self._trend_bonuses_cached_at: float = 0.0
         self._load_templates()
         logger.info(
             "recommendation_engine_initialized",
@@ -229,7 +230,8 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 else:
                     combined_scores[skill] = ev
 
-            if self._cached_trend_bonuses is None and self.trend_analyzer is not None:
+            now = time.time()
+            if (self._cached_trend_bonuses is None or now - self._trend_bonuses_cached_at > 3600) and self.trend_analyzer is not None:
                 match self.trend_analyzer.get_trending_skills(top_n=500, min_change_percent=0.0):
                     case Ok(trends):
                         self.trend_analyzer.save_trends(trends)
@@ -240,6 +242,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                             if hot not in tb:
                                 tb[hot] = config.TREND_ALWAYS_HOT_BONUS
                         self._cached_trend_bonuses = tb
+                        self._trend_bonuses_cached_at = now
                     case _:
                         pass
 
