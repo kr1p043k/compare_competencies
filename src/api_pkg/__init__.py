@@ -70,11 +70,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    @app.get("/metrics")
-    async def metrics():
-        """эндпоинт на метрики Prometheus"""
-        return get_metrics()
-
     @app.middleware("http")
     async def limit_body_size_middleware(request: Request, call_next):
         content_length = request.headers.get("content-length")
