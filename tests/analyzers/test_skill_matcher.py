@@ -129,6 +129,7 @@ class TestSkillMatcher:
         m = SkillMatcher({"sql": 100})
         result = m.match("MS SQL Server")
         assert result.is_ok()
-        skill, mtype = result.unwrap()
+        skill, mtype, conf = result.unwrap()
         assert skill == "sql"
         assert mtype == "fuzzy"
+        assert conf == 0.5
