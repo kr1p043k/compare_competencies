@@ -40,6 +40,7 @@ class CoverageAnalyzer:
 
         for ccode, skills in competencies.items():
             comp_matched = 0
+            comp_weighted = 0.0
             comp_gaps = []
             for s in skills:
                 all_rpd.append(s)
@@ -47,16 +48,19 @@ class CoverageAnalyzer:
                 if match_result.is_err():
                     logger.warning("skill_match_failed", skill=s)
                     continue
-                m, _ = match_result.unwrap()
+                m, _, conf = match_result.unwrap()
                 if m:
                     comp_matched += 1
+                    comp_weighted += conf
                 else:
                     comp_gaps.append(s)
+            n = len(skills)
             comp_results.append(CompetencyCoverage(
                 code=ccode,
-                total_skills=len(skills),
+                total_skills=n,
                 matched_skills=comp_matched,
-                coverage=round(comp_matched / len(skills), 4) if skills else 0,
+                coverage=round(comp_matched / n, 4) if n else 0,
+                weighted_coverage=round(comp_weighted / n, 4) if n else 0,
                 gap_skills=comp_gaps[:10],
             ))
 
@@ -72,12 +76,12 @@ class CoverageAnalyzer:
             match_result = self.matcher.match(s)
             if match_result.is_err():
                 continue
-            m, mtype = match_result.unwrap()
+            m, mtype, conf = match_result.unwrap()
             if m:
                 matched_list.append(SkillMatch(
                     skill_name=s, market_match=m,
                     frequency=self.matcher.market_skills.get(m, 0),
-                    match_type=mtype,
+                    match_type=mtype, confidence=conf,
                 ))
             else:
                 gaps_list.append(s)
@@ -140,11 +144,12 @@ class CoverageAnalyzer:
 
         total = len(matched_list) + len(gaps_list)
         ratio = round(len(matched_list) / total, 4) if total else 0
+        weighted = round(sum(m.confidence for m in matched_list) / total, 4) if total else 0.0
 
         logger.info("discipline_analyzed",
                      discipline=discipline_name,
                      total=total, matched=len(matched_list),
-                     gaps=len(gaps_list), coverage=ratio)
+                     gaps=len(gaps_list), coverage=ratio, weighted=weighted)
 
         return Ok(DisciplineCoverage(
             discipline_id=discipline_id,
@@ -153,6 +158,7 @@ class CoverageAnalyzer:
             market_matched=len(matched_list),
             gaps=len(gaps_list),
             coverage_ratio=ratio,
+            weighted_coverage=weighted,
             coverage_level=coverage_level(ratio),
             top_matched=sorted(matched_list, key=lambda x: -x.frequency)[:10],
             gaps_list=gaps_list[:20],

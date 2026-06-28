@@ -1,4 +1,4 @@
-﻿from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -66,23 +66,25 @@ class TestSkillMatcher:
         m = SkillMatcher({"python": 100})
         result = m.match("Python")
         assert result.is_ok()
-        skill, mtype = result.unwrap()
+        skill, mtype, conf = result.unwrap()
         assert skill == "python"
         assert mtype == "exact"
+        assert conf == 1.0
 
     def test_match_fuzzy(self):
         m = SkillMatcher({"sql": 100})
         result = m.match("ms sql server")
         assert result.is_ok()
-        skill, mtype = result.unwrap()
+        skill, mtype, conf = result.unwrap()
         assert skill == "sql"
         assert mtype == "fuzzy"
+        assert conf == 0.5
 
     def test_match_no_match(self):
         m = SkillMatcher({"python": 100})
         result = m.match("quantum computing")
         assert result.is_ok()
-        skill, mtype = result.unwrap()
+        skill, mtype, conf = result.unwrap()
         assert skill is None
         assert mtype == "no_match"
 
@@ -90,7 +92,7 @@ class TestSkillMatcher:
         m = SkillMatcher({"go": 50})
         result = m.match("go")
         assert result.is_ok()
-        skill, mtype = result.unwrap()
+        skill, mtype, conf = result.unwrap()
         assert skill is None
         assert mtype == "no_match"
 

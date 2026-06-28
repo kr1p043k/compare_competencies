@@ -15,6 +15,7 @@ class SkillMatch:
     frequency: int = 0
     market_match: str | None = None
     match_type: str = "exact"  # exact | fuzzy | substring
+    confidence: float = 1.0
 
 
 @dataclass
@@ -30,6 +31,7 @@ class CompetencyCoverage:
     total_skills: int = 0
     matched_skills: int = 0
     coverage: float = 0.0
+    weighted_coverage: float = 0.0
     gap_skills: list[str] = field(default_factory=list)
 
 
@@ -41,6 +43,7 @@ class DisciplineCoverage:
     market_matched: int = 0
     gaps: int = 0
     coverage_ratio: float = 0.0
+    weighted_coverage: float = 0.0
     coverage_level: str = "low"
     top_matched: list[SkillMatch] = field(default_factory=list)
     gaps_list: list[str] = field(default_factory=list)
