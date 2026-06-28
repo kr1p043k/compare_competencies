@@ -297,7 +297,15 @@ class SkillNormalizer:
             if text in whitelist:
                 return Ok(text)
 
-            matches = process.extract(text, whitelist, scorer=fuzz.WRatio, limit=SkillNormalizer.MAX_FUZZY_CANDIDATES)
+            # Token pre-filter: only compare against whitelist entries sharing tokens
+            input_tokens = set(text.split())
+            candidates = [
+                w for w in whitelist
+                if input_tokens & set(w.split())
+            ]
+
+            matches = process.extract(text, candidates or whitelist, scorer=fuzz.WRatio,
+                                      limit=SkillNormalizer.MAX_FUZZY_CANDIDATES)
             if matches and matches[0][1] >= SkillNormalizer.FUZZY_THRESHOLD:
                 best = matches[0][0]
                 logger.debug("fuzzy_match", original=original, matched=best, score=matches[0][1])
