@@ -87,11 +87,14 @@ class ProphetForecastEngine(BasePredictor):
 
     def _fit_prophet_for_skill(self, skill: str, points: list[tuple[date, float]]):
         df = pd.DataFrame({"ds": [p[0] for p in points], "y": [p[1] for p in points]})
+        n_points = len(points)
         model = Prophet(
-            yearly_seasonality=True,
+            yearly_seasonality=n_points >= 24,
             weekly_seasonality=False,
             daily_seasonality=False,
+            seasonality_mode="additive",
             interval_width=0.80,
+            changepoint_prior_scale=0.5 if n_points < 12 else 0.05,
         )
         model.fit(df)
         return model
@@ -152,7 +155,11 @@ class ProphetForecastEngine(BasePredictor):
             growth = (next_freq - baseline) / baseline
             growth = max(min(growth, self.MAX_GROWTH_CAP), -self.MAX_GROWTH_CAP)
 
-            conf = min(1.0, 1.0 - float(last_row["yhat_upper"] - last_row["yhat_lower"]) / max(next_freq, 0.001))
+            uncertainty = float(last_row["yhat_upper"] - last_row["yhat_lower"])
+            conf = max(0.0, 1.0 - uncertainty / max(next_freq, 1.0))
+            # Penalize confidence when few data points
+            if n_points < 6:
+                conf *= n_points / 6.0
             return Ok(ForecastResult(
                 skill=skill,
                 current_frequency=round(last_actual, 4),
