@@ -213,6 +213,10 @@ async def run_startup(app):
     # 6. фоновая инициализация — все тяжёлые движки
     asyncio.create_task(_warmup_background(parser, basic_vacancies, hybrid_weights))
 
+    # 7. фоновый сбор вакансий (инкрементально, каждые 6 часов)
+    from src.pipeline.background_collector import start_background_collector
+    await start_background_collector()
+
 
 async def _warmup_background(parser, basic_vacancies, hybrid_weights):
     """Загружает тяжёлые компоненты после старта API."""
