@@ -28,7 +28,7 @@ async def _collect_loop():
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.warning("background_collect_error", error=str(exc))
+            logger.warning("background_collect_error", error=str(exc), exc_info=True)
         await asyncio.sleep(_INTERVAL_HOURS * 3600)
 
 
@@ -60,7 +60,7 @@ async def _try_collect():
 
     proc = await asyncio.create_subprocess_exec(
         sys.executable, str(_BASE_DIR / "main.py"),
-        "--it-sector", "--skip-gap-analysis", "--skip-clusters", "--skip-model",
+        "--it-sector", "--skip-gap-analysis",
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         cwd=_BASE_DIR,
     )
