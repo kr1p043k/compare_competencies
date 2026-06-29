@@ -589,7 +589,26 @@ export default function App() {
                         <CardContent className="pt-6 text-center py-12">
                           <AlertCircle className="size-12 text-amber-400 mx-auto mb-4" />
                           <h3 className="text-lg font-semibold text-amber-800 mb-2">{msg}</h3>
-                          <p className="text-sm text-amber-600">Запустите анализ компетенций через вкладку «Анализ»</p>
+                          <p className="text-sm text-amber-600 mb-4">Запустите gap-анализ для расчёта покрытия</p>
+                          <Button
+                            onClick={async () => {
+                              try {
+                                const r = await fetch("/api/pipeline/gap-analysis", { method: "POST" });
+                                if (r.ok) {
+                                  await new Promise(resolve => setTimeout(resolve, 2000));
+                                  loadProfileDetail();
+                                } else {
+                                  alert("Не удалось запустить gap-анализ");
+                                }
+                              } catch {
+                                alert("Ошибка запуска gap-анализа");
+                              }
+                            }}
+                            className="bg-amber-600 hover:bg-amber-700"
+                          >
+                            <Zap className="size-4 mr-2" />
+                            Запустить gap-анализ
+                          </Button>
                         </CardContent>
                       </Card>
                     );
