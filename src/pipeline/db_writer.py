@@ -68,7 +68,7 @@ async def complete_pipeline_run(run_id: str, status: str = "completed", error: s
     await pool.execute(
         """UPDATE pipeline_runs SET status=$1, completed_at=NOW(),
            error_message=$2, stats=$3 WHERE id=$4""",
-        status, error, json.dumps(stats) if stats else None, run_id,
+        status, error, json.dumps(stats, default=str) if stats else None, run_id,
     )
 
 
@@ -145,7 +145,7 @@ async def save_trend_snapshot(snapshot_date: datetime, skill_freq: dict, source:
     await pool.execute(
         """INSERT INTO trend_snapshots (pipeline_run_id, snapshot_date, skill_freq, source)
            VALUES ($1,$2,$3::jsonb,$4)""",
-        run_id, snapshot_date, json.dumps(skill_freq, ensure_ascii=False), source,
+        run_id, snapshot_date, json.dumps(skill_freq, ensure_ascii=False, default=str), source,
     )
 
 
@@ -178,8 +178,8 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
             salary.get("from"), salary.get("to"), salary.get("currency", "RUR"),
             employer.get("name"), int(employer["id"]) if employer.get("id") else None, area.get("name"),
             snippet.get("requirement"), snippet.get("responsibility"),
-            v.get("description"), json.dumps(skills),
-            json.dumps(parsed) if parsed else None,
+            v.get("description"), json.dumps(skills, default=str),
+            json.dumps(parsed, default=str) if parsed else None,
             pub, v.get("alternate_url"), run_id,
             json.dumps(v, ensure_ascii=False, default=str),
         ))

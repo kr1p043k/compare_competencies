@@ -335,6 +335,9 @@ async def run_teacher_analysis_endpoint(
     background_tasks: BackgroundTasks,
     dir_code: str = "09.03.02",
 ):
+    import re
+    if not re.match(r"^\d{2}\.\d{2}\.\d{2}$", dir_code):
+        raise HTTPException(status_code=400, detail="Invalid direction code format")
     async def _run():
         try:
             proc = await asyncio.create_subprocess_exec(

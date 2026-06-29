@@ -114,17 +114,10 @@ async def login(body: LoginRequest, request: Request):
     try:
         pool = get_pool()
         row = await pool.fetchrow(
-            "SELECT id, email, role, full_name, password_hash FROM users WHERE email = $1 AND is_active = true",
-            body.email,
+            "SELECT id, email, role, full_name, password_hash = crypt($2, password_hash) AS pw_match FROM users WHERE email = $1 AND is_active = true",
+            body.email, body.password,
         )
-        if row is None:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-
-        match = await pool.fetchval(
-            "SELECT password_hash = crypt($1, password_hash) FROM users WHERE id = $2",
-            body.password, row["id"],
-        )
-        if not match:
+        if row is None or not row["pw_match"]:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         token = _make_token(str(row["id"]), row["email"], row["role"])

@@ -51,8 +51,13 @@ async def main(csv_path: str) -> None:
                     await session.flush()
                 groups_cache[group_name] = group.id
 
-            student = Student(group_id=groups_cache[group_name], full_name=full_name)
-            session.add(student)
+            existing = await session.execute(
+                select(Student).where(Student.group_id == groups_cache[group_name], Student.full_name == full_name)
+            )
+            student = existing.scalar_one_or_none()
+            if not student:
+                student = Student(group_id=groups_cache[group_name], full_name=full_name)
+                session.add(student)
             await session.flush()
 
             if skills_str:
