@@ -123,7 +123,8 @@ async def login(body: LoginRequest, request: Request):
         token = _make_token(str(row["id"]), row["email"], row["role"])
 
         token_hash = _hash_token(token)
-        ip = request.client.host if request.client else "unknown"
+        forwarded = request.headers.get("X-Forwarded-For", "")
+        ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
         ua = request.headers.get("User-Agent", "")
         await pool.execute(
             """INSERT INTO sessions (user_id, token_hash, ip_address, user_agent)

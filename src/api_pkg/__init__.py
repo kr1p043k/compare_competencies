@@ -25,7 +25,8 @@ def _rate_limit_key(request: Request) -> str:
         email = user.get("u")
         if email:
             return f"user:{email}"
-    client_ip = request.client.host if request.client else "unknown"
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
     return f"ip:{client_ip}"
 
 

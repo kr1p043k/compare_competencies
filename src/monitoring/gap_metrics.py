@@ -131,11 +131,10 @@ class GapMetricsTracker:
             # Записываем найденные гэпы
             for severity, count in self.gaps.items():
                 if count > 0:
-                    for _ in range(min(count, 100)):  # Ограничиваем количество наблюдений
-                        gaps_found.labels(
-                            profile_type=self.profile_type,
-                            severity=severity
-                        ).observe(count)
+                    gaps_found.labels(
+                        profile_type=self.profile_type,
+                        severity=severity
+                    ).observe(count)
             
             # Записываем рекомендации
             for priority, count in self.recommendations_by_priority.items():

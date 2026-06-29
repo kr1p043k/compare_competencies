@@ -1,5 +1,6 @@
 """Prometheus metrics for the pipeline and API."""
 
+import asyncio
 import time
 from functools import wraps
 
@@ -84,6 +85,20 @@ forecast_accuracy = Gauge(
 
 def track_pipeline_stage(stage_name: str):
     def decorator(func):
+        if asyncio.iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                start = time.time()
+                try:
+                    result = await func(*args, **kwargs)
+                    return result
+                except Exception as e:
+                    pipeline_errors.labels(stage=stage_name).inc()
+                    raise
+                finally:
+                    duration = time.time() - start
+                    pipeline_duration.labels(stage=stage_name).observe(duration)
+            return async_wrapper
         @wraps(func)
         def wrapper(*args, **kwargs):
             start = time.time()

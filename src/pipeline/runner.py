@@ -510,26 +510,33 @@ def rebuild() -> Result[None, str]:
 
 
 async def run_pipeline_task_async(args, task_progress_callback=None) -> dict[str, Any]:
-    """Run full pipeline in executor and return result dict."""
     clean_progress_files()
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, run_full_pipeline, args)
+    result = await loop.run_in_executor(None, run_full_pipeline, args)
+    if result.is_err():
+        return {"status": "error", "detail": str(result.err())}
     return {"status": "completed"}
 
 
 async def run_train_model_async(args=None, task_progress_callback=None) -> dict[str, Any]:
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, run_train_model, args)
+    result = await loop.run_in_executor(None, run_train_model, args)
+    if result.is_err():
+        return {"status": "error", "detail": str(result.err())}
     return {"status": "completed"}
 
 
 async def run_status_async(args) -> dict[str, Any]:
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, run_status, args)
+    result = await loop.run_in_executor(None, run_status, args)
+    if result.is_err():
+        return {"status": "error", "detail": str(result.err())}
     return {"status": "completed"}
 
 
 async def rebuild_async() -> dict[str, Any]:
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, rebuild)
+    result = await loop.run_in_executor(None, rebuild)
+    if result.is_err():
+        return {"status": "error", "detail": str(result.err())}
     return {"status": "completed"}
