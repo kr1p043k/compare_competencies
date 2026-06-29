@@ -193,7 +193,7 @@ class SkillParser:
             text = text[:max_text_length]
             text = re.sub(r"<[^>]+>", " ", text)
             text = re.sub(r"\s+", " ", text).strip()
-            text = text.replace("strong", "")
+
             self.stats.text_length_processed += len(text)
 
             skills = []

@@ -103,7 +103,7 @@ class SkillNormalizer:
         # ML / AI / LLM
         "ml": ["machine learning", "ml"],
         "dl": ["deep learning"],
-        "mlops": ["ml ops", "mlo ps"],
+        "mlops": ["ml ops"],
         "llm": ["large language model", "large language models", "llms"],
         "rag": ["retrieval augmented generation"],
         "langchain": ["langchain"],

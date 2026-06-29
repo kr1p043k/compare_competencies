@@ -48,6 +48,7 @@ def get_embedding_model(model_name: str = None):
                     logger.error("embedding_model_failed_mirror", model=model_name, error=str(e))
                     raise
                 logger.warning("embedding_model_failed_try_mirror", model=model_name, error=str(e))
+                os.environ.pop("HF_HUB_OFFLINE", None)
 
         raise RuntimeError(f"Failed to load embedding model {model_name} from both sources")
     return _embedding_model

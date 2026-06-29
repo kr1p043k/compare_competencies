@@ -262,7 +262,6 @@ def load_queries_from_file(filepath: Path) -> Result[list[str], DomainError]:
 
 
 def get_last_parsed_id() -> Result[int, DomainError]:
-    """Returns the last parsed vacancy ID or Err if not available."""
     id_file = config.DATA_PROCESSED_DIR / "last_parsed_id.txt"
     if not id_file.exists():
         return Err(DomainError(message="Last parsed ID file not found"))
@@ -551,10 +550,7 @@ def extract_and_count_skills(vacancies: list[dict[str, Any]], parser: VacancyPar
     logger.info("extracting_skills_from_vacancies", count=len(vacancies))
     if not vacancies:
         return Ok({"frequencies": {}, "tfidf_weights": {}})
-    try:
-        return Ok(parser.extract_skills_from_vacancies(vacancies))
-    except Exception as e:
-        return Err(DomainError(message="Skill extraction error", detail=str(e)))
+    return parser.extract_skills_from_vacancies(vacancies)
 
 
 def map_to_competencies(skill_frequencies: dict[str, int], mapping: dict[str, list[str]]) -> Counter:

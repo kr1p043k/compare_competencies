@@ -63,14 +63,6 @@ class SnapshotTrendAnalyzer:
                     previous[ck] = previous[ok]
                     break
 
-        OVERRIDE_PREV = {
-            "linux": 1674,
-            "c": 1279,
-            "huggingface": 15,
-        }
-        for skill, val in OVERRIDE_PREV.items():
-            previous[skill] = val
-
         changes = []
         for skill, freq in latest.items():
             prev_freq = previous.get(skill, 0)
@@ -111,24 +103,16 @@ class SnapshotTrendAnalyzer:
                     previous[ck] = previous[ok]
                     break
 
-        OVERRIDE_PREV = {
-            "linux": 1674,
-            "c": 1279,
-            "huggingface": 15,
-        }
-        for skill, val in OVERRIDE_PREV.items():
-            previous[skill] = val
-
         changes = []
-        for skill, freq in previous.items():
-            curr_freq = latest.get(skill, 0)
-            if freq >= 10:
-                change = (curr_freq - freq) / freq * 100
+        for skill, freq in latest.items():
+            prev_freq = previous.get(skill, 0)
+            if prev_freq >= 10:
+                change = (freq - prev_freq) / prev_freq * 100
                 if change > 200:
                     change = 200
                 elif change < -200:
                     change = -200
-                changes.append({"skill": skill, "change_pct": round(change, 1), "frequency": curr_freq})
-        result = sorted(changes, key=lambda x: x["change_pct"])[:top_n]
+                changes.append({"skill": skill, "change_pct": round(change, 1), "frequency": freq})
+        result = sorted(changes, key=lambda x: -x["change_pct"])[:top_n]
         logger.info("declining_skills_found", count=len(result))
         return Ok(result)

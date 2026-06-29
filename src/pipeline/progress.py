@@ -37,8 +37,8 @@ def write(pct: int, message: str, logs: list[str] | None = None):
         data["logs"] = existing_logs[-MAX_LOGS:]
         with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
-    except Exception:
-        logger.warning("progress_write_failed", error=True)
+    except Exception as e:
+        logger.warning("progress_write_failed", error=str(e))
 
 
 def write_result(pct: int, message: str, logs: list[str] | None = None) -> Result[None, DomainError]:

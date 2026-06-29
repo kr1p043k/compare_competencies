@@ -11,7 +11,7 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -428,10 +428,10 @@ def _run_embeddings(force: bool = False) -> None:
 
 
 class StudentImportItem(BaseModel):
-    full_name: str
-    group_name: str
-    direction_code: str = "09.03.02"
-    skills: str = ""
+    full_name: str = Field(max_length=200)
+    group_name: str = Field(max_length=100)
+    direction_code: str = Field(default="09.03.02", max_length=20)
+    skills: str = Field(default="", max_length=10000)
 
 
 @router.post("/admin/students/import")

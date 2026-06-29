@@ -54,7 +54,7 @@ def create_recommender(
     from src.predictors.recommendation_engine import RecommendationEngine
 
     engine = RecommendationEngine(
-        use_ltr=False,
+        use_ltr=use_ltr,
         use_llm=use_llm,
         profile_evaluator=profile_evaluator,
         trend_analyzer=trend_analyzer,
