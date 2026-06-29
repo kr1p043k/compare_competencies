@@ -242,7 +242,6 @@ async def run_teacher_analysis(
 
         it_skills_path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
         if it_skills_path.exists():
-            import json
             with open(it_skills_path, "r", encoding="utf-8") as f:
                 it_data = json.load(f)
             for name in it_data:
@@ -396,7 +395,6 @@ async def run_teacher_analysis(
             summary_mtime = summary_path.stat().st_mtime
             if last_run and summary_mtime > last_run.timestamp():
                 logger.info("skipping_analysis_data_unchanged", direction=dir_code)
-                import json
                 with open(summary_path, "r", encoding="utf-8") as _sf:
                     return Ok(json.load(_sf))
         except Exception:

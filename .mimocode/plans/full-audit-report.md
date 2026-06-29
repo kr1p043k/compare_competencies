@@ -1,428 +1,268 @@
 # Полный аудит проекта compare_competencies
 # Дата: 2026-06-28
 
-## CRITICAL (11)
+---
 
-### C1 — krm_models.py:44,64 — datetime.now() при импорте
-`datetime.now(timezone.utc)` вызывается один раз при загрузке модуля. Все строки в БД получают одинаковый timestamp.
-**Fix:** `default=lambda: datetime.now(timezone.utc)`
+## ЧАСТЬ 1: ОШИБКИ (баги)
 
-### C2 — prophet_forecast.py:161 — NameError n_points
-`n_points` определена в `_fit_prophet_for_skill()`, но используется в `predict()`. Каждый прогноз через Prophet падает.
-**Fix:** Сохранять `self._skill_points[skill] = n_points` при fit, читать в predict.
+### CRITICAL (11)
 
-### C3 — pipeline_steps.py:386 — record_analysis() не существует
-`gap_metrics.record_analysis()` вызывается, но метода нет в GapMetricsTracker. Падает gap-compute шаг.
-**Fix:** Использовать `gap_metrics.start()` + `add_recommendations()` + `end()`.
+| # | Файл | Строка | Описание |
+|---|------|--------|----------|
+| C1 | krm_models.py | 44,64 | `datetime.now(timezone.utc)` вызывается при импорте. Все строки = один timestamp |
+| C2 | prophet_forecast.py | 161 | `n_points` не определена в `predict()`. NameError при каждом прогнозе |
+| C3 | pipeline_steps.py | 386 | `gap_metrics.record_analysis()` не существует. AttributeError |
+| C4 | fix_rpd_data.py | 162 | SQL injection через f-string |
+| C5 | seed_users.py | 10 | Захардкоженные креды БД `postgres:700009` в git |
+| C6 | frontend/VacancyCard.tsx | 288 | XSS через `dangerouslySetInnerHTML` без санитайза |
+| C7 | frontend/auth.tsx | 41 | JWT декодит `[0]` (header) вместо `[1]` (payload) |
+| C8 | frontend/api.ts | 5-13 | Spread options перезаписывает Authorization header |
+| C9 | test_ltr_recommendation_engine.py | 234,329 | Дублирующий тест — первый никогда не запускается |
+| C10 | test_ltr_recommendation_engine.py | 603,627 | Дублирующий тест — первый никогда не запускается |
+| C11 | runner.py | 288-296 | `asyncio.run()` + `get_pool()` = None. Падает запись в БД |
 
-### C4 — fix_rpd_data.py:162 — SQL injection
-F-string интерполяция текста KSA в SQL. Одинарная кавычка ломает запрос.
-**Fix:** Параметризованные запросы через `$N`.
+### HIGH (35)
 
-### C5 — seed_users.py:10 — захардкоженные креды БД
-`postgresql://postgres:700009@localhost:5432` прямо в коде. Репозиторий публичный.
-**Fix:** Использовать env vars или config.settings.DATABASE_URL.
+| # | Файл | Строка | Описание |
+|---|------|--------|----------|
+| H1 | gap_analyzer.py | 37-43 | SkillMetrics category ставится до setattr — всегда WRONG |
+| H2 | skills/trends.py | 68-71 | Ключ `_meta` в frequencies перезаписывает метаданные |
+| H3 | market_metrics.py | 58-66 | `__post_init__` мёртвый — `if not self.category` всегда False |
+| H4 | vacancy.py | 87-89 | Зарплата 0 treated as None (falsy check) |
+| H5 | metrics.py | 60 | GET endpoint вызывает `end_pipeline()` — ломает трекер |
+| H6 | recommendation_engine.py | 287 | Case-sensitive lookup теряет бонусы трендов |
+| H7 | recommendation_engine.py | 206,216 | Case-sensitive missing skills — завышает LTR |
+| H8 | ltr_recommendation_engine.py | 368-386 | Softmax vs raw — разная семантика score |
+| H9 | webhooks.py | 44-47 | None секрет = True — все вебхуки проходят |
+| H10 | populate_parsed_skills.py | 7 | Windows-only путь `"\\"` |
+| H11 | gap_metrics.py | 134 | Histogram observe() в цикле 100 раз |
+| H12 | frontend/App.tsx | 101 | 7 fetch без authHeaders() |
+| H13 | frontend/App.tsx | 204 | Stale closure: role всегда null |
+| H14 | frontend/App.tsx | 285 | .json() без проверки статуса |
+| H15 | initial_schema.py | 259 | Role CHECK нет 'student', но seed его создаёт |
+| H16 | sql+alembic | — | Два источника схемы расходятся |
+| H17 | remove_non_it_disciplines.py | 41 | downgrade пустой — удаление необратимо |
+| H18 | sql/002_audit_fixes.sql | 24 | ALTER мёртвой таблицы |
+| H19 | sql/001 | 587 | DELETE сCASCADE в стартовом скрипте |
+| H20 | conftest.py | 25-35 | Два autouse мока sleep — конфликт |
+| H21 | test_decorators.py | 51 | Маскирует баг ручным override |
+| H22 | test_n8n_webhooks.py | 74-133 | Мокает всё, assertions = "ok" is True |
+| H23 | test_recommendation_engine.py | 214 | Неполные mock данные — KeyError |
+| H24 | evaluation/base.py | 49 | coverage_ratio считает count, а не ratio |
+| H25 | frontend/VacanciesList.tsx | 142 | cityFilter не в deps useEffect |
+| H26 | frontend/AdminDashboard.tsx | 265 | Drop+Seed без подтверждения |
+| H27 | vacancy_schema.py | 1-76 | Весь модуль мёртвый |
+| H28 | api_responses.py | 233 | Дефолт RUR вместо RUB |
+| H29 | startup.py | 214 | `create_task` без сохранения ref — GC может убить |
+| H30 | student_loader.py | 44 | `target_level="middle"` для всех профилей |
+| H31 | student_loader.py | 39-45 | `competencies = skills` — один список вместо разных |
+| H32 | rpd_loader.py | 139 | Новый easyocr.Reader на каждый вызов — OOM |
+| H33 | docker-compose.yml | 15 | Volume прячет HF кэш — модель перекачивается |
+| H34 | docker-compose.yml | 152 | n8n ENCRYPTION_KEY пустой — creds без шифрования |
+| H35 | pyproject.toml | 10 | `dependencies = []` — pip install ставит ничего |
 
-### C6 — frontend VacancyCard.tsx:288 — XSS
-`dangerouslySetInnerHTML` на данных hh.ru. 3 точки инъекции. Нет DOMPurify.
-**Fix:** Санитайз HTML или strip тегов.
+### MEDIUM (60)
 
-### C7 — frontend auth.tsx:41 — JWT декодит header вместо payload
-`token.split(".")[0]` берёт header, а не payload. Username всегда undefined.
-**Fix:** Заменить `[0]` на `[1]`.
+| # | Файл | Строка | Описание |
+|---|------|--------|----------|
+| M1 | profile_evaluator.py | 273 | Формула readiness — перепутаны операнды |
+| M2 | config.py | 133-136 | Readiness веса ≠ 1.0 (сумма 0.70) |
+| M3 | recommendation_engine.py | 449 | `c["id"]` KeyError |
+| M4 | reranker.py | 182,195 | KeyError при падении всех rerankers |
+| M5 | skill_forecast.py | 48 | Отрицательные частоты после мутации |
+| M6 | runner.py | 373 | asyncio.run() connection churn |
+| M7 | db_writer.py | 157 | ValueError на нечисловом id |
+| M8 | pipeline_metrics.py | 106 | Приватный API Prometheus |
+| M9 | gap_metrics.py | 87 | Приватный API Prometheus |
+| M10 | gap_runner.py | 201 | TimeoutError убивает parallel evaluation |
+| M11 | profile_evaluator.py | 350 | Мёртвый `_get_or_create_comparator` |
+| M12 | profile_evaluator.py | 365 | Мёртвый `_get_recommendation` |
+| M13 | profile_evaluator.py | 387 | Мёртвый `_get_student_hash` |
+| M14 | profession_taxonomy.py | 58 | `pass` вместо логирования |
+| M15 | trend_analyzer.py | 66 | OVERRIDE_PREV дублируется |
+| M16 | skills/trends.py | 223 | re.compile в цикле |
+| M17 | student.py+krm_models.py | — | Два `ProfileEvaluation` — shadowing |
+| M18 | enums.py | 37 | ComparisonLevel дублирует ExperienceLevel |
+| M19 | backup_db.py | 25 | pg_restore для .sql файла |
+| M20 | api_pkg/__init__.py | 76 | ValueError на кривом Content-Length |
+| M21 | teacher_analysis_runner.py | 508 | Pool shadowing |
+| M22 | teacher_analysis_runner.py | 243 | Unbounded cache |
+| M23 | evaluation/report.py | 48 | pass_rate=1.0 при 0 метрик |
+| M24 | skill_filter.py | 105 | Lowercasit ключи — ломает lookup |
+| M25 | skill_filter.py | 441 | git в devops+tools — elif мёртвый |
+| M26 | ltr_recommendation_engine.py | 416 | Дублирующий import Ok |
+| M27 | ltr_recommendation_engine.py | 187 | hasattr на всегда-существующем config |
+| M28 | coverage_analyzer.py | 43 | Двойной matching |
+| M29 | skill_matcher.py | 91 | Fuzzy confidence хардкод 0.5 |
+| M30 | vacancy.py | 391 | avg_skills_per_vacancy — неправильная формула |
+| M31 | sql:570 | — | Пароль teacher123 vs prepod |
+| M32 | sql:296 | — | pipeline_runs.user_id в SQL, нет в Alembic |
+| M33 | sql:003 | — | Нет parsed_skills колонки |
+| M34 | main.py | 100 | Нет проверки конфликтующих флагов |
+| M35 | main.py | 94 | Нет top-level exception handler |
+| M36 | seed_users.py | 13 | Нет обработки отсутствия users.json |
+| M37 | seed_users.py | 22 | KeyError на password/role |
+| M38 | fix_rpd_data.py | 311 | DELETE всех competency_skills |
+| M39 | frontend/VacanciesList.tsx | 229 | Двойной fetch при поиске |
+| M40 | frontend/App.tsx | 257 | Stale profile в navigate-analysis |
+| M41 | frontend/VacancyCard.tsx | 171 | "5 дня" вместо "5 дней" |
+| M42 | frontend/PredictionsTab.tsx | 180 | Division by zero при 1 элементе |
+| M43 | frontend TeacherDashboard vs CompetencyTree | — | covColor пороги расходятся |
+| M44 | frontend/VacanciesList.tsx | 210 | refreshVacancies без cityFilter |
+| M45 | frontend/AdminDashboard | 188 | Создание admin без подтверждения |
+| M46 | frontend/AnalysisPanel | 45 | dirCode не используется |
+| M47 | pipeline/clean.py | 17 | open() без close |
+| M48 | hh_provider.py | 33 | vacancy_id: str vs int |
+| M49 | ml/clusters.py | 43 | `vac["experience"].get()` — NoneType crash |
+| M50 | visualization/coverage.py | 154 | ZeroDivisionError при total=0 |
+| M51 | visualization/clusters.py | 35 | `c["id"]` KeyError |
+| M52 | visualization/orchestration.py | 129 | subprocess.run блокирует event loop |
+| M53 | infrastructure/hh_provider.py | 42 | requests.get() блокирует event loop |
+| M54 | visualization/_config.py | 29 | Глобальный мутация matplotlib rcParams |
+| M55 | Dockerfile | 16 | numpy 1.24.3 → 2.2.6 конфликт |
+| M56 | Dockerfile | 27 | data/ в образ — утечка данных |
+| M57 | docker-compose.yml | 192 | PostgreSQL порт на хост |
+| M58 | docker-compose.yml | 148 | Дефолтный пароль n8n |
+| M59 | .env.example | — | Нет WEBUI_SECRET_KEY, N8N_DB_PASSWORD и др. |
+| M60 | startup.py | 129 | read_bytes() блокирует event loop |
 
-### C8 — frontend api.ts:5-13 — spread перезаписывает auth headers
-`...options` после merge headers перезаписывает Authorization.
-**Fix:** Не spread options.headers поверх merged.
+### LOW (72)
 
-### C9 — test_ltr_recommendation_engine.py:234,329 — дублирующий тест
-Второй `test_predict_single_missing_skill` перекрывает первый. Первый никогда не запускается.
-**Fix:** Переименовать или объединить.
-
-### C10 — test_ltr_recommendation_engine.py:603,627 — дублирующий тест
-Та же проблема с `test_load_model_with_manifest_present`.
-**Fix:** Переименовать.
-
-### C11 — runner.py:288-296 — asyncio.run() + get_pool()
-`asyncio.run()` создаёт новый loop, `get_pool()` возвращает None. Падает запись в БД.
-**Fix:** Создавать пул напрямую в `_write_db()`.
+| # | Описание |
+|---|----------|
+| L1 | profile_evaluator.py:39 — level_difficulty не используется |
+| L2 | recommendation_engine.py:47 — self.gap_analyzer мёртвый |
+| L3 | recommendation_engine.py:503 — _empty_recommendations мёртвый |
+| L4 | ltr_recommendation_engine.py:494 — _fallback_impacts мёртвый |
+| L5 | base.py:28 — abstract predict_impact тип неправильный |
+| L6 | vacancy_clustering.py:165 — best_score=-1 дважды |
+| L7 | vacancy_clustering.py:274 — level type mismatch |
+| L8 | hh_responses.py:37 — from_ alias |
+| L9 | teacher_analysis.py:87 — generated_at: str |
+| L10 | krm_models.py:16 — _uuid() str vs UUID |
+| L11 | config.py:199 — type annotation |
+| L12 | api/routers/metrics.py — нет __init__.py |
+| L13 | data_contracts.py vs student.py — top_recommendations типы |
+| L14 | pipeline/clean.py:8 — reconfigure при импорте |
+| L15 | pipeline/clean.py:78 — sys import shadowed |
+| L16 | cli/seed_db.py:108 — datetime.utcnow() deprecated |
+| L17 | cli/fix_rpd_data.py:57 — datetime.utcnow() deprecated |
+| L18 | scoring/vacancy_quality_scorer.py:146 — "охраник" опечатка |
+| L19 | test_decorators.py:8 — не проверяет elapsed_sec |
+| L20 | conftest.py:36 — глобальный мок sentence_transformers |
+| L21 | test_cache_manager.py:138 — файл напрямую, не через API |
+| L22 | test_retry.py:45 — jitter bounds хрупкие |
+| L23 | test_snapshots.py — могут принять регрессию |
+| L24 | test_monitoring.py:36 — counters не сбрасываются |
+| L25 | test_analyzers.py:14 — неполные assertions |
+| L26 | sql:006 — DROP без CASCADE |
+| L27 | sql:003:29 — индекс без WHERE |
+| L28 | main.py:44 — --use-async всегда True |
+| L29 | main.py:63 — base64 без error handling |
+| L30 | main.py:41 — --interactive не используется |
+| L31 | main.py:10 — stdout rewrap |
+| L32 | seed_users.py:17 — неатомарные вставки |
+| L33 | seed_users.py:22 — нет проверки pgcrypto |
+| L34 | seed_users.py:34 — нет CLI аргументов |
+| L35 | alembic add_directions:91 — HARD DELETE без бэкапа |
+| L36 | alembic add_directions:114 — downgrade не восстанавливает |
+| L37 | alembic add_audit_fixes:60 — downgrade не восстанавливает CHECK |
+| L38 | alembic merge_branches:18 — пустой merge |
+| L39 | alembic add_llm_tables:68 — downgrade полагается на CASCADE |
+| L40 | frontend RegionCombobox — мёртвый |
+| L41 | frontend StatsCards — мёртвый |
+| L42 | frontend ImageWithFallback — мёртвый |
+| L43 | frontend App.tsx — неиспользуемые импорты |
+| L44 | frontend CompetencyTrendsPanel — неверный endpoint |
+| L45 | frontend PredictionsTab:123 — declining показывает growing |
+| L46 | frontend MiniChart — Infinity при 1 элементе |
+| L47 | startup.py:51 — docstring после statement |
+| L48 | startup.py:399 —冗余ная загрузка top_dc |
+| L49 | startup.py:265 — title override только для MIDDLE |
+| L50 | ml/clusters.py:98 — "c" и "na" дубли, skill C фильтруется |
+| L51 | visualization/correlation.py:77 — numpy vs list |
+| L52 | visualization/radar.py:22 — пустой all_skills |
+| L53 | infrastructure/hh_provider.py:45 — resp.json() не validated |
+| L54 | loaders/rpd_loader.py:273 — dead code |
+| L55 | ground_truth/hh_proxy.py:33 — repeated failed I/O |
+| L56 | api_pkg/request_logger.py:43 — SECRET_KEY fragile |
+| L57 | api_pkg/request_logger.py:64 — naive datetime |
+| L58 | database.py:32 — async_session_factory return type |
+| L59 | visualization/coverage.py:159 — zero-height figure |
+| L60 | startup.py:113 — non-atomic file write |
+| L61 | startup.py:45 — load_model в waiting mode |
+| L62 | pyproject.toml:43 — mypy ignore全局 |
+| L63 | docker-compose volume прячет HF кэш |
+| L64 | startup.py:151 — дублирующий парсинг |
+| L65 | api_pkg/__init__.py:45 — dispose engine при shutdown |
+| L66 | visualization/coverage.py:143 — empty profiles |
+| L67 | ltr_recommendation_engine.py:187 — hasattr |
+| L68 | ml/tracker.py:79 — '+' в имени файла Windows |
+| L69 | startup.py:214 — fire-and-forget task |
+| L70 | api_pkg/__init__.py:81 — каждый запрос логируется |
+| L71 | database.py:83 — pool после close |
+| L72 | cache_manager.py:24 — нет checksum |
 
 ---
 
-## HIGH (28)
-
-### H1 — gap_analyzer.py:37-43 — SkillMetrics category всегда MISSING
-`__post_init__` ставит category до setattr. Все навыки wrong category.
-**Fix:** Устанавливать category после всех setattr.
-
-### H2 — skills/trends.py:68-71 — ключ _meta перезаписывает метаданные
-Если skill назван `_meta`, он затирает метаданные снапшота.
-**Fix:** `if k == "_meta": continue`
-
-### H3 — market_metrics.py:58-66 — __post_init__ мёртвый
-`if not self.category` всегда False (дефолт MISSING truthy). Авто-categorization не работает.
-**Fix:** Изменить дефолт на None или пустую строку.
-
-### H4 — vacancy.py:87-89 — зарплата 0 = None
-`if self.from_amount and self.to_amount` — 0 falsy. Нулевая зарплата теряется.
-**Fix:** `if self.from_amount is not None and self.to_amount is not None`
-
-### H5 — metrics.py:60 — GET endpoint ломает пайплайн
-`end_pipeline()` в GET сбрасывает состояние трекера.
-**Fix:** Использовать read-only getter.
-
-### H6 — recommendation_engine.py:287 — case-sensitive trend lookup
-`skill in trend_bonuses` без `.lower()`. Теряются бонусы трендов.
-**Fix:** `skill.lower() in {k.lower(): v for k, v in trend_bonuses.items()}`
-
-### H7 — recommendation_engine.py:206,216 — case-sensitive missing skills
-`"Python" not in {"python"}` завышает missing в LTR.
-**Fix:** Привести all_market к нижнему регистру.
-
-### H8 — ltr_recommendation_engine.py:368-386 — разная семантика score
-Softmax для 2+ навыков vs raw для 1. Разные абсолютные значения.
-**Fix:** Всегда нормализовать одним способом.
-
-### H9 — webhooks.py:44-47 — None секрет = True
-Если секрет не задан, все вебхуки проходят.
-**Fix:** Возвращать False, отдавать 403.
-
-### H10 — populate_parsed_skills.py:7 — Windows-only путь
-`"\\"` в разделителе. На Linux падает.
-**Fix:** `Path` или `os.sep`.
-
-### H11 — gap_metrics.py:134 — Histogram observe() в цикле
-100 вызовов observe(count) искажает статистику.
-**Fix:** Один вызов observe().
-
-### H12 — frontend App.tsx:101 — fetch без authHeaders()
-7 вызовов fetch без авторизации. Зависят от monkey-patch.
-**Fix:** Добавить `...authHeaders()` в opts.
-
-### H13 — frontend App.tsx:204 — stale closure role
-role всегда null в pollPipeline из-за захвата при первом рендере.
-**Fix:** useRef для role.
-
-### H14 — frontend App.tsx:285 — .json() без проверки статуса
-HTML ошибка → SyntaxError вместо понятного сообщения.
-**Fix:** Проверить `res.ok` до `.json()`.
-
-### H15 — initial_schema.py:259 — role CHECK нет student
-Alembic не позволяет role='student', но seed его создаёт.
-**Fix:** Добавить 'student' в CHECK или убрать из seed.
-
-### H16 — sql + alembic — расходятся по схеме
-Два источника правды: SQL-файлы и Alembic миграции.
-**Fix:** Выбрать один источник, удалить другой.
-
-### H17 — remove_non_it_disciplines.py:41 — downgrade пустой
-Удаление 13 дисциплин необратимо. downgrade() — pass.
-**Fix:** Восстановить данные в downgrade или документировать.
-
-### H18 — sql/002_audit_fixes.sql:24 — ALTER мёртвой таблицы
-market_skill_mappings удалена в 006. Запуск 002 после 006 падает.
-**Fix:** Убрать ALTER или добавить IF EXISTS.
-
-### H19 — sql/001:587 — DELETE сCASCADE в стартовом скрипте
-Повторный запуск уничтожает данные.
-**Fix:** Вынести в отдельную миграцию с backup.
-
-### H20 — conftest.py:25-35 — два autouse мока sleep
-Дублируют patch time.sleep. Второй перезаписывает первый.
-**Fix:** Оставить одну фикстуру.
-
-### H21 — test_decorators.py:51 — маскирует баг
-Ручной `tb.log_key = "test_block"` скрывает потенциальную ошибку timed_block.
-**Fix:** Убрать ручное присвоение.
-
-### H22 — test_n8n_webhooks.py — мокает всё, проверяет nothing
-Все зависимости замоканы, assertions = `result["ok"] is True`.
-**Fix:** Интеграционные тесты с реальными путями.
-
-### H23 — test_recommendation_engine.py:214 — неполные mock данные
-Нет `student_skills`, `level_weights_used`, `cluster_context`. Потенциальный KeyError.
-**Fix:** Добавить все обязательные ключи.
-
-### H24 — evaluation/base.py:49 — coverage_ratio считает count
-`metric_value = len(skills)` — считает количество, а не ratio.
-**Fix:** Переименовать или пересчитать.
-
-### H25 — frontend VacanciesList.tsx:142 — cityFilter не в deps
-Изменение города не триггерит перезагрузку корректно.
-**Fix:** Добавить cityFilter в dependency array.
-
-### H26 — frontend AdminDashboard.tsx:265 — Drop+Seed без подтверждения
-Одним кликом уничтожается БД.
-**Fix:** window.confirm() или модал.
-
-### H27 — vacancy_schema.py:1-76 — весь модуль мёртвый
-Нигде не импортируется. Устаревший код.
-**Fix:** Удалить.
-
-### H28 — api_responses.py:233 — дефолт RUR вместо RUB
-Устаревший ISO код. Везде в системе RUB.
-**Fix:** Заменить на "RUB".
-
----
-
-## MEDIUM (48)
-
-### M1 — profile_evaluator.py:273 — формула readiness
-DOMAIN_WEIGHT × weak_ratio, GAP_PENALTY × domain_coverage — перепутаны.
-**Fix:** Переписать формулу.
-
-### M2 — config.py:133-136 — readiness веса ≠ 1.0
-Сумма 0.70. READINESS_DOMAIN_WEIGHT = 0.0.
-**Fix:** Пересчитать веса.
-
-### M3 — recommendation_engine.py:449 — KeyError c["id"]
-Прямой доступ без .get(). Падает при отсутствии ключа.
-**Fix:** `c.get("id", "unknown")`
-
-### M4 — reranker.py:182,195 — KeyError при падении rerankers
-Исключённые документы отсутствуют в blended.
-**Fix:** Добавить fallback score для отсутствующих.
-
-### M5 — skill_forecast.py:48 — отрицательные частоты
-predict() может вернуть < 0 после мутации генов.
-**Fix:** `max(0.0, result)`
-
-### M6 — runner.py:373 — asyncio.run() connection churn
-Каждый вызов создаёт/уничтажает пул.
-**Fix:** Переиспользовать пул.
-
-### M7 — db_writer.py:157 — ValueError на нечисловом id
-`int(v.get("id", 0))` не обработан.
-**Fix:** try/except или валидация.
-
-### M8 — pipeline_metrics.py:106 — приватный API Prometheus
-`_value.get()` сломается при обновлении библиотеки.
-**Fix:** Использовать публичный API.
-
-### M9 — gap_metrics.py:87 — приватный API Prometheus
-Та же проблема.
-**Fix:** Аналогично M8.
-
-### M10 — gap_runner.py:201 — TimeoutError убивает parallel evaluation
-Потеря результатов всех профилей.
-**Fix:** Catch TimeoutError, логировать, продолжать.
-
-### M11 — profile_evaluator.py:350 — мёртвый _get_or_create_comparator
-Никогда не вызывается.
-**Fix:** Удалить.
-
-### M12 — profile_evaluator.py:365 — мёртвый _get_recommendation
-Никогда не вызывается.
-**Fix:** Удалить.
-
-### M13 — profile_evaluator.py:387 — мёртвый _get_student_hash
-Никогда не вызывается.
-**Fix:** Удалить.
-
-### M14 — profession_taxonomy.py:58 — pass вместо логирования
-Неизвестные домены проглатываются молча.
-**Fix:** Добавить warning.
-
-### M15 — trend_analyzer.py:66-72 — OVERRIDE_PREV дублируется
-Одинаковый dict в двух методах. При изменении одного забудут второй.
-**Fix:** Вынести в константу.
-
-### M16 — skills/trends.py:223 — re.compile в цикле
-Регулярка компилируется на каждой итерации.
-**Fix:** Module-level константа.
-
-### M17 — student.py + krm_models.py — два ProfileEvaluation
-Одно имя, два разных класса. Risk shadowing.
-**Fix:** Переименовать один.
-
-### M18 — enums.py:37-50 — ComparisonLevel дублирует ExperienceLevel
-Три одинаковых enum. JobSearchLevel мёртвый.
-**Fix:** Удалить дубли.
-
-### M19 — backup_db.py:25 — pg_restore для .sql файла
-Расширение должно быть .backup.
-**Fix:** Заменить расширение.
-
-### M20 — api_pkg/__init__.py:76 — ValueError на кривом Content-Length
-`int(content_length)` без try/except.
-**Fix:** Обернуть в try.
-
-### M21 — teacher_analysis_runner.py:508 — pool shadowing
-ThreadPoolExecutor затирает имя pool (asyncpg).
-**Fix:** Переименовать.
-
-### M22 — teacher_analysis_runner.py:243 — unbounded cache
-Большие dict кешируются без TTL/размера.
-**Fix:** Ограничить размер.
-
-### M23 — evaluation/report.py:48 — pass_rate=1.0 при 0 метрик
-Должно быть 0.0 или None.
-**Fix:** `passed / total if total else 0.0`
-
-### M24 — skill_filter.py:105 — lowercasит ключи
-Ломает downstream lookup по оригинальным именам.
-**Fix:** Сохранять оригинальный регистр.
-
-### M25 — skill_filter.py:441,459 — git в devops и tools
-elif делает tools мёртвым.
-**Fix:** Убрать дубликат.
-
-### M26 — ltr_recommendation_engine.py:416 — дублирующий import Ok
-Уже импортирован на уровне модуля.
-**Fix:** Убрать.
-
-### M27 — ltr_recommendation_engine.py:187 — hasattr на всегда-существующем config
-GLOBAL_RANDOM_SEED всегда есть.
-**Fix:** Убрать hasattr.
-
-### M28 — coverage_analyzer.py:43-89 — двойной matching
-Каждый навык матчится дважды.
-**Fix:** Один проход.
-
-### M29 — skill_matcher.py:91 — fuzzy confidence хардкод 0.5
-Не зависит от реального сходства строк.
-**Fix:** Использовать реальный score.
-
-### M30 — vacancy.py:391 — avg_skills_per_vacancy неправильная формула
-Считает unique/skills_vacancies вместо total/vacancies.
-**Fix:** Пересчитать.
-
-### M31 — sql:570 — пароль teacher123 в seed
-Слабый пароль в SQL. В Alembic — другой.
-**Fix:** Использовать один пароль.
-
-### M32 — sql:296 — pipeline_runs.user_id в SQL, нет в Alembic
-Колонка потеряется при миграции через Alembic.
-**Fix:** Добавить миграцию.
-
-### M33 — sql:003 — нет parsed_skills колонки
-Устаревший файл, расходится с 001.
-**Fix:** Удалить или обновить.
-
-### M34 — main.py:100 — нет проверки конфликтующих флагов
-Противоречивые аргументы молча игнорируются.
-**Fix:** Добавить mutual exclusion.
-
-### M35 — main.py:94 — нет top-level exception handler
-Сырые tracebacks при ошибках.
-**Fix:** Обернуть в try/except с logging.
-
-### M36 — seed_users.py:13 — нет обработки отсутствия users.json
-FileNotFoundError без сообщения.
-**Fix:** Проверить существование.
-
-### M37 — seed_users.py:22 — KeyError на password/role
-Прямой доступ к dict без проверки ключей.
-**Fix:** `.get()` + валидация.
-
-### M38 — fix_rpd_data.py:311 — DELETE всех competency_skills
-Удаляет правильные данные из-за другой parse_version.
-**Fix:** Добавить WHERE parse_version_id.
-
-### M39 — frontend VacanciesList.tsx:229 — двойной fetch при поиске
-setCurrentPage(1) + loadVacancies() = 2 запроса.
-**Fix:** Дождаться состояния.
-
-### M40 — frontend App.tsx:257 — stale profile в navigate-analysis
-Empty deps = profile всегда "base".
-**Fix:** useRef для profile.
-
-### M41 — frontend VacancyCard.tsx:171 — "5 дня" вместо "5 дней"
-Русская грамматика pluralization.
-**Fix:** Корректные окончания.
-
-### M42 — frontend PredictionsTab.tsx:180 — division by zero
-Один элемент в data → data.length-1 = 0.
-**Fix:** Проверка length > 1.
-
-### M43 — frontend TeacherDashboard vs CompetencyTree — covColor пороги
-0.55 = green в одном, yellow в другом.
-**Fix:** Унифицировать пороги.
-
-### M44 — frontend VacanciesList.tsx:210 — refreshVacancies без cityFilter
-После pipeline city filter теряется.
-**Fix:** Добавить cityFilter в refresh.
-
-### M45 — frontend AdminDashboard:188 — создание admin без подтверждения
-Teacher может создать admin.
-**Fix:** Подтверждение.
-
-### M46 — frontend AnalysisPanel:45 — dirCode не используется
-В deps, но не в URL.
-**Fix:** Убрать из deps или использовать.
-
-### M47 — pipeline/clean.py:17 — open() без close
-Resource leak.
-**Fix:** with statement.
-
-### M48 — hh_provider.py:33 — vacancy_id: str vs int
-API ждёт int, параметр str.
-**Fix:** Привести к int.
-
----
-
-## LOW (51)
-
-### L1 — profile_evaluator.py:39 — level_difficulty не используется
-### L2 — recommendation_engine.py:47 — self.gap_analyzer мёртвый
-### L3 — recommendation_engine.py:503 — _empty_recommendations мёртвый
-### L4 — ltr_recommendation_engine.py:494 — _fallback_impacts мёртвый
-### L5 — base.py:28 — abstract predict_impact возвращает T_pred, а не Result
-### L6 — skill_filter.py:441 — "git" в devops, elif делает tools мёртвым
-### L7 — vacancy_clustering.py:165 — best_score = -1 дважды
-### L8 — vacancy_clustering.py:274 — level: ExperienceLevel vs str
-### L9 — hh_responses.py:37 — from_ alias отличается от from_amount
-### L10 — teacher_analysis.py:87 — generated_at: str вместо datetime
-### L11 — krm_models.py:16 — _uuid() возвращает str, колонка UUID
-### L12 — config.py:199 — validate_secret_key type annotation
-### L13 — api/routers/metrics.py — нет __init__.py
-### L14 — data_contracts.py:96 vs student.py:65 — top_recommendations типы
-### L15 — ltr_recommendation_engine.py:416 — дублирующий import Ok
-### L16 — ltr_recommendation_engine.py:187 — hasattr на GLOBAL_RANDOM_SEED
-### L17 — pipeline/clean.py:8 — sys.stdout.reconfigure при импорте
-### L18 — pipeline/clean.py:78 — sys импорт затенён
-### L19 — cli/seed_db.py:108 — datetime.utcnow() deprecated
-### L20 — cli/fix_rpd_data.py:57 — datetime.utcnow() deprecated
-### L21 — scoring/vacancy_quality_scorer.py:146 — "охраник" опечатка
-### L22 — evaluation/report.py:48 — pass_rate=1.0 при 0 метрик
-### L23 — test_decorators.py:8 — не проверяет elapsed_sec
-### L24 — conftest.py:36 — глобальный мок sentence_transformers
-### L25 — test_cache_manager.py:138 — читает файл напрямую, не через API
-### L26 — test_retry.py:45 — jitter bounds хрупкие
-### L27 — test_snapshots.py — могут принять регрессию
-### L28 — test_monitoring.py:36 — Prometheus counters не сбрасываются
-### L29 — test_analyzers.py:14 — неполные assertions
-### L30 — sql:006 — DROP без CASCADE
-### L31 — sql:003:29 — индекс без WHERE
-### L32 — main.py:44 — --use-async всегда True
-### L33 — main.py:63 — base64 decode без error handling
-### L34 — main.py:41 — --interactive не используется
-### L35 — main.py:37,43 — --no-filter/--it-sector использование не проверяется
-### L36 — main.py:10 — stdout/stderr rewrap потенциальные leak
-### L37 — seed_users.py:17 — неатомарные вставки
-### L38 — seed_users.py:22 — нет проверки pgcrypto
-### L39 — seed_users.py:34 — нет CLI аргументов
-### L40 — alembic add_directions:91 — HARD DELETE users без бэкапа
-### L41 — alembic add_directions:114 — downgrade не восстанавливает
-### L42 — alembic add_audit_fixes:60 — downgrade не восстанавливает CHECK
-### L43 — alembic merge_branches:18 — пустой merge без валидации
-### L44 — alembic add_llm_tables:68 — downgrade полагается на CASCADE
-### L45 — frontend RegionCombobox — мёртвый компонент
-### L46 — frontend StatsCards — мёртвый компонент
-### L47 — frontend figma/ImageWithFallback — мёртвый компонент
-### L48 — frontend App.tsx — неиспользуемые импорты
-### L49 — frontend CompetencyTrendsPanel — потенциально неверный endpoint
-### L50 — frontend PredictionsTab:123 — declining tab показывает growing
-### L51 — frontend MiniChart — Infinity координаты при 1 элементе
+## ЧАСТЬ 2: УЛУЧШЕНИЯ
+
+### P0 — Безопасность / данные
+
+| # | Область | Текущее состояние | Предлагаемое изменение |
+|---|---------|-------------------|----------------------|
+| I1 | Источники в коде | Пароли в seed_users.py, .env.example, docker-compose | Вынести в vault/env, добавить .gitignore для .env |
+| I2 | Тесты auth | Ноль тестов аутентификации | Покрыть login/logout/token validation/role enforcement |
+| I3 | XSS защита | Нет DOMPurify | Санитайзировать весь HTML из внешних источников |
+
+### P1 — Точность / производительность / надёжность
+
+| # | Область | Текущее состояние | Предлагаемое изменение |
+|---|---------|-------------------|----------------------|
+| I4 | Readiness formula | 4 веса с путаницей имён | Переписать: market=0.45, skill=0.30, gap=-0.25 |
+| I5 | SkillMetrics category | __post_init__ мёртвый | Дефолт category=None, вызов после setattr |
+| I6 | GapAnalyzer в RecommendationEngine | Плоский dict → crash | Обернуть или удалить мёртвый экземпляр |
+| I7 | Prophet n_points | NameError в predict() | Сохранять при fit, читать в predict |
+| I8 | ForecastEngine | SkillForecastEngine = random genes | Добавить warning если используется как основной |
+| I9 | Recommendations | Все LOW, expected_outcome +1 | Пересчитать пороги, реальный расчёт coverage |
+| I10 | Case sensitivity | 3 места с mismatch | Привести все ключи к .lower() |
+| I11 | Pipeline steps | serial: collect → parse → analyze → recommend | Параллелить независимые этапы |
+| I12 | hh.ru API | Нет circuit breaker | Добавить после 5 consecutive failures |
+| I13 | Event loop blocking | requests.get(), subprocess.run, read_bytes() | Заменить на async аналоги |
+
+### P2 — Качество / сопровождаемость
+
+| # | Область | Текущее состояние | Предлагаемое изменение |
+|---|---------|-------------------|----------------------|
+| I14 | Два источника схемы | SQL-файлы + Alembic расходятся | Оставить Alembic как единственный источник |
+| I15 | Мёртвый код | 20+ мёртвых методов/модулей | Удалить: vacancy_schema, 3 мёртвых компонента frontend |
+| I16 | Rate limits | /vacancies/info без rate limiter | Добавить @limiter.limit |
+| I17 | Кеширование API | Results читаются с диска каждый раз | HTTP Cache-Control / ETag |
+| I18 | Error boundaries | React без ErrorBoundary | Обернуть основные вкладки |
+| I19 | Тесты pipeline | Ноль тестов runner.py, background_collector | Интеграционные тесты ключевых путей |
+| I20 | Prometheus metrics | Нет disk_usage, нет alerting rules | Добавить disk gauge + alertmanager |
+| I21 | config.py | Хардкоки: THRESHOLDS, TIMEOUTS | Вынести в .env с дефолтами |
+| I22 | O(n²) в analyzers | coverage_analyzer двойной matching | Один проход |
+| I23 | Visualization | rcParams глобально мутируется при импорте | Lazy init или isolated figure settings |
+
+### P3 — Хорошо иметь
+
+| # | Область | Текущее состояние | Предлагаемое изменение |
+|---|---------|-------------------|----------------------|
+| I24 | EasyOCR | Новый Reader на каждый вызов | Кешировать как в RPDLoader._get_ocr_reader() |
+| I25 | Joblib cache | Нет integrity check | Добавить checksum при load |
+| I26 | Frontend timer | Сбрасывается при смене step | useRef дляхранения elapsed |
+| I27 | Russian pluralization | "5 дня" вместо "5 дней" | Хелпер для окончаний |
+| I28 | covColor пороги | Разные в TeacherDashboard/CompetencyTree | Унифицировать |
+| I29 | DI container | Singleton без health check | Добавить ready status |
+| I30 | Pipeline tasks | In-memory dict, теряется при restart | Persist на каждое изменение |
 
 ---
 
 ## ИТОГО
 
-| Уровень | Кол-во |
-|---------|--------|
-| CRITICAL | 11 |
-| HIGH | 28 |
-| MEDIUM | 48 |
-| LOW | 51 |
-| **Всего** | **138** |
+| Категория | CRIT | HIGH | MED | LOW | Всего |
+|-----------|------|------|-----|-----|-------|
+| Баги (часть 1) | 11 | 35 | 60 | 72 | 178 |
+| Улучшения (часть 2) | 3 | 10 | 10 | 7 | 30 |
+| **Гранд total** | **14** | **45** | **70** | **79** | **208** |

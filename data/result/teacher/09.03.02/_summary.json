@@ -1,9 +1,9 @@
 {
   "direction": "09.03.02",
-  "direction_name": "Информационные системы и технологии",
+  "direction_name": "Перспективные информационные технологии",
   "profile": "Перспективные информационные технологии",
-  "total_disciplines": 41,
-  "average_coverage": 0.7046,
+  "total_disciplines": 28,
+  "average_coverage": 0.746,
   "coverage_level": "high",
   "total_gaps_across_all": 18,
   "top_cross_discipline_gaps": [
@@ -71,125 +71,125 @@
   "top_emerging_across_all": [
     {
       "skill": "linux",
-      "frequency": 935
+      "frequency": 854
     },
     {
       "skill": "git",
-      "frequency": 428
-    },
-    {
-      "skill": "java",
-      "frequency": 304
+      "frequency": 398
     },
     {
       "skill": "аналитическое мышление",
-      "frequency": 302
+      "frequency": 289
+    },
+    {
+      "skill": "java",
+      "frequency": 283
     },
     {
       "skill": "информационная безопасность",
-      "frequency": 267
+      "frequency": 249
     },
     {
       "skill": "bpmn",
-      "frequency": 240
-    },
-    {
-      "skill": "бизнес-анализ",
-      "frequency": 238
+      "frequency": 225
     },
     {
       "skill": "системный анализ",
-      "frequency": 236
+      "frequency": 222
+    },
+    {
+      "skill": "бизнес-анализ",
+      "frequency": 217
     },
     {
       "skill": "apache kafka",
-      "frequency": 204
-    },
-    {
-      "skill": "управление командой",
-      "frequency": 202
-    },
-    {
-      "skill": "javascript",
-      "frequency": 200
+      "frequency": 193
     },
     {
       "skill": "rest api",
-      "frequency": 199
-    },
-    {
-      "skill": "разработка технических заданий",
-      "frequency": 192
-    },
-    {
-      "skill": "bash",
       "frequency": 189
     },
     {
+      "skill": "javascript",
+      "frequency": 189
+    },
+    {
+      "skill": "управление командой",
+      "frequency": 181
+    },
+    {
+      "skill": "ci/cd",
+      "frequency": 180
+    },
+    {
       "skill": "постановка задач разработчикам",
-      "frequency": 188
+      "frequency": 176
+    },
+    {
+      "skill": "разработка технических заданий",
+      "frequency": 176
     }
   ],
   "recommendations": [
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Рассмотрите внедрение навыка «linux» (частота на рынке: 935)."
+      "message": "Рассмотрите внедрение навыка «linux» (частота на рынке: 854)."
     },
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Рассмотрите внедрение навыка «git» (частота на рынке: 428)."
+      "message": "Рассмотрите внедрение навыка «git» (частота на рынке: 398)."
     },
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Рассмотрите внедрение навыка «java» (частота на рынке: 304)."
+      "message": "Рассмотрите внедрение навыка «аналитическое мышление» (частота на рынке: 289)."
     },
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Рассмотрите внедрение навыка «аналитическое мышление» (частота на рынке: 302)."
+      "message": "Рассмотрите внедрение навыка «java» (частота на рынке: 283)."
     },
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Рассмотрите внедрение навыка «информационная безопасность» (частота на рынке: 267)."
+      "message": "Рассмотрите внедрение навыка «информационная безопасность» (частота на рынке: 249)."
     },
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Рассмотрите внедрение навыка «bpmn» (частота на рынке: 240)."
+      "message": "Рассмотрите внедрение навыка «bpmn» (частота на рынке: 225)."
     },
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Рассмотрите внедрение навыка «бизнес-анализ» (частота на рынке: 238)."
+      "message": "Рассмотрите внедрение навыка «системный анализ» (частота на рынке: 222)."
     },
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Рассмотрите внедрение навыка «системный анализ» (частота на рынке: 236)."
+      "message": "Рассмотрите внедрение навыка «бизнес-анализ» (частота на рынке: 217)."
     },
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Рассмотрите внедрение навыка «apache kafka» (частота на рынке: 204)."
+      "message": "Рассмотрите внедрение навыка «apache kafka» (частота на рынке: 193)."
     },
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Рассмотрите внедрение навыка «управление командой» (частота на рынке: 202)."
+      "message": "Рассмотрите внедрение навыка «rest api» (частота на рынке: 189)."
     },
     {
       "type": "major_revision",
       "priority": "high",
-      "message": "7 дисциплин имеют низкое покрытие рынка. Рекомендовано к пересмотру: Python для научных вычислений и машинног, Безопасность жизнедеятельности, Воображение, изображение, реальность, Дисциплины по ФКиС, Иностранный язык для деловой коммуникаци"
+      "message": "2 дисциплин имеют низкое покрытие рынка. Рекомендовано к пересмотру: Python для научных вычислений и машинног, Основы Python"
     },
     {
       "type": "add_new_content",
       "priority": "high",
-      "message": "Добавить новые дисциплины или модули по: linux, git, java, аналитическое мышление, информационная безопасность, bpmn, бизнес-анализ, системный анализ"
+      "message": "Добавить новые дисциплины или модули по: linux, git, аналитическое мышление, java, информационная безопасность, bpmn, системный анализ, бизнес-анализ"
     }
   ],
   "trends": {
@@ -319,44 +319,44 @@
       "avg_semantic_similarity": 0.5124,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 2.68
-        },
-        {
-          "skill": "postgresql",
-          "score": 1.33
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.87
-        },
-        {
-          "skill": "java",
-          "score": 0.29
-        },
-        {
-          "skill": "llm",
-          "score": 0.29
-        },
-        {
           "skill": "fastapi",
-          "score": 0.28
+          "score": 0.55
         },
         {
-          "skill": "jira",
-          "score": 0.24
+          "skill": "sql",
+          "score": 0.43
+        },
+        {
+          "skill": "numpy",
+          "score": 0.42
+        },
+        {
+          "skill": "pyspark",
+          "score": 0.41
+        },
+        {
+          "skill": "nlp",
+          "score": 0.4
         },
         {
           "skill": "git",
-          "score": 0.23
+          "score": 0.4
         },
         {
-          "skill": "ansible",
-          "score": 0.23
+          "skill": "kubernetes",
+          "score": 0.39
         },
         {
-          "skill": "vault",
-          "score": 0.21
+          "skill": "rag",
+          "score": 0.38
+        },
+        {
+          "skill": "llm",
+          "score": 0.38
+        },
+        {
+          "skill": "mlops",
+          "score": 0.38
         }
       ]
     },
@@ -370,44 +370,44 @@
       "avg_semantic_similarity": 0.4613,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.57
-        },
-        {
           "skill": "python",
-          "score": 1.01
+          "score": 0.56
         },
         {
-          "skill": "postgresql",
-          "score": 0.89
+          "skill": "sql",
+          "score": 0.41
         },
         {
-          "skill": "kubernetes",
-          "score": 0.76
+          "skill": "nlp",
+          "score": 0.38
         },
         {
-          "skill": "llm",
-          "score": 0.31
-        },
-        {
-          "skill": "java",
-          "score": 0.26
-        },
-        {
-          "skill": "jira",
-          "score": 0.21
+          "skill": "fastapi",
+          "score": 0.38
         },
         {
           "skill": "git",
-          "score": 0.19
+          "score": 0.38
         },
         {
-          "skill": "ansible",
-          "score": 0.19
+          "skill": "kubernetes",
+          "score": 0.38
         },
         {
-          "skill": "коммуникация",
-          "score": 0.18
+          "skill": "scikit-learn",
+          "score": 0.37
+        },
+        {
+          "skill": "rag",
+          "score": 0.37
+        },
+        {
+          "skill": "docker",
+          "score": 0.37
+        },
+        {
+          "skill": "java",
+          "score": 0.37
         }
       ]
     },
@@ -421,44 +421,44 @@
       "avg_semantic_similarity": 0.4816,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.38
+          "skill": "python",
+          "score": 0.63
         },
         {
           "skill": "kubernetes",
-          "score": 0.79
+          "score": 0.39
         },
         {
-          "skill": "python",
-          "score": 0.79
+          "skill": "rag",
+          "score": 0.38
         },
         {
-          "skill": "llm",
-          "score": 0.23
+          "skill": "big data",
+          "score": 0.38
         },
         {
-          "skill": "rabbitmq",
-          "score": 0.21
+          "skill": "docker",
+          "score": 0.38
         },
         {
-          "skill": "jira",
-          "score": 0.2
+          "skill": "git",
+          "score": 0.38
         },
         {
-          "skill": "ansible",
-          "score": 0.2
+          "skill": "data science",
+          "score": 0.38
         },
         {
-          "skill": "redis",
-          "score": 0.19
+          "skill": "nlp",
+          "score": 0.37
         },
         {
-          "skill": "mysql",
-          "score": 0.19
+          "skill": "fastapi",
+          "score": 0.37
         },
         {
-          "skill": "bash",
-          "score": 0.18
+          "skill": "scikit-learn",
+          "score": 0.36
         }
       ]
     },
@@ -472,56 +472,46 @@
       "avg_semantic_similarity": 0.4414,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 2.77
-        },
-        {
-          "skill": "postgresql",
-          "score": 1.43
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.87
-        },
-        {
-          "skill": "llm",
-          "score": 0.3
-        },
-        {
           "skill": "fastapi",
-          "score": 0.28
+          "score": 0.57
         },
         {
-          "skill": "java",
-          "score": 0.27
+          "skill": "scikit-learn",
+          "score": 0.44
         },
         {
-          "skill": "vault",
-          "score": 0.26
+          "skill": "sql",
+          "score": 0.43
         },
         {
-          "skill": "ansible",
-          "score": 0.26
+          "skill": "регрессия",
+          "score": 0.42
         },
         {
-          "skill": "jira",
-          "score": 0.25
+          "skill": "pyspark",
+          "score": 0.41
         },
         {
           "skill": "git",
-          "score": 0.24
+          "score": 0.41
+        },
+        {
+          "skill": "rag",
+          "score": 0.39
+        },
+        {
+          "skill": "nlp",
+          "score": 0.39
+        },
+        {
+          "skill": "llm",
+          "score": 0.39
+        },
+        {
+          "skill": "kubernetes",
+          "score": 0.39
         }
       ]
-    },
-    {
-      "name": "Безопасность жизнедеятельности",
-      "coverage_ratio": 0,
-      "coverage_level": "low",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0,
-      "avg_semantic_similarity": 0,
-      "shap_scores": []
     },
     {
       "name": "Безопасность информационных технологий",
@@ -533,105 +523,44 @@
       "avg_semantic_similarity": 0.4951,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.61
-        },
-        {
           "skill": "python",
-          "score": 1.01
+          "score": 0.58
         },
         {
-          "skill": "postgresql",
-          "score": 0.81
+          "skill": "sql",
+          "score": 0.42
+        },
+        {
+          "skill": "docker",
+          "score": 0.38
         },
         {
           "skill": "kubernetes",
-          "score": 0.79
+          "score": 0.38
         },
         {
-          "skill": "llm",
-          "score": 0.27
+          "skill": "scikit-learn",
+          "score": 0.37
         },
         {
-          "skill": "java",
-          "score": 0.25
-        },
-        {
-          "skill": "git",
-          "score": 0.2
-        },
-        {
-          "skill": "jira",
-          "score": 0.2
-        },
-        {
-          "skill": "коммуникация",
-          "score": 0.19
-        },
-        {
-          "skill": "ansible",
-          "score": 0.19
-        }
-      ]
-    },
-    {
-      "name": "Воображение, изображение, реальность",
-      "coverage_ratio": 0,
-      "coverage_level": "low",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0,
-      "avg_semantic_similarity": 0,
-      "shap_scores": []
-    },
-    {
-      "name": "Высшая математика",
-      "coverage_ratio": 0.9394,
-      "coverage_level": "high",
-      "gaps": 2,
-      "emerging": 10,
-      "semantic_coverage": 0.2301,
-      "avg_semantic_similarity": 0.4688,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 1.5
-        },
-        {
-          "skill": "python",
-          "score": 1.05
-        },
-        {
-          "skill": "postgresql",
-          "score": 1.02
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.72
-        },
-        {
-          "skill": "llm",
-          "score": 0.28
-        },
-        {
-          "skill": "java",
-          "score": 0.24
-        },
-        {
-          "skill": "jira",
-          "score": 0.23
+          "skill": "rag",
+          "score": 0.37
         },
         {
           "skill": "git",
-          "score": 0.2
+          "score": 0.37
         },
         {
-          "skill": "коммуникация",
-          "score": 0.18
+          "skill": "fastapi",
+          "score": 0.36
         },
         {
-          "skill": "etl",
-          "score": 0.18
+          "skill": "hadoop",
+          "score": 0.36
+        },
+        {
+          "skill": "computer vision",
+          "score": 0.36
         }
       ]
     },
@@ -645,523 +574,95 @@
       "avg_semantic_similarity": 0.5056,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 2.59
-        },
-        {
-          "skill": "postgresql",
-          "score": 1.39
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.97
-        },
-        {
-          "skill": "java",
-          "score": 0.3
-        },
-        {
           "skill": "fastapi",
-          "score": 0.3
+          "score": 0.65
         },
         {
-          "skill": "ansible",
-          "score": 0.27
+          "skill": "rag",
+          "score": 0.47
         },
         {
-          "skill": "vault",
-          "score": 0.26
+          "skill": "nlp",
+          "score": 0.47
         },
         {
-          "skill": "jira",
-          "score": 0.25
+          "skill": "sql",
+          "score": 0.45
+        },
+        {
+          "skill": "docker",
+          "score": 0.43
         },
         {
           "skill": "git",
-          "score": 0.24
+          "score": 0.43
         },
         {
-          "skill": "jenkins",
-          "score": 0.23
-        }
-      ]
-    },
-    {
-      "name": "Дискретная математика",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0.0755,
-      "avg_semantic_similarity": 0.2578,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 1.62
-        },
-        {
-          "skill": "python",
-          "score": 0.96
-        },
-        {
-          "skill": "postgresql",
-          "score": 0.86
+          "skill": "pyspark",
+          "score": 0.42
         },
         {
           "skill": "kubernetes",
           "score": 0.42
         },
         {
-          "skill": "jira",
-          "score": 0.27
-        },
-        {
-          "skill": "llm",
-          "score": 0.22
-        },
-        {
-          "skill": "git",
-          "score": 0.19
-        },
-        {
-          "skill": "grafana",
-          "score": 0.19
-        },
-        {
-          "skill": "ansible",
-          "score": 0.18
-        },
-        {
-          "skill": "zabbix",
-          "score": 0.18
-        }
-      ]
-    },
-    {
-      "name": "Дисциплины по ФКиС",
-      "coverage_ratio": 0,
-      "coverage_level": "low",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0,
-      "avg_semantic_similarity": 0,
-      "shap_scores": []
-    },
-    {
-      "name": "Иностранный язык (англ. яз., уровень А1)",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0.1608,
-      "avg_semantic_similarity": 0.3888,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 1.57
-        },
-        {
-          "skill": "python",
-          "score": 1.04
-        },
-        {
-          "skill": "postgresql",
-          "score": 0.98
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.83
-        },
-        {
-          "skill": "java",
-          "score": 0.22
-        },
-        {
-          "skill": "llm",
-          "score": 0.22
-        },
-        {
-          "skill": "jira",
-          "score": 0.21
-        },
-        {
-          "skill": "git",
-          "score": 0.2
-        },
-        {
-          "skill": "ansible",
-          "score": 0.19
-        },
-        {
-          "skill": "коммуникация",
-          "score": 0.17
-        }
-      ]
-    },
-    {
-      "name": "Иностранный язык (англ. яз., уровень А2)",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0.1608,
-      "avg_semantic_similarity": 0.3888,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 1.57
-        },
-        {
-          "skill": "python",
-          "score": 1.04
-        },
-        {
-          "skill": "postgresql",
-          "score": 0.98
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.83
-        },
-        {
-          "skill": "java",
-          "score": 0.22
-        },
-        {
-          "skill": "llm",
-          "score": 0.22
-        },
-        {
-          "skill": "jira",
-          "score": 0.21
-        },
-        {
-          "skill": "git",
-          "score": 0.2
-        },
-        {
-          "skill": "ansible",
-          "score": 0.19
-        },
-        {
-          "skill": "коммуникация",
-          "score": 0.17
-        }
-      ]
-    },
-    {
-      "name": "Иностранный язык (англ. яз., уровень В1)",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0.1608,
-      "avg_semantic_similarity": 0.3888,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 1.57
-        },
-        {
-          "skill": "python",
-          "score": 1.04
-        },
-        {
-          "skill": "postgresql",
-          "score": 0.98
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.83
-        },
-        {
-          "skill": "java",
-          "score": 0.22
-        },
-        {
-          "skill": "llm",
-          "score": 0.22
-        },
-        {
-          "skill": "jira",
-          "score": 0.21
-        },
-        {
-          "skill": "git",
-          "score": 0.2
-        },
-        {
-          "skill": "ansible",
-          "score": 0.19
-        },
-        {
-          "skill": "коммуникация",
-          "score": 0.17
-        }
-      ]
-    },
-    {
-      "name": "Иностранный язык (англ. яз., уровень В2)",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0.1608,
-      "avg_semantic_similarity": 0.3888,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 1.57
-        },
-        {
-          "skill": "python",
-          "score": 1.04
-        },
-        {
-          "skill": "postgresql",
-          "score": 0.98
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.83
-        },
-        {
-          "skill": "java",
-          "score": 0.22
-        },
-        {
-          "skill": "llm",
-          "score": 0.22
-        },
-        {
-          "skill": "jira",
-          "score": 0.21
-        },
-        {
-          "skill": "git",
-          "score": 0.2
-        },
-        {
-          "skill": "ansible",
-          "score": 0.19
-        },
-        {
-          "skill": "коммуникация",
-          "score": 0.17
-        }
-      ]
-    },
-    {
-      "name": "Иностранный язык (англ. яз., уровень С1)",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0.1608,
-      "avg_semantic_similarity": 0.3888,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 1.57
-        },
-        {
-          "skill": "python",
-          "score": 1.04
-        },
-        {
-          "skill": "postgresql",
-          "score": 0.98
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.83
-        },
-        {
-          "skill": "java",
-          "score": 0.22
-        },
-        {
-          "skill": "llm",
-          "score": 0.22
-        },
-        {
-          "skill": "jira",
-          "score": 0.21
-        },
-        {
-          "skill": "git",
-          "score": 0.2
-        },
-        {
-          "skill": "ansible",
-          "score": 0.19
-        },
-        {
-          "skill": "коммуникация",
-          "score": 0.17
-        }
-      ]
-    },
-    {
-      "name": "Иностранный язык (русский язык)",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0.1608,
-      "avg_semantic_similarity": 0.3888,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 1.57
-        },
-        {
-          "skill": "python",
-          "score": 1.04
-        },
-        {
-          "skill": "postgresql",
-          "score": 0.98
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.83
-        },
-        {
-          "skill": "java",
-          "score": 0.22
-        },
-        {
-          "skill": "llm",
-          "score": 0.22
-        },
-        {
-          "skill": "jira",
-          "score": 0.21
-        },
-        {
-          "skill": "git",
-          "score": 0.2
-        },
-        {
-          "skill": "ansible",
-          "score": 0.19
-        },
-        {
-          "skill": "коммуникация",
-          "score": 0.17
-        }
-      ]
-    },
-    {
-      "name": "Иностранный язык для деловой коммуникации",
-      "coverage_ratio": 0,
-      "coverage_level": "low",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0,
-      "avg_semantic_similarity": 0,
-      "shap_scores": []
-    },
-    {
-      "name": "Инструменты и инженерные практики  разработки систем ИИ",
-      "coverage_ratio": 0.8182,
-      "coverage_level": "high",
-      "gaps": 12,
-      "emerging": 10,
-      "semantic_coverage": 0.2829,
-      "avg_semantic_similarity": 0.5215,
-      "shap_scores": [
-        {
-          "skill": "python",
-          "score": 1.64
-        },
-        {
-          "skill": "postgresql",
-          "score": 1.37
-        },
-        {
           "skill": "java",
           "score": 0.41
         },
         {
-          "skill": "llm",
-          "score": 0.3
-        },
-        {
-          "skill": "fastapi",
-          "score": 0.28
-        },
-        {
-          "skill": "jira",
-          "score": 0.27
-        },
-        {
-          "skill": "git",
-          "score": 0.25
-        },
-        {
-          "skill": "ansible",
-          "score": 0.25
-        },
-        {
-          "skill": "vault",
-          "score": 0.24
-        },
-        {
-          "skill": "vue",
-          "score": 0.24
+          "skill": "data science",
+          "score": 0.4
         }
       ]
     },
     {
-      "name": "Интеллектуальные системы и технологии",
-      "coverage_ratio": 0.5333,
+      "name": "Высшая математика",
+      "coverage_ratio": 0.9394,
       "coverage_level": "high",
-      "gaps": 7,
+      "gaps": 2,
       "emerging": 10,
-      "semantic_coverage": 0.23,
+      "semantic_coverage": 0.2301,
       "avg_semantic_similarity": 0.4688,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.62
-        },
-        {
-          "skill": "postgresql",
-          "score": 1.28
-        },
-        {
           "skill": "python",
-          "score": 0.95
+          "score": 0.64
+        },
+        {
+          "skill": "sql",
+          "score": 0.43
+        },
+        {
+          "skill": "регрессия",
+          "score": 0.42
+        },
+        {
+          "skill": "data science",
+          "score": 0.4
         },
         {
           "skill": "kubernetes",
-          "score": 0.73
+          "score": 0.39
         },
         {
-          "skill": "llm",
-          "score": 0.23
+          "skill": "scikit-learn",
+          "score": 0.38
         },
         {
-          "skill": "jira",
-          "score": 0.22
+          "skill": "rag",
+          "score": 0.38
         },
         {
-          "skill": "java",
-          "score": 0.21
+          "skill": "nlp",
+          "score": 0.38
         },
         {
-          "skill": "коммуникация",
-          "score": 0.2
+          "skill": "big data",
+          "score": 0.38
         },
         {
-          "skill": "git",
-          "score": 0.2
-        },
-        {
-          "skill": "ansible",
-          "score": 0.17
+          "skill": "fastapi",
+          "score": 0.38
         }
       ]
     },
@@ -1176,43 +677,196 @@
       "shap_scores": [
         {
           "skill": "python",
-          "score": 1.45
+          "score": 0.72
+        },
+        {
+          "skill": "fastapi",
+          "score": 0.47
+        },
+        {
+          "skill": "java",
+          "score": 0.45
+        },
+        {
+          "skill": "pyspark",
+          "score": 0.44
+        },
+        {
+          "skill": "регрессия",
+          "score": 0.41
+        },
+        {
+          "skill": "nlp",
+          "score": 0.4
+        },
+        {
+          "skill": "git",
+          "score": 0.4
+        },
+        {
+          "skill": "mlflow",
+          "score": 0.4
+        },
+        {
+          "skill": "градиентный бустинг",
+          "score": 0.4
+        },
+        {
+          "skill": "scikit-learn",
+          "score": 0.39
+        }
+      ]
+    },
+    {
+      "name": "Инструменты и инженерные практики  разработки систем ИИ",
+      "coverage_ratio": 0.8182,
+      "coverage_level": "high",
+      "gaps": 12,
+      "emerging": 10,
+      "semantic_coverage": 0.2829,
+      "avg_semantic_similarity": 0.5215,
+      "shap_scores": [
+        {
+          "skill": "python",
+          "score": 0.71
+        },
+        {
+          "skill": "sql",
+          "score": 0.43
+        },
+        {
+          "skill": "fastapi",
+          "score": 0.43
+        },
+        {
+          "skill": "pyspark",
+          "score": 0.42
+        },
+        {
+          "skill": "java",
+          "score": 0.4
+        },
+        {
+          "skill": "rag",
+          "score": 0.39
+        },
+        {
+          "skill": "nlp",
+          "score": 0.39
+        },
+        {
+          "skill": "llm",
+          "score": 0.39
+        },
+        {
+          "skill": "git",
+          "score": 0.39
+        },
+        {
+          "skill": "градиентный бустинг",
+          "score": 0.39
+        }
+      ]
+    },
+    {
+      "name": "Дискретная математика",
+      "coverage_ratio": 1.0,
+      "coverage_level": "high",
+      "gaps": 0,
+      "emerging": 10,
+      "semantic_coverage": 0.0755,
+      "avg_semantic_similarity": 0.2578,
+      "shap_scores": [
+        {
+          "skill": "python",
+          "score": 0.63
+        },
+        {
+          "skill": "fastapi",
+          "score": 0.41
+        },
+        {
+          "skill": "java",
+          "score": 0.41
+        },
+        {
+          "skill": "sql",
+          "score": 0.4
+        },
+        {
+          "skill": "pyspark",
+          "score": 0.39
+        },
+        {
+          "skill": "docker",
+          "score": 0.39
+        },
+        {
+          "skill": "git",
+          "score": 0.39
+        },
+        {
+          "skill": "nlp",
+          "score": 0.38
+        },
+        {
+          "skill": "llm",
+          "score": 0.38
+        },
+        {
+          "skill": "hadoop",
+          "score": 0.38
+        }
+      ]
+    },
+    {
+      "name": "Интеллектуальные системы и технологии",
+      "coverage_ratio": 0.5333,
+      "coverage_level": "high",
+      "gaps": 7,
+      "emerging": 10,
+      "semantic_coverage": 0.23,
+      "avg_semantic_similarity": 0.4688,
+      "shap_scores": [
+        {
+          "skill": "python",
+          "score": 0.56
+        },
+        {
+          "skill": "sql",
+          "score": 0.41
+        },
+        {
+          "skill": "kubernetes",
+          "score": 0.39
+        },
+        {
+          "skill": "nlp",
+          "score": 0.38
+        },
+        {
+          "skill": "fastapi",
+          "score": 0.38
+        },
+        {
+          "skill": "big data",
+          "score": 0.37
+        },
+        {
+          "skill": "docker",
+          "score": 0.37
         },
         {
           "skill": "java",
           "score": 0.37
         },
         {
-          "skill": "llm",
-          "score": 0.29
+          "skill": "rag",
+          "score": 0.36
         },
         {
           "skill": "git",
-          "score": 0.27
-        },
-        {
-          "skill": "fastapi",
-          "score": 0.27
-        },
-        {
-          "skill": "jira",
-          "score": 0.26
-        },
-        {
-          "skill": "react",
-          "score": 0.24
-        },
-        {
-          "skill": "kotlin",
-          "score": 0.23
-        },
-        {
-          "skill": "jenkins",
-          "score": 0.23
-        },
-        {
-          "skill": "zabbix",
-          "score": 0.22
+          "score": 0.36
         }
       ]
     },
@@ -1226,95 +880,44 @@
       "avg_semantic_similarity": 0.4783,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.37
-        },
-        {
-          "skill": "postgresql",
-          "score": 1.29
-        },
-        {
           "skill": "python",
-          "score": 1.25
+          "score": 0.62
         },
         {
-          "skill": "kubernetes",
-          "score": 0.75
+          "skill": "sql",
+          "score": 0.43
+        },
+        {
+          "skill": "регрессия",
+          "score": 0.39
+        },
+        {
+          "skill": "nlp",
+          "score": 0.38
         },
         {
           "skill": "llm",
-          "score": 0.31
+          "score": 0.38
         },
         {
-          "skill": "java",
-          "score": 0.25
+          "skill": "fastapi",
+          "score": 0.38
         },
         {
-          "skill": "jira",
-          "score": 0.21
-        },
-        {
-          "skill": "коммуникация",
-          "score": 0.2
-        },
-        {
-          "skill": "git",
-          "score": 0.18
-        },
-        {
-          "skill": "react",
-          "score": 0.18
-        }
-      ]
-    },
-    {
-      "name": "История России",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0.1614,
-      "avg_semantic_similarity": 0.3883,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 1.65
-        },
-        {
-          "skill": "python",
-          "score": 1.09
-        },
-        {
-          "skill": "postgresql",
-          "score": 1.02
+          "skill": "data science",
+          "score": 0.38
         },
         {
           "skill": "kubernetes",
-          "score": 0.78
+          "score": 0.38
         },
         {
-          "skill": "llm",
-          "score": 0.26
+          "skill": "scikit-learn",
+          "score": 0.37
         },
         {
-          "skill": "java",
-          "score": 0.24
-        },
-        {
-          "skill": "jira",
-          "score": 0.21
-        },
-        {
-          "skill": "git",
-          "score": 0.2
-        },
-        {
-          "skill": "rabbitmq",
-          "score": 0.19
-        },
-        {
-          "skill": "react",
-          "score": 0.19
+          "skill": "rag",
+          "score": 0.37
         }
       ]
     },
@@ -1328,44 +931,44 @@
       "avg_semantic_similarity": 0.4926,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.68
-        },
-        {
-          "skill": "postgresql",
-          "score": 0.89
-        },
-        {
           "skill": "python",
-          "score": 0.89
+          "score": 0.57
         },
         {
-          "skill": "kubernetes",
-          "score": 0.81
+          "skill": "sql",
+          "score": 0.42
         },
         {
-          "skill": "llm",
-          "score": 0.24
+          "skill": "fastapi",
+          "score": 0.4
         },
         {
           "skill": "java",
-          "score": 0.23
+          "score": 0.39
         },
         {
-          "skill": "jira",
-          "score": 0.22
+          "skill": "rag",
+          "score": 0.38
         },
         {
-          "skill": "ansible",
-          "score": 0.2
+          "skill": "nlp",
+          "score": 0.38
         },
         {
-          "skill": "git",
-          "score": 0.19
+          "skill": "llm",
+          "score": 0.38
         },
         {
-          "skill": "коммуникация",
-          "score": 0.18
+          "skill": "kubernetes",
+          "score": 0.38
+        },
+        {
+          "skill": "pyspark",
+          "score": 0.37
+        },
+        {
+          "skill": "docker",
+          "score": 0.37
         }
       ]
     },
@@ -1379,44 +982,44 @@
       "avg_semantic_similarity": 0.3048,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.5
-        },
-        {
           "skill": "python",
-          "score": 0.94
+          "score": 0.56
         },
         {
-          "skill": "postgresql",
-          "score": 0.85
+          "skill": "sql",
+          "score": 0.41
         },
         {
-          "skill": "kubernetes",
-          "score": 0.73
-        },
-        {
-          "skill": "jira",
-          "score": 0.23
-        },
-        {
-          "skill": "llm",
-          "score": 0.23
-        },
-        {
-          "skill": "java",
-          "score": 0.2
+          "skill": "docker",
+          "score": 0.38
         },
         {
           "skill": "git",
-          "score": 0.19
+          "score": 0.38
         },
         {
-          "skill": "ansible",
-          "score": 0.19
+          "skill": "kubernetes",
+          "score": 0.38
         },
         {
-          "skill": "коммуникация",
-          "score": 0.17
+          "skill": "scikit-learn",
+          "score": 0.37
+        },
+        {
+          "skill": "rag",
+          "score": 0.37
+        },
+        {
+          "skill": "fastapi",
+          "score": 0.36
+        },
+        {
+          "skill": "hadoop",
+          "score": 0.36
+        },
+        {
+          "skill": "computer vision",
+          "score": 0.36
         }
       ]
     },
@@ -1430,44 +1033,44 @@
       "avg_semantic_similarity": 0.4521,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.46
-        },
-        {
           "skill": "python",
-          "score": 0.95
+          "score": 0.57
         },
         {
-          "skill": "postgresql",
-          "score": 0.9
+          "skill": "sql",
+          "score": 0.42
         },
         {
           "skill": "kubernetes",
-          "score": 0.78
+          "score": 0.39
         },
         {
-          "skill": "llm",
-          "score": 0.25
+          "skill": "big data",
+          "score": 0.38
         },
         {
-          "skill": "jira",
-          "score": 0.22
+          "skill": "fastapi",
+          "score": 0.37
         },
         {
-          "skill": "коммуникация",
-          "score": 0.21
+          "skill": "docker",
+          "score": 0.37
         },
         {
           "skill": "git",
-          "score": 0.2
+          "score": 0.37
         },
         {
-          "skill": "java",
-          "score": 0.2
+          "skill": "data science",
+          "score": 0.37
         },
         {
-          "skill": "ansible",
-          "score": 0.18
+          "skill": "scikit-learn",
+          "score": 0.36
+        },
+        {
+          "skill": "rag",
+          "score": 0.36
         }
       ]
     },
@@ -1481,44 +1084,44 @@
       "avg_semantic_similarity": 0.4521,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.46
-        },
-        {
           "skill": "python",
-          "score": 0.95
+          "score": 0.57
         },
         {
-          "skill": "postgresql",
-          "score": 0.9
+          "skill": "sql",
+          "score": 0.42
         },
         {
           "skill": "kubernetes",
-          "score": 0.78
+          "score": 0.39
         },
         {
-          "skill": "llm",
-          "score": 0.25
+          "skill": "big data",
+          "score": 0.38
         },
         {
-          "skill": "jira",
-          "score": 0.22
+          "skill": "fastapi",
+          "score": 0.37
         },
         {
-          "skill": "коммуникация",
-          "score": 0.21
+          "skill": "docker",
+          "score": 0.37
         },
         {
           "skill": "git",
-          "score": 0.2
+          "score": 0.37
         },
         {
-          "skill": "java",
-          "score": 0.2
+          "skill": "data science",
+          "score": 0.37
         },
         {
-          "skill": "ansible",
-          "score": 0.18
+          "skill": "scikit-learn",
+          "score": 0.36
+        },
+        {
+          "skill": "rag",
+          "score": 0.36
         }
       ]
     },
@@ -1532,44 +1135,44 @@
       "avg_semantic_similarity": 0.5099,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 2.35
-        },
-        {
           "skill": "python",
-          "score": 1.62
+          "score": 0.63
         },
         {
-          "skill": "postgresql",
-          "score": 1.26
+          "skill": "sql",
+          "score": 0.42
         },
         {
-          "skill": "kubernetes",
-          "score": 0.81
+          "skill": "регрессия",
+          "score": 0.39
         },
         {
-          "skill": "git",
-          "score": 0.3
-        },
-        {
-          "skill": "llm",
-          "score": 0.28
-        },
-        {
-          "skill": "jira",
-          "score": 0.24
-        },
-        {
-          "skill": "java",
-          "score": 0.22
-        },
-        {
-          "skill": "vue",
-          "score": 0.21
+          "skill": "nlp",
+          "score": 0.38
         },
         {
           "skill": "fastapi",
-          "score": 0.21
+          "score": 0.38
+        },
+        {
+          "skill": "data science",
+          "score": 0.38
+        },
+        {
+          "skill": "kubernetes",
+          "score": 0.38
+        },
+        {
+          "skill": "rag",
+          "score": 0.37
+        },
+        {
+          "skill": "big data",
+          "score": 0.37
+        },
+        {
+          "skill": "docker",
+          "score": 0.37
         }
       ]
     },
@@ -1583,146 +1186,44 @@
       "avg_semantic_similarity": 0.4878,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.61
-        },
-        {
           "skill": "python",
-          "score": 0.93
+          "score": 0.56
         },
         {
-          "skill": "postgresql",
-          "score": 0.88
+          "skill": "sql",
+          "score": 0.42
         },
         {
-          "skill": "kubernetes",
-          "score": 0.69
+          "skill": "data science",
+          "score": 0.39
         },
         {
-          "skill": "llm",
-          "score": 0.24
+          "skill": "nlp",
+          "score": 0.38
         },
         {
-          "skill": "java",
-          "score": 0.22
+          "skill": "big data",
+          "score": 0.38
         },
         {
-          "skill": "коммуникация",
-          "score": 0.21
+          "skill": "fastapi",
+          "score": 0.38
         },
         {
-          "skill": "jira",
-          "score": 0.21
+          "skill": "docker",
+          "score": 0.38
         },
         {
           "skill": "git",
-          "score": 0.2
-        },
-        {
-          "skill": "ansible",
-          "score": 0.19
-        }
-      ]
-    },
-    {
-      "name": "Мультимедиа технологии",
-      "coverage_ratio": 0.5,
-      "coverage_level": "high",
-      "gaps": 9,
-      "emerging": 10,
-      "semantic_coverage": 0.2667,
-      "avg_semantic_similarity": 0.5028,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 1.68
-        },
-        {
-          "skill": "python",
-          "score": 1.01
-        },
-        {
-          "skill": "postgresql",
-          "score": 0.81
+          "score": 0.38
         },
         {
           "skill": "kubernetes",
-          "score": 0.75
+          "score": 0.37
         },
         {
-          "skill": "git",
-          "score": 0.3
-        },
-        {
-          "skill": "java",
-          "score": 0.26
-        },
-        {
-          "skill": "jira",
-          "score": 0.26
-        },
-        {
-          "skill": "llm",
-          "score": 0.23
-        },
-        {
-          "skill": "коммуникация",
-          "score": 0.19
-        },
-        {
-          "skill": "ansible",
-          "score": 0.19
-        }
-      ]
-    },
-    {
-      "name": "Обеспечение надежности и управление качеством ИС",
-      "coverage_ratio": 0.75,
-      "coverage_level": "high",
-      "gaps": 1,
-      "emerging": 10,
-      "semantic_coverage": 0.2875,
-      "avg_semantic_similarity": 0.52,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 1.61
-        },
-        {
-          "skill": "python",
-          "score": 0.95
-        },
-        {
-          "skill": "postgresql",
-          "score": 0.88
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.75
-        },
-        {
-          "skill": "jira",
-          "score": 0.25
-        },
-        {
-          "skill": "java",
-          "score": 0.24
-        },
-        {
-          "skill": "llm",
-          "score": 0.23
-        },
-        {
-          "skill": "git",
-          "score": 0.2
-        },
-        {
-          "skill": "коммуникация",
-          "score": 0.19
-        },
-        {
-          "skill": "ansible",
-          "score": 0.18
+          "skill": "регрессия",
+          "score": 0.37
         }
       ]
     },
@@ -1736,44 +1237,146 @@
       "avg_semantic_similarity": 0.4615,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.67
-        },
-        {
-          "skill": "postgresql",
-          "score": 1.46
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.87
-        },
-        {
-          "skill": "llm",
-          "score": 0.32
-        },
-        {
-          "skill": "java",
-          "score": 0.3
+          "skill": "sql",
+          "score": 0.43
         },
         {
           "skill": "fastapi",
-          "score": 0.27
+          "score": 0.41
         },
         {
-          "skill": "jira",
-          "score": 0.25
+          "skill": "pyspark",
+          "score": 0.4
         },
         {
-          "skill": "vault",
-          "score": 0.24
+          "skill": "nlp",
+          "score": 0.39
         },
         {
-          "skill": "ansible",
-          "score": 0.24
+          "skill": "git",
+          "score": 0.39
         },
         {
-          "skill": "rabbitmq",
-          "score": 0.21
+          "skill": "kubernetes",
+          "score": 0.39
+        },
+        {
+          "skill": "java",
+          "score": 0.39
+        },
+        {
+          "skill": "llm",
+          "score": 0.38
+        },
+        {
+          "skill": "docker",
+          "score": 0.38
+        },
+        {
+          "skill": "data science",
+          "score": 0.38
+        }
+      ]
+    },
+    {
+      "name": "Мультимедиа технологии",
+      "coverage_ratio": 0.5,
+      "coverage_level": "high",
+      "gaps": 9,
+      "emerging": 10,
+      "semantic_coverage": 0.2667,
+      "avg_semantic_similarity": 0.5028,
+      "shap_scores": [
+        {
+          "skill": "python",
+          "score": 0.57
+        },
+        {
+          "skill": "sql",
+          "score": 0.42
+        },
+        {
+          "skill": "big data",
+          "score": 0.38
+        },
+        {
+          "skill": "docker",
+          "score": 0.38
+        },
+        {
+          "skill": "kubernetes",
+          "score": 0.38
+        },
+        {
+          "skill": "rag",
+          "score": 0.37
+        },
+        {
+          "skill": "git",
+          "score": 0.37
+        },
+        {
+          "skill": "data science",
+          "score": 0.37
+        },
+        {
+          "skill": "nlp",
+          "score": 0.36
+        },
+        {
+          "skill": "fastapi",
+          "score": 0.36
+        }
+      ]
+    },
+    {
+      "name": "Обеспечение надежности и управление качеством ИС",
+      "coverage_ratio": 0.75,
+      "coverage_level": "high",
+      "gaps": 1,
+      "emerging": 10,
+      "semantic_coverage": 0.2875,
+      "avg_semantic_similarity": 0.52,
+      "shap_scores": [
+        {
+          "skill": "python",
+          "score": 0.55
+        },
+        {
+          "skill": "sql",
+          "score": 0.41
+        },
+        {
+          "skill": "big data",
+          "score": 0.38
+        },
+        {
+          "skill": "docker",
+          "score": 0.38
+        },
+        {
+          "skill": "kubernetes",
+          "score": 0.38
+        },
+        {
+          "skill": "rag",
+          "score": 0.37
+        },
+        {
+          "skill": "fastapi",
+          "score": 0.37
+        },
+        {
+          "skill": "git",
+          "score": 0.37
+        },
+        {
+          "skill": "data science",
+          "score": 0.37
+        },
+        {
+          "skill": "nlp",
+          "score": 0.36
         }
       ]
     },
@@ -1787,110 +1390,49 @@
       "avg_semantic_similarity": 0.4985,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 2.58
+          "skill": "numpy",
+          "score": 0.44
         },
         {
-          "skill": "postgresql",
-          "score": 1.43
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.95
-        },
-        {
-          "skill": "java",
-          "score": 0.34
+          "skill": "nlp",
+          "score": 0.44
         },
         {
           "skill": "fastapi",
-          "score": 0.29
+          "score": 0.44
+        },
+        {
+          "skill": "java",
+          "score": 0.44
+        },
+        {
+          "skill": "sql",
+          "score": 0.43
+        },
+        {
+          "skill": "kubernetes",
+          "score": 0.42
+        },
+        {
+          "skill": "pyspark",
+          "score": 0.41
+        },
+        {
+          "skill": "docker",
+          "score": 0.41
         },
         {
           "skill": "git",
-          "score": 0.25
+          "score": 0.4
         },
         {
-          "skill": "jira",
-          "score": 0.25
-        },
-        {
-          "skill": "ansible",
-          "score": 0.23
-        },
-        {
-          "skill": "vault",
-          "score": 0.22
-        },
-        {
-          "skill": "nginx",
-          "score": 0.2
+          "skill": "rag",
+          "score": 0.38
         }
       ]
     },
     {
       "name": "Основы Python",
-      "coverage_ratio": 0,
-      "coverage_level": "low",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0,
-      "avg_semantic_similarity": 0,
-      "shap_scores": []
-    },
-    {
-      "name": "Основы информационных технологий, процессов и систем",
-      "coverage_ratio": 0.3571,
-      "coverage_level": "medium",
-      "gaps": 9,
-      "emerging": 10,
-      "semantic_coverage": 0.2544,
-      "avg_semantic_similarity": 0.4874,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 1.56
-        },
-        {
-          "skill": "python",
-          "score": 1.0
-        },
-        {
-          "skill": "postgresql",
-          "score": 0.91
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.77
-        },
-        {
-          "skill": "java",
-          "score": 0.23
-        },
-        {
-          "skill": "llm",
-          "score": 0.23
-        },
-        {
-          "skill": "jira",
-          "score": 0.21
-        },
-        {
-          "skill": "коммуникация",
-          "score": 0.19
-        },
-        {
-          "skill": "git",
-          "score": 0.18
-        },
-        {
-          "skill": "ansible",
-          "score": 0.17
-        }
-      ]
-    },
-    {
-      "name": "Основы проектной деятельности",
       "coverage_ratio": 0,
       "coverage_level": "low",
       "gaps": 0,
@@ -1909,44 +1451,95 @@
       "avg_semantic_similarity": 0.3476,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.6
-        },
-        {
           "skill": "python",
-          "score": 0.98
+          "score": 0.63
         },
         {
-          "skill": "postgresql",
-          "score": 0.75
+          "skill": "sql",
+          "score": 0.44
         },
         {
-          "skill": "kubernetes",
-          "score": 0.65
+          "skill": "data science",
+          "score": 0.4
         },
         {
-          "skill": "jira",
-          "score": 0.22
+          "skill": "big data",
+          "score": 0.38
         },
         {
-          "skill": "llm",
-          "score": 0.21
-        },
-        {
-          "skill": "java",
-          "score": 0.2
+          "skill": "docker",
+          "score": 0.38
         },
         {
           "skill": "git",
-          "score": 0.19
+          "score": 0.38
         },
         {
-          "skill": "ansible",
-          "score": 0.19
+          "skill": "fastapi",
+          "score": 0.37
         },
         {
-          "skill": "коммуникация",
-          "score": 0.18
+          "skill": "java",
+          "score": 0.37
+        },
+        {
+          "skill": "регрессия",
+          "score": 0.37
+        },
+        {
+          "skill": "scikit-learn",
+          "score": 0.36
+        }
+      ]
+    },
+    {
+      "name": "Основы информационных технологий, процессов и систем",
+      "coverage_ratio": 0.3571,
+      "coverage_level": "medium",
+      "gaps": 9,
+      "emerging": 10,
+      "semantic_coverage": 0.2544,
+      "avg_semantic_similarity": 0.4874,
+      "shap_scores": [
+        {
+          "skill": "python",
+          "score": 0.61
+        },
+        {
+          "skill": "sql",
+          "score": 0.43
+        },
+        {
+          "skill": "big data",
+          "score": 0.39
+        },
+        {
+          "skill": "kubernetes",
+          "score": 0.39
+        },
+        {
+          "skill": "git",
+          "score": 0.38
+        },
+        {
+          "skill": "data science",
+          "score": 0.38
+        },
+        {
+          "skill": "nlp",
+          "score": 0.37
+        },
+        {
+          "skill": "docker",
+          "score": 0.37
+        },
+        {
+          "skill": "rag",
+          "score": 0.36
+        },
+        {
+          "skill": "fastapi",
+          "score": 0.36
         }
       ]
     },
@@ -1960,95 +1553,44 @@
       "avg_semantic_similarity": 0.3668,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 1.48
-        },
-        {
           "skill": "python",
-          "score": 1.12
-        },
-        {
-          "skill": "postgresql",
-          "score": 0.96
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.72
-        },
-        {
-          "skill": "jira",
-          "score": 0.23
-        },
-        {
-          "skill": "llm",
-          "score": 0.21
-        },
-        {
-          "skill": "git",
-          "score": 0.19
-        },
-        {
-          "skill": "коммуникация",
-          "score": 0.17
-        },
-        {
-          "skill": "java",
-          "score": 0.17
-        },
-        {
-          "skill": "typescript",
-          "score": 0.17
-        }
-      ]
-    },
-    {
-      "name": "Практикум по подготовке инженерной документации",
-      "coverage_ratio": 1.0,
-      "coverage_level": "high",
-      "gaps": 0,
-      "emerging": 10,
-      "semantic_coverage": 0.1247,
-      "avg_semantic_similarity": 0.3407,
-      "shap_scores": [
-        {
-          "skill": "docker",
-          "score": 2.21
-        },
-        {
-          "skill": "python",
-          "score": 1.53
-        },
-        {
-          "skill": "postgresql",
-          "score": 1.31
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.77
-        },
-        {
-          "skill": "git",
-          "score": 0.32
-        },
-        {
-          "skill": "java",
-          "score": 0.31
-        },
-        {
-          "skill": "jira",
-          "score": 0.28
+          "score": 0.62
         },
         {
           "skill": "fastapi",
-          "score": 0.23
+          "score": 0.4
+        },
+        {
+          "skill": "java",
+          "score": 0.4
+        },
+        {
+          "skill": "sql",
+          "score": 0.39
+        },
+        {
+          "skill": "nlp",
+          "score": 0.38
+        },
+        {
+          "skill": "docker",
+          "score": 0.38
+        },
+        {
+          "skill": "kubernetes",
+          "score": 0.38
+        },
+        {
+          "skill": "scikit-learn",
+          "score": 0.37
+        },
+        {
+          "skill": "rag",
+          "score": 0.37
         },
         {
           "skill": "llm",
-          "score": 0.22
-        },
-        {
-          "skill": "vue",
-          "score": 0.21
+          "score": 0.37
         }
       ]
     },
@@ -2062,48 +1604,60 @@
       "avg_semantic_similarity": 0.4913,
       "shap_scores": [
         {
-          "skill": "docker",
-          "score": 2.27
-        },
-        {
           "skill": "python",
-          "score": 1.65
-        },
-        {
-          "skill": "postgresql",
-          "score": 1.19
-        },
-        {
-          "skill": "kubernetes",
-          "score": 0.66
-        },
-        {
-          "skill": "llm",
-          "score": 0.31
+          "score": 1.24
         },
         {
           "skill": "java",
-          "score": 0.3
+          "score": 0.45
         },
         {
-          "skill": "git",
-          "score": 0.29
+          "skill": "sql",
+          "score": 0.44
         },
         {
           "skill": "fastapi",
-          "score": 0.26
+          "score": 0.42
         },
         {
-          "skill": "jira",
-          "score": 0.24
+          "skill": "pyspark",
+          "score": 0.41
         },
         {
-          "skill": "vault",
-          "score": 0.2
+          "skill": "kubernetes",
+          "score": 0.41
+        },
+        {
+          "skill": "регрессия",
+          "score": 0.41
+        },
+        {
+          "skill": "llm",
+          "score": 0.39
+        },
+        {
+          "skill": "docker",
+          "score": 0.39
+        },
+        {
+          "skill": "scikit-learn",
+          "score": 0.38
         }
       ]
     }
   ],
-  "generated_at": "2026-06-17T03:57:06.004387",
+  "target_professions": [
+    "Data Scientist",
+    "Data Analyst",
+    "Machine Learning Engineer",
+    "Computer Vision Engineer",
+    "NLP Engineer",
+    "Data Architect",
+    "ETL Developer",
+    "Python Developer",
+    "Java Developer",
+    "Frontend Developer"
+  ],
+  "generated_at": "2026-06-29T03:03:41.468008",
   "has_enhanced_gap": true
 }

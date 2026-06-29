@@ -1,14 +1,25 @@
 {
   "direction": "09.03.02",
-  "direction_name": "Информационные системы и технологии",
+  "direction_name": "Перспективные информационные технологии",
   "discipline": "Моделирование, внедрение и эксплуатация информационных систем",
   "metrics": {
     "total_rpd_skills": 9,
-    "market_matched": 4,
-    "gaps": 5,
-    "coverage_ratio": 0.4444,
-    "coverage_level": "medium",
+    "market_matched": 5,
+    "gaps": 4,
+    "coverage_ratio": 0.5556,
+    "weighted_coverage": 0.5556,
+    "coverage_level": "high",
     "top_market_matched_skills": [
+      {
+        "skill": "информационные технологии",
+        "frequency": 106,
+        "match_type": "exact"
+      },
+      {
+        "skill": "математический анализ",
+        "frequency": 17,
+        "match_type": "exact"
+      },
       {
         "skill": "статистическое моделирование",
         "frequency": 1,
@@ -20,11 +31,6 @@
         "match_type": "exact"
       },
       {
-        "skill": "математический анализ",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
         "skill": "статистическое моделирование",
         "frequency": 1,
         "match_type": "exact"
@@ -32,139 +38,118 @@
     ],
     "gaps_in_curriculum": [
       "математические модели",
-      "информационные технологии",
-      "программные средства",
       "информационно-коммуникационные технологии",
+      "программные средства",
       "аппаратные платформы"
     ],
     "emerging_market_skills_not_in_rpd": [
       {
-        "skill": "python",
-        "frequency": 880
-      },
-      {
-        "skill": "postgresql",
-        "frequency": 520
-      },
-      {
         "skill": "sql",
-        "frequency": 490
+        "frequency": 921
       },
       {
-        "skill": "git",
-        "frequency": 460
+        "skill": "python",
+        "frequency": 878
       },
       {
         "skill": "linux",
-        "frequency": 440
+        "frequency": 854
+      },
+      {
+        "skill": "postgresql",
+        "frequency": 616
+      },
+      {
+        "skill": "git",
+        "frequency": 398
       },
       {
         "skill": "docker",
-        "frequency": 420
+        "frequency": 389
       },
       {
-        "skill": "fastapi",
-        "frequency": 350
+        "skill": "kubernetes",
+        "frequency": 305
       },
       {
-        "skill": "django",
-        "frequency": 340
+        "skill": "аналитическое мышление",
+        "frequency": 289
       },
       {
-        "skill": "flask",
-        "frequency": 280
+        "skill": "java",
+        "frequency": 283
       },
       {
-        "skill": "redis",
-        "frequency": 260
+        "skill": "информационная безопасность",
+        "frequency": 249
       }
     ],
     "truly_missing_market_skills": [
       {
-        "skill": "django",
-        "frequency": 340
+        "skill": "linux",
+        "frequency": 854
       },
       {
-        "skill": "rabbitmq",
-        "frequency": 200
+        "skill": "git",
+        "frequency": 398
       },
       {
-        "skill": "nginx",
-        "frequency": 190
+        "skill": "аналитическое мышление",
+        "frequency": 289
       },
       {
-        "skill": "ci/cd",
-        "frequency": 180
+        "skill": "java",
+        "frequency": 283
       },
       {
-        "skill": "async",
-        "frequency": 160
+        "skill": "информационная безопасность",
+        "frequency": 249
       },
       {
-        "skill": "unit tests",
-        "frequency": 150
+        "skill": "bpmn",
+        "frequency": 225
       },
       {
-        "skill": "javascript",
-        "frequency": 130
+        "skill": "системный анализ",
+        "frequency": 222
       },
       {
-        "skill": "react",
-        "frequency": 120
+        "skill": "бизнес-анализ",
+        "frequency": 217
       },
       {
-        "skill": "alembic",
-        "frequency": 110
+        "skill": "apache kafka",
+        "frequency": 193
       },
       {
-        "skill": "celery",
-        "frequency": 110
+        "skill": "rest api",
+        "frequency": 189
       }
     ],
     "covered_in_other_disciplines": [
       {
+        "skill": "sql",
+        "frequency": 921,
+        "discipline": "Базы данных и СУБД"
+      },
+      {
         "skill": "python",
-        "frequency": 880,
+        "frequency": 878,
         "discipline": "Алгоритмизация и программирование"
       },
       {
         "skill": "postgresql",
-        "frequency": 520,
+        "frequency": 616,
         "discipline": "Базы данных и СУБД"
-      },
-      {
-        "skill": "sql",
-        "frequency": 490,
-        "discipline": "Базы данных и СУБД"
-      },
-      {
-        "skill": "git",
-        "frequency": 460,
-        "discipline": "Инфраструктура распределённых баз данных"
-      },
-      {
-        "skill": "linux",
-        "frequency": 440,
-        "discipline": "Иностранный язык для деловой коммуникации"
       },
       {
         "skill": "docker",
-        "frequency": 420,
+        "frequency": 389,
         "discipline": "Инструменты и инженерные практики  разработки систем ИИ"
       },
       {
-        "skill": "fastapi",
-        "frequency": 350,
-        "discipline": "Инструменты и инженерные практики  разработки систем ИИ"
-      },
-      {
-        "skill": "flask",
-        "frequency": 280,
-        "discipline": "Инструменты и инженерные практики  разработки систем ИИ"
-      },
-      {
-        "skill": "redis",
-        "frequency": 260,
+        "skill": "kubernetes",
+        "frequency": 305,
         "discipline": "Инструменты и инженерные практики  разработки систем ИИ"
       }
     ]
@@ -197,8 +182,8 @@
     {
       "code": "ОПК-2",
       "total_skills": 3,
-      "matched_skills": 0,
-      "coverage": 0.0
+      "matched_skills": 1,
+      "coverage": 0.3333
     },
     {
       "code": "ОПК-2.1",
@@ -337,62 +322,301 @@
     {
       "type": "review_content",
       "priority": "medium",
-      "message": "Навыки из РПД не обнаружены в рыночных данных: математические модели, информационные технологии, программные средства, информационно-коммуникационные технологии, аппаратные платформы. Рекомендуется пересмотреть их актуальность."
-    },
-    {
-      "type": "add_new_content",
-      "priority": "medium",
-      "message": "Рассмотрите возможность включения востребованных навыков, отсутствующих в программе: «django» (340), «rabbitmq» (200), «nginx» (190), «ci/cd» (180), «async» (160)."
-    },
-    {
-      "type": "cross_reference",
-      "priority": "low",
-      "message": "Навык «python» (880) преподаётся в дисциплине «Алгоритмизация и программирование» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
-    },
-    {
-      "type": "cross_reference",
-      "priority": "low",
-      "message": "Навык «postgresql» (520) преподаётся в дисциплине «Базы данных и СУБД» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
-    },
-    {
-      "type": "cross_reference",
-      "priority": "low",
-      "message": "Навык «sql» (490) преподаётся в дисциплине «Базы данных и СУБД» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
-    },
-    {
-      "type": "cross_reference",
-      "priority": "low",
-      "message": "Навык «git» (460) преподаётся в дисциплине «Инфраструктура распределённых баз данных» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
-    },
-    {
-      "type": "cross_reference",
-      "priority": "low",
-      "message": "Навык «linux» (440) преподаётся в дисциплине «Иностранный язык для деловой коммуникации» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
-    },
-    {
-      "type": "cross_reference",
-      "priority": "low",
-      "message": "Навык «docker» (420) преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
-    },
-    {
-      "type": "cross_reference",
-      "priority": "low",
-      "message": "Навык «fastapi» (350) преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
-    },
-    {
-      "type": "cross_reference",
-      "priority": "low",
-      "message": "Навык «flask» (280) преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
-    },
-    {
-      "type": "cross_reference",
-      "priority": "low",
-      "message": "Навык «redis» (260) преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
+      "message": "«математические модели» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность."
     },
     {
       "type": "review_content",
       "priority": "medium",
-      "message": "Компетенции ОПК-2, ОПК-6 имеют 0% покрытие рынком — рекомендуется наполнить их востребованными навыками."
+      "message": "«информационно-коммуникационные технологии» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность."
+    },
+    {
+      "type": "review_content",
+      "priority": "medium",
+      "message": "«программные средства» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность."
+    },
+    {
+      "type": "review_content",
+      "priority": "medium",
+      "message": "«аппаратные платформы» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность."
+    },
+    {
+      "type": "add_new_content",
+      "priority": "medium",
+      "message": "Рассмотрите возможность включения навыка «системный анализ» (частота на рынке: 222)."
+    },
+    {
+      "type": "cross_reference",
+      "priority": "low",
+      "message": "Навык «sql» (921) преподаётся в дисциплине «Базы данных и СУБД» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
+    },
+    {
+      "type": "cross_reference",
+      "priority": "low",
+      "message": "Навык «python» (878) преподаётся в дисциплине «Алгоритмизация и программирование» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
+    },
+    {
+      "type": "cross_reference",
+      "priority": "low",
+      "message": "Навык «postgresql» (616) преподаётся в дисциплине «Базы данных и СУБД» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
+    },
+    {
+      "type": "cross_reference",
+      "priority": "low",
+      "message": "Навык «docker» (389) преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
+    },
+    {
+      "type": "cross_reference",
+      "priority": "low",
+      "message": "Навык «kubernetes» (305) преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
+    },
+    {
+      "type": "review_content",
+      "priority": "medium",
+      "message": "Компетенция «ОПК-6» имеет 0% покрытие рынком — рекомендуется наполнить её востребованными навыками."
     }
-  ]
+  ],
+  "enhanced": {
+    "semantic_coverage": {
+      "semantic_coverage": 0.252,
+      "avg_semantic_similarity": 0.4878,
+      "top_market_matches": [
+        {
+          "skill": "Информационные технологии",
+          "similarity": 0.9933923482894897
+        },
+        {
+          "skill": "Статистический анализ",
+          "similarity": 0.9009218811988831
+        },
+        {
+          "skill": "Учет ТМЦ",
+          "similarity": 0.7885621786117554
+        },
+        {
+          "skill": "Учет ГСМ",
+          "similarity": 0.7866338491439819
+        },
+        {
+          "skill": "Программный ремонт",
+          "similarity": 0.769576907157898
+        },
+        {
+          "skill": "Рекрутмент",
+          "similarity": 0.7692991495132446
+        },
+        {
+          "skill": "Исполнительность",
+          "similarity": 0.7606093883514404
+        },
+        {
+          "skill": "Подработка",
+          "similarity": 0.7568966150283813
+        },
+        {
+          "skill": "ЕГАИС",
+          "similarity": 0.750342845916748
+        },
+        {
+          "skill": "Пуско-наладочные работы",
+          "similarity": 0.7482935190200806
+        }
+      ]
+    },
+    "ltr_and_shap": {
+      "ltr_scores": [
+        {
+          "skill": "python",
+          "score": 0.56
+        },
+        {
+          "skill": "sql",
+          "score": 0.42
+        },
+        {
+          "skill": "data science",
+          "score": 0.39
+        },
+        {
+          "skill": "nlp",
+          "score": 0.38
+        },
+        {
+          "skill": "big data",
+          "score": 0.38
+        },
+        {
+          "skill": "fastapi",
+          "score": 0.38
+        },
+        {
+          "skill": "docker",
+          "score": 0.38
+        },
+        {
+          "skill": "git",
+          "score": 0.38
+        },
+        {
+          "skill": "kubernetes",
+          "score": 0.37
+        },
+        {
+          "skill": "регрессия",
+          "score": 0.37
+        }
+      ],
+      "shap_values": {
+        "python": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0033,
+          "cosine_sim": -0.0083,
+          "in_student_profile": -0.0033,
+          "skill_freq_normalized": 0.0314,
+          "co_occurrence": -0.0004,
+          "category_avg_weight": 0.0056,
+          "student_skills_count": -0.0008
+        },
+        "sql": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0009,
+          "cosine_sim": -0.0012,
+          "in_student_profile": -0.0032,
+          "skill_freq_normalized": 0.0508,
+          "co_occurrence": 0.0009,
+          "category_avg_weight": 0.0049,
+          "student_skills_count": -0.0
+        },
+        "data science": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0029,
+          "cosine_sim": -0.0042,
+          "in_student_profile": -0.0032,
+          "skill_freq_normalized": 0.0273,
+          "co_occurrence": -0.0006,
+          "category_avg_weight": 0.0177,
+          "student_skills_count": -0.0
+        },
+        "nlp": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0011,
+          "cosine_sim": 0.0109,
+          "in_student_profile": -0.003,
+          "skill_freq_normalized": 0.0097,
+          "co_occurrence": 0.0001,
+          "category_avg_weight": 0.0107,
+          "student_skills_count": 0.001
+        },
+        "big data": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0032,
+          "cosine_sim": -0.0076,
+          "in_student_profile": -0.0035,
+          "skill_freq_normalized": 0.0487,
+          "co_occurrence": -0.0014,
+          "category_avg_weight": 0.0093,
+          "student_skills_count": -0.0001
+        },
+        "fastapi": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0024,
+          "cosine_sim": -0.0101,
+          "in_student_profile": -0.0032,
+          "skill_freq_normalized": 0.0465,
+          "co_occurrence": -0.0031,
+          "category_avg_weight": 0.008,
+          "student_skills_count": -0.0001
+        },
+        "docker": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.002,
+          "cosine_sim": -0.0082,
+          "in_student_profile": -0.0031,
+          "skill_freq_normalized": 0.0246,
+          "co_occurrence": -0.0005,
+          "category_avg_weight": 0.0058,
+          "student_skills_count": -0.0
+        },
+        "git": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0021,
+          "cosine_sim": -0.008,
+          "in_student_profile": -0.0032,
+          "skill_freq_normalized": 0.0476,
+          "co_occurrence": -0.0011,
+          "category_avg_weight": 0.0083,
+          "student_skills_count": -0.0001
+        },
+        "kubernetes": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.001,
+          "cosine_sim": -0.0031,
+          "in_student_profile": -0.0037,
+          "skill_freq_normalized": 0.0273,
+          "co_occurrence": -0.0028,
+          "category_avg_weight": 0.0162,
+          "student_skills_count": 0.0006
+        },
+        "регрессия": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0159,
+          "cosine_sim": -0.0242,
+          "in_student_profile": -0.0073,
+          "skill_freq_normalized": 0.1542,
+          "co_occurrence": -0.009,
+          "category_avg_weight": 0.011,
+          "student_skills_count": 0.0026
+        },
+        "scikit-learn": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0012,
+          "cosine_sim": -0.0052,
+          "in_student_profile": -0.003,
+          "skill_freq_normalized": 0.0418,
+          "co_occurrence": 0.0007,
+          "category_avg_weight": 0.0046,
+          "student_skills_count": -0.0001
+        },
+        "rag": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0006,
+          "cosine_sim": -0.0031,
+          "in_student_profile": -0.0032,
+          "skill_freq_normalized": 0.0492,
+          "co_occurrence": -0.0063,
+          "category_avg_weight": 0.0046,
+          "student_skills_count": -0.0002
+        },
+        "llm": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0038,
+          "cosine_sim": -0.0092,
+          "in_student_profile": -0.0027,
+          "skill_freq_normalized": -0.0012,
+          "co_occurrence": -0.0006,
+          "category_avg_weight": 0.008,
+          "student_skills_count": -0.0003
+        },
+        "классификация": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0032,
+          "cosine_sim": 0.0111,
+          "in_student_profile": -0.0026,
+          "skill_freq_normalized": 0.0022,
+          "co_occurrence": -0.0,
+          "category_avg_weight": 0.0084,
+          "student_skills_count": 0.0011
+        },
+        "градиентный бустинг": {
+          "level_encoded": 0.0,
+          "category_encoded": 0.0012,
+          "cosine_sim": -0.0057,
+          "in_student_profile": -0.0033,
+          "skill_freq_normalized": 0.057,
+          "co_occurrence": -0.002,
+          "category_avg_weight": 0.0075,
+          "student_skills_count": -0.0002
+        }
+      }
+    }
+  }
 }
