@@ -29,7 +29,7 @@ import src.api_pkg.deps as deps
 logger = structlog.get_logger("api")
 
 
-def _set_waiting_mode():
+async def _set_waiting_mode():
     deps.vacancy_load_error = "not_found"
     deps.skill_freq = {}
     deps.skill_weights = {}
@@ -44,28 +44,28 @@ def _set_waiting_mode():
     deps.student_profiles = {}
     for lvl in ExperienceLevel:
         deps.clusterer.load_model(lvl)
-    deps.is_ready = True
+    async with deps.init_lock:
+        deps.is_ready = True
 
 
 async def run_startup(app):
     config.settings.ensure_dirs()
-    """Загружает минимально необходимые данные, остальное — фоном."""
     logger.info("Запуск API-сервера, быстрая инициализация...")
 
     from src.db import create_pool as _create_apgpool
     await _create_apgpool()
     logger.info("asyncpg pool ready")
 
-    # 1. Загрузка вакансий
     detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
     raw_file = detailed_file if detailed_file.exists() else basic_file
 
-    deps.is_ready = False
+    async with deps.init_lock:
+        deps.is_ready = False
 
     if not raw_file.exists():
         logger.warning("Нет файлов вакансий — режим ожидания. Запустите pipeline для сбора данных.")
-        _set_waiting_mode()
+        await _set_waiting_mode()
         return
 
     try:
@@ -80,7 +80,7 @@ async def run_startup(app):
         deps.vacancy_load_error = None
     if not basic_vacancies:
         logger.warning("Нет данных в файле вакансий — режим ожидания")
-        _set_waiting_mode()
+        await _set_waiting_mode()
         return
 
     logger.info("Загружено вакансий", count=len(basic_vacancies))

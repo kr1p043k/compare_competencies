@@ -108,7 +108,7 @@ async def ready_check():
         "evaluator": deps.evaluator is not None,
         "recommendation_engine": deps.recommendation_engine is not None
         and deps.recommendation_engine.is_fitted,
-        "clusterer": deps.clusterer.is_fitted,
+        "clusterer": deps.clusterer.is_fitted if deps.clusterer else False,
         "trend_analyzer": deps.trend_analyzer is not None,
     }
     ready = all(components.values())

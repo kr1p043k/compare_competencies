@@ -202,7 +202,7 @@ async def _rotate_progress(task_id: str, step: int = 1):
                 t.message = msg
             else:
                 t.message = phases_map.get(t.step, phases_map[1])[i % len(phases_map.get(t.step, phases_map[1]))]
-                i += 1
+            i += 1
             logs = pp.get("logs", [])
             if logs:
                 t.logs = logs
