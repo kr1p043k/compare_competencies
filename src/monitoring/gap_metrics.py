@@ -116,7 +116,13 @@ class GapMetricsTracker:
     def record_profile_load(self, duration: float) -> None:
         """Записать время загрузки профиля."""
         profile_load_duration.labels(profile_type=self.profile_type).observe(duration)
-    
+
+    def record_analysis(self, profile_type: str, duration: float, success: bool, recommendations_count_val: int = 0) -> None:
+        """Record gap analysis metrics for pipeline_steps."""
+        gap_analysis_duration.labels(profile_type=profile_type).observe(duration)
+        if recommendations_count_val > 0:
+            recommendations_count.labels(profile_type=profile_type).observe(recommendations_count_val)
+
     def end(self, success: bool = True) -> Dict[str, Any]:
         """Завершить gap-анализ и записать метрики."""
         if self.start_time:

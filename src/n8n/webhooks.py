@@ -44,7 +44,7 @@ def _verify_n8n_secret(request: Request) -> bool:
     expected = config.N8N_WEBHOOK_SECRET
     if expected is None:
         logger.warning("n8n_webhook_secret_not_configured")
-        return True
+        return False
     return hmac.compare_digest(token, expected.get_secret_value())
 
 
