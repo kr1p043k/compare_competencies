@@ -35,7 +35,9 @@ class ProfileEvaluator:
         hybrid_weights: dict[str, float] | None = None,
         use_clustering: bool = True,
         skill_weights_by_level: dict[str, dict[str, float]] | None = None,
+        readiness_weights: dict[str, float] | None = None,
     ):
+        self.readiness_weights = readiness_weights
         self.hybrid_weights = hybrid_weights or {}
         self.vacancies_skills = vacancies_skills
         self.vacancies_skills_dict = vacancies_skills_dict
@@ -270,11 +272,15 @@ class ProfileEvaluator:
 
         market_coverage_score = 0.60 * skill_coverage + 0.40 * domain_coverage_score
 
+        rw = self.readiness_weights or {}
+        market_w = rw.get("market", config.READINESS_MARKET_WEIGHT)
+        skill_w = rw.get("skill", config.READINESS_SKILL_WEIGHT)
+        gap_penalty = rw.get("gap_penalty", config.READINESS_GAP_PENALTY_WEIGHT)
         market_div = total_market if total_market > 0 else 1
         readiness = (
-            config.READINESS_MARKET_WEIGHT * market_coverage_score
-            + config.READINESS_SKILL_WEIGHT * (strong_count / market_div * 100)
-            + config.READINESS_GAP_PENALTY_WEIGHT * (weak_count / market_div * 100)
+            market_w * market_coverage_score
+            + skill_w * (strong_count / market_div)
+            + gap_penalty * (weak_count / market_div)
         )
 
         total_gap = sum((m.gap_j + m.gap_m + m.gap_s) / 3 for m in metrics.values())
