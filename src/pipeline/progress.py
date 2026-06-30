@@ -14,55 +14,40 @@ MAX_LOGS = 200
 logger = structlog.get_logger("pipeline_progress")
 
 
+def _write(pct: int, message: str, logs: list[str] | None = None) -> None:
+    PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    data: dict = {"pct": pct, "message": message, "timestamp": time.time()}
+    existing_logs: list[str] = []
+    if PROGRESS_FILE.exists():
+        try:
+            with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+                prev = json.load(f)
+                existing_logs = prev.get("logs", [])
+        except Exception as e:
+            logger.warning("progress_file_read_failed", error=str(e))
+            existing_logs = []
+    ts = time.strftime("%H:%M:%S")
+    entry = f"[{ts}] {message}"
+    if logs is not None:
+        existing_logs = logs
+    else:
+        if not existing_logs or existing_logs[-1] != entry:
+            existing_logs.append(entry)
+    data["logs"] = existing_logs[-MAX_LOGS:]
+    with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+
+
 def write(pct: int, message: str, logs: list[str] | None = None):
     try:
-        PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        data: dict = {"pct": pct, "message": message, "timestamp": time.time()}
-        existing_logs: list[str] = []
-        if PROGRESS_FILE.exists():
-            try:
-                with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-                    prev = json.load(f)
-                    existing_logs = prev.get("logs", [])
-            except Exception as e:
-                logger.warning("progress_file_read_failed", error=str(e))
-                existing_logs = []
-        ts = time.strftime("%H:%M:%S")
-        entry = f"[{ts}] {message}"
-        if logs is not None:
-            existing_logs = logs
-        else:
-            if not existing_logs or existing_logs[-1] != entry:
-                existing_logs.append(entry)
-        data["logs"] = existing_logs[-MAX_LOGS:]
-        with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
+        _write(pct, message, logs)
     except Exception as e:
         logger.warning("progress_write_failed", error=str(e))
 
 
 def write_result(pct: int, message: str, logs: list[str] | None = None) -> Result[None, DomainError]:
     try:
-        PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        data: dict = {"pct": pct, "message": message, "timestamp": time.time()}
-        existing_logs: list[str] = []
-        if PROGRESS_FILE.exists():
-            try:
-                with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-                    prev = json.load(f)
-                    existing_logs = prev.get("logs", [])
-            except Exception:
-                existing_logs = []
-        ts = time.strftime("%H:%M:%S")
-        entry = f"[{ts}] {message}"
-        if logs is not None:
-            existing_logs = logs
-        else:
-            if not existing_logs or existing_logs[-1] != entry:
-                existing_logs.append(entry)
-        data["logs"] = existing_logs[-MAX_LOGS:]
-        with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
+        _write(pct, message, logs)
         return Ok(None)
     except Exception as e:
         return Err(DomainError(message="Progress write failed", detail=str(e)))

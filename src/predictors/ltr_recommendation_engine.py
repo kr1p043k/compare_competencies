@@ -169,12 +169,6 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 "freq_normalized": freq / max_freq if max_freq > 0 else 0.0,
             }
 
-        cat_buckets: dict[str, list[float]] = {}
-        for meta in self.skill_metadata.values():
-            cat = meta["category"]
-            cat_buckets.setdefault(cat, []).append(meta["hybrid_weight"])
-        self.category_avg_weight = {cat: float(np.mean(vals)) for cat, vals in cat_buckets.items()}
-
         logger.info("generating_training_samples")
         X_rows: list[dict] = []
         y_rows: list[float] = []
@@ -210,6 +204,28 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             X_tmp, y_tmp, test_size=0.5, random_state=config.GLOBAL_RANDOM_SEED
         )
 
+        # Compute category_avg_weight from training data only (prevent data leakage)
+        n_profiles = len(_SYNTHETIC_DOMAIN_PROFILES)
+        train_indices_set = set(X_train.index)
+        train_cat_buckets: dict[str, list[float]] = {}
+        for skill_idx, skill in enumerate(all_skills):
+            skill_start = skill_idx * n_profiles
+            skill_end = skill_start + n_profiles
+            if any(i in train_indices_set for i in range(skill_start, skill_end)):
+                meta = self.skill_metadata.get(skill, {})
+                cat = meta.get("category", "other")
+                train_cat_buckets.setdefault(cat, []).append(meta.get("hybrid_weight", 0.0))
+        self.category_avg_weight = {cat: float(np.mean(vals)) for cat, vals in train_cat_buckets.items()}
+
+        # Update category_avg_weight column in all splits with train-only values
+        cat_enc_to_avg = {1: self.category_avg_weight.get("soft_skills", 0.0),
+                          2: self.category_avg_weight.get("mobile", 0.0),
+                          3: self.category_avg_weight.get("databases", 0.0),
+                          4: self.category_avg_weight.get("frameworks", 0.0),
+                          5: self.category_avg_weight.get("programming_languages", 0.0)}
+        for df in [X_train, X_val, X_test]:
+            df["category_avg_weight"] = df["category_encoded"].map(lambda c: cat_enc_to_avg.get(c, 0.0))
+
         self.model = xgb.XGBRegressor(
             objective="reg:squarederror",
             n_estimators=300,
@@ -229,16 +245,16 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         r2 = r2_score(y_test, pred_test)
         mae = mean_absolute_error(y_test, pred_test)
         try:
-            ndcg = ndcg_score([y_test], [pred_test], k=10)
-        except Exception as e:
-            logger.warning("ndcg_computation_failed", error=str(e))
-            ndcg = float("nan")
+            from scipy.stats import spearmanr
+            spear, _ = spearmanr(y_test, pred_test)
+        except Exception:
+            spear = float("nan")
 
         logger.info(
             "ltr_training_completed",
             r2=round(r2, 4),
             mae=round(mae, 4),
-            ndcg_at_10=round(ndcg, 4) if not np.isnan(ndcg) else "n/a",
+            spearman_rho=round(spear, 4) if not np.isnan(spear) else "n/a",
             train_samples=len(X_train),
             val_samples=len(X_val),
             test_samples=len(X_test),
@@ -331,6 +347,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             "other": 1,
         }
 
+        cat_avg = self.category_avg_weight.get(category, 0.0) if self.category_avg_weight else 0.0
         return {
             "level_encoded": level_map.get(meta.get("level", "middle"), 2),
             "category_encoded": category_map.get(category, 1),
@@ -338,7 +355,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             "in_student_profile": 1.0 if skill in student_skills else 0.0,
             "skill_freq_normalized": meta.get("freq_normalized", 0.0),
             "co_occurrence": self._co_occurrence_score(skill, student_skills),
-            "category_avg_weight": self.category_avg_weight.get(category, 0.0),
+            "category_avg_weight": cat_avg,
             "student_skills_count": min(len(student_skills) / 50.0, 1.0),
         }
 
