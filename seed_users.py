@@ -7,7 +7,8 @@ import asyncpg
 
 
 async def main():
-    url = "postgresql://postgres:700009@localhost:5432/compare_competencies"
+    import os
+    url = os.environ.get("DATABASE_URL", "postgresql://postgres:@localhost:5432/compare_competencies")
     conn = await asyncpg.connect(url)
     try:
         users_file = Path(__file__).parent / "users.json"

@@ -282,16 +282,17 @@ def run_full_pipeline(args) -> Result[None, str]:
     console_header("ПОЛНЫЙ ПАЙПЛАЙН: СБОР ВАКАНСИЙ + GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ")
     logger.info("pipeline_started", mode="full_pipeline")
 
-    # Определить дату последнего сбора для инкрементального запуска
     try:
         from src.db import get_pool
-        import asyncio
         pool = get_pool()
-        row = asyncio.run(pool.fetchrow(
-            "SELECT MAX(completed_at) AS d FROM pipeline_runs "
-            "WHERE action = 'full-cycle' AND status = 'completed'"
-        ))
-        args._date_from = row["d"].strftime("%Y-%m-%d") if row and row["d"] else None
+        if pool is None:
+            args._date_from = None
+        else:
+            row = asyncio.run(pool.fetchrow(
+                "SELECT MAX(completed_at) AS d FROM pipeline_runs "
+                "WHERE action = 'full-cycle' AND status = 'completed'"
+            ))
+            args._date_from = row["d"].strftime("%Y-%m-%d") if row and row["d"] else None
     except Exception:
         args._date_from = None
 

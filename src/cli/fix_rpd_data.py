@@ -153,18 +153,20 @@ async def populate_ksa_entries(
                     })
                     count += 1
 
-    # Batch insert with explicit enum cast
+    import uuid
+    stmt = """
+        INSERT INTO ksa_entries (id, competency_id, ksa_type, original_text, cleaned_text, sort_order, parse_version_id, created_at)
+        VALUES (:id, :comp_id, :ksa_type::ksa_type, :text::text, NULL::text, :sort, :pv_id, NOW())
+    """
     for i in range(0, len(values), 500):
         batch = values[i:i + 500]
-        rows = []
-        for v in batch:
-            rows.append(
-                f"(gen_random_uuid(), '{v['comp_id']}'::uuid, '{v['ksa_type']}'::ksa_type, "
-                f"'{v['text'].replace(chr(39), chr(39)+chr(39))}'::text, NULL::text, "
-                f"{v['sort']}, '{v['pv_id']}'::uuid, NOW())"
-            )
-        sql = "INSERT INTO ksa_entries (id, competency_id, ksa_type, original_text, cleaned_text, sort_order, parse_version_id, created_at) VALUES " + ",".join(rows)
-        await session.execute(sa_text(sql))
+        params = [
+            {"id": str(uuid.uuid4()), "comp_id": v['comp_id'], "ksa_type": v['ksa_type'],
+             "text": v['text'], "sort": v['sort'], "pv_id": v['pv_id']}
+            for v in batch
+        ]
+        for p in params:
+            await session.execute(sa_text(stmt), p)
 
     await session.flush()
     print(f"  Inserted {count} KSA entries")
