@@ -38,7 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = (token: string, role: string, name: string) => {
-    const decoded = JSON.parse(atob(token.split(".")[0] + "===".slice(0, (4 - token.split(".")[0].length % 4) % 4)));
+    const payload = token.split(".")[1];
+    const decoded = JSON.parse(atob(payload + "===".slice(0, (4 - payload.length % 4) % 4)));
     const next = { token, role, name, username: decoded.u };
     persistState(next);
     setState(next);

@@ -82,6 +82,17 @@ const TECH_KEYWORDS = new Set([
 
 const RUSSIAN_STOPWORDS = /\b(и|в|на|по|с|для|от|за|из|у|о|об|про|без|до|при|не|или|а|но|да|же|ли|бы|если|чтобы|так|как|это|что|котор|таких|такой|такие|всех|все|всё|может|можно|навыки|опыт|знание|понимание|умение|работа|разработка|настройка|внедрение|поддержка|сопровождение|управление|взаимодействие|наличие|готовность|способность|участие|проведение|создание|использование|обеспечение|выполнение|формирование|организация|обучение|контроль|оценка|анализ|расчет|подготовка|применение|интеграция|автоматизация|оптимизация|проектирование|администрирование|конфигурирование|программирование|тестирование|отладка|документирование|коммуникабельность|системное|аналитическое|критическое|техническое|проактивность|ответственность|самостоятельность|ориентированность|стрессоустойчивость|исполнительность|дисциплинированность|пунктуальность|работоспособность|обучаемость|грамотность|аккуратность|внимательность|терпеливость|честность|порядочность|креативность|инициативность|целеустремленность|нацеленность|мотивация|интерес|желание|готов|уверенный|уверенное|хорошее|базовое|высшее|среднее|полное|неполное|специальное|профессиональное|образование|зарплата|доход|график|офис|удаленно|гибрид|командировки|оформление|тк|рф|сетью|точками|узлов|области|данными|системами|средой|платформой|архитектурой|пользователями|задачами|проектами|командами|процессами|требованиями|решениями|результатами|целями|сроками|стандартами|регламентами|инструментами|технологиями|методами|подходами|принципами|механизмами|алгоритмами|протоколами|форматами|типами)+/iu;
 
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/?[^>]+(>|$)/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
 function isValidSkill(s: string): boolean {
   const len = s.length;
   if (len < 2 || len > 40) return false;
@@ -285,13 +296,13 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
               {vacancy.snippet.requirement && (
                 <div className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
                   <span className="font-semibold text-slate-700 dark:text-slate-300">Требования:</span>{" "}
-                  <span dangerouslySetInnerHTML={{ __html: vacancy.snippet.requirement }} />
+                  <span>{sanitizeHtml(vacancy.snippet.requirement)}</span>
                 </div>
               )}
               {vacancy.snippet.responsibility && (
                 <div className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
                   <span className="font-semibold text-slate-700 dark:text-slate-300">Обязанности:</span>{" "}
-                  <span dangerouslySetInnerHTML={{ __html: vacancy.snippet.responsibility }} />
+                  <span>{sanitizeHtml(vacancy.snippet.responsibility)}</span>
                 </div>
               )}
             </div>
@@ -354,10 +365,9 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
                           Описание вакансии
                         </div>
                         <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                          <div
-                            className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed [&>p]:mb-2 [&_br]:mb-1 [&_b]:text-slate-900 dark:[&_b]:text-white [&_strong]:text-slate-900 dark:[&_strong]:text-white"
-                            dangerouslySetInnerHTML={{ __html: detail.description }}
-                          />
+                          <div className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                            {sanitizeHtml(detail.description)}
+                          </div>
                         </div>
                       </div>
                     )}

@@ -6,8 +6,8 @@ export async function api(endpoint: string, options?: RequestInit) {
   const res = await fetch(`${API_BASE}${endpoint}`, {
     headers: {
       "Content-Type": "application/json",
-      ...authHeaders(),
       ...(options?.headers as Record<string, string> | undefined),
+      ...authHeaders(),
     },
     ...options,
   });

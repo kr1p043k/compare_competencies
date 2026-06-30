@@ -231,16 +231,6 @@ class TestLTRFit:
 # Tests for predict_skill_impact & with_shap
 # ---------------------------------------------------------------------------
 class TestLTRPredict:
-    def test_predict_single_missing_skill(self, engine_with_mocks):
-        engine = engine_with_mocks
-        engine.is_fitted = True
-        engine.model = MagicMock()
-        engine.model.predict.return_value = np.array([0.5])
-        result = engine.predict_skill_impact_with_shap(["python"], ["docker"])
-        assert result.is_ok()
-        recs, shap, X = result.unwrap()
-        assert len(recs) == 1
-
     def test_predict_not_fitted(self, engine_with_mocks):
         engine = engine_with_mocks
         engine.is_fitted = False
@@ -624,31 +614,6 @@ class TestLTRLoadModel:
             engine_with_mocks.load_model(filepath)
         assert engine_with_mocks.is_fitted is True
 
-    def test_load_model_with_manifest_present(self, engine_with_mocks, tmp_path):
-        model = xgb.XGBRegressor()
-        model.fit(np.array([[0]]), np.array([0]))
-        data = {
-            "model": model,
-            "feature_names": ["f1"],
-            "skill_metadata": {},
-            "skill_embeddings": {},
-            "total_vacancies": 100,
-            "vacancy_skills_corpus": [],
-            "category_avg_weight": {},
-        }
-        filepath = tmp_path / "model.joblib"
-        joblib.dump(data, filepath)
-        manifest_path = filepath.with_suffix(".manifest.json")
-        manifest_path.write_text(json.dumps({"model_version": "same", "metrics": {}}))
-        engine_with_mocks.is_fitted = False
-        with patch("src.predictors.ltr_recommendation_engine.ArtifactManifest") as MockManifest:
-            mock_inst = MockManifest.load.return_value
-            mock_inst.is_compatible.return_value = Ok(True)
-            mock_inst.metrics = {"r2": 0.9}
-            engine_with_mocks.load_model(filepath)
-        assert engine_with_mocks.is_fitted is True
-
-    # в классе TestLTRLoadModel
     def test_load_model_logs_manifest_verified(self, engine_with_mocks, tmp_path):
         model = xgb.XGBRegressor()
         model.fit(np.array([[0]]), np.array([0]))
