@@ -346,15 +346,7 @@ async def _warmup_background(parser, basic_vacancies, hybrid_weights):
 
     # Prophet
     try:
-        import logging
-        # Suppress cmdstanpy: remove its handler and set level to WARNING
-        _cmdstan_logger = logging.getLogger("cmdstanpy")
-        _cmdstan_logger.setLevel(logging.WARNING)
-        for _h in _cmdstan_logger.handlers[:]:
-            _cmdstan_logger.removeHandler(_h)
-        logging.getLogger("prophet").setLevel(logging.WARNING)
-        logging.getLogger("cmdstanpy.cmdstan").setLevel(logging.WARNING)
-
+        from cmdstanpy.utils.logging import disable_logging
         from src.predictors.prophet_forecast import ProphetForecastEngine, load_time_series
         from src.database import async_session_factory
 

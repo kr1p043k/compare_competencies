@@ -18,14 +18,8 @@ from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
 
 try:
     from prophet import Prophet
-    import logging
-    # Suppress cmdstanpy: remove its handler and set level to WARNING
-    _cmdstan_logger = logging.getLogger("cmdstanpy")
-    _cmdstan_logger.setLevel(logging.WARNING)
-    for _h in _cmdstan_logger.handlers[:]:
-        _cmdstan_logger.removeHandler(_h)
-    logging.getLogger("prophet").setLevel(logging.WARNING)
-    logging.getLogger("cmdstanpy.cmdstan").setLevel(logging.WARNING)
+    from cmdstanpy.utils.logging import disable_logging as _disable_cmdstan
+    _disable_cmdstan().__enter__()
 except ImportError:
     Prophet = None  # type: ignore[assignment]
 
@@ -106,6 +100,7 @@ class ProphetForecastEngine(BasePredictor):
         return history
 
     def _fit_prophet_for_skill(self, skill: str, points: list[tuple[date, float]]):
+        from cmdstanpy.utils.logging import disable_logging
         df = pd.DataFrame({"ds": [p[0] for p in points], "y": [p[1] for p in points]})
         n_points = len(points)
         model = Prophet(
@@ -116,7 +111,8 @@ class ProphetForecastEngine(BasePredictor):
             interval_width=0.80,
             changepoint_prior_scale=0.5 if n_points < 12 else 0.05,
         )
-        model.fit(df)
+        with disable_logging():
+            model.fit(df)
         return model
 
     def fit(
