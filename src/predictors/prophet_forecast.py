@@ -19,7 +19,11 @@ from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
 try:
     from prophet import Prophet
     import logging
-    logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
+    # Suppress cmdstanpy: remove its handler and set level to WARNING
+    _cmdstan_logger = logging.getLogger("cmdstanpy")
+    _cmdstan_logger.setLevel(logging.WARNING)
+    for _h in _cmdstan_logger.handlers[:]:
+        _cmdstan_logger.removeHandler(_h)
     logging.getLogger("prophet").setLevel(logging.WARNING)
     logging.getLogger("cmdstanpy.cmdstan").setLevel(logging.WARNING)
 except ImportError:

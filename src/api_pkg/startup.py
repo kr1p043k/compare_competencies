@@ -347,7 +347,11 @@ async def _warmup_background(parser, basic_vacancies, hybrid_weights):
     # Prophet
     try:
         import logging
-        logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
+        # Suppress cmdstanpy: remove its handler and set level to WARNING
+        _cmdstan_logger = logging.getLogger("cmdstanpy")
+        _cmdstan_logger.setLevel(logging.WARNING)
+        for _h in _cmdstan_logger.handlers[:]:
+            _cmdstan_logger.removeHandler(_h)
         logging.getLogger("prophet").setLevel(logging.WARNING)
         logging.getLogger("cmdstanpy.cmdstan").setLevel(logging.WARNING)
 
