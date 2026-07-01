@@ -568,15 +568,6 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 pass
         return "other"
 
-    def _fallback_impacts(self, missing_skills: list[str]) -> list[tuple[str, float, str]]:
-        impacts = []
-        total = max(self.total_vacancies, 1)
-        for skill in missing_skills:
-            freq = self.skill_metadata.get(skill, {}).get("frequency", 0)
-            score = (freq / total) * 100
-            impacts.append((skill, round(score, 2), f"Встречается в {freq} вакансиях"))
-        return sorted(impacts, key=lambda x: x[1], reverse=True)[:10]
-
     def _generate_explanation(
         self,
         skill: str,

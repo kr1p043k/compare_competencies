@@ -54,7 +54,7 @@ async def get_or_create_parse_version(session: AsyncSession, direction_id: int) 
 
         pv = ParseVersion(
             direction_id=direction_id,
-            version=datetime.utcnow().strftime("%Y%m%d_%H%M%S"),
+            version=datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S"),
             opop_year=2025,
             notes="fix_rpd_data — clean KSA import",
         )

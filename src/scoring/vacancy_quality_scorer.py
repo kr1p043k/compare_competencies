@@ -143,7 +143,7 @@ NON_IT_VACANCY_PATTERNS = [
     r"^курьер\b",
     r"^грумер\b",
     r"^ветеринар\b",
-    r"^охраник\b",
+    r"^охранник\b",
 ]
 
 PROMO_KEYWORDS = [

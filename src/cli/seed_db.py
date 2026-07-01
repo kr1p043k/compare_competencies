@@ -105,7 +105,7 @@ async def seed_krm(session, skill_map: dict[str, str]) -> None:
 
     pv = ParseVersion(
         direction_id=direction.id,
-        version=datetime.utcnow().strftime("%Y%m%d_%H%M%S"),
+        version=datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S"),
         opop_year=2024,
         total_disciplines=len(disciplines_raw),
         notes="Seed from parsed RPD JSON",
