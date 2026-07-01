@@ -346,6 +346,11 @@ async def _warmup_background(parser, basic_vacancies, hybrid_weights):
 
     # Prophet
     try:
+        import logging
+        logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
+        logging.getLogger("prophet").setLevel(logging.WARNING)
+        logging.getLogger("cmdstanpy.cmdstan").setLevel(logging.WARNING)
+
         from src.predictors.prophet_forecast import ProphetForecastEngine, load_time_series
         from src.database import async_session_factory
 

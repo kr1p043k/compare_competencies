@@ -18,6 +18,10 @@ from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
 
 try:
     from prophet import Prophet
+    import logging
+    logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
+    logging.getLogger("prophet").setLevel(logging.WARNING)
+    logging.getLogger("cmdstanpy.cmdstan").setLevel(logging.WARNING)
 except ImportError:
     Prophet = None  # type: ignore[assignment]
 

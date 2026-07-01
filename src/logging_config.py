@@ -89,3 +89,6 @@ def setup_structlog(console_level: int = None):
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
     logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
+    logging.getLogger("cmdstanpy.cmdstan").setLevel(logging.WARNING)
+    logging.getLogger("prophet").setLevel(logging.WARNING)
+    logging.getLogger("pystan").setLevel(logging.WARNING)
