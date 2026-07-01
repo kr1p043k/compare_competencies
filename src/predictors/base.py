@@ -27,7 +27,7 @@ class RankingPredictor(BasePredictor[T_fit, T_pred]):
     @abstractmethod
     def predict_impact(
         self, student_skills: list[str], missing_skills: list[str]
-    ) -> T_pred:
+    ) -> Result[T_pred, Exception]:
         ...
 
 

@@ -38,7 +38,6 @@ def parse_arguments():
     parser.add_argument("--queries-file", "-qf", type=str)
     parser.add_argument("--regions", "-r", type=str)
     parser.add_argument("--industry", "-i", type=int)
-    parser.add_argument("--interactive", action="store_true")
     parser.add_argument("--max-vacancies-per-query", type=int, default=2000)
     parser.add_argument("--it-sector", action="store_true")
     parser.add_argument("--use-async", action="store_true", default=True)
@@ -62,7 +61,10 @@ def parse_arguments():
     args = parser.parse_args()
     if args.query and args.query.startswith("b64:"):
         import base64
-        args.query = base64.b64decode(args.query[4:]).decode("utf-8")
+        try:
+            args.query = base64.b64decode(args.query[4:]).decode("utf-8")
+        except Exception:
+            pass
     return args
 
 

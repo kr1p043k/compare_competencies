@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 import structlog
@@ -84,4 +85,4 @@ class GapAnalysisResult:
 class TeacherAnalysisReport:
     direction: DirectionSummary
     discipline_reports: list[tuple[str, GapAnalysisResult]] = field(default_factory=list)
-    generated_at: str = ""
+    generated_at: datetime = field(default_factory=datetime.now)

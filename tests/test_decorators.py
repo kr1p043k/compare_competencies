@@ -18,6 +18,8 @@ class TestTimed:
         assert args[0] == "timed"
         assert "function" in mock_log.call_args.kwargs
         assert mock_log.call_args.kwargs["function"] == "test_fn"
+        assert "elapsed_sec" in mock_log.call_args.kwargs
+        assert isinstance(mock_log.call_args.kwargs["elapsed_sec"], float)
 
     def test_timed_auto_name(self):
         @timed()
