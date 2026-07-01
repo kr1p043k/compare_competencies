@@ -285,14 +285,14 @@ def run_full_pipeline(args) -> Result[None, str]:
     try:
         from src.db import get_pool
         pool = get_pool()
-        if pool is None:
-            args._date_from = None
-        else:
+        if pool is not None:
             row = asyncio.run(pool.fetchrow(
                 "SELECT MAX(completed_at) AS d FROM pipeline_runs "
                 "WHERE action = 'full-cycle' AND status = 'completed'"
             ))
             args._date_from = row["d"].strftime("%Y-%m-%d") if row and row["d"] else None
+        else:
+            args._date_from = None
     except Exception:
         args._date_from = None
 

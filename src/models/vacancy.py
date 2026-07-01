@@ -84,9 +84,9 @@ class Salary:
 
     def get_midpoint(self) -> int | None:
         """Возвращает среднее значение зарплаты"""
-        if self.from_amount and self.to_amount:
+        if self.from_amount is not None and self.to_amount is not None:
             return (self.from_amount + self.to_amount) // 2
-        return self.from_amount or self.to_amount
+        return self.from_amount if self.from_amount is not None else self.to_amount
 
     def __repr__(self):
         if self.from_amount and self.to_amount:
