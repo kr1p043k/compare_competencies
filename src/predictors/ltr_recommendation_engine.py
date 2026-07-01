@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -137,12 +138,24 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
 
         logger.info("ltr_training_started", vacancies=len(vacancies))
 
-        match self.vacancy_parser.extract_skills_from_vacancies(vacancies):
-            case Ok(result):
-                frequencies = result["frequencies"]
-                hybrid_weights = result.get("hybrid_weights", {})
-            case Err(e):
-                return Err(ModelTrainingError(message=str(e), detail="extract_skills_from_vacancies"))
+        # Read frequencies from cached extracted_skills (fuzzy already applied)
+        frequencies: dict[str, int] = {}
+        for v in vacancies:
+            skills = v.get("extracted_skills", []) or v.get("parsed_skills", [])
+            for s in skills:
+                if isinstance(s, str):
+                    frequencies[s] = frequencies.get(s, 0) + 1
+
+        # Load hybrid_weights from pipeline output
+        hybrid_weights: dict[str, float] = {}
+        weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
+        if weights_path.exists():
+            try:
+                hybrid_weights = json.loads(weights_path.read_bytes())
+            except Exception:
+                logger.warning("hybrid_weights_load_failed")
+        if not hybrid_weights:
+            hybrid_weights = {s: f / max(frequencies.values(), 1) for s, f in frequencies.items()}
 
         processed_vacancies = self._prepare_vacancies_for_levels(vacancies)
         self.level_analyzer.analyze_vacancies(processed_vacancies)
