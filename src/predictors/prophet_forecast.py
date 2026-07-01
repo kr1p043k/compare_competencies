@@ -31,7 +31,11 @@ class Snapshot:
 
 
 async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], DomainError]:
-    """Build monthly skill-frequency snapshots from vacancies.parsed_skills."""
+    """Build monthly skill-frequency snapshots using running total (rolling window).
+
+    Each month's value = total unique vacancies with this skill from start up to
+    the end of that month. This prevents incomplete-month dips from skewing trends.
+    """
     rows = await session.execute(text("""
         SELECT
             date_trunc('month', v.published_at::timestamp)::date AS month,
@@ -51,7 +55,15 @@ async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], Doma
         monthly.setdefault(m, Counter())[row.skill] += row.freq
     if not monthly:
         return Err(DomainError("No vacancies with parsed_skills in database"))
-    return Ok([Snapshot(m, dict(f)) for m, f in sorted(monthly.items())])
+
+    # Convert to running total: each snapshot includes all prior months
+    running: dict[str, float] = {}
+    snapshots: list[Snapshot] = []
+    for m in sorted(monthly):
+        for skill, freq in monthly[m].items():
+            running[skill] = running.get(skill, 0.0) + freq
+        snapshots.append(Snapshot(m, dict(running)))
+    return Ok(snapshots)
 
 
 class ProphetForecastEngine(BasePredictor):

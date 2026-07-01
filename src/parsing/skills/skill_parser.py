@@ -165,7 +165,17 @@ class SkillParser:
 
             self.stats.total_extracted += len(skills)
 
-            return Ok(skills)
+            # Normalize cyrillic homoglyphs (с→c, а→a, о→o, р→p, х→x, е→e, у→y) and deduplicate
+            _HOMOGLYPH_MAP = str.maketrans("саорехуеСАОРЕХУЕ", "caopexyeCAOPEXYE")
+            seen: set[str] = set()
+            deduped = []
+            for s in skills:
+                norm = s.text.translate(_HOMOGLYPH_MAP)
+                if norm not in seen:
+                    seen.add(norm)
+                    s.text = norm
+                    deduped.append(s)
+            return Ok(deduped)
         except Exception as e:
             logger.exception("parse_vacancy_failed", vacancy_id=vacancy.id)
             return Err(DomainError(message=f"Failed to parse vacancy {vacancy.id}", detail=str(e)))
