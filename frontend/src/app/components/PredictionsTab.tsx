@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   TrendingUp, TrendingDown, BarChart3, Sparkles,
-  ChevronDown, ChevronUp, AlertCircle,
+  ChevronDown, ChevronUp, AlertCircle, CalendarDays,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 
 interface ForecastItem {
@@ -33,6 +34,7 @@ export function PredictionsTab() {
   const [vacanciesCount, setVacanciesCount] = useState<number>(0);
   const [dataFrom, setDataFrom] = useState<string | null>(null);
   const [dataTo, setDataTo] = useState<string | null>(null);
+  const [months, setMonths] = useState(12);
 
   useEffect(() => {
     loadForecasts("growing");
@@ -42,7 +44,7 @@ export function PredictionsTab() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/forecast/top?n=25&direction=${direction}`);
+      const res = await fetch(`/api/forecast/top?n=25&months=${months}&direction=${direction}`);
       if (!res.ok) throw new Error("Failed to load forecasts");
       const data = await res.json();
       setForecasts(data.forecasts || []);
@@ -75,18 +77,33 @@ export function PredictionsTab() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="growing" className="space-y-4">
-          <Card className="border border-gray-200 shadow-sm">
-            <CardHeader className="border-b border-gray-200 bg-gray-50">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-10 h-10 bg-green-600 rounded-lg">
-                  <TrendingUp className="size-5 text-white" />
+          <TabsContent value="growing" className="space-y-4">
+            <Card className="border border-gray-200 shadow-sm">
+              <CardHeader className="border-b border-gray-200 bg-gray-50">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 bg-green-600 rounded-lg">
+                    <TrendingUp className="size-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl font-semibold text-gray-900">Топ растущих навыков</CardTitle>
+                    <CardDescription>Прогноз популярности · {vacanciesCount ? `${vacanciesCount} вакансий` : "—"} · {dataFrom && dataTo ? `${dataFrom}–${dataTo}` : "—"}</CardDescription>
+                  </div>
+                  <div className="ml-auto flex items-center gap-2">
+                    <CalendarDays className="size-4 text-gray-400" />
+                    <Select value={String(months)} onValueChange={(v) => { setMonths(Number(v)); loadForecasts(activeTab); }}>
+                      <SelectTrigger className="w-28 h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 месяц</SelectItem>
+                        <SelectItem value="3">3 месяца</SelectItem>
+                        <SelectItem value="6">6 месяцев</SelectItem>
+                        <SelectItem value="12">12 месяцев</SelectItem>
+                        <SelectItem value="24">24 месяца</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle className="text-xl font-semibold text-gray-900">Топ растущих навыков</CardTitle>
-                  <CardDescription>Прогноз популярности на 12 месяцев (Prophet + ETS) · {vacanciesCount ? `${vacanciesCount} вакансий` : "—"} · {dataFrom && dataTo ? `${dataFrom}–${dataTo}` : "—"}</CardDescription>
-                </div>
-              </div>
             </CardHeader>
             <CardContent className="p-6">
               {loading ? (
@@ -116,6 +133,21 @@ export function PredictionsTab() {
                 <div>
                   <CardTitle className="text-xl font-semibold text-gray-900">Падающие навыки</CardTitle>
                   <CardDescription>Навыки с отрицательным прогнозом роста · {vacanciesCount ? `${vacanciesCount} вакансий` : "—"} · {dataFrom && dataTo ? `${dataFrom}–${dataTo}` : "—"}</CardDescription>
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <CalendarDays className="size-4 text-gray-400" />
+                  <Select value={String(months)} onValueChange={(v) => { setMonths(Number(v)); loadForecasts(activeTab); }}>
+                    <SelectTrigger className="w-28 h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 месяц</SelectItem>
+                      <SelectItem value="3">3 месяца</SelectItem>
+                      <SelectItem value="6">6 месяцев</SelectItem>
+                      <SelectItem value="12">12 месяцев</SelectItem>
+                      <SelectItem value="24">24 месяца</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CardHeader>
