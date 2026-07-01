@@ -313,6 +313,29 @@ async def run_teacher_analysis(
         ))
     logger.info("disciplines_loaded", count=len(disciplines))
 
+    # — load raw KSA descriptions from JSON (source of truth for requirements) —
+    raw_ksa: dict[str, dict[str, dict[str, list[str]]]] = {}  # {disc: {comp: {type: [texts]}}}
+    try:
+        krm_json_path = config.KRM_DISCIPLINES_PATH
+        if krm_json_path.exists():
+            krm_data = json.loads(krm_json_path.read_text(encoding="utf-8"))
+            raw_ksa = krm_data.get(direction_code, {}).get("disciplines", {})
+            logger.info("raw_ksa_loaded", disciplines=len(raw_ksa))
+    except Exception as exc:
+        logger.warning("raw_ksa_load_failed", error=str(exc))
+
+    # — merge raw KSA into disciplines (separate from skills) —
+    for dname, disc_data in disciplines.items():
+        disc_data["ksa"] = {}  # {comp_code: [raw KSA texts]}
+        krm_disc = raw_ksa.get(dname, {})
+        ksa_data = krm_disc.get("ksa", {})
+        for comp_code in disc_data["competencies"]:
+            ksa_texts = []
+            for kt in ("knowledge", "abilities", "skills"):
+                ksa_texts.extend(ksa_data.get(comp_code, {}).get(kt, []))
+            if ksa_texts:
+                disc_data["ksa"][comp_code] = ksa_texts
+
     # — load direction meta —
     try:
         if direction_code:
@@ -436,6 +459,36 @@ async def run_teacher_analysis(
             return None
         coverage = cov_result.unwrap()
 
+        # — KSA context analysis: check which market skills are mentioned in raw KSA —
+        ksa_context: dict[str, dict] = {}  # {comp_code: {mentioned: [...], missing: [...]}}
+        # Pre-build a set of long market skills for fast substring search
+        long_market_skills = {s for s in market_skills if len(s) >= 3}
+        for comp_code, ksa_texts in disc_data.get("ksa", {}).items():
+            mentioned = set()
+            for text in ksa_texts:
+                tl = text.lower()
+                for skill_name in long_market_skills:
+                    if skill_name in tl:
+                        mentioned.add(skill_name)
+            # Skills in KSA but not in market
+            ksa_only = mentioned - set(market_skills.keys())
+            # Skills in market but not mentioned in any KSA for this competency
+            market_only = set()
+            for skill_name in long_market_skills:
+                if skill_name not in mentioned:
+                    # Check if this skill IS covered by competency_skills matching
+                    for s in disc_data["competencies"].get(comp_code, []):
+                        if skill_name in s.lower():
+                            break
+                    else:
+                        market_only.add(skill_name)
+            ksa_context[comp_code] = {
+                "mentioned_in_ksa": sorted(mentioned)[:20],
+                "ksa_not_on_market": sorted(ksa_only)[:10],
+                "market_not_in_ksa": sorted(list(market_only))[:10],
+                "total_ksa_items": len(ksa_texts),
+            }
+
         recs_result = rec_engine.generate(coverage)
         recs = recs_result.unwrap_or([])
 
@@ -449,6 +502,22 @@ async def run_teacher_analysis(
                 r.message += " (низкая релевантность дисциплине)"
             filtered.append(r)
         recs = filtered
+
+        # — KSA-based recommendations: skills in KSA but not on market, and vice versa —
+        from src.models.teacher_analysis import Recommendation
+        for comp_code, ctx in ksa_context.items():
+            for skill in ctx.get("ksa_not_on_market", []):
+                recs.append(Recommendation(
+                    type="ksa_context", priority="medium",
+                    skill_name=skill,
+                    message=f"Навык «{skill}» упомянут в KSA компетенции {comp_code}, но не обнаружен на рынке. Рекомендуется проверить актуальность.",
+                ))
+            for skill in ctx.get("market_not_in_ksa", [])[:3]:
+                recs.append(Recommendation(
+                    type="ksa_context", priority="medium",
+                    skill_name=skill,
+                    message=f"Рыночный навык «{skill}» не упомянут в KSA компетенции {comp_code}. Рассмотрите возможность углубления.",
+                ))
 
         with _discipline_lock:
             for g in coverage.gaps_list:
@@ -487,7 +556,8 @@ async def run_teacher_analysis(
             },
             "competencies": [
                 {"code": cc.code, "total_skills": cc.total_skills,
-                 "matched_skills": cc.matched_skills, "coverage": cc.coverage}
+                 "matched_skills": cc.matched_skills, "coverage": cc.coverage,
+                 "ksa_context": ksa_context.get(cc.code, {})}
                 for cc in coverage.competencies
             ],
             "recommendations": [

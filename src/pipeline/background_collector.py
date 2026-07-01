@@ -108,6 +108,31 @@ async def _try_collect():
     except Exception as exc:
         logger.warning("collect_json_save_failed", error=str(exc))
 
+    # Enrich with full details (description) from HH API
+    logger.info("collect_enrich_details", count=len(all_vacancies))
+    for v in all_vacancies:
+        vid = v.get("id")
+        if not vid:
+            continue
+        if v.get("description"):
+            continue
+        try:
+            match await asyncio.to_thread(api.get_vacancy_details, str(vid)):
+                case Ok(details):
+                    if details.get("description"):
+                        v["description"] = details["description"]
+                    if details.get("snippet"):
+                        existing_snippet = v.get("snippet", {}) or {}
+                        det_snippet = details.get("snippet", {}) or {}
+                        v["snippet"] = {
+                            "requirement": existing_snippet.get("requirement") or det_snippet.get("requirement", ""),
+                            "responsibility": existing_snippet.get("responsibility") or det_snippet.get("responsibility", ""),
+                        }
+                case _:
+                    pass
+        except Exception as exc:
+            logger.debug("collect_detail_failed", id=vid, error=str(exc))
+
     # Parse skills BEFORE converting IDs (Vacancy.from_api expects str id)
     parsed_count = 0
     skip_count = 0
