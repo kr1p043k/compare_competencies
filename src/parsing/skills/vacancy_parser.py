@@ -64,7 +64,15 @@ class VacancyParser:
                         skill_texts = [s.text for s in extracted if s.text]
                     case Err(_):
                         skill_texts = []
-                normalized_r = SkillNormalizer.normalize_batch(skill_texts)
+                # Validate before normalization
+                valid_texts = []
+                for text in skill_texts:
+                    match self.skill_validator.validate(text):
+                        case Ok(result) if result.is_valid:
+                            valid_texts.append(text)
+                        case _:
+                            pass
+                normalized_r = SkillNormalizer.normalize_batch(valid_texts)
                 normalized = normalized_r.unwrap() if normalized_r.is_ok() else []
                 unique = list(dict.fromkeys([s for s in normalized if s]))
                 for skill in unique:
@@ -115,6 +123,17 @@ class VacancyParser:
             return Err(DomainError(message=str(e), detail="extract_from_detailed"))
 
     # --------------------- утилиты сохранения и вывода -------------------------
+    def _validate_skills(self, skill_freq: dict[str, float]) -> dict[str, float]:
+        """Validate skills using SkillValidator, remove invalid entries."""
+        validated = {}
+        for skill, freq in skill_freq.items():
+            match self.skill_validator.validate(skill):
+                case Ok(result) if result.is_valid:
+                    validated[skill] = freq
+                case _:
+                    pass
+        return validated
+
     def save_raw_vacancies(self, vacancies, filename="hh_vacancies.json") -> Result[None, DomainError]:
         try:
             filepath = config.DATA_RAW_DIR / filename

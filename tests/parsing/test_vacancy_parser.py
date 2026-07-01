@@ -49,11 +49,7 @@ class TestExtractSkillsFromVacancies:
             ExtractedSkill("python", SkillSource.KEY_SKILLS, 1.0),
             ExtractedSkill("sql", SkillSource.DESCRIPTION, 0.9),
         ])
-        parser_with_mocks.skill_validator.validate_batch.return_value = (
-            ["python", "sql"], [MagicMock(is_valid=True)] * 2
-        )
-        # Для одиночной валидации тоже замокаем
-        parser_with_mocks.skill_validator.validate.return_value = MagicMock(is_valid=True)
+        parser_with_mocks.skill_validator.validate.return_value = Ok(MagicMock(is_valid=True))
         parser_with_mocks.hybrid_calc.calculate.return_value = Ok({"python": 0.8, "sql": 0.6})
         parser_with_mocks.embedding_cache.get_embeddings.return_value = {
             "python": np.array([0.1, 0.2]),
@@ -81,7 +77,7 @@ class TestExtractSkillsFromVacancies:
         parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([])
         # Готовим список навыков
         all_skills = [f"skill_{i}" for i in range(250)]
-        parser_with_mocks.skill_validator.validate.return_value = MagicMock(is_valid=True)
+        parser_with_mocks.skill_validator.validate.return_value = Ok(MagicMock(is_valid=True))
         # Создаём одну вакансию, чтобы запустить подсчёт
         area = Area(1, "MSK")
         employer = Employer("1", "Corp")
@@ -196,7 +192,7 @@ def test_extract_skills_thread_pool_activated(parser_with_mocks, monkeypatch):
     parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([
         ExtractedSkill(f"skill_{i}", SkillSource.KEY_SKILLS, 1.0) for i in range(250)
     ])
-    parser_with_mocks.skill_validator.validate.return_value = MagicMock(is_valid=True)
+    parser_with_mocks.skill_validator.validate.return_value = Ok(MagicMock(is_valid=True))
     parser_with_mocks.hybrid_calc.calculate.return_value = Ok({})
     parser_with_mocks.embedding_cache.get_embeddings.return_value = {}
     area = Area(1, "MSK")
