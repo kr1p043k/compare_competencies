@@ -18,10 +18,12 @@ from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
 
 try:
     from prophet import Prophet
-    import logging
-    logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
 except ImportError:
     Prophet = None  # type: ignore[assignment]
+
+import logging as _logging
+_logging.getLogger("cmdstanpy").setLevel(_logging.WARNING)
+_logging.getLogger("prophet").setLevel(_logging.WARNING)
 
 logger = structlog.get_logger(__name__)
 
