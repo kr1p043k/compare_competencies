@@ -5,6 +5,7 @@ on historical skill frequency data from trend_snapshots.
 """
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 from dataclasses import dataclass
 from typing import Any
@@ -64,7 +65,6 @@ class SkillForecastEngine(BasePredictor):
         """
         history_dir = config.HISTORY_DIR
         snapshots: list[tuple[date, dict]] = []
-        import json
 
         for f in sorted(history_dir.glob("freq_market_*.json")):
             try:
@@ -131,6 +131,9 @@ class SkillForecastEngine(BasePredictor):
         return Ok(self)
 
     def predict(self, skill: str, months: int = 12) -> Result[ForecastResult, DomainError]:
+        if months < 1 or months > 60:
+            return Err(DomainError(f"months must be 1-60, got {months}"))
+
         model = self._models.get(skill)
         if model is None:
             return Err(DomainError(f"Skill '{skill}' not found"))
@@ -148,11 +151,8 @@ class SkillForecastEngine(BasePredictor):
                 engine_used="trend_flat",
             ))
 
-        # Predict 12 months ahead (365 days)
-        days_ahead = 365
-        predicted = model["intercept"] + model["slope"] * (
-            (datetime.now().toordinal() + days_ahead - datetime.now().toordinal())
-        )
+        days_ahead = months * 30
+        predicted = model["intercept"] + model["slope"] * days_ahead
         predicted = max(predicted, 0.0)
 
         growth = (predicted - last_freq) / max(last_freq, 1.0)

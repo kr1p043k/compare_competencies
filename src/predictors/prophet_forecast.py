@@ -68,7 +68,7 @@ async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], Doma
 
 class ProphetForecastEngine(BasePredictor):
     """Forecast engine using Prophet for skills with >= 3 history points and
-    actual frequency >= MIN_FREQ, falling back to GeneticForecastSkill."""
+    actual frequency >= MIN_FREQ, falling back to SkillForecastEngine."""
 
     MIN_FREQ = 10
     MAX_GROWTH_CAP = 20.0
@@ -155,6 +155,9 @@ class ProphetForecastEngine(BasePredictor):
         return Ok(self)
 
     def predict(self, skill: str, months: int = 12) -> Result[ForecastResult, DomainError]:
+        if months < 1 or months > 60:
+            return Err(DomainError(f"months must be 1-60, got {months}"))
+
         if skill in self._models:
             model = self._models[skill]
             future = model.make_future_dataframe(periods=months, freq="ME")
@@ -184,7 +187,15 @@ class ProphetForecastEngine(BasePredictor):
         if self._fallback_engine:
             result = self._fallback_engine.forecast(skill, months)
             if result.is_ok():
-                result.ok().engine_used = "genetic_fallback"
+                fr = result.unwrap()
+                return Ok(ForecastResult(
+                    skill=fr.skill,
+                    current_frequency=fr.current_frequency,
+                    predicted_growth=fr.predicted_growth,
+                    confidence=fr.confidence,
+                    next_year_frequency=fr.next_year_frequency,
+                    engine_used="fallback",
+                ))
             return result
         return Err(DomainError(f"Skill '{skill}' not found"))
 
