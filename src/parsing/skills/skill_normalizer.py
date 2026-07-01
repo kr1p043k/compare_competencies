@@ -282,6 +282,18 @@ class SkillNormalizer:
             logger.info("whitelist_loaded_and_extended", count=len(cls._whitelist))
         return cls._whitelist
 
+    JOB_TITLE_PATTERNS = [
+        r"^(project|product|delivery|program|engineering|engineering) manager",
+        r"^(tech|team|scrum|product|engineering|development) lead",
+        r"^(senior|junior|middle|lead|principal|chief|head of).*(engineer|developer|manager|architect)$",
+        r"engineer$",
+        r"(developer|manager)$",
+        r"специалист",
+        r"руководитель",
+        r"инженер$",
+        r"^(team|project|product|delivery|program) ",
+    ]
+
     @staticmethod
     @cache
     def normalize(skill: str) -> Result[str, DomainError]:
@@ -297,6 +309,10 @@ class SkillNormalizer:
             # Mixed Cyrillic+Latin in same word = evasion technique
             if re.search(r'[a-z][а-яё]|[а-яё][a-z]', original):
                 return Ok("")
+            # Compound tech stack: 4+ space-separated short alnum words
+            words = text.split()
+            if len(words) >= 4 and all(len(w) <= 12 for w in words) and all(w.isalnum() for w in words):
+                return Ok("")
 
             for pattern in SkillNormalizer.VERSION_PATTERNS:
                 text = re.sub(pattern, "", text)
@@ -308,6 +324,12 @@ class SkillNormalizer:
             text = re.sub(r"\s+", " ", text).strip()
 
             text = SkillNormalizer._apply_synonym_map(text)
+
+            # Reject job titles
+            for pat in SkillNormalizer.JOB_TITLE_PATTERNS:
+                if re.search(pat, text):
+                    logger.debug("job_title_rejected", original=original)
+                    return Ok("")
 
             text = re.sub(r"[^\w\s\+\#\-\.]", "", text)
             text = re.sub(r"\s+", " ", text).strip()
@@ -323,10 +345,18 @@ class SkillNormalizer:
                 if input_tokens & set(w.split())
             ]
 
-            matches = process.extract(text, candidates or whitelist, scorer=fuzz.WRatio,
+            if not candidates:
+                logger.debug("no_fuzzy_candidates", original=original, normalized=text)
+                return Ok(text)
+
+            matches = process.extract(text, candidates, scorer=fuzz.WRatio,
                                       limit=SkillNormalizer.MAX_FUZZY_CANDIDATES)
             if matches and matches[0][1] >= SkillNormalizer.FUZZY_THRESHOLD:
                 best = matches[0][0]
+                # Reject fuzzy match if candidate is too short (< 3 chars) unless input is also short
+                if len(best) < 3 and len(text) >= 3:
+                    logger.debug("fuzzy_skipped_short_candidate", original=original, candidate=best, score=matches[0][1])
+                    return Ok(text)
                 logger.debug("fuzzy_match", original=original, matched=best, score=matches[0][1])
                 return Ok(best)
 
