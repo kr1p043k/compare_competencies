@@ -279,6 +279,13 @@ class SkillNormalizer:
             original = skill.strip()
             text = original.lower()
 
+            # Early rejection of junk text
+            if len(original) > 40:
+                return Ok("")
+            # Mixed Cyrillic+Latin in same word = evasion technique
+            if re.search(r'[a-z][а-яё]|[а-яё][a-z]', original):
+                return Ok("")
+
             for pattern in SkillNormalizer.VERSION_PATTERNS:
                 text = re.sub(pattern, "", text)
             for pattern in SkillNormalizer.PREFIX_REMOVALS:
