@@ -117,6 +117,34 @@ async def _try_collect():
     from src.pipeline.db_writer import save_vacancies_batch
     await save_vacancies_batch(all_vacancies)
 
+    # Parse skills for newly collected vacancies
+    try:
+        from src.parsing.skills.skill_parser import SkillParser
+        from src.models.vacancy import Vacancy as VacModel
+        sp = SkillParser()
+        conn = await asyncpg.connect(db_url)
+        try:
+            for v in all_vacancies:
+                hh_id = int(v["id"]) if isinstance(v.get("id"), (int, str)) else None
+                if not hh_id:
+                    continue
+                vac_obj = VacModel.from_api(v)
+                match sp.parse_vacancy(vac_obj):
+                    case Ok(extracted):
+                        texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                        if texts:
+                            await conn.execute(
+                                "UPDATE vacancies SET parsed_skills = $1::jsonb WHERE hh_id = $2",
+                                texts, hh_id,
+                            )
+                    case _:
+                        pass
+        finally:
+            await conn.close()
+        logger.info("collect_parse_done", parsed=len(all_vacancies))
+    except Exception as exc:
+        logger.warning("collect_parse_failed", error=str(exc))
+
     try:
         conn = await asyncpg.connect(db_url)
         try:
