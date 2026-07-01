@@ -210,7 +210,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             ltr_scores: dict[str, float] = {}
             if self.ltr_engine and self.ltr_engine.is_fitted:
                 all_market = list(self.ltr_engine.skill_metadata.keys())
-                missing_for_ltr = [s for s in all_market if s not in student_set]
+                missing_for_ltr = [s for s in all_market if s.lower() not in student_set]
                 match self.ltr_engine.predict_impact(student.skills, missing_for_ltr):
                     case Ok(ltr_impacts):
                         if ltr_impacts:
@@ -283,9 +283,10 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
 
             for skill in list(combined_scores.keys()):
                 bonus = 1.0
-                if skill in trend_bonuses:
-                    bonus += trend_bonuses[skill]
-                if skill.lower() in domain_skills:
+                skill_lower = skill.lower()
+                if skill_lower in trend_bonuses:
+                    bonus += trend_bonuses[skill_lower]
+                if skill_lower in domain_skills:
                     bonus += config.DOMAIN_BONUS
                 if role_similarity > 0.3 and skill.lower() in role_skills:
                     bonus += role_similarity * 0.2
@@ -333,8 +334,8 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 metric = skill_metrics.get(skill, {})
                 try:
                     explanation = self._generate_explanation(skill, score, eval_result)
-                    if skill in trend_bonuses:
-                        explanation += f" 📈 Растущий тренд (+{trend_bonuses[skill] * 100:.0f}%)."
+                    if skill.lower() in trend_bonuses:
+                        explanation += f" 📈 Растущий тренд (+{trend_bonuses[skill.lower()] * 100:.0f}%)."
                     if skill.lower() in domain_skills:
                         explanation += f" 🔗 Ключевой навык для домена «{dominant_domain}»."
                     is_soft = not self._is_hard_skill(skill)

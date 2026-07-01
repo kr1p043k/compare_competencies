@@ -4,7 +4,7 @@
 
 import structlog
 
-from src import Result, Ok, Err
+from src import config, Result, Ok, Err
 from src.errors import DomainError
 from src.models.enums import ExperienceLevel
 from src.models.market_metrics import SkillMetrics
@@ -43,6 +43,17 @@ class GapAnalyzer:
                 demand = market_weight
                 setattr(metrics[skill], f"gap_{level_key}", gap)
                 setattr(metrics[skill], f"demand_{level_key}", demand)
+
+        # Compute category AFTER gap values are set
+        from src.models.market_metrics import SkillCategory
+        for m in metrics.values():
+            max_gap = max(m.gap_j, m.gap_m, m.gap_s)
+            if max_gap < config.SKILL_STRONG_GAP_THRESHOLD:
+                m.category = SkillCategory.STRONG
+            elif max_gap < config.SKILL_WEAK_GAP_THRESHOLD:
+                m.category = SkillCategory.WEAK
+            else:
+                m.category = SkillCategory.MISSING
 
         total_gaps = sum(max(m.gap_j, m.gap_m, m.gap_s) for m in metrics.values())
         avg_gap = total_gaps / len(metrics) if metrics else 0
