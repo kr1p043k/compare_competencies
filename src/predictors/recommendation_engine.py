@@ -174,7 +174,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
     ) -> Result[RecommendationResult, RecommendationError]:
         from src.utils import atomic_write_json
 
-        if not hasattr(self, "profile_evaluator") or self.profile_evaluator is None:
+        if self.profile_evaluator is None:
             return Err(RecommendationError(message="RecommendationEngine не инициализирован с profile_evaluator", profile=student.profile_name))
 
         profile_name = student.profile_name
@@ -261,7 +261,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 default=(None, None),
             )[0]
             domain_skills: set[str] = set()
-            if dominant_domain and hasattr(self.profile_evaluator, "domain_analyzer"):
+            if dominant_domain and self.profile_evaluator.domain_analyzer:
                 domain_skills = set(
                     s.lower() for s in self.profile_evaluator.domain_analyzer.domain_map.get(dominant_domain, [])
                 )
@@ -273,7 +273,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 top_cluster = closest_clusters[0]
                 role_similarity = top_cluster.get("similarity", 0)
                 cid = top_cluster.get("id")
-                if cid is not None and hasattr(self.profile_evaluator, "clusterer") and self.profile_evaluator.clusterer:
+                if cid is not None and self.profile_evaluator.clusterer:
                     try:
                         role_skills = set(
                             s.lower() for s in self.profile_evaluator.clusterer.get_top_skills_in_cluster(cid, top_n=50)
@@ -448,7 +448,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             cluster_id = c["id"]
 
             cluster_all_skills: set[str] = set()
-            if hasattr(self.profile_evaluator, "clusterer") and self.profile_evaluator.clusterer:
+            if self.profile_evaluator.clusterer:
                 try:
                     cluster_all_skills = set(
                         s.lower()
@@ -496,29 +496,6 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             else:
                 leftover.append(rec)
         return priority + leftover
-
-    def _empty_recommendations(self) -> dict[str, Any]:
-        return {
-            "summary": {
-                "match_score": 0,
-                "confidence": 0,
-                "market_coverage_score": 0,
-                "skill_coverage": 0,
-                "domain_coverage_score": 0,
-                "readiness_score": 0,
-                "avg_gap": 0,
-                "coverage": 0,
-                "coverage_details": {
-                    "covered_skills_count": 0,
-                    "total_market_skills": 0,
-                },
-                "market_skill_coverage": 0,
-            },
-            "closest_roles": [],
-            "recommendations": [],
-            "domain_coverage": {},
-            "gaps": {},
-        }
 
     def _get_role_outcome(self, skill: str, closest_roles: list[dict]) -> str:
         if not closest_roles:

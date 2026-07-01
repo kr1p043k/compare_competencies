@@ -80,7 +80,14 @@ def _load_profession_profiles() -> list[list[str]]:
     return profiles
 
 
-_SYNTHETIC_DOMAIN_PROFILES: list[list[str]] = _load_profession_profiles()
+_SYNTHETIC_DOMAIN_PROFILES: list[list[str]] | None = None
+
+
+def _get_domain_profiles() -> list[list[str]]:
+    global _SYNTHETIC_DOMAIN_PROFILES
+    if _SYNTHETIC_DOMAIN_PROFILES is None:
+        _SYNTHETIC_DOMAIN_PROFILES = _load_profession_profiles()
+    return _SYNTHETIC_DOMAIN_PROFILES
 
 
 class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[SkillImpact]]):
@@ -177,7 +184,8 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         for skill in all_skills:
             base_target = self.skill_metadata[skill]["hybrid_weight_normalized"]
 
-            for domain_profile in _SYNTHETIC_DOMAIN_PROFILES:
+            domain_profiles = _get_domain_profiles()
+            for domain_profile in domain_profiles:
                 student_skills = [s for s in domain_profile if s in self.skill_embeddings]
                 student_emb = (
                     np.mean([self.skill_embeddings[s] for s in student_skills], axis=0)
@@ -187,7 +195,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 features = self._extract_features(skill, student_emb, student_skills)
                 if skill in domain_profile:
                     relevance = 1.0
-                elif any(skill in other for other in _SYNTHETIC_DOMAIN_PROFILES if other is not domain_profile):
+                elif any(skill in other for other in domain_profiles if other is not domain_profile):
                     relevance = 0.5
                 else:
                     relevance = 0.3
@@ -205,7 +213,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         )
 
         # Compute category_avg_weight from training data only (prevent data leakage)
-        n_profiles = len(_SYNTHETIC_DOMAIN_PROFILES)
+        n_profiles = len(domain_profiles)
         train_indices_set = set(X_train.index)
         train_cat_buckets: dict[str, list[float]] = {}
         for skill_idx, skill in enumerate(all_skills):
@@ -250,10 +258,16 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         except Exception:
             spear = float("nan")
 
+        try:
+            ndcg = ndcg_score(y_test, pred_test, k=min(10, len(y_test)))
+        except Exception:
+            ndcg = float("nan")
+
         logger.info(
             "ltr_training_completed",
             r2=round(r2, 4),
             mae=round(mae, 4),
+            ndcg_at_10=round(ndcg, 4) if not np.isnan(ndcg) else "n/a",
             spearman_rho=round(spear, 4) if not np.isnan(spear) else "n/a",
             train_samples=len(X_train),
             val_samples=len(X_val),

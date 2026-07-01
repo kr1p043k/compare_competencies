@@ -36,6 +36,10 @@ def _unwrap(res: Result):
 @pytest.fixture
 def mock_profile_evaluator():
     evaluator = MagicMock(spec=ProfileEvaluator)
+    evaluator.clusterer = MagicMock()
+    evaluator.clusterer.get_top_skills_in_cluster.return_value = ["python", "sql", "docker"]
+    evaluator.domain_analyzer = MagicMock()
+    evaluator.domain_analyzer.domain_map = {"Backend": ["docker", "fastapi"]}
     evaluator.evaluate_profile.return_value = Ok({
         "market_coverage_score": 72.0,
         "skill_coverage": 65.0,
@@ -579,12 +583,6 @@ class TestRecommendationEngineExtended:
         monkeypatch.setattr(config, "DATA_DIR", tmp_path)
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         assert "python" in engine.HARD_LEARNING_PATHS
-
-    def test_empty_recommendations_structure(self, mock_profile_evaluator):
-        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        empty = engine._empty_recommendations()
-        assert empty["summary"]["readiness_score"] == 0
-        assert empty["recommendations"] == []
 
     def test_generate_saves_ltr_debug_file(self, mock_profile_evaluator, sample_student_profile, tmp_path, monkeypatch):
         monkeypatch.setattr(config, "DATA_DIR", tmp_path)

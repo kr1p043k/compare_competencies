@@ -223,7 +223,7 @@ class TestLTRFit:
         # Проверяем, что залогировалось ndcg_at_10='n/a'
         mock_logger.info.assert_any_call(
             "ltr_training_completed",
-            r2=0.9, mae=0.1, ndcg_at_10="n/a",
+            r2=0.9, mae=0.1, ndcg_at_10="n/a", spearman_rho=ANY,
             train_samples=ANY, val_samples=ANY, test_samples=ANY
         )
 
