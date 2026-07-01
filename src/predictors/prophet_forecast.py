@@ -21,10 +21,6 @@ try:
 except ImportError:
     Prophet = None  # type: ignore[assignment]
 
-import logging as _logging
-_logging.getLogger("cmdstanpy").setLevel(_logging.WARNING)
-_logging.getLogger("prophet").setLevel(_logging.WARNING)
-
 logger = structlog.get_logger(__name__)
 
 
@@ -120,6 +116,10 @@ class ProphetForecastEngine(BasePredictor):
         snapshots: list[Snapshot],
         fallback_freqs: dict[str, float] | None = None,
     ) -> Result[ProphetForecastEngine, DomainError]:
+        import logging
+        logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
+        logging.getLogger("prophet").setLevel(logging.WARNING)
+
         if not snapshots:
             return Err(DomainError("No snapshots provided to Prophet engine"))
 

@@ -44,7 +44,6 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         trend_analyzer=None,
     ):
         self.comparator = CompetencyComparator(use_embeddings=True, level="middle")
-        self.gap_analyzer: GapAnalyzer | None = None
         self.skill_filter = SkillFilter()
         self.is_fitted = False
         self.profile_evaluator = profile_evaluator
