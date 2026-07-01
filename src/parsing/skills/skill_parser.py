@@ -150,9 +150,9 @@ class SkillParser:
             text_sources = []
             if vacancy.snippet:
                 if vacancy.snippet.requirement:
-                    text_sources.append((vacancy.snippet.requirement, SkillSource.SNIPPET_REQUIREMENT, 500))
+                    text_sources.append((vacancy.snippet.requirement, SkillSource.SNIPPET_REQUIREMENT, 2000))
                 if vacancy.snippet.responsibility:
-                    text_sources.append((vacancy.snippet.responsibility, SkillSource.SNIPPET_RESPONSIBILITY, 500))
+                    text_sources.append((vacancy.snippet.responsibility, SkillSource.SNIPPET_RESPONSIBILITY, 2000))
             if vacancy.description:
                 text_sources.append((vacancy.description, SkillSource.DESCRIPTION, 10000))
 

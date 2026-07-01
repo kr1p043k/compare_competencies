@@ -763,7 +763,7 @@ async def run_teacher_analysis(
         from src.pipeline.db_writer import save_to_analysis_results
         await save_to_analysis_results(
             run_id=run_id,
-            analysis_type="teacher",
+            analysis_type="teacher-analysis",
             data=dir_summary,
         )
     except Exception as db_err:
