@@ -107,17 +107,7 @@ async def _try_collect():
     except Exception as exc:
         logger.warning("collect_json_save_failed", error=str(exc))
 
-    # Save to DB (ensure IDs are int)
-    for v in all_vacancies:
-        if isinstance(v.get("id"), str):
-            try:
-                v["id"] = int(v["id"])
-            except (ValueError, TypeError):
-                pass
-    from src.pipeline.db_writer import save_vacancies_batch
-    await save_vacancies_batch(all_vacancies)
-
-    # Parse skills for newly collected vacancies
+    # Parse skills BEFORE converting IDs (Vacancy.from_api expects str id)
     try:
         from src.parsing.skills.vacancy_parser import VacancyParser
         from src.models.vacancy import Vacancy as VacModel
@@ -125,14 +115,19 @@ async def _try_collect():
         conn = await asyncpg.connect(db_url)
         try:
             for v in all_vacancies:
-                hh_id = int(v["id"]) if isinstance(v.get("id"), (int, str)) else None
-                if not hh_id:
+                vid = v.get("id")
+                if not vid:
                     continue
-                vac_obj = VacModel.from_api(v)
+                try:
+                    vac_obj = VacModel.from_api(v)
+                except (ValueError, KeyError, TypeError, AttributeError) as exc:
+                    logger.debug("collect_parse_skip_vacancy", id=vid, error=str(exc))
+                    continue
                 match parser.skill_parser.parse_vacancy(vac_obj):
                     case Ok(extracted):
                         texts = list(dict.fromkeys(s.text for s in extracted if s.text))
                         if texts:
+                            hh_id = int(vid)
                             await conn.execute(
                                 "UPDATE vacancies SET parsed_skills = $1::jsonb WHERE hh_id = $2",
                                 texts, hh_id,
@@ -144,6 +139,16 @@ async def _try_collect():
         logger.info("collect_parse_done", parsed=len(all_vacancies))
     except Exception as exc:
         logger.warning("collect_parse_failed", error=str(exc))
+
+    # Save to DB (ensure IDs are int)
+    for v in all_vacancies:
+        if isinstance(v.get("id"), str):
+            try:
+                v["id"] = int(v["id"])
+            except (ValueError, TypeError):
+                pass
+    from src.pipeline.db_writer import save_vacancies_batch
+    await save_vacancies_batch(all_vacancies)
 
     try:
         conn = await asyncpg.connect(db_url)
