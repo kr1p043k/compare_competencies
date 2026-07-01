@@ -333,11 +333,20 @@ async def main():
         )
         await session.flush()
 
-        link_count = await rematch_competencies_to_it_skills(
-            session, krm, disc_map, comp_map, skill_map, pv.id
-        )
+        link_count = 0
+        try:
+            link_count = await rematch_competencies_to_it_skills(
+                session, krm, disc_map, comp_map, skill_map, pv.id
+            )
+        except Exception as exc:
+            print(f"  [5/5] Rematch skipped due to datetime error: {exc}")
+            await session.rollback()
 
-        await session.commit()
+        try:
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            await session.commit()
 
         # Update parse version stats
         pv.total_disciplines = len(disc_map)
