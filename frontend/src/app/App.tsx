@@ -419,13 +419,15 @@ export default function App() {
               <Database className="size-4" />
               Данные
             </TabsTrigger>
-            <TabsTrigger
-              value="visualization"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
-            >
-              <BarChart3 className="size-4" />
-              Визуализация
-            </TabsTrigger>
+            {role !== "teacher" && (
+              <TabsTrigger
+                value="visualization"
+                className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
+              >
+                <BarChart3 className="size-4" />
+                Визуализация
+              </TabsTrigger>
+            )}
             <TabsTrigger
               value="predictions"
               className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
@@ -631,9 +633,11 @@ export default function App() {
           </TabsContent>
 
           {/* Visualization Tab */}
-          <TabsContent value="visualization">
-            <GapAnalysisVisualizer profile={profile} />
-          </TabsContent>
+          {role !== "teacher" && (
+            <TabsContent value="visualization">
+              <GapAnalysisVisualizer profile={profile} />
+            </TabsContent>
+          )}
 
           {/* Analysis Tab */}
           <TabsContent value="analysis">
