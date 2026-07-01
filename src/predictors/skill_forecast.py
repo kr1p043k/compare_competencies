@@ -158,8 +158,8 @@ class SkillForecastEngine(BasePredictor):
         growth = (predicted - last_freq) / max(last_freq, 1.0)
         growth = max(min(growth, self.MAX_GROWTH_CAP), -0.5)
 
-        confidence = max(0.0, min(0.9, 1.0 - model["mape"] * 2.0))
-        confidence *= min(1.0, n / 6.0)
+        confidence = max(0.0, min(0.9, 1.0 - min(model["mape"] * 2.0, 0.8)))
+        confidence *= min(1.0, n / 4.0)
 
         return Ok(ForecastResult(
             skill=skill,

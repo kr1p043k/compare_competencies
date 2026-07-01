@@ -156,11 +156,11 @@ class ProphetForecastEngine(BasePredictor):
             growth = max(min(growth, self.MAX_GROWTH_CAP), -self.MAX_GROWTH_CAP)
 
             uncertainty = float(last_row["yhat_upper"] - last_row["yhat_lower"])
-            conf = max(0.0, 1.0 - uncertainty / max(next_freq, 1.0))
+            conf = max(0.0, 1.0 - min(uncertainty / max(next_freq, 1.0), 0.85))
             # Penalize confidence when few data points
             n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
-            if n_pts < 6:
-                conf *= n_pts / 6.0
+            if n_pts < 3:
+                conf *= n_pts / 3.0
             return Ok(ForecastResult(
                 skill=skill,
                 current_frequency=round(last_actual, 4),
