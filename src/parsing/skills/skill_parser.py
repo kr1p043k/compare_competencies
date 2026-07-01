@@ -266,6 +266,18 @@ class SkillParser:
             skills = []
             text_norm = _normalize_for_matching(text)
 
+            # Паттерны для фильтрации не-навыков
+            LOCATION_PATTERNS = [
+                re.compile(r"метро\s", re.IGNORECASE),
+                re.compile(r"ул\.\s", re.IGNORECASE),
+                re.compile(r"д\.\s*\d", re.IGNORECASE),
+                re.compile(r"г\.\s*[А-ЯЁ]", re.IGNORECASE),
+                re.compile(r"район\s", re.IGNORECASE),
+                re.compile(r"станци[яию]\s", re.IGNORECASE),
+            ]
+            # Аббревиатуры 2-5 букв кириллицей — пропускаем
+            ABBREV_RE = re.compile(r"^[А-ЯЁ]{2,5}$")
+
             for marker in self.SKILL_MARKERS:
                 if marker not in text_norm:
                     continue
@@ -277,6 +289,12 @@ class SkillParser:
                 for line in lines:
                     line = line.strip()
                     if len(line) <= 3 or len(line) >= 100:
+                        continue
+                    # Фильтрация локаций
+                    if any(p.search(line) for p in LOCATION_PATTERNS):
+                        continue
+                    # Фильтрация аббревиатур
+                    if ABBREV_RE.match(line):
                         continue
                     if any(tech in line for tech in self.TECH_SKILLS):
                         skills.append(ExtractedSkill(text=line, source=source, raw_match=line, confidence=0.8))
@@ -303,6 +321,12 @@ class SkillParser:
                 for match in matches:
                     match = match.strip()
                     if 3 < len(match) < 100:
+                        # Фильтрация локаций
+                        if any(p.search(match) for p in LOCATION_PATTERNS):
+                            continue
+                        # Фильтрация аббревиатур
+                        if ABBREV_RE.match(match):
+                            continue
                         skills.append(ExtractedSkill(text=match, source=source, raw_match=match, confidence=confidence))
                         self._update_stats(source)
 
