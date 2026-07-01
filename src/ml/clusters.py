@@ -55,6 +55,7 @@ def prepare_vacancies_for_clustering(raw_vacancies: list) -> list:
 
 
 def train_clusters(level: str = "all", save_report: bool = True, interpret: bool = True) -> bool:
+    _level_requested = level
     print("\n" + "=" * 80)
     print("   ЗАПУСК ОБУЧЕНИЯ КЛАСТЕРОВ ВАКАНСИЙ")
     print("=" * 80 + "\n")
@@ -85,8 +86,34 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
     prepared = prepare_vacancies_for_clustering(raw_vacancies)
     logger.info("vacancies_prepared", count=len(prepared))
 
+    # Train and save per-level clusters
+    from src.models.enums import ExperienceLevel
+
+    for level in ExperienceLevel:
+        level_prepared = []
+        for v in prepared:
+            exp = v.get("experience", "").lower()
+            name = v.get("name", "").lower()
+            if level.value in exp or (level.value == "junior" and ("less1" in exp or "no_exp" in exp)):
+                level_prepared.append(v)
+            elif level.value == "middle" and ("between" in exp or "middle" in exp):
+                level_prepared.append(v)
+            elif level.value == "senior" and ("morethan" in exp or "senior" in exp or "between6" in exp):
+                level_prepared.append(v)
+        logger.info("level_vacancies", level=level.value, count=len(level_prepared))
+        if len(level_prepared) < 10:
+            logger.warning("too_few_for_level_clusters", level=level.value, samples=len(level_prepared))
+            continue
+        level_clusterer = VacancyClusterer()
+        level_clusterer.fit(level_prepared, level=level.value)
+        if level_clusterer.is_fitted:
+            logger.info("level_clusters_trained", level=level.value)
+        else:
+            logger.warning("level_clusters_failed", level=level.value)
+
+    # Also train "all" level (for fallback)
     clusterer = VacancyClusterer()
-    clusterer.fit(prepared, level=level)
+    clusterer.fit(prepared, level=_level_requested)
     if not clusterer.is_fitted:
         logger.error("clustering_failed")
         return False

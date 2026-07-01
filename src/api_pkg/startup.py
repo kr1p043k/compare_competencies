@@ -43,7 +43,9 @@ async def _set_waiting_mode():
     deps.trend_analyzer = None
     deps.student_profiles = {}
     for lvl in ExperienceLevel:
-        deps.clusterer.load_model(lvl)
+        if not deps.clusterer.load_model(lvl):
+            deps.clusterer.load_model("all")
+            break
     async with deps.init_lock:
         deps.is_ready = True
 
@@ -324,7 +326,8 @@ async def _warmup_background(parser, basic_vacancies, hybrid_weights):
     try:
         for lvl in ExperienceLevel:
             if not deps.clusterer.load_model(lvl):
-                logger.warning("Модель кластеров не найдена", level=str(lvl))
+                deps.clusterer.load_model("all")
+                break
         logger.info("фоновая инициализация: кластеры загружены")
     except Exception as e:
         logger.warning("фоновая инициализация: кластеры не загружены", error=str(e))
