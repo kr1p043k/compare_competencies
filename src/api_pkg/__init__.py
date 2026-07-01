@@ -13,6 +13,16 @@ from slowapi.errors import RateLimitExceeded
 from src.monitoring.metrics import get_metrics
 
 from src import config
+
+# Suppress cmdstanpy BEFORE any imports that might trigger Prophet
+import logging as _logging
+_cmdstan_logger = _logging.getLogger("cmdstanpy")
+_cmdstan_logger.setLevel(_logging.WARNING)
+for _h in _cmdstan_logger.handlers[:]:
+    _cmdstan_logger.removeHandler(_h)
+_logging.getLogger("prophet").setLevel(_logging.WARNING)
+_logging.getLogger("cmdstanpy.cmdstan").setLevel(_logging.WARNING)
+
 from src.api_pkg import deps as deps  # noqa: F401
 
 logger = structlog.get_logger("api")
