@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -133,7 +134,7 @@ async def _try_collect():
                             hh_id = int(vid)
                             await conn.execute(
                                 "UPDATE vacancies SET parsed_skills = $1::jsonb WHERE hh_id = $2",
-                                texts, hh_id,
+                                json.dumps(texts), hh_id,
                             )
                             parsed_count += 1
                     case Err(e):
