@@ -130,16 +130,13 @@ class ProphetForecastEngine(BasePredictor):
 
         history = self._gather_history(snapshots)
 
-        # Separate skills by data depth: Prophet (≥6 pts) vs linear trend (3-5 pts)
+        # Separate skills by data depth: Prophet (≥3 pts) vs trend (fallback)
         prophet_candidates: list[tuple[str, list[tuple[date, float]]]] = []
         for skill, points in history.items():
             last_actual = points[-1][1]
             self._last_actual_freq[skill] = last_actual
-            if len(points) >= 6 and last_actual >= self.MIN_FREQ:
+            if len(points) >= 3 and last_actual >= self.MIN_FREQ:
                 prophet_candidates.append((skill, points))
-            elif len(points) >= 3 and last_actual >= self.MIN_FREQ:
-                # Simple linear trend for 3-5 points
-                self._skill_history[skill] = points
             else:
                 self._skill_history[skill] = points
 
