@@ -108,6 +108,8 @@ async def _try_collect():
         logger.warning("collect_json_save_failed", error=str(exc))
 
     # Parse skills BEFORE converting IDs (Vacancy.from_api expects str id)
+    parsed_count = 0
+    skip_count = 0
     try:
         from src.parsing.skills.vacancy_parser import VacancyParser
         from src.models.vacancy import Vacancy as VacModel
@@ -121,7 +123,8 @@ async def _try_collect():
                 try:
                     vac_obj = VacModel.from_api(v)
                 except (ValueError, KeyError, TypeError, AttributeError) as exc:
-                    logger.debug("collect_parse_skip_vacancy", id=vid, error=str(exc))
+                    logger.warning("collect_parse_skip_vacancy", id=vid, error=str(exc))
+                    skip_count += 1
                     continue
                 match parser.skill_parser.parse_vacancy(vac_obj):
                     case Ok(extracted):
@@ -132,13 +135,15 @@ async def _try_collect():
                                 "UPDATE vacancies SET parsed_skills = $1::jsonb WHERE hh_id = $2",
                                 texts, hh_id,
                             )
-                    case _:
-                        pass
+                            parsed_count += 1
+                    case Err(e):
+                        logger.warning("collect_parse_skill_failed", id=vid, error=str(e))
+                        skip_count += 1
         finally:
             await conn.close()
-        logger.info("collect_parse_done", parsed=len(all_vacancies))
+        logger.info("collect_parse_done", parsed=parsed_count, skipped=skip_count, total=len(all_vacancies))
     except Exception as exc:
-        logger.warning("collect_parse_failed", error=str(exc))
+        logger.warning("collect_parse_failed", error=str(exc), parsed=parsed_count, skipped=skip_count)
 
     # Save to DB (ensure IDs are int)
     for v in all_vacancies:
