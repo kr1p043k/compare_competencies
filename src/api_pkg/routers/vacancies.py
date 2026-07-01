@@ -1,6 +1,7 @@
 """Vacancies: list, detail, stats."""
 
 import structlog
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -29,6 +30,7 @@ async def get_vacancies(
         None, description="Фильтр по опыту: junior, middle, senior"
     ),
     search: str | None = Query(None, description="Поиск по названию"),
+    months: int | None = Query(None, ge=1, le=24, description="Период в месяцах"),
     vacancies: list = Depends(deps.get_basic_vacancies),
 ):
     filtered = vacancies.copy()
@@ -53,6 +55,14 @@ async def get_vacancies(
             v
             for v in filtered
             if search_lower in v.get("name", "").lower()
+        ]
+    if months:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
+        filtered = [
+            v
+            for v in filtered
+            if v.get("published_at") and isinstance(v["published_at"], str)
+               and datetime.fromisoformat(v["published_at"].replace("Z", "+00:00").replace("+0300", "+03:00").replace("+0400", "+04:00")) >= cutoff
         ]
     total = len(filtered)
     items = filtered[offset : offset + limit]

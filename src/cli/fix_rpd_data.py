@@ -143,30 +143,27 @@ async def populate_ksa_entries(
             if not comp_id:
                 continue
             for kt in ("knowledge", "abilities", "skills"):
-                for idx, text in enumerate(ksa_sections.get(kt, [])):
+                for idx, ksa_text in enumerate(ksa_sections.get(kt, [])):
                     values.append({
                         "comp_id": str(comp_id),
                         "ksa_type": kt,
-                        "text": text,
+                        "text": ksa_text,
                         "sort": idx,
                         "pv_id": str(parse_version_id),
                     })
                     count += 1
 
     import uuid
-    stmt = """
-        INSERT INTO ksa_entries (id, competency_id, ksa_type, original_text, cleaned_text, sort_order, parse_version_id, created_at)
-        VALUES (:id, :comp_id, :ksa_type::ksa_type, :text::text, NULL::text, :sort, :pv_id, NOW())
-    """
+    from src.db import get_pool
+    pool = get_pool()
     for i in range(0, len(values), 500):
         batch = values[i:i + 500]
-        params = [
-            {"id": str(uuid.uuid4()), "comp_id": v['comp_id'], "ksa_type": v['ksa_type'],
-             "text": v['text'], "sort": v['sort'], "pv_id": v['pv_id']}
-            for v in batch
-        ]
-        for p in params:
-            await session.execute(sa_text(stmt), p)
+        for v in batch:
+            await pool.execute(
+                """INSERT INTO ksa_entries (id, competency_id, ksa_type, original_text, cleaned_text, sort_order, parse_version_id, created_at)
+                   VALUES ($1::uuid, $2::uuid, $3::ksa_type, $4, NULL, $5, $6::uuid, NOW())""",
+                str(uuid.uuid4()), v['comp_id'], v['ksa_type'], v['text'], v['sort'], v['pv_id'],
+            )
 
     await session.flush()
     print(f"  Inserted {count} KSA entries")
@@ -261,6 +258,9 @@ async def main():
 
     print(f"\nKRM disciplines: {len(krm.get('09.03.02', {}).get('disciplines', {}))}")
     print(f"it_skills: {len(it_skill_names)}")
+
+    from src.db import create_pool
+    await create_pool()
 
     async with async_session_factory() as session:
         # 1) Build maps

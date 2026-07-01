@@ -136,12 +136,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [pipelinePeriodLocal, setPipelinePeriodLocal] = useState(30);
   const [showAllMarketInfo, setShowAllMarketInfo] = useState(false);
   const [allMarketVacancyCount, setAllMarketVacancyCount] = useState(0);
+  const [monthsFilter, setMonthsFilter] = useState<number | null>(null);
   const handledCompleteRef = useRef(false);
   const itemsPerPage = 12;
 
   useEffect(() => {
     loadVacancies();
-  }, [currentPage, experienceFilter]);
+  }, [currentPage, experienceFilter, monthsFilter]);
 
   useEffect(() => {
     if (!pipelineStep) { handledCompleteRef.current = false; return; }
@@ -184,6 +185,10 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         params.append("search", searchQuery.trim());
       }
 
+      if (monthsFilter) {
+        params.append("months", monthsFilter.toString());
+      }
+
       const response = await fetch(`/api/vacancies?${params}`);
       if (!response.ok) {
         throw new Error("Ошибка загрузки вакансий");
@@ -213,6 +218,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       const params = new URLSearchParams({ limit: itemsPerPage.toString(), offset: offset.toString() });
       if (experienceFilter && experienceFilter !== "all") params.append("experience", experienceFilter);
       if (searchQuery.trim()) params.append("search", searchQuery.trim());
+      if (monthsFilter) params.append("months", monthsFilter.toString());
       const response = await fetch(`/api/vacancies?${params}`);
       if (response.ok) {
         const data: VacanciesResponse = await response.json();
@@ -648,6 +654,26 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                         {city}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Months filter */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Период
+                </label>
+                <Select value={String(monthsFilter ?? "all")} onValueChange={(v) => { setMonthsFilter(v === "all" ? null : Number(v)); setCurrentPage(1); }}>
+                  <SelectTrigger className="h-11 border-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Весь период</SelectItem>
+                    <SelectItem value="1">1 месяц</SelectItem>
+                    <SelectItem value="3">3 месяца</SelectItem>
+                    <SelectItem value="6">6 месяцев</SelectItem>
+                    <SelectItem value="12">12 месяцев</SelectItem>
+                    <SelectItem value="24">24 месяца</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
