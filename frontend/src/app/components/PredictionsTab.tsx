@@ -152,8 +152,8 @@ function ForecastRow({ item, rank, expanded, onToggle }: { item: ForecastItem; r
       {expanded && (
         <div className="px-3 pb-3 pt-0 border-t border-gray-100">
           <div className="grid grid-cols-3 gap-4 mt-3 mb-3">
-            <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Сейчас</div><div className="text-lg font-semibold text-gray-900">{(item.current_frequency * 100).toFixed(1)}%</div></div>
-            <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Через год</div><div className="text-lg font-semibold text-gray-900">{(item.next_year_frequency * 100).toFixed(1)}%</div></div>
+            <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Сейчас</div><div className="text-lg font-semibold text-gray-900">{item.current_frequency.toFixed(0)}</div></div>
+            <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Через год</div><div className="text-lg font-semibold text-gray-900">{item.next_year_frequency.toFixed(0)}</div></div>
             <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Уверенность</div><div className="text-lg font-semibold text-gray-900">{(item.confidence * 100).toFixed(0)}%</div></div>
           </div>
           {item.uncertainty_upper && item.uncertainty_lower && (
