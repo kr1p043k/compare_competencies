@@ -335,8 +335,6 @@ export default function App() {
     }
   }
 
-  const { isAuth, login, logout, role, name } = useAuth();
-
   if (!isAuth) {
     return <LoginPage onLogin={login} />;
   }
