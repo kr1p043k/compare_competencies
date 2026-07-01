@@ -147,7 +147,7 @@ class VacancyClusterer:
         logger.info("clustering_started", samples=len(x), level=level)
 
         best_k = self.n_clusters
-        best_score = -1
+        best_score = -1.0
         best_labels = None
         best_model = None
 
@@ -162,7 +162,6 @@ class VacancyClusterer:
             random_state=self.random_state,
         )
 
-        best_score = -1
         no_improve = 0
         for k in range(max(2, self.min_clusters), max_k + 1):
             if k >= n_samples:
