@@ -212,7 +212,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                     relevance = 0.5
                 else:
                     relevance = 0.3
-                target = base_target * relevance
+                target = 0.6 * relevance + 0.4 * base_target
                 X_rows.append(features)
                 y_rows.append(target)
 
