@@ -1,5 +1,6 @@
 """Vacancies: list, detail, stats — DB-backed."""
 
+import json
 import structlog
 from datetime import datetime, timedelta, timezone
 
@@ -99,8 +100,9 @@ async def get_vacancies(
     items = []
     for r in rows:
         parsed = r["parsed_skills"]
-        skills = (parsed[:10] if isinstance(parsed, list) else
-                  [str(s) for s in (parsed or [])][:10])
+        if isinstance(parsed, str):
+            parsed = json.loads(parsed) if parsed else []
+        skills = (parsed[:10] if isinstance(parsed, list) else [])
 
         exp = _classify_experience(r["experience"], r["name"] or "")
 
@@ -196,19 +198,23 @@ async def get_vacancy_detail(
         """SELECT hh_id, name, description, experience, salary_from, salary_to,
                   salary_currency, employer_name, employer_id, area_name,
                   snippet_requirement, snippet_responsibility,
-                  published_at, alternate_url, parsed_skills, key_skills,
-                  schedule, employment
+                  published_at, alternate_url, parsed_skills, key_skills
            FROM vacancies WHERE hh_id = $1""",
         hh_id,
     )
     if not row:
         raise HTTPException(status_code=404, detail="Вакансия не найдена")
 
-    parsed = row["parsed_skills"]
-    skills = list(parsed) if isinstance(parsed, list) else []
+    def _load_jsonb(val):
+        if isinstance(val, str):
+            return json.loads(val) if val else []
+        return list(val) if isinstance(val, list) else []
 
-    ks = row["key_skills"]
-    key_skills = list(ks) if isinstance(ks, list) else []
+    parsed = _load_jsonb(row["parsed_skills"])
+    skills = parsed[:20]
+
+    ks = _load_jsonb(row["key_skills"])
+    key_skills = ks
 
     snippet = {}
     if row["snippet_requirement"] or row["snippet_responsibility"]:
