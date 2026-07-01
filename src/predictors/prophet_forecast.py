@@ -110,6 +110,8 @@ class ProphetForecastEngine(BasePredictor):
 
     MIN_FREQ = 10
     MAX_GROWTH_CAP = 20.0
+    # Top-prediction display: only show skills with meaningful frequency
+    TOP_DISPLAY_MIN_FREQ = 20
 
     def __init__(self):
         self._models: dict[str, Prophet] = {}
@@ -229,8 +231,8 @@ class ProphetForecastEngine(BasePredictor):
             conf = max(0.0, 1.0 - min(uncertainty / max(next_freq, 1.0), 0.85))
             # Penalize confidence when few data points
             n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
-            if n_pts < 3:
-                conf *= n_pts / 3.0
+            if n_pts < 6:
+                conf *= n_pts / 6.0
             return Ok(ForecastResult(
                 skill=skill,
                 current_frequency=round(last_actual, 4),
@@ -275,9 +277,18 @@ class ProphetForecastEngine(BasePredictor):
     def top_growing(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
-                results = [r for r in results if r.current_frequency >= self.MIN_FREQ]
+                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ]
                 results.sort(key=lambda x: x.predicted_growth, reverse=True)
                 return Ok(results[:n])
+            case Err(e):
+                return Err(e)
+
+    def top_declining(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
+        match self.forecast_all(months):
+            case Ok(results):
+                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ]
+                results.sort(key=lambda x: x.predicted_growth)
+                return Ok([r for r in results if r.predicted_growth < 0][:n])
             case Err(e):
                 return Err(e)
 
