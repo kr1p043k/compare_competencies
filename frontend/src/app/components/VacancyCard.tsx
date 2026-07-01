@@ -168,7 +168,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
       return new Intl.NumberFormat("ru-RU").format(num);
     };
 
-    const currency = vacancy.salary_currency === "RUR" ? "₽" : vacancy.salary_currency;
+    const currency = "₽";
 
     if (vacancy.salary_from && vacancy.salary_to) {
       return `${format(vacancy.salary_from)} - ${format(vacancy.salary_to)} ${currency}`;

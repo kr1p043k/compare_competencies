@@ -1,4 +1,4 @@
-﻿from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -65,3 +65,63 @@ class TestCoverageAnalyzer:
         assert result.is_ok()
         dc = result.unwrap()
         assert dc.discipline_id == "d1"
+
+    def test_analyze_discipline_parent_aggregation(self, matcher):
+        """Test that parent competencies aggregate from children when parent has 0 skills."""
+        ca = CoverageAnalyzer(matcher)
+        result = ca.analyze_discipline("d1", "CS", {
+            "ОПК-2": [],  # parent with no skills
+            "ОПК-2.1": ["python"],
+            "ОПК-2.2": ["sql"],
+        })
+        assert result.is_ok()
+        dc = result.unwrap()
+        parent_cov = [c for c in dc.competencies if c.code == "ОПК-2"]
+        assert len(parent_cov) == 1
+        assert parent_cov[0].total_skills == 2  # aggregated from children
+
+    def test_analyze_discipline_weighted_coverage(self, matcher):
+        """Test weighted coverage calculation."""
+        ca = CoverageAnalyzer(matcher)
+        result = ca.analyze_discipline("d1", "CS", {"C1": ["python", "sql", "unknown"]})
+        assert result.is_ok()
+        dc = result.unwrap()
+        assert dc.weighted_coverage > 0
+        assert dc.weighted_coverage <= 1.0
+
+    def test_analyze_discipline_multiple_competencies(self, matcher):
+        """Test analysis with multiple competencies."""
+        ca = CoverageAnalyzer(matcher)
+        result = ca.analyze_discipline("d1", "CS", {
+            "C1": ["python"],
+            "C2": ["sql", "docker"],
+            "C3": ["unknown_skill"],
+        })
+        assert result.is_ok()
+        dc = result.unwrap()
+        assert dc.total_skills == 4
+        assert dc.market_matched == 3
+        assert dc.gaps == 1
+
+    def test_analyze_discipline_emerging_skills(self, matcher):
+        """Test emerging skills detection."""
+        ca = CoverageAnalyzer(matcher)
+        rpd_norm = {"python"}
+        skill_map = {"CS": {"python"}}
+        result = ca.analyze_discipline(
+            "d1", "CS", {"C1": ["python"]},
+            direction_rpd_norm=rpd_norm,
+            discipline_skill_map=skill_map,
+        )
+        assert result.is_ok()
+        dc = result.unwrap()
+        assert isinstance(dc.emerging, list)
+
+    def test_coverage_level_thresholds(self):
+        """Test coverage_level function thresholds."""
+        from src.analyzers.skill_matcher import coverage_level
+        assert coverage_level(0.6) == "high"
+        assert coverage_level(0.3) == "medium"
+        assert coverage_level(0.1) == "low"
+        assert coverage_level(0.0) == "low"
+        assert coverage_level(1.0) == "high"
