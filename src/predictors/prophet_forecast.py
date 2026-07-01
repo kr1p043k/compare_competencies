@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -112,7 +113,7 @@ class ProphetForecastEngine(BasePredictor):
             changepoint_prior_scale=0.5 if n_points < 12 else 0.05,
         )
         with disable_logging():
-            model.fit(df)
+            model.fit(df, iter=1000)
         return model
 
     def fit(
@@ -128,16 +129,30 @@ class ProphetForecastEngine(BasePredictor):
             return Err(DomainError("No snapshots provided to Prophet engine"))
 
         history = self._gather_history(snapshots)
+
+        # Separate skills by data depth: Prophet (≥6 pts) vs linear trend (3-5 pts)
+        prophet_candidates: list[tuple[str, list[tuple[date, float]]]] = []
         for skill, points in history.items():
             last_actual = points[-1][1]
             self._last_actual_freq[skill] = last_actual
-            if len(points) >= 3 and last_actual >= self.MIN_FREQ:
-                try:
-                    self._models[skill] = self._fit_prophet_for_skill(skill, points)
-                except Exception as e:
-                    logger.warning("prophet_skill_fit_failed", skill=skill, error=str(e))
+            if len(points) >= 6 and last_actual >= self.MIN_FREQ:
+                prophet_candidates.append((skill, points))
+            elif len(points) >= 3 and last_actual >= self.MIN_FREQ:
+                # Simple linear trend for 3-5 points
+                self._skill_history[skill] = points
             else:
                 self._skill_history[skill] = points
+
+        # Parallel Prophet fitting
+        if prophet_candidates:
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                futures = {pool.submit(self._fit_prophet_for_skill, s, p): s for s, p in prophet_candidates}
+                for future in as_completed(futures):
+                    skill = futures[future]
+                    try:
+                        self._models[skill] = future.result()
+                    except Exception as e:
+                        logger.warning("prophet_skill_fit_failed", skill=skill, error=str(e))
 
         prophet_skills = len(self._models)
         fallback_skills = len(self._skill_history)
