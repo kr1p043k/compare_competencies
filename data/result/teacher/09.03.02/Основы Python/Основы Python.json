@@ -128,25 +128,29 @@
       "code": "ОПК-4",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-4.1",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-4.2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-4.3",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     }
   ],
   "recommendations": [

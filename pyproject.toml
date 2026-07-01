@@ -36,11 +36,35 @@ dependencies = [
     "pgvector>=0.2",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "mypy>=1.10",
+    "bandit>=1.7",
+    "ruff>=0.11",
+    "pre-commit>=4.0",
+]
+
 [tool.setuptools.packages.find]
 include = ["src*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".mimocode"]
+skips = ["B101"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -66,7 +90,6 @@ python_version = "3.11"
 strict = true
 show_error_codes = true
 warn_unused_ignores = true
-
 ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [

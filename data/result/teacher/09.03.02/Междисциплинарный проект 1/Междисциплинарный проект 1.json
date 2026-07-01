@@ -3,13 +3,18 @@
   "direction_name": "Перспективные информационные технологии",
   "discipline": "Междисциплинарный проект 1",
   "metrics": {
-    "total_rpd_skills": 5,
-    "market_matched": 3,
-    "gaps": 2,
+    "total_rpd_skills": 10,
+    "market_matched": 6,
+    "gaps": 4,
     "coverage_ratio": 0.6,
     "weighted_coverage": 0.5,
     "coverage_level": "high",
     "top_market_matched_skills": [
+      {
+        "skill": "информационные технологии",
+        "frequency": 106,
+        "match_type": "exact"
+      },
       {
         "skill": "информационные технологии",
         "frequency": 106,
@@ -21,14 +26,26 @@
         "match_type": "fuzzy"
       },
       {
+        "skill": "технические средства",
+        "frequency": 22,
+        "match_type": "fuzzy"
+      },
+      {
+        "skill": "искусственный интеллект",
+        "frequency": 5,
+        "match_type": "exact"
+      },
+      {
         "skill": "искусственный интеллект",
         "frequency": 5,
         "match_type": "exact"
       }
     ],
     "gaps_in_curriculum": [
+      "программные средства",
       "информационно-коммуникационные технологии",
-      "программные средства"
+      "программные средства",
+      "информационно-коммуникационные технологии"
     ],
     "emerging_market_skills_not_in_rpd": [
       {
@@ -147,193 +164,273 @@
       "code": "ОПК-2",
       "total_skills": 5,
       "matched_skills": 3,
-      "coverage": 0.6
+      "coverage": 0.6,
+      "ksa_context": {
+        "mentioned_in_ksa": [
+          "информационные технологии"
+        ],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "python",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность"
+        ],
+        "total_ksa_items": 9
+      }
     },
     {
       "code": "ОПК-2.1",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 2,
+      "matched_skills": 1,
+      "coverage": 0.5,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-2.2",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 2,
+      "matched_skills": 1,
+      "coverage": 0.5,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-2.3",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 1,
+      "matched_skills": 1,
+      "coverage": 1.0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-14",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-14.1",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-14.2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-14.3",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-14.4",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-14.5",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-14.6",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-16",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-16.2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-17",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-17.2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-6",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-6.1",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-6.2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "УК-12",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "УК-12.1",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "УК-12.2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "УК-13",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "УК-13.1",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "УК-2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {
+        "mentioned_in_ksa": [],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "python",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность"
+        ],
+        "total_ksa_items": 6
+      }
     },
     {
       "code": "УК-2.1",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "УК-2.2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "УК-2.3",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "УК-3",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {
+        "mentioned_in_ksa": [],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "python",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность"
+        ],
+        "total_ksa_items": 10
+      }
     },
     {
       "code": "УК-3.1",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "УК-3.2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     }
   ],
   "recommendations": [
     {
       "type": "review_content",
       "priority": "medium",
-      "message": "«информационно-коммуникационные технологии» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность."
+      "message": "«программные средства» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность."
     },
     {
       "type": "review_content",
       "priority": "medium",
-      "message": "«программные средства» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность."
+      "message": "«информационно-коммуникационные технологии» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность."
     },
     {
       "type": "add_new_content",
@@ -384,6 +481,51 @@
       "type": "cross_reference",
       "priority": "low",
       "message": "Навык «kubernetes» (305) преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции ОПК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции ОПК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ОПК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции УК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции УК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции УК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции УК-3. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции УК-3. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции УК-3. Рассмотрите возможность углубления."
     }
   ],
   "enhanced": {

@@ -128,79 +128,92 @@
       "code": "ОПК-4",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-4.1",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-4.2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-4.3",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-7",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-7.2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-8",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-8.2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-9",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-9.1",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-9.2",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-9.3",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-9.4",
       "total_skills": 0,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0,
+      "ksa_context": {}
     }
   ],
   "recommendations": [

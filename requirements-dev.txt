@@ -13,3 +13,5 @@ pre-commit>=4.0.0
 ruff>=0.11.0
 uv>=0.6.0
 protobuf>=5.29.0
+mypy>=1.10
+bandit>=1.7

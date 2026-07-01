@@ -3,8 +3,8 @@
   "direction_name": "Перспективные информационные технологии",
   "discipline": "Прикладные архитектуры глубоких нейронных сетей",
   "metrics": {
-    "total_rpd_skills": 27,
-    "market_matched": 27,
+    "total_rpd_skills": 53,
+    "market_matched": 53,
     "gaps": 0,
     "coverage_ratio": 1.0,
     "weighted_coverage": 1.0,
@@ -21,37 +21,37 @@
         "match_type": "exact"
       },
       {
-        "skill": "lstm",
+        "skill": "nlp",
+        "frequency": 17,
+        "match_type": "exact"
+      },
+      {
+        "skill": "relu",
         "frequency": 1,
         "match_type": "exact"
       },
       {
-        "skill": "мониторинг моделей",
+        "skill": "resnet",
         "frequency": 1,
         "match_type": "exact"
       },
       {
-        "skill": "диффузионные модели",
+        "skill": "классификация",
         "frequency": 1,
         "match_type": "exact"
       },
       {
-        "skill": "перцептрон",
+        "skill": "вероятностные модели",
         "frequency": 1,
         "match_type": "exact"
       },
       {
-        "skill": "gan",
+        "skill": "attention",
         "frequency": 1,
         "match_type": "exact"
       },
       {
-        "skill": "методы оптимизации",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
-        "skill": "функции активации",
+        "skill": "transfer learning",
         "frequency": 1,
         "match_type": "exact"
       },
@@ -179,31 +179,61 @@
       "code": "ПК-2",
       "total_skills": 29,
       "matched_skills": 27,
-      "coverage": 0.931
+      "coverage": 0.931,
+      "ksa_context": {
+        "mentioned_in_ksa": [
+          "ai",
+          "c",
+          "it",
+          "ml",
+          "nlp",
+          "osi",
+          "pytorch",
+          "ит"
+        ],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "python",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность"
+        ],
+        "total_ksa_items": 53
+      }
     },
     {
       "code": "ПК-2.1",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 8,
+      "matched_skills": 7,
+      "coverage": 0.875,
+      "ksa_context": {}
     },
     {
       "code": "ПК-2.2",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 8,
+      "matched_skills": 7,
+      "coverage": 0.875,
+      "ksa_context": {}
     },
     {
       "code": "ПК-2.3",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 5,
+      "matched_skills": 5,
+      "coverage": 1.0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-2.4",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 7,
+      "matched_skills": 7,
+      "coverage": 1.0,
+      "ksa_context": {}
     }
   ],
   "recommendations": [
@@ -256,6 +286,21 @@
       "type": "cross_reference",
       "priority": "low",
       "message": "Навык «kubernetes» (305) преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции ПК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции ПК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ПК-2. Рассмотрите возможность углубления."
     }
   ],
   "enhanced": {
@@ -265,27 +310,27 @@
       "top_market_matches": [
         {
           "skill": "ЕГАИС",
-          "similarity": 0.9159085750579834
+          "similarity": 0.9159083366394043
         },
         {
           "skill": "Коктейли",
-          "similarity": 0.8683069348335266
+          "similarity": 0.8683067560195923
         },
         {
           "skill": "Рекрутмент",
-          "similarity": 0.8421290516853333
+          "similarity": 0.8421289324760437
         },
         {
           "skill": "КИПиА",
-          "similarity": 0.8218442797660828
+          "similarity": 0.8218443393707275
         },
         {
           "skill": "Контур",
-          "similarity": 0.7875204086303711
+          "similarity": 0.7875204682350159
         },
         {
           "skill": "Шпатлевка поверхности",
-          "similarity": 0.783564031124115
+          "similarity": 0.7835641503334045
         },
         {
           "skill": "Учет ТМЦ",
@@ -293,11 +338,11 @@
         },
         {
           "skill": "Разработка и внедрение системы адаптации",
-          "similarity": 0.7821197509765625
+          "similarity": 0.7821196913719177
         },
         {
           "skill": "Подработка",
-          "similarity": 0.7790408134460449
+          "similarity": 0.7790409922599792
         },
         {
           "skill": "Штукатурные работы",

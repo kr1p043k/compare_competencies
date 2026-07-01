@@ -57,7 +57,7 @@ async def get_pipeline_summary():
         "total_success_rate": pipeline_success_rate._value.get() or 100.0,
         "step_success_rates": step_rates,
         "step_durations": pipeline_metrics.get_step_duration_stats(),
-        "latest_pipeline": pipeline_metrics.end_pipeline() if pipeline_metrics.start_time else None
+        "latest_pipeline": pipeline_metrics.get_latest()
     }
 
 

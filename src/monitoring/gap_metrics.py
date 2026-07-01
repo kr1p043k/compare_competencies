@@ -119,9 +119,12 @@ class GapMetricsTracker:
 
     def record_analysis(self, profile_type: str, duration: float, success: bool, recommendations_count_val: int = 0) -> None:
         """Record gap analysis metrics for pipeline_steps."""
-        gap_analysis_duration.labels(profile_type=profile_type).observe(duration)
-        if recommendations_count_val > 0:
-            recommendations_count.labels(profile_type=profile_type).observe(recommendations_count_val)
+        gap_duration.labels(profile_type=profile_type, region=str(self.region)).observe(duration)
+        if success:
+            current = gap_success_rate.labels(profile_type=profile_type)._value.get()
+            current_rate = current if current is not None else 100.0
+            new_rate = current_rate * 0.95 + 100.0 * 0.05
+            gap_success_rate.labels(profile_type=profile_type).set(new_rate)
 
     def end(self, success: bool = True) -> Dict[str, Any]:
         """Завершить gap-анализ и записать метрики."""

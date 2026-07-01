@@ -3,9 +3,9 @@
   "direction_name": "Перспективные информационные технологии",
   "discipline": "Методы оптимизации",
   "metrics": {
-    "total_rpd_skills": 14,
-    "market_matched": 13,
-    "gaps": 1,
+    "total_rpd_skills": 28,
+    "market_matched": 26,
+    "gaps": 2,
     "coverage_ratio": 0.9286,
     "weighted_coverage": 0.8929,
     "coverage_level": "high",
@@ -13,6 +13,16 @@
       {
         "skill": "анализ данных",
         "frequency": 127,
+        "match_type": "exact"
+      },
+      {
+        "skill": "анализ данных",
+        "frequency": 127,
+        "match_type": "exact"
+      },
+      {
+        "skill": "php",
+        "frequency": 77,
         "match_type": "exact"
       },
       {
@@ -26,18 +36,18 @@
         "match_type": "fuzzy"
       },
       {
+        "skill": "технические средства",
+        "frequency": 22,
+        "match_type": "fuzzy"
+      },
+      {
         "skill": "мультимедиа",
         "frequency": 2,
         "match_type": "exact"
       },
       {
-        "skill": "dom",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
-        "skill": "байесовская оптимизация",
-        "frequency": 1,
+        "skill": "мультимедиа",
+        "frequency": 2,
         "match_type": "exact"
       },
       {
@@ -46,22 +56,13 @@
         "match_type": "exact"
       },
       {
-        "skill": "grid search",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
-        "skill": "постановка задачи мл",
-        "frequency": 1,
-        "match_type": "exact"
-      },
-      {
-        "skill": "оптимизация обучения",
+        "skill": "методы оптимизации",
         "frequency": 1,
         "match_type": "exact"
       }
     ],
     "gaps_in_curriculum": [
+      "математические модели",
       "математические модели"
     ],
     "emerging_market_skills_not_in_rpd": [
@@ -181,31 +182,79 @@
       "code": "ОПК-1",
       "total_skills": 1,
       "matched_skills": 0,
-      "coverage": 0.0
+      "coverage": 0.0,
+      "ksa_context": {
+        "mentioned_in_ksa": [
+          "ит"
+        ],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "python",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность"
+        ],
+        "total_ksa_items": 3
+      }
     },
     {
       "code": "ОПК-1.2",
-      "total_skills": 0,
+      "total_skills": 1,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0.0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-3",
       "total_skills": 15,
       "matched_skills": 13,
-      "coverage": 0.8667
+      "coverage": 0.8667,
+      "ksa_context": {
+        "mentioned_in_ksa": [
+          "bi",
+          "c",
+          "go",
+          "http",
+          "it",
+          "php",
+          "ит",
+          "тестирование"
+        ],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "python",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность"
+        ],
+        "total_ksa_items": 57
+      }
     },
     {
       "code": "ПК-3.1",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 8,
+      "matched_skills": 7,
+      "coverage": 0.875,
+      "ksa_context": {}
     },
     {
       "code": "ПК-3.2",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 7,
+      "matched_skills": 6,
+      "coverage": 0.8571,
+      "ksa_context": {}
     }
   ],
   "recommendations": [
@@ -268,6 +317,41 @@
       "type": "review_content",
       "priority": "medium",
       "message": "Компетенция «ОПК-1» имеет 0% покрытие рынком — рекомендуется наполнить её востребованными навыками."
+    },
+    {
+      "type": "review_content",
+      "priority": "medium",
+      "message": "Компетенция «ОПК-1.2» имеет 0% покрытие рынком — рекомендуется наполнить её востребованными навыками."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции ОПК-1. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции ОПК-1. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ОПК-1. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции ПК-3. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции ПК-3. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ПК-3. Рассмотрите возможность углубления."
     }
   ],
   "enhanced": {

@@ -3,8 +3,8 @@
   "direction_name": "Перспективные информационные технологии",
   "discipline": "Байесовские и генеративные модели в искусственном интеллекте",
   "metrics": {
-    "total_rpd_skills": 25,
-    "market_matched": 25,
+    "total_rpd_skills": 44,
+    "market_matched": 44,
     "gaps": 0,
     "coverage_ratio": 1.0,
     "weighted_coverage": 1.0,
@@ -51,13 +51,13 @@
         "match_type": "exact"
       },
       {
-        "skill": "предобработка данных",
-        "frequency": 3,
+        "skill": "transformers",
+        "frequency": 4,
         "match_type": "exact"
       },
       {
-        "skill": "matplotlib",
-        "frequency": 3,
+        "skill": "transformers",
+        "frequency": 4,
         "match_type": "exact"
       }
     ],
@@ -174,37 +174,105 @@
       "code": "ПК-2",
       "total_skills": 9,
       "matched_skills": 7,
-      "coverage": 0.7778
+      "coverage": 0.7778,
+      "ksa_context": {
+        "mentioned_in_ksa": [
+          "c",
+          "python",
+          "ит"
+        ],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность",
+          "bpmn"
+        ],
+        "total_ksa_items": 3
+      }
     },
     {
       "code": "ПК-2.1",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 8,
+      "matched_skills": 6,
+      "coverage": 0.75,
+      "ksa_context": {}
     },
     {
       "code": "ПК-20",
       "total_skills": 8,
       "matched_skills": 6,
-      "coverage": 0.75
+      "coverage": 0.75,
+      "ksa_context": {
+        "mentioned_in_ksa": [
+          "c"
+        ],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "python",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность"
+        ],
+        "total_ksa_items": 3
+      }
     },
     {
       "code": "ПК-20.1",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 8,
+      "matched_skills": 6,
+      "coverage": 0.75,
+      "ksa_context": {}
     },
     {
       "code": "ПК-9",
       "total_skills": 14,
       "matched_skills": 12,
-      "coverage": 0.8571
+      "coverage": 0.8571,
+      "ksa_context": {
+        "mentioned_in_ksa": [
+          "c",
+          "it",
+          "numpy",
+          "pandas",
+          "python",
+          "pytorch",
+          "tensorflow"
+        ],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность",
+          "bpmn"
+        ],
+        "total_ksa_items": 3
+      }
     },
     {
       "code": "ПК-9.2",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 9,
+      "matched_skills": 7,
+      "coverage": 0.7778,
+      "ksa_context": {}
     }
   ],
   "recommendations": [
@@ -252,6 +320,51 @@
       "type": "cross_reference",
       "priority": "low",
       "message": "Навык «kubernetes» (305) преподаётся в дисциплине «Инструменты и инженерные практики  разработки систем ИИ» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции ПК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ПК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «postgresql» не упомянут в KSA компетенции ПК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции ПК-20. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции ПК-20. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ПК-20. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции ПК-9. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ПК-9. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «postgresql» не упомянут в KSA компетенции ПК-9. Рассмотрите возможность углубления."
     }
   ],
   "enhanced": {
@@ -261,19 +374,19 @@
       "top_market_matches": [
         {
           "skill": "Точность и внимательность",
-          "similarity": 0.8573347926139832
+          "similarity": 0.8573348522186279
         },
         {
           "skill": "Учет ГСМ",
-          "similarity": 0.74163818359375
+          "similarity": 0.7416383028030396
         },
         {
           "skill": "Рекрутмент",
-          "similarity": 0.7013443112373352
+          "similarity": 0.7013444900512695
         },
         {
           "skill": "Учет ТМЦ",
-          "similarity": 0.6911287307739258
+          "similarity": 0.6911287903785706
         },
         {
           "skill": "ЕГАИС",
@@ -281,11 +394,11 @@
         },
         {
           "skill": "Комплектация",
-          "similarity": 0.6833887696266174
+          "similarity": 0.6833888292312622
         },
         {
           "skill": "Разработка ППР",
-          "similarity": 0.6825303435325623
+          "similarity": 0.6825302839279175
         },
         {
           "skill": "Работа с большим объемом информации",
@@ -297,7 +410,7 @@
         },
         {
           "skill": "Учет поступающих ТМЦ",
-          "similarity": 0.6753050684928894
+          "similarity": 0.6753048896789551
         }
       ]
     },

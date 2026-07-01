@@ -56,14 +56,12 @@ class SkillMetrics:
         return final_score
 
     def __post_init__(self):
-        if not self.category:
+        if self.category is SkillCategory.MISSING:
             max_gap = max(self.gap_j, self.gap_m, self.gap_s)
             if max_gap < config.SKILL_STRONG_GAP_THRESHOLD:
                 self.category = SkillCategory.STRONG
             elif max_gap < config.SKILL_WEAK_GAP_THRESHOLD:
                 self.category = SkillCategory.WEAK
-            else:
-                self.category = SkillCategory.MISSING
 
             logger.debug(
                 "skill_category_assigned",

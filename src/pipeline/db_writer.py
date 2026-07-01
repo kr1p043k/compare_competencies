@@ -154,7 +154,10 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
     pool = await _pool()
     rows = []
     for v in vacancies:
-        hh_id = int(v.get("id", 0))
+        try:
+            hh_id = int(v.get("id", 0))
+        except (ValueError, TypeError):
+            continue
         if not hh_id:
             continue
         salary = v.get("salary") or {}

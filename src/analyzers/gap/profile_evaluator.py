@@ -41,7 +41,6 @@ class ProfileEvaluator:
         self.hybrid_weights = hybrid_weights or {}
         self.vacancies_skills = vacancies_skills
         self.vacancies_skills_dict = vacancies_skills_dict
-        self.comparators = {}
         self.clusterer = VacancyClusterer()
         self.use_clustering = use_clustering
         self.domain_analyzer = DomainAnalyzer()
@@ -353,31 +352,6 @@ class ProfileEvaluator:
             case Err(err):
                 return Err(DomainError(message="Cluster context failed", detail=str(err)))
 
-    def _get_or_create_comparator(self, target_level: str, level_analyzer=None) -> CompetencyComparator:
-        if target_level in self.comparators:
-            return self.comparators[target_level]
-
-        logger.info("creating_level_comparator", level=target_level)
-        comparator = CompetencyComparator(use_embeddings=True, level=target_level)
-        success = comparator.fit_market(self.vacancies_skills).unwrap_or(False)
-        if success:
-            logger.info("level_comparator_trained", level=target_level)
-        else:
-            logger.warning("level_comparator_training_failed", level=target_level)
-
-        self.comparators[target_level] = comparator
-        return comparator
-
-    def _get_recommendation(self, readiness_score: float, target_level: str) -> str:
-        if readiness_score >= 80:
-            return f"Готов к {target_level} уровню"
-        elif readiness_score >= 60:
-            return f"Неплохо для {target_level}, но есть пробелы"
-        elif readiness_score >= 40:
-            return f"Нужно подготовиться к {target_level}"
-        else:
-            return f"Недостаточно готов к {target_level}"
-
     def _load_cache(self):
         if self._cache_path.exists():
             try:
@@ -389,11 +363,6 @@ class ProfileEvaluator:
     def _save_cache(self):
         with open(self._cache_path, "w", encoding="utf-8") as f:
             json.dump(self._cache, f, indent=2)
-
-    def _get_student_hash(self, student: StudentProfile, level: str) -> str:
-        skills_str = ",".join(sorted(set(s.lower() for s in student.skills)))
-        data = f"{level}:{skills_str}"
-        return hashlib.sha256(data.encode()).hexdigest()
 
     def _compute_student_hash(self, student: StudentProfile) -> str:
         skills_str = ",".join(sorted(set(s.lower() for s in student.skills)))

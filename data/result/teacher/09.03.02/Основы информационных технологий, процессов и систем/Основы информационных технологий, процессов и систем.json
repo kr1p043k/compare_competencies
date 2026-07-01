@@ -3,16 +3,26 @@
   "direction_name": "Перспективные информационные технологии",
   "discipline": "Основы информационных технологий, процессов и систем",
   "metrics": {
-    "total_rpd_skills": 14,
-    "market_matched": 5,
-    "gaps": 9,
-    "coverage_ratio": 0.3571,
-    "weighted_coverage": 0.2857,
+    "total_rpd_skills": 27,
+    "market_matched": 10,
+    "gaps": 17,
+    "coverage_ratio": 0.3704,
+    "weighted_coverage": 0.2963,
     "coverage_level": "medium",
     "top_market_matched_skills": [
       {
         "skill": "анализ данных",
         "frequency": 127,
+        "match_type": "exact"
+      },
+      {
+        "skill": "анализ данных",
+        "frequency": 127,
+        "match_type": "exact"
+      },
+      {
+        "skill": "информационные технологии",
+        "frequency": 106,
         "match_type": "exact"
       },
       {
@@ -26,9 +36,24 @@
         "match_type": "fuzzy"
       },
       {
+        "skill": "тестирование программного обеспечения",
+        "frequency": 46,
+        "match_type": "fuzzy"
+      },
+      {
         "skill": "технические средства",
         "frequency": 22,
         "match_type": "fuzzy"
+      },
+      {
+        "skill": "технические средства",
+        "frequency": 22,
+        "match_type": "fuzzy"
+      },
+      {
+        "skill": "управление знаниями",
+        "frequency": 1,
+        "match_type": "exact"
       },
       {
         "skill": "управление знаниями",
@@ -40,12 +65,20 @@
       "информационно-коммуникационные технологии",
       "программные средства",
       "программные средства",
+      "информационно-коммуникационные технологии",
+      "программные средства",
+      "программные средства",
       "программно-аппаратные комплексы",
       "аппаратные платформы",
+      "аппаратные платформы",
+      "программно-аппаратные комплексы",
       "программные средства",
-      "наладка программного обеспечения",
       "документирование программного обеспечения",
-      "развертывание программного обеспечения"
+      "развертывание программного обеспечения",
+      "наладка программного обеспечения",
+      "наладка программного обеспечения",
+      "развертывание программного обеспечения",
+      "документирование программного обеспечения"
     ],
     "emerging_market_skills_not_in_rpd": [
       {
@@ -164,79 +197,145 @@
       "code": "ОПК-2",
       "total_skills": 4,
       "matched_skills": 2,
-      "coverage": 0.5
+      "coverage": 0.5,
+      "ksa_context": {
+        "mentioned_in_ksa": [
+          "информационные технологии"
+        ],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "python",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность"
+        ],
+        "total_ksa_items": 12
+      }
     },
     {
       "code": "ОПК-2.1",
-      "total_skills": 1,
-      "matched_skills": 0,
-      "coverage": 0.0
+      "total_skills": 2,
+      "matched_skills": 1,
+      "coverage": 0.5,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-2.2",
-      "total_skills": 0,
+      "total_skills": 1,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0.0,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-2.3",
-      "total_skills": 0,
+      "total_skills": 1,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0.0,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-2.4",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 1,
+      "matched_skills": 1,
+      "coverage": 1.0,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-6",
       "total_skills": 3,
       "matched_skills": 0,
-      "coverage": 0.0
+      "coverage": 0.0,
+      "ksa_context": {
+        "mentioned_in_ksa": [],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "python",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность"
+        ],
+        "total_ksa_items": 9
+      }
     },
     {
       "code": "ОПК-6.1",
-      "total_skills": 0,
+      "total_skills": 1,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0.0,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-6.2",
-      "total_skills": 0,
+      "total_skills": 1,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0.0,
+      "ksa_context": {}
     },
     {
       "code": "ОПК-6.3",
-      "total_skills": 0,
+      "total_skills": 1,
       "matched_skills": 0,
-      "coverage": 0
+      "coverage": 0.0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-1",
       "total_skills": 6,
       "matched_skills": 3,
-      "coverage": 0.5
+      "coverage": 0.5,
+      "ksa_context": {
+        "mentioned_in_ksa": [
+          "ит",
+          "управление рисками"
+        ],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "python",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность"
+        ],
+        "total_ksa_items": 18
+      }
     },
     {
       "code": "ПК-1.1",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 2,
+      "matched_skills": 1,
+      "coverage": 0.5,
+      "ksa_context": {}
     },
     {
       "code": "ПК-1.2",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 2,
+      "matched_skills": 1,
+      "coverage": 0.5,
+      "ksa_context": {}
     },
     {
       "code": "ПК-1.3",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 2,
+      "matched_skills": 1,
+      "coverage": 0.5,
+      "ksa_context": {}
     }
   ],
   "recommendations": [
@@ -263,17 +362,17 @@
     {
       "type": "review_content",
       "priority": "medium",
-      "message": "«наладка программного обеспечения» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность."
-    },
-    {
-      "type": "review_content",
-      "priority": "medium",
       "message": "«документирование программного обеспечения» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность."
     },
     {
       "type": "review_content",
       "priority": "medium",
       "message": "«развертывание программного обеспечения» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность."
+    },
+    {
+      "type": "review_content",
+      "priority": "medium",
+      "message": "«наладка программного обеспечения» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность."
     },
     {
       "type": "add_new_content",
@@ -308,12 +407,77 @@
     {
       "type": "review_content",
       "priority": "medium",
-      "message": "Компетенция «ОПК-2.1» имеет 0% покрытие рынком — рекомендуется наполнить её востребованными навыками."
+      "message": "Компетенция «ОПК-2.2» имеет 0% покрытие рынком — рекомендуется наполнить её востребованными навыками."
+    },
+    {
+      "type": "review_content",
+      "priority": "medium",
+      "message": "Компетенция «ОПК-2.3» имеет 0% покрытие рынком — рекомендуется наполнить её востребованными навыками."
     },
     {
       "type": "review_content",
       "priority": "medium",
       "message": "Компетенция «ОПК-6» имеет 0% покрытие рынком — рекомендуется наполнить её востребованными навыками."
+    },
+    {
+      "type": "review_content",
+      "priority": "medium",
+      "message": "Компетенция «ОПК-6.1» имеет 0% покрытие рынком — рекомендуется наполнить её востребованными навыками."
+    },
+    {
+      "type": "review_content",
+      "priority": "medium",
+      "message": "Компетенция «ОПК-6.2» имеет 0% покрытие рынком — рекомендуется наполнить её востребованными навыками."
+    },
+    {
+      "type": "review_content",
+      "priority": "medium",
+      "message": "Компетенция «ОПК-6.3» имеет 0% покрытие рынком — рекомендуется наполнить её востребованными навыками."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции ОПК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции ОПК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ОПК-2. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции ОПК-6. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции ОПК-6. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ОПК-6. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции ПК-1. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции ПК-1. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ПК-1. Рассмотрите возможность углубления."
     }
   ],
   "enhanced": {

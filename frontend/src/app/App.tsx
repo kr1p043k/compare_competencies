@@ -20,6 +20,7 @@ import { GapAnalysisVisualizer } from "./components/GapAnalysisVisualizer";
 import { Footer } from "./components/Footer";
 import { VacanciesList } from "./components/VacanciesList";
 import { AnalysisTab } from "./components/AnalysisTab";
+import { ArticlesPage } from "./components/ArticlesPage";
 import { PipelineProgress } from "./components/PipelineProgress";
 import { DataViewer } from "./components/DataViewer";
 import { RecommendationsReport } from "./components/RecommendationsReport";
@@ -51,6 +52,7 @@ import {
   UserCheck,
   History,
   Activity,
+  Newspaper,
 } from "lucide-react";
 
 const API = "/api";
@@ -95,6 +97,10 @@ export default function App() {
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profileRef = useRef(profile);
   useEffect(() => { profileRef.current = profile; }, [profile]);
+
+  const { isAuth, login, logout, role, name } = useAuth();
+  const roleRef = useRef(role);
+  useEffect(() => { roleRef.current = role; }, [role]);
 
   // reconnect to running task after page refresh
   useEffect(() => {
@@ -201,7 +207,7 @@ export default function App() {
           const prof = profileRef.current;
           fetch(`/api/results/recommendations/${prof}`).then(r => r.ok && r.json()).then(d => {
             if (d) { setAnalysisData(d); setLastResult(d); }
-            if (role === "student" && d) {
+            if (roleRef.current === "student" && d) {
               const q = pipelineQuery;
               const url = q ? `/api/vacancies?limit=1&search=${encodeURIComponent(q)}` : "/api/vacancies/info";
               fetch(url).then(r => r.ok ? r.json() : { total: 0 }).then(vi => {
@@ -282,7 +288,7 @@ export default function App() {
       };
       if (body) opts.body = JSON.stringify(body);
       const res = await fetch(`${API}${endpoint}`, opts);
-      const data = await res.json();
+      const data = res.ok ? await res.json() : await res.text().then(t => { throw new Error(t || res.statusText); });
       setLastResult(data);
       showStatus(
         res.ok ? "success" : "error",
@@ -435,6 +441,13 @@ export default function App() {
             >
               <Target className="size-4" />
               Анализ
+            </TabsTrigger>
+            <TabsTrigger
+              value="articles"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
+            >
+              <Newspaper className="size-4" />
+              Статьи
             </TabsTrigger>
             {role === "admin" && (
               <TabsTrigger value="monitoring" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
@@ -634,7 +647,7 @@ export default function App() {
               analysisData={analysisData}
               onDataLoaded={(data) => {
                 setAnalysisData(data); setLastResult(data);
-                if (role === "student" && data) {
+                if (roleRef.current === "student" && data) {
                   const q = pipelineQuery;
                   const url = q ? `/api/vacancies?limit=1&search=${encodeURIComponent(q)}` : "/api/vacancies/info";
                   fetch(url).then(r => r.ok ? r.json() : { total: 0 }).then(vi => {
@@ -658,6 +671,9 @@ export default function App() {
           </TabsContent>
           <TabsContent value="predictions">
             <PredictionsTab />
+          </TabsContent>
+          <TabsContent value="articles">
+            <ArticlesPage />
           </TabsContent>
           {role === "admin" && (
             <TabsContent value="monitoring">

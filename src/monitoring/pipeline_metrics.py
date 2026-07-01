@@ -186,5 +186,18 @@ class ConversionTracker:
         self.step_items = {}
         self.conversion_counts = {}
 
+    def get_latest(self) -> Optional[Dict[str, Any]]:
+        """Получить latest pipeline metrics without mutating state."""
+        if not self.start_time:
+            return None
+        return {
+            "pipeline_id": self.pipeline_id,
+            "total_duration": time.time() - self.start_time,
+            "success_rate": pipeline_success_rate._value.get() or 0.0,
+            "steps": self.step_status.copy(),
+            "items_processed": self.step_items.copy(),
+            "conversions": self.conversion_counts.copy(),
+        }
+
 
 pipeline_metrics = ConversionTracker()

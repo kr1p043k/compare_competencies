@@ -3,11 +3,11 @@
   "direction_name": "Перспективные информационные технологии",
   "discipline": "Инфраструктура распределённых баз данных",
   "metrics": {
-    "total_rpd_skills": 32,
-    "market_matched": 31,
+    "total_rpd_skills": 53,
+    "market_matched": 52,
     "gaps": 1,
-    "coverage_ratio": 0.9688,
-    "weighted_coverage": 0.9531,
+    "coverage_ratio": 0.9811,
+    "weighted_coverage": 0.9623,
     "coverage_level": "high",
     "top_market_matched_skills": [
       {
@@ -36,8 +36,8 @@
         "match_type": "exact"
       },
       {
-        "skill": "etl",
-        "frequency": 62,
+        "skill": "ansible",
+        "frequency": 144,
         "match_type": "exact"
       },
       {
@@ -51,13 +51,13 @@
         "match_type": "exact"
       },
       {
-        "skill": "hadoop",
-        "frequency": 52,
+        "skill": "etl",
+        "frequency": 62,
         "match_type": "exact"
       },
       {
-        "skill": "terraform",
-        "frequency": 48,
+        "skill": "etl",
+        "frequency": 62,
         "match_type": "exact"
       }
     ],
@@ -161,55 +161,150 @@
       "code": "ПК-15",
       "total_skills": 9,
       "matched_skills": 6,
-      "coverage": 0.6667
+      "coverage": 0.6667,
+      "ksa_context": {
+        "mentioned_in_ksa": [
+          "ai",
+          "airflow",
+          "c",
+          "ci/cd",
+          "etl",
+          "it",
+          "ит"
+        ],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "python",
+          "linux",
+          "postgresql",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность"
+        ],
+        "total_ksa_items": 6
+      }
     },
     {
       "code": "ПК-15.2",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 8,
+      "matched_skills": 6,
+      "coverage": 0.75,
+      "ksa_context": {}
     },
     {
       "code": "ПК-3",
       "total_skills": 13,
       "matched_skills": 11,
-      "coverage": 0.8462
+      "coverage": 0.8462,
+      "ksa_context": {
+        "mentioned_in_ksa": [
+          "ansible",
+          "c",
+          "docker",
+          "etl",
+          "hadoop",
+          "helm",
+          "it",
+          "k8s",
+          "kafka",
+          "kubernetes",
+          "rag",
+          "spark",
+          "terraform",
+          "ит"
+        ],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "sql",
+          "python",
+          "linux",
+          "postgresql",
+          "git",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность",
+          "bpmn",
+          "системный анализ"
+        ],
+        "total_ksa_items": 9
+      }
     },
     {
       "code": "ПК-3.6",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 4,
+      "matched_skills": 3,
+      "coverage": 0.75,
+      "ksa_context": {}
     },
     {
       "code": "ПК-3.7",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 2,
+      "matched_skills": 2,
+      "coverage": 1.0,
+      "ksa_context": {}
     },
     {
       "code": "ПК-3.8",
-      "total_skills": 2,
-      "matched_skills": 2,
-      "coverage": 1.0
+      "total_skills": 5,
+      "matched_skills": 4,
+      "coverage": 0.8,
+      "ksa_context": {}
     },
     {
       "code": "ПК-6",
       "total_skills": 15,
       "matched_skills": 12,
-      "coverage": 0.8
+      "coverage": 0.8,
+      "ksa_context": {
+        "mentioned_in_ksa": [
+          "ai",
+          "c",
+          "etl",
+          "go",
+          "js",
+          "json",
+          "ml",
+          "mongodb",
+          "postgresql",
+          "rag",
+          "sql",
+          "ит",
+          "субд",
+          "тестирование"
+        ],
+        "ksa_not_on_market": [],
+        "market_not_in_ksa": [
+          "python",
+          "linux",
+          "git",
+          "docker",
+          "kubernetes",
+          "аналитическое мышление",
+          "java",
+          "информационная безопасность",
+          "bpmn",
+          "системный анализ"
+        ],
+        "total_ksa_items": 10
+      }
     },
     {
       "code": "ПК-6.1",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 7,
+      "matched_skills": 4,
+      "coverage": 0.5714,
+      "ksa_context": {}
     },
     {
       "code": "ПК-6.2",
-      "total_skills": 0,
-      "matched_skills": 0,
-      "coverage": 0
+      "total_skills": 4,
+      "matched_skills": 4,
+      "coverage": 1.0,
+      "ksa_context": {}
     }
   ],
   "recommendations": [
@@ -247,6 +342,51 @@
       "type": "cross_reference",
       "priority": "low",
       "message": "Навык «python» (878) преподаётся в дисциплине «Алгоритмизация и программирование» — в рамках текущей дисциплины достаточно упомянуть или сослаться."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции ПК-15. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции ПК-15. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ПК-15. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «sql» не упомянут в KSA компетенции ПК-3. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции ПК-3. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ПК-3. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «python» не упомянут в KSA компетенции ПК-6. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «linux» не упомянут в KSA компетенции ПК-6. Рассмотрите возможность углубления."
+    },
+    {
+      "type": "ksa_context",
+      "priority": "medium",
+      "message": "Рыночный навык «git» не упомянут в KSA компетенции ПК-6. Рассмотрите возможность углубления."
     }
   ],
   "enhanced": {
@@ -256,7 +396,7 @@
       "top_market_matches": [
         {
           "skill": "Планирование",
-          "similarity": 0.8943824768066406
+          "similarity": 0.8943824172019958
         },
         {
           "skill": "Умение планировать",
@@ -264,11 +404,11 @@
         },
         {
           "skill": "Точность и внимательность",
-          "similarity": 0.8573348522186279
+          "similarity": 0.8573347926139832
         },
         {
           "skill": "Составление планов по подбору",
-          "similarity": 0.8069634437561035
+          "similarity": 0.8069636225700378
         },
         {
           "skill": "Дизайн",
@@ -276,15 +416,15 @@
         },
         {
           "skill": "Подработка",
-          "similarity": 0.7716497182846069
+          "similarity": 0.7716498374938965
         },
         {
           "skill": "ЕГАИС",
-          "similarity": 0.7675551772117615
+          "similarity": 0.7675553560256958
         },
         {
           "skill": "Производственное планирование",
-          "similarity": 0.7617172598838806
+          "similarity": 0.7617172002792358
         },
         {
           "skill": "Контроль качества",
@@ -292,7 +432,7 @@
         },
         {
           "skill": "Проектная документация",
-          "similarity": 0.7393759489059448
+          "similarity": 0.7393758296966553
         }
       ]
     },
