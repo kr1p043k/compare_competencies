@@ -460,32 +460,35 @@ async def run_teacher_analysis(
         coverage = cov_result.unwrap()
 
         # — KSA context analysis: check which market skills are mentioned in raw KSA —
+        # Optimized: only check top 500 market skills (by frequency) for speed
         ksa_context: dict[str, dict] = {}  # {comp_code: {mentioned: [...], missing: [...]}}
-        # Pre-build a set of long market skills for fast substring search
-        long_market_skills = {s for s in market_skills if len(s) >= 3}
+        top_market_skills = {s for s, _ in sorted(market_skills.items(), key=lambda x: -x[1])[:500]}
+        top_market_list = sorted(top_market_skills, key=lambda s: -market_skills.get(s, 0))
+
         for comp_code, ksa_texts in disc_data.get("ksa", {}).items():
             mentioned = set()
             for text in ksa_texts:
                 tl = text.lower()
-                for skill_name in long_market_skills:
-                    if skill_name in tl:
-                        mentioned.add(skill_name)
-            # Skills in KSA but not in market
+                for sk in top_market_skills:
+                    if sk in tl:
+                        mentioned.add(sk)
             ksa_only = mentioned - set(market_skills.keys())
-            # Skills in market but not mentioned in any KSA for this competency
-            market_only = set()
-            for skill_name in long_market_skills:
-                if skill_name not in mentioned:
-                    # Check if this skill IS covered by competency_skills matching
-                    for s in disc_data["competencies"].get(comp_code, []):
-                        if skill_name in s.lower():
-                            break
-                    else:
-                        market_only.add(skill_name)
+            # Top market skills NOT mentioned in KSA (simple list, no nested loop)
+            market_not_in_ksa = [sk for sk in top_market_list if sk not in mentioned][:10]
             ksa_context[comp_code] = {
                 "mentioned_in_ksa": sorted(mentioned)[:20],
                 "ksa_not_on_market": sorted(ksa_only)[:10],
-                "market_not_in_ksa": sorted(list(market_only))[:10],
+                "market_not_in_ksa": market_not_in_ksa,
+                "total_ksa_items": len(ksa_texts),
+            }
+            # Skills in KSA but not in market
+            ksa_only = mentioned - set(market_skills.keys())
+            # Top market skills NOT mentioned in KSA (simple list, no nested loop)
+            market_not_in_ksa = [sk for sk in top_market_list if sk not in mentioned][:10]
+            ksa_context[comp_code] = {
+                "mentioned_in_ksa": sorted(mentioned)[:20],
+                "ksa_not_on_market": sorted(ksa_only)[:10],
+                "market_not_in_ksa": market_not_in_ksa,
                 "total_ksa_items": len(ksa_texts),
             }
 
