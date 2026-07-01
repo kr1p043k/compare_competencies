@@ -119,9 +119,9 @@ async def _try_collect():
 
     # Parse skills for newly collected vacancies
     try:
-        from src.parsing.skills.skill_parser import SkillParser
+        from src.parsing.skills.vacancy_parser import VacancyParser
         from src.models.vacancy import Vacancy as VacModel
-        sp = SkillParser()
+        parser = VacancyParser()
         conn = await asyncpg.connect(db_url)
         try:
             for v in all_vacancies:
@@ -129,7 +129,7 @@ async def _try_collect():
                 if not hh_id:
                     continue
                 vac_obj = VacModel.from_api(v)
-                match sp.parse_vacancy(vac_obj):
+                match parser.skill_parser.parse_vacancy(vac_obj):
                     case Ok(extracted):
                         texts = list(dict.fromkeys(s.text for s in extracted if s.text))
                         if texts:
