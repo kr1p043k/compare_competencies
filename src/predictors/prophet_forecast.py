@@ -34,39 +34,74 @@ class Snapshot:
 
 
 async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], DomainError]:
-    """Build monthly skill-frequency snapshots using running total (rolling window).
+    """Build monthly skill-frequency snapshots from freq_market_*.json files,
+    supplemented by parsed_skills from DB for skills not in those files.
 
-    Each month's value = total unique vacancies with this skill from start up to
-    the end of that month. This prevents incomplete-month dips from skewing trends.
+    Each snapshot = per-month frequency (absolute count, not running total).
     """
-    rows = await session.execute(text("""
-        SELECT
-            date_trunc('month', v.published_at::timestamp)::date AS month,
-            ps::text AS skill,
-            COUNT(DISTINCT v.id) AS freq
-        FROM vacancies v
-        CROSS JOIN LATERAL jsonb_array_elements_text(v.parsed_skills::jsonb) AS ps
-        WHERE v.parsed_skills IS NOT NULL
-          AND v.parsed_skills::text != '[]'
-          AND v.published_at IS NOT NULL
-        GROUP BY month, ps::text
-        ORDER BY month
-    """))
-    monthly: dict[date, Counter] = {}
-    for row in rows:
-        m = row.month if isinstance(row.month, date) else row.month.date()
-        monthly.setdefault(m, Counter())[row.skill] += row.freq
-    if not monthly:
-        return Err(DomainError("No vacancies with parsed_skills in database"))
+    import json
+    from pathlib import Path
+    from src import config
 
-    # Convert to running total: each snapshot includes all prior months
-    running: dict[str, float] = {}
-    snapshots: list[Snapshot] = []
-    for m in sorted(monthly):
-        for skill, freq in monthly[m].items():
-            running[skill] = running.get(skill, 0.0) + freq
-        snapshots.append(Snapshot(m, dict(running)))
-    return Ok(snapshots)
+    # 1. Load freq_market_*.json files as primary source
+    history_dir: Path = config.HISTORY_DIR
+    file_snapshots: list[tuple[date, dict[str, float]]] = []
+    all_skills_in_files: set[str] = set()
+
+    for f in sorted(history_dir.glob("freq_market_*.json")):
+        try:
+            raw = json.loads(f.read_bytes())
+            meta = raw.pop("_meta", {}) if isinstance(raw, dict) else {}
+            data = {k: float(v) for k, v in raw.items() if isinstance(v, (int, float))}
+            sd = meta.get("snapshot_date", "")
+            try:
+                dt = datetime.strptime(sd, "%Y-%m-%d").date()
+            except ValueError:
+                try:
+                    dt = datetime.strptime(sd, "%Y-%m").date()
+                except ValueError:
+                    continue
+            file_snapshots.append((dt, data))
+            all_skills_in_files.update(data.keys())
+        except Exception:
+            continue
+
+    if not file_snapshots:
+        logger.warning("no_freq_market_files_found_falling_back_to_db")
+
+    # 2. Supplement with parsed_skills from DB for NEW skills not in freq_market
+    try:
+        rows = await session.execute(text("""
+            SELECT
+                date_trunc('month', v.published_at::timestamp)::date AS month,
+                ps::text AS skill,
+                COUNT(DISTINCT v.id) AS freq
+            FROM vacancies v
+            CROSS JOIN LATERAL jsonb_array_elements_text(v.parsed_skills::jsonb) AS ps
+            WHERE v.parsed_skills IS NOT NULL
+              AND v.parsed_skills::text != '[]'
+              AND v.published_at IS NOT NULL
+            GROUP BY month, ps::text
+            ORDER BY month
+        """))
+        db_monthly: dict[date, Counter] = {}
+        for row in rows:
+            m = row.month if isinstance(row.month, date) else row.month.date()
+            if row.skill not in all_skills_in_files:
+                db_monthly.setdefault(m, Counter())[row.skill] += row.freq
+
+        # Convert DB data into snapshot format
+        for m in sorted(db_monthly):
+            file_snapshots.append((m, dict(db_monthly[m])))
+    except Exception:
+        logger.warning("db_supplement_failed")
+
+    if not file_snapshots:
+        return Err(DomainError("No snapshot data available"))
+
+    # 3. Sort by date and return
+    file_snapshots.sort(key=lambda x: x[0])
+    return Ok([Snapshot(m, data) for m, data in file_snapshots])
 
 
 class ProphetForecastEngine(BasePredictor):
