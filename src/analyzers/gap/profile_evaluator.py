@@ -56,6 +56,11 @@ class ProfileEvaluator:
             ExperienceLevel.MIDDLE: self.clusterer.load_model(ExperienceLevel.MIDDLE),
             ExperienceLevel.SENIOR: self.clusterer.load_model(ExperienceLevel.SENIOR),
         }
+        # Fallback to "all" if no per-level model loaded
+        if not any(self.cluster_models_loaded.values()):
+            all_loaded = self.clusterer.load_model("all")
+            for level in self.cluster_models_loaded:
+                self.cluster_models_loaded[level] = all_loaded
         logger.info(
             "cluster_models_loaded",
             junior=self.cluster_models_loaded["junior"],
