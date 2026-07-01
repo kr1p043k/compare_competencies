@@ -165,12 +165,12 @@ class SkillParser:
 
             self.stats.total_extracted += len(skills)
 
-            # Normalize cyrillic homoglyphs (с→c, а→a, о→o, р→p, х→x, е→e, у→y) and deduplicate
+            # Normalize cyrillic homoglyphs and deduplicate (case-insensitive)
             _HOMOGLYPH_MAP = str.maketrans("саорехуеСАОРЕХУЕ", "caopexyeCAOPEXYE")
             seen: set[str] = set()
             deduped = []
             for s in skills:
-                norm = s.text.translate(_HOMOGLYPH_MAP)
+                norm = s.text.lower().translate(_HOMOGLYPH_MAP)
                 if norm not in seen:
                     seen.add(norm)
                     s.text = norm
@@ -236,7 +236,8 @@ class SkillParser:
             for tech in all_skills:
                 sb = r"\b" if tech[0].isalnum() else ""
                 eb = r"\b" if tech[-1].isalnum() else ""
-                pattern = rf"{sb}{re.escape(tech)}{eb}"
+                version = r"(?:[-\s]*v?\d+(?:\.\d+)*)?" if tech[-1].isalnum() else ""
+                pattern = rf"{sb}{re.escape(tech)}{version}{eb}"
                 for match in re.finditer(pattern, text_norm):
                     start = max(0, match.start() - 50)
                     context = text_norm[start : match.end() + 50]

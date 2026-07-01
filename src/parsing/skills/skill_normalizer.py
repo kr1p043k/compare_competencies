@@ -162,13 +162,25 @@ class SkillNormalizer:
 
     @classmethod
     def _get_canonical_map(cls) -> dict[str, str]:
-        """Строит плоский маппинг напрямую из SYNONYM_MAP."""
+        """Строит плоский маппинг из SYNONYM_MAP + таксономии."""
         if cls._canonical_map is None:
             canon = {}
             for canonical, variants in cls.SYNONYM_MAP.items():
                 for v in variants:
                     canon[v] = canonical
                 canon[canonical] = canonical
+            # Load aliases from taxonomy
+            try:
+                from pathlib import Path
+                tax_path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "reference" / "skill_taxonomy.json"
+                if tax_path.exists():
+                    import json
+                    tax = json.loads(tax_path.read_text(encoding="utf-8"))
+                    for cat in tax.get("categories", {}).values():
+                        for alias, target in cat.get("aliases", {}).items():
+                            canon[alias.lower()] = target
+            except Exception as exc:
+                logger.warning("taxonomy_aliases_load_failed", error=str(exc))
             cls._canonical_map = canon
             logger.info("canonical_map_built", terms=len(canon))
         return cls._canonical_map
@@ -340,6 +352,27 @@ class SkillNormalizer:
                 if r.is_ok():
                     results.append(r.unwrap())
         return Ok(results)
+
+    @staticmethod
+    def resolve(skill: str) -> str:
+        """Fast alias resolution: lower + strip versions + synonym map.
+        Unlike normalize(), does not check whitelist or run fuzzy match."""
+        if not skill:
+            return skill
+        text = skill.lower().strip()
+        if len(text) > 40:
+            return ""
+        for pattern in SkillNormalizer.VERSION_PATTERNS:
+            text = re.sub(pattern, "", text)
+        for pattern in SkillNormalizer.PREFIX_REMOVALS:
+            text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+        for suffix in SkillNormalizer.SUFFIX_REMOVALS:
+            text = re.sub(suffix, "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s+", " ", text).strip()
+        text = SkillNormalizer._apply_synonym_map(text)
+        text = re.sub(r"[^\w\s\+\#\-\.]", "", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
 
     @staticmethod
     def deduplicate(skills: list[str]) -> Result[list[str], DomainError]:

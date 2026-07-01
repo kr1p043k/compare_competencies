@@ -39,7 +39,11 @@ class VacancyParser:
                 return Ok([])
             match self.skill_parser._extract_from_text(description, source=SkillSource.DESCRIPTION):
                 case Ok(extracted):
-                    return Ok([skill.text for skill in extracted])
+                    raw = [s.text for s in extracted]
+                    normalized = SkillNormalizer.normalize_batch(raw)
+                    if normalized.is_ok():
+                        return Ok([s for s in normalized.unwrap() if s])
+                    return Ok(raw)
                 case Err(e):
                     return Err(e)
         except Exception as e:
@@ -64,17 +68,18 @@ class VacancyParser:
                         skill_texts = [s.text for s in extracted if s.text]
                     case Err(_):
                         skill_texts = []
-                # Validate before normalization
-                valid_texts = []
-                for text in skill_texts:
+                # Normalize first (lower, strip versions, aliases), then validate
+                normalized_r = SkillNormalizer.normalize_batch(skill_texts)
+                normalized = normalized_r.unwrap() if normalized_r.is_ok() else []
+                valid_texts = [s for s in normalized if s]
+                validated = []
+                for text in valid_texts:
                     match self.skill_validator.validate(text):
                         case Ok(result) if result.is_valid:
-                            valid_texts.append(text)
+                            validated.append(text)
                         case _:
                             pass
-                normalized_r = SkillNormalizer.normalize_batch(valid_texts)
-                normalized = normalized_r.unwrap() if normalized_r.is_ok() else []
-                unique = list(dict.fromkeys([s for s in normalized if s]))
+                unique = list(dict.fromkeys(validated))
                 for skill in unique:
                     skill_freq[skill] += 1
             logger.info("Уникальных навыков", count=len(skill_freq))
@@ -124,12 +129,15 @@ class VacancyParser:
 
     # --------------------- утилиты сохранения и вывода -------------------------
     def _validate_skills(self, skill_freq: dict[str, float]) -> dict[str, float]:
-        """Validate skills using SkillValidator, remove invalid entries."""
+        """Normalize then validate skills."""
         validated = {}
         for skill, freq in skill_freq.items():
-            match self.skill_validator.validate(skill):
+            normalized = SkillNormalizer.resolve(skill)
+            if not normalized:
+                continue
+            match self.skill_validator.validate(normalized):
                 case Ok(result) if result.is_valid:
-                    validated[skill] = freq
+                    validated[normalized] = validated.get(normalized, 0) + freq
                 case _:
                     pass
         return validated
