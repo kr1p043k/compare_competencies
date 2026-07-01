@@ -239,13 +239,16 @@ class Vacancy:
         else:
             self.experience_level = "middle"
 
-        logger.debug(
-            "vacancy_created",
-            vacancy_id=self.id,
-            name=self.name,
-            level=self.experience_level,
-            skills_count=len(self.key_skills),
-        )
+        try:
+            logger.debug(
+                "vacancy_created",
+                vacancy_id=self.id,
+                name=self.name,
+                level=self.experience_level,
+                skills_count=len(self.key_skills),
+            )
+        except Exception:
+            pass
 
     @classmethod
     def from_api(cls, data: dict) -> "Vacancy":
@@ -341,14 +344,17 @@ class Vacancy:
                 raw_data=data,
             )
 
-            logger.debug(
-                "vacancy_parsed_from_api",
-                vacancy_id=vacancy_id,
-                name=name,
-                skills=len(key_skills),
-                has_description=bool(data.get("description")),
-                has_salary=salary is not None,
-            )
+            try:
+                logger.debug(
+                    "vacancy_parsed_from_api",
+                    vacancy_id=vacancy_id,
+                    name=name,
+                    skills=len(key_skills),
+                    has_description=bool(data.get("description")),
+                    has_salary=salary is not None,
+                )
+            except Exception:
+                pass
 
             return vacancy
 
