@@ -66,6 +66,29 @@ class CoverageAnalyzer:
                 gap_skills=comp_gaps[:10],
             ))
 
+        # Aggregate parent competency coverage from children
+        # Parent: "ОПК-3" (no dot), Child: "ОПК-3.1" (has dot)
+        child_by_parent: dict[str, list[CompetencyCoverage]] = {}
+        for cc in comp_results:
+            if "." in cc.code:
+                parent_code = cc.code.rsplit(".", 1)[0]
+                child_by_parent.setdefault(parent_code, []).append(cc)
+        if child_by_parent:
+            for idx, cc in enumerate(comp_results):
+                children = child_by_parent.get(cc.code)
+                if children and cc.total_skills == 0:
+                    total = sum(c.total_skills for c in children)
+                    matched = sum(c.matched_skills for c in children)
+                    weighted = sum(c.matched_skills * c.weighted_coverage for c in children) / max(matched, 1)
+                    comp_results[idx] = CompetencyCoverage(
+                        code=cc.code,
+                        total_skills=total,
+                        matched_skills=matched,
+                        coverage=round(matched / total, 4) if total else 0,
+                        weighted_coverage=round(weighted, 4) if total else 0,
+                        gap_skills=cc.gap_skills,
+                    )
+
         matched_list: list[SkillMatch] = []
         gaps_list: list[str] = []
         rpd_norm: set[str] = set()

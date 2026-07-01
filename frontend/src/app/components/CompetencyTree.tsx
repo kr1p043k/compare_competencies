@@ -59,7 +59,7 @@ function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
   const childCov = hasChildren
     ? node.children!.reduce((s, c) => s + (c.weighted_coverage ?? c.coverage ?? 0), 0) / node.children!.length
     : undefined;
-  const displayCov = node.weighted_coverage ?? node.coverage ?? childCov;
+  const displayCov = node.weighted_coverage ?? (node.total_skills === 0 ? childCov : node.coverage) ?? childCov;
   const matched = node.matched_skills ?? 0;
   const total = node.total_skills ?? 0;
 
