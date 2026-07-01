@@ -224,7 +224,9 @@ class SkillParser:
             all_skills = sorted(set(all_skills), key=len, reverse=True)
 
             for tech in all_skills:
-                pattern = rf"\b{re.escape(tech)}\b"
+                sb = r"\b" if tech[0].isalnum() else ""
+                eb = r"\b" if tech[-1].isalnum() else ""
+                pattern = rf"{sb}{re.escape(tech)}{eb}"
                 for match in re.finditer(pattern, text_norm):
                     start = max(0, match.start() - 50)
                     context = text_norm[start : match.end() + 50]
