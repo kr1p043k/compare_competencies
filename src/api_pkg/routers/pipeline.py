@@ -141,7 +141,7 @@ def _load_tasks():
         logger.warning("tasks_restore_failed", error=str(e))
 
 
-_load_tasks()
+
 
 
 def _make_task_status(task_id, status, message, started_at, completed_at=None, output=None, step=0, sub_progress=None):
@@ -633,7 +633,36 @@ _ws_clients: set[WebSocket] = set()
 
 
 @router.websocket("/pipeline/ws")
-async def pipeline_ws(websocket: WebSocket):
+async def pipeline_ws(websocket: WebSocket, token: str = ""):
+    # JWT проверка перед accept
+    try:
+        from src import config
+        import hmac, hashlib, base64, json as _json
+
+        secret = config.get_secret_key()
+        if not secret or not token:
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
+        parts = token.split(".")
+        if len(parts) != 2:
+            await websocket.close(code=4001, reason="Invalid token")
+            return
+        payload_b64 = parts[0] + "=" * ((4 - len(parts[0]) % 4) % 4)
+        sig_b64 = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
+        payload_bytes = base64.urlsafe_b64decode(payload_b64)
+        expected_sig = base64.urlsafe_b64decode(sig_b64)
+        actual_sig = hmac.new(secret.encode(), payload_bytes, hashlib.sha256).digest()
+        if not hmac.compare_digest(expected_sig, actual_sig):
+            await websocket.close(code=4001, reason="Invalid signature")
+            return
+        token_data = _json.loads(payload_bytes)
+        if token_data.get("t", 0) < time.time():
+            await websocket.close(code=4001, reason="Token expired")
+            return
+    except Exception:
+        await websocket.close(code=4001, reason="Auth failed")
+        return
+
     await websocket.accept()
     _ws_clients.add(websocket)
     try:

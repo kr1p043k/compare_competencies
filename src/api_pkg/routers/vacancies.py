@@ -259,30 +259,41 @@ async def get_vacancies_stats(
 
     total = await pool.fetchval("SELECT COUNT(*) FROM vacancies") or 0
 
-    rows = await pool.fetch("SELECT experience, salary_from, salary_to FROM vacancies")
-    junior = middle = senior = 0
-    salaries = []
-    for r in rows:
-        exp = _classify_experience(r["experience"], "")
-        if exp == "junior":
-            junior += 1
-        elif exp == "senior":
-            senior += 1
-        else:
-            middle += 1
-        if r["salary_from"]:
-            salaries.append(r["salary_from"])
-        if r["salary_to"]:
-            salaries.append(r["salary_to"])
+    exp_rows = await pool.fetch("""
+        SELECT
+            CASE
+                WHEN experience IN ('noExperience', 'less', 'junior') THEN 'junior'
+                WHEN experience IN ('more', 'senior') THEN 'senior'
+                ELSE 'middle'
+            END AS exp_group,
+            COUNT(*) AS cnt
+        FROM vacancies
+        WHERE experience IS NOT NULL
+        GROUP BY exp_group
+    """)
+    by_exp = {r["exp_group"]: r["cnt"] for r in exp_rows}
 
-    avg_salary = sum(salaries) / len(salaries) if salaries else 0
+    sal = await pool.fetchrow("""
+        SELECT
+            AVG(COALESCE(salary_from, salary_to)) AS avg_sal,
+            MIN(salary_from) AS min_sal,
+            MAX(salary_to) AS max_sal,
+            COUNT(*) AS cnt
+        FROM vacancies
+        WHERE salary_from IS NOT NULL OR salary_to IS NOT NULL
+    """)
+
     return {
         "total": total,
-        "by_experience": {"junior": junior, "middle": middle, "senior": senior},
+        "by_experience": {
+            "junior": by_exp.get("junior", 0),
+            "middle": by_exp.get("middle", 0),
+            "senior": by_exp.get("senior", 0),
+        },
         "salary": {
-            "average": round(avg_salary, 0),
-            "min": min(salaries) if salaries else 0,
-            "max": max(salaries) if salaries else 0,
-            "count": len(salaries),
+            "average": round(sal["avg_sal"], 0) if sal and sal["avg_sal"] else 0,
+            "min": sal["min_sal"] or 0 if sal else 0,
+            "max": sal["max_sal"] or 0 if sal else 0,
+            "count": sal["cnt"] or 0 if sal else 0,
         },
     }

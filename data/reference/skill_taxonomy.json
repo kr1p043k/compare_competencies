@@ -93,7 +93,9 @@
         "c++": "C++",
         "cs": "C#",
         "rustlang": "Rust",
-        "threejs": "Three.js"
+        "threejs": "Three.js",
+        "sql запросы": "SQL",
+        "машинное обучение": "Machine Learning"
       }
     },
     "frameworks": {
@@ -416,7 +418,8 @@
         "postgres pro": "PostgreSQL",
         "reddis": "Redis",
         "redis stack": "Redis",
-        "mssql server": "MS SQL Server"
+        "mssql server": "MS SQL Server",
+        "postgis": "PostgreSQL"
       }
     },
     "devops": {
@@ -523,7 +526,8 @@
         "gitlab ci/cd": "git",
         "golang": "Go",
         "js": "JavaScript",
-        "ts": "TypeScript"
+        "ts": "TypeScript",
+        "gis": "ГИС"
       }
     },
     "cloud": {

@@ -22,7 +22,7 @@ from src.models.krm_models import RequestLog
 logger = structlog.get_logger(__name__)
 
 MAX_LOGS = 2000
-SECRET_KEY = config.SECRET_KEY
+SECRET_KEY = config.get_secret_key()
 FLUSH_INTERVAL = 10  # seconds
 FLUSH_BATCH = 100    # entries
 
@@ -144,7 +144,7 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         start = datetime.now(timezone.utc)
         user = _extract_user(request)
-        request.state.user = user
+        request.scope["user"] = user
         response = await call_next(request)
         elapsed = (datetime.now(timezone.utc) - start).total_seconds() * 1000
         if not request.url.path.startswith("/api/"):
@@ -169,7 +169,7 @@ class FrontendLogMiddleware(BaseHTTPMiddleware):
         if request.method == "POST" and request.url.path.startswith("/api/admin/"):
             if request.url.path in ("/api/admin/logs", "/api/admin/users"):
                 return response
-            user = getattr(request.state, "user", None) or "frontend"
+            user = request.scope.get("user", None) or "frontend"
             _log_buffer.append(LogEntry(
                 method=request.method,
                 path=request.url.path,

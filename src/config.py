@@ -4,6 +4,7 @@
 Для обратной совместимости все настройки экспортируются как переменные уровня модуля.
 """
 
+import functools
 from pathlib import Path
 
 from pydantic import Field, SecretStr, field_validator
@@ -266,7 +267,10 @@ TOKEN_TTL_DAYS = settings.TOKEN_TTL_DAYS
 
 KRM_DISCIPLINES_PATH = settings.KRM_DISCIPLINES_PATH
 TEACHER_RECOMMENDATIONS_PATH = settings.TEACHER_RECOMMENDATIONS_PATH
-SECRET_KEY = settings.SECRET_KEY.get_secret_value()
+@functools.lru_cache
+def get_secret_key() -> str:
+    """Lazy-load SECRET_KEY — не падает при импорте если .env отсутствует."""
+    return str(settings.SECRET_KEY.get_secret_value()) if settings.SECRET_KEY else ""
 HH_USER_AGENT = settings.HH_USER_AGENT
 REQUEST_DELAY = settings.REQUEST_DELAY
 MAX_RETRIES = settings.MAX_RETRIES

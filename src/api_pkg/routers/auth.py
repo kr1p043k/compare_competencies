@@ -18,7 +18,7 @@ from src.db import get_pool
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["auth"])
 
-SECRET_KEY = config.SECRET_KEY
+SECRET_KEY = config.get_secret_key()
 TOKEN_TTL = 86400 * config.TOKEN_TTL_DAYS
 
 

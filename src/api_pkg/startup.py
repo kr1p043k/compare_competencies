@@ -56,6 +56,11 @@ async def run_startup(app):
 
     from src.db import create_pool as _create_apgpool
     await _create_apgpool()
+
+    from src.api_pkg.routers.pipeline import _load_tasks as _load_pipeline_tasks
+    await asyncio.to_thread(_load_pipeline_tasks)
+    from src.api_pkg.student_actions import _ensure_table as _ensure_student_actions_table
+    await _ensure_student_actions_table()
     logger.info("asyncpg pool ready")
 
     detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
