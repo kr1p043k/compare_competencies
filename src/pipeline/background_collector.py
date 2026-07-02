@@ -136,9 +136,15 @@ async def _try_collect():
     # Parse skills BEFORE converting IDs (Vacancy.from_api expects str id)
     parsed_count = 0
     skip_count = 0
+    empty_ids: set[int] = set()
     try:
         from src.parsing.skills.vacancy_parser import VacancyParser
         from src.models.vacancy import Vacancy as VacModel
+        import re as _re
+        # Preload it_skills keywords for fast substring check
+        _it_kw = {s.strip().lower() for s in json.loads(
+            (Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json").read_text(encoding="utf-8")
+        ) if s.strip()}
         parser = VacancyParser()
         conn = await asyncpg.connect(db_url)
         try:
@@ -162,11 +168,27 @@ async def _try_collect():
                                 json.dumps(texts), hh_id,
                             )
                             parsed_count += 1
+                        else:
+                            # No skills parsed — check if vacancy is actually IT
+                            desc = v.get("description", "") or ""
+                            key_skills = [s.get("name", "") for s in v.get("key_skills", []) if s.get("name")]
+                            has_it = bool(key_skills)
+                            if not has_it and len(desc) > 50:
+                                # Quick substring check: does description mention any it_skills keyword?
+                                desc_lower = desc.lower()
+                                has_it = any(kw in desc_lower for kw in _it_kw)
+                            if not has_it:
+                                empty_ids.add(int(vid))
+                                skip_count += 1
                     case Err(e):
                         logger.warning("collect_parse_skill_failed", id=vid, error=str(e))
                         skip_count += 1
         finally:
             await conn.close()
+        # Remove vacancies that had zero IT relevance
+        if empty_ids:
+            logger.info("collect_removing_non_it_vacancies", count=len(empty_ids))
+            all_vacancies[:] = [v for v in all_vacancies if v.get("id") not in empty_ids]
         logger.info("collect_parse_done", parsed=parsed_count, skipped=skip_count, total=len(all_vacancies))
     except Exception as exc:
         logger.warning("collect_parse_failed", error=str(exc), parsed=parsed_count, skipped=skip_count)
