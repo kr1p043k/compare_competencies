@@ -92,7 +92,8 @@
         "postrgesql": "PostgreSQL",
         "c++": "C++",
         "cs": "C#",
-        "rustlang": "Rust"
+        "rustlang": "Rust",
+        "threejs": "Three.js"
       }
     },
     "frameworks": {
@@ -414,7 +415,8 @@
         "postrgesql": "PostgreSQL",
         "postgres pro": "PostgreSQL",
         "reddis": "Redis",
-        "redis stack": "Redis"
+        "redis stack": "Redis",
+        "mssql server": "MS SQL Server"
       }
     },
     "devops": {
@@ -513,7 +515,9 @@
         "iac": "Infrastructure as Code",
         "infrastructure as code": "Infrastructure as Code",
         "pipeline as code": "Pipeline as Code",
-        "kubernates": "Kubernetes"
+        "kubernates": "Kubernetes",
+        "open stack": "OpenStack",
+        "wire shark": "Wireshark"
       }
     },
     "cloud": {
@@ -1044,7 +1048,12 @@
         "devsecops": "DevSecOps",
         "secrets management": "Secrets Management",
         "iam": "IAM",
-        "identity and access management": "IAM"
+        "identity and access management": "IAM",
+        "active dir": "Active Directory",
+        "burpsuite": "Burp Suite",
+        "burp": "Burp Suite",
+        "asm": "Assembler",
+        "ассемблер": "Assembler"
       }
     },
     "llm_ai": {
@@ -1405,6 +1414,30 @@
         "LLM",
         "Большие языковые модели"
       ]
+    },
+    "business_tools": {
+      "label": "Бизнес-инструменты",
+      "icon": "📊",
+      "skills": [],
+      "aliases": {
+        "bitrix 24": "Bitrix24",
+        "bitrix": "Bitrix24",
+        "ms office": "MS Office",
+        "microsoft office": "MS Office",
+        "microsoft exchange": "MS Exchange",
+        "exchange server": "MS Exchange"
+      }
+    },
+    "methodologies": {
+      "label": "Методологии",
+      "icon": "📋",
+      "skills": [],
+      "aliases": {
+        "user stories": "User Story",
+        "dev sec ops": "DevSecOps",
+        "dev-sec-ops": "DevSecOps",
+        "arc gis": "ArcGIS"
+      }
     }
   }
 }
