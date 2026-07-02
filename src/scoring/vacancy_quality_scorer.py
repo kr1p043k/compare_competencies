@@ -73,7 +73,15 @@ GENERIC_VACANCY_PATTERNS = [
     r"^кассир\b",
 ]
 
+NON_IT_VACANCY_WORDS = [
+    r"копи-?центр",
+    r"ксерокопи",
+    r"типографи",
+    r"печать\b",
+]
+
 NON_IT_VACANCY_PATTERNS = [
+    r"^копи-центр\b",
     r"^повар\b",
     r"^кондитер\b",
     r"^бармен\b",
@@ -200,6 +208,10 @@ class VacancyQualityScorer:
             "|".join(f"(?:{p})" for p in NON_IT_VACANCY_PATTERNS),
             re.IGNORECASE,
         )
+        self._non_it_search_re = re.compile(
+            "|".join(f"(?:{p})" for p in NON_IT_VACANCY_WORDS),
+            re.IGNORECASE,
+        )
 
     def score(self, vacancy: Vacancy) -> Result[QualityScore, ScorerError]:
         try:
@@ -246,7 +258,7 @@ class VacancyQualityScorer:
                 flags.append(SpamFlag("GENERIC_NAME", f"Name: {vacancy.name}"))
                 deductions += 0.3
 
-            if self._non_it_re.match(name_lower):
+            if self._non_it_re.match(name_lower) or self._non_it_search_re.search(name_lower):
                 flags.append(SpamFlag("NOT_RELEVANT", f"Non IT: {vacancy.name}"))
                 deductions += 0.7
 
