@@ -247,7 +247,7 @@ class SkillNormalizer:
         r"[-–—](?:обязательно|предпочтительно|приветствуется|преимущество)\b",
     ]
 
-    FUZZY_THRESHOLD = 85
+    FUZZY_THRESHOLD = 88
     MAX_FUZZY_CANDIDATES = 3
 
     _whitelist: set[str] | None = None
