@@ -41,7 +41,6 @@ data/cache/.hh_token_cache.json
 .mypy_cache/
 frontend/node_modules/
 .hypothesis/
-frontend/dist/
 data/cache/
 data/models/
 data/processed/hh_vacancies_detailed.json
