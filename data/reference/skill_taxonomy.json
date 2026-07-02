@@ -517,7 +517,13 @@
         "pipeline as code": "Pipeline as Code",
         "kubernates": "Kubernetes",
         "open stack": "OpenStack",
-        "wire shark": "Wireshark"
+        "wire shark": "Wireshark",
+        "gitlab": "git",
+        "github": "git",
+        "gitlab ci/cd": "git",
+        "golang": "Go",
+        "js": "JavaScript",
+        "ts": "TypeScript"
       }
     },
     "cloud": {
