@@ -304,14 +304,8 @@ class ProphetForecastEngine(BasePredictor):
     def top_growing(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
-                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0]
-                # Hybrid ranking: blend growth rate and popularity
-                max_freq = max(r.current_frequency for r in results) or 1
-                max_growth = max(abs(r.predicted_growth) for r in results) or 1
-                results.sort(
-                    key=lambda x: 0.4 * (x.predicted_growth / max_growth) + 0.6 * (x.current_frequency / max_freq),
-                    reverse=True,
-                )
+                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0 and r.predicted_growth > 0]
+                results.sort(key=lambda x: x.predicted_growth, reverse=True)
                 return Ok(results[:n])
             case Err(e):
                 return Err(e)
@@ -319,13 +313,9 @@ class ProphetForecastEngine(BasePredictor):
     def top_declining(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
-                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0]
-                max_freq = max(r.current_frequency for r in results) or 1
-                max_growth = max(abs(r.predicted_growth) for r in results) or 1
-                results.sort(
-                    key=lambda x: 0.4 * (x.predicted_growth / max_growth) + 0.6 * (x.current_frequency / max_freq),
-                )
-                return Ok([r for r in results if r.predicted_growth < 0][:n])
+                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0 and r.predicted_growth < 0]
+                results.sort(key=lambda x: x.predicted_growth)
+                return Ok(results[:n])
             case Err(e):
                 return Err(e)
 
