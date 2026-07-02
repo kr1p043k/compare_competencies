@@ -128,6 +128,11 @@ class SkillNormalizer:
         "lora": ["qlora"],
         "prompt engineering": ["prompting", "prompt engineering"],
         "openai api": ["openai api"],
+        # Misc aliases from usage tracking
+        "c++": ["cc++", "c/c++"],
+        "ci/cd": ["cicd", "ci cd"],
+        "msoffice": ["ms office", "microsoft office"],
+        "neo4j": ["neoj"],
         # Cloud
         "aws": ["amazon web services", "amazon aws"],
         "azure": ["microsoft azure"],
