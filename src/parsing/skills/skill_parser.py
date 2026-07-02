@@ -236,7 +236,7 @@ class SkillParser:
             for tech in all_skills:
                 sb = r"\b" if tech[0].isalnum() else ""
                 eb = r"\b" if tech[-1].isalnum() else ""
-                version = r"(?:[-\s]*v?\d+(?:\.\d+)*)?" if tech[-1].isalnum() else ""
+                version = r"(?:[-\s]*v?\d+(?:\.\d+)*)?" if tech[-1].isalnum() and len(tech) >= 2 else ""
                 pattern = rf"{sb}{re.escape(tech)}{version}{eb}"
                 for match in re.finditer(pattern, text_norm):
                     start = max(0, match.start() - 50)
