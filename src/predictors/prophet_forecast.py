@@ -135,6 +135,12 @@ class ProphetForecastEngine(BasePredictor):
                 history.setdefault(skill, []).append((snap.date, freq))
         for skill in history:
             history[skill].sort(key=lambda x: x[0])
+        # Exclude skills not present in the latest snapshot (removed during cleanup)
+        if snapshots:
+            latest_skills = set(snapshots[-1].frequencies.keys())
+            for skill in list(history.keys()):
+                if skill not in latest_skills:
+                    del history[skill]
         return history
 
     def _fit_prophet_for_skill(self, skill: str, points: list[tuple[date, float]]):
@@ -222,6 +228,11 @@ class ProphetForecastEngine(BasePredictor):
 
         if skill in self._models:
             model = self._models[skill]
+            n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
+            # Limit forecast horizon based on data points: 3 pts → 1m, 6 pts → 3m, 12+ pts → 12m
+            max_months = max(1, n_pts // 2)
+            if months > max_months:
+                months = max_months
             future = model.make_future_dataframe(periods=months, freq="ME")
             forecast = model.predict(future)
             last_row = forecast.iloc[-1]
