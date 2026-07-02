@@ -88,7 +88,11 @@
         "sass": "Sass",
         "scss": "Sass",
         "yaml": "YAML",
-        "yml": "YAML"
+        "yml": "YAML",
+        "postrgesql": "PostgreSQL",
+        "c++": "C++",
+        "cs": "C#",
+        "rustlang": "Rust"
       }
     },
     "frameworks": {
@@ -300,7 +304,13 @@
         "rails": "Ruby on Rails",
         "asp.net mvc": "ASP.NET",
         "blazor": "Blazor",
-        "webapi": "ASP.NET"
+        "webapi": "ASP.NET",
+        "nextjs": "Next.js",
+        "nuxtjs": "Nuxt",
+        "angularjs": "Angular",
+        "angular2": "Angular",
+        "dotnet core": ".NET",
+        "aspnet": "ASP.NET"
       }
     },
     "databases": {
@@ -400,7 +410,11 @@
         "ms sql server": "MS SQL",
         "tsql": "T-SQL",
         "transact-sql": "T-SQL",
-        "pl/sql": "PL/SQL"
+        "pl/sql": "PL/SQL",
+        "postrgesql": "PostgreSQL",
+        "postgres pro": "PostgreSQL",
+        "reddis": "Redis",
+        "redis stack": "Redis"
       }
     },
     "devops": {
@@ -498,7 +512,8 @@
         "gitops": "GitOps",
         "iac": "Infrastructure as Code",
         "infrastructure as code": "Infrastructure as Code",
-        "pipeline as code": "Pipeline as Code"
+        "pipeline as code": "Pipeline as Code",
+        "kubernates": "Kubernetes"
       }
     },
     "cloud": {
