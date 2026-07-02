@@ -1,18 +1,18 @@
 {
-  "total_vacancies": 913,
-  "clean_count": 896,
-  "spam_count": 17,
-  "spam_rate": 0.019,
-  "avg_quality_score": 0.958,
+  "total_vacancies": 1000,
+  "clean_count": 954,
+  "spam_count": 46,
+  "spam_rate": 0.046,
+  "avg_quality_score": 0.944,
   "spam_reasons": {
-    "нет навыков": 17,
-    "PROMO_DESCRIPTION": 2
+    "нет навыков": 46,
+    "SUSPICIOUS_EMPLOYER": 1
   },
   "spam_vacancies": [
     {
-      "id": "134228944",
-      "name": "Технический писатель",
-      "employer": "СПб ГКУ Санкт-Петербургский информационно-аналитический центр",
+      "id": "134211209",
+      "name": "Начинающий Web-разработчик",
+      "employer": "Changellenge",
       "score": 0.4,
       "flags": [
         {
@@ -22,9 +22,9 @@
       ]
     },
     {
-      "id": "134546033",
-      "name": "Ведущий технический писатель",
-      "employer": "ИнфоТеКС",
+      "id": "134767713",
+      "name": "Стажер RPA разработчик",
+      "employer": "СОГАЗ",
       "score": 0.4,
       "flags": [
         {
@@ -34,9 +34,9 @@
       ]
     },
     {
-      "id": "134160832",
-      "name": "Специалист по информационной безопасности",
-      "employer": "Специальный Технологический Центр (ООО СТЦ)",
+      "id": "134766235",
+      "name": "Руководитель группы бизнес-анализа и обучения",
+      "employer": "Rambler&Co",
       "score": 0.4,
       "flags": [
         {
@@ -46,9 +46,9 @@
       ]
     },
     {
-      "id": "131715232",
-      "name": "Специалист по информационной безопасности (Проектировщик систем защиты информации)",
-      "employer": "Арман",
+      "id": "134764571",
+      "name": "Senior Analyst",
+      "employer": "ЭЛЬГА",
       "score": 0.4,
       "flags": [
         {
@@ -58,9 +58,9 @@
       ]
     },
     {
-      "id": "133715546",
-      "name": "Сервисный инженер 1С / Специалист технической поддержки 1С",
-      "employer": "Диалог ИТ",
+      "id": "134227178",
+      "name": "Руководитель отдела 1С",
+      "employer": "Selecty",
       "score": 0.4,
       "flags": [
         {
@@ -70,9 +70,9 @@
       ]
     },
     {
-      "id": "132652464",
-      "name": "Инженер по применению продукции (ПЛК Regul)",
-      "employer": "РегЛаб",
+      "id": "134210194",
+      "name": "Системный администратор",
+      "employer": "ГБПОУ ИТ.МОСКВА",
       "score": 0.4,
       "flags": [
         {
@@ -82,9 +82,9 @@
       ]
     },
     {
-      "id": "134572614",
-      "name": "Инженер центра обработки данных (ЦОД)",
-      "employer": "Evercode Lab",
+      "id": "133729975",
+      "name": "Инженер-программист 1 С",
+      "employer": "АЛВИЛС",
       "score": 0.4,
       "flags": [
         {
@@ -94,9 +94,9 @@
       ]
     },
     {
-      "id": "133646104",
-      "name": "Инженер по надежности/отказобезопасности",
-      "employer": "Компания «Кронштадт»",
+      "id": "134218890",
+      "name": "Программист 1С/ Разработчик 1С",
+      "employer": "Новая Вода ®",
       "score": 0.4,
       "flags": [
         {
@@ -106,25 +106,361 @@
       ]
     },
     {
-      "id": "133382794",
-      "name": "Консультант (внедрение и сопровождение ПО)",
-      "employer": "НПК КАТАРСИС",
-      "score": 0.19999999999999996,
+      "id": "134751131",
+      "name": "Младший партнер (целеполагание)",
+      "employer": "СБЕР",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133147610",
+      "name": "Руководитель проекта КЭДО",
+      "employer": "ДОМИНАНТ ГК",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134745968",
+      "name": "Разработчик 1С",
+      "employer": "F6",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134743646",
+      "name": "Руководитель направления продукта бизнес класса",
+      "employer": "Гранель",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134433682",
+      "name": "Системный администратор",
+      "employer": "Продинвест",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134741701",
+      "name": "Ведущий специалист группы сопровождения справочника контрагентов отдела ведения НСИ",
+      "employer": "Транснефть Финанс",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "132281675",
+      "name": "Категорийный менеджер",
+      "employer": "Ред Гастро",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134203036",
+      "name": "Программист 1С",
+      "employer": "Главрент",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134426038",
+      "name": "Специалист по сопровождению программных продуктов 1С",
+      "employer": "Рефсервис",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134726730",
+      "name": "Специалист технической поддержки",
+      "employer": "ПКО Национальная Фабрика Ипотеки",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133833841",
+      "name": "Специалист по внедрению и сопровождению УТ 11.5",
+      "employer": "БРОКАР ПАРФЮМС",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134722821",
+      "name": "Продакт-менеджер по работе с импортом, производство швейной продукции",
+      "employer": "M.Reason",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134182674",
+      "name": "Системный администратор в компьютерный центр Издательского дома",
+      "employer": "Издательство Пресс-Контакт",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133348523",
+      "name": "Аналитик 1С",
+      "employer": "Торговый Дом Стройтерминал",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134616894",
+      "name": "CPO / Chief Product Officer B2B-направления ВкусВилл",
+      "employer": "ВкусВилл",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134604890",
+      "name": "Главный разработчик 1С",
+      "employer": "Россети Цифра",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134602266",
+      "name": "Продакт-менеджер (дымоудаление)",
+      "employer": "Русклимат",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134602016",
+      "name": "Chief information officer (CIO)",
+      "employer": "Альянс",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "130593351",
+      "name": "Старший программист 1С",
+      "employer": "ЭРС Групп",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "132418507",
+      "name": "Менеджер проекта по поставкам на АЭС",
+      "employer": "СТС",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134585320",
+      "name": "Менеджер продукта",
+      "employer": "Cloyd Concept",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134581078",
+      "name": "Консультант 1С (ЗУП)",
+      "employer": "ГК КОРТРОС",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "131619940",
+      "name": "Инженер выездной поддержки",
+      "employer": "Автомакон",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134579218",
+      "name": "Заместитель директора по информационной безопасности",
+      "employer": "Ассоциация Специалистов Городского Хозяйства по Развитию Управленческих Кадров",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134571698",
+      "name": "Системный администратор",
+      "employer": "ПетроПрофиль Плюс",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134211979",
+      "name": "Финансовый менеджер (методолог ЦФА)",
+      "employer": "Diamond Personnel R&C",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "133855610",
+      "name": "Руководитель проектов по АСУ ТП",
+      "employer": "Инжиниринговый холдинг «эВ-групп»",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "134543811",
+      "name": "Специалист по маркировке (Честный знак)",
+      "employer": "Равенол Руссланд",
+      "score": 0.4,
+      "flags": [
+        {
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
+        }
+      ]
+    },
+    {
+      "id": "120929348",
+      "name": "Инженер-схемотехник/Программист микроконтроллеров STM 32",
+      "employer": "Кадровое агентство Аспект",
+      "score": 0.10000000000000009,
       "flags": [
         {
           "reason": "нет навыков",
           "detail": "No skills in key_skills, description, or snippet"
         },
         {
-          "reason": "PROMO_DESCRIPTION",
-          "detail": "Promotional text detected"
+          "reason": "SUSPICIOUS_EMPLOYER",
+          "detail": "Employer: Кадровое агентство Аспект"
         }
       ]
     },
     {
-      "id": "132537442",
-      "name": "Менеджер по развитию B2B продуктов. TravelTech",
-      "employer": "Суточно.ру",
+      "id": "134539103",
+      "name": "Руководитель проекта (Отдел по управлению проектами)",
+      "employer": "Газпром Теплоэнерго Московская область",
       "score": 0.4,
       "flags": [
         {
@@ -134,9 +470,9 @@
       ]
     },
     {
-      "id": "133223337",
-      "name": "Руководитель проектов 1С",
-      "employer": "Koderline",
+      "id": "134503526",
+      "name": "Руководитель отдела информационной безопасности",
+      "employer": "Шайков Валерий Николаевич",
       "score": 0.4,
       "flags": [
         {
@@ -146,9 +482,9 @@
       ]
     },
     {
-      "id": "134584784",
-      "name": "Product Owner / Product Manager",
-      "employer": "Loyalty Labs",
+      "id": "134500150",
+      "name": "Бизнес-аналитик операционного департамента (SberTech)",
+      "employer": "СБЕР",
       "score": 0.4,
       "flags": [
         {
@@ -158,9 +494,9 @@
       ]
     },
     {
-      "id": "133051512",
-      "name": "AppSec Архитектор",
-      "employer": "Nexign (АО Нэксайн)",
+      "id": "133461770",
+      "name": "Программист 1C",
+      "employer": "СтройМонолитСервис",
       "score": 0.4,
       "flags": [
         {
@@ -170,9 +506,9 @@
       ]
     },
     {
-      "id": "119227637",
-      "name": "Руководитель IT проектов",
-      "employer": "СОЛВО",
+      "id": "134499930",
+      "name": "Руководитель отдела информационных технологий",
+      "employer": "Linde",
       "score": 0.4,
       "flags": [
         {
@@ -182,9 +518,9 @@
       ]
     },
     {
-      "id": "134254108",
-      "name": "Менеджер образовательных проектов",
-      "employer": "Леста Игры",
+      "id": "134499831",
+      "name": "Тестировщик 1С",
+      "employer": "Синтегро консалтинг",
       "score": 0.4,
       "flags": [
         {
@@ -194,9 +530,9 @@
       ]
     },
     {
-      "id": "134443939",
-      "name": "Продуктовый дизайнер",
-      "employer": "ЮДС Медиа",
+      "id": "134499217",
+      "name": "Старший менеджер продукта (С2С-программы Yota)",
+      "employer": "МегаФон",
       "score": 0.4,
       "flags": [
         {
@@ -206,18 +542,26 @@
       ]
     },
     {
-      "id": "134380906",
-      "name": "Продакт-менеджер / Product manager (Рег.решения - сервис для предпринимателей)",
-      "employer": "Рунити",
-      "score": 0.19999999999999996,
+      "id": "134496898",
+      "name": "Системный аналитик 1С ЗУП",
+      "employer": "БКК Коломенский",
+      "score": 0.4,
       "flags": [
         {
           "reason": "нет навыков",
           "detail": "No skills in key_skills, description, or snippet"
-        },
+        }
+      ]
+    },
+    {
+      "id": "131659409",
+      "name": "Продакт-менеджер (Мобильное приложение)",
+      "employer": "Coral Club",
+      "score": 0.4,
+      "flags": [
         {
-          "reason": "PROMO_DESCRIPTION",
-          "detail": "Promotional text detected"
+          "reason": "нет навыков",
+          "detail": "No skills in key_skills, description, or snippet"
         }
       ]
     }
