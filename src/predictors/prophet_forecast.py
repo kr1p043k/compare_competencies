@@ -234,10 +234,13 @@ class ProphetForecastEngine(BasePredictor):
 
             uncertainty = float(last_row["yhat_upper"] - last_row["yhat_lower"])
             conf = max(0.0, 1.0 - min(uncertainty / max(next_freq, 1.0), 0.85))
-            # Penalize confidence when few data points
+            # Penalize confidence and cap growth when few data points
             n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
             if n_pts < 6:
                 conf *= n_pts / 6.0
+                # Tighten growth cap for low-data skills (prevents absurd 600% spikes)
+                tight_cap = 2.0 if n_pts < 4 else 10.0
+                growth = max(min(growth, tight_cap), -tight_cap)
             return Ok(ForecastResult(
                 skill=skill,
                 current_frequency=round(last_actual, 4),
@@ -283,7 +286,8 @@ class ProphetForecastEngine(BasePredictor):
         match self.forecast_all(months):
             case Ok(results):
                 results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0]
-                results.sort(key=lambda x: x.predicted_growth, reverse=True)
+                # Hybrid score: growth * sqrt(frequency) — favors popular skills with real growth
+                results.sort(key=lambda x: x.predicted_growth * (x.current_frequency ** 0.3), reverse=True)
                 return Ok(results[:n])
             case Err(e):
                 return Err(e)
@@ -292,7 +296,7 @@ class ProphetForecastEngine(BasePredictor):
         match self.forecast_all(months):
             case Ok(results):
                 results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0]
-                results.sort(key=lambda x: x.predicted_growth)
+                results.sort(key=lambda x: x.predicted_growth * (x.current_frequency ** 0.3))
                 return Ok([r for r in results if r.predicted_growth < 0][:n])
             case Err(e):
                 return Err(e)
