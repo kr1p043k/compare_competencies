@@ -117,7 +117,7 @@ export function PredictionsTab() {
                   <span>{error}</span>
                 </div>
               ) : (<div className="space-y-2">
-                {forecasts.map((f, i) => (<ForecastRow key={f.skill} item={f} rank={i + 1} expanded={selectedSkill?.skill === f.skill} onToggle={() => setSelectedSkill(selectedSkill?.skill === f.skill ? null : f)} />))}
+              {forecasts.map((f, i) => (<ForecastRow key={f.skill} item={f} rank={i + 1} expanded={selectedSkill?.skill === f.skill} months={months} onToggle={() => setSelectedSkill(selectedSkill?.skill === f.skill ? null : f)} />))}
               </div>)}
             </CardContent>
           </Card>
@@ -161,7 +161,7 @@ export function PredictionsTab() {
   );
 }
 
-function ForecastRow({ item, rank, expanded, onToggle }: { item: ForecastItem; rank: number; expanded: boolean; onToggle: () => void }) {
+function ForecastRow({ item, rank, expanded, onToggle, months }: { item: ForecastItem; rank: number; expanded: boolean; onToggle: () => void; months?: number }) {
   const isGrowing = item.trend_direction === "growing";
   const isDeclining = item.trend_direction === "declining";
   const changePct = item.predicted_change_pct ?? (item.predicted_growth * 100);
@@ -185,7 +185,7 @@ function ForecastRow({ item, rank, expanded, onToggle }: { item: ForecastItem; r
         <div className="px-3 pb-3 pt-0 border-t border-gray-100">
           <div className="grid grid-cols-3 gap-4 mt-3 mb-3">
             <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Сейчас</div><div className="text-lg font-semibold text-gray-900">{item.current_frequency.toFixed(0)}</div></div>
-            <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Через год</div><div className="text-lg font-semibold text-gray-900">{item.next_year_frequency.toFixed(0)}</div></div>
+            <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Через {months === 1 ? "месяц" : `${months || 12} мес`}</div><div className="text-lg font-semibold text-gray-900">{item.next_year_frequency.toFixed(0)}</div></div>
             <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Уверенность</div><div className="text-lg font-semibold text-gray-900">{(item.confidence * 100).toFixed(0)}%</div></div>
           </div>
           {item.uncertainty_upper && item.uncertainty_lower && (
