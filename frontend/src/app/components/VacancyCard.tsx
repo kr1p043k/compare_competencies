@@ -14,7 +14,6 @@ import {
   Calendar,
   ExternalLink,
   Briefcase,
-  DollarSign,
   Star,
   AlertTriangle,
   ChevronDown,
@@ -168,7 +167,8 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
       return new Intl.NumberFormat("ru-RU").format(num);
     };
 
-    const currency = "₽";
+    const currencyMap: Record<string, string> = {"RUR": "₽", "RUB": "₽", "USD": "$", "EUR": "€"};
+    const currency = currencyMap[vacancy.salary_currency || ""] || "₽";
 
     if (vacancy.salary_from && vacancy.salary_to) {
       return `${format(vacancy.salary_from)} - ${format(vacancy.salary_to)} ${currency}`;
@@ -240,7 +240,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
                     className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-lg"
                     whileHover={{ scale: 1.05 }}
                   >
-                    <DollarSign className="size-5" />
+                    <span className="text-lg font-bold leading-none" style={{ fontFamily: "'Segoe UI', Tahoma, sans-serif" }}>₽</span>
                     {salary}
                   </motion.div>
                 )}
