@@ -54,8 +54,9 @@ temp*
 data/archive/
 data/
 data/result/reports/env
-env
+.env
 env
 
 # Backup files
 backups/
+.mimocode/
