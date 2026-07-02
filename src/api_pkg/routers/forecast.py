@@ -164,6 +164,30 @@ async def get_top_forecasts(
             raise HTTPException(status_code=503, detail=str(e))
 
 
+@router.get("/forecast/popular")
+@limiter.limit("30/minute")
+async def get_popular_forecasts(
+    request: Request,
+    n: int = Query(25, ge=1, le=50),
+    months: int = Query(12, ge=1, le=24),
+):
+    match _get_forecast_engine():
+        case Ok(engine):
+            meta = await _get_vacancy_meta()
+            if isinstance(engine, ProphetForecastEngine):
+                match engine.top_popular(n=n, months=months):
+                    case Ok(results):
+                        items = [_serialize(r, "growing", "prophet") for r in results]
+                    case Err(e):
+                        raise HTTPException(status_code=500, detail=str(e))
+            else:
+                all_results = sorted(engine.forecast_all(months).unwrap_or([]), key=lambda x: x.current_frequency, reverse=True)
+                items = [_serialize(r, "growing", "genetic") for r in all_results[:n]]
+            return {"direction": "popular", "n": n, "months": months, "forecasts": items, **meta}
+        case Err(e):
+            raise HTTPException(status_code=503, detail=str(e))
+
+
 @router.get("/forecast/{skill}")
 @limiter.limit("60/minute")
 async def get_skill_forecast(skill: str, request: Request, months: int = Query(12, ge=1, le=24)):

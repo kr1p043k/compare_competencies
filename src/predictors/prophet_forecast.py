@@ -111,7 +111,7 @@ class ProphetForecastEngine(BasePredictor):
     MIN_FREQ = 10
     MAX_GROWTH_CAP = 20.0
     # Top-prediction display: only show skills with meaningful frequency
-    TOP_DISPLAY_MIN_FREQ = 20
+    TOP_DISPLAY_MIN_FREQ = 50
 
     def __init__(self):
         self._models: dict[str, Prophet] = {}
@@ -277,7 +277,7 @@ class ProphetForecastEngine(BasePredictor):
     def top_growing(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
-                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ]
+                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.predicted_freq > 0]
                 results.sort(key=lambda x: x.predicted_growth, reverse=True)
                 return Ok(results[:n])
             case Err(e):
@@ -286,17 +286,16 @@ class ProphetForecastEngine(BasePredictor):
     def top_declining(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
-                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ]
+                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.predicted_freq > 0]
                 results.sort(key=lambda x: x.predicted_growth)
                 return Ok([r for r in results if r.predicted_growth < 0][:n])
             case Err(e):
                 return Err(e)
 
-    def top_declining(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
+    def top_popular(self, n: int = 25, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
-                results = [r for r in results if r.current_frequency >= self.MIN_FREQ]
-                results.sort(key=lambda x: x.predicted_growth)
-                return Ok([r for r in results if r.predicted_growth < 0][:n])
+                results.sort(key=lambda x: x.current_frequency, reverse=True)
+                return Ok(results[:n])
             case Err(e):
                 return Err(e)
