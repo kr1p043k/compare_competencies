@@ -58,13 +58,8 @@ async def _try_collect():
             logger.debug("collect_skipped_recent", last_run=str(last_run)[:16])
             return
 
-    api = HeadHunterAPI()
-    area_id = 2
     max_pages = 5
     period = 30
-
-    all_vacancies = []
-    seen_ids: set[int] = set()
 
     if last_run:
         delta = (datetime.now(timezone.utc) - last_run.replace(tzinfo=timezone.utc)).days
@@ -72,23 +67,51 @@ async def _try_collect():
             period = delta
             logger.info("collect_incremental", days=period)
 
-    for role_id in IT_PROFESSIONAL_ROLES:
-        try:
-            result = api.search_vacancies(
-                text="",
-                area=area_id,
-                period_days=period,
-                max_pages=max_pages,
-                professional_role=role_id,
-            )
-            if result.is_ok():
-                for v in result.ok():
-                    vid = v.get("id")
-                    if vid and vid not in seen_ids:
-                        seen_ids.add(vid)
-                        all_vacancies.append(v)
-        except Exception as exc:
-            logger.warning("collect_role_failed", role=role_id, error=str(exc))
+    region_ids = list(range(1, 201))
+    all_vacancies = []
+    seen_ids: set[int] = set()
+    _lock = asyncio.Lock()
+
+    async def _collect_region(region_id: int):
+        """Collect vacancies for a single region across all IT roles."""
+        api = HeadHunterAPI()
+        local = []
+        for role_id in IT_PROFESSIONAL_ROLES:
+            try:
+                result = await asyncio.to_thread(
+                    api.search_vacancies,
+                    text="", area=region_id, period_days=period,
+                    max_pages=max_pages, professional_role=role_id,
+                )
+                if result.is_ok():
+                    for v in result.ok():
+                        vid = v.get("id")
+                        if vid:
+                            async with _lock:
+                                if vid not in seen_ids:
+                                    seen_ids.add(vid)
+                                    local.append(v)
+            except Exception as exc:
+                logger.debug("collect_region_role_failed", region=region_id, role=role_id, error=str(exc))
+        if local:
+            logger.info("collect_region_done", region=region_id, count=len(local))
+        return local
+
+    # Parallel collection across regions (10 at a time to respect HH rate limits)
+    sem = asyncio.Semaphore(10)
+    async def _bounded_collect(rid: int):
+        async with sem:
+            return await _collect_region(rid)
+
+    tasks = [_bounded_collect(rid) for rid in region_ids]
+    region_results = await asyncio.gather(*tasks, return_exceptions=True)
+    for r in region_results:
+        if isinstance(r, list):
+            all_vacancies.extend(r)
+        elif isinstance(r, BaseException):
+            logger.warning("collect_region_exception", error=str(r))
+
+    logger.info("collect_total_vacancies", count=len(all_vacancies))
 
 
 

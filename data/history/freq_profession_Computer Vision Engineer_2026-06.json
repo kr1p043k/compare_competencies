@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "type": "targeted_query",
+    "snapshot_date": "2026-06-28",
+    "vacancy_count": null,
+    "source": "profession_query",
+    "profession": "Computer Vision Engineer"
+  },
+  "computer vision": 2,
+  "grafana": 1,
+  "opencv": 1,
+  "precision": 1,
+  "prometheus": 1,
+  "python": 1,
+  "recall": 1,
+  "ultralytics": 1,
+  "валидация модели": 1,
+  "классификация": 1,
+  "сигмоида": 1
+}

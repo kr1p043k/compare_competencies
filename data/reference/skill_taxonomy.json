@@ -820,7 +820,8 @@
         "Agents",
         "A/B experiments",
         "Human evaluation",
-        "LLM-as-a-judge"
+        "LLM-as-a-judge",
+        "тонкая настройка"
       ]
     },
     "frontend": {
@@ -1186,7 +1187,8 @@
         "Archimate",
         "Управление ИТ-проектами",
         "MS Project",
-        "ms project"
+        "ms project",
+        "отказоустойчивость"
       ]
     },
     "gis": {
