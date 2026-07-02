@@ -52,7 +52,7 @@ export function PredictionsTab() {
       setDataFrom(data.data_from || null);
       setDataTo(data.data_to || null);
       if (data.requested_months && data.months !== data.requested_months) {
-        console.log(`Forecast horizon limited: requested ${data.requested_months}m, actual ${data.months}m`);
+        setMonths(data.months);
       }
     } catch (e: any) {
       setError(e.message);
