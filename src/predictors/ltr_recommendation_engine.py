@@ -537,9 +537,10 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             exp_raw = vac.get("experience", {})
             if isinstance(exp_raw, dict):
                 exp_name = exp_raw.get("name", "").lower()
-                if "junior" in exp_name or "младший" in exp_name:
+                exp_id = exp_raw.get("id", "").lower()
+                if "junior" in exp_name or "младший" in exp_name or "noexperience" in exp_id or "less" in exp_id:
                     experience = "junior"
-                elif "senior" in exp_name or "старший" in exp_name:
+                elif "senior" in exp_name or "старший" in exp_name or "morethan6" in exp_id or "morethan10" in exp_id:
                     experience = "senior"
                 else:
                     experience = "middle"
