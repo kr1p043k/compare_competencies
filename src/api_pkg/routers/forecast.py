@@ -159,7 +159,11 @@ async def get_top_forecasts(
                         items = [_serialize(r, direction, "genetic") for r in all_results[:n]]
                     case Err(e):
                         raise HTTPException(status_code=500, detail=str(e))
-            return {"direction": direction, "n": n, "months": months, "forecasts": items, **meta}
+            # Determine actual forecast horizon (Prophet caps it internally)
+            actual_months = months
+            if isinstance(engine, ProphetForecastEngine) and engine.is_fitted:
+                actual_months = min(months, engine.max_forecast_months())
+            return {"direction": direction, "n": n, "months": actual_months, "requested_months": months, "forecasts": items, **meta}
         case Err(e):
             raise HTTPException(status_code=503, detail=str(e))
 

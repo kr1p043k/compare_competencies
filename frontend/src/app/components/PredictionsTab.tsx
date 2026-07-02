@@ -51,6 +51,9 @@ export function PredictionsTab() {
       setVacanciesCount(data.vacancies_count || 0);
       setDataFrom(data.data_from || null);
       setDataTo(data.data_to || null);
+      if (data.requested_months && data.months !== data.requested_months) {
+        console.log(`Forecast horizon limited: requested ${data.requested_months}m, actual ${data.months}m`);
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -162,9 +165,8 @@ export function PredictionsTab() {
 }
 
 function ForecastRow({ item, rank, expanded, onToggle, months }: { item: ForecastItem; rank: number; expanded: boolean; onToggle: () => void; months?: number }) {
-  const isGrowing = item.trend_direction === "growing";
-  const isDeclining = item.trend_direction === "declining";
   const changePct = item.predicted_change_pct ?? (item.predicted_growth * 100);
+  const changePctSign = changePct > 0 ? "+" : "";
   const methodColors: Record<string, string> = { prophet: "bg-purple-100 text-purple-700", ets: "bg-blue-100 text-blue-700", linear: "bg-gray-100 text-gray-700", genetic: "bg-amber-100 text-amber-700" };
 
   return (
@@ -173,11 +175,11 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
         <span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-500">{rank}</span>
         <span className="flex-1 font-medium text-gray-900">{item.skill}</span>
         <div className="flex items-center gap-2">
-          <span className={`text-sm font-semibold ${isGrowing ? "text-green-600" : isDeclining ? "text-red-600" : "text-gray-500"}`}>
-            {isGrowing ? "+" : ""}{changePct.toFixed(1)}%
+          <span className={`text-sm font-semibold ${changePct > 0 ? "text-green-600" : "text-red-600"}`}>
+            {changePctSign}{changePct.toFixed(1)}%
           </span>
           <Badge className={`text-xs border-0 ${methodColors[item.method] || "bg-gray-100"}`}>{item.method}</Badge>
-          <div className={`w-2 h-2 rounded-full ${isGrowing ? "bg-green-500" : isDeclining ? "bg-red-500" : "bg-gray-400"}`} />
+          <div className={`w-2 h-2 rounded-full ${changePct > 0 ? "bg-green-500" : "bg-red-500"}`} />
         </div>
         {expanded ? <ChevronUp className="size-4 text-gray-400" /> : <ChevronDown className="size-4 text-gray-400" />}
       </button>

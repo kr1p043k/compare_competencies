@@ -275,6 +275,14 @@ class ProphetForecastEngine(BasePredictor):
             return result
         return Err(DomainError(f"Skill '{skill}' not found"))
 
+    def max_forecast_months(self) -> int:
+        """Return max safe forecast horizon based on data points across all models."""
+        max_n = 0
+        for skill, model in self._models.items():
+            n = len(model.history) if hasattr(model, "history") and model.history is not None else 3
+            max_n = max(max_n, n)
+        return max(1, max_n // 2) if max_n > 0 else 1
+
     def forecast_all(self, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         results = []
         for skill in self._models:
