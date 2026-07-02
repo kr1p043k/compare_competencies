@@ -289,6 +289,7 @@ class SkillParser:
             # Паттерны для фильтрации не-навыков
             LOCATION_PATTERNS = [
                 re.compile(r"метро\s", re.IGNORECASE),
+                re.compile(r"м\.\s*[А-ЯЁа-яё]", re.IGNORECASE),
                 re.compile(r"ул\.\s", re.IGNORECASE),
                 re.compile(r"д\.\s*\d", re.IGNORECASE),
                 re.compile(r"г\.\s*[А-ЯЁ]", re.IGNORECASE),
