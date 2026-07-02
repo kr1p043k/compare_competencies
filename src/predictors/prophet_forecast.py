@@ -286,8 +286,13 @@ class ProphetForecastEngine(BasePredictor):
         match self.forecast_all(months):
             case Ok(results):
                 results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0]
-                # Hybrid score: growth * sqrt(frequency) — favors popular skills with real growth
-                results.sort(key=lambda x: x.predicted_growth * (x.current_frequency ** 0.3), reverse=True)
+                # Hybrid ranking: blend growth rate and popularity
+                max_freq = max(r.current_frequency for r in results) or 1
+                max_growth = max(abs(r.predicted_growth) for r in results) or 1
+                results.sort(
+                    key=lambda x: 0.4 * (x.predicted_growth / max_growth) + 0.6 * (x.current_frequency / max_freq),
+                    reverse=True,
+                )
                 return Ok(results[:n])
             case Err(e):
                 return Err(e)
@@ -296,7 +301,11 @@ class ProphetForecastEngine(BasePredictor):
         match self.forecast_all(months):
             case Ok(results):
                 results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0]
-                results.sort(key=lambda x: x.predicted_growth * (x.current_frequency ** 0.3))
+                max_freq = max(r.current_frequency for r in results) or 1
+                max_growth = max(abs(r.predicted_growth) for r in results) or 1
+                results.sort(
+                    key=lambda x: 0.4 * (x.predicted_growth / max_growth) + 0.6 * (x.current_frequency / max_freq),
+                )
                 return Ok([r for r in results if r.predicted_growth < 0][:n])
             case Err(e):
                 return Err(e)
