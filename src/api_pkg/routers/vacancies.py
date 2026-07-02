@@ -27,7 +27,7 @@ def _classify_experience(exp_str: str | None, name: str) -> str:
         el = exp_str.lower()
         if "junior" in el or "less1" in el or "no_experience" in el:
             return "junior"
-        if "senior" in el or "morethan10" in el:
+        if "senior" in el or "morethan6" in el or "morethan10" in el:
             return "senior"
         if "between3and6" in el or "between1and3" in el:
             return "middle"
