@@ -305,7 +305,9 @@ class ProphetForecastEngine(BasePredictor):
         match self.forecast_all(months):
             case Ok(results):
                 results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0 and r.predicted_growth > 0]
-                results.sort(key=lambda x: x.predicted_growth, reverse=True)
+                max_freq = max(r.current_frequency for r in results) or 1
+                max_growth = max(r.predicted_growth for r in results) or 1
+                results.sort(key=lambda x: 0.3 * (x.predicted_growth / max_growth) + 0.7 * (x.current_frequency / max_freq), reverse=True)
                 return Ok(results[:n])
             case Err(e):
                 return Err(e)
