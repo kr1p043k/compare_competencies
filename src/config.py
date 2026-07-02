@@ -104,6 +104,13 @@ class Settings(BaseSettings):
     YC_FOLDER_ID: str | None = None
     YANDEXGPT_MODEL: str = "yandexgpt-lite"
 
+    # ---------- Ollama ----------
+    OLLAMA_URL: str = "http://ollama:11434"
+    OLLAMA_MODEL: str = "qwen2.5:32b"
+    OLLAMA_EMBEDDING_MODEL: str = "qwen2.5:0.5b"
+    QWEN_TEMPERATURE: float = 0.7
+    QWEN_MAX_TOKENS: int = 2000
+
     # ---------- эмбеддинги ----------
     EMBEDDING_MODEL: str = "paraphrase-multilingual-mpnet-base-v2"
     HF_TOKEN: SecretStr | None = None
@@ -288,6 +295,12 @@ PROFILES_DISCIPLINES = settings.PROFILES_DISCIPLINES
 YC_API_KEY = settings.YC_API_KEY
 YC_FOLDER_ID = settings.YC_FOLDER_ID
 YANDEXGPT_MODEL = settings.YANDEXGPT_MODEL
+
+OLLAMA_URL = settings.OLLAMA_URL
+OLLAMA_MODEL = settings.OLLAMA_MODEL
+OLLAMA_EMBEDDING_MODEL = settings.OLLAMA_EMBEDDING_MODEL
+QWEN_TEMPERATURE = settings.QWEN_TEMPERATURE
+QWEN_MAX_TOKENS = settings.QWEN_MAX_TOKENS
 
 EMBEDDING_MODEL = settings.EMBEDDING_MODEL
 HF_TOKEN = settings.HF_TOKEN

@@ -666,8 +666,8 @@ class RPDLoader:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Load RPD PDFs and extract KRM data")
-    parser.add_argument("--pdf-dir", default="temp/rpd_pdfs")
-    parser.add_argument("--output", default="data/reference/krm_disciplines_09.03.02.json")
+    parser.add_argument("--pdf-dir", default="C:/Users/aleyn/OneDrive/Рабочий стол/123")
+    parser.add_argument("--output", default="data/reference/krm_disciplines_09.03.01.json")
     parser.add_argument("--discipline", help="Load only one discipline")
     args = parser.parse_args()
 

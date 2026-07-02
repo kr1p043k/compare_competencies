@@ -26,11 +26,9 @@ services:
     depends_on:
       competency-postgres:
         condition: service_healthy
-      ollama:
-        condition: service_started
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@competency-postgres:5432/${POSTGRES_DB:-compare_competencies}
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_URL=http://ollama8.r61.net:11434
       - HF_HOME=/root/.cache/huggingface
       - HF_HUB_CACHE=/root/.cache/huggingface
       - TRANSFORMERS_CACHE=/root/.cache/huggingface
@@ -79,34 +77,6 @@ services:
         limits:
           memory: 128M
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama-qwen
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    restart: unless-stopped
-    networks:
-      - ai-net
-      - monitoring
-    environment:
-      - OLLAMA_HOST=0.0.0.0
-    command: serve
-    deploy:
-      resources:
-        limits:
-          cpus: '4'
-          memory: 8G
-        reservations:
-          cpus: '1'
-          memory: 2G
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
@@ -115,10 +85,9 @@ services:
     volumes:
       - open-webui-data:/app/backend/data
     environment:
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_BASE_URL=http://ollama8.r61.net:11434
       - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-}
-    depends_on:
-      - ollama
+      - CORS_ALLOW_ORIGIN=http://localhost:3000
     restart: unless-stopped
     networks:
       - ai-net
@@ -299,7 +268,6 @@ networks:
     driver: bridge
 
 volumes:
-  ollama-data:
   open-webui-data:
   n8n-data:
   n8n-postgres-data:

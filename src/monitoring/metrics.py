@@ -82,6 +82,19 @@ forecast_accuracy = Gauge(
     ["skill"],
 )
 
+llm_requests_total = Counter(
+    "llm_requests_total",
+    "Total LLM requests",
+    ["model", "status"],
+)
+
+llm_request_duration_seconds = Histogram(
+    "llm_request_duration_seconds",
+    "LLM request duration in seconds",
+    ["model"],
+    buckets=(0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
+)
+
 
 def track_pipeline_stage(stage_name: str):
     def decorator(func):

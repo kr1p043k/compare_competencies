@@ -141,7 +141,7 @@ async def run_startup(app):
         case Ok(cached):
             if isinstance(cached, dict) and cached.get("source_hash") == vacancies_hash:
                 result = cached["result"]
-                skill_freq_local = result["frequencies"]
+                skill_freq_local = result.get("frequencies", {})
                 hybrid_weights_local = result.get("hybrid_weights", {})
                 logger.info("Загружен кэш парсинга навыков")
         case _:

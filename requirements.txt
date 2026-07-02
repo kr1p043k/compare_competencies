@@ -17,7 +17,11 @@ pymorphy3>=2.0.0
 xgboost==3.0.3
 shap==0.51.0
 joblib>=1.4.0
-chardet>=5.0.0
+urllib3>=2.1.0,<2.7.0
+chardet>=5.0.0,<6
+charset_normalizer>=3.0.0,<4
+hdbscan>=0.8.39
+plotly>=5.25.0
 structlog==25.5.0
 tqdm>=4.67.0
 fastapi==0.116.1
@@ -31,5 +35,6 @@ slowapi>=0.1.9
 lightgbm>=4.6.0
 faiss-cpu>=1.13.2
 prometheus-client>=0.21.0
+openai>=1.68.0
 psycopg2-binary>=2.9.10
 pypdf>=5.0.0

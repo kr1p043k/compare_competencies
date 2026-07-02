@@ -11,6 +11,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 from src import Err, Ok, RecommendationError, Result, config
 from src.errors import DomainError
+from src.monitoring.metrics import llm_requests_total, llm_request_duration_seconds
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
@@ -650,23 +651,31 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         self, gap: Any, context: str, previous_explanations: list[str]
     ) -> Result[str, DomainError]:
         """Генерирует LLM-объяснение с повторными попытками."""
+        import time as _time
+
         prompt = self._build_explanation_prompt(gap, context, previous_explanations)
+        start = _time.time()
+        model_name = self.explanation_model or "yandexgpt-lite"
 
         for attempt in range(3):
             try:
                 completion = self.client.chat.completions.create(
-                    model=self.explanation_model or "yandexgpt-lite",
+                    model=model_name,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.3,
                     max_tokens=512,
                 )
                 explanation = completion.choices[0].message.content
                 if explanation:
+                    llm_requests_total.labels(model=model_name, status="ok").inc()
+                    llm_request_duration_seconds.labels(model=model_name).observe(_time.time() - start)
                     return Ok(explanation)
             except Exception as e:
                 logger.warning("llm_explain_attempt_failed", attempt=attempt + 1, error=str(e))
-                time.sleep(1.0)
+                _time.sleep(1.0)
 
+        llm_requests_total.labels(model=model_name, status="error").inc()
+        llm_request_duration_seconds.labels(model=model_name).observe(_time.time() - start)
         return Err(DomainError(message="LLM explanation failed after retries", detail=f"gap={gap.skill_name}"))
 
     # ------------------------------------------------------------------

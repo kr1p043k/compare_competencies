@@ -352,6 +352,96 @@ uvicorn src.api_pkg:app --host 0.0.0.0 --port 8000 --reload
 cd frontend && npm install && npx vite
 ```
 
+## Запуск через Docker
+
+### Предварительные требования
+
+- Установленный [Docker](https://docs.docker.com/get-docker/) и Docker Compose
+- Файл `.env` — скопировать из `.env.example` и заполнить:
+  ```bash
+  cp .env.example .env
+  ```
+  Минимально для работы требуется указать `HH_CLIENT_ID` и `HH_CLIENT_SECRET` (создать на https://dev.hh.ru/admin).
+
+### Полный запуск (все сервисы)
+
+```bash
+# Сборка образов
+docker compose build
+
+# Запуск
+docker compose up -d
+
+# Просмотр логов
+docker compose logs -f
+```
+
+### Выборочный запуск (без тяжёлых сервисов)
+
+Если не нужны Ollama (8GB RAM) и n8n:
+
+```bash
+docker compose up -d backend frontend prometheus grafana postgres-exporter node-exporter
+```
+
+### Состав сервисов
+
+| Сервис | Назначение | Порт |
+|--------|-----------|------|
+| `backend` | FastAPI (метрики, pipeline, API) | `:8000` |
+| `frontend` | React SPA (вкладка "Мониторинг") | `:8080` |
+| `competency-postgres` | Основная БД (pgvector) | `:5432` |
+| `ollama` | Локальная LLM (Qwen, ~8GB RAM) | `:11434` |
+| `open-webui` | Веб-чат с Ollama | `:3000` |
+| `n8n` | Автоматизация воркфлоу | `:5678` |
+| `n8n-postgres` | БД n8n | — |
+| `prometheus` | Сбор метрик (30 дней хранения) | `:9090` |
+| `grafana` | Визуализация метрик (admin/admin) | `:3001` |
+| `postgres-exporter` | Метрики PostgreSQL | `:9187` |
+| `node-exporter` | Метрики хоста | `:9100` |
+
+### Доступ к сервисам
+
+| Ссылка | Описание |
+|--------|----------|
+| http://localhost:8080 | Frontend (вкладка "Мониторинг" для admin) |
+| http://localhost:8000/docs | Swagger-документация API |
+| http://localhost:8000/metrics | Prometheus-метрики (raw) |
+| http://localhost:8000/api/admin/monitoring | JSON-дашборд мониторинга |
+| http://localhost:3001 | Grafana (admin / admin) |
+| http://localhost:9090 | Prometheus Web UI |
+| http://localhost:5678 | n8n |
+| http://localhost:3000 | Open WebUI (чат с LLM) |
+
+### Остановка и управление
+
+```bash
+# Остановить все сервисы
+docker compose down
+
+# Остановить с удалением томов БД
+docker compose down -v
+
+# Перезапустить конкретный сервис
+docker compose restart backend
+
+# Логи конкретного сервиса
+docker compose logs -f backend
+
+# Пересобрать без кэша
+docker compose build --no-cache
+```
+
+### Возможные проблемы
+
+1. **Ollama не запускается** — проверьте, что в Docker Desktop выделено достаточно RAM (минимум 8GB для Qwen).
+2. **Frontend пустая страница** — убедитесь, что `frontend/dist/` существует. Если нет — соберите вручную:
+   ```bash
+   cd frontend && npm install && npm run build
+   ```
+3. **Backend не стартует** — проверьте `.env` и что PostgreSQL доступен (он стартует дольше всех).
+4. **Метрики пустые** — выполните pipeline через API (POST `/api/pipeline/run`) или CLI (`python main.py --it-sector --excel`).
+
 ## Зависимости
 
 **Python:** fastapi, uvicorn, requests, aiohttp, pandas, numpy, scikit-learn, xgboost, shap, sentence-transformers, matplotlib, seaborn, pydantic, structlog, pymorphy3, rapidfuzz
@@ -378,12 +468,13 @@ python main.py --interactive
 
 ## Мониторинг и инфраструктура
 
-Проект разворачивается через Docker Compose:
-- **Prometheus** (:9090) — сбор метрик с backend, postgres-exporter, node-exporter
-- **Grafana** (:3001) — визуализация метрик, дашборды pipeline / API / LTR
-- **n8n** (:5678) — автоматизация: nightly pipeline, student onboarding, trend alerts, weekly report
-- **Ollama** (:11434) — локальная LLM (Qwen) для генерации рекомендаций
-- **PostgreSQL / pgvector** (:5432) — основная БД с поддержкой векторного поиска
+Все сервисы мониторинга разворачиваются через Docker — см. раздел [Запуск через Docker](#запуск-через-docker).
+
+- **Prometheus** — сбор метрик с backend, postgres-exporter, node-exporter
+- **Grafana** — визуализация метрик, дашборды pipeline / API / LTR
+- **n8n** — автоматизация: nightly pipeline, student onboarding, trend alerts, weekly report
+- **Ollama** — локальная LLM (Qwen) для генерации рекомендаций
+- **PostgreSQL / pgvector** — основная БД с поддержкой векторного поиска
 
 ## Документация
 

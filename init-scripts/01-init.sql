@@ -49,6 +49,6 @@ END $$;
 -- Seed: пользователи по умолчанию (роль student исправлена)
 INSERT INTO users (email, password_hash, full_name, role) VALUES
     ('admin@compare-competencies.local', crypt('admin', gen_salt('bf')), 'Администратор', 'admin'),
-    ('teacher@compare-competencies.local', crypt('prepod', gen_salt('bf')), 'Преподаватель', 'teacher'),
+    ('teacher@compare-competencies.local', crypt('teacher123', gen_salt('bf')), 'Преподаватель', 'teacher'),
     ('student@compare-competencies.local', crypt('student', gen_salt('bf')), 'Студент', 'student')
 ON CONFLICT (email) DO NOTHING;

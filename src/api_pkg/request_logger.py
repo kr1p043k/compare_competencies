@@ -17,6 +17,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from src import config
+from src.monitoring.metrics import api_latency, api_requests_total
 from src.models.krm_models import RequestLog
 
 logger = structlog.get_logger(__name__)
@@ -149,6 +150,8 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
         elapsed = (datetime.now(timezone.utc) - start).total_seconds() * 1000
         if not request.url.path.startswith("/api/"):
             return response
+        api_requests_total.labels(method=request.method, path=request.url.path, status=response.status_code).inc()
+        api_latency.labels(method=request.method, path=request.url.path, status=response.status_code).observe(elapsed / 1000)
         _log_buffer.append(LogEntry(
             method=request.method,
             path=request.url.path,

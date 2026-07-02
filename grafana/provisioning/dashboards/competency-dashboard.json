@@ -1,147 +1,581 @@
 {
-  "dashboard": {
-    "title": "Competency Gap Analyzer",
-    "panels": [
+  "title": "Competency Gap Analyzer",
+  "uid": "competency-gap-analyzer",
+  "schemaVersion": 39,
+  "version": 3,
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "30s",
+  "tags": ["competency", "backend", "llm"],
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {
+    "refresh_intervals": ["10s", "30s", "1m", "5m", "15m", "30m", "1h"],
+    "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+  },
+  "templating": {
+    "list": [
       {
-        "title": "Pipeline Stage Duration",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, rate(pipeline_stage_duration_seconds_bucket[5m]))",
-            "legendFormat": "{{stage}} - P95"
-          }
-        ]
+        "name": "model",
+        "type": "query",
+        "query": "label_values(llm_requests_total, model)",
+        "datasource": "Prometheus",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "label": "LLM Model",
+        "sort": 0
       },
       {
-        "title": "Pipeline Errors",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "sum(pipeline_errors_total)",
-            "legendFormat": "Total errors"
-          }
-        ]
-      },
-      {
-        "title": "API Request Duration",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, rate(api_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "{{method}} {{path}} - P95"
-          }
-        ]
-      },
-      {
-        "title": "API Requests Rate",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "rate(api_requests_total[5m])",
-            "legendFormat": "{{method}} {{path}} ({{status}})"
-          }
-        ]
-      },
-      {
-        "title": "Recommendations Generated",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "sum(recommendations_generated_total)",
-            "legendFormat": "Total"
-          }
-        ]
-      },
-      {
-        "title": "LTR Training Duration",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, rate(ltr_training_duration_seconds_bucket[5m]))",
-            "legendFormat": "P95 duration"
-          }
-        ]
-      },
-      {
-        "title": "LTR Model Metrics",
-        "type": "table",
-        "targets": [
-          {
-            "expr": "ltr_model_metric",
-            "legendFormat": "{{metric}}"
-          }
-        ]
-      },
-      {
-        "title": "Vacancies Loaded",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "vacancies_loaded_total",
-            "legendFormat": "Total"
-          }
-        ]
-      },
-      {
-        "title": "Active Profiles",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "active_profiles_total",
-            "legendFormat": "Profiles"
-          }
-        ]
-      },
-      {
-        "title": "Unique Skills",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "skill_count_total",
-            "legendFormat": "Skills"
-          }
-        ]
-      },
-      {
-        "title": "SHAP Computation Duration",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, rate(shap_computation_duration_seconds_bucket[5m]))",
-            "legendFormat": "P95 duration"
-          }
-        ]
-      },
-      {
-        "title": "Database Connections (pg_stat_database)",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "pg_stat_database_numbackends",
-            "legendFormat": "{{datname}}"
-          }
-        ]
-      },
-      {
-        "title": "Container CPU Usage",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "sum(rate(container_cpu_usage_seconds_total{name!=\"\"}[5m])) by (name)",
-            "legendFormat": "{{name}}"
-          }
-        ]
-      },
-      {
-        "title": "Container Memory Usage",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "sum(container_memory_usage_bytes{name!=\"\"}) by (name)",
-            "legendFormat": "{{name}}"
-          }
-        ]
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "Prometheus" },
+        "hide": 2
       }
     ]
-  }
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "System Resources",
+      "type": "row",
+      "collapsed": false,
+      "panels": [
+        {
+          "id": 2,
+          "title": "CPU Usage",
+          "type": "graph",
+          "gridPos": { "x": 0, "y": 1, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{name!=\"\"}[5m])) by (name)",
+              "legendFormat": "{{name}}"
+            }
+          ],
+          "yaxes": [{ "format": "percentunit", "label": "CPU" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true, "rightSide": false }
+        },
+        {
+          "id": 3,
+          "title": "Memory Usage",
+          "type": "graph",
+          "gridPos": { "x": 8, "y": 1, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(container_memory_usage_bytes{name!=\"\"}) by (name)",
+              "legendFormat": "{{name}}"
+            }
+          ],
+          "yaxes": [{ "format": "bytes", "label": "Memory" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true, "rightSide": false }
+        },
+        {
+          "id": 4,
+          "title": "Network I/O",
+          "type": "graph",
+          "gridPos": { "x": 16, "y": 1, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "rate(container_network_receive_bytes_total{name!=\"\"}[5m])",
+              "legendFormat": "{{name}} rx"
+            },
+            {
+              "expr": "rate(container_network_transmit_bytes_total{name!=\"\"}[5m])",
+              "legendFormat": "{{name}} tx"
+            }
+          ],
+          "yaxes": [{ "format": "Bps", "label": "Throughput" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Database",
+      "type": "row",
+      "collapsed": false,
+      "panels": [
+        {
+          "id": 6,
+          "title": "Postgres Connections",
+          "type": "graph",
+          "gridPos": { "x": 0, "y": 9, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(pg_stat_database_numbackends) by (datname)",
+              "legendFormat": "{{datname}}"
+            }
+          ],
+          "yaxes": [{ "label": "Connections" }, { "show": false }],
+          "legend": { "show": true }
+        },
+        {
+          "id": 7,
+          "title": "Postgres Queries",
+          "type": "graph",
+          "gridPos": { "x": 8, "y": 9, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "rate(pg_stat_database_xact_commit[5m]) + rate(pg_stat_database_xact_rollback[5m])",
+              "legendFormat": "{{datname}}"
+            }
+          ],
+          "yaxes": [{ "label": "QPS" }, { "show": false }],
+          "legend": { "show": true }
+        },
+        {
+          "id": 8,
+          "title": "Postgres Cache Hit Ratio",
+          "type": "graph",
+          "gridPos": { "x": 16, "y": 9, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "rate(pg_stat_database_blks_hit[5m]) / (rate(pg_stat_database_blks_hit[5m]) + rate(pg_stat_database_blks_read[5m])) * 100",
+              "legendFormat": "{{datname}}"
+            }
+          ],
+          "yaxes": [{ "format": "percent", "label": "Hit Ratio", "max": 100 }, { "show": false }],
+          "legend": { "show": true }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "API",
+      "type": "row",
+      "collapsed": false,
+      "panels": [
+        {
+          "id": 10,
+          "title": "API Requests Rate",
+          "type": "graph",
+          "gridPos": { "x": 0, "y": 17, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "rate(api_requests_total[$__rate_interval])",
+              "legendFormat": "{{method}} {{path}} ({{status}})"
+            }
+          ],
+          "yaxes": [{ "label": "Requests/s" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true, "rightSide": true }
+        },
+        {
+          "id": 11,
+          "title": "API Response Time (P95)",
+          "type": "graph",
+          "gridPos": { "x": 12, "y": 17, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, rate(api_request_duration_seconds_bucket[5m]))",
+              "legendFormat": "{{method}} {{path}}"
+            }
+          ],
+          "yaxes": [{ "format": "s", "label": "Duration" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true, "rightSide": true }
+        },
+        {
+          "id": 12,
+          "title": "API Status Codes",
+          "type": "graph",
+          "gridPos": { "x": 0, "y": 25, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(api_requests_total{status=~\"2..\"}[5m])) by (path)",
+              "legendFormat": "2xx {{path}}"
+            },
+            {
+              "expr": "sum(rate(api_requests_total{status=~\"4..\"}[5m])) by (path)",
+              "legendFormat": "4xx {{path}}"
+            },
+            {
+              "expr": "sum(rate(api_requests_total{status=~\"5..\"}[5m])) by (path)",
+              "legendFormat": "5xx {{path}}"
+            }
+          ],
+          "yaxes": [{ "label": "Requests/s" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true }
+        },
+        {
+          "id": 13,
+          "title": "API Errors (4xx / 5xx)",
+          "type": "stat",
+          "gridPos": { "x": 8, "y": 25, "w": 4, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(api_requests_total{status=~\"4..\"}[5m]))",
+              "legendFormat": "4xx"
+            },
+            {
+              "expr": "sum(rate(api_requests_total{status=~\"5..\"}[5m]))",
+              "legendFormat": "5xx"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "cps",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 0.1 },
+                  { "color": "red", "value": 1 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 14,
+          "title": "API Duration (avg, P50, P95, P99)",
+          "type": "graph",
+          "gridPos": { "x": 12, "y": 25, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, rate(api_request_duration_seconds_bucket[5m]))",
+              "legendFormat": "P50"
+            },
+            {
+              "expr": "histogram_quantile(0.95, rate(api_request_duration_seconds_bucket[5m]))",
+              "legendFormat": "P95"
+            },
+            {
+              "expr": "histogram_quantile(0.99, rate(api_request_duration_seconds_bucket[5m]))",
+              "legendFormat": "P99"
+            }
+          ],
+          "yaxes": [{ "format": "s", "label": "Duration" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true }
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "LLM",
+      "type": "row",
+      "collapsed": false,
+      "panels": [
+        {
+          "id": 16,
+          "title": "LLM Request Duration (P95)",
+          "type": "graph",
+          "gridPos": { "x": 0, "y": 33, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, rate(llm_request_duration_seconds_bucket{model=~\"$model\"}[5m]))",
+              "legendFormat": "{{model}} - P95"
+            }
+          ],
+          "yaxes": [{ "format": "s", "label": "Duration" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true }
+        },
+        {
+          "id": 17,
+          "title": "LLM Request Rate",
+          "type": "graph",
+          "gridPos": { "x": 8, "y": 33, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(llm_requests_total{model=~\"$model\"}[5m])) by (model, status)",
+              "legendFormat": "{{model}} ({{status}})"
+            }
+          ],
+          "yaxes": [{ "label": "Requests/s" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true }
+        },
+        {
+          "id": 18,
+          "title": "LLM Errors (total)",
+          "type": "stat",
+          "gridPos": { "x": 16, "y": 33, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(llm_requests_total{model=~\"$model\", status=\"error\"})",
+              "legendFormat": "Errors"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 1 },
+                  { "color": "red", "value": 10 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 19,
+          "title": "LLM Error Rate",
+          "type": "graph",
+          "gridPos": { "x": 0, "y": 41, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(llm_requests_total{model=~\"$model\", status=\"error\"}[5m])) / sum(rate(llm_requests_total{model=~\"$model\"}[5m])) * 100",
+              "legendFormat": "Error rate %"
+            }
+          ],
+          "yaxes": [{ "format": "percent", "label": "Error Rate", "max": 100 }, { "show": false }],
+          "legend": { "show": true }
+        },
+        {
+          "id": 20,
+          "title": "LLM Request Count by Model",
+          "type": "piechart",
+          "gridPos": { "x": 8, "y": 41, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(llm_requests_total{model=~\"$model\"}) by (model)",
+              "legendFormat": "{{model}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            }
+          },
+          "type": "piechart"
+        },
+        {
+          "id": 21,
+          "title": "LLM Duration (avg, P50, P95, P99)",
+          "type": "graph",
+          "gridPos": { "x": 16, "y": 41, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, rate(llm_request_duration_seconds_bucket{model=~\"$model\"}[5m]))",
+              "legendFormat": "P50"
+            },
+            {
+              "expr": "histogram_quantile(0.95, rate(llm_request_duration_seconds_bucket{model=~\"$model\"}[5m]))",
+              "legendFormat": "P95"
+            },
+            {
+              "expr": "histogram_quantile(0.99, rate(llm_request_duration_seconds_bucket{model=~\"$model\"}[5m]))",
+              "legendFormat": "P99"
+            }
+          ],
+          "yaxes": [{ "format": "s", "label": "Duration" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true }
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "title": "Pipeline",
+      "type": "row",
+      "collapsed": false,
+      "panels": [
+        {
+          "id": 23,
+          "title": "Pipeline Stage Duration",
+          "type": "graph",
+          "gridPos": { "x": 0, "y": 49, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, rate(pipeline_stage_duration_seconds_bucket[5m]))",
+              "legendFormat": "{{stage}} - P95"
+            }
+          ],
+          "yaxes": [{ "format": "s", "label": "Duration" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true }
+        },
+        {
+          "id": 24,
+          "title": "Pipeline Errors",
+          "type": "stat",
+          "gridPos": { "x": 8, "y": 49, "w": 4, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(pipeline_errors_total) by (stage)",
+              "legendFormat": "{{stage}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 1 },
+                  { "color": "red", "value": 5 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 25,
+          "title": "SHAP Computation Duration",
+          "type": "graph",
+          "gridPos": { "x": 12, "y": 49, "w": 6, "h": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, rate(shap_computation_duration_seconds_bucket[5m]))",
+              "legendFormat": "P95 duration"
+            }
+          ],
+          "yaxes": [{ "format": "s", "label": "Duration" }, { "show": false }]
+        },
+        {
+          "id": 26,
+          "title": "LTR Training Duration",
+          "type": "graph",
+          "gridPos": { "x": 18, "y": 49, "w": 6, "h": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, rate(ltr_training_duration_seconds_bucket[5m]))",
+              "legendFormat": "P95 duration"
+            }
+          ],
+          "yaxes": [{ "format": "s", "label": "Duration" }, { "show": false }]
+        },
+        {
+          "id": 27,
+          "title": "LTR Model Metrics",
+          "type": "table",
+          "gridPos": { "x": 0, "y": 57, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "ltr_model_metric",
+              "legendFormat": "{{metric}}"
+            }
+          ],
+          "transformations": [
+            { "id": "organizeBy", "options": { "excludeByName": {}, "indexByName": {}, "renameByName": { "Value": "Value", "metric": "Metric" } } }
+          ]
+        },
+        {
+          "id": 28,
+          "title": "Pipeline Stage Error Rate",
+          "type": "graph",
+          "gridPos": { "x": 12, "y": 57, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "rate(pipeline_errors_total[5m])",
+              "legendFormat": "{{stage}}"
+            }
+          ],
+          "yaxes": [{ "label": "Errors/s" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true }
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "title": "Business",
+      "type": "row",
+      "collapsed": false,
+      "panels": [
+        {
+          "id": 30,
+          "title": "Vacancies Loaded",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 65, "w": 4, "h": 6 },
+          "targets": [
+            {
+              "expr": "vacancies_loaded_total",
+              "legendFormat": "Total"
+            }
+          ]
+        },
+        {
+          "id": 31,
+          "title": "Active Profiles",
+          "type": "stat",
+          "gridPos": { "x": 4, "y": 65, "w": 4, "h": 6 },
+          "targets": [
+            {
+              "expr": "active_profiles_total",
+              "legendFormat": "Profiles"
+            }
+          ]
+        },
+        {
+          "id": 32,
+          "title": "Unique Skills",
+          "type": "stat",
+          "gridPos": { "x": 8, "y": 65, "w": 4, "h": 6 },
+          "targets": [
+            {
+              "expr": "skill_count_total",
+              "legendFormat": "Skills"
+            }
+          ]
+        },
+        {
+          "id": 33,
+          "title": "Recommendations Generated",
+          "type": "stat",
+          "gridPos": { "x": 12, "y": 65, "w": 4, "h": 6 },
+          "targets": [
+            {
+              "expr": "sum(recommendations_generated_total)",
+              "legendFormat": "Total"
+            }
+          ]
+        },
+        {
+          "id": 34,
+          "title": "Recommendation Rate",
+          "type": "graph",
+          "gridPos": { "x": 16, "y": 65, "w": 8, "h": 6 },
+          "targets": [
+            {
+              "expr": "rate(recommendations_generated_total[5m])",
+              "legendFormat": "{{profile}}"
+            }
+          ],
+          "yaxes": [{ "label": "Recs/s" }, { "show": false }],
+          "legend": { "show": true }
+        },
+        {
+          "id": 35,
+          "title": "Forecast Accuracy (MAPE)",
+          "type": "graph",
+          "gridPos": { "x": 0, "y": 71, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "forecast_accuracy_mape",
+              "legendFormat": "{{skill}}"
+            }
+          ],
+          "yaxes": [{ "format": "percentunit", "label": "MAPE" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true, "rightSide": true }
+        },
+        {
+          "id": 36,
+          "title": "Business Overview",
+          "type": "stat",
+          "gridPos": { "x": 12, "y": 71, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "vacancies_loaded_total",
+              "legendFormat": "Vacancies"
+            },
+            {
+              "expr": "active_profiles_total",
+              "legendFormat": "Active Profiles"
+            },
+            {
+              "expr": "skill_count_total",
+              "legendFormat": "Skills"
+            },
+            {
+              "expr": "sum(recommendations_generated_total)",
+              "legendFormat": "Recommendations"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            }
+          }
+        }
+      ]
+    }
+  ]
 }

@@ -60,3 +60,4 @@ env
 # Backup files
 backups/
 .mimocode/
+cache/
