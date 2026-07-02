@@ -156,6 +156,8 @@ class SkillNormalizer:
         "rest": ["rest api", "restful api", "restful", "restapi"],
         "graphql": ["graph ql"],
         "apollo": ["apollo"],
+        # 1С продукты
+        "1c": ["1с", "1С", "1C", "1c erp", "1c предприятие", "1c бухгалтерия"],
         # Разное
         "figma": ["figma"],
         "storybook": ["storybook"],

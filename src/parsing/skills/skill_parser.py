@@ -316,9 +316,11 @@ class SkillParser:
                     # Фильтрация аббревиатур
                     if ABBREV_RE.match(line):
                         continue
-                    if any(tech in line for tech in self.TECH_SKILLS):
-                        skills.append(ExtractedSkill(text=line, source=source, raw_match=line, confidence=0.8))
-                        self._update_stats(source)
+                    # Извлекаем только отдельные навыки из строки, не всю строку
+                    for tech in self.TECH_SKILLS:
+                        if tech in line:
+                            skills.append(ExtractedSkill(text=tech, source=source, raw_match=tech, confidence=0.8))
+                            self._update_stats(source)
 
             return Ok(skills)
         except Exception as e:
