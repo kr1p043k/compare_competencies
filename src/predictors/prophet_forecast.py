@@ -139,15 +139,20 @@ class ProphetForecastEngine(BasePredictor):
 
     def _fit_prophet_for_skill(self, skill: str, points: list[tuple[date, float]]):
         from cmdstanpy.utils.logging import disable_logging
+        import numpy as np
         df = pd.DataFrame({"ds": [p[0] for p in points], "y": [p[1] for p in points]})
         n_points = len(points)
+        # Sanity check: detect extreme variance that causes "inf in matrix" errors
+        y = df["y"].values
+        if np.any(~np.isfinite(y)) or (y.max() - y.min()) > 1e6:
+            raise ValueError(f"Unstable data for Prophet: min={y.min()}, max={y.max()}, n={n_points}")
         model = Prophet(
             yearly_seasonality=n_points >= 24,
             weekly_seasonality=False,
             daily_seasonality=False,
             seasonality_mode="additive",
             interval_width=0.80,
-            changepoint_prior_scale=0.5 if n_points < 12 else 0.05,
+            changepoint_prior_scale=0.05 if n_points < 6 else (0.5 if n_points < 12 else 0.05),
         )
         with disable_logging():
             model.fit(df, iter=1000)
