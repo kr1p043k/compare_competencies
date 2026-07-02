@@ -71,13 +71,27 @@ async def _try_collect():
     all_vacancies = []
     seen_ids: set[int] = set()
     _lock = asyncio.Lock()
+    _last_req_time = 0.0
+    _req_lock = asyncio.Lock()
+
+    async def _rate_limit():
+        """Ensure at most 3 requests per second to HH API."""
+        nonlocal _last_req_time
+        async with _req_lock:
+            now = time.monotonic()
+            wait = max(0.0, 1.0 / 3 - (now - _last_req_time))
+            if wait > 0:
+                await asyncio.sleep(wait)
+            _last_req_time = time.monotonic()
+
+    api = HeadHunterAPI()
 
     async def _collect_region(region_id: int):
         """Collect vacancies for a single region across all IT roles."""
-        api = HeadHunterAPI()
         local = []
         for role_id in IT_PROFESSIONAL_ROLES:
             try:
+                await _rate_limit()
                 result = await asyncio.to_thread(
                     api.search_vacancies,
                     text="", area=region_id, period_days=period,
@@ -97,13 +111,8 @@ async def _try_collect():
             logger.info("collect_region_done", region=region_id, count=len(local))
         return local
 
-    # Parallel collection across regions (10 at a time to respect HH rate limits)
-    sem = asyncio.Semaphore(10)
-    async def _bounded_collect(rid: int):
-        async with sem:
-            return await _collect_region(rid)
-
-    tasks = [_bounded_collect(rid) for rid in region_ids]
+    # All regions in parallel with rate limiting
+    tasks = [_collect_region(rid) for rid in region_ids]
     region_results = await asyncio.gather(*tasks, return_exceptions=True)
     for r in region_results:
         if isinstance(r, list):
