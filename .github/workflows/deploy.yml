@@ -12,10 +12,10 @@ jobs:
       - name: Connect to Tailscale
         uses: tailscale/github-action@v2
         with:
-          auth-key: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
           hostname: gh-deploy
 
-      - name: Deploy backend
+      - name: Deploy
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -25,6 +25,8 @@ jobs:
             cd /home/admin_server/compare_competencies || git clone https://github.com/kr1p043k/compare_competencies.git
             git fetch origin main
             git reset --hard origin/main
-            docker compose build backend --no-cache
+            docker compose build backend
             docker compose up -d backend
+            docker compose build frontend
+            docker compose up -d frontend
             docker image prune -f
