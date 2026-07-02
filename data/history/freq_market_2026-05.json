@@ -2,12 +2,12 @@
   "_meta": {
     "snapshot_date": "2026-05-09"
   },
+  "sql": 4154,
   "python": 3047,
-  "sql": 2774,
-  "kubernetes": 2648,
   "git": 2510,
   "postgresql": 1600,
   "docker": 1367,
+  "kubernetes": 1150,
   "apache kafka": 1025,
   "java": 972,
   "qml": 630,
