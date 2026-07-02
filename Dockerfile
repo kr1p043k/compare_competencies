@@ -12,9 +12,6 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем numpy фиксированной версии
-RUN pip install --no-cache-dir numpy==1.24.3
-
 # Копируем и устанавливаем зависимости
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt --timeout=1000 --default-timeout=1000
@@ -24,7 +21,6 @@ RUN python -c "from sentence_transformers import SentenceTransformer; model = Se
 
 # Копируем исходный код
 COPY src/ ./src/
-COPY data/ ./data/
 COPY main.py .
 COPY pyproject.toml .
 
