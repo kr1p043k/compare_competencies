@@ -119,6 +119,7 @@ class ProphetForecastEngine(BasePredictor):
         self._skill_history: dict[str, list[tuple[date, float]]] = {}
         self._last_actual_freq: dict[str, float] = {}
         self._is_fitted = False
+        self._n_snapshots = 0
 
     @property
     def name(self) -> str:
@@ -176,6 +177,7 @@ class ProphetForecastEngine(BasePredictor):
         if not snapshots:
             return Err(DomainError("No snapshots provided to Prophet engine"))
 
+        self._n_snapshots = len(snapshots)
         history = self._gather_history(snapshots)
 
         # Separate skills by data depth: Prophet (≥3 pts) vs trend (fallback)
@@ -276,12 +278,8 @@ class ProphetForecastEngine(BasePredictor):
         return Err(DomainError(f"Skill '{skill}' not found"))
 
     def max_forecast_months(self) -> int:
-        """Return max safe forecast horizon based on data points across all models."""
-        max_n = 0
-        for skill, model in self._models.items():
-            n = len(model.history) if hasattr(model, "history") and model.history is not None else 3
-            max_n = max(max_n, n)
-        return max(1, max_n // 2) if max_n > 0 else 1
+        """Return max safe forecast horizon based on snapshot count."""
+        return max(1, self._n_snapshots // 2)  # 3 snapshots → 1 month
 
     def forecast_all(self, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         results = []
@@ -305,6 +303,8 @@ class ProphetForecastEngine(BasePredictor):
         match self.forecast_all(months):
             case Ok(results):
                 results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0 and r.predicted_growth > 0]
+                # Exclude unreliable predictions: growth > 200% with confidence < 30%
+                results = [r for r in results if not (r.predicted_growth > 2.0 and r.confidence < 0.3)]
                 max_freq = max(r.current_frequency for r in results) or 1
                 max_growth = max(r.predicted_growth for r in results) or 1
                 results.sort(key=lambda x: 0.3 * (x.predicted_growth / max_growth) + 0.7 * (x.current_frequency / max_freq), reverse=True)
