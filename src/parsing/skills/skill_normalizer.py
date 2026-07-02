@@ -129,7 +129,7 @@ class SkillNormalizer:
         "prompt engineering": ["prompting", "prompt engineering"],
         "openai api": ["openai api"],
         # Misc aliases from usage tracking
-        "c++": ["cc++", "c/c++"],
+        "c++": ["cc++", "c/c++", "с++", "С++"],
         "ci/cd": ["cicd", "ci cd"],
         "msoffice": ["ms office", "microsoft office"],
         "neo4j": ["neoj"],
