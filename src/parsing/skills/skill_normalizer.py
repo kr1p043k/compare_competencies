@@ -239,6 +239,7 @@ class SkillNormalizer:
         r"\s+etc\.?",
         r"\s+(senior|middle|junior)$",
         r"\s+и\s+(другие|т\.д\.|т\.п\.|etc)$",
+        r"[-–—](?:обязательно|предпочтительно|приветствуется|преимущество)\b",
     ]
 
     FUZZY_THRESHOLD = 85
@@ -277,6 +278,9 @@ class SkillNormalizer:
                     "javascript",
                     "typescript",
                     "c++",
+                    ".net",
+                    "asp.net",
+                    "node.js",
                 ]
             )
             logger.info("whitelist_loaded_and_extended", count=len(cls._whitelist))
@@ -325,6 +329,11 @@ class SkillNormalizer:
 
             text = SkillNormalizer._apply_synonym_map(text)
 
+            # Reject single-letter results (leftovers from "C" removal, "c 9:00" etc.)
+            if len(text) <= 1:
+                logger.debug("too_short_after_normalization", original=original, text=text)
+                return Ok("")
+
             # Reject job titles
             for pat in SkillNormalizer.JOB_TITLE_PATTERNS:
                 if re.search(pat, text):
@@ -370,7 +379,7 @@ class SkillNormalizer:
         text_lower = text.lower().strip()
         canon_map = cls._get_canonical_map()
         if text_lower in canon_map:
-            return canon_map[text_lower]
+            return canon_map[text_lower].lower()
         return text_lower
 
     @staticmethod

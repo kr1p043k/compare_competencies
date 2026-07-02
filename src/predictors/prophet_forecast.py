@@ -277,7 +277,7 @@ class ProphetForecastEngine(BasePredictor):
     def top_growing(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
-                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.predicted_freq > 0]
+                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0]
                 results.sort(key=lambda x: x.predicted_growth, reverse=True)
                 return Ok(results[:n])
             case Err(e):
@@ -286,7 +286,7 @@ class ProphetForecastEngine(BasePredictor):
     def top_declining(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
-                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.predicted_freq > 0]
+                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0]
                 results.sort(key=lambda x: x.predicted_growth)
                 return Ok([r for r in results if r.predicted_growth < 0][:n])
             case Err(e):

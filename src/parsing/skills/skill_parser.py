@@ -17,7 +17,7 @@ from src.models.vacancy import Vacancy
 
 logger = structlog.get_logger(__name__)
 
-# Cyrillic → Latin homoglyph map for skill matching
+# Cyrillic ↔ Latin homoglyph map for skill matching
 _CYR_TO_LAT = str.maketrans({
     'а': 'a', 'А': 'a',
     'е': 'e', 'Е': 'e',
@@ -32,10 +32,29 @@ _CYR_TO_LAT = str.maketrans({
     'в': 'b', 'В': 'b',
 })
 
+_LAT_TO_CYR = str.maketrans({
+    'a': 'а', 'A': 'а',
+    'e': 'е', 'E': 'е',
+    'o': 'о', 'O': 'о',
+    'p': 'р', 'P': 'р',
+    'c': 'с', 'C': 'с',
+    'y': 'у', 'Y': 'у',
+    'x': 'х', 'X': 'х',
+    'k': 'к', 'K': 'к',
+    'm': 'м', 'M': 'м',
+    'n': 'н', 'N': 'н',
+    'b': 'в', 'B': 'в',
+})
+
 
 def _normalize_for_matching(text: str) -> str:
-    """Lowercase + replace Cyrillic homoglyphs with Latin."""
-    return text.lower().translate(_CYR_TO_LAT)
+    """Lowercase + normalize both Cyrillic and Latin homoglyphs to Latin.
+    Applies LAT→CYR first (to catch mixed-script words like "cиcтeмнoe"),
+    then CYR→LAT (to canonicalize everything to Latin)."""
+    t = text.lower()
+    t = t.translate(_LAT_TO_CYR)
+    t = t.translate(_CYR_TO_LAT)
+    return t
 
 
 def _load_it_skills() -> set[str]:
