@@ -23,6 +23,8 @@ RUN python -c "from sentence_transformers import SentenceTransformer; model = Se
 COPY src/ ./src/
 COPY main.py .
 COPY pyproject.toml .
+COPY alembic.ini .
+COPY alembic/ ./alembic/
 
 # Создаем необходимые директории
 RUN mkdir -p /app/data/cache \
