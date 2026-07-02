@@ -325,8 +325,11 @@ class SkillNormalizer:
             if len(words) >= 4 and all(len(w) <= 12 for w in words) and all(w.isalnum() for w in words):
                 return Ok("")
 
-            for pattern in SkillNormalizer.VERSION_PATTERNS:
-                text = re.sub(pattern, "", text)
+            # Protect known digit-prefixed skills (1c, 3d) from version stripping
+            _digit_skills = {"1c", "1с", "3d", "4k"}
+            if original.lower().strip() not in _digit_skills:
+                for pattern in SkillNormalizer.VERSION_PATTERNS:
+                    text = re.sub(pattern, "", text)
             for pattern in SkillNormalizer.PREFIX_REMOVALS:
                 text = re.sub(pattern, "", text, flags=re.IGNORECASE)
             for suffix in SkillNormalizer.SUFFIX_REMOVALS:
