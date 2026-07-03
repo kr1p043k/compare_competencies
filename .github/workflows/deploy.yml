@@ -22,7 +22,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          command_timeout: 300s
+          command_timeout: 600s
           script: |
             cd /home/admin_server/compare_competencies || git clone https://github.com/kr1p043k/compare_competencies.git
             git fetch origin main

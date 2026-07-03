@@ -12,7 +12,10 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Копируем и устанавливаем зависимости
+# Устанавливаем torch (CPU-only, без CUDA)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Копируем и устанавливаем остальные зависимости
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt --timeout=1000 --default-timeout=1000
 
