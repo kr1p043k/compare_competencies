@@ -71,6 +71,28 @@ Full list in `src/api_pkg/n8n.py`. Key groups:
 
 ---
 
+## 2.1 n8n в Docker Compose
+
+n8n запускается через `docker compose` вместе с проектом. Конфигурация в `docker-compose.yml`:
+
+```yaml
+n8n:
+  image: n8nio/n8n:latest
+  container_name: n8n
+  ports:
+    - "5678:5678"
+  environment:
+    - DB_TYPE=postgresdb
+    - DB_POSTGRESDB_HOST=n8n-postgres
+    - DB_POSTGRESDB_USER=n8n
+    - DB_POSTGRESDB_PASSWORD=${N8N_DB_PASSWORD}
+    - DB_POSTGRESDB_DATABASE=n8n
+    - N8N_METRICS=true
+  depends_on:
+    n8n-postgres:
+      condition: service_healthy
+```
+
 ## 3. Webhooks (n8n → API)
 
 ### 3.1 Endpoints
@@ -231,7 +253,7 @@ Or use n8n credentials for the HTTP Header Auth.
                                      └───────────────────┘
 ```
 
-- n8n is **external** — runs separately (Docker, n8n.cloud, or local)
+- n8n is **part of Docker Compose** — runs as container `n8n` (порт 5678) вместе с `n8n-postgres`
 - Communication is **pull-based** (n8n polls API) + **webhook** (n8n pushes events)
 - Auth via **Bearer token** (N8N_API_KEY)
 - Rate limits per endpoint prevent abuse

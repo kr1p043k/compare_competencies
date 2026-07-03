@@ -95,6 +95,12 @@ KMeans/HDBSCAN с автоопределением числа кластеров
 ### monitoring/metrics.py — Prometheus-метрики
 Histogram для длительности стадий/запросов, Counter для ошибок/рекомендаций, Gauge для состояния пайплайна. Экспорт через `/metrics` (text/plain) и `/api/admin/monitoring` (JSON).
 
+**LLM-метрики:**
+- `llm_requests_total{model, status}` — количество запросов к Ollama (ok/error)
+- `llm_request_duration_seconds{model}` — длительность запросов (гистограмма)
+
+**cAdvisor** — метрики Docker-контейнеров (CPU, RAM, Network, Disk): `container_cpu_usage_seconds_total`, `container_memory_usage_bytes`
+
 ### vector_search/faiss_index.py — FAISS-индексы
 Обёртка над FAISS. FlatIP (точное косинусное сходство) и HNSW (приближённое для >10k векторов). Сохранение/загрузка через `.faiss` + `.pkl` (метаданные).
 
@@ -119,10 +125,18 @@ FastAPI-эндпоинты возвращают строго типизиров�
 - Pipeline: количество запусков, ошибок, длительность по стадиям
 - API: количество запросов, длительность, статусы
 - LTR-модель: количество рекомендаций, ошибки SHAP
+- LLM: количество запросов к Ollama, длительность (qwen3.6:latest)
 
 FastAPI-эндпоинт `GET /metrics` для сбора Prometheus-сервером.
 Структурированный JSON-эндпоинт `GET /api/admin/monitoring` для фронтенда.
 Instrumentation пайплайна: `DataCollectionStage`, `ModelTrainingStage`, `GapAnalysisStage` обёрнуты в `@track_pipeline_stage`.
+
+**Grafana дашборды:**
+- **Server Monitoring** — CPU, RAM, Disk, Network, Docker containers, PostgreSQL, Backend health
+- **Application Monitoring** — Backend requests/response time, PostgreSQL transactions/cache
+- **LLM & AI Monitoring** — LLM requests, error rate, duration percentiles (P50/P90/P95/P99), Docker container CPU/RAM, PostgreSQL cache hit ratio
+
+**cAdvisor** собирает метрики Docker-контейнеров и доступен через Prometheus (job: `cadvisor`). Позволяет видеть per-container CPU, memory, network, disk.
 
 ### Векторный поиск (FAISS)
 Модуль `src/vector_search/faiss_index.py` — обёртка над FAISS (FlatIP / HNSW). `build`/`search`/`save`/`load`. Экспортируется через `create_faiss_index()`. Готов к интеграции в `EmbeddingComparator` / `BM25Ranker` при росте объёма векторов (>1000).

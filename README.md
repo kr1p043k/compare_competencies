@@ -2,7 +2,7 @@
 
 Анализ соответствия учебных компетенций студентов требованиям IT-рынка (hh.ru).
 
-Собирает вакансии, нормализует навыки, выполняет gap-анализ, формирует персонализированные рекомендации через ML (XGBoost + SHAP) с Prometheus/Grafana-мониторингом, n8n-автоматизацией и LLM-интеграцией.
+Собирает вакансии, нормализует навыки, выполняет gap-анализ, формирует персонализированные рекомендации через ML (XGBoost + SHAP) с Prometheus/Grafana-мониторингом, n8n-автоматизацией и LLM-интеграцией (внешняя Ollama — `qwen3.6:latest`, 36B, сервер университета).
 
 ## Возможности
 
@@ -13,7 +13,7 @@
 - **ML-ранжирование** — XGBoost LTR + SHAP (всегда включён), предсказание важности навыков (0-100%), кросс-доменные объяснения
 - **Кластеризация** — KMeans/HDBSCAN + авто k по silhouette, человекочитаемые имена
 - **Тренды** — динамика спроса по историческим снимкам, временные ряды топ-10
-- **Мониторинг** — Prometheus-метрики пайплайна, API, LTR; Grafana-дашборды; административная панель во фронтенде
+- **Мониторинг** — Prometheus-метрики пайплайна, API, LTR, LLM; Grafana-дашборды (Server, Application, LLM & AI Monitoring); cAdvisor (Docker-контейнеры); административная панель во фронтенде
 - **Автоматизация** — n8n-воркфлоу: nightly pipeline, student onboarding, trend alerts, weekly reports
 - **Визуализация** — радары, тепловые карты, покрытие, профессии (300 DPI)
 
@@ -378,10 +378,10 @@ docker compose logs -f
 
 ### Выборочный запуск (без тяжёлых сервисов)
 
-Если не нужны Ollama (8GB RAM) и n8n:
+Если не нужны n8n и open-webui:
 
 ```bash
-docker compose up -d backend frontend prometheus grafana postgres-exporter node-exporter
+docker compose up -d backend frontend prometheus grafana postgres-exporter node-exporter cadvisor
 ```
 
 ### Состав сервисов
@@ -391,14 +391,14 @@ docker compose up -d backend frontend prometheus grafana postgres-exporter node-
 | `backend` | FastAPI (метрики, pipeline, API) | `:8000` |
 | `frontend` | React SPA (вкладка "Мониторинг") | `:8080` |
 | `competency-postgres` | Основная БД (pgvector) | `:5432` |
-| `ollama` | Локальная LLM (Qwen, ~8GB RAM) | `:11434` |
-| `open-webui` | Веб-чат с Ollama | `:3000` |
+| `open-webui` | Веб-чат с внешней Ollama (`qwen3.6:latest`) | `:3000` |
 | `n8n` | Автоматизация воркфлоу | `:5678` |
 | `n8n-postgres` | БД n8n | — |
 | `prometheus` | Сбор метрик (30 дней хранения) | `:9090` |
-| `grafana` | Визуализация метрик (admin/admin) | `:3001` |
+| `grafana` | Визуализация метрик (admin / 2JQeA2nD7Ndsj1kr) | `:3001` |
 | `postgres-exporter` | Метрики PostgreSQL | `:9187` |
 | `node-exporter` | Метрики хоста | `:9100` |
+| `cadvisor` | Метрики Docker-контейнеров | `:8081` |
 
 ### Доступ к сервисам
 
@@ -408,10 +408,10 @@ docker compose up -d backend frontend prometheus grafana postgres-exporter node-
 | http://localhost:8000/docs | Swagger-документация API |
 | http://localhost:8000/metrics | Prometheus-метрики (raw) |
 | http://localhost:8000/api/admin/monitoring | JSON-дашборд мониторинга |
-| http://localhost:3001 | Grafana (admin / admin) |
+| http://localhost:3001 | Grafana (admin / 2JQeA2nD7Ndsj1kr) — дашборды: Server, Application, LLM & AI Monitoring |
 | http://localhost:9090 | Prometheus Web UI |
 | http://localhost:5678 | n8n |
-| http://localhost:3000 | Open WebUI (чат с LLM) |
+| http://localhost:3000 | Open WebUI (чат с Qwen 3.6) |
 
 ### Остановка и управление
 
@@ -434,13 +434,14 @@ docker compose build --no-cache
 
 ### Возможные проблемы
 
-1. **Ollama не запускается** — проверьте, что в Docker Desktop выделено достаточно RAM (минимум 8GB для Qwen).
+1. **Open WebUI не видит модель** — проверьте, что внешняя Ollama доступна: `docker exec openwebui curl -s http://ollama8.r61.net:11434/api/tags`
 2. **Frontend пустая страница** — убедитесь, что `frontend/dist/` существует. Если нет — соберите вручную:
    ```bash
    cd frontend && npm install && npm run build
    ```
 3. **Backend не стартует** — проверьте `.env` и что PostgreSQL доступен (он стартует дольше всех).
 4. **Метрики пустые** — выполните pipeline через API (POST `/api/pipeline/run`) или CLI (`python main.py --it-sector --excel`).
+5. **cAdvisor не видит контейнеры** — проверьте `docker logs cadvisor`. Требуются монтирования `/var/lib/docker/` и `/sys/`.
 
 ## Зависимости
 
@@ -470,10 +471,12 @@ python main.py --interactive
 
 Все сервисы мониторинга разворачиваются через Docker — см. раздел [Запуск через Docker](#запуск-через-docker).
 
-- **Prometheus** — сбор метрик с backend, postgres-exporter, node-exporter
-- **Grafana** — визуализация метрик, дашборды pipeline / API / LTR
+- **Prometheus** — сбор метрик с backend, postgres-exporter, node-exporter, cAdvisor
+- **Grafana** — визуализация метрик, дашборды: Server Monitoring, Application Monitoring, LLM & AI Monitoring
+- **LLM метрики** — `llm_requests_total` (status: ok/error, model), `llm_request_duration_seconds` (гистограмма)
+- **cAdvisor** — метрики Docker-контейнеров (CPU, RAM, Network, Disk для каждого контейнера)
 - **n8n** — автоматизация: nightly pipeline, student onboarding, trend alerts, weekly report
-- **Ollama** — локальная LLM (Qwen) для генерации рекомендаций
+- **Ollama** — внешняя LLM (сервер университета, `http://ollama8.r61.net:11434`, модель `qwen3.6:latest`, 36B)
 - **PostgreSQL / pgvector** — основная БД с поддержкой векторного поиска
 
 ## Документация
