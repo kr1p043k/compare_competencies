@@ -106,8 +106,8 @@ class Settings(BaseSettings):
 
     # ---------- Ollama ----------
     OLLAMA_URL: str = "http://ollama:11434"
-    OLLAMA_MODEL: str = "qwen2.5:32b"
-    OLLAMA_EMBEDDING_MODEL: str = "qwen2.5:0.5b"
+    OLLAMA_MODEL: str = "qwen3.6:latest"
+    OLLAMA_EMBEDDING_MODEL: str = "qwen3.6:latest"
     QWEN_TEMPERATURE: float = 0.7
     QWEN_MAX_TOKENS: int = 2000
 
