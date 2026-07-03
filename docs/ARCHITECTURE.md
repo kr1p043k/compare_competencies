@@ -259,6 +259,29 @@ FastAPI, Pydantic v2, XGBoost, SHAP,
 SentenceTransformers, rank_bm25, pymorphy3, scikit-learn, matplotlib, structlog,
 rapidfuzz (JaccardEngine), joblib (сериализация вместо pickle)
 
+## Развёртывание (Deployment)
+
+### Docker-сервер (`compareserver`, Tailscale 100.81.51.120)
+- **backend** (`:8000`) — FastAPI, доступен через Tailscale Funnel: `https://compareserver.tailb909df.ts.net/`
+- **frontend** (`:8080`) — Vite SPA, nginx с `try_files` для SPA-роутинга, прокси `/api/ → backend:8000`
+- **ollama-qwen** (`:11434`) — LLM для генерации
+- **postgres** (`:5432`) — основная БД
+- **grafana** (`:3001`), **prometheus** (`:9090`), **cadvisor** (`:9100`), **postgres-exporter** (`:9187`) — мониторинг
+
+### Публичный сервер (`AdminVPS`, 5.253.61.76, ISPmanager)
+- **laconiait.ru** — SPA (Vite build, `frontend/dist/`), заливается по FTP
+- **nginx** управляется ISPmanager — нет прямого доступа к конфигу; `try_files` для SPA-роутинга не поддерживается без Semantic URL
+- **PHP-прокси (`/api.php?target=...`)** — обходное решение: PHP-скрипт на корне сайта проксирует запросы к бэкенду через Tailscale Funnel (`compareserver.tailb909df.ts.net`). Все `/api/` вызовы в скомпилированном JS заменены на `/api.php?target=/`
+
+### Скрипты деплоя
+- **`update-deployment.sh`** — полный цикл: бэкап volumes + БД → git pull → compose down → build → up → health check → rollback при ошибке
+- **`backup-volumes.sh`** — бэкап всех Docker volumes и дампа PostgreSQL
+- **`seed_users.py`** + **`users.json`** — наполнение пользователей (admin/teacher/student) через `asyncpg`
+
+### CI/CD (GitHub Actions)
+- Пуш в `main` → Tailscale authkey → appleboy/ssh-action → `update-deployment.sh` на compareserver
+- Сборка backend + frontend внутри Docker Compose
+
 ## Планируемые улучшения
 
 *(список закрыт — приоритеты пересмотрены)*

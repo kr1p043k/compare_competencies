@@ -265,7 +265,12 @@
 │   │   ├── 📄 teacher_analysis.py        # Teacher analysis
 │   │   ├── 📄 fix_rpd_data.py            # Исправление данных РПД
 │   │   ├── 📄 dedup_disciplines.py       # Дедупликация дисциплин
-│   │   └── 📄 compute_competency_trends.py
+│   │   ├── 📄 compute_competency_trends.py
+│   │   ├── 📄 compute_competency_vectors.py # Векторные эмбеддинги
+│   │   ├── 📄 export_vacancies.py        # Экспорт вакансий
+│   │   ├── 📄 map_ksa_to_skills.py       # KSA → навыки
+│   │   ├── 📄 populate_parsed_skills.py  # Парсинг навыков в БД
+│   │   └── 📄 snapshot_professions.py    # Снимки профессий
 │   │
 │   # Оценка качества
 │   ├── 📁 evaluation/
@@ -326,6 +331,12 @@
 ├── 📄 requirements-dev.txt             # dev-зависимости
 ├── 📄 .env.example                     # Переменные окружения
 ├── 📄 .pre-commit-config.yaml          # pre-commit хуки
+├── 📄 .dockerignore                    # Игнор для Docker
+├── 📄 seed_users.py                    # Наполнение пользователей из users.json
+├── 📄 users.json                       # Пользователи по умолчанию (admin/teacher/student)
+├── 📄 backup-volumes.sh                # Бэкап Docker volumes
+├── 📄 update-deployment.sh             # Полный деплой + бэкап + rollback
+├── 📄 start-ollama.sh                  # Запуск Ollama
 └── 📄 README.md
 ```
 
@@ -478,6 +489,17 @@ python main.py --interactive
 - **n8n** — автоматизация: nightly pipeline, student onboarding, trend alerts, weekly report
 - **Ollama** — внешняя LLM (сервер университета, `http://ollama8.r61.net:11434`, модель `qwen3.6:latest`, 36B)
 - **PostgreSQL / pgvector** — основная БД с поддержкой векторного поиска
+
+## Скрипты (корень проекта)
+
+| Файл | Назначение |
+|------|------------|
+| `seed_users.py` | Наполнение пользователей из `users.json` в PostgreSQL через `asyncpg`. Запуск: `python seed_users.py` |
+| `users.json` | Пользователи по умолчанию: admin, teacher, student |
+| `backup-volumes.sh` | Бэкап Docker volumes + дамп PostgreSQL в `./backups/` |
+| `update-deployment.sh` | Полный деплой: бэкап → git pull → compose down → build → up → health check → rollback при ошибке |
+| `start-ollama.sh` | Запуск Ollama (для локальной разработки) |
+| `.dockerignore` | Игнор для Docker сборки (исключает node_modules, .git, \_\_pycache\_\_) |
 
 ## Документация
 
