@@ -86,6 +86,9 @@ async def _try_collect():
             _last_req_time = time.monotonic()
 
     api = HeadHunterAPI()
+    if not api.has_token:
+        logger.warning("collect_abort_no_token")
+        return
 
     async def _collect_region(region_id: int):
         """Collect vacancies for a single region across all IT roles."""

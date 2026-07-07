@@ -53,6 +53,7 @@ class HeadHunterAPI:
         # === АВТОМАТИЧЕСКОЕ ПОЛУЧЕНИЕ ТОКЕНА ===
         self._token = None
         self._token_expires_at = 0
+        self._next_token_allowed_at = 0.0
         if self.TOKEN_CACHE_FILE is None:
             self.TOKEN_CACHE_FILE = config.DATA_CACHE_DIR / ".hh_token_cache.json"
         if config.HH_CLIENT_ID and config.HH_CLIENT_SECRET:
@@ -141,6 +142,10 @@ class HeadHunterAPI:
     def _get_app_token(self, retry_count=0) -> Result[str, ApiError]:
         if retry_count >= 2:
             return Err(ApiError(message="Token retry exhausted", endpoint="token"))
+        if time.time() < self._next_token_allowed_at:
+            remaining = int(self._next_token_allowed_at - time.time())
+            logger.warning("token_cooldown", retry_in_s=remaining)
+            return Err(ApiError(message=f"Token refresh on cooldown ({remaining}s left)", endpoint="token"))
         url = "https://api.hh.ru/token"
         client_id = config.HH_CLIENT_ID.get_secret_value() if config.HH_CLIENT_ID else None
         client_secret = config.HH_CLIENT_SECRET.get_secret_value() if config.HH_CLIENT_SECRET else None
@@ -167,6 +172,7 @@ class HeadHunterAPI:
                 logger.info("app_token_obtained", expires_in=expires_in)
                 return Ok(self._token)
             elif resp.status_code == 403:
+                self._next_token_allowed_at = time.time() + 3600
                 return Err(ApiError(message="Token refresh too early", status_code=403, endpoint="token"))
             else:
                 return Err(ApiError(message=f"Token request failed: {resp.status_code}", status_code=resp.status_code, endpoint="token"))
@@ -187,6 +193,10 @@ class HeadHunterAPI:
                         pass
                     case Err(e):
                         logger.warning("token_refresh_failed", error=str(e))
+
+    @property
+    def has_token(self) -> bool:
+        return bool(self._token) and time.time() < self._token_expires_at
 
     # ======================================================================
     def search_vacancies(
