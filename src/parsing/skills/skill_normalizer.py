@@ -54,7 +54,7 @@ class SkillNormalizer:
         "eslint": ["eslint"],
         "prettier": ["prettier"],
         # Backend / Frameworks
-        "nodejs": ["node.js", "node js", "node"],
+        "node.js": ["nodejs", "node js", "node"],
         "fastapi": ["fast api", "fast-api"],
         "django": ["django rest", "django rest framework", "drf"],
         "flask": ["flask restful"],
@@ -172,11 +172,7 @@ class SkillNormalizer:
         """Строит плоский маппинг из SYNONYM_MAP + таксономии."""
         if cls._canonical_map is None:
             canon = {}
-            for canonical, variants in cls.SYNONYM_MAP.items():
-                for v in variants:
-                    canon[v] = canonical
-                canon[canonical] = canonical
-            # Load aliases from taxonomy
+            # Load aliases from taxonomy FIRST
             try:
                 from pathlib import Path
                 tax_path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "reference" / "skill_taxonomy.json"
@@ -188,6 +184,11 @@ class SkillNormalizer:
                             canon[alias.lower()] = target
             except Exception as exc:
                 logger.warning("taxonomy_aliases_load_failed", error=str(exc))
+            # SYNONYM_MAP overrides taxonomy — explicit mappings win
+            for canonical, variants in cls.SYNONYM_MAP.items():
+                for v in variants:
+                    canon[v] = canonical
+                canon[canonical] = canonical
             cls._canonical_map = canon
             logger.info("canonical_map_built", terms=len(canon))
         return cls._canonical_map
