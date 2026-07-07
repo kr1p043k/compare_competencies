@@ -77,8 +77,10 @@ async def _try_collect():
 
     async def _rate_limit():
         """Ensure at most 3 requests per second to HH API."""
-        nonlocal _last_req_time
+        nonlocal _last_req_time, _token_failed
         async with _req_lock:
+            if _token_failed:
+                return
             now = time.monotonic()
             wait = max(0.0, 1.0 / 3 - (now - _last_req_time))
             if wait > 0:
@@ -89,11 +91,15 @@ async def _try_collect():
     if not api.has_token:
         logger.warning("collect_abort_no_token")
         return
+    _token_failed = False
 
     async def _collect_region(region_id: int):
         """Collect vacancies for a single region across all IT roles."""
+        nonlocal _token_failed
         local = []
         for role_id in IT_PROFESSIONAL_ROLES:
+            if _token_failed:
+                break
             try:
                 await _rate_limit()
                 result = await asyncio.to_thread(
@@ -109,6 +115,8 @@ async def _try_collect():
                                 if vid not in seen_ids:
                                     seen_ids.add(vid)
                                     local.append(v)
+                elif not api.has_token:
+                    _token_failed = True
             except Exception as exc:
                 logger.debug("collect_region_role_failed", region=region_id, role=role_id, error=str(exc))
         if local:
