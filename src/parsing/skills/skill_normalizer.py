@@ -365,8 +365,17 @@ class SkillNormalizer:
             ]
 
             if not candidates:
-                logger.debug("no_fuzzy_candidates", original=original, normalized=text)
-                return Ok(text)
+                # Fallback: character-level — candidate must share bigram n-grams with input
+                text_bigrams = set(text[i:i+2] for i in range(len(text)-1))
+                candidates = [
+                    w for w in whitelist
+                    if len(w) >= 4 and len(text) >= 4
+                    and abs(len(w) - len(text)) <= 3
+                    and len(text_bigrams & set(w[i:i+2] for i in range(len(w)-1))) >= 2
+                ]
+                if not candidates:
+                    logger.debug("no_fuzzy_candidates", original=original, normalized=text)
+                    return Ok(text)
 
             matches = process.extract(text, candidates, scorer=fuzz.WRatio,
                                       limit=SkillNormalizer.MAX_FUZZY_CANDIDATES)
