@@ -342,15 +342,20 @@ class SkillParser:
                 matches = re.findall(pattern, text_norm)
                 for match in matches:
                     match = match.strip()
-                    if 3 < len(match) < 100:
-                        # Фильтрация локаций
-                        if any(p.search(match) for p in _LOCATION_PATTERNS):
-                            continue
-                        # Фильтрация аббревиатур
-                        if _ABBREV_RE.match(match):
-                            continue
-                        skills.append(ExtractedSkill(text=match, source=source, raw_match=match, confidence=confidence))
-                        self._update_stats(source)
+                    if not (3 < len(match) < 100):
+                        continue
+                    # Фильтрация локаций
+                    if any(p.search(match) for p in _LOCATION_PATTERNS):
+                        continue
+                    # Фильтрация аббревиатур
+                    if _ABBREV_RE.match(match):
+                        continue
+                    # Extract only words that are known tech skills
+                    words = match.split()
+                    for word in words:
+                        if word in self.TECH_SKILLS:
+                            skills.append(ExtractedSkill(text=word, source=source, raw_match=word, confidence=confidence))
+                            self._update_stats(source)
 
             return Ok(skills)
         except Exception as e:

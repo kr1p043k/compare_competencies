@@ -194,7 +194,7 @@ class SkillNormalizer:
 
     # Версии и варианты (удаляются полностью)
     VERSION_PATTERNS = [
-        r"\s*v?\d+(\.\d+)*",
+        r"(?:[-–\s]|^)v?\d+(?:\.\d+)*(?:[-–]\d+(?:\.\d+)*)?$",
         r"\s*\(.*?\)",
         r"\s*\[.*?\]",
     ]
@@ -336,6 +336,7 @@ class SkillNormalizer:
                 text = re.sub(suffix, "", text, flags=re.IGNORECASE)
 
             text = re.sub(r"\s+", " ", text).strip()
+            text = re.sub(r"[\s\-–_]+$", "", text)
 
             text = SkillNormalizer._apply_synonym_map(text)
 

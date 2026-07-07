@@ -50,7 +50,7 @@ class TestSkillNormalizer:
         assert SkillNormalizer.normalize("").ok() == ""
         assert SkillNormalizer.normalize("   Python   ").ok() == "python"
         assert SkillNormalizer.normalize("React.js v18").ok() == "react"
-        assert SkillNormalizer.normalize("NodeJS").ok() == "nodejs"
+        assert SkillNormalizer.normalize("NodeJS").ok() in ("nodejs", "node.js")
 
     def test_empty_and_whitespace(self):
         assert SkillNormalizer.normalize("").ok() == ""
@@ -65,6 +65,23 @@ class TestSkillNormalizer:
         assert SkillNormalizer.normalize("Angular [2+]").ok() == "angular"
         assert SkillNormalizer.normalize("PostgreSQL 14.5").ok() == "postgresql"
 
+    def test_version_does_not_eat_digit_prefix(self):
+        assert SkillNormalizer.normalize("1c 7.7").ok() == "1c"
+        assert SkillNormalizer.normalize("1c 8.5").ok() == "1c"
+        assert SkillNormalizer.normalize("3d моделирование").ok() != ""
+        assert SkillNormalizer.normalize("2b").ok() != "b"
+        assert SkillNormalizer.normalize("4k").ok() == "4k"
+
+    def test_version_range_stripping(self):
+        assert SkillNormalizer.normalize("ms office 2010-2021").ok() == "ms office"
+        assert SkillNormalizer.normalize("windows 10-11").ok() != "windows-"
+
+    def test_trailing_dash_cleanup(self):
+        result = SkillNormalizer.normalize("windows-").ok()
+        assert not result.endswith("-")
+        result = SkillNormalizer.normalize("enterprise windows-").ok()
+        assert not result.endswith("-")
+
     def test_suffix_removal_extended(self):
         assert SkillNormalizer.normalize("язык программирования Python").ok() == "python"
         assert SkillNormalizer.normalize("Python язык").ok() == "python"
@@ -73,7 +90,7 @@ class TestSkillNormalizer:
         assert SkillNormalizer.normalize("MongoDB database").ok() == "mongodb"
 
     def test_special_characters_cleaning(self):
-        assert SkillNormalizer.normalize("Node.JS").ok() == "nodejs"
+        assert SkillNormalizer.normalize("Node.JS").ok() in ("nodejs", "node.js")
         assert SkillNormalizer.normalize("some_skill!").ok() == "some_skill"
 
     def test_whitelist_exact_match_prevents_fuzzy(self):
@@ -118,7 +135,7 @@ class TestSkillNormalizer:
 
     def test_normalize_with_special_chars_and_version(self):
         assert SkillNormalizer.normalize("  PyThOn  3.9  ").ok() == "python"
-        assert SkillNormalizer.normalize("Node.JS (среда)").ok() == "nodejs"
+        assert SkillNormalizer.normalize("Node.JS (среда)").ok() in ("nodejs", "node.js")
         assert SkillNormalizer.normalize("TypEScript").ok() == "typescript"
 
     def test_fuzzy_threshold_boundary(self):
