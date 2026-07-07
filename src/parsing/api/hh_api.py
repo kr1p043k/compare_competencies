@@ -294,6 +294,9 @@ class HeadHunterAPI:
         """GET-запрос с явным Result[T, E] — все ошибки типизированы."""
         if not _is_retry_after_401:
             self._ensure_token()
+            if not self.has_token:
+                logger.warning("http_no_token_skip_request", url=url)
+                return Err(ApiError(message="No valid token, request skipped", endpoint=url))
         try:
             start_time = time.time()
             response = self.session.get(url, params=params, timeout=10)
@@ -323,6 +326,9 @@ class HeadHunterAPI:
                 err_text = response.text[:300]
                 if "token-revoked" in err_text or "token_expired" in err_text or "bad_authorization" in err_text:
                     logger.warning("token_invalid_attempting_refresh")
+                    if time.time() < self._next_token_allowed_at:
+                        logger.warning("token_on_cooldown_skip_refresh")
+                        return Err(ApiError(message="Token on cooldown, skipping refresh", status_code=403, endpoint=url))
                     self._token = None
                     self._token_expires_at = 0
                     match self._clear_token_cache():
