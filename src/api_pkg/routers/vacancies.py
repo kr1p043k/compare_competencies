@@ -23,20 +23,26 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 def _classify_experience(exp_str: str | None, name: str) -> str:
+    levels = set()
     if exp_str:
         el = exp_str.lower()
         if "junior" in el or "less1" in el or "no_experience" in el:
-            return "junior"
+            levels.add("junior")
         if "senior" in el or "morethan6" in el or "morethan10" in el:
-            return "senior"
+            levels.add("senior")
         if "between3and6" in el or "between1and3" in el:
-            return "middle"
+            levels.add("middle")
     nl = name.lower()
     if "junior" in nl or "младший" in nl:
-        return "junior"
+        levels.add("junior")
+    if "middle" in nl or "mid" in nl:
+        levels.add("middle")
     if "senior" in nl or "старший" in nl or "ведущий" in nl:
-        return "senior"
-    return "middle"
+        levels.add("senior")
+    if not levels:
+        return "middle"
+    result = sorted(levels, key={"junior": 0, "middle": 1, "senior": 2}.get)
+    return ", ".join(result)
 
 
 async def _get_db_pool():

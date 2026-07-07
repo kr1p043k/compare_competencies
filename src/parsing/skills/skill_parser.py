@@ -46,6 +46,17 @@ _LAT_TO_CYR = str.maketrans({
     'b': 'в', 'B': 'в',
 })
 
+_LOCATION_PATTERNS = [
+    re.compile(r"метро\s", re.IGNORECASE),
+    re.compile(r"м\.\s*[А-ЯЁа-яё]", re.IGNORECASE),
+    re.compile(r"ул\.\s", re.IGNORECASE),
+    re.compile(r"д\.\s*\d", re.IGNORECASE),
+    re.compile(r"г\.\s*[А-ЯЁ]", re.IGNORECASE),
+    re.compile(r"район\s", re.IGNORECASE),
+    re.compile(r"станци[яию]\s", re.IGNORECASE),
+]
+_ABBREV_RE = re.compile(r"^[А-ЯЁ]{2,5}$")
+
 
 def _normalize_for_matching(text: str) -> str:
     """Lowercase + normalize both Cyrillic and Latin homoglyphs to Latin.
@@ -286,23 +297,11 @@ class SkillParser:
             skills = []
             text_norm = _normalize_for_matching(text)
 
-            # Паттерны для фильтрации не-навыков
-            LOCATION_PATTERNS = [
-                re.compile(r"метро\s", re.IGNORECASE),
-                re.compile(r"м\.\s*[А-ЯЁа-яё]", re.IGNORECASE),
-                re.compile(r"ул\.\s", re.IGNORECASE),
-                re.compile(r"д\.\s*\d", re.IGNORECASE),
-                re.compile(r"г\.\s*[А-ЯЁ]", re.IGNORECASE),
-                re.compile(r"район\s", re.IGNORECASE),
-                re.compile(r"станци[яию]\s", re.IGNORECASE),
-            ]
-            # Аббревиатуры 2-5 букв кириллицей — пропускаем
-            ABBREV_RE = re.compile(r"^[А-ЯЁ]{2,5}$")
-
             for marker in self.SKILL_MARKERS:
-                if marker not in text_norm:
+                norm_marker = _normalize_for_matching(marker)
+                if norm_marker not in text_norm:
                     continue
-                parts = text_norm.split(marker)
+                parts = text_norm.split(norm_marker)
                 if len(parts) < 2:
                     continue
                 after_marker = parts[1][:600]
@@ -312,10 +311,10 @@ class SkillParser:
                     if len(line) <= 3 or len(line) >= 100:
                         continue
                     # Фильтрация локаций
-                    if any(p.search(line) for p in LOCATION_PATTERNS):
+                    if any(p.search(line) for p in _LOCATION_PATTERNS):
                         continue
                     # Фильтрация аббревиатур
-                    if ABBREV_RE.match(line):
+                    if _ABBREV_RE.match(line):
                         continue
                     # Извлекаем только отдельные навыки из строки, не всю строку
                     for tech in self.TECH_SKILLS:
@@ -334,9 +333,9 @@ class SkillParser:
             text_norm = _normalize_for_matching(text)
 
             patterns = [
-                (r"(?:опыт работы с|опыт с|работа с|знание|владение|умение)\s+([a-z0-9\s\+\#\-]+)", 0.85),
-                (r"(?:должен (?:знать|уметь))\s+([a-z0-9\s\+\#\-]+)", 0.75),
-                (r"(?:требуется|требуется знание)\s+([a-z0-9\s\+\#\-]+)", 0.80),
+                (_normalize_for_matching(r"(?:опыт работы с|опыт с|работа с|знание|владение|умение)\s+([a-z0-9\s\+\#\-]+)"), 0.85),
+                (_normalize_for_matching(r"(?:должен (?:знать|уметь))\s+([a-z0-9\s\+\#\-]+)"), 0.75),
+                (_normalize_for_matching(r"(?:требуется|требуется знание)\s+([a-z0-9\s\+\#\-]+)"), 0.80),
             ]
 
             for pattern, confidence in patterns:
@@ -345,10 +344,10 @@ class SkillParser:
                     match = match.strip()
                     if 3 < len(match) < 100:
                         # Фильтрация локаций
-                        if any(p.search(match) for p in LOCATION_PATTERNS):
+                        if any(p.search(match) for p in _LOCATION_PATTERNS):
                             continue
                         # Фильтрация аббревиатур
-                        if ABBREV_RE.match(match):
+                        if _ABBREV_RE.match(match):
                             continue
                         skills.append(ExtractedSkill(text=match, source=source, raw_match=match, confidence=confidence))
                         self._update_stats(source)

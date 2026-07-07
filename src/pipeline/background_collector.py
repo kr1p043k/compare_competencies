@@ -182,6 +182,7 @@ async def _try_collect():
     skip_count = 0
     empty_ids: set[int] = set()
     try:
+        from src.parsing.skills.skill_normalizer import SkillNormalizer
         from src.parsing.skills.vacancy_parser import VacancyParser
         from src.models.vacancy import Vacancy as VacModel
         import re as _re
@@ -204,7 +205,15 @@ async def _try_collect():
                     continue
                 match parser.skill_parser.parse_vacancy(vac_obj):
                     case Ok(extracted):
-                        texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                        raw_texts = [s.text for s in extracted if s.text]
+                        normalized = SkillNormalizer.normalize_batch(raw_texts).unwrap_or([])
+                        validated = []
+                        for t in normalized:
+                            if t:
+                                match parser.skill_validator.validate(t):
+                                    case Ok(r) if r.is_valid:
+                                        validated.append(t)
+                        texts = list(dict.fromkeys(validated))
                         if texts:
                             hh_id = int(vid)
                             await conn.execute(
