@@ -100,11 +100,11 @@ class HeadHunterAPI:
                 cache = json.load(f)
             token = cache.get("access_token")
             expires_at = cache.get("expires_at", 0)
-            if token and time.time() < expires_at:
+            if token:
                 self._token = token
-                self._token_expires_at = expires_at
+                self._token_expires_at = time.time() + 3600
                 self.session.headers.update({"Authorization": f"Bearer {self._token}"})
-                logger.info("cached_token_loaded", expires_in=int(expires_at - time.time()))
+                logger.info("cached_token_loaded", expires_in=3600, cached_ttl=int(expires_at - time.time()))
                 return Ok(True)
             return Ok(False)
         except Exception as e:
@@ -327,6 +327,8 @@ class HeadHunterAPI:
                 if "token-revoked" in err_text or "token_expired" in err_text or "bad_authorization" in err_text:
                     logger.warning("token_invalid_attempting_refresh")
                     if time.time() < self._next_token_allowed_at:
+                        self._token = None
+                        self._token_expires_at = 0
                         logger.warning("token_on_cooldown_skip_refresh")
                         return Err(ApiError(message="Token on cooldown, skipping refresh", status_code=403, endpoint=url))
                     self._token = None
