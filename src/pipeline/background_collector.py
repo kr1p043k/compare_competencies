@@ -75,6 +75,27 @@ async def _try_collect():
     _last_req_time = 0.0
     _req_lock = asyncio.Lock()
 
+    # Non-IT vacancy name patterns — skip these titles
+    _NON_IT_TITLE_PATTERNS = [
+        "ломбард", "автоломбард",
+        "уборщи", "клининг", "горничн",
+        "грузчик", "комплектовщик", "фасовщик", "упаковщик",
+        "продавец", "продажник", "менеджер по продажам",
+        "кассир", "администратор магазин", "администратор салон",
+        "охранник", "вахтер", "сторож", "консьерж",
+        "курьер", "водитель", "экспедитор", "такси",
+        "повар", "кондитер", "пекарь", "бармен", "официант",
+        "мойщик", "разнорабочий",
+        "сварщик", "электромонтер", "сантехник", "плотник", "маляр",
+        "каменщик", "бетонщик", "монтажник",
+        "врач", "медсестра", "медбрат", "фельдшер",
+        "провизор", "фармацевт",
+        "воспитатель", "няня", "сиделка",
+        "парикмахер", "косметолог",
+        "юрист", "бухгалтер", "экономист",
+        "секретарь", "офис-менеджер",
+    ]
+
     async def _rate_limit():
         """Ensure at most 3 requests per second to HH API."""
         nonlocal _last_req_time, _token_failed
@@ -113,6 +134,10 @@ async def _try_collect():
                         if vid:
                             async with _lock:
                                 if vid not in seen_ids:
+                                    # Skip non-IT vacancies by title
+                                    name_lower = (v.get("name") or "").lower()
+                                    if any(p in name_lower for p in _NON_IT_TITLE_PATTERNS):
+                                        continue
                                     seen_ids.add(vid)
                                     local.append(v)
                 elif not api.has_token:
@@ -227,9 +252,10 @@ async def _try_collect():
                             key_skills = [s.get("name", "") for s in v.get("key_skills", []) if s.get("name")]
                             has_it = bool(key_skills)
                             if not has_it and len(desc) > 50:
-                                # Quick substring check: does description mention any it_skills keyword?
                                 desc_lower = desc.lower()
-                                has_it = any(kw in desc_lower for kw in _it_kw)
+                                # Require at least 2 it_skills keyword matches to avoid false positives
+                                kw_matches = [kw for kw in _it_kw if kw in desc_lower]
+                                has_it = len(kw_matches) >= 2
                             if not has_it:
                                 empty_ids.add(int(vid))
                                 skip_count += 1
