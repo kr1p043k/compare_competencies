@@ -95,6 +95,37 @@ llm_request_duration_seconds = Histogram(
     buckets=(0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
 )
 
+llm_token_usage = Counter(
+    "llm_token_usage_total",
+    "LLM token usage (prompt / completion)",
+    ["model", "type"],
+)
+
+llm_response_length = Histogram(
+    "llm_response_length_chars",
+    "LLM response length in characters",
+    ["model"],
+    buckets=(10, 50, 100, 200, 500, 1000, 2000, 5000),
+)
+
+profile_readiness_score = Gauge(
+    "profile_readiness_score",
+    "Readiness score per student profile (0-100%)",
+    ["profile", "level"],
+)
+
+skill_category_count = Gauge(
+    "skill_category_count",
+    "Skills count per taxonomy category",
+    ["category"],
+)
+
+pipeline_run_counter = Counter(
+    "pipeline_runs_total",
+    "Pipeline run count",
+    ["status", "trigger"],
+)
+
 
 def track_pipeline_stage(stage_name: str):
     def decorator(func):

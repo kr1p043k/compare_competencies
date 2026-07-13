@@ -3,10 +3,7 @@
 import asyncio
 import hashlib
 import json
-import time
-
 import structlog
-from tqdm import tqdm
 
 from src import Err, Ok, config
 from src.cache_manager import CacheManager
@@ -92,123 +89,8 @@ async def run_startup(app):
 
     logger.info("Загружено вакансий", count=len(basic_vacancies))
 
-    # --- ДОЗАГРУЗКА ОПИСАНИЙ (только если basic, без описаний) ---
-    has_descriptions = any(v.get("description") for v in basic_vacancies[:10])
-    if not has_descriptions and basic_vacancies:
-        logger.warning("Вакансии без описаний — загружаю детали...")
-        try:
-            from src.parsing.api.hh_api import HeadHunterAPI
-
-            def _fetch_details(vacancies):
-                hh = HeadHunterAPI()
-                detailed = []
-                for v in tqdm(vacancies, desc="Загрузка описаний"):
-                    vid = v.get("id")
-                    if not vid:
-                        detailed.append(v)
-                        continue
-                    try:
-                        match hh.get_vacancy_details(str(vid)):
-                            case Ok(det):
-                                detailed.append(det)
-                            case Err(_):
-                                detailed.append(v)
-                    except Exception:
-                        detailed.append(v)
-                    time.sleep(config.REQUEST_DELAY)
-                detailed_file.parent.mkdir(parents=True, exist_ok=True)
-                with open(detailed_file, "w", encoding="utf-8") as f:
-                    json.dump(detailed, f, ensure_ascii=False, indent=2)
-                return detailed, detailed_file
-
-            _result = await asyncio.to_thread(_fetch_details, basic_vacancies)
-            basic_vacancies = _result[0]
-            raw_file = _result[1]
-            logger.info("Детали загружены и сохранены", count=len(basic_vacancies))
-        except Exception as e:
-            logger.warning("Не удалось загрузить описания", error=str(e))
-
-    parser = VacancyParser()
-
-    # 2. Извлечение навыков (с кэшированием)
-    cache = CacheManager(config.PARSED_SKILLS_CACHE_PATH.parent)
-    cache_key = config.PARSED_SKILLS_CACHE_PATH.stem
-    vacancies_hash = hashlib.sha256(raw_file.read_bytes()).hexdigest()
-    skill_freq_local = {}
-    hybrid_weights_local = {}
-
-    match cache.load(cache_key):
-        case Ok(cached):
-            if isinstance(cached, dict) and cached.get("source_hash") == vacancies_hash:
-                result = cached["result"]
-                skill_freq_local = result.get("frequencies", {})
-                hybrid_weights_local = result.get("hybrid_weights", {})
-                logger.info("Загружен кэш парсинга навыков")
-        case _:
-            pass
-
-    def _unwrap_parse(r):
-        match r:
-            case Ok(d):
-                return d
-            case Err(e):
-                logger.error("parse_failed", error=str(e))
-                return {}
-
-    if not skill_freq_local:
-        result = _unwrap_parse(parser.extract_skills_from_vacancies(basic_vacancies))
-        skill_freq_local = result.get("frequencies", {})
-        hybrid_weights_local = result.get("hybrid_weights", {})
-        cache_data = {"source_hash": vacancies_hash, "result": result}
-        cache.save(cache_key, cache_data)
-        logger.info("Кэш парсинга сохранён")
-    elif not hybrid_weights_local:
-        result = _unwrap_parse(parser.extract_skills_from_vacancies(basic_vacancies))
-        hybrid_weights_local = result.get("hybrid_weights", {})
-        cache_data = {"source_hash": vacancies_hash, "result": result}
-        cache.save(cache_key, cache_data)
-        logger.info("Кэш парсинга обновлён (добавлены hybrid_weights)")
-
-    deps.skill_freq = skill_freq_local
-
-    # 3. Фильтрация весов
-    filter_engine = SkillFilter()
-    comp_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency.json"
-    competency_freq = {}
-    if comp_freq_path.exists():
-        with open(comp_freq_path, encoding="utf-8") as f:
-            competency_freq = json.load(f)
-    match filter_engine.get_clean_weights(
-        hybrid_weights_local, competency_freq=competency_freq, use_reference=True
-    ):
-        case Ok(w):
-            hybrid_weights = w
-        case Err(err):
-            logger.error("get_clean_weights_failed", error=str(err))
-            hybrid_weights = {}
-    if not hybrid_weights and skill_freq_local:
-        match filter_engine.get_clean_weights(
-            skill_freq_local, competency_freq=competency_freq, use_reference=True
-        ):
-            case Ok(w):
-                hybrid_weights = w
-                logger.info("fallback_to_skill_freq_weights", count=len(hybrid_weights))
-            case Err(err):
-                logger.error("get_clean_weights_fallback_failed", error=str(err))
-    deps.skill_weights = hybrid_weights
-
-    # 4. Таксономия и белый список
-    try:
-        deps.taxonomy = SkillTaxonomy()
-    except Exception:
-        deps.taxonomy = None
-    whitelist = load_it_skills()
-    deps.current_skills_set = whitelist
-
-    # 5. Быстрые данные
-    deps.hybrid_weights = hybrid_weights
     deps.basic_vacancies = basic_vacancies
-    deps.competency_mapping = load_competency_mapping()
+    deps.raw_file = raw_file
 
     from src.api_pkg.request_logger import start_log_flusher
     start_log_flusher()
@@ -217,20 +99,113 @@ async def run_startup(app):
         deps.is_ready = True
     logger.info("API готов к работе (фоновая инициализация продолжается)")
 
-    # 6. фоновая инициализация — все тяжёлые движки
-    asyncio.create_task(_warmup_background(parser, basic_vacancies, hybrid_weights))
+    # 5. фоновая инициализация — навыки + тяжёлые движки
+    asyncio.create_task(_warmup_background(basic_vacancies, raw_file))
 
-    # 7. фоновый сбор вакансий (инкрементально, каждые 6 часов)
+    # 6. фоновый сбор вакансий (инкрементально, каждые 6 часов)
     from src.pipeline.background_collector import start_background_collector
     await start_background_collector()
 
 
-async def _warmup_background(parser, basic_vacancies, hybrid_weights):
+async def _warmup_background(basic_vacancies, raw_file):
     """Загружает тяжёлые компоненты после старта API."""
-    logger.info("фоновая инициализация: уровень анализа, evaluator, тренды, Prophet...")
+    logger.info("фоновая инициализация: парсинг навыков, evaluator, тренды, Prophet...")
 
+    # --- Шаг 1: Извлечение навыков (с кэшированием) ---
     try:
-        # Уровневый анализ вакансий (шаг 5)
+        parser = VacancyParser()
+
+        def _run_skill_extraction():
+            cache = CacheManager(config.PARSED_SKILLS_CACHE_PATH.parent)
+            cache_key = config.PARSED_SKILLS_CACHE_PATH.stem
+            vacancies_hash = hashlib.sha256(raw_file.read_bytes()).hexdigest()
+            skill_freq_local = {}
+            hybrid_weights_local = {}
+
+            match cache.load(cache_key):
+                case Ok(cached):
+                    if isinstance(cached, dict) and cached.get("source_hash") == vacancies_hash:
+                        result = cached["result"]
+                        skill_freq_local = result.get("frequencies", {})
+                        hybrid_weights_local = result.get("hybrid_weights", {})
+                        logger.info("Загружен кэш парсинга навыков")
+                case _:
+                    pass
+
+            def _unwrap_parse(r):
+                match r:
+                    case Ok(d):
+                        return d
+                    case Err(e):
+                        logger.error("parse_failed", error=str(e))
+                        return {}
+
+            if not skill_freq_local:
+                result = _unwrap_parse(parser.extract_skills_from_vacancies(basic_vacancies))
+                skill_freq_local = result.get("frequencies", {})
+                hybrid_weights_local = result.get("hybrid_weights", {})
+                cache_data = {"source_hash": vacancies_hash, "result": result}
+                cache.save(cache_key, cache_data)
+                logger.info("Кэш парсинга сохранён")
+            elif not hybrid_weights_local:
+                result = _unwrap_parse(parser.extract_skills_from_vacancies(basic_vacancies))
+                hybrid_weights_local = result.get("hybrid_weights", {})
+                cache_data = {"source_hash": vacancies_hash, "result": result}
+                cache.save(cache_key, cache_data)
+                logger.info("Кэш парсинга обновлён (добавлены hybrid_weights)")
+
+            return skill_freq_local, hybrid_weights_local
+
+        skill_freq_local, hybrid_weights_local = await asyncio.to_thread(_run_skill_extraction)
+
+        deps.skill_freq = skill_freq_local
+
+        # Фильтрация весов
+        filter_engine = SkillFilter()
+        comp_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency.json"
+        competency_freq = {}
+        if comp_freq_path.exists():
+            with open(comp_freq_path, encoding="utf-8") as f:
+                competency_freq = json.load(f)
+        match filter_engine.get_clean_weights(
+            hybrid_weights_local, competency_freq=competency_freq, use_reference=True
+        ):
+            case Ok(w):
+                hybrid_weights = w
+            case Err(err):
+                logger.error("get_clean_weights_failed", error=str(err))
+                hybrid_weights = {}
+        if not hybrid_weights and skill_freq_local:
+            match filter_engine.get_clean_weights(
+                skill_freq_local, competency_freq=competency_freq, use_reference=True
+            ):
+                case Ok(w):
+                    hybrid_weights = w
+                    logger.info("fallback_to_skill_freq_weights", count=len(hybrid_weights))
+                case Err(err):
+                    logger.error("get_clean_weights_fallback_failed", error=str(err))
+        deps.skill_weights = hybrid_weights
+
+        # Таксономия и белый список
+        try:
+            deps.taxonomy = SkillTaxonomy()
+        except Exception:
+            deps.taxonomy = None
+        whitelist = load_it_skills()
+        deps.current_skills_set = whitelist
+
+        # Быстрые данные
+        deps.hybrid_weights = hybrid_weights
+        deps.competency_mapping = load_competency_mapping()
+
+        logger.info("фоновая инициализация: навыки и веса готовы")
+    except Exception as e:
+        logger.warning("фоновая инициализация: навыки не загружены", error=str(e))
+        parser = None
+        hybrid_weights = {}
+
+    # --- Шаг 2: Уровневый анализ вакансий ---
+    try:
         level_analyzer = SkillLevelAnalyzer()
         level_vacancies_data = []
         vacancies_skills = []
@@ -239,7 +214,7 @@ async def _warmup_background(parser, basic_vacancies, hybrid_weights):
             vac_skills = []
             if "extracted_skills" in vac:
                 vac_skills = vac["extracted_skills"]
-            else:
+            elif parser is not None:
                 desc = vac.get("description", "")
                 snip = vac.get("snippet") or {}
                 req = snip.get("requirement", "")
@@ -251,6 +226,8 @@ async def _warmup_background(parser, basic_vacancies, hybrid_weights):
                         vac_skills = sk
                     case _:
                         pass
+            else:
+                vac_skills = []
 
             experience = ExperienceLevel.MIDDLE
             if "experience" in vac:
@@ -285,7 +262,6 @@ async def _warmup_background(parser, basic_vacancies, hybrid_weights):
 
         level_analyzer.analyze_vacancies(level_vacancies_data)
 
-        # Веса по уровням
         skill_weights_by_level = {}
         for level in ExperienceLevel:
             match level_analyzer.get_weights_for_level(deps.skill_weights, level):

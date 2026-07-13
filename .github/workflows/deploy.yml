@@ -17,17 +17,17 @@ jobs:
 
       - name: Deploy
         uses: appleboy/ssh-action@v1
-        timeout-minutes: 10
+        timeout-minutes: 45
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          command_timeout: 600s
+          command_timeout: 2700s
           script: |
             cd /home/admin_server/compare_competencies || git clone https://github.com/kr1p043k/compare_competencies.git
             git fetch origin main
             git reset --hard origin/main
-            docker compose build backend --no-cache
+            docker compose build backend
             docker compose up -d backend --force-recreate
             docker compose build frontend --no-cache
             docker compose up -d frontend --force-recreate

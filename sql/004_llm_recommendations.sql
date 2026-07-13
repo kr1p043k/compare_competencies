@@ -15,8 +15,7 @@ CREATE TABLE IF NOT EXISTS llm_recommendations (
     prompt_text     TEXT NOT NULL,
     model_used      VARCHAR(20) NOT NULL
                     CHECK (model_used IN (
-                        'qwen3.6', 'gemma4',
-                        'qwen_local', 'deepseek_local'
+                        'qwen3.6', 'gemma4', 'qwen_local', 'deepseek_local', 'gpt-oss'
                     )),
     response_json   JSONB NOT NULL DEFAULT '{}',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()

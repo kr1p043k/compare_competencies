@@ -28,6 +28,7 @@ skill_freq: dict[str, int] = {}
 taxonomy: SkillTaxonomy | None = None
 current_skills_set: set[str] = set()
 basic_vacancies: list = []
+raw_file = None
 vacancy_load_error: str | None = None
 prophet_engine: ProphetForecastEngine | None = None
 is_ready: bool = False

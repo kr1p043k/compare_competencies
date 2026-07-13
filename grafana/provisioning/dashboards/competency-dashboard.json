@@ -360,6 +360,38 @@
           ],
           "yaxes": [{ "format": "s", "label": "Duration" }, { "show": false }],
           "legend": { "show": true, "alignAsTable": true }
+        },
+        {
+          "id": 37,
+          "title": "LLM Token Usage",
+          "type": "graph",
+          "gridPos": { "x": 0, "y": 49, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "rate(llm_token_usage_total{model=~\"$model\"}[5m])",
+              "legendFormat": "{{model}} {{endpoint}}"
+            }
+          ],
+          "yaxes": [{ "format": "short", "label": "Tokens/s" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true, "rightSide": true }
+        },
+        {
+          "id": 38,
+          "title": "LLM Response Length (P50, P95)",
+          "type": "graph",
+          "gridPos": { "x": 12, "y": 49, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, rate(llm_response_length_bucket{model=~\"$model\"}[5m]))",
+              "legendFormat": "P95 - {{model}}"
+            },
+            {
+              "expr": "histogram_quantile(0.50, rate(llm_response_length_bucket{model=~\"$model\"}[5m]))",
+              "legendFormat": "P50 - {{model}}"
+            }
+          ],
+          "yaxes": [{ "format": "short", "label": "Tokens" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true }
         }
       ]
     },
@@ -461,6 +493,20 @@
           ],
           "yaxes": [{ "label": "Errors/s" }, { "show": false }],
           "legend": { "show": true, "alignAsTable": true }
+        },
+        {
+          "id": 39,
+          "title": "Pipeline Run Count",
+          "type": "graph",
+          "gridPos": { "x": 0, "y": 65, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "rate(pipeline_run_counter_total[5m])",
+              "legendFormat": "{{status}} - {{action}}"
+            }
+          ],
+          "yaxes": [{ "label": "Runs/s" }, { "show": false }],
+          "legend": { "show": true, "alignAsTable": true, "rightSide": true }
         }
       ]
     },
@@ -571,6 +617,52 @@
           ],
           "fieldConfig": {
             "defaults": {
+              "unit": "short"
+            }
+          }
+        },
+        {
+          "id": 40,
+          "title": "Profile Readiness Score",
+          "type": "gauge",
+          "gridPos": { "x": 0, "y": 79, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "profile_readiness_score",
+              "legendFormat": "{{profile}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "min": 0,
+              "max": 100,
+              "unit": "percent",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "orange", "value": 40 },
+                  { "color": "yellow", "value": 60 },
+                  { "color": "green", "value": 80 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 41,
+          "title": "Skills by Category",
+          "type": "bargauge",
+          "gridPos": { "x": 8, "y": 79, "w": 8, "h": 8 },
+          "targets": [
+            {
+              "expr": "skill_category_count",
+              "legendFormat": "{{category}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "min": 0,
               "unit": "short"
             }
           }

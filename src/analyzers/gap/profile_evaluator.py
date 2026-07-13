@@ -308,6 +308,11 @@ class ProfileEvaluator:
 
         skill_categories = {"strong": strong_count, "weak": weak_count, "missing": missing_count, "total": total_market}
 
+        from src.monitoring.metrics import profile_readiness_score, skill_category_count
+        profile_readiness_score.labels(profile=student.profile_name, level=target_level).set(readiness_score)
+        for cat_name, cat_count in skill_categories.items():
+            skill_category_count.labels(category=f"{student.profile_name}_{cat_name}").set(cat_count)
+
         eval_result = ProfileEvaluationResult(
             market_coverage_score=round(market_coverage_score, 2),
             skill_coverage=round(skill_coverage, 2),
