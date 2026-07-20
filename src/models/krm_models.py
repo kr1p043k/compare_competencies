@@ -494,7 +494,7 @@ class LLMRecommendation(Base):
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
     __table_args__ = (
-        CheckConstraint(model_used.in_(["qwen3.6", "gemma4", "qwen_local", "deepseek_local"]), name="ck_llm_model"),
+        CheckConstraint(model_used.in_(["qwen3.6", "gemma4", "qwen_local", "deepseek_local", "gpt-oss"]), name="ck_llm_model"),
     )
 
 

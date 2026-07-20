@@ -310,11 +310,14 @@ def run_full_pipeline(args) -> Result[None, str]:
     ])
     show_context_info()
 
+    from src.monitoring.metrics import pipeline_run_counter
     orchestrator = PipelineOrchestrator(stages, num_retries=1)
     pipeline_result = orchestrator.run(name="full_pipeline")
     if pipeline_result.is_err():
+        pipeline_run_counter.labels(status="failed", trigger="cli").inc()
         console_info(f"❌ Пайплайн не завершён: {pipeline_result.err()}")
         return Err(f"Пайплайн не завершён: {pipeline_result.err()}")
+    pipeline_run_counter.labels(status="success", trigger="cli").inc()
     run = pipeline_result.unwrap()
 
     ctx_data = {}

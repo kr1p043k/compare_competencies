@@ -3,7 +3,7 @@ import structlog
 from typing import Any
 
 from src import config
-from src.monitoring.metrics import llm_requests_total, llm_request_duration_seconds
+from src.monitoring.metrics import llm_requests_total, llm_request_duration_seconds, llm_token_usage, llm_response_length
 
 logger = structlog.get_logger(__name__)
 
@@ -50,6 +50,14 @@ class LLMClient:
                 stream=stream,
             )
             llm_requests_total.labels(model=self.model, status="ok").inc()
+            if hasattr(response, "usage") and response.usage:
+                if response.usage.prompt_tokens:
+                    llm_token_usage.labels(model=self.model, type="prompt").inc(response.usage.prompt_tokens)
+                if response.usage.completion_tokens:
+                    llm_token_usage.labels(model=self.model, type="completion").inc(response.usage.completion_tokens)
+            if not stream and hasattr(response, "choices") and response.choices:
+                content = response.choices[0].message.content or ""
+                llm_response_length.labels(model=self.model).observe(len(content))
             return response
         except Exception:
             llm_requests_total.labels(model=self.model, status="error").inc()
