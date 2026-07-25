@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from src import Err, Ok
 from src.utils import safe_read_json, atomic_write_json
+from src.notifications.telegram import send_telegram
 
 logger = structlog.get_logger("n8n_webhook")
 
@@ -36,6 +37,13 @@ class AlertBody(BaseModel):
     severity: str = "info"
     message: str
     data: dict = {}
+
+
+class NewPublicationsBody(BaseModel):
+    subscription_id: str
+    user_id: str
+    topic: str
+    articles: list[dict]
 
 
 def _verify_n8n_secret(request: Request) -> bool:
@@ -94,6 +102,57 @@ async def webhook_alert(body: AlertBody, request: Request):
     atomic_write_json(record, path)
     logger.info("n8n_webhook_alert", type=body.type, severity=body.severity, message=body.message[:100])
     return {"ok": True}
+
+
+@router.post("/api/n8n/webhook/new-publications")
+async def webhook_new_publications(body: NewPublicationsBody, request: Request):
+    if not _verify_n8n_secret(request):
+        raise HTTPException(status_code=403, detail="Invalid webhook secret")
+
+    from src.database import async_session_factory
+    from src.models.krm_models import Notification, Subscription, _uuid
+
+    articles = body.articles[:10]
+    async with async_session_factory() as session:
+        sub = await session.get(Subscription, body.subscription_id)
+        if not sub:
+            raise HTTPException(status_code=404, detail="Subscription not found")
+
+        created = []
+        for art in articles:
+            notif = Notification(
+                id=_uuid(),
+                subscription_id=body.subscription_id,
+                user_id=body.user_id,
+                title=art.get("title", "No title")[:500],
+                body=art.get("abstract", art.get("summary", ""))[:2000],
+                article_url=art.get("url") or art.get("link") or art.get("id"),
+                article_source=art.get("source", "openalex"),
+            )
+            session.add(notif)
+            created.append(notif)
+
+        sub.last_checked_at = datetime.utcnow()
+        await session.commit()
+
+    # Send Telegram if configured
+    if sub.telegram_chat_id and created:
+        summary = (
+            f"*Новые публикации* по теме «{sub.topic}»\n\n"
+            + "\n\n".join(
+                f"[{a.get('title','No title')[:80]}]({a.get('url') or a.get('link') or '#'})"
+                for a in articles[:5]
+            )
+        )
+        await send_telegram(sub.telegram_chat_id, summary)
+
+    logger.info(
+        "n8n_webhook_new_publications",
+        sub_id=body.subscription_id,
+        topic=sub.topic,
+        count=len(created),
+    )
+    return {"ok": True, "created": len(created)}
 
 
 @router.get("/api/n8n/webhooks")

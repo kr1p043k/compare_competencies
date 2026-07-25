@@ -1,0 +1,87 @@
+{
+"name": "Source Monitor",
+"nodes": [
+  {
+    "id": "schedule-trigger",
+    "name": "Schedule",
+    "type": "n8n-nodes-base.scheduleTrigger",
+    "typeVersion": 1.1,
+    "position": [200, 200],
+    "parameters": {
+      "rule": {
+        "interval": [
+          { "field": "hours", "hoursInterval": 6 }
+        ]
+      }
+    }
+  },
+  {
+    "id": "monitor-code",
+    "name": "Monitor All Subscriptions",
+    "type": "n8n-nodes-base.code",
+    "typeVersion": 2,
+    "position": [200, 420],
+    "parameters": {
+      "language": "python",
+      "code": "import requests\nfrom datetime import datetime, timezone\n\n# Config\nBACKEND_URL = 'https://prospective-worth-carriers-founded.trycloudflare.com'\nHEADERS = {'X-N8N-Webhook-Secret': '{{ $env.N8N_WEBHOOK_SECRET }}'}\n\ndef query_openalex(topic, since_date):\n    url = f'https://api.openalex.org/works'\n    params = {\n        'search': topic,\n        'sort': 'publication_date:desc',\n        'per_page': 10,\n        'filter': f'from_publication_date:{since_date[:10]}'\n    }\n    try:\n        r = requests.get(url, params=params, timeout=30)\n        r.raise_for_status()\n        data = r.json()\n        results = []\n        for work in data.get('results', []):\n            results.append({\n                'title': work.get('title') or '',\n                'abstract': ' '.join(work.get('abstract_inverted_index', {}).keys()) if work.get('abstract_inverted_index') else '',\n                'url': work.get('doi') or work.get('id', ''),\n                'source': 'openalex',\n                'published_date': work.get('publication_date', ''),\n            })\n        return results\n    except Exception as e:\n        print(f'OpenAlex error: {e}')\n        return []\n\ndef query_arxiv(topic, since_date):\n    import xml.etree.ElementTree as ET\n    url = 'https://export.arxiv.org/api/query'\n    params = {\n        'search_query': f'all:{topic}',\n        'start': 0,\n        'max_results': 10,\n        'sortBy': 'submittedDate',\n        'sortOrder': 'descending',\n    }\n    try:\n        r = requests.get(url, params=params, timeout=30)\n        r.raise_for_status()\n        ns = {'atom': 'http://www.w3.org/2005/Atom'}\n        root = ET.fromstring(r.text)\n        results = []\n        for entry in root.findall('.//atom:entry', ns):\n            title = entry.find('./atom:title', ns)\n            summary = entry.find('./atom:summary', ns)\n            link = entry.find('./atom:id', ns)\n            published = entry.find('./atom:published', ns)\n            results.append({\n                'title': (title.text or '').strip().replace('\\n', ' ') if title is not None else '',\n                'abstract': (summary.text or '').strip().replace('\\n', ' ') if summary is not None else '',\n                'url': (link.text or '').strip() if link is not None else '',\n                'source': 'arxiv',\n                'published_date': (published.text or '')[:10] if published is not None else '',\n            })\n        return results\n    except Exception as e:\n        print(f'arXiv error: {e}')\n        return []\n\n# Fetch active subscriptions\nsubs_resp = requests.get(\n    f'{BACKEND_URL}/api/subscriptions?is_active=true',\n    headers=HEADERS,\n    timeout=30\n)\nsubs_resp.raise_for_status()\nsubscriptions = subs_resp.json().get('subscriptions', [])\n\nresults = []\nfor sub in subscriptions:\n    since = sub.get('last_checked_at') or '2000-01-01'\n    topic = sub.get('topic', '')\n    source = sub.get('source', 'openalex+arxiv')\n\n    articles = []\n    if source in ('openalex', 'openalex+arxiv'):\n        articles.extend(query_openalex(topic, since))\n    if source in ('arxiv', 'openalex+arxiv'):\n        articles.extend(query_arxiv(topic, since))\n\n    if articles:\n        results.append({\n            'subscription_id': sub['id'],\n            'user_id': sub['user_id'],\n            'topic': topic,\n            'articles': articles\n        })\n\nreturn results if results else [{'info': 'No new articles found', 'count': 0}]\n"
+    }
+  },
+  {
+    "id": "post-webhook",
+    "name": "POST New Articles",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4.2,
+    "position": [200, 640],
+    "parameters": {
+      "method": "POST",
+      "url": "=https://prospective-worth-carriers-founded.trycloudflare.com/api/n8n/webhook/new-publications",
+      "authentication": "genericCredentialType",
+      "genericAuthType": "httpHeaderAuth",
+      "sendBody": true,
+      "bodyParameters": {
+        "parameters": [
+          { "name": "subscription_id", "value": "={{ $json.subscription_id }}" },
+          { "name": "user_id", "value": "={{ $json.user_id }}" },
+          { "name": "topic", "value": "={{ $json.topic }}" },
+          { "name": "articles", "value": "={{ $json.articles }}" }
+        ]
+      },
+      "options": {
+        "response": { "responseFormat": "json" }
+      }
+    },
+    "credentials": {
+      "httpHeaderAuth": {
+        "id": null,
+        "name": "Header Auth Account 3"
+      }
+    }
+  },
+  {
+    "id": "noop-end",
+    "name": "Done",
+    "type": "n8n-nodes-base.noOp",
+    "typeVersion": 1,
+    "position": [200, 860],
+    "parameters": {}
+  }
+],
+"connections": {
+  "Schedule": {
+    "main": [[{ "node": "Monitor All Subscriptions", "type": "main" }]]
+  },
+  "Monitor All Subscriptions": {
+    "main": [[{ "node": "POST New Articles", "type": "main" }]]
+  },
+  "POST New Articles": {
+    "main": [[{ "node": "Done", "type": "main" }]]
+  }
+},
+"pinData": {},
+"versionId": "source-monitor-v1",
+"triggerCount": 1,
+"active": false,
+"settings": {},
+"tags": ["monitoring", "subscriptions"],
+"staticData": null
+}

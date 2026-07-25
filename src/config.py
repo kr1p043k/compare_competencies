@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     N8N_API_KEY: SecretStr | None = None
     N8N_WEBHOOK_SECRET: SecretStr | None = None
 
+    # ---------- уведомления ----------
+    TELEGRAM_BOT_TOKEN: SecretStr | None = None
+
     # ---------- безопасность ----------
     SECRET_KEY: SecretStr | None = None
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
@@ -348,5 +351,6 @@ GAP_ANALYZER_FALLBACK_MIN_GAP = settings.GAP_ANALYZER_FALLBACK_MIN_GAP
 GAP_ANALYZER_FALLBACK_REDUCTION = settings.GAP_ANALYZER_FALLBACK_REDUCTION
 N8N_API_KEY = settings.N8N_API_KEY
 N8N_WEBHOOK_SECRET = settings.N8N_WEBHOOK_SECRET
+TELEGRAM_BOT_TOKEN = settings.TELEGRAM_BOT_TOKEN
 TQDM_DISABLE = settings.TQDM_DISABLE
 PYDANTIC_VALIDATION_ENABLED = settings.PYDANTIC_VALIDATION_ENABLED

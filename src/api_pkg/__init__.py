@@ -174,6 +174,9 @@ def create_app() -> FastAPI:
     from src.api_pkg.routers.llm import router as llm_router
     _mount(llm_router)
 
+    from src.api_pkg.routers.subscriptions import router as subscriptions_router
+    _mount(subscriptions_router)
+
     from src.n8n.webhooks import router as n8n_webhook_router
     app.include_router(n8n_webhook_router)  # no versioning
 
