@@ -10,7 +10,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
-revision: str = "add_subscriptions_and_notifications"
+revision: str = "add_subs_and_notifs"
 down_revision: Union[str, None] = "merge_branches"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
