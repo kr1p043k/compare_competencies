@@ -57,6 +57,9 @@ export function MonitoringTab() {
   const [newSource, setNewSource] = useState("openalex+arxiv");
   const [newTelegramChatId, setNewTelegramChatId] = useState("");
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [subError, setSubError] = useState<string | null>(null);
+  const [notifError, setNotifError] = useState<string | null>(null);
   const [notifFilter, setNotifFilter] = useState<"all" | "unread">("all");
 
   const loadMetrics = useCallback(async () => {
@@ -75,12 +78,18 @@ export function MonitoringTab() {
 
   const loadSubscriptions = useCallback(async () => {
     setSubsLoading(true);
+    setSubError(null);
     try {
       const r = await apiFetch("/api/subscriptions");
-      if (r.ok) {
-        const data = await r.json();
-        setSubscriptions(data.subscriptions ?? []);
+      if (!r.ok) {
+        const text = await r.text().catch(() => "");
+        setSubError(`Ошибка загрузки подписок: ${r.status} ${text}`);
+        return;
       }
+      const data = await r.json();
+      setSubscriptions(data.subscriptions ?? []);
+    } catch (e: any) {
+      setSubError(e.message ?? "Ошибка сети");
     } finally {
       setSubsLoading(false);
     }
@@ -88,13 +97,19 @@ export function MonitoringTab() {
 
   const loadNotifications = useCallback(async () => {
     setNotifsLoading(true);
+    setNotifError(null);
     try {
       const query = notifFilter === "unread" ? "/api/notifications?limit=50&unread_only=true" : "/api/notifications?limit=50";
       const r = await apiFetch(query);
-      if (r.ok) {
-        const data = await r.json();
-        setNotifications(data.notifications ?? []);
+      if (!r.ok) {
+        const text = await r.text().catch(() => "");
+        setNotifError(`Ошибка загрузки уведомлений: ${r.status} ${text}`);
+        return;
       }
+      const data = await r.json();
+      setNotifications(data.notifications ?? []);
+    } catch (e: any) {
+      setNotifError(e.message ?? "Ошибка сети");
     } finally {
       setNotifsLoading(false);
     }
@@ -135,6 +150,7 @@ export function MonitoringTab() {
   const createSubscription = async () => {
     if (!newTopic.trim()) return;
     setCreating(true);
+    setCreateError(null);
     try {
       const r = await apiFetch("/api/subscriptions", {
         method: "POST",
@@ -145,11 +161,16 @@ export function MonitoringTab() {
           telegram_chat_id: newTelegramChatId.trim() || null,
         }),
       });
-      if (r.ok) {
-        setNewTopic("");
-        setNewTelegramChatId("");
-        await loadSubscriptions();
+      if (!r.ok) {
+        const text = await r.text().catch(() => "");
+        setCreateError(`Ошибка создания подписки: ${r.status} ${text}`);
+        return;
       }
+      setNewTopic("");
+      setNewTelegramChatId("");
+      await loadSubscriptions();
+    } catch (e: any) {
+      setCreateError(e.message ?? "Ошибка сети");
     } finally {
       setCreating(false);
     }
@@ -158,10 +179,15 @@ export function MonitoringTab() {
   const deleteSubscription = async (id: string) => {
     try {
       const r = await apiFetch(`/api/subscriptions/${id}`, { method: "DELETE" });
-      if (r.ok) {
-        setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+      if (!r.ok) {
+        const text = await r.text().catch(() => "");
+        setSubError(`Ошибка удаления: ${r.status} ${text}`);
+        return;
       }
-    } catch {}
+      setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+    } catch (e: any) {
+      setSubError(e.message ?? "Ошибка сети");
+    }
   };
 
   const markRead = async (id: string) => {
@@ -348,6 +374,20 @@ export function MonitoringTab() {
             </Button>
           </div>
 
+          {createError && (
+            <div className="flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded-lg text-sm">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{createError}</span>
+            </div>
+          )}
+
+          {subError && (
+            <div className="flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded-lg text-sm">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{subError}</span>
+            </div>
+          )}
+
           <div className="space-y-2">
             {subsLoading && <p className="text-sm text-gray-500">Загрузка подписок...</p>}
             {!subsLoading && subscriptions.length === 0 && (
@@ -402,8 +442,14 @@ export function MonitoringTab() {
           <CardDescription>Новые публикации по отслеживаемым темам</CardDescription>
         </CardHeader>
         <CardContent>
+          {notifError && (
+            <div className="flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded-lg text-sm mb-3">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{notifError}</span>
+            </div>
+          )}
           {notifsLoading && <p className="text-sm text-gray-500">Загрузка...</p>}
-          {!notifsLoading && notifications.length === 0 && (
+          {!notifsLoading && !notifError && notifications.length === 0 && (
             <p className="text-sm text-gray-400 py-4 text-center">Уведомлений пока нет. Создайте подписку, чтобы начать отслеживание.</p>
           )}
           <div className="space-y-2">

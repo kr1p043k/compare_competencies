@@ -1,9 +1,10 @@
 import structlog
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select, delete, func, desc
+
+from src.api_pkg.routers.auth import get_current_user
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["subscriptions"])
@@ -26,11 +27,11 @@ class SubscriptionUpdate(BaseModel):
     is_active: bool | None = None
 
 
-# ─── Helpers ───────────────────────────────────────────────────────────────
+# ─── Auth dependency ───────────────────────────────────────────────────────
 
-def _get_user(request: Request) -> str:
-    user = getattr(request.state, "user", None)
-    if not user:
+async def require_auth(request: Request) -> dict:
+    user = await get_current_user(request)
+    if user is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return user
 
@@ -39,15 +40,16 @@ def _get_user(request: Request) -> str:
 
 @router.get("/subscriptions")
 @limiter.limit("30/minute")
-async def list_subscriptions(request: Request):
-    user = _get_user(request)
+async def list_subscriptions(request: Request, user: dict = Depends(require_auth)):
+    uid = user["uid"]
+    from sqlalchemy import select
     from src.database import async_session_factory
     from src.models.krm_models import Subscription
 
     async with async_session_factory() as session:
         result = await session.execute(
             select(Subscription)
-            .where(Subscription.user_id == user)
+            .where(Subscription.user_id == uid)
             .order_by(Subscription.created_at.desc())
         )
         subs = result.scalars().all()
@@ -71,15 +73,15 @@ async def list_subscriptions(request: Request):
 
 @router.post("/subscriptions")
 @limiter.limit("10/minute")
-async def create_subscription(request: Request, body: SubscriptionCreate):
-    user = _get_user(request)
+async def create_subscription(request: Request, body: SubscriptionCreate, user: dict = Depends(require_auth)):
+    uid = user["uid"]
     from src.database import async_session_factory
     from src.models.krm_models import Subscription
     from src.models.krm_models import _uuid
 
     sub = Subscription(
         id=_uuid(),
-        user_id=user,
+        user_id=uid,
         topic=body.topic.strip(),
         source=body.source,
         telegram_chat_id=body.telegram_chat_id,
@@ -94,8 +96,8 @@ async def create_subscription(request: Request, body: SubscriptionCreate):
 
 @router.delete("/subscriptions/{sub_id}")
 @limiter.limit("10/minute")
-async def delete_subscription(sub_id: str, request: Request):
-    user = _get_user(request)
+async def delete_subscription(sub_id: str, request: Request, user: dict = Depends(require_auth)):
+    uid = user["uid"]
     from src.database import async_session_factory
     from src.models.krm_models import Subscription
 
@@ -103,7 +105,7 @@ async def delete_subscription(sub_id: str, request: Request):
         sub = await session.get(Subscription, sub_id)
         if not sub:
             raise HTTPException(status_code=404, detail="Subscription not found")
-        if sub.user_id != user:
+        if sub.user_id != uid:
             raise HTTPException(status_code=403, detail="Forbidden")
         await session.delete(sub)
         await session.commit()
@@ -112,14 +114,15 @@ async def delete_subscription(sub_id: str, request: Request):
 
 @router.get("/notifications")
 @limiter.limit("30/minute")
-async def list_notifications(request: Request, limit: int = 50, unread_only: bool = False):
-    user = _get_user(request)
+async def list_notifications(request: Request, limit: int = 50, unread_only: bool = False, user: dict = Depends(require_auth)):
+    uid = user["uid"]
+    from sqlalchemy import select, desc
     from src.database import async_session_factory
     from src.models.krm_models import Notification
 
     query = (
         select(Notification)
-        .where(Notification.user_id == user)
+        .where(Notification.user_id == uid)
         .order_by(desc(Notification.created_at))
     )
     if unread_only:
@@ -148,8 +151,8 @@ async def list_notifications(request: Request, limit: int = 50, unread_only: boo
 
 @router.post("/notifications/{notif_id}/read")
 @limiter.limit("30/minute")
-async def mark_read(notif_id: str, request: Request):
-    user = _get_user(request)
+async def mark_read(notif_id: str, request: Request, user: dict = Depends(require_auth)):
+    uid = user["uid"]
     from src.database import async_session_factory
     from src.models.krm_models import Notification
 
@@ -157,7 +160,7 @@ async def mark_read(notif_id: str, request: Request):
         notif = await session.get(Notification, notif_id)
         if not notif:
             raise HTTPException(status_code=404, detail="Notification not found")
-        if notif.user_id != user:
+        if notif.user_id != uid:
             raise HTTPException(status_code=403, detail="Forbidden")
         notif.is_read = True
         await session.commit()
@@ -166,8 +169,8 @@ async def mark_read(notif_id: str, request: Request):
 
 @router.get("/notifications/unread-count")
 @limiter.limit("30/minute")
-async def unread_count(request: Request):
-    user = _get_user(request)
+async def unread_count(request: Request, user: dict = Depends(require_auth)):
+    uid = user["uid"]
     from src.database import async_session_factory
     from src.models.krm_models import Notification
     from sqlalchemy import func
@@ -175,7 +178,7 @@ async def unread_count(request: Request):
     async with async_session_factory() as session:
         result = await session.execute(
             select(func.count(Notification.id))
-            .where(Notification.user_id == user, Notification.is_read == False)
+            .where(Notification.user_id == uid, Notification.is_read == False)
         )
         count = result.scalar() or 0
     return {"unread_count": count}
