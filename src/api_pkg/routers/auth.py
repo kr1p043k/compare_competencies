@@ -66,9 +66,11 @@ def _hash_token(token: str) -> str:
 
 async def get_current_user(request: Request) -> dict[str, Any] | None:
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        return None
-    token = auth[7:]
+    token = ""
+    if auth.startswith("Bearer "):
+        token = auth[7:]
+    if not token:
+        token = request.cookies.get("token", "")
     data = _decode_token(token)
     if data is None:
         return None
