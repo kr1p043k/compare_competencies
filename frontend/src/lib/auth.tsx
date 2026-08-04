@@ -66,6 +66,8 @@ export function authHeaders(): Record<string, string> {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (parsed.token) {
+        // Also set as cookie for requests that go through proxy/wrappers that strip Authorization
+        document.cookie = `token=${parsed.token}; path=/; max-age=86400; SameSite=Lax`;
         return { Authorization: `Bearer ${parsed.token}` };
       }
     }

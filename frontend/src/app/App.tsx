@@ -21,6 +21,7 @@ import { Footer } from "./components/Footer";
 import { VacanciesList } from "./components/VacanciesList";
 import { AnalysisTab } from "./components/AnalysisTab";
 import { ArticlesPage } from "./components/ArticlesPage";
+import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
 import { PipelineProgress } from "./components/PipelineProgress";
 import { DataViewer } from "./components/DataViewer";
 import { RecommendationsReport } from "./components/RecommendationsReport";
@@ -30,6 +31,7 @@ import { LoginPage } from "./components/LoginPage";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
 import { StudentDashboard } from "./components/StudentDashboard";
+import { FaqPage } from "./components/FaqPage";
 import { authHeaders, useAuth, apiFetch } from "../lib/auth";
 import { initApiLogger } from "../lib/logger";
 import { motion, AnimatePresence } from "motion/react";
@@ -53,6 +55,7 @@ import {
   History,
   Activity,
   Newspaper,
+  HelpCircle,
 } from "lucide-react";
 
 const API = "/api";
@@ -449,6 +452,20 @@ export default function App() {
               <Newspaper className="size-4" />
               Статьи
             </TabsTrigger>
+            <TabsTrigger
+              value="scientific-trends"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
+            >
+              <TrendingUp className="size-4" />
+              Научные тренды
+            </TabsTrigger>
+            <TabsTrigger
+              value="help"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
+            >
+              <HelpCircle className="size-4" />
+              Помощь
+            </TabsTrigger>
             {role === "admin" && (
               <TabsTrigger value="monitoring" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
                 <Activity className="size-4" />
@@ -676,6 +693,12 @@ export default function App() {
           </TabsContent>
           <TabsContent value="articles">
             <ArticlesPage />
+          </TabsContent>
+          <TabsContent value="scientific-trends">
+            <ScientificTrendsTab />
+          </TabsContent>
+          <TabsContent value="help">
+            <FaqPage />
           </TabsContent>
           {role === "admin" && (
             <TabsContent value="monitoring">

@@ -6,7 +6,7 @@ from functools import partial
 from typing import Optional
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import CheckConstraint, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -514,4 +514,53 @@ class ProfileEvaluation(Base):
 
     __table_args__ = (
         CheckConstraint(evaluation_type.in_(["gap", "coverage", "full"]), name="ck_pe_type"),
+    )
+
+
+# ─── Subscription ──────────────────────────────────────────────────────────
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    topic: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="openalex+arxiv")
+    telegram_chat_id: Mapped[Optional[str]] = mapped_column(String(255))
+    email: Mapped[Optional[str]] = mapped_column(String(255))
+    last_checked_at: Mapped[Optional[datetime]]
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        default=partial(datetime.now, timezone.utc),
+        onupdate=partial(datetime.now, timezone.utc),
+    )
+
+    __table_args__ = (
+        CheckConstraint(source.in_(["openalex", "arxiv", "openalex+arxiv"]), name="ck_sub_source"),
+        sa.Index("idx_sub_user_active", "user_id", "is_active"),
+    )
+
+
+# ─── Notification ──────────────────────────────────────────────────────────
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    subscription_id: Mapped[str] = mapped_column(UUID, ForeignKey("subscriptions.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    article_url: Mapped[Optional[str]] = mapped_column(Text)
+    article_source: Mapped[Optional[str]] = mapped_column(String(50))
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    delivered_via: Mapped[Optional[str]] = mapped_column(String(50))
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    subscription: Mapped["Subscription"] = relationship(backref="notifications", passive_deletes=True)
+
+    __table_args__ = (
+        sa.Index("idx_notif_user_unread", "user_id", "is_read"),
+        sa.Index("idx_notif_created", "created_at"),
     )
