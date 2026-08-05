@@ -1,87 +1,311 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
-import { TrendingUp, Filter, GitCompare } from "lucide-react";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Badge } from "./ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { TrendingUp, GitCompare, Search, Sparkles, Target, AlertCircle, CheckCircle2 } from "lucide-react";
+
+interface TrendCompetency {
+  code: string;
+  description: string;
+  keywords: string;
+  trend_source: string;
+}
+
+interface TrendResponse {
+  topic: string;
+  found_trends: string[];
+  recommended_competencies: TrendCompetency[];
+  rationale: string;
+}
+
+interface GapItem {
+  code: string;
+  status: string;
+  coverage_percent: number;
+  reason: string;
+  recommendation: string;
+}
+
+interface GapResponse {
+  overall_score: number;
+  detailed_analysis: GapItem[];
+  summary: string;
+}
+
+function bearerHeaders(): Record<string, string> {
+  const stored = localStorage.getItem("auth");
+  if (stored) {
+    try {
+      const token = (JSON.parse(stored) as { token?: string }).token;
+      if (token) return { Authorization: `Bearer ${token}` };
+    } catch {}
+  }
+  return {};
+}
+
+async function academicCall(path: string, body: unknown): Promise<unknown> {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...bearerHeaders(),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let detail = `Ошибка (${res.status})`;
+    try {
+      const j = await res.json();
+      if (j.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
+    } catch {}
+    throw new Error(detail);
+  }
+  return res.json();
+}
 
 export function ScientificTrendsTab() {
+  const [topic, setTopic] = useState("");
+  const [loading, setLoading] = useState<"trends" | "gap" | null>(null);
+  const [error, setError] = useState("");
+  const [trend, setTrend] = useState<TrendResponse | null>(null);
+  const [gap, setGap] = useState<GapResponse | null>(null);
+  const [krmCount, setKrmCount] = useState<number | null>(null);
+  const [gapTopic, setGapTopic] = useState("");
+
+  const fetchTrends = async () => {
+    if (!topic.trim()) { setError("Введите тему для поиска"); return; }
+    setError(""); setLoading("trends");
+    try {
+      const data = await academicCall("/api/academic/get-competencies", {
+        topic: topic.trim(),
+        broad_top_k: 10,
+        final_top_k: 5,
+      });
+      setTrend(data as TrendResponse);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const analyzeGap = async () => {
+    if (!topic.trim()) { setError("Введите тему для анализа разрыва"); return; }
+    setError("");
+    try {
+      const res = await fetch("/api/academic/krm-competencies", { headers: bearerHeaders() });
+      if (!res.ok) throw new Error("Не удалось получить компетенции КРМ");
+      const krm = await res.json() as { codes: string[]; count: number };
+      setKrmCount(krm.count);
+      setGapTopic(topic.trim());
+      setLoading("gap");
+      const data = await academicCall("/api/academic/analyze-gap", {
+        topic: topic.trim(),
+        current_competencies: krm.codes.map((code) => ({ code })),
+        broad_top_k: 10,
+        final_top_k: 5,
+      });
+      setGap(data as GapResponse);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Filters row */}
+      {/* Запрос */}
       <Card className="border border-gray-200 shadow-sm">
         <CardHeader className="border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-10 h-10 bg-indigo-600 rounded-lg">
-              <Filter className="size-5 text-white" />
+              <Search className="size-5 text-white" />
             </div>
             <div>
               <CardTitle className="text-xl font-semibold text-gray-900">
-                Фильтры
+                Академический анализ
               </CardTitle>
               <CardDescription className="text-sm text-gray-600">
-                Параметры отбора научных публикаций
+                Компетенции и разрывы по научной тематике (сервис ЮФУ)
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-6">
-          <div className="flex gap-4 flex-wrap">
-            <div className="h-10 w-48 bg-gray-100 rounded-md animate-pulse" />
-            <div className="h-10 w-48 bg-gray-100 rounded-md animate-pulse" />
-            <div className="h-10 w-32 bg-gray-100 rounded-md animate-pulse" />
-            <div className="h-10 w-32 bg-gray-100 rounded-md animate-pulse" />
+        <CardContent className="p-6 space-y-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-900">Тема / научный запрос</Label>
+            <Input
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") fetchTrends(); }}
+              placeholder="Например: нейросетевые методы обработки изображений"
+              className="h-11"
+            />
           </div>
+          <div className="flex gap-3 flex-wrap">
+            <Button onClick={fetchTrends} disabled={loading !== null} className="h-11 bg-indigo-600 hover:bg-indigo-700 text-white">
+              {loading === "trends"
+                ? <span className="mr-2 inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                : <Sparkles className="size-4 mr-2" />}
+              Рекомендуемые компетенции
+            </Button>
+            <Button onClick={analyzeGap} disabled={loading !== null} variant="outline" className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50">
+              {loading === "gap"
+                ? <span className="mr-2 inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                : <Target className="size-4 mr-2" />}
+              Анализ разрыва (вся КРМ)
+            </Button>
+          </div>
+          {krmCount !== null && (
+            <p className="text-xs text-gray-500">
+              В анализе разрыва учтено компетенций КРМ: <b>{krmCount}</b>
+            </p>
+          )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="size-4" />
+              <AlertTitle>Ошибка</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
-      {/* Trends visualization placeholder */}
-      <Card className="border border-gray-200 shadow-sm">
-        <CardHeader className="border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-indigo-600 rounded-lg">
-              <TrendingUp className="size-5 text-white" />
+      {/* Рекомендуемые компетенции */}
+      {trend && (
+        <Card className="border border-gray-200 shadow-sm">
+          <CardHeader className="border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 bg-emerald-600 rounded-lg">
+                <TrendingUp className="size-5 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-semibold text-gray-900">
+                  Рекомендуемые компетенции
+                </CardTitle>
+                <CardDescription className="text-sm text-gray-600">
+                  Тема: {trend.topic}
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-xl font-semibold text-gray-900">
-                Динамика научных тем
-              </CardTitle>
-              <CardDescription className="text-sm text-gray-600">
-                Изменение частоты упоминаний тем в научных публикациях по годам
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-            <TrendingUp className="size-12 mb-4" />
-            <p className="text-lg font-medium">Раздел готовится</p>
-            <p className="text-sm mt-1">Здесь будет отображаться динамика научных тем по данным arXiv и OpenAlex</p>
-          </div>
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent className="p-6 space-y-5">
+            {trend.found_trends.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">Найденные научные тренды</h4>
+                <div className="flex gap-2 flex-wrap">
+                  {trend.found_trends.map((t) => (
+                    <Badge key={t} variant="secondary">{t}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
 
-      {/* Comparison placeholder */}
-      <Card className="border border-gray-200 shadow-sm">
-        <CardHeader className="border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-indigo-600 rounded-lg">
-              <GitCompare className="size-5 text-white" />
+            {trend.recommended_competencies.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">Рекомендуемые компетенции</h4>
+                <div className="space-y-3">
+                  {trend.recommended_competencies.map((c) => (
+                    <div key={c.code} className="rounded-lg border border-gray-200 p-4">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="font-mono text-sm font-semibold text-indigo-700">{c.code}</span>
+                        {c.trend_source && <Badge variant="outline">{c.trend_source}</Badge>}
+                      </div>
+                      {c.description && <p className="text-sm text-gray-700">{c.description}</p>}
+                      {c.keywords && <p className="text-xs text-gray-500 mt-1">Ключевые слова: {c.keywords}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {trend.rationale && (
+              <div className="rounded-lg bg-indigo-50 border border-indigo-100 p-4 text-sm text-indigo-900">
+                <span className="font-semibold">Обоснование: </span>{trend.rationale}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Анализ разрыва */}
+      {gap && (
+        <Card className="border border-gray-200 shadow-sm">
+          <CardHeader className="border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 bg-rose-600 rounded-lg">
+                <GitCompare className="size-5 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-semibold text-gray-900">
+                  Анализ разрыва компетенций
+                </CardTitle>
+                <CardDescription className="text-sm text-gray-600">
+                  Тема: {gapTopic}
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-xl font-semibold text-gray-900">
-                Сравнение с компетенциями ОП
-              </CardTitle>
-              <CardDescription className="text-sm text-gray-600">
-                Сопоставление трендов научных тем с компетенциями образовательной программы
-              </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-5">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl font-bold text-gray-900">
+                {Math.round(gap.overall_score * 100)}%
+              </span>
+              <span className="text-sm text-gray-500">общее покрытие</span>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-            <GitCompare className="size-12 mb-4" />
-            <p className="text-lg font-medium">Раздел готовится</p>
-            <p className="text-sm mt-1">Здесь будет доступно сравнение динамики научных тем с компетенциями КРМ</p>
-          </div>
-        </CardContent>
-      </Card>
+
+            {gap.summary && (
+              <p className="text-sm text-gray-700 rounded-lg bg-gray-50 border border-gray-200 p-4">
+                {gap.summary}
+              </p>
+            )}
+
+            <div className="space-y-2">
+              {gap.detailed_analysis.map((item) => {
+                const covered = item.coverage_percent >= 80;
+                return (
+                  <div key={item.code} className="rounded-lg border border-gray-200 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-sm font-semibold text-gray-800">{item.code}</span>
+                      <div className="flex items-center gap-2">
+                        {covered ? <CheckCircle2 className="size-4 text-emerald-600" /> : <AlertCircle className="size-4 text-amber-500" />}
+                        <Badge variant={covered ? "secondary" : "destructive"}>
+                          {item.status} · {item.coverage_percent}%
+                        </Badge>
+                      </div>
+                    </div>
+                    {item.reason && <p className="text-xs text-gray-500 mt-1">{item.reason}</p>}
+                    {item.recommendation && (
+                      <p className="text-sm text-indigo-800 mt-2 bg-indigo-50 rounded p-2">
+                        Рекомендация: {item.recommendation}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Пустое состояние */}
+      {!trend && !gap && !error && (
+        <Card className="border border-gray-200 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+              <TrendingUp className="size-12 mb-4" />
+              <p className="text-lg font-medium">Задайте тему</p>
+              <p className="text-sm mt-1">
+                Сервис вернёт рекомендуемые компетенции по научным трендам и разрыв относительно компетенций КРМ
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

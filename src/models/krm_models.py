@@ -371,6 +371,7 @@ class Session(Base):
     logged_in_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc))
     last_activity: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc))
     logged_out_at: Mapped[Optional[datetime]]
+    sso_token: Mapped[Optional[str]] = mapped_column(Text)
 
     user: Mapped["User"] = relationship(back_populates="sessions")
 

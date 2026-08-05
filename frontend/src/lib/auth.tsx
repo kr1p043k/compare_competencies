@@ -38,9 +38,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = (token: string, role: string, name: string) => {
-    const payload = token.split(".")[0];
+    const parts = token.split(".");
+    const payload = parts[1] || parts[0] || "";
     const decoded = JSON.parse(decodeBase64Url(payload));
-    const next = { token, role, name, username: decoded.u };
+    const next = { token, role, name, username: decoded.u ?? decoded.username ?? null };
     persistState(next);
     setState(next);
   };
@@ -105,6 +106,18 @@ function getToken(): string | null {
     }
   } catch {}
   return null;
+}
+
+/** Write a full session object (used by the hub SSO bootstrap). */
+export function setSession(session: { token: string; role: string; name: string; username?: string | null }) {
+  try {
+    localStorage.setItem("auth", JSON.stringify({
+      token: session.token,
+      role: session.role,
+      name: session.name,
+      username: session.username ?? null,
+    }));
+  } catch {}
 }
 
 /** Decode a base64url string (RFC 4648 §5) using browser atob(). */

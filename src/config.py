@@ -166,6 +166,11 @@ class Settings(BaseSettings):
     # фоновый сбор вакансий каждые 6 часов (вызывается при старте API)
     BACKGROUND_COLLECTOR_ENABLED: bool = False
 
+    # ---------- academic-api (ЮФУ: компетенции/разрывы по научным темам) ----------
+    ACADEMIC_API_BASE: str = "https://academic-api.lib.sfedu.ru"
+    ACADEMIC_EMAIL_DOMAIN: str = "sfedu.ru"
+    ACADEMIC_SSO_ENABLED: bool = True
+
     # валидация путей относительно BASE_DIR
     @field_validator(
         "DATA_DIR",
@@ -357,3 +362,7 @@ N8N_WEBHOOK_SECRET = settings.N8N_WEBHOOK_SECRET
 TELEGRAM_BOT_TOKEN = settings.TELEGRAM_BOT_TOKEN
 TQDM_DISABLE = settings.TQDM_DISABLE
 PYDANTIC_VALIDATION_ENABLED = settings.PYDANTIC_VALIDATION_ENABLED
+
+ACADEMIC_API_BASE = settings.ACADEMIC_API_BASE
+ACADEMIC_EMAIL_DOMAIN = settings.ACADEMIC_EMAIL_DOMAIN
+ACADEMIC_SSO_ENABLED = settings.ACADEMIC_SSO_ENABLED
