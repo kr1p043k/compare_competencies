@@ -163,6 +163,9 @@ class Settings(BaseSettings):
     TQDM_DISABLE: bool = False
     PYDANTIC_VALIDATION_ENABLED: bool = True
 
+    # фоновый сбор вакансий каждые 6 часов (вызывается при старте API)
+    BACKGROUND_COLLECTOR_ENABLED: bool = False
+
     # валидация путей относительно BASE_DIR
     @field_validator(
         "DATA_DIR",

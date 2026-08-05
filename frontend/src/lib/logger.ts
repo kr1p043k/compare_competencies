@@ -1,3 +1,5 @@
+import { handleUnauthorized } from "./auth";
+
 const LOG_ENDPOINT = "/api/log";
 
 function sendLog(level: string, message: string, data?: Record<string, unknown>) {
@@ -51,6 +53,9 @@ export function initApiLogger() {
     try {
       const res = await orig(input, newInit);
       const elapsed = performance.now() - t0;
+      if (res.status === 401 && token && !url.includes("/api/auth/login")) {
+        handleUnauthorized();
+      }
       if (elapsed > 1000 || !res.ok) {
         sendLog(elapsed > 1000 ? "warn" : "error", `API ${elapsed > 1000 ? "slow" : "error"}`, {
           url, method: init?.method || "GET", elapsed_ms: Math.round(elapsed), status: res.status });

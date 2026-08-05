@@ -103,8 +103,9 @@ async def run_startup(app):
     asyncio.create_task(_warmup_background(basic_vacancies, raw_file))
 
     # 6. фоновый сбор вакансий (инкрементально, каждые 6 часов)
-    from src.pipeline.background_collector import start_background_collector
-    await start_background_collector()
+    if config.settings.BACKGROUND_COLLECTOR_ENABLED:
+        from src.pipeline.background_collector import start_background_collector
+        await start_background_collector()
 
 
 async def _warmup_background(basic_vacancies, raw_file):
@@ -115,45 +116,53 @@ async def _warmup_background(basic_vacancies, raw_file):
     try:
         parser = VacancyParser()
 
+        def _unwrap_parse(r):
+            match r:
+                case Ok(d):
+                    return d
+                case Err(e):
+                    logger.error("parse_failed", error=str(e))
+                    return {}
+
         def _run_skill_extraction():
             cache = CacheManager(config.PARSED_SKILLS_CACHE_PATH.parent)
             cache_key = config.PARSED_SKILLS_CACHE_PATH.stem
             vacancies_hash = hashlib.sha256(raw_file.read_bytes()).hexdigest()
             skill_freq_local = {}
             hybrid_weights_local = {}
+            cache_hit = False
 
             match cache.load(cache_key):
                 case Ok(cached):
                     if isinstance(cached, dict) and cached.get("source_hash") == vacancies_hash:
-                        result = cached["result"]
+                        result = cached["result"] or {}
                         skill_freq_local = result.get("frequencies", {})
                         hybrid_weights_local = result.get("hybrid_weights", {})
-                        logger.info("Загружен кэш парсинга навыков")
+                        cache_hit = True
+                        logger.info(
+                            "Загружен кэш парсинга навыков",
+                            frequencies=len(skill_freq_local),
+                            hybrid_weights=len(hybrid_weights_local),
+                        )
                 case _:
                     pass
 
-            def _unwrap_parse(r):
-                match r:
-                    case Ok(d):
-                        return d
-                    case Err(e):
-                        logger.error("parse_failed", error=str(e))
-                        return {}
+            # Пересчитываем ТОЛЬКО если кэш не совпадает с файлом вакансий.
+            # Валидный кэш (даже с пустым результатом) не пересчитываем —
+            # иначе каждый старт уходит в многочасовой парсинг пустых данных.
+            if cache_hit:
+                return skill_freq_local, hybrid_weights_local
 
-            if not skill_freq_local:
-                result = _unwrap_parse(parser.extract_skills_from_vacancies(basic_vacancies))
-                skill_freq_local = result.get("frequencies", {})
-                hybrid_weights_local = result.get("hybrid_weights", {})
-                cache_data = {"source_hash": vacancies_hash, "result": result}
-                cache.save(cache_key, cache_data)
-                logger.info("Кэш парсинга сохранён")
-            elif not hybrid_weights_local:
-                result = _unwrap_parse(parser.extract_skills_from_vacancies(basic_vacancies))
-                hybrid_weights_local = result.get("hybrid_weights", {})
-                cache_data = {"source_hash": vacancies_hash, "result": result}
-                cache.save(cache_key, cache_data)
-                logger.info("Кэш парсинга обновлён (добавлены hybrid_weights)")
-
+            result = _unwrap_parse(parser.extract_skills_from_vacancies(basic_vacancies))
+            skill_freq_local = result.get("frequencies", {})
+            hybrid_weights_local = result.get("hybrid_weights", {})
+            cache_data = {"source_hash": vacancies_hash, "result": result}
+            cache.save(cache_key, cache_data)
+            logger.info(
+                "Кэш парсинга сохранён",
+                frequencies=len(skill_freq_local),
+                hybrid_weights=len(hybrid_weights_local),
+            )
             return skill_freq_local, hybrid_weights_local
 
         skill_freq_local, hybrid_weights_local = await asyncio.to_thread(_run_skill_extraction)
@@ -207,60 +216,65 @@ async def _warmup_background(basic_vacancies, raw_file):
     # --- Шаг 2: Уровневый анализ вакансий ---
     try:
         level_analyzer = SkillLevelAnalyzer()
-        level_vacancies_data = []
-        vacancies_skills = []
 
-        for vac in basic_vacancies:
-            vac_skills = []
-            if "extracted_skills" in vac:
-                vac_skills = vac["extracted_skills"]
-            elif parser is not None:
-                desc = vac.get("description", "")
-                snip = vac.get("snippet") or {}
-                req = snip.get("requirement", "")
-                resp = snip.get("responsibility", "")
-                combined = f"{desc} {req} {resp}"
+        def _run_level_analysis():
+            level_vacancies_data = []
+            vacancies_skills = []
+
+            for vac in basic_vacancies:
                 vac_skills = []
-                match parser.extract_skills_from_description(combined):
-                    case Ok(sk):
-                        vac_skills = sk
-                    case _:
-                        pass
-            else:
-                vac_skills = []
+                if "extracted_skills" in vac:
+                    vac_skills = vac["extracted_skills"]
+                elif parser is not None:
+                    desc = vac.get("description", "")
+                    snip = vac.get("snippet") or {}
+                    req = snip.get("requirement", "")
+                    resp = snip.get("responsibility", "")
+                    combined = f"{desc} {req} {resp}"
+                    vac_skills = []
+                    match parser.extract_skills_from_description(combined):
+                        case Ok(sk):
+                            vac_skills = sk
+                        case _:
+                            pass
+                else:
+                    vac_skills = []
 
-            experience = ExperienceLevel.MIDDLE
-            if "experience" in vac:
-                exp_obj = vac["experience"]
-                if isinstance(exp_obj, dict):
-                    exp_id = exp_obj.get("id", "").lower()
-                    if "less1" in exp_id or "junior" in exp_id or "no_experience" in exp_id:
+                experience = ExperienceLevel.MIDDLE
+                if "experience" in vac:
+                    exp_obj = vac["experience"]
+                    if isinstance(exp_obj, dict):
+                        exp_id = exp_obj.get("id", "").lower()
+                        if "less1" in exp_id or "junior" in exp_id or "no_experience" in exp_id:
+                            experience = ExperienceLevel.JUNIOR
+                        elif "between1and3" in exp_id or "between3and6" in exp_id:
+                            experience = ExperienceLevel.MIDDLE
+                        elif "between6and10" in exp_id or "morethan10" in exp_id:
+                            experience = ExperienceLevel.SENIOR
+                    elif isinstance(exp_obj, str):
+                        exp_lower = exp_obj.lower()
+                        if "junior" in exp_lower or "нет опыта" in exp_lower or "стажер" in exp_lower:
+                            experience = ExperienceLevel.JUNIOR
+                        elif "senior" in exp_lower or "более 6" in exp_lower:
+                            experience = ExperienceLevel.SENIOR
+                if experience == ExperienceLevel.MIDDLE:
+                    name = vac.get("name", "").lower()
+                    if "junior" in name or "младший" in name or "стажер" in name or "intern" in name:
                         experience = ExperienceLevel.JUNIOR
-                    elif "between1and3" in exp_id or "between3and6" in exp_id:
-                        experience = ExperienceLevel.MIDDLE
-                    elif "between6and10" in exp_id or "morethan10" in exp_id:
+                    elif "senior" in name or "старший" in name or "ведущий" in name:
                         experience = ExperienceLevel.SENIOR
-                elif isinstance(exp_obj, str):
-                    exp_lower = exp_obj.lower()
-                    if "junior" in exp_lower or "нет опыта" in exp_lower or "стажер" in exp_lower:
-                        experience = ExperienceLevel.JUNIOR
-                    elif "senior" in exp_lower or "более 6" in exp_lower:
-                        experience = ExperienceLevel.SENIOR
-            if experience == ExperienceLevel.MIDDLE:
-                name = vac.get("name", "").lower()
-                if "junior" in name or "младший" in name or "стажер" in name or "intern" in name:
-                    experience = ExperienceLevel.JUNIOR
-                elif "senior" in name or "старший" in name or "ведущий" in name:
-                    experience = ExperienceLevel.SENIOR
-            if vac_skills:
-                level_vacancies_data.append({
-                    "skills": vac_skills,
-                    "description": vac.get("description", ""),
-                    "experience": experience,
-                })
-                vacancies_skills.append(vac_skills)
+                if vac_skills:
+                    level_vacancies_data.append({
+                        "skills": vac_skills,
+                        "description": vac.get("description", ""),
+                        "experience": experience,
+                    })
+                    vacancies_skills.append(vac_skills)
 
-        level_analyzer.analyze_vacancies(level_vacancies_data)
+            level_analyzer.analyze_vacancies(level_vacancies_data)
+            return level_vacancies_data, vacancies_skills
+
+        level_vacancies_data, vacancies_skills = await asyncio.to_thread(_run_level_analysis)
 
         skill_weights_by_level = {}
         for level in ExperienceLevel:
@@ -294,7 +308,9 @@ async def _warmup_background(basic_vacancies, raw_file):
             ngram_range=(1, 2), min_df=1, max_df=0.95,
             use_embeddings=True, level=ComparisonLevel.MIDDLE, similarity_threshold=0.80,
         )
-        match deps.recommendation_engine.fit(vacancies_skills, skill_weights=hybrid_weights):
+        match await asyncio.to_thread(
+            deps.recommendation_engine.fit, vacancies_skills, skill_weights=hybrid_weights
+        ):
             case Ok(_):
                 logger.info("recommendation_engine_fitted")
             case Err(err):
@@ -335,7 +351,9 @@ async def _warmup_background(basic_vacancies, raw_file):
             match await load_time_series(session):
                 case Ok(snapshots):
                     prophet = ProphetForecastEngine()
-                    match prophet.fit(snapshots, fallback_freqs=deps.skill_freq):
+                    match await asyncio.to_thread(
+                        prophet.fit, snapshots, fallback_freqs=deps.skill_freq
+                    ):
                         case Ok(_):
                             deps.prophet_engine = prophet
                             logger.info("prophet_engine_ready",

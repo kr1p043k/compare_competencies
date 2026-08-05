@@ -38,8 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = (token: string, role: string, name: string) => {
-    const payload = token.split(".")[1];
-    const decoded = JSON.parse(atob(payload + "===".slice(0, (4 - payload.length % 4) % 4)));
+    const payload = token.split(".")[0];
+    const decoded = JSON.parse(decodeBase64Url(payload));
     const next = { token, role, name, username: decoded.u };
     persistState(next);
     setState(next);
@@ -61,23 +61,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export const useAuth = () => useContext(AuthContext);
 
 export function authHeaders(): Record<string, string> {
-  try {
-    const stored = localStorage.getItem("auth");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (parsed.token) {
-        // Also set as cookie for requests that go through proxy/wrappers that strip Authorization
-        document.cookie = `token=${parsed.token}; path=/; max-age=86400; SameSite=Lax`;
-        return { Authorization: `Bearer ${parsed.token}` };
-      }
-    }
-  } catch {}
+  const token = getToken();
+  if (token) {
+    document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Lax`;
+    return { Authorization: `Bearer ${token}` };
+  }
   return {};
 }
 
 export async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
   const headers = { ...authHeaders(), ...(init?.headers as Record<string, string> || {}) };
-  return nativeFetch(url, { ...init, headers });
+  const token = getToken();
+  let finalUrl = url;
+  if (token && !url.includes("/api/auth/")) {
+    finalUrl = url + (url.includes("?") ? "&" : "?") + `token=${encodeURIComponent(token)}`;
+  }
+  const res = await nativeFetch(finalUrl, { ...init, headers });
+  if (res.status === 401 && token && !url.includes("/api/auth/login")) {
+    handleUnauthorized();
+  }
+  return res;
+}
+
+/** Clear stale session (invalid/expired token) and bounce back to the login screen. */
+export function handleUnauthorized() {
+  try {
+    localStorage.removeItem("auth");
+  } catch {}
+  document.cookie = "token=; path=/; max-age=0; SameSite=Lax";
+  if (window.location.pathname !== "/") {
+    window.location.assign("/");
+  } else {
+    window.location.reload();
+  }
+}
+
+function getToken(): string | null {
+  try {
+    const stored = localStorage.getItem("auth");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.token || null;
+    }
+  } catch {}
+  return null;
+}
+
+/** Decode a base64url string (RFC 4648 §5) using browser atob(). */
+function decodeBase64Url(input: string): string {
+  let b64 = input.replace(/-/g, "+").replace(/_/g, "/");
+  while (b64.length % 4 !== 0) b64 += "=";
+  return atob(b64);
 }
 
 /** Log frontend action to request_logs (fire-and-forget). */

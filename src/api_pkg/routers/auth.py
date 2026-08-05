@@ -71,8 +71,14 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
         token = auth[7:]
     if not token:
         token = request.cookies.get("token", "")
+    if not token:
+        token = request.query_params.get("token", "")
+    if not token:
+        logger.warning("get_current_user_no_token", path=request.url.path)
+        return None
     data = _decode_token(token)
     if data is None:
+        logger.warning("get_current_user_invalid_token", path=request.url.path, token_prefix=token[:20])
         return None
     try:
         pool = get_pool()
@@ -82,6 +88,7 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
             token_hash,
         )
         if session is None:
+            logger.warning("get_current_user_session_not_found", path=request.url.path, token_prefix=token[:20])
             return None
     except Exception:
         pass
