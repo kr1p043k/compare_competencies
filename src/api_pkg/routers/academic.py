@@ -106,8 +106,8 @@ async def _academic_post(path: str, sso_token: str, payload: dict) -> Any:
         raise HTTPException(status_code=503, detail="Сервис ЮФУ недоступен, попробуйте позже") from None
     if resp.status_code == 401:
         raise HTTPException(
-            status_code=401,
-            detail="Доступ к сервису ЮФУ истёк. Обновите доступ через hub.sfedu.ru",
+            status_code=419,
+            detail="Доступ к сервису ЮФУ истёк (токен действует 1 час). Войдите через hub.sfedu.ru",
         )
     if resp.status_code != 200:
         logger.warning("academic_api_error", path=path, status=resp.status_code, body=resp.text[:300])

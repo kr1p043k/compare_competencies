@@ -35,6 +35,8 @@ interface GapResponse {
   summary: string;
 }
 
+const HUB_SSO_URL = "https://hub.sfedu.ru/dashboard/go-to-gap-analyzer/";
+
 function bearerHeaders(): Record<string, string> {
   const stored = localStorage.getItem("auth");
   if (stored) {
@@ -44,6 +46,10 @@ function bearerHeaders(): Record<string, string> {
     } catch {}
   }
   return {};
+}
+
+interface AcademicError extends Error {
+  status?: number;
 }
 
 async function academicCall(path: string, body: unknown): Promise<unknown> {
@@ -61,7 +67,9 @@ async function academicCall(path: string, body: unknown): Promise<unknown> {
       const j = await res.json();
       if (j.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
     } catch {}
-    throw new Error(detail);
+    const err = new Error(detail) as AcademicError;
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 }
@@ -74,10 +82,11 @@ export function ScientificTrendsTab() {
   const [gap, setGap] = useState<GapResponse | null>(null);
   const [krmCount, setKrmCount] = useState<number | null>(null);
   const [gapTopic, setGapTopic] = useState("");
+  const [ssoBlocked, setSsoBlocked] = useState(false);
 
   const fetchTrends = async () => {
     if (!topic.trim()) { setError("Введите тему для поиска"); return; }
-    setError(""); setLoading("trends");
+    setError(""); setSsoBlocked(false); setLoading("trends");
     try {
       const data = await academicCall("/api/academic/get-competencies", {
         topic: topic.trim(),
@@ -86,7 +95,9 @@ export function ScientificTrendsTab() {
       });
       setTrend(data as TrendResponse);
     } catch (e) {
-      setError((e as Error).message);
+      const err = e as AcademicError;
+      if (err.status === 419 || err.status === 403) setSsoBlocked(true);
+      setError(err.message);
     } finally {
       setLoading(null);
     }
@@ -94,7 +105,7 @@ export function ScientificTrendsTab() {
 
   const analyzeGap = async () => {
     if (!topic.trim()) { setError("Введите тему для анализа разрыва"); return; }
-    setError("");
+    setError(""); setSsoBlocked(false);
     try {
       const res = await fetch("/api/academic/krm-competencies", { headers: bearerHeaders() });
       if (!res.ok) throw new Error("Не удалось получить компетенции КРМ");
@@ -110,7 +121,9 @@ export function ScientificTrendsTab() {
       });
       setGap(data as GapResponse);
     } catch (e) {
-      setError((e as Error).message);
+      const err = e as AcademicError;
+      if (err.status === 419 || err.status === 403) setSsoBlocked(true);
+      setError(err.message);
     } finally {
       setLoading(null);
     }
@@ -165,11 +178,27 @@ export function ScientificTrendsTab() {
               В анализе разрыва учтено компетенций КРМ: <b>{krmCount}</b>
             </p>
           )}
-          {error && (
+          {error && !ssoBlocked && (
             <Alert variant="destructive">
               <AlertCircle className="size-4" />
               <AlertTitle>Ошибка</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {ssoBlocked && (
+            <Alert variant="destructive">
+              <AlertCircle className="size-4" />
+              <AlertTitle>Доступ к сервису ЮФУ истёк</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>{error || "Токен хаба действителен 1 час. Войдите заново через хаб ЮФУ."}</p>
+                <Button
+                  onClick={() => { window.location.href = HUB_SSO_URL; }}
+                  variant="outline"
+                  className="border-red-300 text-red-700 hover:bg-red-50"
+                >
+                  Войти через хаб ЮФУ
+                </Button>
+              </AlertDescription>
             </Alert>
           )}
         </CardContent>
