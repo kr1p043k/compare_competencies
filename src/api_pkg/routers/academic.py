@@ -24,6 +24,15 @@ router = APIRouter(tags=["academic"])
 
 ACADEMIC_TIMEOUT = 60.0
 
+# academic-api (nginx/WAF) блокирует запросы от скриптов с python-httpx User-Agent (403).
+# Ходим с браузерным UA, иначе все вызовы падают с 403 Forbidden.
+_ACADEMIC_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+    )
+}
+
 
 class SsoRequest(BaseModel):
     token: str
@@ -95,7 +104,7 @@ async def _get_sso_token(request: Request) -> str:
 
 async def _academic_post(path: str, sso_token: str, payload: dict) -> Any:
     try:
-        async with httpx.AsyncClient(timeout=ACADEMIC_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=ACADEMIC_TIMEOUT, headers=_ACADEMIC_HEADERS) as client:
             resp = await client.post(
                 f"{config.ACADEMIC_API_BASE}{path}",
                 json=payload,
@@ -121,7 +130,7 @@ async def sso_login(body: SsoRequest, request: Request):
         raise HTTPException(status_code=503, detail="Вход через хаб ЮФУ отключён")
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=30, headers=_ACADEMIC_HEADERS) as client:
             verify = await client.post(
                 f"{config.ACADEMIC_API_BASE}/verify-token",
                 json={"token": body.token},
