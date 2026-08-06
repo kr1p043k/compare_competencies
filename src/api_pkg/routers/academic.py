@@ -130,7 +130,12 @@ async def sso_login(body: SsoRequest, request: Request):
         logger.warning("sso_verify_unreachable", error=str(exc))
         raise HTTPException(status_code=503, detail="Сервис ЮФУ недоступен, попробуйте позже") from None
     if verify.status_code != 200:
-        logger.warning("sso_verify_rejected", status=verify.status_code)
+        logger.warning(
+            "sso_verify_rejected",
+            status=verify.status_code,
+            body=verify.text[:300],
+            username=_jwt_username(body.token),
+        )
         raise HTTPException(status_code=401, detail="Недействительный или истёкший токен хаба")
 
     username = _jwt_username(body.token)
