@@ -11,12 +11,15 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from src import config
 from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["auth"])
+limiter = Limiter(key_func=get_remote_address)
 
 SECRET_KEY = config.get_secret_key()
 TOKEN_TTL = 86400 * config.TOKEN_TTL_DAYS
@@ -64,15 +67,15 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-async def get_current_user(request: Request) -> dict[str, Any] | None:
+def _request_token(request: Request) -> str:
     auth = request.headers.get("Authorization", "")
-    token = ""
     if auth.startswith("Bearer "):
-        token = auth[7:]
-    if not token:
-        token = request.cookies.get("token", "")
-    if not token:
-        token = request.query_params.get("token", "")
+        return auth[7:]
+    return request.cookies.get("token", "") or request.query_params.get("token", "")
+
+
+async def get_current_user(request: Request) -> dict[str, Any] | None:
+    token = _request_token(request)
     if not token:
         logger.warning("get_current_user_no_token", path=request.url.path)
         return None
@@ -80,18 +83,22 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
     if data is None:
         logger.warning("get_current_user_invalid_token", path=request.url.path, token_prefix=token[:20])
         return None
+    pool = get_pool()
+    if pool is None:
+        logger.error("get_current_user_no_pool", path=request.url.path)
+        return None
     try:
-        pool = get_pool()
         token_hash = _hash_token(token)
         session = await pool.fetchrow(
             "SELECT logged_out_at FROM sessions WHERE token_hash = $1 AND logged_out_at IS NULL",
             token_hash,
         )
-        if session is None:
-            logger.warning("get_current_user_session_not_found", path=request.url.path, token_prefix=token[:20])
-            return None
     except Exception:
-        pass
+        logger.error("get_current_user_db_error", path=request.url.path, exc_info=True)
+        return None
+    if session is None:
+        logger.warning("get_current_user_session_not_found", path=request.url.path, token_prefix=token[:20])
+        return None
     return data
 
 
@@ -119,6 +126,7 @@ def require_any_role(*roles: str):
 
 
 @router.post("/auth/login")
+@limiter.limit("10/minute")
 async def login(body: LoginRequest, request: Request):
     try:
         pool = get_pool()
@@ -161,8 +169,7 @@ async def logout(request: Request):
     if user_data is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    auth = request.headers.get("Authorization", "")
-    token = auth[7:]
+    token = _request_token(request)
     token_hash = _hash_token(token)
 
     pool = get_pool()
