@@ -59,71 +59,75 @@ class QualityScoringStage(PipelineStage):
         self.args = args
 
     def run(self, vacancies, parser, **kwargs) -> Result[dict, Any]:
-        self._progress(0, "Оценка качества вакансий...")
-        scorer = VacancyQualityScorer()
-        scores = []
-        spam_count = 0
-        total = len(vacancies)
+        from src.monitoring.metrics import track_pipeline_stage
+        @track_pipeline_stage("quality_scoring")
+        def _run():
+            self._progress(0, "Оценка качества вакансий...")
+            scorer = VacancyQualityScorer()
+            scores = []
+            spam_count = 0
+            total = len(vacancies)
 
-        if total > 2000:
-            logger.warning(
-                "large_quality_run",
-                total=total,
-                hint="На этом сервере большие прогоны медленны и рискуют перегрузить API. "
-                     "Уменьшите max_pages/регионы для быстрого обновления.",
-            )
+            if total > 2000:
+                logger.warning(
+                    "large_quality_run",
+                    total=total,
+                    hint="На этом сервере большие прогоны медленны и рискуют перегрузить API. "
+                         "Уменьшите max_pages/регионы для быстрого обновления.",
+                )
 
-        for idx, v in enumerate(vacancies):
-            if idx % 10 == 0:
-                pct = int(idx / total * 80) if total else 0
-                self._progress(pct, f"Оценка качества: {idx}/{total} вакансий")
-            match scorer.score(v):
-                case Ok(s):
-                    scores.append(s)
-                    if s.is_spam:
-                        spam_count += 1
-                        reason = "; ".join(f.reason for f in s.flags)
-                        if hasattr(v, "raw_data") and isinstance(v.raw_data, dict):
-                            v.raw_data["is_spam"] = True
-                            v.raw_data["spam_reason"] = reason
-                case Err(e):
-                    return Err(e.message)
+            for idx, v in enumerate(vacancies):
+                if idx % 10 == 0:
+                    pct = int(idx / total * 80) if total else 0
+                    self._progress(pct, f"Оценка качества: {idx}/{total} вакансий")
+                match scorer.score(v):
+                    case Ok(s):
+                        scores.append(s)
+                        if s.is_spam:
+                            spam_count += 1
+                            reason = "; ".join(f.reason for f in s.flags)
+                            if hasattr(v, "raw_data") and isinstance(v.raw_data, dict):
+                                v.raw_data["is_spam"] = True
+                                v.raw_data["spam_reason"] = reason
+                    case Err(e):
+                        return Err(e.message)
 
-        self._progress(80, f"Спам-фильтр: отсеяно {spam_count} из {total}")
-        quality_report = scorer._build_report(scores, len(vacancies))
-        scorer.print_report(quality_report)
+            self._progress(80, f"Спам-фильтр: отсеяно {spam_count} из {total}")
+            quality_report = scorer._build_report(scores, len(vacancies))
+            scorer.print_report(quality_report)
 
-        from src.pipeline.helpers import save_detailed_vacancies
-        save_detailed_vacancies(vacancies, logger)
+            from src.pipeline.helpers import save_detailed_vacancies
+            save_detailed_vacancies(vacancies, logger)
 
-        spam_path = config.REPORTS_DIR / "spam_vacancies_report.json"
-        with open(spam_path, "w", encoding="utf-8") as f:
-            json.dump(quality_report, f, ensure_ascii=False, indent=2)
+            spam_path = config.REPORTS_DIR / "spam_vacancies_report.json"
+            with open(spam_path, "w", encoding="utf-8") as f:
+                json.dump(quality_report, f, ensure_ascii=False, indent=2)
 
-        if self.args.excel and vacancies:
-            self._progress(90, "Генерация Excel-отчёта...")
-            df = parser.aggregate_to_dataframe(vacancies, quality_report)
-            excel_name = f"vacancies_{self.args.query.replace(' ', '_')}.xlsx"
-            match parser.save_to_excel(df, excel_name):
-                case Ok(_): pass
-                case Err(e):
-                    logger.warning("excel_save_failed", error=str(e))
+            if self.args.excel and vacancies:
+                self._progress(90, "Генерация Excel-отчёта...")
+                df = parser.aggregate_to_dataframe(vacancies, quality_report)
+                excel_name = f"vacancies_{self.args.query.replace(' ', '_')}.xlsx"
+                match parser.save_to_excel(df, excel_name):
+                    case Ok(_): pass
+                    case Err(e):
+                        logger.warning("excel_save_failed", error=str(e))
 
-        clean_pct = (total - spam_count) / total * 100 if total else 0
-        self._progress(100, f"Оценка качества завершена: {total - spam_count} качественных вакансий")
+            clean_pct = (total - spam_count) / total * 100 if total else 0
+            self._progress(100, f"Оценка качества завершена: {total - spam_count} качественных вакансий")
 
-        if clean_pct < 30:
-            logger.warning(
-                "hh_possible_similar_queries",
-                clean_pct=round(clean_pct, 1),
-                spam_count=spam_count,
-                total=total,
-            )
-            print(f"\n  ⚠️  Обнаружено {spam_count}/{total} нерелевантных вакансий ({clean_pct:.0f}% качественных).")
-            print(f"     Возможно, HH.ru вернул «похожие запросы» вместо точных результатов.")
-            print(f"     Попробуйте другой регион или уточните запрос.\n")
+            if clean_pct < 30:
+                logger.warning(
+                    "hh_possible_similar_queries",
+                    clean_pct=round(clean_pct, 1),
+                    spam_count=spam_count,
+                    total=total,
+                )
+                print(f"\n  ⚠️  Обнаружено {spam_count}/{total} нерелевантных вакансий ({clean_pct:.0f}% качественных).")
+                print(f"     Возможно, HH.ru вернул «похожие запросы» вместо точных результатов.")
+                print(f"     Попробуйте другой регион или уточните запрос.\n")
 
-        return Ok({"quality_report": quality_report})
+            return Ok({"quality_report": quality_report})
+        return _run()
 
 
 class SkillExtractionStage(PipelineStage):
@@ -134,40 +138,44 @@ class SkillExtractionStage(PipelineStage):
         self.args = args
 
     def run(self, vacancies, parser, raw_file, **kwargs) -> Result[dict, Any]:
-        total = len(vacancies)
-        self._progress(0, f"Извлечение навыков из {total} вакансий...")
-        extractor = SkillExtractor(self.args)
-        match extractor.extract(vacancies, parser, raw_file):
-            case Ok((skill_freq, hybrid_weights_raw, trend_analyzer)):
-                for i, v in enumerate(vacancies):
-                    if isinstance(v, Vacancy):
-                        match parser.skill_parser.parse_vacancy(v):
-                            case Ok(extracted):
-                                texts = list(dict.fromkeys(s.text for s in extracted if s.text))
-                            case Err(_):
-                                texts = []
-                        v.raw_data["extracted_skills"] = texts
-                    elif isinstance(v, dict):
-                        vac_obj = Vacancy.from_api(v)
-                        match parser.skill_parser.parse_vacancy(vac_obj):
-                            case Ok(extracted):
-                                texts = list(dict.fromkeys(s.text for s in extracted if s.text))
-                            case Err(_):
-                                texts = []
-                        v["extracted_skills"] = texts
-                    if (i + 1) % 100 == 0 or i == total - 1:
-                        pct = int((i + 1) / total * 95)
-                        self._progress(pct, f"Сохранены навыки: {i + 1}/{total}")
-                from src.pipeline.helpers import save_detailed_vacancies
-                save_detailed_vacancies(vacancies, logger)
-                self._progress(100, f"Извлечено {len(skill_freq)} уникальных навыков из {total} вакансий")
-                return Ok({
-                    "skill_freq": skill_freq,
-                    "hybrid_weights_raw": hybrid_weights_raw,
-                    "trend_analyzer": trend_analyzer,
-                })
-            case Err(err):
-                return Err(err)
+        from src.monitoring.metrics import track_pipeline_stage
+        @track_pipeline_stage("skill_extraction")
+        def _run():
+            total = len(vacancies)
+            self._progress(0, f"Извлечение навыков из {total} вакансий...")
+            extractor = SkillExtractor(self.args)
+            match extractor.extract(vacancies, parser, raw_file):
+                case Ok((skill_freq, hybrid_weights_raw, trend_analyzer)):
+                    for i, v in enumerate(vacancies):
+                        if isinstance(v, Vacancy):
+                            match parser.skill_parser.parse_vacancy(v):
+                                case Ok(extracted):
+                                    texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                                case Err(_):
+                                    texts = []
+                            v.raw_data["extracted_skills"] = texts
+                        elif isinstance(v, dict):
+                            vac_obj = Vacancy.from_api(v)
+                            match parser.skill_parser.parse_vacancy(vac_obj):
+                                case Ok(extracted):
+                                    texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                                case Err(_):
+                                    texts = []
+                            v["extracted_skills"] = texts
+                        if (i + 1) % 100 == 0 or i == total - 1:
+                            pct = int((i + 1) / total * 95)
+                            self._progress(pct, f"Сохранены навыки: {i + 1}/{total}")
+                    from src.pipeline.helpers import save_detailed_vacancies
+                    save_detailed_vacancies(vacancies, logger)
+                    self._progress(100, f"Извлечено {len(skill_freq)} уникальных навыков из {total} вакансий")
+                    return Ok({
+                        "skill_freq": skill_freq,
+                        "hybrid_weights_raw": hybrid_weights_raw,
+                        "trend_analyzer": trend_analyzer,
+                    })
+                case Err(err):
+                    return Err(err)
+        return _run()
 
 
 class WeightCleaningStage(PipelineStage):
@@ -175,17 +183,21 @@ class WeightCleaningStage(PipelineStage):
     pct_range = (40, 50)
 
     def run(self, hybrid_weights_raw, **kwargs) -> Result[dict, Any]:
-        self._progress(0, f"Очистка {len(hybrid_weights_raw)} сырых весов навыков...")
-        cleaner = WeightCleaner()
-        match cleaner.clean(hybrid_weights_raw):
-            case Ok(hybrid_weights):
-                skill_weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
-                with open(skill_weights_path, "w", encoding="utf-8") as f:
-                    json.dump(hybrid_weights, f, ensure_ascii=False, indent=2)
-                self._progress(100, f"Очищено и сохранено {len(hybrid_weights)} весов навыков")
-                return Ok({"hybrid_weights": hybrid_weights})
-            case Err(err):
-                return Err(err)
+        from src.monitoring.metrics import track_pipeline_stage
+        @track_pipeline_stage("weight_cleaning")
+        def _run():
+            self._progress(0, f"Очистка {len(hybrid_weights_raw)} сырых весов навыков...")
+            cleaner = WeightCleaner()
+            match cleaner.clean(hybrid_weights_raw):
+                case Ok(hybrid_weights):
+                    skill_weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
+                    with open(skill_weights_path, "w", encoding="utf-8") as f:
+                        json.dump(hybrid_weights, f, ensure_ascii=False, indent=2)
+                    self._progress(100, f"Очищено и сохранено {len(hybrid_weights)} весов навыков")
+                    return Ok({"hybrid_weights": hybrid_weights})
+                case Err(err):
+                    return Err(err)
+        return _run()
 
 
 class LevelBuildingStage(PipelineStage):
@@ -193,14 +205,18 @@ class LevelBuildingStage(PipelineStage):
     pct_range = (50, 60)
 
     def run(self, vacancies, parser, **kwargs) -> Result[dict, Any]:
-        self._progress(0, f"Построение уровней компетенций для {len(vacancies)} вакансий...")
-        builder = LevelBuilder()
-        match builder.build(vacancies, parser):
-            case Ok((level_data, vacancies_skills)):
-                self._progress(100, f"Построено {len(level_data)} уровней компетенций")
-                return Ok({"level_data": level_data, "vacancies_skills": vacancies_skills})
-            case Err(err):
-                return Err(err)
+        from src.monitoring.metrics import track_pipeline_stage
+        @track_pipeline_stage("level_building")
+        def _run():
+            self._progress(0, f"Построение уровней компетенций для {len(vacancies)} вакансий...")
+            builder = LevelBuilder()
+            match builder.build(vacancies, parser):
+                case Ok((level_data, vacancies_skills)):
+                    self._progress(100, f"Построено {len(level_data)} уровней компетенций")
+                    return Ok({"level_data": level_data, "vacancies_skills": vacancies_skills})
+                case Err(err):
+                    return Err(err)
+        return _run()
 
 
 class ClusterTrainingStage(PipelineStage):
@@ -208,15 +224,19 @@ class ClusterTrainingStage(PipelineStage):
     pct_range = (60, 65)
 
     def run(self, **kwargs) -> Result[dict, Any]:
-        self._progress(0, "Обучение кластеров вакансий...")
-        from src.ml.clusters import train_clusters
-        self._progress(10, "Кластеризация: загрузка данных...")
-        ok = train_clusters(level="all", save_report=True, interpret=True)
-        if ok:
-            self._progress(100, "Кластеры вакансий успешно обучены")
-            return Ok({"clusters_trained": True})
-        self._progress(0, "Ошибка обучения кластеров")
-        return Err("Обучение кластеров не выполнено")
+        from src.monitoring.metrics import track_pipeline_stage
+        @track_pipeline_stage("cluster_training")
+        def _run():
+            self._progress(0, "Обучение кластеров вакансий...")
+            from src.ml.clusters import train_clusters
+            self._progress(10, "Кластеризация: загрузка данных...")
+            ok = train_clusters(level="all", save_report=True, interpret=True)
+            if ok:
+                self._progress(100, "Кластеры вакансий успешно обучены")
+                return Ok({"clusters_trained": True})
+            self._progress(0, "Ошибка обучения кластеров")
+            return Err("Обучение кластеров не выполнено")
+        return _run()
 
 
 class ModelTrainingStage(PipelineStage):
