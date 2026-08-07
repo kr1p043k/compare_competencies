@@ -57,6 +57,13 @@ def _normalize_for_matching(text: str) -> str:
     return t
 
 
+_VERSION_RE = re.compile(r"[-\s]*v?\d+(?:\.\d+)*")
+
+
+def _is_word_char(c: str) -> bool:
+    return c.isalnum() or c == "_"
+
+
 def _load_it_skills() -> set[str]:
     """Load skill list from it_skills.json, normalized for matching."""
     path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "reference" / "it_skills.json"
@@ -125,6 +132,9 @@ class SkillParser:
 
     # populated in __init__ from it_skills.json; kept as fallback
     TECH_SKILLS: set[str] = set()
+
+    # (frozenset_of_skills, index) — index: first-char -> skills, cached once
+    _DIRECT_INDEX: tuple[frozenset, dict] | None = None
 
     SKILL_MARKERS = [
         "ключевые навыки",
@@ -249,36 +259,71 @@ class SkillParser:
                 "spring boot", "scikit-learn",
             ]
 
-            all_skills = list(self.TECH_SKILLS) + extended_skills
-            all_skills = sorted(set(all_skills), key=len, reverse=True)
+            all_skills = set(self.TECH_SKILLS) | set(extended_skills)
+            index = self._direct_index(all_skills)
 
-            for tech in all_skills:
-                sb = r"\b" if tech[0].isalnum() else ""
-                eb = r"\b" if tech[-1].isalnum() else ""
-                version = r"(?:[-\s]*v?\d+(?:\.\d+)*)?" if tech[-1].isalnum() and len(tech) >= 2 else ""
-                pattern = rf"{sb}{re.escape(tech)}{version}{eb}"
-                for match in re.finditer(pattern, text_norm):
-                    start = max(0, match.start() - 50)
-                    context = text_norm[start : match.end() + 50]
-
-                    has_negation = any(neg in context for neg in self.NEGATION_WORDS)
-                    if has_negation:
-                        continue
-
-                    if len(tech) == 1 and re.search(r'[а-яё]', text[match.start():match.end()], re.IGNORECASE):
-                        after = text_norm[match.end():match.end() + 3]
-                        if after.startswith("++"):
-                            pass
-                        elif re.search(r'[а-яё]', text_norm[max(0, match.start()-5):match.start()], re.IGNORECASE):
+            i = 0
+            n = len(text_norm)
+            while i < n:
+                candidates = index.get(text_norm[i])
+                if candidates:
+                    for skill in candidates:
+                        end = self._match_skill_at(text_norm, i, skill)
+                        if end is None:
                             continue
 
-                    original = text[match.start():match.end()].strip()
-                    skills.append(ExtractedSkill(text=original or tech, source=source, raw_match=tech, confidence=0.95))
-                    self._update_stats(source)
+                        if len(skill) == 1 and re.search(r'[а-яё]', text[i:end], re.IGNORECASE):
+                            after = text_norm[end:end + 3]
+                            if after.startswith("++"):
+                                pass
+                            elif re.search(r'[а-яё]', text_norm[max(0, i - 5):i], re.IGNORECASE):
+                                continue
+
+                        start = max(0, i - 50)
+                        context = text_norm[start:end + 50]
+                        if any(neg in context for neg in self.NEGATION_WORDS):
+                            continue
+
+                        original = text[i:end].strip()
+                        skills.append(ExtractedSkill(text=original or skill, source=source, raw_match=skill, confidence=0.95))
+                        self._update_stats(source)
+                i += 1
 
             return Ok(skills)
         except Exception as e:
             return Err(DomainError(message=str(e), detail="_direct_search"))
+
+    @classmethod
+    def _direct_index(cls, all_skills: set[str]) -> dict[str, list[str]]:
+        """Build/cache index: first char -> skills (longest first)."""
+        key = frozenset(all_skills)
+        if cls._DIRECT_INDEX is not None and cls._DIRECT_INDEX[0] == key:
+            return cls._DIRECT_INDEX[1]
+        index: dict[str, list[str]] = {}
+        for skill in all_skills:
+            index.setdefault(skill[0], []).append(skill)
+        for lst in index.values():
+            lst.sort(key=len, reverse=True)
+        cls._DIRECT_INDEX = (key, index)
+        return index
+
+    def _match_skill_at(self, text_norm: str, pos: int, skill: str) -> int | None:
+        """Match `skill` at `pos` in normalized text; return end index (incl. version) or None."""
+        if not text_norm.startswith(skill, pos):
+            return None
+        if skill[0].isalnum() and pos > 0 and _is_word_char(text_norm[pos - 1]):
+            return None
+        base_end = pos + len(skill)
+        ends = [base_end]
+        if skill[-1].isalnum() and len(skill) >= 2:
+            m = _VERSION_RE.match(text_norm, base_end)
+            if m:
+                ends.insert(0, m.end())
+        for end in ends:
+            if skill[-1].isalnum() and end < len(text_norm) and _is_word_char(text_norm[end]):
+                continue
+            return end
+        return None
 
     def _marker_search(self, text: str, source: SkillSource) -> Result[list[ExtractedSkill], DomainError]:
         """Поиск навыков после маркеров"""

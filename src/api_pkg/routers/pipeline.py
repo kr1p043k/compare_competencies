@@ -130,10 +130,12 @@ def _load_tasks():
             for tid, tdata in data.items():
                 t = PipelineTaskStatus.model_validate(tdata)
                 status = getattr(t, "status", "")
-                started = getattr(t, "started_at", 0) or 0
-                if status == "running" and now - started > 3600:
+                if status == "running":
+                    # Воркер погиб вместе с процессом — возобновить нельзя,
+                    # иначе задача навсегда висит как "running" без исполнения.
                     t.status = "failed"
                     t.message = "Прерван перезапуском сервера"
+                    t.completed_at = now
                 pipeline_tasks[tid] = t
             _save_tasks()
             logger.info("tasks_restored", count=len(data))

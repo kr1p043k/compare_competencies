@@ -185,6 +185,26 @@ def _count_urls(text: str) -> int:
     return len(re.findall(r'https?://\S+', text))
 
 
+def _extracted_skill_texts(vacancy: Any) -> list[str] | None:
+    """Reuse already-extracted skills from raw data (if present) to skip heavy re-parsing."""
+    raw = getattr(vacancy, "raw_data", None)
+    if not isinstance(raw, dict):
+        return None
+    extracted = raw.get("extracted_skills")
+    if not extracted:
+        return None
+    texts = []
+    for e in extracted:
+        if isinstance(e, str):
+            texts.append(e)
+        elif isinstance(e, dict):
+            texts.append(str(e.get("text") or e.get("skill") or e.get("name") or ""))
+        elif hasattr(e, "text"):
+            texts.append(e.text)
+    texts = [t for t in texts if t]
+    return texts or None
+
+
 class VacancyQualityScorer:
     """
     Scores vacancies for quality and filters out spam.
@@ -232,11 +252,15 @@ class VacancyQualityScorer:
             snippet_resp = (vacancy.snippet.responsibility or "") if vacancy.snippet else ""
             all_text = f"{description} {snippet_req} {snippet_resp}"
             key_skills_count = len(vacancy.key_skills)
-            match self._skill_parser.parse_vacancy(vacancy):
-                case Ok(parsed):
-                    total_skills = len(set(s.text.lower() for s in parsed))
-                case Err(_):
-                    total_skills = 0
+            pre = _extracted_skill_texts(vacancy)
+            if pre is not None:
+                total_skills = len(set(t.lower() for t in pre))
+            else:
+                match self._skill_parser.parse_vacancy(vacancy):
+                    case Ok(parsed):
+                        total_skills = len(set(s.text.lower() for s in parsed))
+                    case Err(_):
+                        total_skills = 0
 
             if not description.strip():
                 flags.append(SpamFlag("NO_DESCRIPTION", "No description"))

@@ -65,8 +65,16 @@ class QualityScoringStage(PipelineStage):
         spam_count = 0
         total = len(vacancies)
 
+        if total > 2000:
+            logger.warning(
+                "large_quality_run",
+                total=total,
+                hint="На этом сервере большие прогоны медленны и рискуют перегрузить API. "
+                     "Уменьшите max_pages/регионы для быстрого обновления.",
+            )
+
         for idx, v in enumerate(vacancies):
-            if idx % 50 == 0:
+            if idx % 10 == 0:
                 pct = int(idx / total * 80) if total else 0
                 self._progress(pct, f"Оценка качества: {idx}/{total} вакансий")
             match scorer.score(v):
