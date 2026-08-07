@@ -143,9 +143,10 @@ export function MonitoringTab() {
     return metrics[name].samples;
   };
 
-  const sumMetric = (name: string): number => {
-    return findMetric(name).reduce((s, m) => s + m.value, 0);
-  };
+  const pipelineCountSamples = findMetric("pipeline_stage_duration_seconds").filter(
+    (s) => s.name.endsWith("_count")
+  );
+  const pipelineRunCount = pipelineCountSamples.reduce((s, m) => s + m.value, 0);
 
   const createSubscription = async () => {
     if (!newTopic.trim()) return;
@@ -239,7 +240,7 @@ export function MonitoringTab() {
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-2"><Activity className="size-4" />Pipeline runs</CardDescription>
               </CardHeader>
-              <CardContent><div className="text-2xl font-bold">{sumMetric("pipeline_stage_duration_seconds_count")}</div></CardContent>
+              <CardContent><div className="text-2xl font-bold">{pipelineRunCount}</div></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
@@ -269,8 +270,8 @@ export function MonitoringTab() {
             <CardContent>
               <div className="space-y-3">
                 {(["data_collection", "quality_scoring", "skill_extraction", "weight_cleaning", "level_building", "cluster_training", "model_training", "gap_analysis"] as const).map((stage) => {
-                  const countSamples = findMetric("pipeline_stage_duration_seconds_count").filter(s => s.labels.stage === stage);
-                  const sumSamples = findMetric("pipeline_stage_duration_seconds_sum").filter(s => s.labels.stage === stage);
+                  const countSamples = findMetric("pipeline_stage_duration_seconds").filter(s => s.name.endsWith("_count") && s.labels.stage === stage);
+                  const sumSamples = findMetric("pipeline_stage_duration_seconds").filter(s => s.name.endsWith("_sum") && s.labels.stage === stage);
                   const count = countSamples.reduce((s, m) => s + m.value, 0);
                   const total = sumSamples.reduce((s, m) => s + m.value, 0);
                   const avg = count > 0 ? total / count : 0;

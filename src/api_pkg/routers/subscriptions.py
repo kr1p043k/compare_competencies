@@ -173,7 +173,7 @@ async def unread_count(request: Request, user: dict = Depends(require_auth)):
     uid = user["uid"]
     from src.database import async_session_factory
     from src.models.krm_models import Notification
-    from sqlalchemy import func
+    from sqlalchemy import func, select
 
     async with async_session_factory() as session:
         result = await session.execute(
