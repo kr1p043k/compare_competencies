@@ -201,10 +201,10 @@ export function MonitoringTab() {
     } catch {}
   };
 
-  const pipelineErrors = findMetric("pipeline_errors_total");
+  const pipelineErrors = findMetric("pipeline_errors");
   const ltrMetrics = findMetric("ltr_model_metric");
-  const recsGenerated = findMetric("recommendations_generated_total");
-  const apiReqCount = findMetric("api_requests_total");
+  const recsGenerated = findMetric("recommendations_generated");
+  const apiReqCount = findMetric("api_requests");
 
   return (
     <div className="space-y-6">
