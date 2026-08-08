@@ -142,6 +142,12 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         frequencies: dict[str, int] = {}
         for v in vacancies:
             skills = v.get("extracted_skills", []) or v.get("parsed_skills", [])
+            if not skills:
+                skills = [
+                    ks.get("name")
+                    for ks in (v.get("key_skills") or [])
+                    if isinstance(ks, dict) and ks.get("name")
+                ]
             for s in skills:
                 if isinstance(s, str):
                     frequencies[s] = frequencies.get(s, 0) + 1

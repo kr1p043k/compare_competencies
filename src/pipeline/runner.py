@@ -230,7 +230,6 @@ def run_train_model(args=None) -> Result[None, str]:
     model_path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
     force = getattr(args, 'force', False) if args else False
     if model_path.exists() and not force:
-        from src import Ok, Err, Result
         match create_ranking_predictor(model_path=model_path):
             case Ok(engine) if engine.is_fitted:
                 model_mtime = model_path.stat().st_mtime
@@ -261,6 +260,12 @@ def run_train_model(args=None) -> Result[None, str]:
     if hasattr(ltr_engine, "last_metrics"):
         m = ltr_engine.last_metrics
         console_info(f"R²={m['r2']:.4f}, MAE={m['mae']:.4f}, NDCG@5={m['ndcg']:.4f}")
+        try:
+            from src.monitoring.metrics import ltr_model_metrics
+            for k, v in m.items():
+                ltr_model_metrics.labels(metric=k).set(v)
+        except Exception:
+            pass
     if not ltr_engine.is_fitted:
         console_info("❌ Обучение не удалось (недостаточно навыков)")
         return Err("Обучение LTR-модели не удалось")

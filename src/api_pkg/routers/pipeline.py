@@ -424,9 +424,11 @@ async def run_pipeline_action_sync(
 
     elif action == PipelineAction.TRAIN_MODEL:
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, pr.run_train_model)
+        result = await loop.run_in_executor(None, pr.run_train_model)
         return PipelineResponse(
-            status="success", message="Model training completed", exit_code=0,
+            status="success" if result.is_ok() else "failed",
+            message="Model training completed" if result.is_ok() else f"Model training failed: {result.err()}",
+            exit_code=0 if result.is_ok() else 1,
         )
 
     elif action == PipelineAction.GAP_ANALYSIS:
