@@ -498,27 +498,28 @@ export function MonitoringTab() {
       {/* ─── Grafana ───────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <BarChart3 className="size-5" />
-              Grafana
-            </CardTitle>
-            <a href="/grafana/" target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm">
-                <ExternalLink className="size-4 mr-1" />
-                Открыть в Grafana
-              </Button>
-            </a>
-          </div>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <BarChart3 className="size-5" />
+            Grafana
+          </CardTitle>
           <CardDescription>Дашборд доступен по логину и паролю из окружения (GRAFANA_USER / GRAFANA_PASSWORD)</CardDescription>
         </CardHeader>
         <CardContent>
-          <iframe
-            src="/grafana/d/competency-gap-analyzer/competency-gap-analyzer?orgId=1&kiosk"
-            title="Grafana Dashboard"
-            className="w-full border border-gray-200 rounded-lg bg-white"
-            style={{ height: 700 }}
-          />
+          <div className="flex flex-col items-center justify-center gap-4 py-10 text-center">
+            <div className="flex size-12 items-center justify-center rounded-full bg-gray-100">
+              <BarChart3 className="size-6 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">Мониторинг в Grafana</p>
+              <p className="text-xs text-gray-500">Дашборд откроется в новой вкладке</p>
+            </div>
+            <a href="/grafana/d/competency-gap-analyzer/competency-gap-analyzer?orgId=1&kiosk" target="_blank" rel="noopener noreferrer">
+              <Button variant="outline">
+                <ExternalLink className="size-4 mr-2" />
+                Посмотреть в Grafana
+              </Button>
+            </a>
+          </div>
         </CardContent>
       </Card>
     </div>
