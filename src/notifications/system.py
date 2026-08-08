@@ -80,6 +80,31 @@ def queue_system_error(title: str, body: str, severity: str = "error", article_u
         logger.debug("system_error_queued_sync", title=title[:80])
 
 
+async def resolve_warmup_failure(component: str) -> int:
+    """Удалить системные предупреждения о неудачной загрузке компонента.
+
+    Вызывается при успешной повторной инициализации компонента — если warning
+    больше не актуален, он исчезает из ленты уведомлений.
+    """
+    from sqlalchemy import delete
+
+    from src.database import async_session_factory
+
+    title = f"Не удалось загрузить компонент: {component}"
+    async with async_session_factory() as session:
+        result = await session.execute(
+            delete(Notification).where(
+                Notification.title == title,
+                Notification.subscription_id.is_(None),
+            )
+        )
+        count = result.rowcount or 0
+        await session.commit()
+    if count:
+        logger.info("warmup_failure_resolved", component=component, cleared=count)
+    return count
+
+
 async def _flush_to_db() -> None:
     if not _error_buffer:
         return

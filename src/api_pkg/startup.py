@@ -35,6 +35,14 @@ def _notify_warmup_failure(component: str, error: str) -> None:
     )
 
 
+async def _resolve_warmup_failure(component: str) -> None:
+    from src.notifications.system import resolve_warmup_failure
+    try:
+        await resolve_warmup_failure(component)
+    except Exception:
+        logger.debug("warmup_failure_resolve_skipped", component=component)
+
+
 async def _set_waiting_mode():
     deps.vacancy_load_error = "not_found"
     deps.skill_freq = {}
@@ -221,6 +229,7 @@ async def _warmup_background(basic_vacancies, raw_file):
         deps.competency_mapping = load_competency_mapping()
 
         logger.info("фоновая инициализация: навыки и веса готовы")
+        await _resolve_warmup_failure("навыки и веса")
     except Exception as e:
         logger.warning("фоновая инициализация: навыки не загружены", error=str(e))
         _notify_warmup_failure("навыки и веса", e)
@@ -300,6 +309,7 @@ async def _warmup_background(basic_vacancies, raw_file):
                     skill_weights_by_level[level] = {}
 
         logger.info("фоновая инициализация: уровень анализа завершён")
+        await _resolve_warmup_failure("уровневый анализ вакансий")
     except Exception as e:
         logger.warning("фоновая инициализация: уровень анализа не удался", error=str(e))
         _notify_warmup_failure("уровневый анализ вакансий", e)
@@ -331,6 +341,7 @@ async def _warmup_background(basic_vacancies, raw_file):
             case Err(err):
                 logger.error("recommendation_engine_fit_failed", error=str(err))
         logger.info("фоновая инициализация: evaluator + recommendation готовы")
+        await _resolve_warmup_failure("evaluator и рекомендации")
     except Exception as e:
         logger.warning("фоновая инициализация: evaluator не удался", error=str(e))
         _notify_warmup_failure("evaluator и рекомендации", e)
@@ -342,6 +353,7 @@ async def _warmup_background(basic_vacancies, raw_file):
                 deps.clusterer.load_model("all")
                 break
         logger.info("фоновая инициализация: кластеры загружены")
+        await _resolve_warmup_failure("кластеры")
     except Exception as e:
         logger.warning("фоновая инициализация: кластеры не загружены", error=str(e))
         _notify_warmup_failure("кластеры", e)
@@ -355,6 +367,7 @@ async def _warmup_background(basic_vacancies, raw_file):
         )
         deps.trend_analyzer = TrendAnalyzer(skill_freq_filtered)
         logger.info("фоновая инициализация: trend_analyzer готов")
+        await _resolve_warmup_failure("trend_analyzer")
     except Exception as e:
         logger.warning("фоновая инициализация: trend_analyzer не загружен", error=str(e))
         _notify_warmup_failure("trend_analyzer", e)
@@ -384,6 +397,7 @@ async def _warmup_background(basic_vacancies, raw_file):
                     deps.prophet_engine = None
                     logger.info("prophet_engine_unavailable_use_fallback", detail=str(e))
         logger.info("фоновая инициализация: Prophet готов")
+        await _resolve_warmup_failure("Prophet")
     except Exception as e:
         deps.prophet_engine = None
         logger.warning("фоновая инициализация: Prophet не загружен", error=str(e))
@@ -443,6 +457,7 @@ async def _warmup_background(basic_vacancies, raw_file):
                 profile_name=pname, competencies=codes, skills=skills, target_level=target,
             )
         logger.info("фоновая инициализация: студенческие профили готовы")
+        await _resolve_warmup_failure("студенческие профили")
     except Exception as e:
         logger.warning("фоновая инициализация: студенческие профили не загружены", error=str(e))
         _notify_warmup_failure("студенческие профили", e)
