@@ -531,11 +531,6 @@ export function ArticlesPage() {
                       />
                     );
                   })}
-                  {profTrends.source === "snapshot" && profTrends.snapshot_date && (
-                    <div className="pt-3 text-xs text-gray-400">
-                      Источник: снапшот от {new Date(profTrends.snapshot_date).toLocaleDateString("ru-RU")}
-                    </div>
-                  )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
