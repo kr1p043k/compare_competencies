@@ -32,7 +32,14 @@ class SecretsMasker:
 
 def setup_structlog(console_level: int = None):
     root_logger = logging.getLogger()
-    if root_logger.handlers:
+
+    def _has_file_handler():
+        return any(
+            isinstance(h, RotatingFileHandler) and getattr(h, "baseFilename", "").endswith("backend.log")
+            for h in root_logger.handlers
+        )
+
+    if _has_file_handler():
         return
 
     if console_level is None:
@@ -82,7 +89,8 @@ def setup_structlog(console_level: int = None):
     )
 
     root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)
+    if not any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers):
+        root_logger.addHandler(console_handler)
     root_logger.setLevel(logging.DEBUG)
 
     logging.getLogger("sentence_transformers").setLevel(logging.WARNING)

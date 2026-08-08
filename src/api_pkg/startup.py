@@ -57,6 +57,8 @@ async def _set_waiting_mode():
 
 
 async def run_startup(app):
+    from src.logging_config import setup_structlog
+    setup_structlog()
     config.settings.ensure_dirs()
     logger.info("Запуск API-сервера, быстрая инициализация...")
 
