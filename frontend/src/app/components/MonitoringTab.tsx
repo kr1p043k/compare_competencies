@@ -65,7 +65,7 @@ export function MonitoringTab() {
   const loadMetrics = useCallback(async () => {
     try {
       const r = await apiFetch("/api/admin/monitoring");
-      if (!r.ok) throw new Error("Failed to load metrics");
+      if (!r.ok) throw new Error(`Failed to load metrics: ${r.status}`);
       const data = await r.json();
       setMetrics(data);
       setError(null);
@@ -133,6 +133,8 @@ export function MonitoringTab() {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
       loadMetrics();
+      loadSubscriptions();
+      loadNotifications();
       loadUnreadCount();
     }, 15000);
     return () => clearInterval(interval);
