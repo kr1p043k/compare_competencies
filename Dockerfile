@@ -43,10 +43,10 @@ ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/root/.cache/huggingface \
-    HF_HUB_CACHE=/root/.cache/huggingface \
-    TRANSFORMERS_CACHE=/root/.cache/huggingface \
-    HF_HUB_OFFLINE=0 \
-    TRANSFORMERS_OFFLINE=0 \
+    HF_HUB_CACHE=/root/.cache/huggingface/hub \
+    TRANSFORMERS_CACHE=/root/.cache/huggingface/hub \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
     HF_ENDPOINT=https://hf-mirror.com
 
 # Healthcheck для Docker
