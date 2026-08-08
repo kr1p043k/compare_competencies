@@ -549,12 +549,13 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    subscription_id: Mapped[str] = mapped_column(UUID, ForeignKey("subscriptions.id", ondelete="CASCADE"), nullable=False)
+    subscription_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("subscriptions.id", ondelete="CASCADE"))
     user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     article_url: Mapped[Optional[str]] = mapped_column(Text)
     article_source: Mapped[Optional[str]] = mapped_column(String(50))
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="info")
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     delivered_via: Mapped[Optional[str]] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)

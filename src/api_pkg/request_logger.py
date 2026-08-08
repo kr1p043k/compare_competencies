@@ -175,6 +175,14 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
         ))
         if len(_log_buffer) >= FLUSH_BATCH:
             asyncio.ensure_future(_flush_to_db())
+        if response.status_code >= 500 and not getattr(request.state, "system_error_notified", False):
+            request.state.system_error_notified = True
+            from src.notifications.system import queue_system_error
+            queue_system_error(
+                f"Ошибка API: {request.method} {request.url.path}",
+                f"Статус {response.status_code} за {elapsed:.0f} мс | user={user or 'anonymous'} | path={request.url.path}",
+                severity="error" if response.status_code >= 500 else "warning",
+            )
         return response
 
 

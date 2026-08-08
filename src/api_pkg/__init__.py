@@ -112,6 +112,14 @@ def create_app() -> FastAPI:
     async def global_exception_handler(request: Request, exc: Exception):
         request_id = getattr(request.state, "request_id", "unknown")
         logger.exception("Unhandled exception", request_id=request_id, error_type=type(exc).__name__)
+        if request.url.path.startswith("/api/"):
+            request.state.system_error_notified = True
+            from src.notifications.system import queue_system_error
+            queue_system_error(
+                f"Необработанная ошибка API: {type(exc).__name__}",
+                f"{request.method} {request.url.path} | request_id={request_id} | {str(exc)[:1500]}",
+                severity="error",
+            )
         return JSONResponse(
             status_code=500,
             content={

@@ -370,6 +370,27 @@ async def admin_logs(request: Request, user: str | None = None, limit: int = 100
     return {"logs": entries, "total": len(entries)}
 
 
+@router.get("/admin/logs/file")
+@limiter.limit("30/minute")
+async def admin_logs_file(request: Request, lines: int = 300, level: str = "all"):
+    """Read the tail of logs/backend.log (system log file)."""
+    from src.config import LOG_FILE
+
+    if not LOG_FILE.exists():
+        return {"file": str(LOG_FILE), "lines": [], "total": 0}
+    try:
+        raw_lines = LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
+    except Exception:
+        return {"file": str(LOG_FILE), "lines": [], "total": 0}
+
+    # Последняя строка может быть неполной (пишется на лету) — берём хвост целиком
+    wanted = raw_lines[-max(lines, 1):]
+    if level in ("error", "warning", "info", "debug"):
+        wanted = [l for l in wanted if f"level={level}" in l or l.startswith(f"{level.upper()} ")]
+        wanted = wanted[-max(lines, 1):]
+    return {"file": str(LOG_FILE), "lines": wanted, "total": len(wanted)}
+
+
 # ---------- DB Management (CLI → API) ----------
 
 

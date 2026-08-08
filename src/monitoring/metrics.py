@@ -138,6 +138,12 @@ def track_pipeline_stage(stage_name: str):
                     return result
                 except Exception as e:
                     pipeline_errors.labels(stage=stage_name).inc()
+                    from src.notifications.system import queue_system_error
+                    queue_system_error(
+                        f"Ошибка этапа пайплайна: {stage_name}",
+                        str(e)[:2000],
+                        severity="error",
+                    )
                     raise
                 finally:
                     duration = time.time() - start
@@ -151,6 +157,12 @@ def track_pipeline_stage(stage_name: str):
                 return result
             except Exception as e:
                 pipeline_errors.labels(stage=stage_name).inc()
+                from src.notifications.system import queue_system_error
+                queue_system_error(
+                    f"Ошибка этапа пайплайна: {stage_name}",
+                    str(e)[:2000],
+                    severity="error",
+                )
                 raise
             finally:
                 duration = time.time() - start

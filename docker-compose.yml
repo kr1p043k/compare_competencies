@@ -212,7 +212,9 @@ services:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
-      - GF_SERVER_ROOT_URL=${GRAFANA_URL:-http://localhost:3001}
+      - GF_SERVER_ROOT_URL=https://compareserver.tailb909df.ts.net/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SECURITY_ALLOW_EMBEDDING=true
     restart: unless-stopped
     networks:
       - monitoring

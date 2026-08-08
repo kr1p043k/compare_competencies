@@ -27,6 +27,7 @@ import { DataViewer } from "./components/DataViewer";
 import { RecommendationsReport } from "./components/RecommendationsReport";
 import { PredictionsTab } from "./components/PredictionsTab";
 import { MonitoringTab } from "./components/MonitoringTab";
+import { LogsTab } from "./components/LogsTab";
 import { LoginPage } from "./components/LoginPage";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
@@ -473,6 +474,12 @@ export default function App() {
               </TabsTrigger>
             )}
             {role === "admin" && (
+              <TabsTrigger value="logs" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
+                <FileText className="size-4" />
+                Логи
+              </TabsTrigger>
+            )}
+            {role === "admin" && (
               <TabsTrigger value="admin" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
                 <Shield className="size-4" />
                 Админ
@@ -703,6 +710,11 @@ export default function App() {
           {role === "admin" && (
             <TabsContent value="monitoring">
               <MonitoringTab />
+            </TabsContent>
+          )}
+          {role === "admin" && (
+            <TabsContent value="logs">
+              <LogsTab />
             </TabsContent>
           )}
           {role === "admin" && (

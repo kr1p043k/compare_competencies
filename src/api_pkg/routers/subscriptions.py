@@ -140,6 +140,7 @@ async def list_notifications(request: Request, limit: int = 50, unread_only: boo
                 "body": n.body,
                 "article_url": n.article_url,
                 "article_source": n.article_source,
+                "severity": n.severity or "info",
                 "is_read": n.is_read,
                 "created_at": n.created_at.isoformat(),
             }

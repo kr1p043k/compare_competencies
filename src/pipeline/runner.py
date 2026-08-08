@@ -316,6 +316,13 @@ def run_full_pipeline(args) -> Result[None, str]:
     if pipeline_result.is_err():
         pipeline_run_counter.labels(status="failed", trigger="cli").inc()
         console_info(f"❌ Пайплайн не завершён: {pipeline_result.err()}")
+        from src.notifications.system import queue_system_error, flush_system_errors_sync
+        queue_system_error(
+            "Пайплайн не завершился",
+            str(pipeline_result.err())[:2000],
+            severity="error",
+        )
+        flush_system_errors_sync()
         return Err(f"Пайплайн не завершён: {pipeline_result.err()}")
     pipeline_run_counter.labels(status="success", trigger="cli").inc()
     run = pipeline_result.unwrap()
