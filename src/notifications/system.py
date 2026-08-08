@@ -5,6 +5,7 @@ queue_system_error безопасно вызывать из sync (CLI) и async 
 """
 
 import asyncio
+import time
 from collections import deque
 from datetime import datetime
 
@@ -20,7 +21,19 @@ FLUSH_BATCH = 50
 
 VALID_SEVERITIES = ("info", "warning", "error")
 
+API_SIGNATURE_PREFIX = "api:"
+API_RESOLVE_WINDOW = 30.0  # seconds — троттлинг повторного резолва одного пути
+
 _error_buffer: deque[dict] = deque(maxlen=MAX_BUFFER)
+_api_resolve_recent: dict[str, float] = {}
+
+
+def _api_signature(method: str, path: str) -> str:
+    return f"{API_SIGNATURE_PREFIX}{method} {path}"
+
+
+def _like_escape(s: str) -> str:
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _severity(value: str) -> str:
@@ -57,18 +70,22 @@ async def notify_admins(title: str, body: str, severity: str = "error", article_
     return len(admin_ids)
 
 
-def queue_system_error(title: str, body: str, severity: str = "error", article_url: str | None = None) -> None:
+def queue_system_error(title: str, body: str, severity: str = "error", article_url: str | None = None, dedupe: bool = False) -> None:
     """Добавить системную ошибку/предупреждение в очередь уведомлений.
 
     Безопасна из любого контекста: при запущенном loop планирует немедленный
     сброс, иначе сброс произойдёт периодическим флушером или вручную
     через flush_system_errors_sync().
+
+    dedupe=True: если в ленте уже есть непрочитанное уведомление с таким же
+    (title, article_url), повторная запись не создаётся — ошибки не заваливают ленту.
     """
     _error_buffer.append({
         "title": title,
         "body": body,
         "severity": _severity(severity),
         "article_url": article_url,
+        "dedupe": dedupe,
     })
     try:
         loop = asyncio.get_running_loop()
@@ -105,6 +122,80 @@ async def resolve_warmup_failure(component: str) -> int:
     return count
 
 
+async def _has_unread_duplicate(title: str, article_url: str) -> bool:
+    """Есть ли уже непрочитанное системное уведомление с такой сигнатурой."""
+    from sqlalchemy import select
+
+    from src.database import async_session_factory
+
+    async with async_session_factory() as session:
+        row = await session.execute(
+            select(Notification.id)
+            .where(
+                Notification.title == title,
+                Notification.article_url == article_url,
+                Notification.subscription_id.is_(None),
+                Notification.is_read == False,
+            )
+            .limit(1)
+        )
+        return row.scalar() is not None
+
+
+async def resolve_api_errors(method: str, path: str) -> int:
+    """Пометить прочитанными системные уведомления об API-ошибках на этом пути.
+
+    Резолвится при успешном ответе (код < 500) — «ошибка починилась».
+    Снимает и legacy-уведомления (article_url пуст):
+      - «Ошибка API: {METHOD} {path}» — по title;
+      - «Необработанная ошибка API: ...» — по префиксу body "{METHOD} {path} |".
+    """
+    from sqlalchemy import and_, or_, update
+
+    from src.database import async_session_factory
+
+    sig = _api_signature(method, path)
+    async with async_session_factory() as session:
+        result = await session.execute(
+            update(Notification)
+            .where(
+                Notification.subscription_id.is_(None),
+                Notification.is_read == False,
+                or_(
+                    Notification.article_url == sig,
+                    Notification.title == f"Ошибка API: {method} {path}",
+                    and_(
+                        Notification.title.like("Необработанная ошибка API:%"),
+                        Notification.body.like(
+                            f"{_like_escape(method)} {_like_escape(path)} |%", escape="\\"
+                        ),
+                    ),
+                ),
+            )
+            .values(is_read=True)
+        )
+        await session.commit()
+        count = result.rowcount or 0
+    if count:
+        logger.info("api_error_resolved", method=method, path=path, cleared=count)
+    return count
+
+
+async def maybe_resolve_api_errors(method: str, path: str) -> int:
+    """Обёртка с троттлингом, чтобы не делать UPDATE в БД на каждый запрос."""
+    sig = f"{method} {path}"
+    now = time.monotonic()
+    last = _api_resolve_recent.get(sig)
+    if last is not None and now - last < API_RESOLVE_WINDOW:
+        return 0
+    count = await resolve_api_errors(method, path)
+    _api_resolve_recent[sig] = now
+    if len(_api_resolve_recent) > 200:
+        for key in [k for k, v in _api_resolve_recent.items() if now - v > API_RESOLVE_WINDOW]:
+            _api_resolve_recent.pop(key, None)
+    return count
+
+
 async def _flush_to_db() -> None:
     if not _error_buffer:
         return
@@ -112,6 +203,9 @@ async def _flush_to_db() -> None:
     _error_buffer.clear()
     try:
         for e in entries:
+            if e.get("dedupe") and e.get("article_url"):
+                if await _has_unread_duplicate(e["title"], e["article_url"]):
+                    continue
             await notify_admins(
                 title=e["title"],
                 body=e["body"],

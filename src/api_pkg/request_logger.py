@@ -182,7 +182,12 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
                 f"Ошибка API: {request.method} {request.url.path}",
                 f"Статус {response.status_code} за {elapsed:.0f} мс | user={user or 'anonymous'} | path={request.url.path}",
                 severity="error" if response.status_code >= 500 else "warning",
+                article_url=f"api:{request.method} {request.url.path}",
+                dedupe=True,
             )
+        elif response.status_code < 500:
+            from src.notifications.system import maybe_resolve_api_errors
+            asyncio.ensure_future(maybe_resolve_api_errors(request.method, request.url.path))
         return response
 
 

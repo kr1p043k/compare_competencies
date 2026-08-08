@@ -119,6 +119,8 @@ def create_app() -> FastAPI:
                 f"Необработанная ошибка API: {type(exc).__name__}",
                 f"{request.method} {request.url.path} | request_id={request_id} | {str(exc)[:1500]}",
                 severity="error",
+                article_url=f"api:{request.method} {request.url.path}",
+                dedupe=True,
             )
         return JSONResponse(
             status_code=500,
