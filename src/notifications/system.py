@@ -36,7 +36,7 @@ async def notify_admins(title: str, body: str, severity: str = "error", article_
 
     async with async_session_factory() as session:
         result = await session.execute(select(User.id).where(User.role == "admin", User.is_active == True))
-        admin_ids = [row[0] for row in result.all()]
+        admin_ids = [str(row[0]) for row in result.all()]
         if not admin_ids:
             logger.warning("system_notify_no_admins", severity=sev)
             return 0
