@@ -382,11 +382,11 @@
           "gridPos": { "x": 12, "y": 49, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "histogram_quantile(0.95, rate(llm_response_length_bucket{model=~\"$model\"}[5m]))",
+              "expr": "histogram_quantile(0.95, rate(llm_response_length_chars_bucket{model=~\"$model\"}[5m]))",
               "legendFormat": "P95 - {{model}}"
             },
             {
-              "expr": "histogram_quantile(0.50, rate(llm_response_length_bucket{model=~\"$model\"}[5m]))",
+              "expr": "histogram_quantile(0.50, rate(llm_response_length_chars_bucket{model=~\"$model\"}[5m]))",
               "legendFormat": "P50 - {{model}}"
             }
           ],
@@ -501,7 +501,7 @@
           "gridPos": { "x": 0, "y": 65, "w": 12, "h": 8 },
           "targets": [
             {
-              "expr": "rate(pipeline_run_counter_total[5m])",
+              "expr": "rate(pipeline_runs_total[5m])",
               "legendFormat": "{{status}} - {{action}}"
             }
           ],

@@ -268,6 +268,17 @@ class ModelTrainingStage(PipelineStage):
                     data_mtime = raw_file.stat().st_mtime
                     if model_mtime > data_mtime:
                         self._progress(100, "Модель уже актуальна (пропускаем обучение)")
+                        try:
+                            from src.artifacts import ArtifactManifest
+                            match ArtifactManifest.load(model_path):
+                                case Ok(manifest):
+                                    for k, v in (manifest.metrics or {}).items():
+                                        try:
+                                            ltr_model_metrics.labels(metric=k).set(v)
+                                        except Exception:
+                                            pass
+                        except Exception:
+                            pass
                         return Ok({"model_trained": False, "reason": "already_up_to_date"})
 
             training_vacancies = safe_read_json(raw_file)

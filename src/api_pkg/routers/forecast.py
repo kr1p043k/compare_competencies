@@ -111,6 +111,29 @@ def _detect_method(engine: ProphetForecastEngine | SkillForecastEngine, skill: s
     return "genetic"
 
 
+def _record_forecast_accuracy(engine, forecasts) -> None:
+    try:
+        from src.monitoring.metrics import forecast_accuracy
+
+        def _mape_for(skill: str) -> float | None:
+            model = getattr(engine, "_models", {}).get(skill)
+            if isinstance(model, dict) and "mape" in model:
+                return float(model["mape"])
+            fallback = getattr(engine, "_fallback_engine", None)
+            if fallback is not None:
+                model = getattr(fallback, "_models", {}).get(skill)
+                if isinstance(model, dict) and "mape" in model:
+                    return float(model["mape"])
+            return None
+
+        for r in forecasts:
+            mape = _mape_for(r.skill)
+            if mape is not None:
+                forecast_accuracy.labels(skill=r.skill).set(mape)
+    except Exception:
+        logger.debug("forecast_accuracy_record_failed")
+
+
 @router.get("/forecast/all")
 @limiter.limit("30/minute")
 async def get_all_forecasts(request: Request, months: int = Query(12, ge=1, le=24)):
@@ -118,6 +141,7 @@ async def get_all_forecasts(request: Request, months: int = Query(12, ge=1, le=2
         case Ok(engine):
             match engine.forecast_all(months=months):
                 case Ok(forecasts):
+                    _record_forecast_accuracy(engine, forecasts)
                     method = _detect_method(engine)
                     items = [_serialize(r, method=method) for r in forecasts]
                     return {"total": len(items), "months": months, "forecasts": items}
@@ -142,18 +166,21 @@ async def get_top_forecasts(
                 if direction == "declining":
                     match engine.top_declining(n=n, months=months):
                         case Ok(results):
+                            _record_forecast_accuracy(engine, results)
                             items = [_serialize(r, direction, "prophet") for r in results]
                         case Err(e):
                             raise HTTPException(status_code=500, detail=str(e))
                 else:
                     match engine.top_growing(n=n, months=months):
                         case Ok(results):
+                            _record_forecast_accuracy(engine, results)
                             items = [_serialize(r, direction, "prophet") for r in results]
                         case Err(e):
                             raise HTTPException(status_code=500, detail=str(e))
             else:
                 match engine.top_growing(n=n * 2, months=months):
                     case Ok(all_results):
+                        _record_forecast_accuracy(engine, all_results)
                         if direction == "declining":
                             all_results = sorted(all_results, key=lambda x: x.predicted_growth)[:n]
                         items = [_serialize(r, direction, "genetic") for r in all_results[:n]]
@@ -181,11 +208,13 @@ async def get_popular_forecasts(
             if isinstance(engine, ProphetForecastEngine):
                 match engine.top_popular(n=n, months=months):
                     case Ok(results):
+                        _record_forecast_accuracy(engine, results)
                         items = [_serialize(r, "growing", "prophet") for r in results]
                     case Err(e):
                         raise HTTPException(status_code=500, detail=str(e))
             else:
                 all_results = sorted(engine.forecast_all(months).unwrap_or([]), key=lambda x: x.current_frequency, reverse=True)
+                _record_forecast_accuracy(engine, all_results)
                 items = [_serialize(r, "growing", "genetic") for r in all_results[:n]]
             return {"direction": "popular", "n": n, "months": months, "forecasts": items, **meta}
         case Err(e):
@@ -200,6 +229,7 @@ async def get_skill_forecast(skill: str, request: Request, months: int = Query(1
             result = engine.forecast(skill, months) if hasattr(engine, "forecast") else engine.predict(skill, months)
             match result:
                 case Ok(r):
+                    _record_forecast_accuracy(engine, [r])
                     return _serialize(r, method=_detect_method(engine, skill))
                 case Err(e):
                     raise HTTPException(status_code=404, detail=f"Skill not found: {skill}")

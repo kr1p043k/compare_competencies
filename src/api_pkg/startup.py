@@ -64,6 +64,19 @@ async def _set_waiting_mode():
         deps.is_ready = True
 
 
+def _refresh_business_gauges() -> None:
+    """Заполняет бизнес-гейджи из текущего состояния загруженных данных."""
+    try:
+        from src.monitoring.metrics import active_profiles, skill_count, vacancies_loaded
+        vacancies_loaded.set(len(deps.basic_vacancies or []))
+        active_profiles.set(len(deps.student_profiles or {}))
+        skill_count.set(len(
+            deps.skill_weights or deps.skill_freq or deps.current_skills_set or {}
+        ))
+    except Exception as exc:
+        logger.warning("business_gauges_refresh_failed", error=str(exc))
+
+
 async def run_startup(app):
     from src.logging_config import setup_structlog
     setup_structlog()
@@ -462,4 +475,5 @@ async def _warmup_background(basic_vacancies, raw_file):
         logger.warning("фоновая инициализация: студенческие профили не загружены", error=str(e))
         _notify_warmup_failure("студенческие профили", e)
 
+    _refresh_business_gauges()
     logger.info("Фоновая инициализация завершена. API готов к работе")

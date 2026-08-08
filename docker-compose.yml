@@ -42,8 +42,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 2G
+          cpus: '4'
+          memory: 8G
         reservations:
           cpus: '0.5'
           memory: 512M
@@ -223,7 +223,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
 
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:latest
