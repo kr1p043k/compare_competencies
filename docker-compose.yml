@@ -12,7 +12,7 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./uploads:/app/uploads
-      - ./cache:/root/.cache
+      - hf-cache:/root/.cache
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -293,6 +293,7 @@ networks:
     driver: bridge
 
 volumes:
+  hf-cache:
   open-webui-data:
   n8n-data:
   n8n-postgres-data:
