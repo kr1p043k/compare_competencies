@@ -1,5 +1,6 @@
 """Pipeline runner — reusable sync/async entry point for CLI and API."""
 
+import argparse
 import asyncio
 import sys
 from typing import Any
@@ -487,9 +488,8 @@ def run_full_pipeline(args) -> Result[None, str]:
     return Ok(None)
 
 
-def _build_rebuild_args() -> "argparse.Namespace":
+def _build_rebuild_args() -> argparse.Namespace:
     """Аргументы пайплайна для полной пересборки (сбор пропускаем)."""
-    import argparse
     return argparse.Namespace(
         skip_collection=True, skip_gap_analysis=True,
         query="", area_id=2, max_pages=10, period=30,
@@ -505,7 +505,6 @@ def _build_rebuild_args() -> "argparse.Namespace":
 
 def rebuild(args=None) -> Result[None, str]:
     """Full rebuild: clean cache, run pipeline, train clusters, train model, gap analysis."""
-    import argparse
     import shutil
 
     console_header("ПОЛНАЯ ПЕРЕСБОРКА")
@@ -563,7 +562,9 @@ def rebuild(args=None) -> Result[None, str]:
     if model_result.is_err():
         return model_result
 
-    gap_args = argparse.Namespace(**{**vars(args), "skip_gap_analysis": False, "run_gap_analysis": True})
+    gap_args = argparse.Namespace(
+        **{**vars(args), "skip_gap_analysis": False, "run_gap_analysis": True}
+    )
     gap_result = run_full_pipeline(gap_args)
     if gap_result.is_err():
         return Err(f"GAP-анализ не завершён: {gap_result.err()}")

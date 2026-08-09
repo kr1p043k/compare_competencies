@@ -384,6 +384,69 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
         _running_futures.pop(task_id, None)
 
 
+@router.post("/pipeline/rebuild", response_model=PipelineResponse)
+@limiter.limit("2/minute")
+async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
+    task_id = f"rebuild_{int(time.time())}"
+    started_at = time.time()
+    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0)
+    background_tasks.add_task(run_pipeline_task, PipelineAction.REBUILD, task_id)
+    return PipelineResponse(
+        status="started", message="Full rebuild started in background",
+        command="rebuild",
+        output=f"Task ID: {task_id}. Check /api/pipeline/task/{task_id} for status",
+    )
+
+
+@router.post("/pipeline/refresh-cache", response_model=CacheRefreshResponse)
+@limiter.limit("5/minute")
+async def refresh_cache(request: Request):
+    cache_dirs = [
+        BASE_DIR / "data" / "cache" / "embeddings",
+        BASE_DIR / "data" / "cache" / "clusters",
+    ]
+    removed = []
+    for cache_dir in cache_dirs:
+        if cache_dir.exists():
+            shutil.rmtree(cache_dir)
+            removed.append(str(cache_dir))
+            cache_dir.mkdir(parents=True, exist_ok=True)
+    parsed_skills = BASE_DIR / "data" / "cache" / "parsed_skills.joblib"
+    if parsed_skills.exists():
+        parsed_skills.unlink()
+        removed.append(str(parsed_skills))
+    return {
+        "status": "success", "message": "Cache cleared", "removed": removed,
+        "next_step": "Run POST /api/pipeline/full-cycle?skip_collection=false to rebuild",
+    }
+
+
+@router.post("/pipeline/reload-api", response_model=PipelineResponse)
+@limiter.limit("3/minute")
+async def reload_api(request: Request):
+    try:
+        asyncio.create_task(_reload_api_data())
+        return PipelineResponse(
+            status="started", message="API data reload started. Check /api/status for completion.",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _reload_api_data():
+    logger.info("Reloading API data...")
+    try:
+        from src.api_pkg.startup import run_startup
+        await run_startup(None)
+        logger.info("API data reloaded successfully")
+    except Exception as e:
+        logger.error("Ошибка перезагрузки API", error=str(e))
+
+
+async def reload_api_data():
+    await _reload_api_data()
+
+
 @router.post("/pipeline/{action}", response_model=PipelineResponse)
 @limiter.limit("5/minute")
 async def run_pipeline_action_sync(
@@ -541,65 +604,6 @@ async def get_pipeline_status(request: Request):
         "total_vacancies": total or 0,
         "last_pipeline_stats": last["stats"] if last else None,
     }
-
-
-@router.post("/pipeline/rebuild", response_model=PipelineResponse)
-@limiter.limit("2/minute")
-async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
-    task_id = f"rebuild_{int(time.time())}"
-    started_at = time.time()
-    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0)
-    background_tasks.add_task(run_pipeline_task, PipelineAction.REBUILD, task_id)
-    return PipelineResponse(
-        status="started", message="Full rebuild started in background",
-        command="rebuild",
-        output=f"Task ID: {task_id}. Check /api/pipeline/task/{task_id} for status",
-    )
-
-
-@router.post("/pipeline/refresh-cache", response_model=CacheRefreshResponse)
-@limiter.limit("5/minute")
-async def refresh_cache(request: Request):
-    cache_dirs = [
-        BASE_DIR / "data" / "cache" / "embeddings",
-        BASE_DIR / "data" / "cache" / "clusters",
-    ]
-    removed = []
-    for cache_dir in cache_dirs:
-        if cache_dir.exists():
-            shutil.rmtree(cache_dir)
-            removed.append(str(cache_dir))
-            cache_dir.mkdir(parents=True, exist_ok=True)
-    parsed_skills = BASE_DIR / "data" / "cache" / "parsed_skills.joblib"
-    if parsed_skills.exists():
-        parsed_skills.unlink()
-        removed.append(str(parsed_skills))
-    return {
-        "status": "success", "message": "Cache cleared", "removed": removed,
-        "next_step": "Run POST /api/pipeline/full-cycle?skip_collection=false to rebuild",
-    }
-
-
-@router.post("/pipeline/reload-api", response_model=PipelineResponse)
-@limiter.limit("3/minute")
-async def reload_api(request: Request):
-    try:
-        asyncio.create_task(_reload_api_data())
-        return PipelineResponse(
-            status="started", message="API data reload started. Check /api/status for completion.",
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-async def _reload_api_data():
-    logger.info("Reloading API data...")
-    try:
-        from src.api_pkg.startup import run_startup
-        await run_startup(None)
-        logger.info("API data reloaded successfully")
-    except Exception as e:
-        logger.error("Ошибка перезагрузки API", error=str(e))
 
 
 async def reload_api_data():
