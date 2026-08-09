@@ -135,6 +135,8 @@ def track_pipeline_stage(stage_name: str):
                 start = time.time()
                 try:
                     result = await func(*args, **kwargs)
+                    from src.notifications.system import queue_pipeline_stage_resolved
+                    queue_pipeline_stage_resolved(stage_name)
                     return result
                 except Exception as e:
                     pipeline_errors.labels(stage=stage_name).inc()
@@ -154,6 +156,8 @@ def track_pipeline_stage(stage_name: str):
             start = time.time()
             try:
                 result = func(*args, **kwargs)
+                from src.notifications.system import queue_pipeline_stage_resolved
+                queue_pipeline_stage_resolved(stage_name)
                 return result
             except Exception as e:
                 pipeline_errors.labels(stage=stage_name).inc()

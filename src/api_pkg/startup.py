@@ -43,6 +43,42 @@ async def _resolve_warmup_failure(component: str) -> None:
         logger.debug("warmup_failure_resolve_skipped", component=component)
 
 
+async def _resolve_pipeline_errors_if_ready() -> None:
+    """Если пайплайн уже успешно собрал артефакты, чистим устаревшие
+    уведомления об ошибках этапов («Ошибка этапа пайплайна: ...»,
+    «Пайплайн не завершился») — проблема устранена, они исчезают из ленты."""
+    try:
+        clusters_ok = all(
+            (config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{lvl}.joblib").exists()
+            for lvl in ("junior", "middle", "senior")
+        )
+        ltr_ok = (config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib").exists()
+        if not (clusters_ok and ltr_ok):
+            return
+        from src.notifications.system import (
+            resolve_pipeline_failed,
+            resolve_pipeline_stage_errors,
+        )
+        for stage in (
+            "data_collection",
+            "quality_scoring",
+            "skill_extraction",
+            "weight_cleaning",
+            "level_building",
+            "cluster_training",
+            "model_training",
+            "gap_analysis",
+        ):
+            try:
+                await resolve_pipeline_stage_errors(stage)
+            except Exception:
+                logger.debug("pipeline_stage_resolve_skipped", stage=stage)
+        await resolve_pipeline_failed()
+        logger.info("stale_pipeline_errors_cleared")
+    except Exception:
+        logger.debug("pipeline_errors_cleanup_skipped")
+
+
 async def _set_waiting_mode():
     deps.vacancy_load_error = "not_found"
     deps.skill_freq = {}
@@ -91,6 +127,8 @@ async def run_startup(app):
     from src.api_pkg.student_actions import _ensure_table as _ensure_student_actions_table
     await _ensure_student_actions_table()
     logger.info("asyncpg pool ready")
+
+    asyncio.ensure_future(_resolve_pipeline_errors_if_ready())
 
     detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"

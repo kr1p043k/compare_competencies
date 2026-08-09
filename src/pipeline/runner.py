@@ -337,6 +337,9 @@ def run_full_pipeline(args) -> Result[None, str]:
         flush_system_errors_sync()
         return Err(f"Пайплайн не завершён: {pipeline_result.err()}")
     pipeline_run_counter.labels(status="success", trigger="cli").inc()
+    from src.notifications.system import flush_system_errors_sync, queue_pipeline_run_resolved
+    queue_pipeline_run_resolved()
+    flush_system_errors_sync()
     run = pipeline_result.unwrap()
 
     ctx_data = {}

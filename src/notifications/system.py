@@ -25,6 +25,7 @@ API_SIGNATURE_PREFIX = "api:"
 API_RESOLVE_WINDOW = 30.0  # seconds — троттлинг повторного резолва одного пути
 
 _error_buffer: deque[dict] = deque(maxlen=MAX_BUFFER)
+_resolve_buffer: deque[dict] = deque(maxlen=MAX_BUFFER)
 _api_resolve_recent: dict[str, float] = {}
 
 
@@ -70,6 +71,17 @@ async def notify_admins(title: str, body: str, severity: str = "error", article_
     return len(admin_ids)
 
 
+def _schedule_flush() -> None:
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop is not None and loop.is_running():
+        loop.create_task(_flush_to_db())
+    else:
+        logger.debug("system_notify_queued_sync")
+
+
 def queue_system_error(title: str, body: str, severity: str = "error", article_url: str | None = None, dedupe: bool = False) -> None:
     """Добавить системную ошибку/предупреждение в очередь уведомлений.
 
@@ -87,14 +99,19 @@ def queue_system_error(title: str, body: str, severity: str = "error", article_u
         "article_url": article_url,
         "dedupe": dedupe,
     })
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    if loop is not None and loop.is_running():
-        loop.create_task(_flush_to_db())
-    else:
-        logger.debug("system_error_queued_sync", title=title[:80])
+    _schedule_flush()
+
+
+def queue_pipeline_stage_resolved(stage_name: str) -> None:
+    """Этап пайплайна успешно выполнился — снять «Ошибка этапа пайплайна: {stage_name}»."""
+    _resolve_buffer.append({"type": "stage", "stage_name": stage_name})
+    _schedule_flush()
+
+
+def queue_pipeline_run_resolved() -> None:
+    """Пайплайн успешно завершился — снять «Пайплайн не завершился»."""
+    _resolve_buffer.append({"type": "pipeline_failed"})
+    _schedule_flush()
 
 
 async def resolve_warmup_failure(component: str) -> int:
@@ -119,6 +136,47 @@ async def resolve_warmup_failure(component: str) -> int:
         await session.commit()
     if count:
         logger.info("warmup_failure_resolved", component=component, cleared=count)
+    return count
+
+
+async def resolve_pipeline_stage_errors(stage_name: str) -> int:
+    """Удалить «Ошибка этапа пайплайна: {stage_name}» — этап снова отработал успешно."""
+    from sqlalchemy import delete
+
+    from src.database import async_session_factory
+
+    title = f"Ошибка этапа пайплайна: {stage_name}"
+    async with async_session_factory() as session:
+        result = await session.execute(
+            delete(Notification).where(
+                Notification.title == title,
+                Notification.subscription_id.is_(None),
+            )
+        )
+        count = result.rowcount or 0
+        await session.commit()
+    if count:
+        logger.info("pipeline_stage_resolved", stage=stage_name, cleared=count)
+    return count
+
+
+async def resolve_pipeline_failed() -> int:
+    """Удалить «Пайплайн не завершился» — последний прогон прошёл успешно."""
+    from sqlalchemy import delete
+
+    from src.database import async_session_factory
+
+    async with async_session_factory() as session:
+        result = await session.execute(
+            delete(Notification).where(
+                Notification.title == "Пайплайн не завершился",
+                Notification.subscription_id.is_(None),
+            )
+        )
+        count = result.rowcount or 0
+        await session.commit()
+    if count:
+        logger.info("pipeline_failed_resolved", cleared=count)
     return count
 
 
@@ -195,10 +253,12 @@ async def maybe_resolve_api_errors(method: str, path: str) -> int:
 
 
 async def _flush_to_db() -> None:
-    if not _error_buffer:
+    if not _error_buffer and not _resolve_buffer:
         return
     entries = list(_error_buffer)
     _error_buffer.clear()
+    resolves = list(_resolve_buffer)
+    _resolve_buffer.clear()
     try:
         for e in entries:
             if e.get("dedupe") and e.get("article_url"):
@@ -210,13 +270,22 @@ async def _flush_to_db() -> None:
                 severity=e["severity"],
                 article_url=e["article_url"],
             )
+        for r in resolves:
+            if r.get("type") == "stage":
+                await resolve_pipeline_stage_errors(r["stage_name"])
+            elif r.get("type") == "pipeline_failed":
+                await resolve_pipeline_failed()
     except Exception as exc:
         logger.warning("system_notify_flush_failed", error=str(exc))
         # не теряем данные — кладём обратно с ограничением размера
         for e in reversed(entries):
             _error_buffer.appendleft(e)
+        for r in reversed(resolves):
+            _resolve_buffer.appendleft(r)
         while len(_error_buffer) > MAX_BUFFER:
             _error_buffer.pop()
+        while len(_resolve_buffer) > MAX_BUFFER:
+            _resolve_buffer.pop()
 
 
 async def _periodic_flush() -> None:
