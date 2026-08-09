@@ -25,17 +25,58 @@ async def get_results_summary(
     request: Request,
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
-    summary_path = config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
-    if summary_path.exists():
-        try:
-            with open(summary_path, encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+    for summary_path in (
+        config.DATA_RESULT_DIR / "profiles_comparison_summary.json",
+        config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json",
+    ):
+        if summary_path.exists():
+            try:
+                with open(summary_path, encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+    evaluations = _build_summary_from_recommendations(profiles)
+    if evaluations:
+        return {
+            "evaluations": evaluations,
+            "profiles": list(evaluations.keys()),
+        }
     return {
         "message": "Результаты анализа не найдены. Запустите gap-анализ.",
         "profiles": list(profiles.keys()),
     }
+
+
+def _build_summary_from_recommendations(
+    profiles: dict[str, StudentProfile],
+) -> dict:
+    """Собрать сводку из готовых per-profile full_recommendations_*.json."""
+    evaluations = {}
+    for pname in profiles:
+        result_path = (
+            config.DATA_DIR / "result" / pname / f"full_recommendations_{pname}.json"
+        )
+        if not result_path.exists():
+            continue
+        try:
+            with open(result_path, encoding="utf-8") as f:
+                rec = json.load(f)
+        except Exception:
+            continue
+        ev = dict(rec.get("summary") or {})
+        for key in (
+            "target_profession",
+            "dominant_domain_name",
+            "closest_roles",
+            "gaps",
+            "domain_coverage",
+            "recommendations",
+        ):
+            if rec.get(key) is not None:
+                ev[key] = rec[key]
+        evaluations[pname] = ev
+    return evaluations
 
 
 @router.get("/results/recommendations/{profile}", response_model=dict)

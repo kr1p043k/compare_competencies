@@ -390,6 +390,17 @@ def run_full_pipeline(args) -> Result[None, str]:
                 if recs:
                     print_recommendations(profiles, recs)
                     console_header("GAP-АНАЛИЗ УСПЕШНО ЗАВЕРШЁН")
+                if evaluations:
+                    try:
+                        summary_path = config.DATA_RESULT_DIR / "profiles_comparison_summary.json"
+                        summary_path.parent.mkdir(parents=True, exist_ok=True)
+                        atomic_write_json(
+                            {"evaluations": convert_float32(evaluations), "profiles": list(evaluations.keys())},
+                            summary_path,
+                        )
+                        console_info(f"✓ Сводка профилей сохранена: {summary_path}")
+                    except Exception as e:
+                        logger.warning("summary_write_failed", error=str(e))
             case Err(err):
                 logger.error("gap_analysis_failed", error=str(err))
                 return Err(f"GAP-анализ не удался: {err}")
