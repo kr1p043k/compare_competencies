@@ -29,6 +29,7 @@ def args():
     mock.async_threshold = 100
     mock.use_async = False
     mock.async_workers = 5
+    mock._date_from = None
     return mock
 
 
@@ -195,7 +196,7 @@ class TestHhDataSourceGetVacancies:
         ds.args.queries_file = "queries.txt"
 
         with patch("src.pipeline.data_source.validate_safe_path", return_value=Path("queries.txt")):
-            with patch("src.pipeline.data_source.load_queries_from_file", return_value=["Dev"]):
+            with patch("src.pipeline.data_source.load_queries_from_file", return_value=Ok(["Dev"])):
                 with patch("src.pipeline.data_source.HeadHunterAPI") as MockAPI:
                     api_instance = MagicMock()
                     MockAPI.return_value = api_instance
@@ -214,6 +215,52 @@ class TestHhDataSourceGetVacancies:
                                               return_value=Ok(None)):
                                         result = ds.get_vacancies()
         assert result.is_ok()
+
+    def test_collect_with_queries_file_real(self, args, tmp_path):
+        from src.pipeline.data_source import HhDataSource
+
+        queries_file = tmp_path / "queries.txt"
+        queries_file.write_text("QA\nPython Developer\n", encoding="utf-8")
+
+        ds = HhDataSource(args)
+        ds.args.queries_file = str(queries_file)
+        ds.args._date_from = None
+
+        with (
+            patch("src.pipeline.data_source.validate_safe_path", return_value=queries_file),
+            patch("src.pipeline.data_source.HeadHunterAPI"),
+            patch("src.pipeline.data_source.VacancyParser") as mock_parser,
+            patch("src.pipeline.data_source.collect_vacancies_multiple",
+                  return_value=[{"id": "1"}]) as mock_collect,
+            patch("src.pipeline.data_source.get_load_mode", return_value=(False, 0, "sync")),
+            patch("src.pipeline.data_source.load_vacancies_details", return_value=Ok([MagicMock()])),
+            patch("src.pipeline.data_source.save_detailed_vacancies", return_value=Ok(None)),
+        ):
+            parser_instance = MagicMock()
+            parser_instance.save_raw_vacancies.return_value = Ok(None)
+            mock_parser.return_value = parser_instance
+
+            result = ds.get_vacancies()
+
+        assert result.is_ok()
+        kwargs = mock_collect.call_args.kwargs
+        assert kwargs["queries"] == ["QA", "Python Developer"]
+
+    def test_collect_queries_file_read_error(self, args):
+        from src.pipeline.data_source import HhDataSource
+
+        ds = HhDataSource(args)
+        ds.args.queries_file = "missing_queries.txt"
+        ds.args._date_from = None
+
+        with (
+            patch("src.pipeline.data_source.validate_safe_path", return_value=Path("missing_queries.txt")),
+            patch("src.pipeline.data_source.HeadHunterAPI"),
+        ):
+            result = ds.get_vacancies()
+
+        assert result.is_err()
+        assert "загрузки файла запросов" in str(result.err())
 
     def test_collect_multiple_no_vacancies(self, args):
         from src.pipeline.data_source import HhDataSource

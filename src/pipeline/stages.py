@@ -298,7 +298,10 @@ class ModelTrainingStage(PipelineStage):
                                 ltr_model_metrics.labels(metric=k).set(v)
                             except Exception:
                                 pass
-                        self._progress(90, f"LTR: R²={m['r2']:.4f} MAE={m['mae']:.4f}")
+                        r2 = m.get("r2")
+                        mae = m.get("mae")
+                        if r2 is not None and mae is not None:
+                            self._progress(90, f"LTR: R²={r2:.4f} MAE={mae:.4f}")
                     if ltr_engine.is_fitted:
                         self._progress(100, "LTR-модель ранжирования успешно обучена")
                         return Ok({"model_trained": True})

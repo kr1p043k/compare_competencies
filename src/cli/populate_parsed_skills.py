@@ -29,20 +29,21 @@ async def main():
         print(f"Found {total_count} vacancies to parse")
 
         BATCH = 100
-        offset = 0
+        last_id = 0
         processed = 0
-        while offset < total_count:
+        while True:
             rows = await session.execute(
                 text("""
                     SELECT id, name, key_skills, description,
                            snippet_requirement, snippet_responsibility,
                            employer_name, area_name
                     FROM vacancies
-                    WHERE parsed_skills IS NULL OR jsonb_array_length(parsed_skills) = 0
+                    WHERE (parsed_skills IS NULL OR jsonb_array_length(parsed_skills) = 0)
+                      AND id > :last_id
                     ORDER BY id
-                    LIMIT :lim OFFSET :off
+                    LIMIT :lim
                 """),
-                {"lim": BATCH, "off": offset},
+                {"lim": BATCH, "last_id": last_id},
             )
             batch = rows.fetchall()
             if not batch:
@@ -52,7 +53,12 @@ async def main():
             for r in batch:
                 try:
                     ks_raw = r.key_skills if isinstance(r.key_skills, list) else json.loads(r.key_skills) if isinstance(r.key_skills, str) else []
-                    key_skills = [KeySkill(name=s) if isinstance(s, str) else KeySkill(name=s.get("name", str(s))) for s in ks_raw]
+                    key_skills = []
+                    for s in ks_raw:
+                        if isinstance(s, str):
+                            key_skills.append(KeySkill(name=s))
+                        elif isinstance(s, dict):
+                            key_skills.append(KeySkill(name=s.get("name") or str(s)))
 
                     vac = Vacancy(
                         id=str(r.id),
@@ -95,7 +101,7 @@ async def main():
                 )
 
             processed += len(batch)
-            offset += BATCH
+            last_id = batch[-1].id
             print(f"  parsed {processed}/{total_count} ({processed * 100 // total_count}%)")
             await session.commit()
 
