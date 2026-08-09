@@ -1,29 +1,46 @@
 """Profile, recommendation, profession evaluation endpoints."""
 
+from typing import Any
+
+import numpy as np
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src import Err, Ok
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
+from src.api_pkg import deps
 from src.models.api_responses import (
-    MissingSkillsResponse,
     DeadSkillsResponse,
+    MissingSkillsResponse,
     ProfessionEvalResponse,
     ProfilesCompareResponse,
     ProfileShort,
 )
 from src.models.student import StudentProfile
-from src import Err, Ok
-from src.predictors.recommendation_engine import RecommendationEngine
 from src.parsing.skills.skill_validator import SkillValidator
-
-from src.api_pkg import deps
+from src.predictors.recommendation_engine import RecommendationEngine
 
 logger = structlog.get_logger("api")
 
 router = APIRouter(tags=["profiles"])
 limiter = Limiter(key_func=get_remote_address)
+
+
+def _json_safe(value: Any) -> Any:
+    """Recursively convert numpy types to native JSON-safe Python types."""
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, (np.floating, np.integer)):
+        return value.item()
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    return value
 
 
 @router.get("/profiles/compare", response_model=ProfilesCompareResponse)
@@ -121,11 +138,17 @@ async def get_recommendations(
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
     student = profiles[profile]
-    match engine.generate_recommendations(student):
-        case Ok(full_rec):
-            return full_rec
-        case Err(err):
-            raise HTTPException(status_code=500, detail=str(err))
+    try:
+        match engine.generate_recommendations(student):
+            case Ok(full_rec):
+                return _json_safe(full_rec.model_dump())
+            case Err(err):
+                raise HTTPException(status_code=500, detail=str(err))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("recommendations_endpoint_failed", profile=profile, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Ошибка генерации рекомендаций: {e}") from None
 
 
 @router.get("/skills/missing", response_model=MissingSkillsResponse)
