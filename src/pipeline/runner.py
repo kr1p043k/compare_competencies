@@ -541,6 +541,7 @@ def rebuild(args=None) -> Result[None, str]:
         shutil.rmtree(clusters_dir)
         logger.info("clusters_directory_removed", path=str(clusters_dir))
         console_info(f"✓ Удалена папка кластеров: {clusters_dir}")
+    clusters_dir.mkdir(parents=True, exist_ok=True)
 
     console_info(f"✓ Удалено {removed_count} файлов кэша и моделей")
     logger.info("cleanup_completed", files_removed=removed_count)

@@ -277,6 +277,7 @@ class VacancyClusterer:
 
     def _save_model(self, level: ExperienceLevel):
         path = config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{level}.joblib"
+        path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "model": self.model,
             "clusterer_type": self.clusterer_type,
