@@ -46,7 +46,12 @@ interface SummaryReportProps {
   data: { evaluations?: Record<string, EvalEntry>; profiles?: string[] };
 }
 
-function scoreColor(v: number) {
+function scoreColor(v: number, isGap = false) {
+  if (isGap) {
+    if (v < 30) return "text-green-600";
+    if (v < 60) return "text-orange-500";
+    return "text-red-500";
+  }
   if (v >= 60) return "text-green-600";
   if (v >= 30) return "text-orange-500";
   return "text-red-500";
@@ -55,7 +60,7 @@ function scoreColor(v: number) {
 function scoreCell(v: number | undefined, isGap: boolean) {
   if (v === undefined || v === null) return <span className="text-gray-400">—</span>;
   const fixed = isGap ? v.toFixed(2) : `${v.toFixed(1)}%`;
-  return <span className={`font-mono font-semibold ${scoreColor(v)}`}>{fixed}</span>;
+  return <span className={`font-mono font-semibold ${scoreColor(v, isGap)}`}>{fixed}</span>;
 }
 
 function GapRow({ skill, entry }: { skill: string; entry: { gap_j?: number; importance?: number; category?: string } }) {

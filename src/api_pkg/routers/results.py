@@ -9,9 +9,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
-from src.models.student import StudentProfile
-
 from src.api_pkg import deps
+from src.api_pkg.summary_builder import build_summary_payload, load_recommendations_from_disk
+from src.models.student import StudentProfile
 
 logger = structlog.get_logger("api")
 
@@ -25,6 +25,13 @@ async def get_results_summary(
     request: Request,
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
+    evaluations = build_summary_payload(load_recommendations_from_disk())
+    if evaluations:
+        return {
+            "evaluations": evaluations,
+            "profiles": list(evaluations.keys()),
+        }
+
     for summary_path in (
         config.DATA_RESULT_DIR / "profiles_comparison_summary.json",
         config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json",
@@ -36,47 +43,10 @@ async def get_results_summary(
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
-    evaluations = _build_summary_from_recommendations(profiles)
-    if evaluations:
-        return {
-            "evaluations": evaluations,
-            "profiles": list(evaluations.keys()),
-        }
     return {
         "message": "Результаты анализа не найдены. Запустите gap-анализ.",
         "profiles": list(profiles.keys()),
     }
-
-
-def _build_summary_from_recommendations(
-    profiles: dict[str, StudentProfile],
-) -> dict:
-    """Собрать сводку из готовых per-profile full_recommendations_*.json."""
-    evaluations = {}
-    for pname in profiles:
-        result_path = (
-            config.DATA_DIR / "result" / pname / f"full_recommendations_{pname}.json"
-        )
-        if not result_path.exists():
-            continue
-        try:
-            with open(result_path, encoding="utf-8") as f:
-                rec = json.load(f)
-        except Exception:
-            continue
-        ev = dict(rec.get("summary") or {})
-        for key in (
-            "target_profession",
-            "dominant_domain_name",
-            "closest_roles",
-            "gaps",
-            "domain_coverage",
-            "recommendations",
-        ):
-            if rec.get(key) is not None:
-                ev[key] = rec[key]
-        evaluations[pname] = ev
-    return evaluations
 
 
 @router.get("/results/recommendations/{profile}", response_model=dict)

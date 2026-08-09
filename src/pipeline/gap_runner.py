@@ -202,7 +202,10 @@ class GapRunner:
                     except TimeoutError:
                         logger.error("profile_evaluation_timeout")
                         raise
-                    evals[pname] = result
+                    if result is not None:
+                        evals[pname] = result
+                    else:
+                        logger.warning("profile_evaluation_skipped", profile=pname)
                     pbar.update(1)
                     pct = self._update_progress()
                     self._write_progress(pct, f"Оценка профилей... {len(evals)}/{n}", "evaluation")

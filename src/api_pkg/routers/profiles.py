@@ -88,13 +88,15 @@ async def get_profile(
 
 
 @router.get(
-    "/api/profiles/{profile}/profession-evaluation",
+    "/profiles/{profile}/profession-evaluation",
     response_model=ProfessionEvalResponse,
 )
 @limiter.limit("30/minute")
 async def get_profile_profession_evaluation(request: Request, profile: str):
     if profile not in deps.student_profiles:
         raise HTTPException(status_code=404, detail=f"Profile '{profile}' not found")
+    if deps.evaluator is None:
+        raise HTTPException(status_code=503, detail="Анализатор ещё не загружен")
 
     from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 

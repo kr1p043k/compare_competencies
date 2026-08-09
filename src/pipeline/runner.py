@@ -390,12 +390,18 @@ def run_full_pipeline(args) -> Result[None, str]:
                 if recs:
                     print_recommendations(profiles, recs)
                     console_header("GAP-АНАЛИЗ УСПЕШНО ЗАВЕРШЁН")
-                if evaluations:
+                if evaluations or recs:
                     try:
+                        from src.api_pkg.summary_builder import build_summary_payload
+
+                        summary_evals = build_summary_payload(recs) if recs else evaluations
                         summary_path = config.DATA_RESULT_DIR / "profiles_comparison_summary.json"
                         summary_path.parent.mkdir(parents=True, exist_ok=True)
                         atomic_write_json(
-                            {"evaluations": convert_float32(evaluations), "profiles": list(evaluations.keys())},
+                            {
+                                "evaluations": convert_float32(summary_evals),
+                                "profiles": list(summary_evals.keys()),
+                            },
                             summary_path,
                         )
                         console_info(f"✓ Сводка профилей сохранена: {summary_path}")
