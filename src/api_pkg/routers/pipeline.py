@@ -232,9 +232,13 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
     try:
         if action == PipelineAction.REBUILD:
             pipeline_tasks[task_id].message = "Запуск полной пересборки..."
-            await loop.run_in_executor(None, lambda: cancel_aware(pr.rebuild))
-            msg = "Пересборка завершена."
-            status = "completed"
+            result = await loop.run_in_executor(None, lambda: cancel_aware(pr.rebuild))
+            if result.is_err():
+                msg = f"Пересборка не завершена: {result.err()}"
+                status = "failed"
+            else:
+                msg = "Пересборка завершена."
+                status = "completed"
 
         elif action == PipelineAction.FULL_CYCLE:
             gap = kwargs.get("run_gap_analysis", True)
@@ -276,13 +280,17 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
                 loop.run_in_executor(None, lambda: cancel_aware(pr.run_full_pipeline, pipeline_args))
             )
             _running_futures[task_id] = main_task
-            await main_task
+            result = await main_task
 
             if cancel_event.is_set():
                 return
             progress_rotator.cancel()
-            msg = "Все этапы выполнены. Данные обновлены."
-            status = "completed"
+            if result.is_err():
+                status = "failed"
+                msg = f"Пайплайн не завершён: {result.err()}"
+            else:
+                status = "completed"
+                msg = "Все этапы выполнены. Данные обновлены."
 
             if gap:
                 try:
@@ -302,9 +310,13 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
 
         elif action == PipelineAction.TRAIN_MODEL:
             pipeline_tasks[task_id].message = "Обучение модели ранжирования..."
-            await loop.run_in_executor(None, lambda: cancel_aware(pr.run_train_model))
-            msg = "Модель обучена."
-            status = "completed"
+            result = await loop.run_in_executor(None, lambda: cancel_aware(pr.run_train_model))
+            if result.is_err():
+                status = "failed"
+                msg = f"Обучение не удалось: {result.err()}"
+            else:
+                status = "completed"
+                msg = "Модель обучена."
 
         elif action == PipelineAction.GAP_ANALYSIS:
             progress_rotator = asyncio.ensure_future(_rotate_progress(task_id, step=4))
@@ -323,12 +335,16 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
                 loop.run_in_executor(None, lambda: cancel_aware(pr.run_full_pipeline, gap_args))
             )
             _running_futures[task_id] = main_task
-            await main_task
+            result = await main_task
             if cancel_event.is_set():
                 return
             progress_rotator.cancel()
-            msg = "GAP-анализ завершен. Отчёты готовы."
-            status = "completed"
+            if result.is_err():
+                status = "failed"
+                msg = f"GAP-анализ не завершён: {result.err()}"
+            else:
+                status = "completed"
+                msg = "GAP-анализ завершен. Отчёты готовы."
 
         else:
             if cancel_event.is_set():
@@ -368,25 +384,6 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
         _running_futures.pop(task_id, None)
 
 
-def _build_args_for_sync(action: PipelineAction, **kwargs):
-    """Build argparse Namespace for synchronous pipeline actions."""
-    import argparse
-    base = dict(
-        query="", area_id=2, max_pages=10, period=30,
-        show_vacancies=False, skip_details=False, excel=False,
-        no_filter=False, queries_file=None, regions="113",
-        industry=None, interactive=False,
-        max_vacancies_per_query=2000, it_sector=False,
-        use_async=True, async_workers=3, async_threshold=10000,
-        run_gap_analysis=True, run_notebooks=False,
-        skip_gap_analysis=False, status=False,
-        train_model=False, force=False, use_llm=False,
-        skip_collection=False,
-    )
-    base.update(kwargs)
-    return argparse.Namespace(**base)
-
-
 @router.post("/pipeline/{action}", response_model=PipelineResponse)
 @limiter.limit("5/minute")
 async def run_pipeline_action_sync(
@@ -403,11 +400,17 @@ async def run_pipeline_action_sync(
     from src.pipeline import runner as pr
 
     if action == PipelineAction.REBUILD:
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, pr.rebuild)
+        req_id = getattr(request.state, "request_id", "unknown")
+        task_id = f"{action.value}_{int(time.time())}"
+        started_at = time.time()
+        logger.info("pipeline_scheduled", request_id=req_id, task_id=task_id)
+        pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0)
+        background_tasks.add_task(run_pipeline_task, action, task_id)
         return PipelineResponse(
-            status="success", message="Full rebuild completed",
-            command="rebuild", exit_code=0,
+            status="started",
+            message="Full rebuild started in background",
+            exit_code=None,
+            output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
         )
 
     elif action == PipelineAction.TRAIN_CLUSTERS:
@@ -432,11 +435,21 @@ async def run_pipeline_action_sync(
         )
 
     elif action == PipelineAction.GAP_ANALYSIS:
-        args = _build_args_for_sync(action, skip_collection=True, run_gap_analysis=True, skip_gap_analysis=False)
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, pr.run_full_pipeline, args)
+        req_id = getattr(request.state, "request_id", "unknown")
+        task_id = f"{action.value}_{int(time.time())}"
+        started_at = time.time()
+        logger.info("pipeline_scheduled", request_id=req_id, task_id=task_id)
+        pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск GAP-анализа...", started_at, step=0)
+        background_tasks.add_task(
+            run_pipeline_task,
+            action, task_id,
+            skip_collection=True, run_gap_analysis=True,
+        )
         return PipelineResponse(
-            status="success", message="Gap analysis completed", exit_code=0,
+            status="started",
+            message="Gap analysis started in background",
+            exit_code=None,
+            output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
         )
 
     elif action == PipelineAction.FULL_CYCLE:

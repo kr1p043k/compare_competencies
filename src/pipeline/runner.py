@@ -252,14 +252,20 @@ def run_train_model(args=None) -> Result[None, str]:
             pass
         case Err(err):
             logger.error("ltr_training_failed", error=str(err))
+            console_info(f"❌ Обучение LTR не удалось: {err}")
+            return Err(f"Обучение LTR-модели не удалось: {err}")
     if model_path.exists():
         console_info("⚠️  Существующая модель будет перезаписана.")
         logger.warning("overwriting_existing_ltr_model", path=str(model_path))
     else:
         console_info("Новая модель будет обучена и сохранена.")
     if hasattr(ltr_engine, "last_metrics"):
-        m = ltr_engine.last_metrics
-        console_info(f"R²={m['r2']:.4f}, MAE={m['mae']:.4f}, NDCG@5={m['ndcg']:.4f}")
+        m = ltr_engine.last_metrics or {}
+        r2 = m.get("r2")
+        mae = m.get("mae")
+        ndcg = m.get("ndcg")
+        if r2 is not None and mae is not None and ndcg is not None:
+            console_info(f"R²={r2:.4f}, MAE={mae:.4f}, NDCG@5={ndcg:.4f}")
         try:
             from src.monitoring.metrics import ltr_model_metrics
             for k, v in m.items():
@@ -481,8 +487,25 @@ def run_full_pipeline(args) -> Result[None, str]:
     return Ok(None)
 
 
-def rebuild() -> Result[None, str]:
+def _build_rebuild_args() -> "argparse.Namespace":
+    """Аргументы пайплайна для полной пересборки (сбор пропускаем)."""
+    import argparse
+    return argparse.Namespace(
+        skip_collection=True, skip_gap_analysis=True,
+        query="", area_id=2, max_pages=10, period=30,
+        show_vacancies=False, skip_details=False, excel=False,
+        no_filter=False, queries_file=None, regions="113",
+        industry=None, interactive=False, max_vacancies_per_query=2000,
+        it_sector=False, use_async=True, async_workers=3,
+        async_threshold=10000, run_gap_analysis=False,
+        run_notebooks=False, force=True, use_llm=False,
+        status=False, train_model=False,
+    )
+
+
+def rebuild(args=None) -> Result[None, str]:
     """Full rebuild: clean cache, run pipeline, train clusters, train model, gap analysis."""
+    import argparse
     import shutil
 
     console_header("ПОЛНАЯ ПЕРЕСБОРКА")
@@ -522,6 +545,29 @@ def rebuild() -> Result[None, str]:
 
     console_info(f"✓ Удалено {removed_count} файлов кэша и моделей")
     logger.info("cleanup_completed", files_removed=removed_count)
+
+    if args is None:
+        args = _build_rebuild_args()
+
+    pipeline_result = run_full_pipeline(args)
+    if pipeline_result.is_err():
+        console_info(f"❌ Пайплайн не завершён: {pipeline_result.err()}")
+        return Err(f"Пайплайн не завершён: {pipeline_result.err()}")
+
+    console_header("ОБУЧЕНИЕ КЛАСТЕРОВ")
+    from src.ml.clusters import train_clusters
+    if not train_clusters(level="all", save_report=True, interpret=True):
+        return Err("Кластеризация не выполнена")
+
+    model_result = run_train_model()
+    if model_result.is_err():
+        return model_result
+
+    gap_args = argparse.Namespace(**{**vars(args), "skip_gap_analysis": False, "run_gap_analysis": True})
+    gap_result = run_full_pipeline(gap_args)
+    if gap_result.is_err():
+        return Err(f"GAP-анализ не завершён: {gap_result.err()}")
+
     return Ok(None)
 
 

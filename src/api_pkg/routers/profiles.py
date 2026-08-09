@@ -138,12 +138,13 @@ async def missing_skills(
     validator = SkillValidator(whitelist=None)
     extracted = {}
     for skill, freq_val in freq.items():
-        if (
-            skill.lower() not in deps.current_skills_set
-            and freq_val >= min_frequency
-            and validator.validate(skill).is_valid
-        ):
-            extracted[skill] = freq_val
+        if skill.lower() in deps.current_skills_set or freq_val < min_frequency:
+            continue
+        match validator.validate(skill):
+            case Ok(result) if result.is_valid:
+                extracted[skill] = freq_val
+            case _:
+                pass
     sorted_skills = sorted(extracted.items(), key=lambda x: x[1], reverse=True)
     return {"missing_skills": [{"skill": s, "frequency": f} for s, f in sorted_skills]}
 
