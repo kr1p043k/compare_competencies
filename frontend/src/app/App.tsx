@@ -25,6 +25,7 @@ import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
 import { PipelineProgress } from "./components/PipelineProgress";
 import { DataViewer } from "./components/DataViewer";
 import { RecommendationsReport } from "./components/RecommendationsReport";
+import { SummaryReport } from "./components/SummaryReport";
 import { PredictionsTab } from "./components/PredictionsTab";
 import { MonitoringTab } from "./components/MonitoringTab";
 import { LogsTab } from "./components/LogsTab";
@@ -618,6 +619,9 @@ export default function App() {
                   const d = lastResult as Record<string, unknown>;
                   if (d.recommendations || d.closest_roles) {
                     return <RecommendationsReport data={lastResult as any} />;
+                  }
+                  if (d.evaluations && Array.isArray(d.profiles)) {
+                    return <SummaryReport data={lastResult as any} />;
                   }
                   const msg = d.message as string | undefined;
                   if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {
