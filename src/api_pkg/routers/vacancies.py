@@ -25,7 +25,7 @@ limiter = Limiter(key_func=get_remote_address)
 def _classify_experience(exp_str: str | None, name: str) -> str:
     if exp_str:
         el = exp_str.lower()
-        if "junior" in el or "less1" in el or "no_experience" in el:
+        if "junior" in el or "less1" in el or "no_experience" in el or "noexperience" in el:
             return "junior"
         if "senior" in el or "morethan6" in el or "morethan10" in el:
             return "senior"
@@ -37,6 +37,18 @@ def _classify_experience(exp_str: str | None, name: str) -> str:
     if "senior" in nl or "старший" in nl or "ведущий" in nl:
         return "senior"
     return "middle"
+
+
+_EXP_LEVEL_CASE = (
+    "CASE "
+    "WHEN LOWER(v.experience) IN ('noexperience', 'less', 'junior') THEN 'junior' "
+    "WHEN LOWER(v.experience) IN ('morethan6', 'more', 'senior') THEN 'senior' "
+    "WHEN LOWER(v.experience) IN ('between1and3', 'between3and6', 'middle') THEN 'middle' "
+    "WHEN LOWER(v.name) LIKE '%junior%' OR LOWER(v.name) LIKE '%младший%' THEN 'junior' "
+    "WHEN LOWER(v.name) LIKE '%senior%' OR LOWER(v.name) LIKE '%старший%' "
+    "OR LOWER(v.name) LIKE '%ведущий%' THEN 'senior' "
+    "ELSE 'middle' END"
+)
 
 
 async def _get_db_pool():
@@ -65,10 +77,7 @@ async def get_vacancies(
 
     if experience:
         exp_lower = experience.lower()
-        conditions.append(
-            f"(LOWER(v.experience) LIKE '%' || ${len(params) + 1} || '%'"
-            f" OR LOWER(v.name) LIKE '%' || ${len(params) + 1} || '%')"
-        )
+        conditions.append(f"({_EXP_LEVEL_CASE}) = ${len(params) + 1}")
         params.append(exp_lower)
 
     if search:
@@ -259,16 +268,12 @@ async def get_vacancies_stats(
 
     total = await pool.fetchval("SELECT COUNT(*) FROM vacancies") or 0
 
-    exp_rows = await pool.fetch("""
+    exp_rows = await pool.fetch(f"""
         SELECT
-            CASE
-                WHEN experience IN ('noExperience', 'less', 'junior') THEN 'junior'
-                WHEN experience IN ('more', 'senior') THEN 'senior'
-                ELSE 'middle'
-            END AS exp_group,
+            {_EXP_LEVEL_CASE} AS exp_group,
             COUNT(*) AS cnt
-        FROM vacancies
-        WHERE experience IS NOT NULL
+        FROM vacancies v
+        WHERE v.experience IS NOT NULL
         GROUP BY exp_group
     """)
     by_exp = {r["exp_group"]: r["cnt"] for r in exp_rows}

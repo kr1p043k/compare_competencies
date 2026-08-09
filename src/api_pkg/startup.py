@@ -319,11 +319,11 @@ async def _warmup_background(basic_vacancies, raw_file):
                     exp_obj = vac["experience"]
                     if isinstance(exp_obj, dict):
                         exp_id = exp_obj.get("id", "").lower()
-                        if "less1" in exp_id or "junior" in exp_id or "no_experience" in exp_id:
+                        if any(x in exp_id for x in ["less1", "junior", "no_experience", "noexperience"]):
                             experience = ExperienceLevel.JUNIOR
                         elif "between1and3" in exp_id or "between3and6" in exp_id:
                             experience = ExperienceLevel.MIDDLE
-                        elif "between6and10" in exp_id or "morethan10" in exp_id:
+                        elif "between6and10" in exp_id or "morethan10" in exp_id or "morethan6" in exp_id:
                             experience = ExperienceLevel.SENIOR
                     elif isinstance(exp_obj, str):
                         exp_lower = exp_obj.lower()
