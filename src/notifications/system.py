@@ -143,24 +143,23 @@ async def _has_unread_duplicate(title: str, article_url: str) -> bool:
 
 
 async def resolve_api_errors(method: str, path: str) -> int:
-    """Пометить прочитанными системные уведомления об API-ошибках на этом пути.
+    """Удалить системные уведомления об API-ошибках на этом пути.
 
-    Резолвится при успешном ответе (код < 500) — «ошибка починилась».
+    Вызывается при успешном ответе (код < 500) — «ошибка починилась»,
+    и уведомление о ней больше не актуально, оно исчезает из ленты.
     Снимает и legacy-уведомления (article_url пуст):
       - «Ошибка API: {METHOD} {path}» — по title;
       - «Необработанная ошибка API: ...» — по префиксу body "{METHOD} {path} |".
     """
-    from sqlalchemy import and_, or_, update
+    from sqlalchemy import and_, delete, or_
 
     from src.database import async_session_factory
 
     sig = _api_signature(method, path)
     async with async_session_factory() as session:
         result = await session.execute(
-            update(Notification)
-            .where(
+            delete(Notification).where(
                 Notification.subscription_id.is_(None),
-                Notification.is_read == False,
                 or_(
                     Notification.article_url == sig,
                     Notification.title == f"Ошибка API: {method} {path}",
@@ -172,7 +171,6 @@ async def resolve_api_errors(method: str, path: str) -> int:
                     ),
                 ),
             )
-            .values(is_read=True)
         )
         await session.commit()
         count = result.rowcount or 0
