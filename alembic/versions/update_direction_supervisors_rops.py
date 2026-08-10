@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "update_direction_supervisors_rops"
+revision: str = "update_direction_supervisors"
 down_revision: Union[str, None] = "notifications_system_merge"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
