@@ -19,6 +19,9 @@ import {
   AlertCircle,
   RefreshCw,
   BarChart3,
+  ListChecks,
+  MapPin,
+  Building2,
 } from "lucide-react";
 import { api } from "../api";
 
@@ -56,6 +59,31 @@ type ImageEntry = {
   src: string;
   title: string;
   description: string;
+};
+
+type Analytics = {
+  salary_by_level: Record<string, { count: number; average: number }>;
+  top_regions: { name: string; count: number }[];
+  top_employers: { name: string; count: number }[];
+  skills: {
+    with_skills: number;
+    total: number;
+    percent: number;
+    avg_skills_per_vacancy: number;
+  };
+};
+
+type SkillTrend = {
+  skill: string;
+  current_freq: number;
+  prev_freq: number;
+  change_pct: number;
+  prev_label: string;
+};
+
+type TrendsData = {
+  rising: SkillTrend[];
+  falling: SkillTrend[];
 };
 
 const EXP_LEVELS = [
@@ -203,6 +231,32 @@ export function ArticlesPage() {
 
   const [images, setImages] = useState(IMAGES.map((i) => ({ ...i, broken: false })));
 
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+
+  const [trends, setTrends] = useState<TrendsData | null>(null);
+  const [trendsLoading, setTrendsLoading] = useState(true);
+  const [trendsError, setTrendsError] = useState<string | null>(null);
+
+  const loadAnalytics = () => {
+    setAnalyticsLoading(true);
+    setAnalyticsError(null);
+    api("/vacancies/stats/analytics")
+      .then(setAnalytics)
+      .catch((e) => setAnalyticsError(e.message))
+      .finally(() => setAnalyticsLoading(false));
+  };
+
+  const loadTrends = () => {
+    setTrendsLoading(true);
+    setTrendsError(null);
+    api("/trends?top_n=10&min_change=3.0")
+      .then((d) => setTrends(d.trends || { rising: [], falling: [] }))
+      .catch((e) => setTrendsError(e.message))
+      .finally(() => setTrendsLoading(false));
+  };
+
   const loadStats = () => {
     setStatsLoading(true);
     setStatsError(null);
@@ -252,6 +306,8 @@ export function ArticlesPage() {
 
   useEffect(() => {
     loadStats();
+    loadAnalytics();
+    loadTrends();
     loadTopSkills();
     loadCoverage();
     loadProfessions();
@@ -264,6 +320,23 @@ export function ArticlesPage() {
   );
 
   const skillsMax = topSkills.length ? Math.max(...topSkills.map((s) => s.weight)) : 0;
+
+  const salaryMax = analytics
+    ? Math.max(
+        ...EXP_LEVELS.map((l) => analytics.salary_by_level[l.key]?.average ?? 0),
+        1,
+      )
+    : 1;
+
+  const regionMax = analytics?.top_regions[0]?.count ?? 1;
+  const employerMax = analytics?.top_employers[0]?.count ?? 1;
+
+  const risingMax = trends?.rising.length
+    ? Math.max(...trends.rising.map((t) => Math.abs(t.change_pct)), 1)
+    : 1;
+  const fallingMax = trends?.falling.length
+    ? Math.max(...trends.falling.map((t) => Math.abs(t.change_pct)), 1)
+    : 1;
 
   const coverageRows = coverage
     ? Object.entries(coverage)
@@ -289,7 +362,7 @@ export function ArticlesPage() {
       </motion.div>
 
       {/* KPI cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border border-gray-200 shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-xl">
@@ -341,6 +414,177 @@ export function ArticlesPage() {
             </div>
           </CardContent>
         </Card>
+        <Card className="border border-gray-200 shadow-sm">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-xl">
+              <ListChecks className="size-6 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Вакансии с навыками</p>
+              {analyticsLoading ? (
+                <div className="h-7 w-28 bg-gray-200 animate-pulse rounded mt-1" />
+              ) : (
+                <p className="text-2xl font-bold text-gray-900 tabular-nums">
+                  {analytics
+                    ? `${fmt.format(analytics.skills.with_skills)} · ${analytics.skills.percent.toFixed(1)}%`
+                    : "—"}
+                </p>
+              )}
+              {!analyticsLoading && analytics && (
+                <p className="text-xs text-gray-400 mt-1">
+                  в среднем {analytics.skills.avg_skills_per_vacancy} навыка на вакансию
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Salary by level + top regions */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <BlockCard
+          icon={Wallet}
+          title="Средняя зарплата по уровню опыта"
+          description="Средняя зарплата в вакансиях с указанным окладом по уровням Junior / Middle / Senior"
+          loading={analyticsLoading}
+          error={analyticsError}
+          onRetry={loadAnalytics}
+          empty={!analytics || Object.keys(analytics.salary_by_level).length === 0}
+        >
+          {analytics && (
+            <div className="space-y-3">
+              {EXP_LEVELS.map(({ key, label, color }) => {
+                const sal = analytics.salary_by_level[key];
+                return (
+                  <BarRow
+                    key={key}
+                    label={label}
+                    value={sal?.average ?? 0}
+                    max={salaryMax}
+                    color={color}
+                    valueText={formatSalary(sal?.average ?? 0)}
+                  />
+                );
+              })}
+              <div className="pt-4 border-t border-gray-100 flex justify-between text-sm text-gray-500">
+                <span>Всего вакансий с окладом</span>
+                <span className="font-medium text-gray-800 tabular-nums">
+                  {fmt.format(stats?.salary.count ?? 0)}
+                </span>
+              </div>
+            </div>
+          )}
+        </BlockCard>
+
+        <BlockCard
+          icon={MapPin}
+          title="Топ регионов по спросу"
+          description="Регионы с наибольшим числом собранных вакансий"
+          loading={analyticsLoading}
+          error={analyticsError}
+          onRetry={loadAnalytics}
+          empty={!analytics || analytics.top_regions.length === 0}
+        >
+          {analytics && (
+            <div className="space-y-2.5">
+              {analytics.top_regions.map((r) => (
+                <BarRow
+                  key={r.name}
+                  label={r.name}
+                  value={r.count}
+                  max={regionMax}
+                  color="#3b82f6"
+                />
+              ))}
+            </div>
+          )}
+        </BlockCard>
+      </div>
+
+      {/* Top employers + demand dynamics */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <BlockCard
+          icon={Building2}
+          title="Топ работодателей"
+          description="Компании с наибольшим числом размещённых вакансий"
+          loading={analyticsLoading}
+          error={analyticsError}
+          onRetry={loadAnalytics}
+          empty={!analytics || analytics.top_employers.length === 0}
+        >
+          {analytics && (
+            <div className="space-y-2.5">
+              {analytics.top_employers.map((e) => (
+                <BarRow
+                  key={e.name}
+                  label={e.name}
+                  value={e.count}
+                  max={employerMax}
+                  color="#059669"
+                />
+              ))}
+            </div>
+          )}
+        </BlockCard>
+
+        <BlockCard
+          icon={TrendingUp}
+          title="Динамика спроса на навыки"
+          description="Навыки с наибольшим ростом и падением частоты между последними снапшотами"
+          loading={trendsLoading}
+          error={trendsError}
+          onRetry={loadTrends}
+          empty={!trends || (trends.rising.length === 0 && trends.falling.length === 0)}
+        >
+          {trends && (
+            <div className="space-y-4">
+              {trends.rising.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-green-700">Растут</span>
+                    <span className="text-xs text-gray-400">
+                      относительно снапшота {trends.rising[0]?.prev_label}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {trends.rising.map((t) => (
+                      <BarRow
+                        key={t.skill}
+                        label={t.skill}
+                        value={Math.abs(t.change_pct)}
+                        max={risingMax}
+                        color="#059669"
+                        valueText={`+${t.change_pct.toFixed(1)}%`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {trends.falling.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-red-700">Падают</span>
+                    <span className="text-xs text-gray-400">
+                      относительно снапшота {trends.falling[0]?.prev_label}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {trends.falling.map((t) => (
+                      <BarRow
+                        key={t.skill}
+                        label={t.skill}
+                        value={Math.abs(t.change_pct)}
+                        max={fallingMax}
+                        color="#ef4444"
+                        valueText={`${t.change_pct.toFixed(1)}%`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </BlockCard>
       </div>
 
       {/* Vacancies by experience + top skills */}

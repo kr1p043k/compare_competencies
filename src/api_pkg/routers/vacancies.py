@@ -302,3 +302,67 @@ async def get_vacancies_stats(
             "count": sal["cnt"] or 0 if sal else 0,
         },
     }
+
+
+@router.get("/vacancies/stats/analytics")
+@limiter.limit("30/minute")
+async def get_vacancies_analytics(
+    request: Request,
+):
+    pool = await _get_db_pool()
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    sal_rows = await pool.fetch(f"""
+        SELECT
+            {_EXP_LEVEL_CASE} AS lvl,
+            COUNT(*) AS cnt,
+            ROUND(AVG(COALESCE(salary_from, salary_to))) AS avg_sal
+        FROM vacancies v
+        WHERE v.salary_from IS NOT NULL OR v.salary_to IS NOT NULL
+        GROUP BY lvl
+    """)
+    salary_by_level = {
+        r["lvl"]: {"count": r["cnt"], "average": r["avg_sal"] or 0} for r in sal_rows
+    }
+
+    regions = await pool.fetch("""
+        SELECT area_name AS name, COUNT(*) AS cnt
+        FROM vacancies
+        WHERE area_name IS NOT NULL AND area_name != ''
+        GROUP BY area_name
+        ORDER BY cnt DESC
+        LIMIT 10
+    """)
+    top_regions = [{"name": r["name"], "count": r["cnt"]} for r in regions]
+
+    employers = await pool.fetch("""
+        SELECT employer_name AS name, COUNT(*) AS cnt
+        FROM vacancies
+        WHERE employer_name IS NOT NULL AND employer_name != ''
+        GROUP BY employer_name
+        ORDER BY cnt DESC
+        LIMIT 10
+    """)
+    top_employers = [{"name": r["name"], "count": r["cnt"]} for r in employers]
+
+    total = await pool.fetchval("SELECT COUNT(*) FROM vacancies") or 0
+    with_skills = await pool.fetchval(
+        "SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL AND parsed_skills::text != '[]'"
+    ) or 0
+    avg_skills = await pool.fetchval(
+        "SELECT ROUND(AVG(jsonb_array_length(parsed_skills))) FROM vacancies "
+        "WHERE parsed_skills IS NOT NULL AND parsed_skills::text != '[]'"
+    ) or 0
+
+    return {
+        "salary_by_level": salary_by_level,
+        "top_regions": top_regions,
+        "top_employers": top_employers,
+        "skills": {
+            "with_skills": with_skills,
+            "total": total,
+            "percent": round(with_skills / total * 100, 1) if total else 0,
+            "avg_skills_per_vacancy": avg_skills,
+        },
+    }
