@@ -35,6 +35,52 @@ interface GapResponse {
   summary: string;
 }
 
+interface ParsedTrend {
+  title: string;
+  summary: string;
+  keywords: string[];
+}
+
+function cleanTrendValue(s: string): string {
+  return s.trim().replace(/^["']|["']$/g, "");
+}
+
+function parseTrendText(blob: string): ParsedTrend[] {
+  const results: ParsedTrend[] = [];
+  const blockRe = /\{([^{}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = blockRe.exec(blob)) !== null) {
+    const body = m[1];
+    const titleM = body.match(/title:\s*(.*?)\s*,\s*summary:/i);
+    const summaryM = body.match(/summary:\s*(.*?)\s*,\s*keywords:/i);
+    const kwM = body.match(/keywords:\s*\[(.*?)\]/i);
+    let title = titleM ? cleanTrendValue(titleM[1]) : "";
+    if (!title) {
+      const first = body.split(",")[0];
+      title = cleanTrendValue(first.replace(/^title:\s*/i, ""));
+    }
+    const summary = summaryM ? cleanTrendValue(summaryM[1]) : "";
+    const keywords = kwM
+      ? kwM[1].split(",").map((k) => cleanTrendValue(k)).filter(Boolean)
+      : [];
+    if (title) results.push({ title, summary, keywords });
+  }
+  return results;
+}
+
+function uniqueTrends(list: ParsedTrend[]): ParsedTrend[] {
+  const seen = new Set<string>();
+  const out: ParsedTrend[] = [];
+  for (const t of list) {
+    const key = t.title.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(t);
+    }
+  }
+  return out;
+}
+
 const HUB_SSO_URL = "https://hub.sfedu.ru/dashboard/go-to-gap-analyzer/";
 
 function bearerHeaders(): Record<string, string> {
@@ -224,14 +270,31 @@ export function ScientificTrendsTab() {
           </CardHeader>
           <CardContent className="p-6 space-y-5">
             {(() => {
-              const uniqueTrends = [...new Set(trend.found_trends)];
-              if (uniqueTrends.length === 0) return null;
+              const trendsList = uniqueTrends(
+                trend.found_trends.flatMap((t) => parseTrendText(t))
+              );
+              if (trendsList.length === 0) return null;
               return (
                 <div>
                   <h4 className="text-sm font-semibold text-gray-700 mb-2">Найденные научные тренды</h4>
-                  <div className="flex gap-2 flex-wrap">
-                    {uniqueTrends.map((t) => (
-                      <Badge key={t} variant="secondary">{t}</Badge>
+                  <div className="space-y-3">
+                    {trendsList.map((t) => (
+                      <div key={t.title} className="rounded-lg border border-gray-200 p-4">
+                        <p className="text-sm font-semibold text-gray-900">{t.title}</p>
+                        {t.summary && <p className="text-xs text-gray-600 mt-1">{t.summary}</p>}
+                        {t.keywords.length > 0 && (
+                          <div className="flex gap-1.5 flex-wrap mt-2">
+                            {t.keywords.map((k) => (
+                              <span
+                                key={k}
+                                className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600"
+                              >
+                                {k}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -245,13 +308,31 @@ export function ScientificTrendsTab() {
                   {(() => {
                     const seenSources = new Set<string>();
                     return trend.recommended_competencies.map((c) => {
-                      const showSource = Boolean(c.trend_source) && !seenSources.has(c.trend_source);
-                      if (c.trend_source) seenSources.add(c.trend_source);
+                      const cardTrends = uniqueTrends(
+                        parseTrendText(c.trend_source || "")
+                      ).filter((t) => {
+                        const key = t.title.toLowerCase();
+                        if (seenSources.has(key)) return false;
+                        seenSources.add(key);
+                        return true;
+                      });
                       return (
                         <div key={c.code} className="rounded-lg border border-gray-200 p-4">
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <span className="font-mono text-sm font-semibold text-indigo-700">{c.code}</span>
-                            {showSource && <Badge variant="outline">{c.trend_source}</Badge>}
+                            {cardTrends.length > 0 && (
+                              <div className="flex gap-1.5 flex-wrap justify-end">
+                                {cardTrends.map((t) => (
+                                  <span
+                                    key={t.title}
+                                    title={t.summary || t.title}
+                                    className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100"
+                                  >
+                                    {t.title}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           {c.description && <p className="text-sm text-gray-700">{c.description}</p>}
                           {c.keywords && <p className="text-xs text-gray-500 mt-1">Ключевые слова: {c.keywords}</p>}
