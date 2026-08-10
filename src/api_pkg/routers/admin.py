@@ -325,26 +325,77 @@ async def export_full_report(request: Request):
 @router.get("/admin/users")
 @limiter.limit("30/minute")
 async def admin_users(request: Request):
-    from sqlalchemy import text
+    from sqlalchemy import select, text
     from src.database import async_session_factory
+    from src.models.krm_models import UserDirection
 
     async with async_session_factory() as session:
         result = await session.execute(text("SELECT * FROM users ORDER BY created_at"))
         users = result.fetchall()
+        ud_result = await session.execute(select(UserDirection.user_id, UserDirection.dir_code))
+        dir_map: dict[str, list[str]] = {}
+        for uid, code in ud_result.all():
+            dir_map.setdefault(str(uid), []).append(code)
 
     log_counts = get_logs_by_user()
     return {
         "users": [
             {
+                "id": str(u.id),
                 "username": u.email,
                 "role": u.role,
                 "name": u.full_name,
                 "total_requests": log_counts.get(u.email, 0),
                 "is_active": u.is_active,
+                "directions": sorted(dir_map.get(str(u.id), [])),
             }
             for u in users
         ]
     }
+
+
+@router.get("/admin/directions")
+@limiter.limit("30/minute")
+async def admin_directions(request: Request):
+    """Список всех направлений (dir_code) из KRM-файлов для привязки РОП."""
+    from src.api_pkg.routers.teacher import _list_krm_directions
+    return _list_krm_directions()
+
+
+class UserDirectionsBody(BaseModel):
+    directions: list[str] = []
+
+
+@router.get("/admin/users/{user_id}/directions")
+@limiter.limit("30/minute")
+async def admin_user_directions(request: Request, user_id: str):
+    from sqlalchemy import select
+    from src.database import async_session_factory
+    from src.models.krm_models import UserDirection
+
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(UserDirection.dir_code).where(UserDirection.user_id == user_id)
+        )
+        return {"user_id": user_id, "directions": sorted(row[0] for row in result)}
+
+
+@router.put("/admin/users/{user_id}/directions")
+@limiter.limit("30/minute")
+async def admin_set_user_directions(request: Request, user_id: str, body: UserDirectionsBody):
+    from sqlalchemy import delete, select
+    from src.database import async_session_factory
+    from src.models.krm_models import User, UserDirection
+
+    async with async_session_factory() as session:
+        user = await session.get(User, user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        await session.execute(delete(UserDirection).where(UserDirection.user_id == user_id))
+        for code in body.directions:
+            session.add(UserDirection(user_id=user_id, dir_code=code))
+        await session.commit()
+    return {"status": "ok", "user_id": user_id, "directions": sorted(body.directions)}
 
 
 @router.get("/admin/monitoring")
@@ -418,15 +469,16 @@ class CreateUserRequest(BaseModel):
     password: str
     role: str = "teacher"
     name: str = ""
+    directions: list[str] = []
 
 
 @router.post("/admin/users/create")
 @limiter.limit("10/minute")
 async def admin_create_user(request: Request, body: CreateUserRequest):
-    """Create a new user with bcrypt-hashed password."""
+    """Create a new user with bcrypt-hashed password (optionally bind directions)."""
     from src.cli.create_user import main as create_user_main
-    await create_user_main(body.email, body.password, body.role, body.name)
-    return {"status": "ok", "email": body.email, "role": body.role}
+    await create_user_main(body.email, body.password, body.role, body.name, body.directions)
+    return {"status": "ok", "email": body.email, "role": body.role, "directions": body.directions}
 
 
 class EmbeddingsRequest(BaseModel):

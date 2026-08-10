@@ -264,14 +264,34 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[str] = mapped_column(String(20), default="teacher")
     is_active: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc), onupdate=partial(datetime.now, timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc), onupdate=partial(datetime.now, timezone.utc))
 
     recommendations: Mapped[list["Recommendation"]] = relationship(back_populates="user")
     sessions: Mapped[list["Session"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    user_directions: Mapped[list["UserDirection"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
-        CheckConstraint(role.in_(["admin", "teacher", "student"]), name="ck_user_role"),
+        CheckConstraint(role.in_(["admin", "teacher", "student", "rop"]), name="ck_user_role"),
+    )
+
+
+# ─── UserDirection (привязка РОП к направлениям) ──────────────────────────
+
+class UserDirection(Base):
+    __tablename__ = "user_directions"
+
+    id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    dir_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+
+    user: Mapped["User"] = relationship(back_populates="user_directions")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "dir_code", name="uq_user_directions_user_dir"),
     )
 
 

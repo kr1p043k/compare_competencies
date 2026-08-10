@@ -344,8 +344,8 @@ export default function App() {
     return <LoginPage onLogin={login} />;
   }
 
-  const roleIcon = role === "admin" ? <Shield className="size-4" /> : role === "teacher" ? <UserCheck className="size-4" /> : <GraduationCap className="size-4" />;
-  const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : "Студент";
+  const roleIcon = role === "admin" ? <Shield className="size-4" /> : (role === "teacher" || role === "rop") ? <UserCheck className="size-4" /> : <GraduationCap className="size-4" />;
+  const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "rop" ? "Руководитель ОП" : "Студент";
 
   return (
     <div className="min-h-screen bg-white">
@@ -486,7 +486,7 @@ export default function App() {
                 Админ
               </TabsTrigger>
             )}
-            {role === "teacher" && (
+            {(role === "teacher" || role === "rop") && (
               <TabsTrigger value="teacher" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
                 <BarChart3 className="size-4" />
                 Статистика
@@ -726,7 +726,7 @@ export default function App() {
               <AdminDashboard />
             </TabsContent>
           )}
-          {role === "teacher" && (
+          {(role === "teacher" || role === "rop") && (
             <TabsContent value="teacher">
               <TeacherDashboard />
             </TabsContent>
