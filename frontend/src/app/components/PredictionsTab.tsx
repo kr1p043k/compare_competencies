@@ -99,6 +99,7 @@ export function PredictionsTab() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="1">1 месяц</SelectItem>
+                        <SelectItem value="3">3 месяца</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

@@ -109,7 +109,7 @@ class ProphetForecastEngine(BasePredictor):
     actual frequency >= MIN_FREQ, falling back to SkillForecastEngine."""
 
     MIN_FREQ = 10
-    MAX_GROWTH_CAP = 20.0
+    MAX_GROWTH_CAP = 2.0
     # Top-prediction display: only show skills with meaningful frequency
     TOP_DISPLAY_MIN_FREQ = 50
 
@@ -251,8 +251,8 @@ class ProphetForecastEngine(BasePredictor):
             n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
             if n_pts < 6:
                 conf *= n_pts / 6.0
-                # Tighten growth cap for low-data skills (prevents absurd 600% spikes)
-                tight_cap = 2.0 if n_pts < 4 else 10.0
+                # Tighten growth cap for low-data skills (prevents absurd spikes)
+                tight_cap = 1.5 if n_pts < 4 else 2.0
                 growth = max(min(growth, tight_cap), -tight_cap)
             return Ok(ForecastResult(
                 skill=skill,
@@ -263,7 +263,7 @@ class ProphetForecastEngine(BasePredictor):
                 engine_used="prophet",
             ))
         if self._fallback_engine:
-            result = self._fallback_engine.forecast(skill, months)
+            result = self._fallback_engine.forecast(skill, min(months, self.max_forecast_months()))
             if result.is_ok():
                 fr = result.unwrap()
                 return Ok(ForecastResult(
@@ -290,7 +290,7 @@ class ProphetForecastEngine(BasePredictor):
                 case _:
                     pass
         if self._fallback_engine:
-            match self._fallback_engine.forecast_all(months):
+            match self._fallback_engine.forecast_all(min(months, self.max_forecast_months())):
                 case Ok(fb):
                     for r in fb:
                         if not any(ex.skill == r.skill for ex in results):
@@ -305,6 +305,8 @@ class ProphetForecastEngine(BasePredictor):
                 results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0 and r.predicted_growth > 0]
                 # Exclude unreliable predictions: growth > 200% with confidence < 30%
                 results = [r for r in results if not (r.predicted_growth > 2.0 and r.confidence < 0.3)]
+                if not results:
+                    return Ok([])
                 max_freq = max(r.current_frequency for r in results) or 1
                 max_growth = max(r.predicted_growth for r in results) or 1
                 results.sort(key=lambda x: 0.3 * (x.predicted_growth / max_growth) + 0.7 * (x.current_frequency / max_freq), reverse=True)

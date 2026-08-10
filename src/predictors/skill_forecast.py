@@ -39,7 +39,7 @@ class SkillForecastEngine(BasePredictor):
     """
 
     MIN_FREQ = 10
-    MAX_GROWTH_CAP = 3.0
+    MAX_GROWTH_CAP = 1.5
 
     def __init__(self):
         self._models: dict[str, dict] = {}
@@ -151,8 +151,10 @@ class SkillForecastEngine(BasePredictor):
                 engine_used="trend_flat",
             ))
 
-        days_ahead = months * 30
-        predicted = model["intercept"] + model["slope"] * days_ahead
+        # Limit forecast horizon: don't extrapolate beyond half the observed
+        # history (mirrors ProphetForecastEngine) and anchor on the last point.
+        days_ahead = min(months, max(1, n // 2)) * 30
+        predicted = last_freq + model["slope"] * days_ahead
         predicted = max(predicted, 0.0)
 
         growth = (predicted - last_freq) / max(last_freq, 1.0)
