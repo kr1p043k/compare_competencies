@@ -198,13 +198,14 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         logger.info("generating_training_samples")
         X_rows: list[dict] = []
         y_rows: list[float] = []
+        profile_ids: list[int] = []
         market_emb = np.mean(list(self.skill_embeddings.values()), axis=0) if self.skill_embeddings else None
 
+        domain_profiles = _get_domain_profiles()
         for skill in all_skills:
             base_target = self.skill_metadata[skill]["hybrid_weight_normalized"]
 
-            domain_profiles = _get_domain_profiles()
-            for domain_profile in domain_profiles:
+            for profile_idx, domain_profile in enumerate(domain_profiles):
                 student_skills = [s for s in domain_profile if s in self.skill_embeddings]
                 student_emb = (
                     np.mean([self.skill_embeddings[s] for s in student_skills], axis=0)
@@ -221,6 +222,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 target = 0.6 * relevance + 0.4 * base_target
                 X_rows.append(features)
                 y_rows.append(target)
+                profile_ids.append(profile_idx)
 
         X = pd.DataFrame(X_rows)
         y = np.array(y_rows)
@@ -278,7 +280,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             spear = float("nan")
 
         try:
-            ndcg = ndcg_score(y_test, pred_test, k=min(10, len(y_test)))
+            ndcg = self._compute_ndcg_per_query(y_test, pred_test, profile_ids, X_test.index.to_numpy())
         except Exception:
             ndcg = float("nan")
 
@@ -338,6 +340,40 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             "ndcg": round(ndcg, 4) if not np.isnan(ndcg) else 0.0,
         }
         return Ok(self)
+
+    def _compute_ndcg_per_query(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        profile_ids: list[int],
+        row_indices: np.ndarray,
+        k: int = 10,
+    ) -> float:
+        """NDCG@k по каждому «запросу» (студенческому профилю) — корректный формат LTR.
+
+        sklearn.ndcg_score ожидает 2D-массив (запрос × документы). Здесь документы
+        группируются по профилю и каждый профиль оценивается отдельно, затем метрика
+        усредняется. Строки тестовой выборки сопоставляются с профилями через исходный
+        индекс DataFrame (row_indices -> profile_ids).
+        """
+        ids = np.asarray(profile_ids)
+        groups = ids[np.asarray(row_indices)]
+        scores = []
+        for profile_idx in np.unique(groups):
+            group_mask = groups == profile_idx
+            yt = y_true[group_mask]
+            pt = y_pred[group_mask]
+            if len(yt) < 2:
+                continue
+            try:
+                ndcg_val = ndcg_score(yt.reshape(1, -1), pt.reshape(1, -1), k=min(k, len(yt)))
+            except Exception:
+                continue
+            if not np.isnan(ndcg_val):
+                scores.append(float(ndcg_val))
+        if not scores:
+            return float("nan")
+        return float(np.mean(scores))
 
     # ------------------------------------------------------------------
     # ПРИЗНАКИ
