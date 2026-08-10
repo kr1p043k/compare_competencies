@@ -223,31 +223,42 @@ export function ScientificTrendsTab() {
             </div>
           </CardHeader>
           <CardContent className="p-6 space-y-5">
-            {trend.found_trends.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">Найденные научные тренды</h4>
-                <div className="flex gap-2 flex-wrap">
-                  {trend.found_trends.map((t) => (
-                    <Badge key={t} variant="secondary">{t}</Badge>
-                  ))}
+            {(() => {
+              const uniqueTrends = [...new Set(trend.found_trends)];
+              if (uniqueTrends.length === 0) return null;
+              return (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Найденные научные тренды</h4>
+                  <div className="flex gap-2 flex-wrap">
+                    {uniqueTrends.map((t) => (
+                      <Badge key={t} variant="secondary">{t}</Badge>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {trend.recommended_competencies.length > 0 && (
               <div>
                 <h4 className="text-sm font-semibold text-gray-700 mb-2">Рекомендуемые компетенции</h4>
                 <div className="space-y-3">
-                  {trend.recommended_competencies.map((c) => (
-                    <div key={c.code} className="rounded-lg border border-gray-200 p-4">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="font-mono text-sm font-semibold text-indigo-700">{c.code}</span>
-                        {c.trend_source && <Badge variant="outline">{c.trend_source}</Badge>}
-                      </div>
-                      {c.description && <p className="text-sm text-gray-700">{c.description}</p>}
-                      {c.keywords && <p className="text-xs text-gray-500 mt-1">Ключевые слова: {c.keywords}</p>}
-                    </div>
-                  ))}
+                  {(() => {
+                    const seenSources = new Set<string>();
+                    return trend.recommended_competencies.map((c) => {
+                      const showSource = Boolean(c.trend_source) && !seenSources.has(c.trend_source);
+                      if (c.trend_source) seenSources.add(c.trend_source);
+                      return (
+                        <div key={c.code} className="rounded-lg border border-gray-200 p-4">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="font-mono text-sm font-semibold text-indigo-700">{c.code}</span>
+                            {showSource && <Badge variant="outline">{c.trend_source}</Badge>}
+                          </div>
+                          {c.description && <p className="text-sm text-gray-700">{c.description}</p>}
+                          {c.keywords && <p className="text-xs text-gray-500 mt-1">Ключевые слова: {c.keywords}</p>}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}
