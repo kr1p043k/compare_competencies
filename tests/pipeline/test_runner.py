@@ -350,12 +350,21 @@ class TestRunTrainModel:
 
 @patch("src.pipeline.runner.console_info")
 class TestRebuild:
+    def _mock_heavy_steps(self):
+        rfp = patch("src.pipeline.runner.run_full_pipeline", return_value=Ok(None))
+        rtm = patch("src.pipeline.runner.run_train_model", return_value=Ok(None))
+        clusters = patch("src.ml.clusters.train_clusters", return_value=True)
+        return rfp, rtm, clusters
+
     def test_rebuild_removes_cache(self, mock_ci):
         tmp = Path(__file__).parent / "tmp_rebuild"
         tmp.mkdir(exist_ok=True)
-        with patch("src.pipeline.runner.config") as cfg:
-            cfg.DATA_DIR = tmp
-            rebuild()
+        rfp, rtm, clusters = self._mock_heavy_steps()
+        with rfp, rtm, clusters:
+            with patch("src.pipeline.runner.config") as cfg:
+                cfg.DATA_DIR = tmp
+                result = rebuild()
+        assert result.is_ok()
 
     def test_rebuild_with_existing_files(self, mock_ci, tmp_path):
         (tmp_path / "cache" / "embeddings").mkdir(parents=True)
@@ -370,9 +379,11 @@ class TestRebuild:
         ]
         for f in to_touch:
             f.touch()
-        with patch("src.pipeline.runner.config") as cfg:
-            cfg.DATA_DIR = tmp_path
-            rebuild()
+        rfp, rtm, clusters = self._mock_heavy_steps()
+        with rfp, rtm, clusters:
+            with patch("src.pipeline.runner.config") as cfg:
+                cfg.DATA_DIR = tmp_path
+                rebuild()
         for f in to_touch:
             assert not f.exists()
         assert not (tmp_path / "cache" / "embeddings").exists()

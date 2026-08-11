@@ -130,10 +130,12 @@ def _load_tasks():
             for tid, tdata in data.items():
                 t = PipelineTaskStatus.model_validate(tdata)
                 status = getattr(t, "status", "")
-                started = getattr(t, "started_at", 0) or 0
-                if status == "running" and now - started > 3600:
+                if status == "running":
+                    # Воркер погиб вместе с процессом — возобновить нельзя,
+                    # иначе задача навсегда висит как "running" без исполнения.
                     t.status = "failed"
                     t.message = "Прерван перезапуском сервера"
+                    t.completed_at = now
                 pipeline_tasks[tid] = t
             _save_tasks()
             logger.info("tasks_restored", count=len(data))
@@ -230,9 +232,13 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
     try:
         if action == PipelineAction.REBUILD:
             pipeline_tasks[task_id].message = "Запуск полной пересборки..."
-            await loop.run_in_executor(None, lambda: cancel_aware(pr.rebuild))
-            msg = "Пересборка завершена."
-            status = "completed"
+            result = await loop.run_in_executor(None, lambda: cancel_aware(pr.rebuild))
+            if result.is_err():
+                msg = f"Пересборка не завершена: {result.err()}"
+                status = "failed"
+            else:
+                msg = "Пересборка завершена."
+                status = "completed"
 
         elif action == PipelineAction.FULL_CYCLE:
             gap = kwargs.get("run_gap_analysis", True)
@@ -274,13 +280,17 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
                 loop.run_in_executor(None, lambda: cancel_aware(pr.run_full_pipeline, pipeline_args))
             )
             _running_futures[task_id] = main_task
-            await main_task
+            result = await main_task
 
             if cancel_event.is_set():
                 return
             progress_rotator.cancel()
-            msg = "Все этапы выполнены. Данные обновлены."
-            status = "completed"
+            if result.is_err():
+                status = "failed"
+                msg = f"Пайплайн не завершён: {result.err()}"
+            else:
+                status = "completed"
+                msg = "Все этапы выполнены. Данные обновлены."
 
             if gap:
                 try:
@@ -300,9 +310,13 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
 
         elif action == PipelineAction.TRAIN_MODEL:
             pipeline_tasks[task_id].message = "Обучение модели ранжирования..."
-            await loop.run_in_executor(None, lambda: cancel_aware(pr.run_train_model))
-            msg = "Модель обучена."
-            status = "completed"
+            result = await loop.run_in_executor(None, lambda: cancel_aware(pr.run_train_model))
+            if result.is_err():
+                status = "failed"
+                msg = f"Обучение не удалось: {result.err()}"
+            else:
+                status = "completed"
+                msg = "Модель обучена."
 
         elif action == PipelineAction.GAP_ANALYSIS:
             progress_rotator = asyncio.ensure_future(_rotate_progress(task_id, step=4))
@@ -321,12 +335,16 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
                 loop.run_in_executor(None, lambda: cancel_aware(pr.run_full_pipeline, gap_args))
             )
             _running_futures[task_id] = main_task
-            await main_task
+            result = await main_task
             if cancel_event.is_set():
                 return
             progress_rotator.cancel()
-            msg = "GAP-анализ завершен. Отчёты готовы."
-            status = "completed"
+            if result.is_err():
+                status = "failed"
+                msg = f"GAP-анализ не завершён: {result.err()}"
+            else:
+                status = "completed"
+                msg = "GAP-анализ завершен. Отчёты готовы."
 
         else:
             if cancel_event.is_set():
@@ -366,23 +384,67 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
         _running_futures.pop(task_id, None)
 
 
-def _build_args_for_sync(action: PipelineAction, **kwargs):
-    """Build argparse Namespace for synchronous pipeline actions."""
-    import argparse
-    base = dict(
-        query="", area_id=2, max_pages=10, period=30,
-        show_vacancies=False, skip_details=False, excel=False,
-        no_filter=False, queries_file=None, regions="113",
-        industry=None, interactive=False,
-        max_vacancies_per_query=2000, it_sector=False,
-        use_async=True, async_workers=3, async_threshold=10000,
-        run_gap_analysis=True, run_notebooks=False,
-        skip_gap_analysis=False, status=False,
-        train_model=False, force=False, use_llm=False,
-        skip_collection=False,
+@router.post("/pipeline/rebuild", response_model=PipelineResponse)
+@limiter.limit("2/minute")
+async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
+    task_id = f"rebuild_{int(time.time())}"
+    started_at = time.time()
+    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0)
+    background_tasks.add_task(run_pipeline_task, PipelineAction.REBUILD, task_id)
+    return PipelineResponse(
+        status="started", message="Full rebuild started in background",
+        command="rebuild",
+        output=f"Task ID: {task_id}. Check /api/pipeline/task/{task_id} for status",
     )
-    base.update(kwargs)
-    return argparse.Namespace(**base)
+
+
+@router.post("/pipeline/refresh-cache", response_model=CacheRefreshResponse)
+@limiter.limit("5/minute")
+async def refresh_cache(request: Request):
+    cache_dirs = [
+        BASE_DIR / "data" / "cache" / "embeddings",
+        BASE_DIR / "data" / "cache" / "clusters",
+    ]
+    removed = []
+    for cache_dir in cache_dirs:
+        if cache_dir.exists():
+            shutil.rmtree(cache_dir)
+            removed.append(str(cache_dir))
+            cache_dir.mkdir(parents=True, exist_ok=True)
+    parsed_skills = BASE_DIR / "data" / "cache" / "parsed_skills.joblib"
+    if parsed_skills.exists():
+        parsed_skills.unlink()
+        removed.append(str(parsed_skills))
+    return {
+        "status": "success", "message": "Cache cleared", "removed": removed,
+        "next_step": "Run POST /api/pipeline/full-cycle?skip_collection=false to rebuild",
+    }
+
+
+@router.post("/pipeline/reload-api", response_model=PipelineResponse)
+@limiter.limit("3/minute")
+async def reload_api(request: Request):
+    try:
+        asyncio.create_task(_reload_api_data())
+        return PipelineResponse(
+            status="started", message="API data reload started. Check /api/status for completion.",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _reload_api_data():
+    logger.info("Reloading API data...")
+    try:
+        from src.api_pkg.startup import run_startup
+        await run_startup(None)
+        logger.info("API data reloaded successfully")
+    except Exception as e:
+        logger.error("Ошибка перезагрузки API", error=str(e))
+
+
+async def reload_api_data():
+    await _reload_api_data()
 
 
 @router.post("/pipeline/{action}", response_model=PipelineResponse)
@@ -401,11 +463,17 @@ async def run_pipeline_action_sync(
     from src.pipeline import runner as pr
 
     if action == PipelineAction.REBUILD:
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, pr.rebuild)
+        req_id = getattr(request.state, "request_id", "unknown")
+        task_id = f"{action.value}_{int(time.time())}"
+        started_at = time.time()
+        logger.info("pipeline_scheduled", request_id=req_id, task_id=task_id)
+        pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0)
+        background_tasks.add_task(run_pipeline_task, action, task_id)
         return PipelineResponse(
-            status="success", message="Full rebuild completed",
-            command="rebuild", exit_code=0,
+            status="started",
+            message="Full rebuild started in background",
+            exit_code=None,
+            output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
         )
 
     elif action == PipelineAction.TRAIN_CLUSTERS:
@@ -422,17 +490,29 @@ async def run_pipeline_action_sync(
 
     elif action == PipelineAction.TRAIN_MODEL:
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, pr.run_train_model)
+        result = await loop.run_in_executor(None, pr.run_train_model)
         return PipelineResponse(
-            status="success", message="Model training completed", exit_code=0,
+            status="success" if result.is_ok() else "failed",
+            message="Model training completed" if result.is_ok() else f"Model training failed: {result.err()}",
+            exit_code=0 if result.is_ok() else 1,
         )
 
     elif action == PipelineAction.GAP_ANALYSIS:
-        args = _build_args_for_sync(action, skip_collection=True, run_gap_analysis=True, skip_gap_analysis=False)
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, pr.run_full_pipeline, args)
+        req_id = getattr(request.state, "request_id", "unknown")
+        task_id = f"{action.value}_{int(time.time())}"
+        started_at = time.time()
+        logger.info("pipeline_scheduled", request_id=req_id, task_id=task_id)
+        pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск GAP-анализа...", started_at, step=0)
+        background_tasks.add_task(
+            run_pipeline_task,
+            action, task_id,
+            skip_collection=True, run_gap_analysis=True,
+        )
         return PipelineResponse(
-            status="success", message="Gap analysis completed", exit_code=0,
+            status="started",
+            message="Gap analysis started in background",
+            exit_code=None,
+            output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
         )
 
     elif action == PipelineAction.FULL_CYCLE:
@@ -524,65 +604,6 @@ async def get_pipeline_status(request: Request):
         "total_vacancies": total or 0,
         "last_pipeline_stats": last["stats"] if last else None,
     }
-
-
-@router.post("/pipeline/rebuild", response_model=PipelineResponse)
-@limiter.limit("2/minute")
-async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
-    task_id = f"rebuild_{int(time.time())}"
-    started_at = time.time()
-    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0)
-    background_tasks.add_task(run_pipeline_task, PipelineAction.REBUILD, task_id)
-    return PipelineResponse(
-        status="started", message="Full rebuild started in background",
-        command="rebuild",
-        output=f"Task ID: {task_id}. Check /api/pipeline/task/{task_id} for status",
-    )
-
-
-@router.post("/pipeline/refresh-cache", response_model=CacheRefreshResponse)
-@limiter.limit("5/minute")
-async def refresh_cache(request: Request):
-    cache_dirs = [
-        BASE_DIR / "data" / "cache" / "embeddings",
-        BASE_DIR / "data" / "cache" / "clusters",
-    ]
-    removed = []
-    for cache_dir in cache_dirs:
-        if cache_dir.exists():
-            shutil.rmtree(cache_dir)
-            removed.append(str(cache_dir))
-            cache_dir.mkdir(parents=True, exist_ok=True)
-    parsed_skills = BASE_DIR / "data" / "cache" / "parsed_skills.joblib"
-    if parsed_skills.exists():
-        parsed_skills.unlink()
-        removed.append(str(parsed_skills))
-    return {
-        "status": "success", "message": "Cache cleared", "removed": removed,
-        "next_step": "Run POST /api/pipeline/full-cycle?skip_collection=false to rebuild",
-    }
-
-
-@router.post("/pipeline/reload-api", response_model=PipelineResponse)
-@limiter.limit("3/minute")
-async def reload_api(request: Request):
-    try:
-        asyncio.create_task(_reload_api_data())
-        return PipelineResponse(
-            status="started", message="API data reload started. Check /api/status for completion.",
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-async def _reload_api_data():
-    logger.info("Reloading API data...")
-    try:
-        from src.api_pkg.startup import run_startup
-        await run_startup(None)
-        logger.info("API data reloaded successfully")
-    except Exception as e:
-        logger.error("Ошибка перезагрузки API", error=str(e))
 
 
 async def reload_api_data():

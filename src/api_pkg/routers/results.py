@@ -9,9 +9,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
-from src.models.student import StudentProfile
-
 from src.api_pkg import deps
+from src.api_pkg.summary_builder import build_summary_payload, load_recommendations_from_disk
+from src.models.student import StudentProfile
 
 logger = structlog.get_logger("api")
 
@@ -25,13 +25,24 @@ async def get_results_summary(
     request: Request,
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
-    summary_path = config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json"
-    if summary_path.exists():
-        try:
-            with open(summary_path, encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+    evaluations = build_summary_payload(load_recommendations_from_disk())
+    if evaluations:
+        return {
+            "evaluations": evaluations,
+            "profiles": list(evaluations.keys()),
+        }
+
+    for summary_path in (
+        config.DATA_RESULT_DIR / "profiles_comparison_summary.json",
+        config.DATA_PROCESSED_DIR / "profiles_comparison_summary.json",
+    ):
+        if summary_path.exists():
+            try:
+                with open(summary_path, encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
     return {
         "message": "Результаты анализа не найдены. Запустите gap-анализ.",
         "profiles": list(profiles.keys()),

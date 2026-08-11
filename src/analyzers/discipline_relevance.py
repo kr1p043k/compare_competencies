@@ -7,6 +7,7 @@ using KRM KSA texts and embedding cosine similarity.
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +48,8 @@ class DisciplineAwareScorer:
         self._disciplines: dict[str, dict] = {}
         self._discipline_texts: dict[str, list[str]] = {}
         self._discipline_embeddings: dict[str, np.ndarray] = {}
+        self._emb_lock = threading.Lock()
+        self._skill_emb_cache: dict[str, np.ndarray] = {}
 
     def load(self, disciplines_path: Path | None = None) -> None:
         disciplines_path = disciplines_path or config.REFERENCE_DIR / "krm_disciplines_09.03.02.json"
@@ -68,20 +71,23 @@ class DisciplineAwareScorer:
     def _ensure_embeddings(self) -> None:
         if self._discipline_embeddings or not self._loaded:
             return
-        if self._model is None:
-            from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
-            self._model = EmbeddingProviderFactory.get()
-        for disc_name, texts in self._discipline_texts.items():
-            try:
-                embs = self._model.encode(texts, show_progress_bar=False)
-                mean_emb = np.mean(embs, axis=0)
-                norm = np.linalg.norm(mean_emb)
-                if norm > 0:
-                    mean_emb = mean_emb / norm
-                self._discipline_embeddings[disc_name] = mean_emb
-            except Exception as exc:
-                logger.warning("discipline_embedding_failed", discipline=disc_name, error=str(exc))
-        logger.info("discipline_embeddings_computed", count=len(self._discipline_embeddings))
+        with self._emb_lock:
+            if self._discipline_embeddings:
+                return
+            if self._model is None:
+                from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+                self._model = EmbeddingProviderFactory.get()
+            for disc_name, texts in self._discipline_texts.items():
+                try:
+                    embs = self._model.encode(texts, show_progress_bar=False)
+                    mean_emb = np.mean(embs, axis=0)
+                    norm = np.linalg.norm(mean_emb)
+                    if norm > 0:
+                        mean_emb = mean_emb / norm
+                    self._discipline_embeddings[disc_name] = mean_emb
+                except Exception as exc:
+                    logger.warning("discipline_embedding_failed", discipline=disc_name, error=str(exc))
+            logger.info("discipline_embeddings_computed", count=len(self._discipline_embeddings))
 
     def compute_relevance(self, skill_name: str, discipline_name: str | None = None) -> DisciplineRelevance:
         if not self._loaded:
@@ -96,11 +102,16 @@ class DisciplineAwareScorer:
         if self._model is None:
             return DisciplineRelevance(0.0)
         try:
-            skill_emb = self._model.encode([skill_name], show_progress_bar=False)[0]
-            skill_norm = np.linalg.norm(skill_emb)
-            if skill_norm > 0:
-                skill_emb = skill_emb / skill_norm
-            else:
+            skill_emb = self._skill_emb_cache.get(skill_name)
+            if skill_emb is None:
+                e = self._model.encode([skill_name], show_progress_bar=False)[0]
+                skill_norm = np.linalg.norm(e)
+                if skill_norm > 0:
+                    e = e / skill_norm
+                    skill_emb = e
+                if skill_emb is not None:
+                    self._skill_emb_cache[skill_name] = skill_emb
+            if skill_emb is None:
                 return DisciplineRelevance(0.0)
             sim = float(np.dot(skill_emb, disc_emb))
             return DisciplineRelevance(sim)

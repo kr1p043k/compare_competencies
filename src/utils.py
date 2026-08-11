@@ -32,11 +32,11 @@ def extract_experience(vac: dict | Any) -> str:
         exp_obj = d.get("experience", {})
         if isinstance(exp_obj, dict):
             exp_id = exp_obj.get("id", "").lower()
-            if any(x in exp_id for x in ["less1", "junior", "no_experience"]):
+            if any(x in exp_id for x in ["less1", "junior", "no_experience", "noexperience"]):
                 return "junior"
             if any(x in exp_id for x in ["between1and3", "between3and6"]):
                 return "middle"
-            if any(x in exp_id for x in ["between6and10", "morethan10"]):
+            if any(x in exp_id for x in ["between6and10", "morethan10", "morethan6"]):
                 return "senior"
         elif isinstance(exp_obj, str):
             el = exp_obj.lower()
@@ -59,11 +59,11 @@ def extract_experience(vac: dict | Any) -> str:
     if exp_obj:
         if hasattr(exp_obj, "id"):
             eid = exp_obj.id.lower()
-            if any(x in eid for x in ["less1", "junior", "no_experience"]):
+            if any(x in eid for x in ["less1", "junior", "no_experience", "noexperience"]):
                 return "junior"
             if any(x in eid for x in ["between1and3", "between3and6"]):
                 return "middle"
-            if any(x in eid for x in ["between6and10", "morethan10"]):
+            if any(x in eid for x in ["between6and10", "morethan10", "morethan6"]):
                 return "senior"
         elif isinstance(exp_obj, str):
             el = exp_obj.lower()

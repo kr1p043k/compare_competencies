@@ -26,8 +26,8 @@ def _classify_experience(exp_str: str | None, name: str) -> str:
     levels = set()
     if exp_str:
         el = exp_str.lower()
-        if "junior" in el or "less1" in el or "no_experience" in el:
-            levels.add("junior")
+        if "junior" in el or "less1" in el or "no_experience" in el or "noexperience" in el:
+            return "junior"
         if "senior" in el or "morethan6" in el or "morethan10" in el:
             levels.add("senior")
         if "between3and6" in el or "between1and3" in el:
@@ -43,6 +43,18 @@ def _classify_experience(exp_str: str | None, name: str) -> str:
         return "middle"
     result = sorted(levels, key={"junior": 0, "middle": 1, "senior": 2}.get)
     return ", ".join(result)
+
+
+_EXP_LEVEL_CASE = (
+    "CASE "
+    "WHEN LOWER(v.experience) IN ('noexperience', 'less', 'junior') THEN 'junior' "
+    "WHEN LOWER(v.experience) IN ('morethan6', 'more', 'senior') THEN 'senior' "
+    "WHEN LOWER(v.experience) IN ('between1and3', 'between3and6', 'middle') THEN 'middle' "
+    "WHEN LOWER(v.name) LIKE '%junior%' OR LOWER(v.name) LIKE '%младший%' THEN 'junior' "
+    "WHEN LOWER(v.name) LIKE '%senior%' OR LOWER(v.name) LIKE '%старший%' "
+    "OR LOWER(v.name) LIKE '%ведущий%' THEN 'senior' "
+    "ELSE 'middle' END"
+)
 
 
 async def _get_db_pool():
@@ -71,10 +83,7 @@ async def get_vacancies(
 
     if experience:
         exp_lower = experience.lower()
-        conditions.append(
-            f"(LOWER(v.experience) LIKE '%' || ${len(params) + 1} || '%'"
-            f" OR LOWER(v.name) LIKE '%' || ${len(params) + 1} || '%')"
-        )
+        conditions.append(f"({_EXP_LEVEL_CASE}) = ${len(params) + 1}")
         params.append(exp_lower)
 
     if search:
@@ -265,16 +274,12 @@ async def get_vacancies_stats(
 
     total = await pool.fetchval("SELECT COUNT(*) FROM vacancies") or 0
 
-    exp_rows = await pool.fetch("""
+    exp_rows = await pool.fetch(f"""
         SELECT
-            CASE
-                WHEN experience IN ('noExperience', 'less', 'junior') THEN 'junior'
-                WHEN experience IN ('more', 'senior') THEN 'senior'
-                ELSE 'middle'
-            END AS exp_group,
+            {_EXP_LEVEL_CASE} AS exp_group,
             COUNT(*) AS cnt
-        FROM vacancies
-        WHERE experience IS NOT NULL
+        FROM vacancies v
+        WHERE v.experience IS NOT NULL
         GROUP BY exp_group
     """)
     by_exp = {r["exp_group"]: r["cnt"] for r in exp_rows}
@@ -301,5 +306,69 @@ async def get_vacancies_stats(
             "min": sal["min_sal"] or 0 if sal else 0,
             "max": sal["max_sal"] or 0 if sal else 0,
             "count": sal["cnt"] or 0 if sal else 0,
+        },
+    }
+
+
+@router.get("/vacancies/stats/analytics")
+@limiter.limit("30/minute")
+async def get_vacancies_analytics(
+    request: Request,
+):
+    pool = await _get_db_pool()
+    if not pool:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    sal_rows = await pool.fetch(f"""
+        SELECT
+            {_EXP_LEVEL_CASE} AS lvl,
+            COUNT(*) AS cnt,
+            ROUND(AVG(COALESCE(salary_from, salary_to))) AS avg_sal
+        FROM vacancies v
+        WHERE v.salary_from IS NOT NULL OR v.salary_to IS NOT NULL
+        GROUP BY lvl
+    """)
+    salary_by_level = {
+        r["lvl"]: {"count": r["cnt"], "average": r["avg_sal"] or 0} for r in sal_rows
+    }
+
+    regions = await pool.fetch("""
+        SELECT area_name AS name, COUNT(*) AS cnt
+        FROM vacancies
+        WHERE area_name IS NOT NULL AND area_name != ''
+        GROUP BY area_name
+        ORDER BY cnt DESC
+        LIMIT 10
+    """)
+    top_regions = [{"name": r["name"], "count": r["cnt"]} for r in regions]
+
+    employers = await pool.fetch("""
+        SELECT employer_name AS name, COUNT(*) AS cnt
+        FROM vacancies
+        WHERE employer_name IS NOT NULL AND employer_name != ''
+        GROUP BY employer_name
+        ORDER BY cnt DESC
+        LIMIT 10
+    """)
+    top_employers = [{"name": r["name"], "count": r["cnt"]} for r in employers]
+
+    total = await pool.fetchval("SELECT COUNT(*) FROM vacancies") or 0
+    with_skills = await pool.fetchval(
+        "SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL AND parsed_skills::text != '[]'"
+    ) or 0
+    avg_skills = await pool.fetchval(
+        "SELECT ROUND(AVG(jsonb_array_length(parsed_skills))) FROM vacancies "
+        "WHERE parsed_skills IS NOT NULL AND parsed_skills::text != '[]'"
+    ) or 0
+
+    return {
+        "salary_by_level": salary_by_level,
+        "top_regions": top_regions,
+        "top_employers": top_employers,
+        "skills": {
+            "with_skills": with_skills,
+            "total": total,
+            "percent": round(with_skills / total * 100, 1) if total else 0,
+            "avg_skills_per_vacancy": avg_skills,
         },
     }

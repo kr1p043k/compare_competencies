@@ -15,7 +15,9 @@ from src.database import async_session_factory
 from src.models.krm_models import User
 
 
-async def main(email: str, password: str, role: str, full_name: str) -> None:
+async def main(email: str, password: str, role: str, full_name: str, directions: list[str] | None = None) -> None:
+    from src.models.krm_models import UserDirection
+
     async with async_session_factory() as session:
         existing = await session.execute(select(User).where(User.email == email))
         if existing.scalar_one_or_none():
@@ -25,6 +27,9 @@ async def main(email: str, password: str, role: str, full_name: str) -> None:
         pw_hash = result.scalar_one()
         user = User(email=email, password_hash=pw_hash, full_name=full_name or email.split("@")[0], role=role)
         session.add(user)
+        await session.flush()
+        for code in (directions or []):
+            session.add(UserDirection(user_id=user.id, dir_code=code))
         await session.commit()
         print(f"User created: {email} ({role})")
 
@@ -34,7 +39,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("email")
     parser.add_argument("password")
-    parser.add_argument("--role", default="teacher", choices=["admin", "teacher"])
+    parser.add_argument("--role", default="teacher", choices=["admin", "teacher", "rop"])
     parser.add_argument("--name", default="")
     args = parser.parse_args()
     asyncio.run(main(args.email, args.password, args.role, args.name))

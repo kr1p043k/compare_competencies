@@ -324,7 +324,10 @@ class LTRTrainStep(PipelineStage):
             case Ok(_):
                 if hasattr(ltr_engine, "last_metrics"):
                     m = ltr_engine.last_metrics
-                    self._progress(90, f"LTR: R²={m['r2']:.4f} MAE={m['mae']:.4f}")
+                    r2 = m.get("r2")
+                    mae = m.get("mae")
+                    if r2 is not None and mae is not None:
+                        self._progress(90, f"LTR: R²={r2:.4f} MAE={mae:.4f}")
                 if ltr_engine.is_fitted:
                     self._progress(100, "LTR-модель ранжирования успешно обучена")
                     pipeline_metrics.record_step_end(self.name, "success")

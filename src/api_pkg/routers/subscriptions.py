@@ -140,6 +140,7 @@ async def list_notifications(request: Request, limit: int = 50, unread_only: boo
                 "body": n.body,
                 "article_url": n.article_url,
                 "article_source": n.article_source,
+                "severity": n.severity or "info",
                 "is_read": n.is_read,
                 "created_at": n.created_at.isoformat(),
             }
@@ -173,7 +174,7 @@ async def unread_count(request: Request, user: dict = Depends(require_auth)):
     uid = user["uid"]
     from src.database import async_session_factory
     from src.models.krm_models import Notification
-    from sqlalchemy import func
+    from sqlalchemy import func, select
 
     async with async_session_factory() as session:
         result = await session.execute(

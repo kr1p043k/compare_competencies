@@ -6,10 +6,10 @@ import CompetencyTrendsPanel from "./CompetencyTrendsPanel";
 const API = "/api/teacher";
 
 type Direction = {
-  id: string;
-  code: string;
+  dir_code: string;
   name: string;
   profile: string;
+  disciplines_count: number;
 };
 
 type DirectionAnalysis = {
@@ -83,15 +83,15 @@ export function TeacherDashboard() {
 
   useEffect(() => {
     Promise.all([
-      api("/teacher/stats"),
-      api("/teacher/krm/disciplines"),
       api("/teacher/krm/recommendations"),
       api("/teacher/krm/directions"),
-    ]).then(([s, d, r, dirs]) => {
-      setStats(s);
-      setDisciplines(d as Discipline[]);
+    ]).then(([r, dirs]) => {
       setRecs(r as Recommendation[]);
-      setDirections(Array.isArray(dirs) ? (dirs as Direction[]) : [dirs as Direction]);
+      const list = (Array.isArray(dirs) ? dirs : [dirs]) as Direction[];
+      setDirections(list);
+      if (list.length > 0 && !list.some((d) => d.dir_code === selectedDir)) {
+        setSelectedDir(list[0].dir_code);
+      }
       setLoading(false);
     }).catch((e) => {
       console.error("TeacherDashboard init failed", e);
@@ -101,6 +101,12 @@ export function TeacherDashboard() {
 
   useEffect(() => {
     if (!selectedDir) return;
+    api(`/teacher/krm/disciplines?dir_code=${selectedDir}`)
+      .then((d) => setDisciplines(d as Discipline[]))
+      .catch(() => setDisciplines([]));
+    api(`/teacher/krm/stats?dir_code=${selectedDir}`)
+      .then(setStats)
+      .catch(() => {});
     api(`/teacher/analysis?dir_code=${selectedDir}`)
       .then(setAnalysis)
       .catch(() => setAnalysis(null));
@@ -108,7 +114,7 @@ export function TeacherDashboard() {
 
   async function loadDiscipline(name: string) {
     try {
-      const data = await api(`/teacher/krm/disciplines/${encodeURIComponent(name)}`);
+      const data = await api(`/teacher/krm/disciplines/${encodeURIComponent(name)}?dir_code=${selectedDir}`);
       setSelected(data as DisciplineDetail);
       setShowAnalysis(false);
     } catch {}
@@ -230,7 +236,7 @@ export function TeacherDashboard() {
             }}
           >
             {directions.map((d) => (
-              <option key={d.code} value={d.code}>{d.code} - {d.name}</option>
+              <option key={d.dir_code} value={d.dir_code}>{d.dir_code} - {d.name}</option>
             ))}
           </select>
 
@@ -239,7 +245,7 @@ export function TeacherDashboard() {
             onClick={async () => {
               setRunLoading(true);
               try {
-                await api("/teacher/krm/run-analysis", { method: "POST" });
+                await api(`/teacher/krm/run-analysis?dir_code=${selectedDir}`, { method: "POST" });
                 // wait a bit then reload
                 setTimeout(async () => {
                   try {

@@ -168,7 +168,7 @@ class Experience:
         exp_id = self.id.lower()
 
         # junior: нет опыта, менее 1 года
-        if any(x in exp_id for x in ["no_experience", "less1", "junior"]):
+        if any(x in exp_id for x in ["no_experience", "noexperience", "less1", "junior"]):
             return "junior"
 
         # middle: 1-6 лет
@@ -176,7 +176,7 @@ class Experience:
             return "middle"
 
         # senior: 6+ лет
-        elif any(x in exp_id for x in ["between6and10", "morethan10", "senior"]):
+        elif any(x in exp_id for x in ["between6and10", "morethan10", "morethan6", "senior"]):
             return "senior"
 
         return "middle"  # default

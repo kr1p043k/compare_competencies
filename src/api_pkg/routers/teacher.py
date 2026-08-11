@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -47,6 +48,77 @@ def _save_json(path, data) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2, default=str)
 
 
+_DIR_CODE_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$")
+
+
+def _validate_dir_code(dir_code: str) -> None:
+    if not _DIR_CODE_RE.match(dir_code):
+        raise HTTPException(status_code=400, detail="Invalid direction code format")
+
+
+def _list_krm_directions() -> list[dict]:
+    """Список направлений из data/reference/krm_disciplines_*.json.
+
+    dir_code = имя файла без префикса (например 09.03.01_ai_och).
+    Файлы *_clean игнорируем, чтобы не дублировать направления.
+    """
+    dirs: list[dict] = []
+    if not config.REFERENCE_DIR.exists():
+        return dirs
+    for path in sorted(config.REFERENCE_DIR.glob("krm_disciplines_*.json")):
+        if "_clean" in path.name:
+            continue
+        dir_code = path.name[len("krm_disciplines_"):-len(".json")]
+        if not dir_code or not _DIR_CODE_RE.match(dir_code):
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        info = next(iter(data.values()), {}) if isinstance(data, dict) else {}
+        dirs.append({
+            "dir_code": dir_code,
+            "name": info.get("direction_name", ""),
+            "profile": info.get("profile", ""),
+            "disciplines_count": len(info.get("disciplines", {}) or {}),
+        })
+    dirs.sort(key=lambda d: d["dir_code"])
+    return dirs
+
+
+def _load_krm_direction(dir_code: str) -> dict:
+    """Загружает данные одного направления (direction_name/profile/disciplines)."""
+    _validate_dir_code(dir_code)
+    path = config.REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
+    if not path.exists() or "_clean" in path.name:
+        raise HTTPException(status_code=404, detail=f"Direction '{dir_code}' not found")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        raise HTTPException(status_code=503, detail="KRM data unavailable") from None
+    if not isinstance(data, dict) or not data:
+        return {}
+    return next(iter(data.values()))
+
+
+async def _user_direction_codes(user_id: str) -> set[str]:
+    """dir_code направления, привязанные к пользователю (для роли rop)."""
+    if not user_id:
+        return set()
+    from src.database import async_session_factory
+    from src.models.krm_models import UserDirection
+    from sqlalchemy import select
+
+    try:
+        async with async_session_factory() as session:
+            result = await session.execute(
+                select(UserDirection.dir_code).where(UserDirection.user_id == user_id)
+            )
+            return {row[0] for row in result}
+    except Exception:
+        return set()
+
+
 # ---------- endpoints ----------
 
 @router.get("/teacher/stats")
@@ -89,9 +161,9 @@ async def teacher_stats(request: Request):
 
 @router.get("/teacher/krm/stats")
 @limiter.limit("30/minute")
-async def krm_stats(request: Request):
-    data = _load_json(config.KRM_DISCIPLINES_PATH)
-    d = data.get("09.03.02", {}).get("disciplines", {})
+async def krm_stats(request: Request, dir_code: str = "09.03.02"):
+    info = _load_krm_direction(dir_code)
+    d = info.get("disciplines", {}) or {}
 
     total_comps: set[str] = set()
     total_skills = 0
@@ -101,6 +173,7 @@ async def krm_stats(request: Request):
             total_skills += len(skills)
 
     return {
+        "dir_code": dir_code,
         "total_disciplines": len(d),
         "total_competencies": len(total_comps),
         "total_skills": total_skills,
@@ -110,20 +183,20 @@ async def krm_stats(request: Request):
 @router.get("/teacher/krm/directions")
 @limiter.limit("30/minute")
 async def krm_directions(request: Request):
-    data = _load_json(config.KRM_DISCIPLINES_PATH)
-    info = data.get("09.03.02", {})
-    return {
-        "code": "09.03.02",
-        "name": info.get("direction_name", ""),
-        "profile": info.get("profile", ""),
-    }
+    from src.api_pkg.routers.auth import get_current_user
+
+    user = await get_current_user(request)
+    all_dirs = _list_krm_directions()
+    if user and user.get("r") == "rop":
+        codes = await _user_direction_codes(user.get("uid", ""))
+        return [d for d in all_dirs if d["dir_code"] in codes]
+    return all_dirs
 
 
 @router.get("/teacher/krm/disciplines")
 @limiter.limit("30/minute")
-async def krm_disciplines(request: Request):
-    data = _load_json(config.KRM_DISCIPLINES_PATH)
-    d = data.get("09.03.02", {}).get("disciplines", {})
+async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
+    d = _load_krm_direction(dir_code).get("disciplines", {}) or {}
     return [
         {
             "name": name,
@@ -136,9 +209,8 @@ async def krm_disciplines(request: Request):
 
 @router.get("/teacher/krm/disciplines/{discipline_name:path}")
 @limiter.limit("30/minute")
-async def krm_discipline_detail(request: Request, discipline_name: str):
-    data = _load_json(config.KRM_DISCIPLINES_PATH)
-    d = data.get("09.03.02", {}).get("disciplines", {})
+async def krm_discipline_detail(request: Request, discipline_name: str, dir_code: str = "09.03.02"):
+    d = _load_krm_direction(dir_code).get("disciplines", {}) or {}
 
     # fuzzy match because encoding may vary
     info = d.get(discipline_name)
@@ -153,6 +225,7 @@ async def krm_discipline_detail(request: Request, discipline_name: str):
 
     return {
         "name": discipline_name,
+        "dir_code": dir_code,
         "competencies": [
             {
                 "code": comp,
@@ -335,9 +408,7 @@ async def run_teacher_analysis_endpoint(
     background_tasks: BackgroundTasks,
     dir_code: str = "09.03.02",
 ):
-    import re
-    if not re.match(r"^\d{2}\.\d{2}\.\d{2}$", dir_code):
-        raise HTTPException(status_code=400, detail="Invalid direction code format")
+    _validate_dir_code(dir_code)
     async def _run():
         try:
             proc = await asyncio.create_subprocess_exec(

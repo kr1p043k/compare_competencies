@@ -112,6 +112,16 @@ def create_app() -> FastAPI:
     async def global_exception_handler(request: Request, exc: Exception):
         request_id = getattr(request.state, "request_id", "unknown")
         logger.exception("Unhandled exception", request_id=request_id, error_type=type(exc).__name__)
+        if request.url.path.startswith("/api/"):
+            request.state.system_error_notified = True
+            from src.notifications.system import queue_system_error
+            queue_system_error(
+                f"Необработанная ошибка API: {type(exc).__name__}",
+                f"{request.method} {request.url.path} | request_id={request_id} | {str(exc)[:1500]}",
+                severity="error",
+                article_url=f"api:{request.method} {request.url.path}",
+                dedupe=True,
+            )
         return JSONResponse(
             status_code=500,
             content={
@@ -167,6 +177,8 @@ def create_app() -> FastAPI:
     _mount(trends_prof_router)
     from src.api_pkg.routers.auth import router as auth_router
     _mount(auth_router)
+    from src.api_pkg.routers.academic import router as academic_router
+    _mount(academic_router)
     from src.api_pkg.routers.teacher import router as teacher_router
     _mount(teacher_router)
     from src.api_pkg.routers.student import router as student_router

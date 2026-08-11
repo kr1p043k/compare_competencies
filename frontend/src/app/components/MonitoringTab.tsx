@@ -32,11 +32,12 @@ interface Subscription {
 
 interface NotificationItem {
   id: string;
-  subscription_id: string;
+  subscription_id: string | null;
   title: string;
   body: string;
   article_url: string | null;
   article_source: string | null;
+  severity?: string;
   is_read: boolean;
   created_at: string;
 }
@@ -65,7 +66,7 @@ export function MonitoringTab() {
   const loadMetrics = useCallback(async () => {
     try {
       const r = await apiFetch("/api/admin/monitoring");
-      if (!r.ok) throw new Error("Failed to load metrics");
+      if (!r.ok) throw new Error(`Failed to load metrics: ${r.status}`);
       const data = await r.json();
       setMetrics(data);
       setError(null);
@@ -133,6 +134,8 @@ export function MonitoringTab() {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
       loadMetrics();
+      loadSubscriptions();
+      loadNotifications();
       loadUnreadCount();
     }, 15000);
     return () => clearInterval(interval);
@@ -143,9 +146,10 @@ export function MonitoringTab() {
     return metrics[name].samples;
   };
 
-  const sumMetric = (name: string): number => {
-    return findMetric(name).reduce((s, m) => s + m.value, 0);
-  };
+  const pipelineCountSamples = findMetric("pipeline_stage_duration_seconds").filter(
+    (s) => s.name.endsWith("_count")
+  );
+  const pipelineRunCount = pipelineCountSamples.reduce((s, m) => s + m.value, 0);
 
   const createSubscription = async () => {
     if (!newTopic.trim()) return;
@@ -200,10 +204,10 @@ export function MonitoringTab() {
     } catch {}
   };
 
-  const pipelineErrors = findMetric("pipeline_errors_total");
+  const pipelineErrors = findMetric("pipeline_errors");
   const ltrMetrics = findMetric("ltr_model_metric");
-  const recsGenerated = findMetric("recommendations_generated_total");
-  const apiReqCount = findMetric("api_requests_total");
+  const recsGenerated = findMetric("recommendations_generated");
+  const apiReqCount = findMetric("api_requests");
 
   return (
     <div className="space-y-6">
@@ -239,7 +243,7 @@ export function MonitoringTab() {
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-2"><Activity className="size-4" />Pipeline runs</CardDescription>
               </CardHeader>
-              <CardContent><div className="text-2xl font-bold">{sumMetric("pipeline_stage_duration_seconds_count")}</div></CardContent>
+              <CardContent><div className="text-2xl font-bold">{pipelineRunCount}</div></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
@@ -269,8 +273,8 @@ export function MonitoringTab() {
             <CardContent>
               <div className="space-y-3">
                 {(["data_collection", "quality_scoring", "skill_extraction", "weight_cleaning", "level_building", "cluster_training", "model_training", "gap_analysis"] as const).map((stage) => {
-                  const countSamples = findMetric("pipeline_stage_duration_seconds_count").filter(s => s.labels.stage === stage);
-                  const sumSamples = findMetric("pipeline_stage_duration_seconds_sum").filter(s => s.labels.stage === stage);
+                  const countSamples = findMetric("pipeline_stage_duration_seconds").filter(s => s.name.endsWith("_count") && s.labels.stage === stage);
+                  const sumSamples = findMetric("pipeline_stage_duration_seconds").filter(s => s.name.endsWith("_sum") && s.labels.stage === stage);
                   const count = countSamples.reduce((s, m) => s + m.value, 0);
                   const total = sumSamples.reduce((s, m) => s + m.value, 0);
                   const avg = count > 0 ? total / count : 0;
@@ -439,7 +443,7 @@ export function MonitoringTab() {
               </Button>
             </div>
           </div>
-          <CardDescription>Новые публикации по отслеживаемым темам</CardDescription>
+          <CardDescription>Ошибки, предупреждения и публикации по отслеживаемым темам</CardDescription>
         </CardHeader>
         <CardContent>
           {notifError && (
@@ -457,8 +461,14 @@ export function MonitoringTab() {
               <div key={n.id} className={`p-3 rounded-lg border ${n.is_read ? "bg-white border-gray-200" : "bg-blue-50 border-blue-200"}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium text-gray-900 truncate">{n.title}</span>
+                      {n.severity === "error" && (
+                        <Badge className="bg-red-600 shrink-0"><AlertCircle className="size-3 mr-1" />ошибка</Badge>
+                      )}
+                      {n.severity === "warning" && (
+                        <Badge className="bg-amber-500 shrink-0">предупреждение</Badge>
+                      )}
                       {n.article_source && <Badge variant="outline" className="text-xs shrink-0">{n.article_source}</Badge>}
                     </div>
                     <p className="text-xs text-gray-500 mt-1 line-clamp-2">{n.body}</p>
@@ -481,6 +491,34 @@ export function MonitoringTab() {
                 </div>
               </div>
             ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── Grafana ───────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <BarChart3 className="size-5" />
+            Grafana
+          </CardTitle>
+          <CardDescription>Дашборд доступен по логину и паролю из окружения (GRAFANA_USER / GRAFANA_PASSWORD)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center gap-4 py-10 text-center">
+            <div className="flex size-12 items-center justify-center rounded-full bg-gray-100">
+              <BarChart3 className="size-6 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">Мониторинг в Grafana</p>
+              <p className="text-xs text-gray-500">Дашборд откроется в новой вкладке</p>
+            </div>
+            <a href="/grafana/d/competency-gap-analyzer/competency-gap-analyzer?orgId=1&kiosk" target="_blank" rel="noopener noreferrer">
+              <Button variant="outline">
+                <ExternalLink className="size-4 mr-2" />
+                Посмотреть в Grafana
+              </Button>
+            </a>
           </div>
         </CardContent>
       </Card>

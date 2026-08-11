@@ -25,8 +25,10 @@ import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
 import { PipelineProgress } from "./components/PipelineProgress";
 import { DataViewer } from "./components/DataViewer";
 import { RecommendationsReport } from "./components/RecommendationsReport";
+import { SummaryReport } from "./components/SummaryReport";
 import { PredictionsTab } from "./components/PredictionsTab";
 import { MonitoringTab } from "./components/MonitoringTab";
+import { LogsTab } from "./components/LogsTab";
 import { LoginPage } from "./components/LoginPage";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
@@ -342,8 +344,8 @@ export default function App() {
     return <LoginPage onLogin={login} />;
   }
 
-  const roleIcon = role === "admin" ? <Shield className="size-4" /> : role === "teacher" ? <UserCheck className="size-4" /> : <GraduationCap className="size-4" />;
-  const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : "Студент";
+  const roleIcon = role === "admin" ? <Shield className="size-4" /> : (role === "teacher" || role === "rop") ? <UserCheck className="size-4" /> : <GraduationCap className="size-4" />;
+  const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "rop" ? "Руководитель ОП" : "Студент";
 
   return (
     <div className="min-h-screen bg-white">
@@ -473,12 +475,18 @@ export default function App() {
               </TabsTrigger>
             )}
             {role === "admin" && (
+              <TabsTrigger value="logs" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
+                <FileText className="size-4" />
+                Логи
+              </TabsTrigger>
+            )}
+            {role === "admin" && (
               <TabsTrigger value="admin" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
                 <Shield className="size-4" />
                 Админ
               </TabsTrigger>
             )}
-            {role === "teacher" && (
+            {(role === "teacher" || role === "rop") && (
               <TabsTrigger value="teacher" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
                 <BarChart3 className="size-4" />
                 Статистика
@@ -612,6 +620,9 @@ export default function App() {
                   if (d.recommendations || d.closest_roles) {
                     return <RecommendationsReport data={lastResult as any} />;
                   }
+                  if (d.evaluations && Array.isArray(d.profiles)) {
+                    return <SummaryReport data={lastResult as any} />;
+                  }
                   const msg = d.message as string | undefined;
                   if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {
                     return (
@@ -706,11 +717,16 @@ export default function App() {
             </TabsContent>
           )}
           {role === "admin" && (
+            <TabsContent value="logs">
+              <LogsTab />
+            </TabsContent>
+          )}
+          {role === "admin" && (
             <TabsContent value="admin">
               <AdminDashboard />
             </TabsContent>
           )}
-          {role === "teacher" && (
+          {(role === "teacher" || role === "rop") && (
             <TabsContent value="teacher">
               <TeacherDashboard />
             </TabsContent>

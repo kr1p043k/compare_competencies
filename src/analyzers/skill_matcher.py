@@ -36,6 +36,7 @@ class SkillMatcher:
         self._market_embeddings: np.ndarray | None = None
         self._market_names: list[str] = []
         self._semantic_cache: dict[str, str] = {}
+        self._match_cache: dict[str, tuple[str | None, str, float]] = {}
 
     def set_market(self, market_skills: dict[str, int]) -> Result[None, MatchingError]:
         if not market_skills:
@@ -43,6 +44,7 @@ class SkillMatcher:
             return Err(MatchingError(skill_name="", message="Empty market skills map"))
         self.market_skills = market_skills
         self._semantic_cache.clear()
+        self._match_cache.clear()
         if self._embedding_provider and market_skills:
             names = list(market_skills.keys())
             embs = self._embedding_provider.encode(names, show_progress_bar=False)
@@ -81,6 +83,16 @@ class SkillMatcher:
             logger.debug("skill_too_short", skill=skill_name)
             return Ok((None, "no_match", 0.0))
 
+        cached = self._match_cache.get(n)
+        if cached is not None:
+            return Ok(cached)
+
+        result = self._match_uncached(n, skill_name)
+        if result.is_ok():
+            self._match_cache[n] = result.unwrap()
+        return result
+
+    def _match_uncached(self, n: str, skill_name: str) -> Result[tuple[str | None, str, float], MatchingError]:
         if n in self.market_skills:
             logger.debug("skill_exact_match", skill=n)
             return Ok((n, "exact", 1.0))

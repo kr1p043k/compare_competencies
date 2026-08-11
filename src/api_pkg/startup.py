@@ -26,6 +26,59 @@ import src.api_pkg.deps as deps
 logger = structlog.get_logger("api")
 
 
+def _notify_warmup_failure(component: str, error: str) -> None:
+    from src.notifications.system import queue_system_error
+    queue_system_error(
+        f"Не удалось загрузить компонент: {component}",
+        str(error)[:2000],
+        severity="warning",
+    )
+
+
+async def _resolve_warmup_failure(component: str) -> None:
+    from src.notifications.system import resolve_warmup_failure
+    try:
+        await resolve_warmup_failure(component)
+    except Exception:
+        logger.debug("warmup_failure_resolve_skipped", component=component)
+
+
+async def _resolve_pipeline_errors_if_ready() -> None:
+    """Если пайплайн уже успешно собрал артефакты, чистим устаревшие
+    уведомления об ошибках этапов («Ошибка этапа пайплайна: ...»,
+    «Пайплайн не завершился») — проблема устранена, они исчезают из ленты."""
+    try:
+        clusters_ok = all(
+            (config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{lvl}.joblib").exists()
+            for lvl in ("junior", "middle", "senior")
+        )
+        ltr_ok = (config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib").exists()
+        if not (clusters_ok and ltr_ok):
+            return
+        from src.notifications.system import (
+            resolve_pipeline_failed,
+            resolve_pipeline_stage_errors,
+        )
+        for stage in (
+            "data_collection",
+            "quality_scoring",
+            "skill_extraction",
+            "weight_cleaning",
+            "level_building",
+            "cluster_training",
+            "model_training",
+            "gap_analysis",
+        ):
+            try:
+                await resolve_pipeline_stage_errors(stage)
+            except Exception:
+                logger.debug("pipeline_stage_resolve_skipped", stage=stage)
+        await resolve_pipeline_failed()
+        logger.info("stale_pipeline_errors_cleared")
+    except Exception:
+        logger.debug("pipeline_errors_cleanup_skipped")
+
+
 async def _set_waiting_mode():
     deps.vacancy_load_error = "not_found"
     deps.skill_freq = {}
@@ -47,7 +100,22 @@ async def _set_waiting_mode():
         deps.is_ready = True
 
 
+def _refresh_business_gauges() -> None:
+    """Заполняет бизнес-гейджи из текущего состояния загруженных данных."""
+    try:
+        from src.monitoring.metrics import active_profiles, skill_count, vacancies_loaded
+        vacancies_loaded.set(len(deps.basic_vacancies or []))
+        active_profiles.set(len(deps.student_profiles or {}))
+        skill_count.set(len(
+            deps.skill_weights or deps.skill_freq or deps.current_skills_set or {}
+        ))
+    except Exception as exc:
+        logger.warning("business_gauges_refresh_failed", error=str(exc))
+
+
 async def run_startup(app):
+    from src.logging_config import setup_structlog
+    setup_structlog()
     config.settings.ensure_dirs()
     logger.info("Запуск API-сервера, быстрая инициализация...")
 
@@ -59,6 +127,8 @@ async def run_startup(app):
     from src.api_pkg.student_actions import _ensure_table as _ensure_student_actions_table
     await _ensure_student_actions_table()
     logger.info("asyncpg pool ready")
+
+    asyncio.ensure_future(_resolve_pipeline_errors_if_ready())
 
     detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
@@ -94,6 +164,8 @@ async def run_startup(app):
 
     from src.api_pkg.request_logger import start_log_flusher
     start_log_flusher()
+    from src.notifications.system import start_system_error_flusher
+    start_system_error_flusher()
 
     async with deps.init_lock:
         deps.is_ready = True
@@ -103,8 +175,9 @@ async def run_startup(app):
     asyncio.create_task(_warmup_background(basic_vacancies, raw_file))
 
     # 6. фоновый сбор вакансий (инкрементально, каждые 6 часов)
-    from src.pipeline.background_collector import start_background_collector
-    await start_background_collector()
+    if config.settings.BACKGROUND_COLLECTOR_ENABLED:
+        from src.pipeline.background_collector import start_background_collector
+        await start_background_collector()
 
 
 async def _warmup_background(basic_vacancies, raw_file):
@@ -115,45 +188,53 @@ async def _warmup_background(basic_vacancies, raw_file):
     try:
         parser = VacancyParser()
 
+        def _unwrap_parse(r):
+            match r:
+                case Ok(d):
+                    return d
+                case Err(e):
+                    logger.error("parse_failed", error=str(e))
+                    return {}
+
         def _run_skill_extraction():
             cache = CacheManager(config.PARSED_SKILLS_CACHE_PATH.parent)
             cache_key = config.PARSED_SKILLS_CACHE_PATH.stem
             vacancies_hash = hashlib.sha256(raw_file.read_bytes()).hexdigest()
             skill_freq_local = {}
             hybrid_weights_local = {}
+            cache_hit = False
 
             match cache.load(cache_key):
                 case Ok(cached):
                     if isinstance(cached, dict) and cached.get("source_hash") == vacancies_hash:
-                        result = cached["result"]
+                        result = cached["result"] or {}
                         skill_freq_local = result.get("frequencies", {})
                         hybrid_weights_local = result.get("hybrid_weights", {})
-                        logger.info("Загружен кэш парсинга навыков")
+                        cache_hit = True
+                        logger.info(
+                            "Загружен кэш парсинга навыков",
+                            frequencies=len(skill_freq_local),
+                            hybrid_weights=len(hybrid_weights_local),
+                        )
                 case _:
                     pass
 
-            def _unwrap_parse(r):
-                match r:
-                    case Ok(d):
-                        return d
-                    case Err(e):
-                        logger.error("parse_failed", error=str(e))
-                        return {}
+            # Пересчитываем ТОЛЬКО если кэш не совпадает с файлом вакансий.
+            # Валидный кэш (даже с пустым результатом) не пересчитываем —
+            # иначе каждый старт уходит в многочасовой парсинг пустых данных.
+            if cache_hit:
+                return skill_freq_local, hybrid_weights_local
 
-            if not skill_freq_local:
-                result = _unwrap_parse(parser.extract_skills_from_vacancies(basic_vacancies))
-                skill_freq_local = result.get("frequencies", {})
-                hybrid_weights_local = result.get("hybrid_weights", {})
-                cache_data = {"source_hash": vacancies_hash, "result": result}
-                cache.save(cache_key, cache_data)
-                logger.info("Кэш парсинга сохранён")
-            elif not hybrid_weights_local:
-                result = _unwrap_parse(parser.extract_skills_from_vacancies(basic_vacancies))
-                hybrid_weights_local = result.get("hybrid_weights", {})
-                cache_data = {"source_hash": vacancies_hash, "result": result}
-                cache.save(cache_key, cache_data)
-                logger.info("Кэш парсинга обновлён (добавлены hybrid_weights)")
-
+            result = _unwrap_parse(parser.extract_skills_from_vacancies(basic_vacancies))
+            skill_freq_local = result.get("frequencies", {})
+            hybrid_weights_local = result.get("hybrid_weights", {})
+            cache_data = {"source_hash": vacancies_hash, "result": result}
+            cache.save(cache_key, cache_data)
+            logger.info(
+                "Кэш парсинга сохранён",
+                frequencies=len(skill_freq_local),
+                hybrid_weights=len(hybrid_weights_local),
+            )
             return skill_freq_local, hybrid_weights_local
 
         skill_freq_local, hybrid_weights_local = await asyncio.to_thread(_run_skill_extraction)
@@ -199,68 +280,75 @@ async def _warmup_background(basic_vacancies, raw_file):
         deps.competency_mapping = load_competency_mapping()
 
         logger.info("фоновая инициализация: навыки и веса готовы")
+        await _resolve_warmup_failure("навыки и веса")
     except Exception as e:
         logger.warning("фоновая инициализация: навыки не загружены", error=str(e))
+        _notify_warmup_failure("навыки и веса", e)
         parser = None
         hybrid_weights = {}
 
     # --- Шаг 2: Уровневый анализ вакансий ---
     try:
         level_analyzer = SkillLevelAnalyzer()
-        level_vacancies_data = []
-        vacancies_skills = []
 
-        for vac in basic_vacancies:
-            vac_skills = []
-            if "extracted_skills" in vac:
-                vac_skills = vac["extracted_skills"]
-            elif parser is not None:
-                desc = vac.get("description", "")
-                snip = vac.get("snippet") or {}
-                req = snip.get("requirement", "")
-                resp = snip.get("responsibility", "")
-                combined = f"{desc} {req} {resp}"
+        def _run_level_analysis():
+            level_vacancies_data = []
+            vacancies_skills = []
+
+            for vac in basic_vacancies:
                 vac_skills = []
-                match parser.extract_skills_from_description(combined):
-                    case Ok(sk):
-                        vac_skills = sk
-                    case _:
-                        pass
-            else:
-                vac_skills = []
+                if "extracted_skills" in vac:
+                    vac_skills = vac["extracted_skills"]
+                elif parser is not None:
+                    desc = vac.get("description", "")
+                    snip = vac.get("snippet") or {}
+                    req = snip.get("requirement", "")
+                    resp = snip.get("responsibility", "")
+                    combined = f"{desc} {req} {resp}"
+                    vac_skills = []
+                    match parser.extract_skills_from_description(combined):
+                        case Ok(sk):
+                            vac_skills = sk
+                        case _:
+                            pass
+                else:
+                    vac_skills = []
 
-            experience = ExperienceLevel.MIDDLE
-            if "experience" in vac:
-                exp_obj = vac["experience"]
-                if isinstance(exp_obj, dict):
-                    exp_id = exp_obj.get("id", "").lower()
-                    if "less1" in exp_id or "junior" in exp_id or "no_experience" in exp_id:
+                experience = ExperienceLevel.MIDDLE
+                if "experience" in vac:
+                    exp_obj = vac["experience"]
+                    if isinstance(exp_obj, dict):
+                        exp_id = exp_obj.get("id", "").lower()
+                        if any(x in exp_id for x in ["less1", "junior", "no_experience", "noexperience"]):
+                            experience = ExperienceLevel.JUNIOR
+                        elif "between1and3" in exp_id or "between3and6" in exp_id:
+                            experience = ExperienceLevel.MIDDLE
+                        elif "between6and10" in exp_id or "morethan10" in exp_id or "morethan6" in exp_id:
+                            experience = ExperienceLevel.SENIOR
+                    elif isinstance(exp_obj, str):
+                        exp_lower = exp_obj.lower()
+                        if "junior" in exp_lower or "нет опыта" in exp_lower or "стажер" in exp_lower:
+                            experience = ExperienceLevel.JUNIOR
+                        elif "senior" in exp_lower or "более 6" in exp_lower:
+                            experience = ExperienceLevel.SENIOR
+                if experience == ExperienceLevel.MIDDLE:
+                    name = vac.get("name", "").lower()
+                    if "junior" in name or "младший" in name or "стажер" in name or "intern" in name:
                         experience = ExperienceLevel.JUNIOR
-                    elif "between1and3" in exp_id or "between3and6" in exp_id:
-                        experience = ExperienceLevel.MIDDLE
-                    elif "between6and10" in exp_id or "morethan10" in exp_id:
+                    elif "senior" in name or "старший" in name or "ведущий" in name:
                         experience = ExperienceLevel.SENIOR
-                elif isinstance(exp_obj, str):
-                    exp_lower = exp_obj.lower()
-                    if "junior" in exp_lower or "нет опыта" in exp_lower or "стажер" in exp_lower:
-                        experience = ExperienceLevel.JUNIOR
-                    elif "senior" in exp_lower or "более 6" in exp_lower:
-                        experience = ExperienceLevel.SENIOR
-            if experience == ExperienceLevel.MIDDLE:
-                name = vac.get("name", "").lower()
-                if "junior" in name or "младший" in name or "стажер" in name or "intern" in name:
-                    experience = ExperienceLevel.JUNIOR
-                elif "senior" in name or "старший" in name or "ведущий" in name:
-                    experience = ExperienceLevel.SENIOR
-            if vac_skills:
-                level_vacancies_data.append({
-                    "skills": vac_skills,
-                    "description": vac.get("description", ""),
-                    "experience": experience,
-                })
-                vacancies_skills.append(vac_skills)
+                if vac_skills:
+                    level_vacancies_data.append({
+                        "skills": vac_skills,
+                        "description": vac.get("description", ""),
+                        "experience": experience,
+                    })
+                    vacancies_skills.append(vac_skills)
 
-        level_analyzer.analyze_vacancies(level_vacancies_data)
+            level_analyzer.analyze_vacancies(level_vacancies_data)
+            return level_vacancies_data, vacancies_skills
+
+        level_vacancies_data, vacancies_skills = await asyncio.to_thread(_run_level_analysis)
 
         skill_weights_by_level = {}
         for level in ExperienceLevel:
@@ -272,8 +360,10 @@ async def _warmup_background(basic_vacancies, raw_file):
                     skill_weights_by_level[level] = {}
 
         logger.info("фоновая инициализация: уровень анализа завершён")
+        await _resolve_warmup_failure("уровневый анализ вакансий")
     except Exception as e:
         logger.warning("фоновая инициализация: уровень анализа не удался", error=str(e))
+        _notify_warmup_failure("уровневый анализ вакансий", e)
         level_vacancies_data = []
         vacancies_skills = []
         skill_weights_by_level = {}
@@ -294,14 +384,18 @@ async def _warmup_background(basic_vacancies, raw_file):
             ngram_range=(1, 2), min_df=1, max_df=0.95,
             use_embeddings=True, level=ComparisonLevel.MIDDLE, similarity_threshold=0.80,
         )
-        match deps.recommendation_engine.fit(vacancies_skills, skill_weights=hybrid_weights):
+        match await asyncio.to_thread(
+            deps.recommendation_engine.fit, vacancies_skills, skill_weights=hybrid_weights
+        ):
             case Ok(_):
                 logger.info("recommendation_engine_fitted")
             case Err(err):
                 logger.error("recommendation_engine_fit_failed", error=str(err))
         logger.info("фоновая инициализация: evaluator + recommendation готовы")
+        await _resolve_warmup_failure("evaluator и рекомендации")
     except Exception as e:
         logger.warning("фоновая инициализация: evaluator не удался", error=str(e))
+        _notify_warmup_failure("evaluator и рекомендации", e)
 
     # Кластеры
     try:
@@ -310,8 +404,10 @@ async def _warmup_background(basic_vacancies, raw_file):
                 deps.clusterer.load_model("all")
                 break
         logger.info("фоновая инициализация: кластеры загружены")
+        await _resolve_warmup_failure("кластеры")
     except Exception as e:
         logger.warning("фоновая инициализация: кластеры не загружены", error=str(e))
+        _notify_warmup_failure("кластеры", e)
 
     # Тренды
     try:
@@ -322,8 +418,10 @@ async def _warmup_background(basic_vacancies, raw_file):
         )
         deps.trend_analyzer = TrendAnalyzer(skill_freq_filtered)
         logger.info("фоновая инициализация: trend_analyzer готов")
+        await _resolve_warmup_failure("trend_analyzer")
     except Exception as e:
         logger.warning("фоновая инициализация: trend_analyzer не загружен", error=str(e))
+        _notify_warmup_failure("trend_analyzer", e)
 
     # Prophet
     try:
@@ -335,7 +433,9 @@ async def _warmup_background(basic_vacancies, raw_file):
             match await load_time_series(session):
                 case Ok(snapshots):
                     prophet = ProphetForecastEngine()
-                    match prophet.fit(snapshots, fallback_freqs=deps.skill_freq):
+                    match await asyncio.to_thread(
+                        prophet.fit, snapshots, fallback_freqs=deps.skill_freq
+                    ):
                         case Ok(_):
                             deps.prophet_engine = prophet
                             logger.info("prophet_engine_ready",
@@ -348,9 +448,11 @@ async def _warmup_background(basic_vacancies, raw_file):
                     deps.prophet_engine = None
                     logger.info("prophet_engine_unavailable_use_fallback", detail=str(e))
         logger.info("фоновая инициализация: Prophet готов")
+        await _resolve_warmup_failure("Prophet")
     except Exception as e:
         deps.prophet_engine = None
         logger.warning("фоновая инициализация: Prophet не загружен", error=str(e))
+        _notify_warmup_failure("Prophet", e)
 
     # Студенческие профили
     try:
@@ -406,7 +508,10 @@ async def _warmup_background(basic_vacancies, raw_file):
                 profile_name=pname, competencies=codes, skills=skills, target_level=target,
             )
         logger.info("фоновая инициализация: студенческие профили готовы")
+        await _resolve_warmup_failure("студенческие профили")
     except Exception as e:
         logger.warning("фоновая инициализация: студенческие профили не загружены", error=str(e))
+        _notify_warmup_failure("студенческие профили", e)
 
+    _refresh_business_gauges()
     logger.info("Фоновая инициализация завершена. API готов к работе")

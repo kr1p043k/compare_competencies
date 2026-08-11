@@ -12,7 +12,7 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./uploads:/app/uploads
-      - ./cache:/root/.cache
+      - hf-cache:/root/.cache
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -30,10 +30,10 @@ services:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@competency-postgres:5432/${POSTGRES_DB:-compare_competencies}
       - OLLAMA_URL=http://ollama8.r61.net:11434
       - HF_HOME=/root/.cache/huggingface
-      - HF_HUB_CACHE=/root/.cache/huggingface
-      - TRANSFORMERS_CACHE=/root/.cache/huggingface
-      - HF_HUB_OFFLINE=0
-      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_CACHE=/root/.cache/huggingface/hub
+      - TRANSFORMERS_CACHE=/root/.cache/huggingface/hub
+      - HF_HUB_OFFLINE=1
+      - TRANSFORMERS_OFFLINE=1
       - HF_ENDPOINT=https://hf-mirror.com
     labels:
       - "prometheus.scrape=true"
@@ -42,8 +42,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 2G
+          cpus: '4'
+          memory: 8G
         reservations:
           cpus: '0.5'
           memory: 512M
@@ -212,7 +212,9 @@ services:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
-      - GF_SERVER_ROOT_URL=${GRAFANA_URL:-http://localhost:3001}
+      - GF_SERVER_ROOT_URL=https://compareserver.tailb909df.ts.net/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SECURITY_ALLOW_EMBEDDING=true
     restart: unless-stopped
     networks:
       - monitoring
@@ -221,7 +223,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
 
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:latest
@@ -291,6 +293,7 @@ networks:
     driver: bridge
 
 volumes:
+  hf-cache:
   open-webui-data:
   n8n-data:
   n8n-postgres-data:

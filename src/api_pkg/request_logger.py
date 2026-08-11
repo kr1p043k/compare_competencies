@@ -5,6 +5,7 @@ import base64
 import hashlib
 import hmac
 import json
+import re
 import time
 from collections import deque
 from datetime import datetime, timezone
@@ -141,17 +142,29 @@ def get_logs_by_user() -> dict[str, int]:
     return counts
 
 
+def _metric_path(request: Request) -> str:
+    """Normalize path for metric labels: use the route template to keep cardinality bounded."""
+    route = request.scope.get("route")
+    if route is not None:
+        template = getattr(route, "path", None)
+        if template:
+            return template
+    return re.sub(r"\d+", "{id}", request.url.path)
+
+
 class RequestLogMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         start = datetime.now(timezone.utc)
         user = _extract_user(request)
         request.scope["user"] = user
+        request.state.user = user
         response = await call_next(request)
         elapsed = (datetime.now(timezone.utc) - start).total_seconds() * 1000
         if not request.url.path.startswith("/api/"):
             return response
-        api_requests_total.labels(method=request.method, path=request.url.path, status=response.status_code).inc()
-        api_latency.labels(method=request.method, path=request.url.path, status=response.status_code).observe(elapsed / 1000)
+        label_path = _metric_path(request)
+        api_requests_total.labels(method=request.method, path=label_path, status=response.status_code).inc()
+        api_latency.labels(method=request.method, path=label_path, status=response.status_code).observe(elapsed / 1000)
         _log_buffer.append(LogEntry(
             method=request.method,
             path=request.url.path,
@@ -162,6 +175,19 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
         ))
         if len(_log_buffer) >= FLUSH_BATCH:
             asyncio.ensure_future(_flush_to_db())
+        if response.status_code >= 500 and not getattr(request.state, "system_error_notified", False):
+            request.state.system_error_notified = True
+            from src.notifications.system import queue_system_error
+            queue_system_error(
+                f"Ошибка API: {request.method} {request.url.path}",
+                f"Статус {response.status_code} за {elapsed:.0f} мс | user={user or 'anonymous'} | path={request.url.path}",
+                severity="error" if response.status_code >= 500 else "warning",
+                article_url=f"api:{request.method} {request.url.path}",
+                dedupe=True,
+            )
+        elif response.status_code < 500:
+            from src.notifications.system import maybe_resolve_api_errors
+            asyncio.ensure_future(maybe_resolve_api_errors(request.method, request.url.path))
         return response
 
 

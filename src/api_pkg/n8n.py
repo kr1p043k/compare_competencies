@@ -48,6 +48,7 @@ N8N_ENDPOINTS: dict[str, list[dict]] = {
         {"M": "GET", "P": "/api/vacancies/info",               "RL": "-",   "Q": {},                                              "B": {}, "note": "Vacancy file metadata"},
         {"M": "GET", "P": "/api/vacancies/{vacancy_id}",       "RL": "60/m","Q": {},                                              "B": {}, "note": "Full vacancy detail"},
         {"M": "GET", "P": "/api/vacancies/stats/summary",      "RL": "30/m","Q": {},                                              "B": {}, "note": "Aggregate stats by level"},
+        {"M": "GET", "P": "/api/vacancies/stats/analytics",    "RL": "30/m","Q": {},                                              "B": {}, "note": "Market analytics: salary by level, regions, employers, skills"},
     ],
     "05_clusters": [
         {"M": "GET", "P": "/api/clusters/summary",             "RL": "20/m","Q": {},                                              "B": {}, "note": "All cluster levels summary"},

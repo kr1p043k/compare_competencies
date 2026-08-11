@@ -146,7 +146,11 @@ class HhDataSource(DataSourceProtocol):
                     console_info("Режим: поиск по всему IT-сектору (40+ профессий)")
                 elif self.args.queries_file:
                     safe_path = validate_safe_path(self.args.queries_file)
-                    self.args.queries = load_queries_from_file(safe_path)
+                    match load_queries_from_file(safe_path):
+                        case Ok(qs):
+                            self.args.queries = qs
+                        case Err(e):
+                            return Err(DataSourceError(message=f"❌ Ошибка загрузки файла запросов: {e}"))
                 else:
                     self.args.queries = [self.args.query]
 

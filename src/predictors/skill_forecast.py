@@ -172,12 +172,12 @@ class SkillForecastEngine(BasePredictor):
                 engine_used="trend_flat",
             ))
 
-        # Limit forecast horizon by data depth: 3 pts -> ~1 month, 6 pts -> 3 months
+        # Limit forecast horizon by data depth: 3 pts -> ~1 month, 6 pts -> 3 months.
+        # Extrapolate from the LAST observed share (not intercept at x=0),
+        # otherwise a declining skill with negative slope is wrongly predicted as growing.
         max_horizon = max(1, n // 2)
         eff_months = min(months, max_horizon)
         days_ahead = eff_months * 30
-        # Extrapolate from the LAST observed share (not intercept at x=0),
-        # otherwise a declining skill with negative slope is wrongly predicted as growing.
         predicted_share = last_share + model["slope"] * days_ahead
         predicted_share = max(predicted_share, 0.0)
 

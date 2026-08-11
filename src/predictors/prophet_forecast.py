@@ -284,7 +284,7 @@ class ProphetForecastEngine(BasePredictor):
                 engine_used="prophet",
             ))
         if self._fallback_engine:
-            result = self._fallback_engine.forecast(skill, months)
+            result = self._fallback_engine.forecast(skill, min(months, self.max_forecast_months()))
             if result.is_ok():
                 fr = result.unwrap()
                 return Ok(ForecastResult(
@@ -311,7 +311,7 @@ class ProphetForecastEngine(BasePredictor):
                 case _:
                     pass
         if self._fallback_engine:
-            match self._fallback_engine.forecast_all(months):
+            match self._fallback_engine.forecast_all(min(months, self.max_forecast_months())):
                 case Ok(fb):
                     for r in fb:
                         if not any(ex.skill == r.skill for ex in results):

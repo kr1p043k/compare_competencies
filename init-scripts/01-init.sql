@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_agent      TEXT,
     logged_in_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_activity   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    logged_out_at   TIMESTAMPTZ
+    logged_out_at   TIMESTAMPTZ,
+    sso_token       TEXT
 );
 
 -- Триггер updated_at для users
