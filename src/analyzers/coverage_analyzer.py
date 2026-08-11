@@ -1,6 +1,7 @@
 """Coverage analyzer: discipline vs market coverage."""
 from __future__ import annotations
 
+import threading
 from collections import Counter
 
 import numpy as np
@@ -18,6 +19,25 @@ class CoverageAnalyzer:
     def __init__(self, matcher: SkillMatcher, discipline_scorer=None):
         self.matcher = matcher
         self._discipline_scorer = discipline_scorer
+        self._skill_emb_cache: dict[str, np.ndarray] = {}
+        self._skill_emb_lock = threading.Lock()
+
+    def _get_skill_embeddings(self, skills: list[str]) -> dict[str, np.ndarray]:
+        """Batched embedding of skills not yet cached; thread-safe."""
+        from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+
+        todo = [s for s in skills if s not in self._skill_emb_cache]
+        if todo:
+            prov = EmbeddingProviderFactory.get()
+            embs = prov.encode(todo, show_progress_bar=False)
+            with self._skill_emb_lock:
+                for s, e in zip(todo, embs):
+                    norm = np.linalg.norm(e)
+                    if norm > 0:
+                        e = e / norm
+                    self._skill_emb_cache[s] = e
+        return {s: self._skill_emb_cache[s] for s in skills if s in self._skill_emb_cache}
+
 
     def analyze_discipline(
         self,
@@ -131,31 +151,32 @@ class CoverageAnalyzer:
             )
             if dir_result.is_ok():
                 dir_emerging = {s for s, _, _ in dir_result.unwrap()}
-                for em in emerging_skills:
-                    if em.skill_name not in dir_emerging:
+                em_skills_to_embed = [em.skill_name for em in emerging_skills
+                                      if em.skill_name not in dir_emerging]
+                if self._discipline_scorer is not None and em_skills_to_embed:
+                    self._discipline_scorer._ensure_embeddings()
+                    sk_embs = self._get_skill_embeddings(em_skills_to_embed)
+                    for em in emerging_skills:
+                        if em.skill_name in dir_emerging:
+                            continue
+                        sk_emb = sk_embs.get(em.skill_name)
+                        if sk_emb is None:
+                            continue
                         found = False
-                        if self._discipline_scorer is not None:
-                            self._discipline_scorer._ensure_embeddings()
-                            for dn in discipline_skill_map:
-                                if dn == discipline_name:
-                                    continue
-                                disc_emb = self._discipline_scorer.get_discipline_embedding(dn)
-                                if disc_emb is not None:
-                                    from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
-                                    prov = EmbeddingProviderFactory.get()
-                                    sk_emb = prov.encode([em.skill_name], show_progress_bar=False)[0]
-                                    sk_norm = np.linalg.norm(sk_emb)
-                                    if sk_norm > 0:
-                                        sk_emb = sk_emb / sk_norm
-                                        sim = float(np.dot(sk_emb, disc_emb))
-                                        if sim > 0.55:
-                                            cross_refs.append(CrossReference(
-                                                skill_name=em.skill_name,
-                                                frequency=em.frequency,
-                                                discipline=dn,
-                                            ))
-                                            found = True
-                                            break
+                        for dn in discipline_skill_map:
+                            if dn == discipline_name:
+                                continue
+                            disc_emb = self._discipline_scorer.get_discipline_embedding(dn)
+                            if disc_emb is not None:
+                                sim = float(np.dot(sk_emb, disc_emb))
+                                if sim > 0.55:
+                                    cross_refs.append(CrossReference(
+                                        skill_name=em.skill_name,
+                                        frequency=em.frequency,
+                                        discipline=dn,
+                                    ))
+                                    found = True
+                                    break
                         if not found:
                             for dn, dskills in discipline_skill_map.items():
                                 if dn == discipline_name:

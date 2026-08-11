@@ -118,7 +118,15 @@ def _enhance_disciplines_with_gap_analysis(
             try:
                 market_all = list(ltr_engine.skill_metadata.keys())
                 known_lower = {s.lower().strip() for s in disc_skills}
-                missing = [s for s in market_all if s.lower().strip() not in known_lower]
+                missing_all = [s for s in market_all if s.lower().strip() not in known_lower]
+                # Ограничиваем кандидатов по частоте: топ-15 по влиянию почти всегда
+                # находятся среди высокочастотных навыков, а co-occurrence + SHAP
+                # на всех ~4000 навыках делают этап неприемлемо медленным.
+                missing = sorted(
+                    missing_all,
+                    key=lambda s: ltr_engine.skill_metadata.get(s, {}).get("freq_normalized", 0.0),
+                    reverse=True,
+                )[:200]
 
                 match ltr_engine.predict_skill_impact_with_shap(
                     disc_skills, missing, compute_shap=True
@@ -199,10 +207,6 @@ async def run_teacher_analysis(
     from src.pipeline.db_writer import create_pipeline_run, complete_pipeline_run, save_to_analysis_results
 
     run_id = await create_pipeline_run("teacher-analysis")
-    await pool.execute(
-        "UPDATE pipeline_runs SET user_id=$1 WHERE id=$2",
-        user_id, run_id,
-    )
 
     # — load market skills from vacancies (real frequencies) + it_skills taxonomy —
     market_skills: dict[str, int] = {}
@@ -316,10 +320,16 @@ async def run_teacher_analysis(
     # — load raw KSA descriptions from JSON (source of truth for requirements) —
     raw_ksa: dict[str, dict[str, dict[str, list[str]]]] = {}  # {disc: {comp: {type: [texts]}}}
     try:
-        krm_json_path = config.KRM_DISCIPLINES_PATH
+        if direction_code:
+            krm_json_path = config.REFERENCE_DIR / f"krm_disciplines_{direction_code}.json"
+        else:
+            krm_json_path = config.KRM_DISCIPLINES_PATH
         if krm_json_path.exists():
             krm_data = json.loads(krm_json_path.read_text(encoding="utf-8"))
-            raw_ksa = krm_data.get(direction_code, {}).get("disciplines", {})
+            krm_direction = krm_data.get(direction_code) if direction_code else None
+            if not krm_direction and isinstance(krm_data, dict) and krm_data:
+                krm_direction = next(iter(krm_data.values()))
+            raw_ksa = (krm_direction or {}).get("disciplines", {})
             logger.info("raw_ksa_loaded", disciplines=len(raw_ksa))
     except Exception as exc:
         logger.warning("raw_ksa_load_failed", error=str(exc))
