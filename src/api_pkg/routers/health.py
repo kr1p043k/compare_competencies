@@ -93,6 +93,7 @@ async def health_check():
         "version": getattr(config, "VERSION", "2.0"),
         "evaluator": deps.evaluator is not None,
         "recommendation_engine": deps.recommendation_engine is not None,
+        "prophet": deps.prophet_engine is not None and deps.prophet_engine.is_fitted,
         "ltr_model_version": (ltr_model or {}).get("version"),
         "clusters_versions": {
             lvl: (reg or {}).get("version") for lvl, reg in clusters.items()

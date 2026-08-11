@@ -108,8 +108,10 @@ class ProphetForecastEngine(BasePredictor):
     """Forecast engine using Prophet for skills with >= 3 history points and
     actual frequency >= MIN_FREQ, falling back to SkillForecastEngine."""
 
-    MIN_FREQ = 10
+    MIN_FREQ = 50
     MAX_GROWTH_CAP = 20.0
+    # Prophet requires enough history; with < MIN_PROPHET_POINTS fall back to trend.
+    MIN_PROPHET_POINTS = 6
     # Top-prediction display: only show skills with meaningful frequency
     TOP_DISPLAY_MIN_FREQ = 50
 
@@ -118,6 +120,7 @@ class ProphetForecastEngine(BasePredictor):
         self._fallback_engine: SkillForecastEngine | None = None
         self._skill_history: dict[str, list[tuple[date, float]]] = {}
         self._last_actual_freq: dict[str, float] = {}
+        self._last_actual_share: dict[str, float] = {}
         self._is_fitted = False
         self._n_snapshots = 0
 
@@ -180,13 +183,26 @@ class ProphetForecastEngine(BasePredictor):
         self._n_snapshots = len(snapshots)
         history = self._gather_history(snapshots)
 
-        # Separate skills by data depth: Prophet (≥3 pts) vs trend (fallback)
+        # Per-snapshot total volume for share normalization
+        snapshot_totals: dict[date, float] = {
+            snap.date: float(sum(v for v in snap.frequencies.values() if isinstance(v, (int, float))))
+            for snap in snapshots
+        }
+
+        # Separate skills by data depth: Prophet (≥MIN_PROPHET_POINTS) vs trend (fallback)
         prophet_candidates: list[tuple[str, list[tuple[date, float]]]] = []
         for skill, points in history.items():
             last_actual = points[-1][1]
             self._last_actual_freq[skill] = last_actual
-            if len(points) >= 3 and last_actual >= self.MIN_FREQ:
-                prophet_candidates.append((skill, points))
+            if len(points) >= self.MIN_PROPHET_POINTS and last_actual >= self.MIN_FREQ:
+                # Normalize to relative share so expanding collection coverage
+                # does not fake growth; keep absolute for display.
+                norm_points: list[tuple[date, float]] = []
+                for d, freq in points:
+                    total = snapshot_totals.get(d, 0.0)
+                    norm_points.append((d, freq / total if total > 0 else 0.0))
+                prophet_candidates.append((skill, norm_points))
+                self._last_actual_share[skill] = norm_points[-1][1]
             else:
                 self._skill_history[skill] = points
 
@@ -238,28 +254,33 @@ class ProphetForecastEngine(BasePredictor):
             future = model.make_future_dataframe(periods=months, freq="ME")
             forecast = model.predict(future)
             last_row = forecast.iloc[-1]
-            next_freq = max(float(last_row["yhat"]), 0.0)
+            next_share = max(float(last_row["yhat"]), 0.0)
 
             last_actual = self._last_actual_freq.get(skill, 0.0)
-            baseline = max(last_actual, self.MIN_FREQ)
-            growth = (next_freq - baseline) / baseline
+            last_share = self._last_actual_share.get(skill, 0.0)
+            if last_share > 0:
+                growth = (next_share - last_share) / last_share
+            else:
+                growth = 0.0
             growth = max(min(growth, self.MAX_GROWTH_CAP), -self.MAX_GROWTH_CAP)
 
             uncertainty = float(last_row["yhat_upper"] - last_row["yhat_lower"])
-            conf = max(0.0, 1.0 - min(uncertainty / max(next_freq, 1.0), 0.85))
+            conf = max(0.0, 1.0 - min(uncertainty / max(next_share, 1e-6), 0.85))
             # Penalize confidence and cap growth when few data points
             n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
             if n_pts < 6:
                 conf *= n_pts / 6.0
-                # Tighten growth cap for low-data skills (prevents absurd 600% spikes)
+                # Tighten growth cap for low-data skills (prevents absurd spikes)
                 tight_cap = 2.0 if n_pts < 4 else 10.0
                 growth = max(min(growth, tight_cap), -tight_cap)
+            # Derive absolute next frequency from share growth
+            next_year_frequency = max(last_actual * (1.0 + growth), 0.0)
             return Ok(ForecastResult(
                 skill=skill,
                 current_frequency=round(last_actual, 4),
                 predicted_growth=round(growth, 4),
                 confidence=round(max(conf, 0.0), 4),
-                next_year_frequency=round(next_freq, 4),
+                next_year_frequency=round(next_year_frequency, 4),
                 engine_used="prophet",
             ))
         if self._fallback_engine:
@@ -305,6 +326,8 @@ class ProphetForecastEngine(BasePredictor):
                 results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0 and r.predicted_growth > 0]
                 # Exclude unreliable predictions: growth > 200% with confidence < 30%
                 results = [r for r in results if not (r.predicted_growth > 2.0 and r.confidence < 0.3)]
+                if not results:
+                    return Ok([])
                 max_freq = max(r.current_frequency for r in results) or 1
                 max_growth = max(r.predicted_growth for r in results) or 1
                 results.sort(key=lambda x: 0.3 * (x.predicted_growth / max_growth) + 0.7 * (x.current_frequency / max_freq), reverse=True)

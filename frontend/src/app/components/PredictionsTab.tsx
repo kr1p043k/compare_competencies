@@ -26,7 +26,7 @@ interface ForecastItem {
 }
 
 export function PredictionsTab() {
-  const [activeTab, setActiveTab] = useState("growing");
+  const [activeTab, setActiveTab] = useState("popular");
   const [forecasts, setForecasts] = useState<ForecastItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,14 +37,17 @@ export function PredictionsTab() {
   const [months, setMonths] = useState(12);
 
   useEffect(() => {
-    loadForecasts("growing");
+    loadForecasts("popular");
   }, []);
 
-  const loadForecasts = async (direction: string) => {
+  const loadForecasts = async (tab: string) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/forecast/top?n=25&months=${months}&direction=${direction}`);
+      const endpoint = tab === "popular"
+        ? `/api/forecast/popular?n=25&months=${months}`
+        : `/api/forecast/top?n=25&months=${months}&direction=${tab}`;
+      const res = await fetch(endpoint);
       if (!res.ok) throw new Error("Failed to load forecasts");
       const data = await res.json();
       setForecasts(data.forecasts || []);
@@ -70,6 +73,10 @@ export function PredictionsTab() {
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="inline-flex h-12 items-center justify-center rounded-lg bg-gray-100 p-1">
+          <TabsTrigger value="popular" className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            <BarChart3 className="size-4 text-blue-600" />
+            Популярные
+          </TabsTrigger>
           <TabsTrigger value="growing" className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm">
             <TrendingUp className="size-4 text-green-600" />
             Растущие
@@ -80,7 +87,49 @@ export function PredictionsTab() {
           </TabsTrigger>
         </TabsList>
 
-          <TabsContent value="growing" className="space-y-4">
+        <TabsContent value="popular" className="space-y-4">
+          <Card className="border border-gray-200 shadow-sm">
+            <CardHeader className="border-b border-gray-200 bg-gray-50">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-lg">
+                  <BarChart3 className="size-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-semibold text-gray-900">Топ популярных навыков</CardTitle>
+                  <CardDescription>Прогноз популярности · {vacanciesCount ? `${vacanciesCount} вакансий` : "—"} · {dataFrom && dataTo ? `${dataFrom}–${dataTo}` : "—"}</CardDescription>
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <CalendarDays className="size-4 text-gray-400" />
+                  <Select value={String(months)} onValueChange={(v) => { setMonths(Number(v)); loadForecasts(activeTab); }}>
+                    <SelectTrigger className="w-28 h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 месяц</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Sparkles className="size-6 text-blue-500 animate-pulse" />
+                  <span className="ml-3 text-gray-600">Загрузка прогнозов...</span>
+                </div>
+              ) : error ? (
+                <div className="flex items-center gap-3 py-8 text-red-600">
+                  <AlertCircle className="size-5" />
+                  <span>{error}</span>
+                </div>
+              ) : (<div className="space-y-2">
+              {forecasts.map((f, i) => (<ForecastRow key={f.skill} item={f} rank={i + 1} expanded={selectedSkill?.skill === f.skill} months={months} onToggle={() => setSelectedSkill(selectedSkill?.skill === f.skill ? null : f)} />))}
+              </div>)}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="growing" className="space-y-4">
             <Card className="border border-gray-200 shadow-sm">
               <CardHeader className="border-b border-gray-200 bg-gray-50">
                 <div className="flex items-center gap-3">
@@ -159,7 +208,8 @@ export function PredictionsTab() {
 function ForecastRow({ item, rank, expanded, onToggle, months }: { item: ForecastItem; rank: number; expanded: boolean; onToggle: () => void; months?: number }) {
   const changePct = item.predicted_change_pct ?? (item.predicted_growth * 100);
   const changePctSign = changePct > 0 ? "+" : "";
-  const methodColors: Record<string, string> = { prophet: "bg-purple-100 text-purple-700", ets: "bg-blue-100 text-blue-700", linear: "bg-gray-100 text-gray-700", genetic: "bg-amber-100 text-amber-700" };
+  const methodColors: Record<string, string> = { prophet: "bg-purple-100 text-purple-700", ets: "bg-blue-100 text-blue-700", linear: "bg-gray-100 text-gray-700", trend: "bg-amber-100 text-amber-700", trend_flat: "bg-gray-100 text-gray-500", fallback: "bg-amber-100 text-amber-700" };
+  const lowConfidence = item.confidence < 0.3;
 
   return (
     <div className="border border-gray-100 rounded-lg overflow-hidden">
@@ -185,6 +235,11 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
           {item.uncertainty_upper && item.uncertainty_lower && (
             <div className="text-xs text-gray-400 text-center mb-2">
               Доверительный интервал 80%: [{item.uncertainty_lower.toFixed(2)} – {item.uncertainty_upper.toFixed(2)}]
+            </div>
+          )}
+          {lowConfidence && (
+            <div className="text-xs text-amber-600 text-center mb-2">
+              Данных мало — прогноз условный
             </div>
           )}
           {item.forecast_steps && item.forecast_steps.length > 1 && (

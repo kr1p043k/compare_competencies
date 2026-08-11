@@ -88,7 +88,7 @@ async def _get_vacancy_meta() -> dict:
     return meta
 
 
-def _serialize(r: ForecastResult, direction: str | None = None, method: str = "genetic") -> dict:
+def _serialize(r: ForecastResult, direction: str | None = None, method: str = "trend") -> dict:
     change_pct = round(r.predicted_growth * 100, 2)
     return {
         "skill": r.skill,
@@ -106,9 +106,9 @@ def _serialize(r: ForecastResult, direction: str | None = None, method: str = "g
 def _detect_method(engine: ProphetForecastEngine | SkillForecastEngine, skill: str | None = None) -> str:
     if isinstance(engine, ProphetForecastEngine):
         if skill is not None:
-            return "prophet" if skill in engine._models else "genetic"
-        return "prophet" if engine._models else "genetic"
-    return "genetic"
+            return "prophet" if skill in engine._models else "trend"
+        return "prophet" if engine._models else "trend"
+    return "trend"
 
 
 @router.get("/forecast/all")
@@ -156,13 +156,21 @@ async def get_top_forecasts(
                     case Ok(all_results):
                         if direction == "declining":
                             all_results = sorted(all_results, key=lambda x: x.predicted_growth)[:n]
-                        items = [_serialize(r, direction, "genetic") for r in all_results[:n]]
+                        items = [_serialize(r, direction, "trend") for r in all_results[:n]]
                     case Err(e):
                         raise HTTPException(status_code=500, detail=str(e))
             # Determine actual forecast horizon (Prophet caps it internally)
             actual_months = months
             if isinstance(engine, ProphetForecastEngine) and engine.is_fitted:
                 actual_months = min(months, engine.max_forecast_months())
+            elif isinstance(engine, SkillForecastEngine):
+                # Fallback caps horizon by available data depth (n//2 snapshots)
+                n_snap_meta = engine._models.get("__n_snapshots__")
+                n_snap = n_snap_meta.get("n") if isinstance(n_snap_meta, dict) else n_snap_meta
+                if isinstance(n_snap, int):
+                    actual_months = min(months, max(1, n_snap // 2))
+                else:
+                    actual_months = min(months, 1)
             return {"direction": direction, "n": n, "months": actual_months, "requested_months": months, "forecasts": items, **meta}
         case Err(e):
             raise HTTPException(status_code=503, detail=str(e))
@@ -181,13 +189,26 @@ async def get_popular_forecasts(
             if isinstance(engine, ProphetForecastEngine):
                 match engine.top_popular(n=n, months=months):
                     case Ok(results):
-                        items = [_serialize(r, "growing", "prophet") for r in results]
+                        items = [_serialize(r, None, "prophet") for r in results]
                     case Err(e):
                         raise HTTPException(status_code=500, detail=str(e))
             else:
-                all_results = sorted(engine.forecast_all(months).unwrap_or([]), key=lambda x: x.current_frequency, reverse=True)
-                items = [_serialize(r, "growing", "genetic") for r in all_results[:n]]
-            return {"direction": "popular", "n": n, "months": months, "forecasts": items, **meta}
+                match engine.top_popular(n=n, months=months):
+                    case Ok(results):
+                        items = [_serialize(r, None, "trend") for r in results]
+                    case Err(e):
+                        raise HTTPException(status_code=500, detail=str(e))
+            actual_months = months
+            if isinstance(engine, ProphetForecastEngine) and engine.is_fitted:
+                actual_months = min(months, engine.max_forecast_months())
+            elif isinstance(engine, SkillForecastEngine):
+                n_snap_meta = engine._models.get("__n_snapshots__")
+                n_snap = n_snap_meta.get("n") if isinstance(n_snap_meta, dict) else n_snap_meta
+                if isinstance(n_snap, int):
+                    actual_months = min(months, max(1, n_snap // 2))
+                else:
+                    actual_months = min(months, 1)
+            return {"direction": "popular", "n": n, "months": actual_months, "requested_months": months, "forecasts": items, **meta}
         case Err(e):
             raise HTTPException(status_code=503, detail=str(e))
 
@@ -205,3 +226,4 @@ async def get_skill_forecast(skill: str, request: Request, months: int = Query(1
                     raise HTTPException(status_code=404, detail=f"Skill not found: {skill}")
         case Err(e):
             raise HTTPException(status_code=503, detail=str(e))
+

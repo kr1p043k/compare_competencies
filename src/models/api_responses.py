@@ -12,6 +12,7 @@ class HealthResponse(BaseModel):
     version: str
     evaluator: bool
     recommendation_engine: bool
+    prophet: bool = False
 
 
 class ReadyResponse(BaseModel):
