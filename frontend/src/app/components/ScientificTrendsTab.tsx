@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -82,6 +82,7 @@ function uniqueTrends(list: ParsedTrend[]): ParsedTrend[] {
 }
 
 const HUB_SSO_URL = "https://hub.sfedu.ru/dashboard/go-to-gap-analyzer/";
+const HUB_REDIRECT_DELAY_S = 6;
 
 function bearerHeaders(): Record<string, string> {
   const stored = localStorage.getItem("auth");
@@ -129,10 +130,46 @@ export function ScientificTrendsTab() {
   const [krmCount, setKrmCount] = useState<number | null>(null);
   const [gapTopic, setGapTopic] = useState("");
   const [ssoBlocked, setSsoBlocked] = useState(false);
+  const [redirectIn, setRedirectIn] = useState<number | null>(null);
+  const redirectTimer = useRef<number | null>(null);
+  const ssoBlockedRef = useRef(false);
+
+  const startHubRedirect = () => {
+    if (redirectTimer.current !== null) return;
+    setRedirectIn(HUB_REDIRECT_DELAY_S);
+    redirectTimer.current = window.setInterval(() => {
+      setRedirectIn((sec) => {
+        if (sec === null || sec <= 1) {
+          if (redirectTimer.current !== null) {
+            window.clearInterval(redirectTimer.current);
+            redirectTimer.current = null;
+          }
+          window.location.href = HUB_SSO_URL;
+          return 0;
+        }
+        return sec - 1;
+      });
+    }, 1000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimer.current !== null) window.clearInterval(redirectTimer.current);
+    };
+  }, []);
+
+  const handleSsoBlocked = (message: string) => {
+    setError(message);
+    if (!ssoBlockedRef.current) {
+      ssoBlockedRef.current = true;
+      setSsoBlocked(true);
+      startHubRedirect();
+    }
+  };
 
   const fetchTrends = async () => {
     if (!topic.trim()) { setError("Введите тему для поиска"); return; }
-    setError(""); setSsoBlocked(false); setLoading("trends");
+    setError(""); setSsoBlocked(false); ssoBlockedRef.current = false; setLoading("trends");
     try {
       const data = await academicCall("/api/academic/get-competencies", {
         topic: topic.trim(),
@@ -142,8 +179,8 @@ export function ScientificTrendsTab() {
       setTrend(data as TrendResponse);
     } catch (e) {
       const err = e as AcademicError;
-      if (err.status === 419 || err.status === 403) setSsoBlocked(true);
-      setError(err.message);
+      if (err.status === 419 || err.status === 403) handleSsoBlocked(err.message);
+      else setError(err.message);
     } finally {
       setLoading(null);
     }
@@ -151,7 +188,7 @@ export function ScientificTrendsTab() {
 
   const analyzeGap = async () => {
     if (!topic.trim()) { setError("Введите тему для анализа разрыва"); return; }
-    setError(""); setSsoBlocked(false);
+    setError(""); setSsoBlocked(false); ssoBlockedRef.current = false;
     try {
       const res = await fetch("/api/academic/krm-competencies", { headers: bearerHeaders() });
       if (!res.ok) throw new Error("Не удалось получить компетенции КРМ");
@@ -168,8 +205,8 @@ export function ScientificTrendsTab() {
       setGap(data as GapResponse);
     } catch (e) {
       const err = e as AcademicError;
-      if (err.status === 419 || err.status === 403) setSsoBlocked(true);
-      setError(err.message);
+      if (err.status === 419 || err.status === 403) handleSsoBlocked(err.message);
+      else setError(err.message);
     } finally {
       setLoading(null);
     }
@@ -237,6 +274,11 @@ export function ScientificTrendsTab() {
               <AlertTitle>Доступ к сервису ЮФУ истёк</AlertTitle>
               <AlertDescription className="space-y-3">
                 <p>{error || "Токен хаба действителен 1 час. Войдите заново через хаб ЮФУ."}</p>
+                <p className="text-sm text-red-700">
+                  {redirectIn !== null && redirectIn > 0
+                    ? `Перенаправление на хаб ЮФУ через ${redirectIn} с…`
+                    : "Перенаправление…"}
+                </p>
                 <Button
                   onClick={() => { window.location.href = HUB_SSO_URL; }}
                   variant="outline"

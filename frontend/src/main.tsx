@@ -29,11 +29,22 @@ async function performHubSso(): Promise<void> {
       body: JSON.stringify({ token: hubToken }),
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      let detail = `SSO не прошёл (HTTP ${res.status})`;
+      try {
+        const j = await res.json();
+        if (j.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
+      } catch {}
+      localStorage.removeItem("auth");
+      document.cookie = "token=; path=/; max-age=0; SameSite=Lax";
+      throw new Error(detail);
+    }
     const data = await res.json();
     setSession({ token: data.token, role: data.role, name: data.name, username: data.username });
-  } catch {
-    // если сервис ЮФУ недоступен — просто покажем обычный экран входа
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Не удалось подтвердить токен хаба";
+    console.error("[SSO] Ошибка авторизации:", msg);
+    window.dispatchEvent(new CustomEvent("sso-error", { detail: msg }));
   }
 }
 

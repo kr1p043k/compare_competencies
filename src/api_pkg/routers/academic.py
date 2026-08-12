@@ -8,6 +8,7 @@
 
 import base64
 import json
+import time
 from typing import Any
 
 import httpx
@@ -77,6 +78,20 @@ def _jwt_username(token: str) -> str | None:
         return None
 
 
+def _jwt_exp(token: str) -> int | None:
+    """Возвращает exp (unix) из payload JWT или None, если поле отсутствует."""
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            return None
+        b64 = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(b64).decode())
+        exp = payload.get("exp")
+        return int(exp) if isinstance(exp, (int, float)) else None
+    except Exception:
+        return None
+
+
 def _request_token(request: Request) -> str:
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
@@ -84,25 +99,41 @@ def _request_token(request: Request) -> str:
     return request.cookies.get("token", "") or request.query_params.get("token", "")
 
 
-async def _get_sso_token(request: Request) -> str:
-    """Находит hub-JWT, сохранённый в сессии нашего токена."""
+async def _get_sso_token(request: Request) -> tuple[str, str]:
+    """Находит hub-JWT, сохранённый в сессии нашего токена.
+
+    Возвращает (sso_token, token_hash). Если hub-JWT уже истёк (exp <= now) —
+    помечает сессию logged_out_at и кидает 419, чтобы фронт перешёл на хаб.
+    """
     our_token = _request_token(request)
     if not our_token:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    token_hash = _hash_token(our_token)
     pool = get_pool()
     row = await pool.fetchrow(
         "SELECT sso_token FROM sessions WHERE token_hash = $1 AND logged_out_at IS NULL",
-        _hash_token(our_token),
+        token_hash,
     )
     if row is None or not row["sso_token"]:
         raise HTTPException(
             status_code=403,
             detail="Сессия не привязана к хабу ЮФУ. Войдите через hub.sfedu.ru",
         )
-    return row["sso_token"]
+    sso_token = row["sso_token"]
+    exp = _jwt_exp(sso_token)
+    if exp is not None and exp <= time.time():
+        await pool.execute(
+            "UPDATE sessions SET logged_out_at = now() WHERE token_hash = $1 AND logged_out_at IS NULL",
+            token_hash,
+        )
+        raise HTTPException(
+            status_code=419,
+            detail="Доступ к сервису ЮФУ истёк (токен действует 1 час). Войдите через hub.sfedu.ru",
+        )
+    return sso_token, token_hash
 
 
-async def _academic_post(path: str, sso_token: str, payload: dict) -> Any:
+async def _academic_post(path: str, sso_token: str, payload: dict, token_hash: str | None = None) -> Any:
     try:
         async with httpx.AsyncClient(timeout=ACADEMIC_TIMEOUT, headers=_ACADEMIC_HEADERS) as client:
             resp = await client.post(
@@ -114,6 +145,12 @@ async def _academic_post(path: str, sso_token: str, payload: dict) -> Any:
         logger.warning("academic_api_unreachable", path=path, error=str(exc))
         raise HTTPException(status_code=503, detail="Сервис ЮФУ недоступен, попробуйте позже") from None
     if resp.status_code == 401:
+        if token_hash:
+            pool = get_pool()
+            await pool.execute(
+                "UPDATE sessions SET logged_out_at = now() WHERE token_hash = $1 AND logged_out_at IS NULL",
+                token_hash,
+            )
         raise HTTPException(
             status_code=419,
             detail="Доступ к сервису ЮФУ истёк (токен действует 1 час). Войдите через hub.sfedu.ru",
@@ -207,13 +244,13 @@ async def academic_get_competencies(
     request: Request,
     user: dict[str, Any] = Depends(_require_user),
 ):
-    sso_token = await _get_sso_token(request)
+    sso_token, token_hash = await _get_sso_token(request)
     payload = {
         "topic": body.topic,
         "broad_top_k": body.broad_top_k,
         "final_top_k": body.final_top_k,
     }
-    return await _academic_post("/get-competencies", sso_token, payload)
+    return await _academic_post("/get-competencies", sso_token, payload, token_hash)
 
 
 @router.post("/academic/analyze-gap")
@@ -222,7 +259,7 @@ async def academic_analyze_gap(
     request: Request,
     user: dict[str, Any] = Depends(_require_user),
 ):
-    sso_token = await _get_sso_token(request)
+    sso_token, token_hash = await _get_sso_token(request)
     payload = {
         "topic": body.topic,
         "current_competencies": [
@@ -231,4 +268,4 @@ async def academic_analyze_gap(
         "broad_top_k": body.broad_top_k,
         "final_top_k": body.final_top_k,
     }
-    return await _academic_post("/analyze-gap", sso_token, payload)
+    return await _academic_post("/analyze-gap", sso_token, payload, token_hash)
