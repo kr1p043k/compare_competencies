@@ -1,12 +1,16 @@
 """Coverage analyzer: discipline vs market coverage."""
 from __future__ import annotations
 
+import json
+import os
+import tempfile
 import threading
 from collections import Counter
 
 import numpy as np
 import structlog
 
+from src import config
 from src.result import Ok, Err, Result
 from src.errors import CoverageError
 from src.models.teacher_analysis import CompetencyCoverage, CrossReference, DisciplineCoverage, SkillMatch
@@ -22,20 +26,72 @@ class CoverageAnalyzer:
         self._skill_emb_cache: dict[str, np.ndarray] = {}
         self._skill_emb_lock = threading.Lock()
 
-    def _get_skill_embeddings(self, skills: list[str]) -> dict[str, np.ndarray]:
-        """Batched embedding of skills not yet cached; thread-safe."""
+    def _load_disk_emb_cache(self) -> dict[str, np.ndarray]:
+        """Load persisted skill embeddings (JSON) into memory cache."""
+        cache_file = config.EMBEDDINGS_CACHE_DIR / "skill_embeddings.json"
+        if not cache_file.exists():
+            return {}
+        try:
+            with open(cache_file, encoding="utf-8") as f:
+                data = json.load(f)
+            return {
+                s: np.asarray(e, dtype=np.float32)
+                for s, e in data.get("embeddings", {}).items()
+            }
+        except Exception as exc:
+            logger.warning("skill_emb_disk_cache_load_failed", error=str(exc))
+            return {}
+
+    def _save_disk_emb_cache(self) -> None:
+        """Persist skill embeddings (JSON, atomic write)."""
         from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+
+        cache_file = config.EMBEDDINGS_CACHE_DIR / "skill_embeddings.json"
+        try:
+            model_version = EmbeddingProviderFactory.get().model_version()
+        except Exception:
+            model_version = "unknown"
+        data = {
+            "model_version": model_version,
+            "embeddings": {
+                s: [float(x) for x in e]
+                for s, e in self._skill_emb_cache.items()
+            },
+        }
+        try:
+            fd, tmp_path = tempfile.mkstemp(dir=cache_file.parent, suffix=".json.tmp")
+            os.close(fd)
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+            os.replace(tmp_path, cache_file)
+        except Exception as exc:
+            logger.warning("skill_emb_disk_cache_save_failed", error=str(exc))
+
+    def _get_skill_embeddings(self, skills: list[str]) -> dict[str, np.ndarray]:
+        """Batched embedding of skills not yet cached; thread-safe.
+
+        Uses an in-memory + on-disk (JSON) cache so repeated teacher-analysis
+        runs don't re-encode the same skills (the dominant cost).
+        """
+        from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+
+        missing_disk = [s for s in skills if s not in self._skill_emb_cache]
+        if missing_disk and not self._skill_emb_cache:
+            disk = self._load_disk_emb_cache()
+            with self._skill_emb_lock:
+                self._skill_emb_cache.update(disk)
 
         todo = [s for s in skills if s not in self._skill_emb_cache]
         if todo:
             prov = EmbeddingProviderFactory.get()
             embs = prov.encode(todo, show_progress_bar=False)
             with self._skill_emb_lock:
-                for s, e in zip(todo, embs):
+                for s, e in zip(todo, embs, strict=False):
                     norm = np.linalg.norm(e)
                     if norm > 0:
                         e = e / norm
                     self._skill_emb_cache[s] = e
+            self._save_disk_emb_cache()
         return {s: self._skill_emb_cache[s] for s in skills if s in self._skill_emb_cache}
 
 

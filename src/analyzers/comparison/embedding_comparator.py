@@ -5,6 +5,7 @@ Embedding Comparator — семантическое сравнение навы�
 
 import os
 import tempfile
+import threading
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -55,15 +56,70 @@ class EmbeddingComparator:
         self.skill_weights: dict[str, float] = {}
         self.clusterer: VacancyClusterer | None = None
         self.vacancies_data: list[dict] = []
+        self._skill_cache_loaded = False
+        self._skill_cache_lock = threading.Lock()
+        self._skill_cache: dict[str, np.ndarray] = {}
 
     def _get_cache_path(self, name: str, level: str = "middle") -> Path:
         return self.cache_dir / f"{name}_{level}.joblib"
+
+    def _load_skill_cache(self) -> None:
+        """Load persisted per-skill embeddings (shared JSON cache)."""
+        if self._skill_cache_loaded:
+            return
+        self._skill_cache_loaded = True
+        try:
+            cache_file = self.cache_dir / "skill_embeddings.json"
+            if not cache_file.exists():
+                return
+            import json
+
+            with open(cache_file, encoding="utf-8") as f:
+                data = json.load(f)
+            with self._skill_cache_lock:
+                self._skill_cache = {
+                    s: np.asarray(e, dtype=np.float32)
+                    for s, e in data.get("embeddings", {}).items()
+                }
+        except Exception as exc:
+            logger.warning("skill_cache_load_failed", error=str(exc))
+
+    def _save_skill_cache(self) -> None:
+        try:
+            import json
+            import os
+            import tempfile
+
+            cache_file = self.cache_dir / "skill_embeddings.json"
+            with self._skill_cache_lock:
+                snapshot = dict(self._skill_cache)
+            data = {
+                "model_version": self.model.model_version(),
+                "embeddings": {
+                    s: [float(x) for x in e] for s, e in snapshot.items()
+                },
+            }
+            fd, tmp_path = tempfile.mkstemp(dir=cache_file.parent, suffix=".json.tmp")
+            os.close(fd)
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+            os.replace(tmp_path, cache_file)
+        except Exception as exc:
+            logger.warning("skill_cache_save_failed", error=str(exc))
 
     def embed_skills(self, skills: list[str]) -> np.ndarray:
         if not skills:
             dim = self.model.get_sentence_embedding_dimension()
             return np.zeros((0, dim))
-        return self.model.encode(skills, convert_to_numpy=True, show_progress_bar=False)
+        self._load_skill_cache()
+        todo = [s for s in skills if s not in self._skill_cache]
+        if todo:
+            embs = self.model.encode(todo, convert_to_numpy=True, show_progress_bar=False)
+            with self._skill_cache_lock:
+                for s, e in zip(todo, embs, strict=False):
+                    self._skill_cache[s] = e
+            self._save_skill_cache()
+        return np.stack([self._skill_cache[s] for s in skills])
 
     def build_market_index(self, all_market_skills: list[str], level: str = "middle"):
         cache_path = self._get_cache_path("market_embeddings", level)
