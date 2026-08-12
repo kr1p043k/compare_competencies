@@ -417,21 +417,44 @@ async def run_teacher_analysis(
     out_dir = OUTPUT / dir_code
     os.makedirs(out_dir, exist_ok=True)
 
-    # Skip если данные не изменились с последнего полного pipeline
+    # Skip только если входные данные не менялись:
+    #   - рынок/вакансии: нет полного цикла или summary новее последнего full-cycle/hh-import
+    #   - KRM в БД: parse_versions / дисциплины / компетенции / KSA не менялись после summary
+    #   - KRM-файл на диске (raw KSA читается из него) не менялся после summary
     summary_path = out_dir / "_summary.json"
     if summary_path.exists():
         try:
+            summary_mtime = summary_path.stat().st_mtime
+
             last_run = await pool.fetchval(
                 "SELECT MAX(completed_at) FROM pipeline_runs "
                 "WHERE status = 'completed' AND action IN ('full-cycle', 'hh-import')"
             )
-            summary_mtime = summary_path.stat().st_mtime
-            if last_run and summary_mtime > last_run.timestamp():
+            market_unchanged = bool(last_run) and summary_mtime > last_run.timestamp()
+
+            krm_max = await pool.fetchval(
+                """SELECT MAX(ts) FROM (
+                       SELECT pv.created_at AS ts FROM parse_versions pv WHERE pv.direction_id = $1
+                       UNION ALL SELECT disc.created_at FROM disciplines disc WHERE disc.direction_id = $1
+                       UNION ALL SELECT c.created_at FROM competencies c
+                         JOIN disciplines disc ON c.discipline_id = disc.id WHERE disc.direction_id = $1
+                       UNION ALL SELECT k.created_at FROM ksa_entries k
+                         JOIN competencies c ON k.competency_id = c.id
+                         JOIN disciplines disc ON c.discipline_id = disc.id WHERE disc.direction_id = $1
+                   ) t""",
+                direction["id"],
+            )
+            krm_unchanged = not krm_max or summary_mtime > krm_max.timestamp()
+
+            krm_file_path = config.REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
+            file_unchanged = not krm_file_path.exists() or summary_mtime > krm_file_path.stat().st_mtime
+
+            if market_unchanged and krm_unchanged and file_unchanged:
                 logger.info("skipping_analysis_data_unchanged", direction=dir_code)
                 with open(summary_path, "r", encoding="utf-8") as _sf:
                     return Ok(json.load(_sf))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("skip_check_failed_recompute", error=str(exc))
 
     all_gaps: Counter = Counter()
     discipline_reports: list[tuple[str, GapAnalysisResult]] = []
