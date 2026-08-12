@@ -535,12 +535,18 @@ async def run_teacher_analysis(
         recs_result = rec_engine.generate(coverage)
         recs = recs_result.unwrap_or([])
 
-        # Filter recommendations by discipline relevance
+        # Filter recommendations by discipline relevance (batched encode)
+        rec_skills = [r.skill_name or r.type for r in recs]
+        rel_map: dict[str, float] = {}
+        try:
+            rel_map = _discipline_scorer.compute_relevance_batch(rec_skills, dname)
+        except Exception as exc:
+            logger.warning("relevance_batch_skipped", discipline=dname, error=str(exc))
         filtered: list = []
         for r in recs:
             skill = r.skill_name or r.type
-            relevance = _discipline_scorer.compute_relevance(skill, dname)
-            if relevance.level == "UNRELATED":
+            # UNRELATED == combined < 0.15 (см. DisciplineRelevance)
+            if rel_map.get(skill, 0.0) < 0.15:
                 r.priority = "low"
                 r.message += " (низкая релевантность дисциплине)"
             filtered.append(r)

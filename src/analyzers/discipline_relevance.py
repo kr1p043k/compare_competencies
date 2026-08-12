@@ -119,6 +119,42 @@ class DisciplineAwareScorer:
             logger.warning("relevance_compute_failed", skill=skill_name, error=str(exc))
             return DisciplineRelevance(0.0)
 
+    def compute_relevance_batch(
+        self, skill_names: list[str], discipline_name: str | None = None
+    ) -> dict[str, float]:
+        """Batched relevance: encodes all uncached skills in one call.
+
+        Single-skill encode() calls are ~0.13s each due to per-call model
+        overhead; batching cuts that to a few ms per skill.
+        """
+        if not self._loaded:
+            self.load()
+        self._ensure_embeddings()
+        result: dict[str, float] = {}
+        if not self._discipline_texts or self._model is None:
+            return result
+        if not (discipline_name and discipline_name in self._discipline_embeddings):
+            return result
+        disc_emb = self._discipline_embeddings[discipline_name]
+
+        unique = [s for s in dict.fromkeys(skill_names) if s not in self._skill_emb_cache]
+        if unique:
+            try:
+                embs = self._model.encode(unique, show_progress_bar=False)
+                norms = np.linalg.norm(embs, axis=1, keepdims=True)
+                norms[norms == 0] = 1.0
+                embs = embs / norms
+                for s, e in zip(unique, embs, strict=False):
+                    self._skill_emb_cache[s] = e
+            except Exception as exc:
+                logger.warning("relevance_batch_failed", count=len(unique), error=str(exc))
+
+        for s in dict.fromkeys(skill_names):
+            emb = self._skill_emb_cache.get(s)
+            if emb is not None:
+                result[s] = float(np.dot(emb, disc_emb))
+        return result
+
     def get_discipline_names(self) -> list[str]:
         return list(self._disciplines.keys())
 
