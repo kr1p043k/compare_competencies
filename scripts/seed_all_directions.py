@@ -40,7 +40,7 @@ REFERENCE_DIR = DATA_DIR / "reference"
 IT_SKILLS_PATH = REFERENCE_DIR / "it_skills.json"
 RPD_SKILLS_PATH = REFERENCE_DIR / "rpd_skills.json"
 
-_COMP_CODE_RE = re.compile(r"^(УК|ОПК|ПК|ППК|ИП)[\s-](\d+)$")
+_COMP_CODE_RE = re.compile(r"^(УК|ОПК|ПК|ППК|ИП|ВПК)[\s-](\d+(?:\.\d+)*)$")
 
 
 def _parse_comp_code(code: str) -> tuple[str, str]:

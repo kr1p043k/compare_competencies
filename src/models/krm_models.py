@@ -174,8 +174,8 @@ class Competency(Base):
     competency_skills: Mapped[list["CompetencySkill"]] = relationship(back_populates="competency", cascade="all, delete-orphan")
 
     __table_args__ = (
-        CheckConstraint("code ~ '^(УК|ОПК|ПК|ППК|ИП)[- ]\\d+'", name="ck_comp_code_format"),
-        CheckConstraint(category.in_(["УК", "ОПК", "ПК", "ППК", "ИП"]), name="ck_comp_category"),
+        CheckConstraint("code ~ '^(УК|ОПК|ПК|ППК|ИП|ВПК)[- ]\\d+(\\.\\d+)*'", name="ck_comp_code_format"),
+        CheckConstraint(category.in_(["УК", "ОПК", "ПК", "ППК", "ИП", "ВПК"]), name="ck_comp_category"),
         CheckConstraint(development_level.in_(["КС-1", "КС-2", "КС-3"]), name="ck_comp_dev_level"),
     )
 
