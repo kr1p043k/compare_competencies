@@ -451,6 +451,13 @@ async def run_teacher_analysis(
 
             if market_unchanged and krm_unchanged and file_unchanged:
                 logger.info("skipping_analysis_data_unchanged", direction=dir_code)
+                try:
+                    await complete_pipeline_run(
+                        run_id, status="completed",
+                        stats={"direction": dir_code, "skipped": True, "reason": "data_unchanged"},
+                    )
+                except Exception as exc:
+                    logger.warning("skip_pipeline_run_close_failed", error=str(exc))
                 with open(summary_path, "r", encoding="utf-8") as _sf:
                     return Ok(json.load(_sf))
         except Exception as exc:
