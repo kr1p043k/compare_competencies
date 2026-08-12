@@ -161,7 +161,7 @@ def _enhance_disciplines_with_gap_analysis(
                     "semantic_coverage": embed_coverage,
                     "ltr_and_shap": ltr_shap,
                 }
-                json_file.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+                json_file.write_text(json.dumps(existing, ensure_ascii=False, indent=1), encoding="utf-8")
                 enhanced_total += 1
             except Exception as exc:
                 logger.warning("enhanced_merge_failed", discipline=dname, error=str(exc))
@@ -521,16 +521,6 @@ async def run_teacher_analysis(
                 "market_not_in_ksa": market_not_in_ksa,
                 "total_ksa_items": len(ksa_texts),
             }
-            # Skills in KSA but not in market
-            ksa_only = mentioned - set(market_skills.keys())
-            # Top market skills NOT mentioned in KSA (simple list, no nested loop)
-            market_not_in_ksa = [sk for sk in top_market_list if sk not in mentioned][:10]
-            ksa_context[comp_code] = {
-                "mentioned_in_ksa": sorted(mentioned)[:20],
-                "ksa_not_on_market": sorted(ksa_only)[:10],
-                "market_not_in_ksa": market_not_in_ksa,
-                "total_ksa_items": len(ksa_texts),
-            }
 
         recs_result = rec_engine.generate(coverage)
         recs = recs_result.unwrap_or([])
@@ -617,7 +607,7 @@ async def run_teacher_analysis(
         fname = _safe_filename(dname) + ".json"
         try:
             (disc_out / fname).write_text(
-                json.dumps(disc_data_out, ensure_ascii=False, indent=2), encoding="utf-8"
+                json.dumps(disc_data_out, ensure_ascii=False, indent=1), encoding="utf-8"
             )
         except Exception as exc:
             logger.error("discipline_file_write_failed", discipline=dname, error=str(exc))
@@ -754,7 +744,7 @@ async def run_teacher_analysis(
 
     try:
         (out_dir / "_summary.json").write_text(
-            json.dumps(dir_summary, ensure_ascii=False, indent=2), encoding="utf-8"
+            json.dumps(dir_summary, ensure_ascii=False, indent=1), encoding="utf-8"
         )
     except Exception as exc:
         logger.error("summary_write_failed", error=str(exc))
