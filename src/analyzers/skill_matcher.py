@@ -28,6 +28,11 @@ def coverage_level(ratio: float) -> str:
     return "low"
 
 
+def _word_pattern(word: str) -> re.Pattern[str]:
+    """Precompiled regex matching `word` as a whole word (word-boundary aware)."""
+    return re.compile(r"(?<!\w)" + re.escape(word) + r"(?!\w)")
+
+
 class SkillMatcher:
     def __init__(self, market_skills: dict[str, int] | None = None,
                  embedding_provider: Any | None = None):
@@ -35,8 +40,13 @@ class SkillMatcher:
         self._embedding_provider = embedding_provider
         self._market_embeddings: np.ndarray | None = None
         self._market_names: list[str] = []
+        # Precompiled word-boundary patterns per market name, in dict order,
+        # so fuzzy matching stays 100% equivalent to the old per-name loop
+        # (which compiled a regex on every call inside the hot path).
+        self._market_word_pats: list[tuple[str, re.Pattern[str]]] = []
         self._semantic_cache: dict[str, str] = {}
         self._match_cache: dict[str, tuple[str | None, str, float]] = {}
+        self._rebuild_fuzzy_patterns()
 
     def set_market(self, market_skills: dict[str, int]) -> Result[None, MatchingError]:
         if not market_skills:
@@ -45,6 +55,7 @@ class SkillMatcher:
         self.market_skills = market_skills
         self._semantic_cache.clear()
         self._match_cache.clear()
+        self._rebuild_fuzzy_patterns()
         if self._embedding_provider and market_skills:
             names = list(market_skills.keys())
             embs = self._embedding_provider.encode(names, show_progress_bar=False)
@@ -54,6 +65,31 @@ class SkillMatcher:
             self._market_names = names
         logger.info("market_skills_set", count=len(market_skills))
         return Ok(None)
+
+    def _rebuild_fuzzy_patterns(self) -> None:
+        """Precompile whole-word patterns for every market name.
+
+        `_fuzzy_hit_name` then scans the precompiled list instead of calling
+        `re.search` with a freshly built pattern per iteration.
+        """
+        self._market_word_pats = [
+            (name, _word_pattern(name)) for name in self.market_skills
+        ]
+
+    def _fuzzy_hit_name(self, n: str) -> str | None:
+        """First market name having a whole-word overlap with `n`.
+
+        Identical semantics and order to the original loop:
+        for mn in market_skills:
+            if _word_match(n, mn) or _word_match(mn, n): return mn
+        """
+        if not self._market_word_pats:
+            return None
+        qpat = _word_pattern(n)
+        for mn, mpat in self._market_word_pats:
+            if qpat.search(mn) or mpat.search(n):
+                return mn
+        return None
 
     @staticmethod
     def _word_match(a: str, b: str) -> bool:
@@ -97,10 +133,10 @@ class SkillMatcher:
             logger.debug("skill_exact_match", skill=n)
             return Ok((n, "exact", 1.0))
 
-        for mn in self.market_skills:
-            if self._word_match(n, mn) or self._word_match(mn, n):
-                logger.debug("skill_fuzzy_match", rpd_skill=n, market_skill=mn)
-                return Ok((mn, "fuzzy", 0.5))
+        mn = self._fuzzy_hit_name(n)
+        if mn:
+            logger.debug("skill_fuzzy_match", rpd_skill=n, market_skill=mn)
+            return Ok((mn, "fuzzy", 0.5))
 
         mn, mt, score = self._semantic_match(n)
         if mn:
@@ -114,22 +150,33 @@ class SkillMatcher:
         if not self.market_skills:
             logger.warning("no_market_skills_for_emerging")
             return Err(MatchingError(skill_name="", message="No market skills loaded"))
+
+        rpd_pats = [(_word_pattern(r)) for r in rpd_normalized] if rpd_normalized else []
+        excl_pats = [(_word_pattern(r)) for r in also_exclude] if also_exclude else []
+
         result = []
         for mn, mf in sorted(self.market_skills.items(), key=lambda x: -x[1]):
             if mn in rpd_normalized:
                 continue
             if also_exclude and mn in also_exclude:
                 continue
+            # Equivalent to the original nested loop:
+            #   for rn in rpd_normalized:
+            #       if _word_match(mn, rn) or _word_match(rn, mn): skip
+            # where _word_match(mn, rn) == mn word inside rn
+            # and   _word_match(rn, mn) == rn word inside mn
+            qpat = _word_pattern(mn)
             skip = False
-            for rn in rpd_normalized:
-                if self._word_match(mn, rn) or self._word_match(rn, mn):
+            if rpd_pats:
+                if any(p.search(mn) for p in rpd_pats):
                     skip = True
-                    break
-            if also_exclude and not skip:
-                for rn in also_exclude:
-                    if self._word_match(mn, rn) or self._word_match(rn, mn):
-                        skip = True
-                        break
+                elif any(qpat.search(rn) for rn in rpd_normalized):
+                    skip = True
+            if also_exclude and not skip and excl_pats:
+                if any(p.search(mn) for p in excl_pats):
+                    skip = True
+                elif any(qpat.search(rn) for rn in also_exclude):
+                    skip = True
             if not skip:
                 result.append((mn, mf, "emerging"))
                 if len(result) >= top_n:

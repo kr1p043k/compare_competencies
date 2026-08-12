@@ -621,7 +621,7 @@ async def run_teacher_analysis(
                      gaps=coverage.gaps, emerging=len(coverage.emerging))
         return (dname, result)
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=8) as executor:
         futures = {
             executor.submit(_analyze_one, dname, disc_data): dname
             for dname, disc_data in sorted(disciplines.items())
