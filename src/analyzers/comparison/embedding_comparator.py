@@ -140,14 +140,10 @@ class EmbeddingComparator:
         if len(student_embs) == 0:
             return Ok({"score": 0.0, "weighted_coverage": 0.0, "matches": [], "missing": [], "avg_similarity": 0.0})
 
-        best_sims_per_market = {}
         similarities = cosine_similarity(student_embs, self.market_embeddings)
-        for i in range(len(student_skills)):
-            for j, sim in enumerate(similarities[i]):
-                mskill = self.market_skills[j]
-                best_sims_per_market[mskill] = max(best_sims_per_market.get(mskill, 0.0), float(sim))
+        best_sims = similarities.max(axis=0)
 
-        return Ok(self._result_from_sims(best_sims_per_market))
+        return Ok(self._result_from_sims(best_sims))
 
     def compare_student_to_market_ensemble(
         self,
@@ -178,15 +174,13 @@ class EmbeddingComparator:
                 if len(student_embs) == 0:
                     return Ok({"score": 0.0, "matches": []})
                 sims = cosine_similarity(student_embs, self._outer.market_embeddings)
-                best = {}
-                for i in range(len(ss)):
-                    for j, s in enumerate(sims[i]):
-                        best[ms[j]] = max(best.get(ms[j], 0.0), float(s))
-                avg = float(np.mean(list(best.values()))) if best else 0.0
-                matches = sorted(
-                    [{"skill": k, "similarity": v} for k, v in best.items()],
-                    key=lambda x: x["similarity"], reverse=True,
-                )[:15]
+                best = sims.max(axis=0)
+                avg = float(best.mean()) if best.size else 0.0
+                top_idx = np.argsort(best)[-15:][::-1]
+                matches = [
+                    {"skill": self._outer.market_skills[i], "similarity": float(best[i])}
+                    for i in top_idx
+                ]
                 return Ok(dict(score=round(avg, 4), weighted_coverage=round(avg, 4),
                             avg_similarity=round(avg, 4), matches=matches, missing=[]))
 
@@ -202,41 +196,50 @@ class EmbeddingComparator:
             {"score": 0.0, "weighted_coverage": 0.0, "avg_similarity": 0.0, "matches": [], "missing": []}
         )
 
-    def _result_from_sims(self, best_sims_per_market: dict[str, float]) -> ComparisonResult:
-        total_weighted = 0.0
-        total_weight = 0.0
+    def _result_from_sims(self, best_sims: np.ndarray) -> ComparisonResult:
+        """Build result from a (n_market,) array of best cosine similarities.
 
-        if not self.skill_weights:
-            logger.warning("skill_weights_empty")
+        Accepts either a numpy array (vectorized path) or a dict {skill: sim}
+        (legacy path). Kept numpy-vectorized so the hot loop over 35k market
+        skills is a single array operation instead of a Python loop.
+        """
+        if isinstance(best_sims, dict):
+            values = np.fromiter(best_sims.values(), dtype=float)
+            skills_list = list(best_sims.keys())
         else:
-            logger.debug("skill_weights_count", count=len(self.skill_weights))
+            values = np.asarray(best_sims, dtype=float)
+            skills_list = None
 
-        if self.skill_weights:
-            for mskill, weight in self.skill_weights.items():
-                raw_sim = best_sims_per_market.get(mskill, 0.0)
-                effective_sim = raw_sim**2
-                total_weighted += effective_sim * weight
-                total_weight += weight
+        if values.size == 0:
+            return dict(
+                score=0.0, weighted_coverage=0.0, avg_similarity=0.0,
+                matches=[], missing=[],
+            )
+
+        effective = values ** 2
+        if self.skill_weights and skills_list is not None:
+            weights = np.array([self.skill_weights.get(s, 0.0) for s in skills_list], dtype=float)
+            total_w = float(weights.sum())
+            weighted_coverage = float(np.dot(effective, weights) / total_w) if total_w > 0 else float(effective.mean())
         else:
-            for _mskill, raw_sim in best_sims_per_market.items():
-                effective_sim = raw_sim**2
-                total_weighted += effective_sim
-                total_weight += 1.0
+            weighted_coverage = float(effective.mean())
 
-        weighted_coverage = total_weighted / total_weight if total_weight > 0 else 0.0
-        avg_similarity = float(np.mean(list(best_sims_per_market.values()))) if best_sims_per_market else 0.0
+        avg_similarity = float(values.mean())
 
-        sorted_matches = sorted(
-            [{"skill": k, "similarity": v} for k, v in best_sims_per_market.items()],
-            key=lambda x: x["similarity"],
-            reverse=True,
-        )[:15]
+        if skills_list is None:
+            skills_list = [self.market_skills[i] for i in range(len(values))]
+
+        top_idx = np.argsort(values)[-15:][::-1]
+        matches = [
+            {"skill": skills_list[i], "similarity": float(values[i])}
+            for i in top_idx
+        ]
 
         return dict(
             score=round(weighted_coverage, 4),
             weighted_coverage=round(weighted_coverage, 4),
             avg_similarity=round(avg_similarity, 4),
-            matches=sorted_matches,
+            matches=matches,
             missing=[],
         )
 
