@@ -56,7 +56,6 @@ import {
   UserCheck,
   History,
   Activity,
-  Newspaper,
   HelpCircle,
 } from "lucide-react";
 
@@ -451,8 +450,8 @@ export default function App() {
               value="articles"
               className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
             >
-              <Newspaper className="size-4" />
-              Статьи
+              <BarChart3 className="size-4" />
+              Аналитика рынка
             </TabsTrigger>
             <TabsTrigger
               value="scientific-trends"

@@ -355,7 +355,7 @@ export function ArticlesPage() {
             </div>
           </div>
           <div className="text-left">
-            <h2 className="text-3xl font-bold text-gray-900">Статьи и аналитика</h2>
+            <h2 className="text-3xl font-bold text-gray-900">Аналитика рынка</h2>
             <p className="text-gray-600">Статистика рынка вакансий и рекомендации по развитию навыков</p>
           </div>
         </div>
