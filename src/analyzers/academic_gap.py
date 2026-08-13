@@ -168,7 +168,7 @@ class AcademicGapAnalyzer:
 
     # ── шаг 3: сравнение с компетенциями КРМ ──────────────────────────────
 
-    def _competency_analysis(self, topic_skills: list[str], market_top: list[dict], market_embs) -> list[dict]:
+    def _competency_analysis(self, topic_skills: list[str], market_top: list[dict], market_embs, topic_lower: str = "") -> list[dict]:
         comp = self._get_comparator()
         krm = _load_krm(self.dir_code)
         if not krm:
@@ -179,7 +179,6 @@ class AcademicGapAnalyzer:
             return []
 
         market = _load_it_skills()
-        market_lower = {m.lower() for m in market}
 
         results: list[dict] = []
         for code, entry in krm.items():
@@ -250,11 +249,13 @@ class AcademicGapAnalyzer:
                 topic_skills[i] for i in range(len(topic_skills))
                 if float(topic_best[i]) < SIM_THRESHOLD
                 and topic_skills[i].lower() not in skills_lower
+                and topic_skills[i].lower() != topic_lower
+                and len(topic_skills[i].strip()) >= 5
             ][:_TOP_SUGGEST]
 
             # suggested_skills: уникальные для компетенции + по теме
             suggested: list[dict] = []
-            if len(market_embs):
+            if market_embs is not None and len(market_embs):
                 # рыночные навыки, близкие к навыкам ЭТОЙ компетенции
                 comp_market = cosine_similarity(skill_embs, market_embs)  # (n_skills, n_market)
                 market_best = comp_market.max(axis=0)
@@ -286,7 +287,7 @@ class AcademicGapAnalyzer:
             # рекомендация: уникальный текст с похожестью
             if suggested:
                 parts = []
-                for s in suggested[:_TOP_SUGGEST]:
+                for s in suggested:
                     src = "близок к вашим навыкам" if s["source"] == "competency" else "по теме"
                     parts.append(f"{s['skill']} ({s['similarity']:.2f}, {src})")
                 recommendation = "Рекомендуется дополнить: " + ", ".join(parts) + "."
@@ -345,6 +346,7 @@ class AcademicGapAnalyzer:
             topic_skills,
             market_stats.get("top_market", []),
             market_stats.get("market_embs"),
+            topic_lower=topic.strip().lower(),
         )
         overall = round(
             sum(r["coverage_percent"] for r in results) / len(results) / 100, 4
