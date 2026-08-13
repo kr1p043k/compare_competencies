@@ -6,14 +6,12 @@ Endpoints:
     GET  /teacher/rpd/sources   directions covered by Yandex Disk collection
     GET  /teacher/rpd/status/{run_id}
 """
-from __future__ import annotations
-
 import asyncio
 import json
 import re
-import shutil
 import sys
 from pathlib import Path
+from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
@@ -173,10 +171,10 @@ async def _upload_pipeline(run_id: str, dir_code: str, fname: str, direction_nam
 async def rpd_upload(
     request: Request,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    dir_code: str = Form(...),
-    direction_name: str = Form(""),
-    profile: str = Form(""),
+    file: Annotated[UploadFile, File()],
+    dir_code: Annotated[str, Form()],
+    direction_name: Annotated[str, Form()] = "",
+    profile: Annotated[str, Form()] = "",
 ):
     _validate_dir_code(dir_code)
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -248,7 +246,7 @@ async def _collect_pipeline(run_id: str, dir_code: str) -> None:
 
 @router.post("/teacher/rpd/collect")
 @limiter.limit("2/minute")
-async def rpd_collect(request: Request, background_tasks: BackgroundTasks, dir_code: str = Form("09.03.02")):
+async def rpd_collect(request: Request, background_tasks: BackgroundTasks, dir_code: Annotated[str, Form()] = "09.03.02"):
     _validate_dir_code(dir_code)
     if dir_code not in YANDEX_COVERED:
         raise HTTPException(status_code=400, detail=f"Yandex Disk collection is not available for {dir_code}")
