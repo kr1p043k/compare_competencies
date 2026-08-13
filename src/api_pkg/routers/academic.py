@@ -24,6 +24,8 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["academic"])
 
 ACADEMIC_TIMEOUT = 60.0
+# analyze-gap — тяжёлый LLM-запрос (анализ разрыва всей КРМ), может идти минуты.
+ACADEMIC_GAP_TIMEOUT = 300.0
 
 # academic-api (nginx/WAF) блокирует запросы от скриптов с python-httpx User-Agent (403).
 # Ходим с браузерным UA, иначе все вызовы падают с 403 Forbidden.
@@ -133,14 +135,27 @@ async def _get_sso_token(request: Request) -> tuple[str, str]:
     return sso_token, token_hash
 
 
-async def _academic_post(path: str, sso_token: str, payload: dict, token_hash: str | None = None) -> Any:
+async def _academic_post(
+    path: str,
+    sso_token: str,
+    payload: dict,
+    token_hash: str | None = None,
+    timeout: float | None = None,
+) -> Any:
+    timeout = timeout or ACADEMIC_TIMEOUT
     try:
-        async with httpx.AsyncClient(timeout=ACADEMIC_TIMEOUT, headers=_ACADEMIC_HEADERS) as client:
+        async with httpx.AsyncClient(timeout=timeout, headers=_ACADEMIC_HEADERS) as client:
             resp = await client.post(
                 f"{config.ACADEMIC_API_BASE}{path}",
                 json=payload,
                 headers={"Authorization": f"Bearer {sso_token}"},
             )
+    except httpx.ReadTimeout as exc:
+        logger.warning("academic_api_timeout", path=path, timeout=timeout, error=str(exc))
+        raise HTTPException(
+            status_code=504,
+            detail="Сервис ЮФУ обрабатывает запрос дольше обычного, попробуйте позже",
+        ) from None
     except httpx.HTTPError as exc:
         logger.warning("academic_api_unreachable", path=path, error=str(exc))
         raise HTTPException(status_code=503, detail="Сервис ЮФУ недоступен, попробуйте позже") from None
@@ -268,4 +283,7 @@ async def academic_analyze_gap(
         "broad_top_k": body.broad_top_k,
         "final_top_k": body.final_top_k,
     }
-    return await _academic_post("/analyze-gap", sso_token, payload, token_hash)
+    return await _academic_post(
+        "/analyze-gap", sso_token, payload, token_hash,
+        timeout=ACADEMIC_GAP_TIMEOUT,
+    )

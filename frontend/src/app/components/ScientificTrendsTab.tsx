@@ -5,6 +5,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Badge } from "./ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { Progress } from "./ui/progress";
 import { TrendingUp, GitCompare, Search, Sparkles, Target, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface TrendCompetency {
@@ -133,6 +134,8 @@ export function ScientificTrendsTab() {
   const [redirectIn, setRedirectIn] = useState<number | null>(null);
   const redirectTimer = useRef<number | null>(null);
   const ssoBlockedRef = useRef(false);
+  const gapProgressTimer = useRef<number | null>(null);
+  const [gapProgress, setGapProgress] = useState(0);
 
   const startHubRedirect = () => {
     if (redirectTimer.current !== null) return;
@@ -155,6 +158,7 @@ export function ScientificTrendsTab() {
   useEffect(() => {
     return () => {
       if (redirectTimer.current !== null) window.clearInterval(redirectTimer.current);
+      if (gapProgressTimer.current !== null) window.clearInterval(gapProgressTimer.current);
     };
   }, []);
 
@@ -165,6 +169,28 @@ export function ScientificTrendsTab() {
       setSsoBlocked(true);
       startHubRedirect();
     }
+  };
+
+  const startGapProgress = () => {
+    setGapProgress(0);
+    if (gapProgressTimer.current !== null) window.clearInterval(gapProgressTimer.current);
+    gapProgressTimer.current = window.setInterval(() => {
+      setGapProgress((p) => {
+        // Плавный рост до 90%, пока ждём ответа (сервис ЮФУ не отдаёт реальный прогресс)
+        const target = 90;
+        if (p >= target) return p;
+        const remaining = target - p;
+        return Math.min(target, p + Math.max(1, remaining * 0.02));
+      });
+    }, 1500);
+  };
+
+  const stopGapProgress = () => {
+    if (gapProgressTimer.current !== null) {
+      window.clearInterval(gapProgressTimer.current);
+      gapProgressTimer.current = null;
+    }
+    setGapProgress(0);
   };
 
   const fetchTrends = async () => {
@@ -196,6 +222,7 @@ export function ScientificTrendsTab() {
       setKrmCount(krm.count);
       setGapTopic(topic.trim());
       setLoading("gap");
+      startGapProgress();
       const data = await academicCall("/api/academic/analyze-gap", {
         topic: topic.trim(),
         current_competencies: krm.codes.map((code) => ({ code })),
@@ -208,6 +235,7 @@ export function ScientificTrendsTab() {
       if (err.status === 419 || err.status === 403) handleSsoBlocked(err.message);
       else setError(err.message);
     } finally {
+      stopGapProgress();
       setLoading(null);
     }
   };
@@ -260,6 +288,15 @@ export function ScientificTrendsTab() {
             <p className="text-xs text-gray-500">
               В анализе разрыва учтено компетенций КРМ: <b>{krmCount}</b>
             </p>
+          )}
+
+          {loading === "gap" && (
+            <div className="space-y-2">
+              <Progress value={gapProgress} className="h-2.5 bg-indigo-100 [&>div]:bg-indigo-600" />
+              <p className="text-xs text-gray-500">
+                Анализ разрыва выполняется, это может занять несколько минут… ({Math.round(gapProgress)}%)
+              </p>
+            </div>
           )}
           {error && !ssoBlocked && (
             <Alert variant="destructive">
