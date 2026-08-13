@@ -59,7 +59,18 @@ class SentenceTransformerProvider(EmbeddingProvider):
             lib_ver = st.__version__
         except ImportError:
             lib_ver = "unknown"
-        return f"{self._model._model_name_or_path}_st{lib_ver}"
+        try:
+            name = self._model._model_name_or_path
+        except AttributeError:
+            name = getattr(self._model, "model_card_data", None)
+            if name is None:
+                try:
+                    from src import config
+
+                    name = config.EMBEDDING_MODEL
+                except Exception:
+                    name = "embedding-model"
+        return f"{name}_st{lib_ver}"
 
 
 class EmbeddingProviderFactory:
