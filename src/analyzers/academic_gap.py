@@ -24,11 +24,14 @@ logger = structlog.get_logger(__name__)
 
 # Порог cosine-близости «навык компетенции близок теме»
 SIM_THRESHOLD = 0.55
+# Порог близости рыночного навыка к навыкам компетенции (для suggested_skills)
+COMP_MARKET_THRESHOLD = 0.45
 # Пороги покрытия компетенции → статус
 STATUS_THRESHOLDS = {"covered": 80, "partial": 40}
 # Сколько уникальных навыков компетенций держим в памяти за раз
 _TOP_REASON = 5
-_TOP_RECOMMEND = 5
+_TOP_NEAR = 5
+_TOP_SUGGEST = 4
 
 
 def _load_it_skills() -> list[str]:
@@ -136,15 +139,15 @@ class AcademicGapAnalyzer:
     # ── шаг 2: сравнение с рынком (it_skills) ─────────────────────────────
 
     def _market_stats(self, topic_skills: list[str]) -> dict[str, Any]:
-        """Cosine-близость темы к рыночным навыкам (top-N)."""
+        """Cosine-близость темы к рыночным навыкам (top-N). Возвращает также market_embs."""
         comp = self._get_comparator()
         market = _load_it_skills()
         if not market:
-            return {"top_market": [], "market_avg_sim": 0.0}
+            return {"top_market": [], "market_avg_sim": 0.0, "market_embs": None}
         try:
             topic_embs = comp.embed_skills(topic_skills)
             if len(topic_embs) == 0:
-                return {"top_market": [], "market_avg_sim": 0.0}
+                return {"top_market": [], "market_avg_sim": 0.0, "market_embs": None}
             topic_emb = np.mean(topic_embs, axis=0, keepdims=True)
             market_embs = comp.embed_skills(market)
             sims = cosine_similarity(topic_emb, market_embs)[0]
@@ -154,14 +157,18 @@ class AcademicGapAnalyzer:
                 for i in order[:15]
                 if float(sims[i]) >= 0.3
             ]
-            return {"top_market": top, "market_avg_sim": round(float(sims.mean()), 4)}
+            return {
+                "top_market": top,
+                "market_avg_sim": round(float(sims.mean()), 4),
+                "market_embs": market_embs,
+            }
         except Exception as exc:
             logger.warning("gap_market_compare_failed", error=str(exc))
-            return {"top_market": [], "market_avg_sim": 0.0}
+            return {"top_market": [], "market_avg_sim": 0.0, "market_embs": None}
 
     # ── шаг 3: сравнение с компетенциями КРМ ──────────────────────────────
 
-    def _competency_analysis(self, topic_skills: list[str], market_top: list[dict]) -> list[dict]:
+    def _competency_analysis(self, topic_skills: list[str], market_top: list[dict], market_embs) -> list[dict]:
         comp = self._get_comparator()
         krm = _load_krm(self.dir_code)
         if not krm:
@@ -171,6 +178,9 @@ class AcademicGapAnalyzer:
         if len(topic_embs) == 0:
             return []
 
+        market = _load_it_skills()
+        market_lower = {m.lower() for m in market}
+
         results: list[dict] = []
         for code, entry in krm.items():
             skills = entry["skills"]
@@ -179,6 +189,11 @@ class AcademicGapAnalyzer:
                     "code": code,
                     "status": "gap",
                     "coverage_percent": 0,
+                    "disciplines": entry["disciplines"],
+                    "skills_count": 0,
+                    "near_skills": [],
+                    "missing_topic_skills": [],
+                    "suggested_skills": [],
                     "reason": "У компетенции нет навыков в KRM.",
                     "recommendation": "Добавьте ЗУН для компетенции в РПД.",
                 })
@@ -191,10 +206,17 @@ class AcademicGapAnalyzer:
                     "code": code,
                     "status": "gap",
                     "coverage_percent": 0,
+                    "disciplines": entry["disciplines"],
+                    "skills_count": len(skills),
+                    "near_skills": [],
+                    "missing_topic_skills": [],
+                    "suggested_skills": [],
                     "reason": "Не удалось вычислить эмбеддинги навыков.",
                     "recommendation": "",
                 })
                 continue
+
+            skills_lower = {s.lower() for s in skills}
 
             # для каждого навыка компетенции — макс. близость к любому навыку темы
             sims = cosine_similarity(skill_embs, topic_embs)  # (n_skills, n_topic)
@@ -209,33 +231,79 @@ class AcademicGapAnalyzer:
             else:
                 status = "gap"
 
-            # reason: топ-близкие навыки компетенции к теме
-            idx = np.argsort(per_skill)[::-1][:_TOP_REASON]
-            near = [
-                skills[i] for i in idx
-                if float(per_skill[i]) >= SIM_THRESHOLD
+            # near_skills: топ навыков компетенции, близких к теме
+            idx = np.argsort(per_skill)[::-1][:_TOP_NEAR]
+            near_skills = [
+                {"skill": skills[i], "similarity": round(float(per_skill[i]), 3)}
+                for i in idx if float(per_skill[i]) >= 0.4
             ]
             reason = (
-                "Близкие к теме навыки: " + "; ".join(near[:3])
-                if near
+                "Близкие к теме навыки: " + "; ".join(n["skill"] for n in near_skills[:3])
+                if near_skills
                 else "Навыки компетенции слабо связаны с темой."
             )
 
-            # recommendation: рыночные навыки, близкие к теме, которых нет в компетенции
-            missing = [
-                m["skill"] for m in market_top
-                if m["skill"].lower() not in {s.lower() for s in skills}
-            ][:_TOP_RECOMMEND]
-            recommendation = (
-                "Рекомендуется дополнить: " + ", ".join(missing)
-                if missing
-                else "Компетенция достаточно покрывает тему."
-            )
+            # missing_topic_skills: навыки темы, которых нет в компетенции
+            topic_to_comp = cosine_similarity(topic_embs, skill_embs)  # (n_topic, n_skills)
+            topic_best = topic_to_comp.max(axis=1)
+            missing_topic_skills = [
+                topic_skills[i] for i in range(len(topic_skills))
+                if float(topic_best[i]) < SIM_THRESHOLD
+                and topic_skills[i].lower() not in skills_lower
+            ][:_TOP_SUGGEST]
+
+            # suggested_skills: уникальные для компетенции + по теме
+            suggested: list[dict] = []
+            if len(market_embs):
+                # рыночные навыки, близкие к навыкам ЭТОЙ компетенции
+                comp_market = cosine_similarity(skill_embs, market_embs)  # (n_skills, n_market)
+                market_best = comp_market.max(axis=0)
+                order = np.argsort(market_best)[::-1]
+                for i in order:
+                    if len(suggested) >= _TOP_SUGGEST:
+                        break
+                    if float(market_best[i]) < COMP_MARKET_THRESHOLD:
+                        break
+                    if market[i].lower() in skills_lower or market[i].lower() in {s["skill"].lower() for s in suggested}:
+                        continue
+                    suggested.append({
+                        "skill": market[i],
+                        "similarity": round(float(market_best[i]), 3),
+                        "source": "competency",
+                    })
+                # рыночные навыки, близкие к теме, которых нет в компетенции
+                for m in market_top:
+                    if len(suggested) >= _TOP_SUGGEST + 2:
+                        break
+                    if m["skill"].lower() in skills_lower or m["skill"].lower() in {s["skill"].lower() for s in suggested}:
+                        continue
+                    suggested.append({
+                        "skill": m["skill"],
+                        "similarity": m["similarity"],
+                        "source": "topic",
+                    })
+
+            # рекомендация: уникальный текст с похожестью
+            if suggested:
+                parts = []
+                for s in suggested[:_TOP_SUGGEST]:
+                    src = "близок к вашим навыкам" if s["source"] == "competency" else "по теме"
+                    parts.append(f"{s['skill']} ({s['similarity']:.2f}, {src})")
+                recommendation = "Рекомендуется дополнить: " + ", ".join(parts) + "."
+            elif coverage >= STATUS_THRESHOLDS["covered"]:
+                recommendation = "Компетенция достаточно покрывает тему."
+            else:
+                recommendation = "Рекомендуется усилить навыки, связанные с темой."
 
             results.append({
                 "code": code,
                 "status": status,
                 "coverage_percent": coverage,
+                "disciplines": entry["disciplines"],
+                "skills_count": len(skills),
+                "near_skills": near_skills,
+                "missing_topic_skills": missing_topic_skills,
+                "suggested_skills": suggested,
                 "reason": reason,
                 "recommendation": recommendation,
             })
@@ -273,7 +341,11 @@ class AcademicGapAnalyzer:
             }
         topic_skills = self.topic_to_skills(topic)
         market_stats = self._market_stats(topic_skills)
-        results = self._competency_analysis(topic_skills, market_stats.get("top_market", []))
+        results = self._competency_analysis(
+            topic_skills,
+            market_stats.get("top_market", []),
+            market_stats.get("market_embs"),
+        )
         overall = round(
             sum(r["coverage_percent"] for r in results) / len(results) / 100, 4
         ) if results else 0.0

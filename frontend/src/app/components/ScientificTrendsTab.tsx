@@ -22,12 +22,23 @@ interface TrendResponse {
   rationale: string;
 }
 
+interface GapSkill {
+  skill: string;
+  similarity: number;
+  source?: string;
+}
+
 interface GapItem {
   code: string;
   status: string;
   coverage_percent: number;
   reason: string;
   recommendation: string;
+  disciplines?: string[];
+  skills_count?: number;
+  near_skills?: GapSkill[];
+  missing_topic_skills?: string[];
+  suggested_skills?: GapSkill[];
 }
 
 interface GapResponse {
@@ -510,11 +521,66 @@ export function ScientificTrendsTab() {
                         </Badge>
                       </div>
                     </div>
+
+                    {item.disciplines && item.disciplines.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                        <span className="text-xs text-gray-400">Дисциплины:</span>
+                        {item.disciplines.slice(0, 3).map((d) => (
+                          <span key={d} className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                            {d}
+                          </span>
+                        ))}
+                        {item.disciplines.length > 3 && (
+                          <span className="text-[11px] text-gray-400">+{item.disciplines.length - 3}</span>
+                        )}
+                      </div>
+                    )}
+
                     {item.reason && <p className="text-xs text-gray-500 mt-1">{item.reason}</p>}
+
+                    {item.near_skills && item.near_skills.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                        <span className="text-xs text-gray-400">Близкие к теме:</span>
+                        {item.near_skills.map((n) => (
+                          <span key={n.skill} className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                            {n.skill.length > 40 ? n.skill.slice(0, 40) + "…" : n.skill} ({n.similarity.toFixed(2)})
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {item.missing_topic_skills && item.missing_topic_skills.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                        <span className="text-xs text-gray-400">Чего не хватает:</span>
+                        {item.missing_topic_skills.map((m) => (
+                          <span key={m} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                            {m.length > 40 ? m.slice(0, 40) + "…" : m}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     {item.recommendation && (
                       <p className="text-sm text-indigo-800 mt-2 bg-indigo-50 rounded p-2">
                         Рекомендация: {item.recommendation}
                       </p>
+                    )}
+
+                    {item.suggested_skills && item.suggested_skills.length > 0 && (
+                      <div className="mt-2 text-xs text-gray-500">
+                        <span className="font-medium">Рекомендуемые навыки:</span>
+                        <ul className="mt-1 space-y-0.5">
+                          {item.suggested_skills.map((s) => (
+                            <li key={s.skill + s.source}>
+                              <span className="font-mono text-indigo-700">{s.skill}</span>{" "}
+                              <span className="text-gray-400">
+                                ({s.similarity.toFixed(2)}
+                                {s.source === "competency" ? ", близок к вашим навыкам" : ", по теме"})
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </div>
                 );
