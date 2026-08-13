@@ -287,3 +287,29 @@ async def academic_analyze_gap(
         "/analyze-gap", sso_token, payload, token_hash,
         timeout=ACADEMIC_GAP_TIMEOUT,
     )
+
+
+@router.post("/academic/analyze-gap-local")
+async def academic_analyze_gap_local(
+    body: CompetenciesRequest,
+    request: Request,
+    user: dict[str, Any] = Depends(_require_user),
+):
+    """Собственный анализ разрыва (без сервиса ЮФУ).
+
+    Тема → навыки → сравнение с рынком (it_skills) и компетенциями КРМ.
+    Выполняется в фоне в потоке (эмбеддинги). Формат ответа — как у ЮФУ.
+    """
+    import asyncio
+
+    from src.analyzers.academic_gap import AcademicGapAnalyzer
+
+    try:
+        result = await asyncio.to_thread(AcademicGapAnalyzer().analyze, body.topic)
+    except Exception as exc:
+        logger.error("analyze_gap_local_failed", error=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="Не удалось выполнить локальный анализ разрыва",
+        ) from None
+    return result

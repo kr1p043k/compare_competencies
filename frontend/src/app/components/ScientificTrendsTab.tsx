@@ -124,6 +124,7 @@ async function academicCall(path: string, body: unknown): Promise<unknown> {
 
 export function ScientificTrendsTab() {
   const [topic, setTopic] = useState("");
+  const [gapSource, setGapSource] = useState<"yufu" | "local">("yufu");
   const [loading, setLoading] = useState<"trends" | "gap" | null>(null);
   const [error, setError] = useState("");
   const [trend, setTrend] = useState<TrendResponse | null>(null);
@@ -223,12 +224,18 @@ export function ScientificTrendsTab() {
       setGapTopic(topic.trim());
       setLoading("gap");
       startGapProgress();
-      const data = await academicCall("/api/academic/analyze-gap", {
-        topic: topic.trim(),
-        current_competencies: krm.codes.map((code) => ({ code })),
-        broad_top_k: 10,
-        final_top_k: 5,
-      });
+      const data = gapSource === "local"
+        ? await academicCall("/api/academic/analyze-gap-local", {
+            topic: topic.trim(),
+            broad_top_k: 10,
+            final_top_k: 5,
+          })
+        : await academicCall("/api/academic/analyze-gap", {
+            topic: topic.trim(),
+            current_competencies: krm.codes.map((code) => ({ code })),
+            broad_top_k: 10,
+            final_top_k: 5,
+          });
       setGap(data as GapResponse);
     } catch (e) {
       const err = e as AcademicError;
@@ -283,6 +290,31 @@ export function ScientificTrendsTab() {
                 : <Target className="size-4 mr-2" />}
               Анализ разрыва (вся КРМ)
             </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Источник анализа разрыва:</span>
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+              <input
+                type="radio"
+                name="gapSource"
+                checked={gapSource === "yufu"}
+                onChange={() => setGapSource("yufu")}
+                disabled={loading !== null}
+                className="accent-indigo-600"
+              />
+              Сервис ЮФУ
+            </label>
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+              <input
+                type="radio"
+                name="gapSource"
+                checked={gapSource === "local"}
+                onChange={() => setGapSource("local")}
+                disabled={loading !== null}
+                className="accent-indigo-600"
+              />
+              Собственный (локальный)
+            </label>
           </div>
           {krmCount !== null && (
             <p className="text-xs text-gray-500">
