@@ -366,6 +366,16 @@ class UserDirectionsBody(BaseModel):
     directions: list[str] = []
 
 
+def _validate_uuid(value: str, label: str = "id") -> str:
+    """Проверяет, что value — валидный UUID; иначе 400."""
+    try:
+        from uuid import UUID
+
+        return str(UUID(value))
+    except Exception:
+        raise HTTPException(status_code=400, detail=f"Invalid {label}: not a valid UUID") from None
+
+
 @router.get("/admin/users/{user_id}/directions")
 @limiter.limit("30/minute")
 async def admin_user_directions(request: Request, user_id: str):
@@ -373,6 +383,7 @@ async def admin_user_directions(request: Request, user_id: str):
     from src.database import async_session_factory
     from src.models.krm_models import UserDirection
 
+    user_id = _validate_uuid(user_id, "user_id")
     async with async_session_factory() as session:
         result = await session.execute(
             select(UserDirection.dir_code).where(UserDirection.user_id == user_id)
@@ -387,6 +398,7 @@ async def admin_set_user_directions(request: Request, user_id: str, body: UserDi
     from src.database import async_session_factory
     from src.models.krm_models import User, UserDirection
 
+    user_id = _validate_uuid(user_id, "user_id")
     async with async_session_factory() as session:
         user = await session.get(User, user_id)
         if user is None:
