@@ -203,14 +203,19 @@ async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path
     print(f"  {dir_code}: discs={disc_count} new, comps={comp_count}, links={cs_count}, ksa={ksa_count}")
 
 
-async def main(drop: bool = False) -> None:
+async def main(drop: bool = False, only: str | None = None) -> None:
     print("Creating tables...")
     await create_tables(drop_first=drop)
     async with async_session_factory() as session:
         print("Seeding skills...")
         skill_map = await seed_skills(session)
         print("Seeding directions...")
-        for dir_code, path in list_krm_files():
+        files = list_krm_files()
+        if only:
+            files = [f for f in files if f[0] == only]
+            if not files:
+                print(f"  {only}: KRM-файл не найден, пропуск")
+        for dir_code, path in files:
             await seed_direction(session, skill_map, dir_code, path)
     print("\nDone.")
 
@@ -220,5 +225,6 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--drop", action="store_true")
+    parser.add_argument("--only", default=None, help="dir_code; одно направление если указан")
     args = parser.parse_args()
-    asyncio.run(main(drop=args.drop))
+    asyncio.run(main(drop=args.drop, only=args.only))

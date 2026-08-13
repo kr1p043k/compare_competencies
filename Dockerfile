@@ -24,6 +24,7 @@ RUN python -c "from sentence_transformers import SentenceTransformer; model = Se
 
 # Копируем исходный код
 COPY src/ ./src/
+COPY scripts/ ./scripts/
 COPY main.py .
 COPY pyproject.toml .
 COPY alembic.ini .

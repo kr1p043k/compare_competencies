@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../api";
+import { authHeaders } from "../../lib/auth";
 import { AnalysisPanel } from "./AnalysisPanel";
 import CompetencyTrendsPanel from "./CompetencyTrendsPanel";
 
@@ -81,6 +82,14 @@ export function TeacherDashboard() {
   const [selectedCompetency, setSelectedCompetency] = useState("");
   const [runLoading, setRunLoading] = useState(false);
 
+  const [rpdSources, setRpdSources] = useState<{ yandex_covered: string[] }>({ yandex_covered: [] });
+  const [rpdFile, setRpdFile] = useState<File | null>(null);
+  const [rpdUploading, setRpdUploading] = useState(false);
+  const [rpdCollecting, setRpdCollecting] = useState(false);
+  const [rpdRun, setRpdRun] = useState<{ run_id: string } | null>(null);
+  const [rpdStatus, setRpdStatus] = useState<any>(null);
+  const [rpdMsg, setRpdMsg] = useState("");
+
   useEffect(() => {
     Promise.all([
       api("/teacher/krm/recommendations"),
@@ -111,6 +120,84 @@ export function TeacherDashboard() {
       .then(setAnalysis)
       .catch(() => setAnalysis(null));
   }, [selectedDir]);
+
+  useEffect(() => {
+    api("/teacher/rpd/sources")
+      .then(setRpdSources)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!rpdRun?.run_id) return;
+    let cancelled = false;
+    const poll = () => {
+      api(`/teacher/rpd/status/${rpdRun.run_id}`)
+        .then((s) => {
+          if (cancelled) return;
+          setRpdStatus(s);
+          if (s?.status === "completed" || s?.status === "failed") {
+            setRpdUploading(false);
+            setRpdCollecting(false);
+            setRpdMsg(s?.status === "completed" ? "Готово" : `Ошибка: ${s?.error || "unknown"}`);
+            if (s?.status === "completed") {
+              api(`/teacher/analysis?dir_code=${selectedDir}`)
+                .then(setAnalysis)
+                .catch(() => {});
+            }
+          } else {
+            setTimeout(poll, 3000);
+          }
+        })
+        .catch(() => setTimeout(poll, 5000));
+    };
+    poll();
+    return () => { cancelled = true; };
+  }, [rpdRun?.run_id]);
+
+  async function uploadRpd() {
+    if (!rpdFile || rpdUploading) return;
+    setRpdUploading(true); setRpdMsg("Загрузка...");
+    const fd = new FormData();
+    fd.append("file", rpdFile);
+    fd.append("dir_code", selectedDir);
+    try {
+      const res = await fetch(`/api/teacher/rpd/upload`, {
+        method: "POST",
+        headers: { ...authHeaders() },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || res.statusText);
+      setRpdRun({ run_id: data.run_id });
+      setRpdMsg("Обработка запущена...");
+      setRpdFile(null);
+    } catch (e: any) {
+      setRpdMsg("Ошибка: " + e.message);
+      setRpdUploading(false);
+    }
+  }
+
+  async function collectRpd() {
+    if (rpdCollecting) return;
+    setRpdCollecting(true); setRpdMsg("Сбор аннотаций с Yandex Disk...");
+    try {
+      const res = await fetch(`/api/teacher/rpd/collect`, {
+        method: "POST",
+        headers: {
+          ...authHeaders(),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: `dir_code=${encodeURIComponent(selectedDir)}`,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || res.statusText);
+      setRpdRun({ run_id: data.run_id });
+      setRpdMsg("Сбор и обработка запущены...");
+    } catch (e: any) {
+      setRpdMsg("Ошибка: " + e.message);
+      setRpdCollecting(false);
+    }
+  }
 
   async function loadDiscipline(name: string) {
     try {
@@ -274,6 +361,88 @@ export function TeacherDashboard() {
           >
             {runLoading ? "Анализ запущен..." : "Запустить анализ"}
           </button>
+
+          {/* RPD upload block */}
+          <div
+            style={{
+              marginTop: 12,
+              padding: "10px 12px",
+              background: "#fffbeb",
+              border: "1px solid #fde68a",
+              borderRadius: 6,
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
+              Подгрузка РПД
+            </div>
+            <input
+              type="file"
+              accept=".pdf"
+              onChange={(e) => setRpdFile(e.target.files?.[0] || null)}
+              style={{
+                width: "100%",
+                fontSize: 11,
+                color: "#78350f",
+                marginBottom: 8,
+              }}
+            />
+            <button
+              onClick={uploadRpd}
+              disabled={!rpdFile || rpdUploading}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                background: rpdUploading || !rpdFile ? "#fcd34d" : "#d97706",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                cursor: rpdUploading || !rpdFile ? "default" : "pointer",
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              {rpdUploading ? "Обработка..." : "Загрузить PDF и обработать"}
+            </button>
+            {rpdSources.yandex_covered?.includes(selectedDir) && (
+              <button
+                onClick={collectRpd}
+                disabled={rpdCollecting}
+                style={{
+                  width: "100%",
+                  marginTop: 8,
+                  padding: "8px 12px",
+                  background: rpdCollecting ? "#fcd34d" : "#ea580c",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: rpdCollecting ? "default" : "pointer",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {rpdCollecting ? "Сбор..." : "Собрать с Yandex Disk"}
+              </button>
+            )}
+            {rpdStatus && (rpdStatus.status === "completed" || rpdStatus.status === "failed") && (
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 11,
+                  color: rpdStatus.status === "completed" ? "#15803d" : "#b91c1c",
+                }}
+              >
+                {rpdMsg}
+                {rpdStatus.stats?.disciplines != null && rpdStatus.status === "completed" && (
+                  <span> — {rpdStatus.stats.disciplines} дисциплин</span>
+                )}
+              </div>
+            )}
+            {rpdUploading && rpdStatus && rpdStatus.status === "running" && (
+              <div style={{ marginTop: 8, fontSize: 11, color: "#92400e" }}>
+                Этап: {rpdStatus.stats?.stage || "..."}
+              </div>
+            )}
+          </div>
 
           {/* Analysis summary button */}
           {analysis && (

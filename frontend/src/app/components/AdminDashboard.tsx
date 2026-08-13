@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { FileUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -39,6 +40,14 @@ export function AdminDashboard() {
   const [dirMsg, setDirMsg] = useState("");
   const [userCreated, setUserCreated] = useState("");
   const [importJson, setImportJson] = useState("");
+  const [rpdDir, setRpdDir] = useState("09.03.02");
+  const [rpdFile, setRpdFile] = useState<File | null>(null);
+  const [rpdUploading, setRpdUploading] = useState(false);
+  const [rpdCollecting, setRpdCollecting] = useState(false);
+  const [rpdRunId, setRpdRunId] = useState<string | null>(null);
+  const [rpdStatus, setRpdStatus] = useState<any>(null);
+  const [rpdMsg, setRpdMsg] = useState("");
+  const [rpdSources, setRpdSources] = useState<{ yandex_covered: string[] }>({ yandex_covered: [] });
 
   const loadData = async () => {
     setLoading(true); setError(null);
@@ -63,6 +72,74 @@ export function AdminDashboard() {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    apiFetch("/api/teacher/rpd/sources")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setRpdSources(d); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!rpdRunId) return;
+    let cancelled = false;
+    const poll = () => {
+      apiFetch(`/api/teacher/rpd/status/${rpdRunId}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((s) => {
+          if (cancelled || !s) return;
+          setRpdStatus(s);
+          if (s.status === "completed" || s.status === "failed") {
+            setRpdUploading(false);
+            setRpdCollecting(false);
+            setRpdMsg(s.status === "completed" ? "Готово" : `Ошибка: ${s.error || "unknown"}`);
+          } else {
+            setTimeout(poll, 3000);
+          }
+        })
+        .catch(() => setTimeout(poll, 5000));
+    };
+    poll();
+    return () => { cancelled = true; };
+  }, [rpdRunId]);
+
+  async function uploadRpd() {
+    if (!rpdFile || rpdUploading) return;
+    setRpdUploading(true); setRpdMsg("Загрузка...");
+    const fd = new FormData();
+    fd.append("file", rpdFile);
+    fd.append("dir_code", rpdDir);
+    try {
+      const r = await apiFetch("/api/teacher/rpd/upload", { method: "POST", body: fd });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      setRpdRunId(d.run_id);
+      setRpdMsg("Обработка запущена...");
+      setRpdFile(null);
+    } catch (e: any) {
+      setRpdMsg("Ошибка: " + e.message);
+      setRpdUploading(false);
+    }
+  }
+
+  async function collectRpd() {
+    if (rpdCollecting) return;
+    setRpdCollecting(true); setRpdMsg("Сбор аннотаций с Yandex Disk...");
+    try {
+      const r = await apiFetch("/api/teacher/rpd/collect", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `dir_code=${encodeURIComponent(rpdDir)}`,
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      setRpdRunId(d.run_id);
+      setRpdMsg("Сбор и обработка запущены...");
+    } catch (e: any) {
+      setRpdMsg("Ошибка: " + e.message);
+      setRpdCollecting(false);
+    }
+  }
 
   const filteredLogs = logFilter === "all" ? logs : logs.filter((l) => l.user === logFilter);
 
@@ -399,6 +476,43 @@ export function AdminDashboard() {
                 </Button>
                 {backupMsg && <span className="text-sm text-gray-600">{backupMsg}</span>}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-lg"><FileUp className="size-4 inline mr-2" />Подгрузка РПД</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-3">
+                <select
+                  value={rpdDir}
+                  onChange={(e) => setRpdDir(e.target.value)}
+                  className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm font-mono"
+                >
+                  {directions.map((d: any) => (
+                    <option key={d.dir_code} value={d.dir_code}>{d.dir_code}</option>
+                  ))}
+                </select>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => setRpdFile(e.target.files?.[0] || null)}
+                  className="text-sm text-gray-600"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <Button onClick={uploadRpd} disabled={!rpdFile || rpdUploading} className="bg-amber-600 hover:bg-amber-700">
+                  <Upload className="size-4 mr-2" />{rpdUploading ? "Обработка..." : "Загрузить PDF и обработать"}
+                </Button>
+                {rpdSources.yandex_covered?.includes(rpdDir) && (
+                  <Button onClick={collectRpd} disabled={rpdCollecting} variant="outline">
+                    {rpdCollecting ? "Сбор..." : "Собрать с Yandex Disk"}
+                  </Button>
+                )}
+              </div>
+              {rpdStatus && rpdStatus.status === "running" && (
+                <p className="text-sm text-amber-700">Этап: {rpdStatus.stats?.stage || "..."}</p>
+              )}
+              {rpdMsg && <p className="text-sm text-gray-600">{rpdMsg}</p>}
             </CardContent>
           </Card>
         </TabsContent>

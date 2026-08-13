@@ -404,8 +404,18 @@ class RPDLoader:
 
     # ── Public API ───────────────────────────────────────────────────────
 
-    def load_all(self) -> dict:
+    def load_all(
+        self,
+        dir_code: str = "09.03.02",
+        direction_name: str | None = None,
+        profile: str | None = None,
+    ) -> dict:
         """Parse all PDFs in the directory, return structured KRM data.
+
+        Args:
+            dir_code: code of the direction (file stem of krm_disciplines_<dir_code>.json).
+            direction_name: human-readable direction name (defaults to dir_code).
+            profile: educational program profile.
 
         Returns:
             dict in format {code: {direction_name, profile, disciplines: {name: ...}}}
@@ -416,9 +426,9 @@ class RPDLoader:
         ])
 
         result = {
-            "09.03.02": {
-                "direction_name": "09.03.02 Информационные системы и технологии",
-                "profile": "Перспективные информационные технологии",
+            dir_code: {
+                "direction_name": direction_name or dir_code,
+                "profile": profile or "",
                 "disciplines": {}
             }
         }
@@ -480,7 +490,7 @@ class RPDLoader:
             if not comp_ksa:
                 continue
 
-            result["09.03.02"]["disciplines"][disc_name] = {
+            result[dir_code]["disciplines"][disc_name] = {
                 "competencies": sorted(comp_ksa.keys()),
                 "skills": {c: v["flat"] for c, v in comp_ksa.items()},
                 "ksa": {
@@ -654,7 +664,8 @@ class RPDLoader:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
     def stats(self, data: dict) -> dict:
-        discs = data["09.03.02"]["disciplines"]
+        sub = next(iter(data.values()), {}).get("disciplines", {}) if isinstance(data, dict) else {}
+        discs = sub
         total = len(discs)
         skills = sum(len(sk) for d in discs.values() for sk in d["skills"].values())
         zeros = sum(1 for d in discs.values() if not any(d["skills"].values()))

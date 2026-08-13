@@ -161,7 +161,8 @@ def collect(public_key: str, cache_dir: Path) -> list[dict]:
 
 def cmd_collect(args: argparse.Namespace) -> None:
     targets = {k: v for k, v in TARGETS.items() if args.dir_code is None or k == args.dir_code}
-    cache_base = Path(os.environ.get("TMPDIR", Path.home() / "AppData/Local/Temp/opencode")) / "sfu_pdfs"
+    import tempfile
+    cache_base = Path(os.environ.get("TMPDIR", tempfile.gettempdir())) / "sfu_pdfs"
     for dir_code, pk in targets.items():
         out_json = ANN_DIR / f"{dir_code}.json"
         if out_json.exists():

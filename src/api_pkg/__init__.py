@@ -181,6 +181,8 @@ def create_app() -> FastAPI:
     _mount(academic_router)
     from src.api_pkg.routers.teacher import router as teacher_router
     _mount(teacher_router)
+    from src.api_pkg.routers.rpd import router as rpd_router
+    _mount(rpd_router)
     from src.api_pkg.routers.student import router as student_router
     _mount(student_router)
     from src.api_pkg.routers.llm import router as llm_router

@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
     TOKEN_TTL_DAYS: int = 7
 
-    MAX_REQUEST_SIZE: int = 10 * 1024 * 1024  # 10 MB
+    MAX_REQUEST_SIZE: int = 20 * 1024 * 1024  # 20 MB
 
     # ---------- hh.ru API ----------
     HH_USER_AGENT: str = "CompetencyAnalyzer (kok.yoko@gmx.com)"
