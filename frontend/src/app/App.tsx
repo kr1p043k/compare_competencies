@@ -72,8 +72,24 @@ interface PipelineStep {
   logs?: string[];
 }
 
+function MaintenanceScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-indigo-900 text-white p-6">
+      <div className="text-center max-w-md">
+        <div className="text-5xl mb-4">🔧</div>
+        <h1 className="text-2xl font-bold mb-3">Извините, на сайте ведутся технические работы</h1>
+        <p className="text-gray-200 leading-relaxed mb-6">
+          Мы обновляем систему и скоро вернёмся. Пожалуйста, попробуйте зайти чуть позже.
+        </p>
+        <div className="h-7 w-7 border-[3px] border-white/20 border-t-white rounded-full animate-spin mx-auto" />
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   useEffect(() => { initApiLogger(); }, []);
+  const [backendDown, setBackendDown] = useState(false);
   const [profile, setProfile] = useState("base");
   const [status, setStatus] = useState<{
     type: "success" | "error" | "info" | null;
@@ -105,6 +121,25 @@ export default function App() {
   const { isAuth, login, logout, role, name } = useAuth();
   const roleRef = useRef(role);
   useEffect(() => { roleRef.current = role; }, [role]);
+
+  // Показываем экран техработ, если backend недоступен (пересборка/рестарт).
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 5000);
+        const res = await fetch("/api/health", { signal: ctrl.signal });
+        clearTimeout(t);
+        if (!cancelled) setBackendDown(!res.ok);
+      } catch {
+        if (!cancelled) setBackendDown(true);
+      }
+    };
+    check();
+    const id = setInterval(check, 8000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
 
   // reconnect to running task after page refresh
   useEffect(() => {
@@ -337,6 +372,10 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (backendDown) {
+    return <MaintenanceScreen />;
   }
 
   if (!isAuth) {
