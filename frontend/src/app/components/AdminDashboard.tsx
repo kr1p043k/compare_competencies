@@ -500,7 +500,7 @@ export function AdminDashboard() {
                 />
               </div>
               <div className="flex items-center gap-3">
-                <Button onClick={uploadRpd} disabled={!rpdFile || rpdUploading} className="bg-amber-600 hover:bg-amber-700">
+                <Button onClick={uploadRpd} disabled={!rpdFile || rpdUploading} className="bg-purple-600 hover:bg-purple-700">
                   <Upload className="size-4 mr-2" />{rpdUploading ? "Обработка..." : "Загрузить PDF и обработать"}
                 </Button>
                 {rpdSources.yandex_covered?.includes(rpdDir) && (

@@ -392,7 +392,7 @@ export function TeacherDashboard() {
               style={{
                 width: "100%",
                 padding: "8px 12px",
-                background: rpdUploading || !rpdFile ? "#fcd34d" : "#d97706",
+                background: rpdUploading || !rpdFile ? "#9ca3af" : "#7c3aed",
                 color: "#fff",
                 border: "none",
                 borderRadius: 6,
@@ -411,7 +411,7 @@ export function TeacherDashboard() {
                   width: "100%",
                   marginTop: 8,
                   padding: "8px 12px",
-                  background: rpdCollecting ? "#fcd34d" : "#ea580c",
+                  background: rpdCollecting ? "#9ca3af" : "#7c3aed",
                   color: "#fff",
                   border: "none",
                   borderRadius: 6,
