@@ -26,6 +26,9 @@ logger = structlog.get_logger(__name__)
 TAXONOMY_PATH = config.SKILL_TAXONOMY_PATH
 IT_SKILLS_PATH = config.IT_SKILLS_PATH
 DEFAULT_THRESHOLD = 0.55
+# Для авто-категоризации новых навыков (extend) — чуть ниже, т.к. nearest-neighbor
+# даёт меньшие absolute scores, но при < 0.50 навык оставляем в "other" (неоднозначно).
+EXTEND_THRESHOLD = 0.50
 
 # Категории, куда не стоит автоматически относить навыки (пустые/служебные).
 SKIP_CATEGORIES = {"business_tools", "methodologies", "abstract_concepts"}
@@ -253,7 +256,11 @@ def taxonomy_skill_set(taxonomy: dict) -> set[str]:
 
 
 def build_prototypes(taxonomy: dict) -> dict[str, np.ndarray]:
-    """Прототип категории = средний нормализованный вектор её навыков."""
+    """Возвращает {cat_id: (n_cat × d) матрица нормализованных векторов навыков}.
+
+    Каждая категория представлена матрицей эталонных навыков — сходство
+    кандидата = максимальное косинусное сходство с ближайшим эталоном.
+    """
     from src.parsing.api.embedding_loader import get_embedding_model
 
     model = get_embedding_model()
@@ -265,32 +272,40 @@ def build_prototypes(taxonomy: dict) -> dict[str, np.ndarray]:
         if not names:
             continue
         embs = model.encode(names, convert_to_numpy=True, show_progress_bar=False)
-        embs = embs / np.linalg.norm(embs, axis=1, keepdims=True)
-        proto = embs.mean(axis=0)
-        norm = np.linalg.norm(proto)
-        if norm > 0:
-            prototypes[cat_id] = proto / norm
+        norms = np.linalg.norm(embs, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        prototypes[cat_id] = embs / norms
     return prototypes
 
 
 def suggest_categories(skills: list[str], prototypes: dict[str, np.ndarray]) -> dict[str, tuple[str, float]]:
-    """skill → (category_id, score). Ручные оверрайды приоритетны; остальное — эмбеддинг."""
+    """skill → (category_id, score). Ручные оверрайды приоритетны; остальное — эмбеддинг.
+
+    Сходство с категорией = максимальное косинусное сходство кандидата
+    с любым эталонным навыком категории (nearest-neighbor).
+    """
     from src.parsing.api.embedding_loader import get_embedding_model
 
     model = get_embedding_model()
     cat_ids = list(prototypes.keys())
-    proto_mat = np.stack([prototypes[c] for c in cat_ids])
+    cat_mats = {c: prototypes[c] for c in cat_ids}
     result: dict[str, tuple[str, float]] = {}
     to_embed = [s for s in skills if s not in MANUAL_OVERRIDES]
     embedded = {s: (MANUAL_OVERRIDES[s], 1.0) for s in skills if s in MANUAL_OVERRIDES}
-    for i in range(0, len(to_embed), 64):
-        batch = to_embed[i:i + 64]
+    for i in range(0, len(to_embed), 32):
+        batch = to_embed[i:i + 32]
         embs = model.encode(batch, convert_to_numpy=True, show_progress_bar=False)
-        embs = embs / np.linalg.norm(embs, axis=1, keepdims=True)
-        sims = embs @ proto_mat.T
+        norms = np.linalg.norm(embs, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        embs = embs / norms
         for j, skill in enumerate(batch):
-            idx = int(np.argmax(sims[j]))
-            embedded[skill] = (cat_ids[idx], float(sims[j][idx]))
+            best_cat, best_score = "other", 0.0
+            for cat_id, mat in cat_mats.items():
+                sims = embs[j:j + 1] @ mat.T
+                score = float(sims.max())
+                if score > best_score:
+                    best_cat, best_score = cat_id, score
+            embedded[skill] = (best_cat, best_score)
     for s in skills:
         result[s] = embedded[s]
     return result
@@ -333,7 +348,7 @@ def categorize_new_skills(skills: list[str]) -> dict[str, str]:
         cat_id, score = suggestions.get(skill, ("other", 0.0))
         if skill in MANUAL_OVERRIDES:
             result[skill] = MANUAL_OVERRIDES[skill]
-        elif score >= DEFAULT_THRESHOLD:
+        elif score >= EXTEND_THRESHOLD:
             result[skill] = cat_id
         else:
             result[skill] = "other"
