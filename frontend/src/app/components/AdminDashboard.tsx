@@ -10,6 +10,7 @@ import {
   Upload, Brain, BookOpen,
 } from "lucide-react";
 import { apiFetch, logAction } from "../../lib/auth";
+import { TeacherDashboard } from "./TeacherDashboard";
 
 export function AdminDashboard() {
   const [users, setUsers] = useState<any[]>([]);
@@ -248,6 +249,7 @@ export function AdminDashboard() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="users"><Users className="size-4 mr-2" />Пользователи</TabsTrigger>
+          <TabsTrigger value="krm"><BookOpen className="size-4 mr-2" />KRM Teacher</TabsTrigger>
           <TabsTrigger value="logs"><FileText className="size-4 mr-2" />Логи</TabsTrigger>
           <TabsTrigger value="db"><Database className="size-4 mr-2" />БД</TabsTrigger>
           <TabsTrigger value="import"><Upload className="size-4 mr-2" />Импорт</TabsTrigger>
@@ -385,6 +387,11 @@ export function AdminDashboard() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── KRM Teacher tab ── */}
+        <TabsContent value="krm" className="space-y-4">
+          <TeacherDashboard />
         </TabsContent>
 
         {/* ── Logs tab ── */}
