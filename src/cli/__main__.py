@@ -25,6 +25,7 @@ def main() -> None:
         rebuild,
         seed_db,
         snapshot_professions,
+        taxonomy_audit,
         teacher_analysis,
     )
 
@@ -96,6 +97,11 @@ def main() -> None:
     p = sub.add_parser("snapshot-professions", help="Создать снимки частот навыков по каждой IT-профессии")
     p.add_argument("--force", action="store_true")
     p.set_defaults(func=lambda a: snapshot_professions.main(force=a.force))
+
+    p = sub.add_parser("taxonomy-audit", help="Аудит пробелов таксономии навыков")
+    p.add_argument("--apply", action="store_true", help="Применить предложения в skill_taxonomy.json")
+    p.add_argument("--threshold", type=float, default=taxonomy_audit.DEFAULT_THRESHOLD)
+    p.set_defaults(func=lambda a: taxonomy_audit.main(a))
 
     args = parser.parse_args()
     args.func(args)

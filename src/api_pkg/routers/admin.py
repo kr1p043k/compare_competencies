@@ -558,6 +558,71 @@ async def admin_extend_skills(request: Request, background_tasks: BackgroundTask
     return {"status": "ok", "message": "Skills analysis started in background"}
 
 
+class CategorizeSkillsRequest(BaseModel):
+    assignments: list[dict[str, str]]  # [{"skill": "...", "category": "..."}]
+
+
+@router.get("/admin/skills/uncategorized")
+@limiter.limit("20/minute")
+async def admin_skills_uncategorized(request: Request):
+    """Некатегоризованные навыки it_skills + предложенная категория (эмбеддинг)."""
+    from src.cli.taxonomy_audit import (
+        load_it_skills, load_taxonomy, taxonomy_skill_set,
+        build_prototypes, suggest_categories, MANUAL_OVERRIDES,
+    )
+
+    taxonomy = load_taxonomy()
+    it_skills = load_it_skills()
+    known = taxonomy_skill_set(taxonomy)
+    uncategorized = sorted(it_skills - known)
+    suggestions: dict[str, tuple[str, float]] = {}
+    if uncategorized:
+        try:
+            prototypes = build_prototypes(taxonomy)
+            suggestions = suggest_categories(uncategorized, prototypes)
+        except Exception as exc:
+            logger.warning("uncategorized_suggest_failed", error=str(exc))
+
+    items = []
+    for skill in uncategorized:
+        cat_id, score = suggestions.get(skill, ("other", 0.0))
+        items.append({
+            "skill": skill,
+            "category": MANUAL_OVERRIDES.get(skill, cat_id),
+            "score": round(score, 3),
+            "manual": skill in MANUAL_OVERRIDES,
+        })
+    return {"total": len(items), "items": items}
+
+
+@router.post("/admin/skills/categorize")
+@limiter.limit("30/minute")
+async def admin_skills_categorize(request: Request, body: CategorizeSkillsRequest):
+    """Записать навыки в указанные категории skill_taxonomy.json."""
+    from src.cli.taxonomy_audit import load_taxonomy, TAXONOMY_PATH
+
+    taxonomy = load_taxonomy()
+    cats = taxonomy.get("categories", {})
+    added = 0
+    invalid = []
+    for item in body.assignments:
+        skill = (item.get("skill") or "").strip().lower()
+        cat_id = (item.get("category") or "").strip()
+        if not skill or cat_id not in cats:
+            invalid.append({"skill": skill, "category": cat_id})
+            continue
+        lst = cats[cat_id].setdefault("skills", [])
+        existing = {s.strip().lower() for s in lst}
+        if skill in existing:
+            continue
+        lst.append(skill)
+        added += 1
+    if added:
+        with open(TAXONOMY_PATH, "w", encoding="utf-8") as f:
+            json.dump(taxonomy, f, ensure_ascii=False, indent=2)
+    return {"status": "ok", "added": added, "invalid": invalid}
+
+
 @router.get("/admin/export/db")
 @limiter.limit("2/minute")
 async def admin_export_db(request: Request, background_tasks: BackgroundTasks):

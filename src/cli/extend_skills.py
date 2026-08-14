@@ -37,6 +37,40 @@ def save_skills(skills: list[str]) -> None:
     with open(SKILLS_PATH, "w", encoding="utf-8") as f:
         json.dump(merged, f, ensure_ascii=False, indent=2)
     print(f"Saved {len(merged)} skills to {SKILLS_PATH}")
+    _extend_skill_taxonomy([s for s in skills if s.lower() not in existing])
+
+
+def _extend_skill_taxonomy(new_skills: list[str]) -> None:
+    """Категоризует новые навыки и дописывает их в skill_taxonomy.json.
+
+    Чтобы новые навыки попадали в категории, а не в "other".
+    """
+    if not new_skills:
+        return
+    try:
+        from src.cli.taxonomy_audit import TAXONOMY_PATH, categorize_new_skills, load_taxonomy
+    except Exception as e:
+        print(f"  [taxonomy] skip: {e}")
+        return
+    mapping = categorize_new_skills(new_skills)
+    taxonomy = load_taxonomy()
+    added = 0
+    for skill, cat_id in mapping.items():
+        cats = taxonomy.get("categories", {})
+        if cat_id not in cats:
+            cat_id = "other"
+        if cat_id not in cats:
+            continue
+        lst = cats[cat_id].setdefault("skills", [])
+        existing = {s.strip().lower() for s in lst}
+        if skill in existing:
+            continue
+        lst.append(skill)
+        added += 1
+    if added:
+        with open(TAXONOMY_PATH, "w", encoding="utf-8") as f:
+            json.dump(taxonomy, f, ensure_ascii=False, indent=2)
+        print(f"  [taxonomy] added {added} new skills to skill_taxonomy.json")
 
 
 def extract_all_skills(

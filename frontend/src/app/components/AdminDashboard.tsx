@@ -30,6 +30,10 @@ export function AdminDashboard() {
   const [exportMsg, setExportMsg] = useState("");
   const [extMsg, setExtMsg] = useState("");
   const [impMsg, setImpMsg] = useState("");
+  const [uncategorized, setUncategorized] = useState<any[]>([]);
+  const [uncatLoading, setUncatLoading] = useState(false);
+  const [uncatMsg, setUncatMsg] = useState("");
+  const [uncatSelections, setUncatSelections] = useState<Record<string, string>>({});
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPass, setNewUserPass] = useState("");
   const [newUserRole, setNewUserRole] = useState("teacher");
@@ -223,6 +227,44 @@ export function AdminDashboard() {
       setImpMsg(`Imported: ${d.imported || "?"} students`);
     } catch (e: any) {
       setImpMsg("Error: " + e.message);
+    }
+  };
+
+  const loadUncategorized = async () => {
+    setUncatLoading(true); setUncatMsg("");
+    try {
+      const r = await apiFetch("/api/admin/skills/uncategorized");
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      setUncategorized(d.items || []);
+      const sel: Record<string, string> = {};
+      (d.items || []).forEach((it: any) => { sel[it.skill] = it.category; });
+      setUncatSelections(sel);
+    } catch (e: any) {
+      setUncatMsg("Ошибка: " + e.message);
+    } finally {
+      setUncatLoading(false);
+    }
+  };
+
+  const applyCategorization = async () => {
+    setUncatMsg("");
+    const assignments = uncategorized.map((it) => ({
+      skill: it.skill,
+      category: uncatSelections[it.skill] || it.category,
+    }));
+    try {
+      const r = await apiFetch("/api/admin/skills/categorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignments }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      setUncatMsg(`Распределено навыков: ${d.added}`);
+      await loadUncategorized();
+    } catch (e: any) {
+      setUncatMsg("Ошибка: " + e.message);
     }
   };
 
@@ -555,6 +597,68 @@ export function AdminDashboard() {
                 {extLoading ? "..." : "Анализировать и добавить"}
               </Button>
               {extMsg && <p className="text-sm text-green-600">{extMsg}</p>}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg"><BookOpen className="size-4 inline mr-2" />Некатегоризованные навыки</CardTitle>
+                <Button variant="outline" size="sm" onClick={loadUncategorized} disabled={uncatLoading}>
+                  <RefreshCw className={`size-4 mr-2 ${uncatLoading ? "animate-spin" : ""}`} />
+                  Проверить
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-gray-500">
+                Навыки из it_skills, не имеющие категории в таксономии. Предложена категория по эмбеддинг-сходству.
+              </p>
+              {uncatLoading && <p className="text-sm text-gray-500">Загрузка...</p>}
+              {!uncatLoading && uncategorized.length === 0 && (
+                <p className="text-sm text-green-600">Все навыки категоризованы.</p>
+              )}
+              {!uncatLoading && uncategorized.length > 0 && (
+                <>
+                  <div className="overflow-x-auto max-h-80 overflow-y-auto border rounded-lg">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-gray-500 sticky top-0 bg-white">
+                          <th className="px-3 py-2 font-medium">Навык</th>
+                          <th className="px-3 py-2 font-medium">Категория</th>
+                          <th className="px-3 py-2 font-medium text-right">Score</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {uncategorized.map((it) => (
+                          <tr key={it.skill} className="border-b border-gray-100">
+                            <td className="px-3 py-1.5 font-mono text-xs text-gray-700">
+                              {it.skill}
+                              {it.manual && <Badge variant="outline" className="ml-2 text-[10px]">manual</Badge>}
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <select
+                                value={uncatSelections[it.skill] || it.category}
+                                onChange={(e) => setUncatSelections((prev) => ({ ...prev, [it.skill]: e.target.value }))}
+                                className="h-8 px-2 rounded border border-gray-300 bg-white text-xs"
+                              >
+                                {["programming_languages","frameworks","databases","devops","cloud","data_science","ml_advanced","frontend","mobile","testing_qa","security","llm_ai","enterprise","gis","embedded","game_dev","management","soft_skills","mathematics","methodologies_concepts","business_tools","methodologies","abstract_concepts"].map((c) => (
+                                  <option key={c} value={c}>{c}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-3 py-1.5 text-right text-xs text-gray-500">{it.score.toFixed(3)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Button onClick={applyCategorization} className="bg-purple-600 hover:bg-purple-700">Применить категории</Button>
+                    {uncatMsg && <span className="text-sm text-green-600">{uncatMsg}</span>}
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
