@@ -1,5 +1,6 @@
 """Admin: whitelist management, student profiles, pipeline, Excel export."""
 
+import asyncio
 import io
 import json
 import shutil
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, WebSocket
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from slowapi import Limiter
@@ -603,3 +604,112 @@ async def frontend_log(request: Request, body: FrontendLogRequest):
         source="frontend",
     ))
     return {"status": "ok"}
+
+
+# ---------- Real-time system log streaming (WebSocket) ----------
+# Отдельный роутер БЕЗ dependencies (require_any_role ждёт HTTP Request,
+# а у WebSocket нет Request) — авторизация выполняется вручную в эндпоинте.
+
+ws_log_router = APIRouter(tags=["logs-ws"])
+
+_TAIL_POLL_SEC = 0.7
+_TAIL_INITIAL_LINES = 400
+_TAIL_MAX_SEND = 200
+
+
+async def _tail_backend_log(websocket: WebSocket, stop: asyncio.Event) -> None:
+    """Читает logs/backend.log, шлёт хвост сразу и новые строки по мере появления."""
+    from src.config import LOG_FILE
+
+    pos = 0
+    rotated = False
+    while not stop.is_set():
+        try:
+            if not LOG_FILE.exists():
+                await asyncio.sleep(_TAIL_POLL_SEC)
+                continue
+            size = LOG_FILE.stat().st_size
+            if size < pos:
+                rotated = True
+                pos = 0
+            with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+                f.seek(pos)
+                chunk = f.read()
+                pos = f.tell()
+            if chunk:
+                lines = chunk.splitlines()
+                if rotated:
+                    await websocket.send_json({"type": "rotated", "lines": lines})
+                else:
+                    for i in range(0, len(lines), _TAIL_MAX_SEND):
+                        batch = lines[i:i + _TAIL_MAX_SEND]
+                        await websocket.send_json({"type": "lines", "lines": batch})
+                rotated = False
+        except Exception as exc:
+            try:
+                await websocket.send_json({"type": "error", "error": str(exc)})
+            except Exception:
+                break
+        await asyncio.sleep(_TAIL_POLL_SEC)
+
+
+@ws_log_router.websocket("/admin/logs/ws")
+async def admin_logs_ws(websocket: WebSocket, token: str = ""):
+    """Стрим системного лога backend.log в реальном времени (роль admin)."""
+    # JWT-проверка + роль admin (по образцу pipeline_ws)
+    try:
+        import base64
+        import hashlib
+        import hmac
+
+        from src import config
+        from src.api_pkg.routers.auth import _decode_token
+
+        if not token:
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
+        data = _decode_token(token)
+        if data is None:
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
+        if data.get("r") != "admin":
+            await websocket.close(code=4003, reason="Forbidden")
+            return
+    except Exception:
+        await websocket.close(code=4001, reason="Auth failed")
+        return
+
+    await websocket.accept()
+
+    # Начальный хвост файла
+    try:
+        from src.config import LOG_FILE
+
+        if LOG_FILE.exists():
+            with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+                all_lines = f.read().splitlines()
+            tail = all_lines[-_TAIL_INITIAL_LINES:]
+            await websocket.send_json({"type": "init", "lines": tail})
+        else:
+            await websocket.send_json({"type": "init", "lines": []})
+    except Exception as exc:
+        await websocket.send_json({"type": "error", "error": str(exc)})
+
+    stop = asyncio.Event()
+    tail_task = asyncio.create_task(_tail_backend_log(websocket, stop))
+    try:
+        while True:
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=30)
+            except asyncio.TimeoutError:
+                # Клиент жив — просто keepalive-пауза
+                continue
+            except Exception:
+                break
+    finally:
+        stop.set()
+        tail_task.cancel()
+        try:
+            await tail_task
+        except asyncio.CancelledError:
+            pass

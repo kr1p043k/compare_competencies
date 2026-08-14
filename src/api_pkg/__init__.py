@@ -171,6 +171,8 @@ def create_app() -> FastAPI:
     _mount(pipeline_router)
     from src.api_pkg.routers.admin import router as admin_router
     _mount(admin_router)
+    from src.api_pkg.routers.admin import ws_log_router
+    _mount(ws_log_router)
     from src.api_pkg.routers.forecast import router as forecast_router
     _mount(forecast_router)
     from src.api_pkg.routers.trends_by_profession import router as trends_prof_router

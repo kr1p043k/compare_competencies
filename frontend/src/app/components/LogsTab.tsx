@@ -1,18 +1,39 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
-import { FileText, RefreshCw, AlertCircle, Search } from "lucide-react";
-import { apiFetch } from "../../lib/auth";
+import { FileText, RefreshCw, AlertCircle, Search, Radio } from "lucide-react";
+import { apiFetch, useAuth } from "../../lib/auth";
+
+const MAX_LINES = 500;
+
+function wsUrl(token: string | null): string {
+  const proto = window.location.protocol === "https:" ? "wss://" : "ws://";
+  const q = token ? `?token=${encodeURIComponent(token)}` : "";
+  return `${proto}${window.location.host}/api/admin/logs/ws${q}`;
+}
 
 export function LogsTab() {
+  const { token } = useAuth();
   const [lines, setLines] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState<string>("all");
   const [search, setSearch] = useState("");
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [live, setLive] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [fallback, setFallback] = useState(false);
+  const scrollRef = useRef<HTMLPreElement>(null);
+  const linesRef = useRef<string[]>([]);
+
+  const appendLines = useCallback((incoming: string[]) => {
+    if (!incoming || incoming.length === 0) return;
+    setLines((prev) => {
+      const next = [...prev, ...incoming];
+      return next.length > MAX_LINES ? next.slice(next.length - MAX_LINES) : next;
+    });
+  }, []);
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
@@ -33,12 +54,87 @@ export function LogsTab() {
     }
   }, [level]);
 
+  // Real-time streaming via WebSocket; fall back to 10s polling if it fails.
   useEffect(() => {
-    loadLogs();
-    if (!autoRefresh) return;
-    const interval = setInterval(loadLogs, 10000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, loadLogs]);
+    setLoading(true);
+    setError(null);
+    let ws: WebSocket | null = null;
+    let interval: number | null = null;
+    let closed = false;
+
+    try {
+      ws = new WebSocket(wsUrl(token));
+    } catch {
+      ws = null;
+    }
+
+    if (ws) {
+      ws.onopen = () => {
+        if (!closed) {
+          setLive(true);
+          setFallback(false);
+          setLoading(false);
+        }
+      };
+      ws.onmessage = (ev) => {
+        if (closed) return;
+        try {
+          const msg = JSON.parse(ev.data);
+          if (Array.isArray(msg.lines)) {
+            if (msg.type === "init") {
+              linesRef.current = msg.lines.slice(-MAX_LINES);
+              setLines(linesRef.current);
+              setLoading(false);
+            } else {
+              appendLines(msg.lines);
+            }
+          }
+        } catch {
+          /* ignore malformed frames */
+        }
+      };
+      ws.onerror = () => {
+        /* will be handled by onclose */
+      };
+      ws.onclose = () => {
+        if (closed) return;
+        setLive(false);
+        setFallback(true);
+        setLoading(false);
+        interval = window.setInterval(loadLogs, 10000);
+      };
+    } else {
+      setFallback(true);
+      setLoading(false);
+      interval = window.setInterval(loadLogs, 10000);
+    }
+
+    return () => {
+      closed = true;
+      if (interval) window.clearInterval(interval);
+      if (ws) {
+        try {
+          ws.close();
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+  }, [token, loadLogs]);
+
+  // Autoscroll to bottom when new lines arrive (only if enabled).
+  useEffect(() => {
+    if (autoScroll && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [lines, autoScroll]);
+
+  const onScroll = () => {
+    if (!scrollRef.current) return;
+    const el = scrollRef.current;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setAutoScroll(nearBottom);
+  };
 
   const filtered = search.trim()
     ? lines.filter((l) => l.toLowerCase().includes(search.toLowerCase()))
@@ -59,10 +155,10 @@ export function LogsTab() {
           <p className="text-sm text-gray-500">Системный лог бэкенда (logs/backend.log)</p>
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-gray-600">
-            <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} className="rounded" />
-            Автообновление
-          </label>
+          <Badge variant={live ? "default" : "secondary"} className="gap-1">
+            <Radio className={`size-3 ${live ? "text-green-500 animate-pulse" : ""}`} />
+            {live ? "Live" : fallback ? "Fallback (10с)" : "..."}
+          </Badge>
           <Button variant="outline" size="sm" onClick={loadLogs} disabled={loading}>
             <RefreshCw className={`size-4 mr-2 ${loading ? "animate-spin" : ""}`} />
             Обновить
@@ -108,14 +204,21 @@ export function LogsTab() {
               </select>
             </div>
           </div>
-          <CardDescription>Последние записи системного журнала бэкенда</CardDescription>
+          <CardDescription>
+            Последние записи системного журнала бэкенда — обновляются в реальном времени
+            {fallback ? " (WebSocket недоступен, автообновление раз в 10 секунд)" : ""}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading && <p className="text-sm text-gray-500">Загрузка...</p>}
           {!loading && filtered.length === 0 && (
             <p className="text-sm text-gray-400 py-8 text-center">Записей не найдено</p>
           )}
-          <pre className="p-4 bg-gray-950 rounded-lg overflow-x-auto text-xs leading-5 max-h-[70vh] overflow-y-auto font-mono whitespace-pre-wrap break-words">
+          <pre
+            ref={scrollRef}
+            onScroll={onScroll}
+            className="p-4 bg-gray-950 rounded-lg overflow-x-auto text-xs leading-5 max-h-[70vh] overflow-y-auto font-mono whitespace-pre-wrap break-words"
+          >
             {filtered.map((line, i) => (
               <div key={i} className={levelColor(line)}>{line}</div>
             ))}
