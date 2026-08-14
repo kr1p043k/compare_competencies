@@ -101,24 +101,6 @@ def _load_krm_direction(dir_code: str) -> dict:
     return next(iter(data.values()))
 
 
-async def _user_direction_codes(user_id: str) -> set[str]:
-    """dir_code направления, привязанные к пользователю (для роли rop)."""
-    if not user_id:
-        return set()
-    from src.database import async_session_factory
-    from src.models.krm_models import UserDirection
-    from sqlalchemy import select
-
-    try:
-        async with async_session_factory() as session:
-            result = await session.execute(
-                select(UserDirection.dir_code).where(UserDirection.user_id == user_id)
-            )
-            return {row[0] for row in result}
-    except Exception:
-        return set()
-
-
 # ---------- endpoints ----------
 
 @router.get("/teacher/stats")
@@ -183,14 +165,7 @@ async def krm_stats(request: Request, dir_code: str = "09.03.02"):
 @router.get("/teacher/krm/directions")
 @limiter.limit("30/minute")
 async def krm_directions(request: Request):
-    from src.api_pkg.routers.auth import get_current_user
-
-    user = await get_current_user(request)
-    all_dirs = _list_krm_directions()
-    if user and user.get("r") == "rop":
-        codes = await _user_direction_codes(user.get("uid", ""))
-        return [d for d in all_dirs if d["dir_code"] in codes]
-    return all_dirs
+    return _list_krm_directions()
 
 
 @router.get("/teacher/krm/disciplines")

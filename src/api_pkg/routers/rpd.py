@@ -22,7 +22,7 @@ from src import config
 from src.api_pkg.routers.auth import require_any_role
 
 logger = structlog.get_logger(__name__)
-router = APIRouter(tags=["rpd"], dependencies=[Depends(require_any_role("admin", "teacher"))])
+router = APIRouter(tags=["rpd"], dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 limiter = Limiter(key_func=get_remote_address)
 
 _DIR_CODE_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$")
