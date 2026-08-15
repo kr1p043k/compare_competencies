@@ -12,7 +12,7 @@ from src.errors import MatchingError
 
 logger = structlog.get_logger(__name__)
 
-NORMALIZE_RE = re.compile(r"[^\w\s-]")
+NORMALIZE_RE = re.compile(r"[^\w\s\-/]")
 SEMANTIC_THRESHOLD = 0.78
 
 
