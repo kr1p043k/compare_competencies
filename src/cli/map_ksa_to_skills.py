@@ -142,7 +142,7 @@ async def tier_semantic(session, krm, disc_map, comp_map):
             if qn > 0:
                 qemb = qemb / qn
             sims = it_embs_n @ qemb.T
-            top = np.argsort(sims)[::-1][:3]
+            top = [int(i) for i in np.argsort(sims)[::-1][:3]]
             for idx in top:
                 if float(sims[idx]) < SEMANTIC_THRESHOLD:
                     break
