@@ -20,6 +20,7 @@ def main() -> None:
         export_results,
         export_vacancies,
         extend_skills,
+        forecast_audit,
         import_students,
         ingest_market_skills,
         populate_parsed_skills,
@@ -109,6 +110,10 @@ def main() -> None:
     p.add_argument("--min-freq", type=int, default=ingest_market_skills.DEFAULT_MIN_FREQ)
     p.add_argument("--threshold", type=float, default=ingest_market_skills.DEFAULT_THRESHOLD)
     p.set_defaults(func=lambda a: ingest_market_skills.main(a))
+
+    p = sub.add_parser("forecast-audit", help="Аудит качества прогнозов Prophet")
+    p.add_argument("--top", type=int, default=20)
+    p.set_defaults(func=lambda a: forecast_audit.main(a))
 
     args = parser.parse_args()
     args.func(args)

@@ -27,6 +27,31 @@ except ImportError:
 logger = structlog.get_logger(__name__)
 
 
+def _holdout_mape(points: list[tuple[date, float]]) -> float:
+    """Hold-out MAPE: линейный тренд на всех точках кроме последней, ошибка на последней.
+
+    Возвращает MAPE (0 = идеально, 1 = 100% ошибка). При стабильных данных близко к 0.
+    """
+    import numpy as np
+    if len(points) < 2:
+        return 0.0
+    train = points[:-1]
+    x = np.array([(d - train[0][0]).days for d, _ in train], dtype=float)
+    y = np.array([f for _, f in train], dtype=float)
+    if len(x) < 2 or np.all(x == x[0]):
+        return 0.0
+    try:
+        slope, intercept = np.polyfit(x, y, 1)
+    except Exception:
+        return 0.0
+    last_date, actual = points[-1]
+    days_ahead = (last_date - train[0][0]).days
+    pred = intercept + slope * days_ahead
+    if abs(actual) < 1.0:
+        return 0.0
+    return float(abs(pred - actual) / abs(actual))
+
+
 @dataclass
 class Snapshot:
     date: date
@@ -99,9 +124,48 @@ async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], Doma
     if not file_snapshots:
         return Err(DomainError("No snapshot data available"))
 
-    # 3. Sort by date and return
+    # 3. Sort by date
     file_snapshots.sort(key=lambda x: x[0])
+    file_snapshots = _interpolate_missing_months(file_snapshots)
     return Ok([Snapshot(m, data) for m, data in file_snapshots])
+
+
+def _interpolate_missing_months(snapshots: list[tuple[date, dict[str, float]]]) -> list[tuple[date, dict[str, float]]]:
+    """Заполняет пропущенные календарные месяцы линейной интерполяцией.
+
+    Нерегулярные снимки (напр. апр, май, июн, авг) дают Prophet'у разрозненные
+    точки без июля — интерполяция восстанавливает ежемесячный ряд.
+    """
+    if len(snapshots) < 2:
+        return snapshots
+    result: list[tuple[date, dict[str, float]]] = []
+    for i in range(len(snapshots)):
+        cur_date, cur_data = snapshots[i]
+        if i == 0:
+            result.append((cur_date, cur_data))
+            continue
+        prev_date, prev_data = snapshots[i - 1]
+        gap_months = (cur_date.year - prev_date.year) * 12 + (cur_date.month - prev_date.month)
+        if gap_months <= 1:
+            result.append((cur_date, cur_data))
+            continue
+        all_skills = set(prev_data) | set(cur_data)
+        for step in range(1, gap_months):
+            t = step / gap_months
+            month_idx = prev_date.month + step - 1
+            mid_year = prev_date.year + month_idx // 12
+            mid_month = month_idx % 12 + 1
+            mid = date(mid_year, mid_month, 1)
+            interp: dict[str, float] = {}
+            for skill in all_skills:
+                a = prev_data.get(skill, 0.0)
+                b = cur_data.get(skill, 0.0)
+                val = a + (b - a) * t
+                if val >= 1.0:
+                    interp[skill] = round(val, 1)
+            result.append((mid, interp))
+        result.append((cur_date, cur_data))
+    return result
 
 
 class ProphetForecastEngine(BasePredictor):
@@ -118,6 +182,8 @@ class ProphetForecastEngine(BasePredictor):
         self._fallback_engine: SkillForecastEngine | None = None
         self._skill_history: dict[str, list[tuple[date, float]]] = {}
         self._last_actual_freq: dict[str, float] = {}
+        self._skill_mape: dict[str, float] = {}
+        self._skill_npoints: dict[str, int] = {}
         self._is_fitted = False
         self._n_snapshots = 0
 
@@ -136,12 +202,6 @@ class ProphetForecastEngine(BasePredictor):
                 history.setdefault(skill, []).append((snap.date, freq))
         for skill in history:
             history[skill].sort(key=lambda x: x[0])
-        # Exclude skills not present in the latest snapshot (removed during cleanup)
-        if snapshots:
-            latest_skills = set(snapshots[-1].frequencies.keys())
-            for skill in list(history.keys()):
-                if skill not in latest_skills:
-                    del history[skill]
         return history
 
     def _fit_prophet_for_skill(self, skill: str, points: list[tuple[date, float]]):
@@ -185,6 +245,9 @@ class ProphetForecastEngine(BasePredictor):
         for skill, points in history.items():
             last_actual = points[-1][1]
             self._last_actual_freq[skill] = last_actual
+            self._skill_npoints[skill] = len(points)
+            if len(points) >= 5:
+                self._skill_mape[skill] = _holdout_mape(points)
             if len(points) >= 3 and last_actual >= self.MIN_FREQ:
                 prophet_candidates.append((skill, points))
             else:
@@ -231,8 +294,9 @@ class ProphetForecastEngine(BasePredictor):
         if skill in self._models:
             model = self._models[skill]
             n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
-            # Limit forecast horizon based on data points: 3 pts → 1m, 6 pts → 3m, 12+ pts → 12m
-            max_months = max(1, n_pts // 2)
+            # Limit forecast horizon based on data points, but be more generous:
+            # 3 pts -> 3m, 6 pts -> 6m, 12+ pts -> 12m (was n_pts//2 — too conservative).
+            max_months = max(1, min(n_pts, 12))
             if months > max_months:
                 months = max_months
             future = model.make_future_dataframe(periods=months, freq="ME")
@@ -261,25 +325,45 @@ class ProphetForecastEngine(BasePredictor):
                 confidence=round(max(conf, 0.0), 4),
                 next_year_frequency=round(next_freq, 4),
                 engine_used="prophet",
+                data_points=self._skill_npoints.get(skill, n_pts),
+                mape=round(self._skill_mape.get(skill, 0.0), 4),
+                forecast_months=months,
             ))
         if self._fallback_engine:
             result = self._fallback_engine.forecast(skill, min(months, self.max_forecast_months()))
             if result.is_ok():
                 fr = result.unwrap()
+                n_pts = self._skill_npoints.get(skill, 0)
+                # Явный статус: недостаточно данных для прогноза
+                if n_pts < 3:
+                    return Ok(ForecastResult(
+                        skill=fr.skill,
+                        current_frequency=fr.current_frequency,
+                        predicted_growth=0.0,
+                        confidence=0.0,
+                        next_year_frequency=fr.current_frequency,
+                        engine_used="insufficient_data",
+                        data_points=n_pts,
+                        mape=0.0,
+                        forecast_months=0,
+                    ))
                 return Ok(ForecastResult(
                     skill=fr.skill,
                     current_frequency=fr.current_frequency,
                     predicted_growth=fr.predicted_growth,
                     confidence=fr.confidence,
                     next_year_frequency=fr.next_year_frequency,
-                    engine_used="fallback",
+                    engine_used="trend",
+                    data_points=n_pts,
+                    mape=round(self._skill_mape.get(skill, 0.0), 4),
+                    forecast_months=min(months, self.max_forecast_months()),
                 ))
             return result
         return Err(DomainError(f"Skill '{skill}' not found"))
 
     def max_forecast_months(self) -> int:
         """Return max safe forecast horizon based on snapshot count."""
-        return max(1, self._n_snapshots // 2)  # 3 snapshots → 1 month
+        return max(1, min(self._n_snapshots, 12))
 
     def forecast_all(self, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         results = []

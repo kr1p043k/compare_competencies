@@ -28,6 +28,9 @@ class ForecastResult:
     confidence: float
     next_year_frequency: float
     engine_used: str = "trend"
+    data_points: int = 0
+    mape: float = 0.0
+    forecast_months: int = 0
 
 
 class SkillForecastEngine(BasePredictor):
@@ -149,6 +152,9 @@ class SkillForecastEngine(BasePredictor):
                 confidence=0.2,
                 next_year_frequency=round(last_freq, 4),
                 engine_used="trend_flat",
+                data_points=n,
+                mape=round(model.get("mape", 0.0), 4),
+                forecast_months=0,
             ))
 
         # Limit forecast horizon: don't extrapolate beyond half the observed
@@ -170,6 +176,9 @@ class SkillForecastEngine(BasePredictor):
             confidence=round(confidence, 4),
             next_year_frequency=round(max(predicted, 0.0), 4),
             engine_used="trend",
+            data_points=n,
+            mape=round(model.get("mape", 0.0), 4),
+            forecast_months=min(months, max(1, n // 2)),
         ))
 
     def forecast(self, skill: str, months: int = 12) -> Result[ForecastResult, DomainError]:

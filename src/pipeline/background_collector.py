@@ -245,3 +245,34 @@ async def _try_collect():
         logger.info("collect_done", before=before, after=after, new=after - before, collected=len(all_vacancies))
     except Exception:
         pass
+
+    # Авто-снимок рынка: обновляет freq_market_YYYY-MM.json и trend_snapshots,
+    # чтобы Prophet всегда имел свежую точку истории (не только при полном pipeline).
+    try:
+        from collections import Counter
+        from src.analyzers.skills.trends import TrendAnalyzer
+        from src.parsing.skills.skill_normalizer import SkillNormalizer
+
+        freq: Counter = Counter()
+        for v in all_vacancies:
+            ps = v.get("parsed_skills") or []
+            if isinstance(ps, str):
+                try:
+                    ps = json.loads(ps)
+                except Exception:
+                    ps = []
+            for s in ps:
+                if not isinstance(s, str):
+                    continue
+                n = SkillNormalizer.normalize(s)
+                if n.is_ok() and n.unwrap():
+                    freq[n.unwrap()] += 1
+        if freq:
+            analyzer = TrendAnalyzer(dict(freq))
+            res = analyzer.save_snapshot(dict(freq), apply_whitelist=True, source_type="full_market")
+            if res.is_ok():
+                logger.info("collect_snapshot_saved", path=str(res.unwrap()), skills=len(freq))
+            else:
+                logger.warning("collect_snapshot_save_failed", error=str(res.unwrap_err()))
+    except Exception as exc:
+        logger.warning("collect_snapshot_error", error=str(exc))

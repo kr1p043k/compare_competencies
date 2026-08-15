@@ -23,6 +23,9 @@ interface ForecastItem {
   history?: number[];
   uncertainty_upper?: number;
   uncertainty_lower?: number;
+  data_points?: number;
+  mape?: number;
+  forecast_months?: number;
 }
 
 export function PredictionsTab() {
@@ -100,6 +103,7 @@ export function PredictionsTab() {
                       <SelectContent>
                         <SelectItem value="1">1 месяц</SelectItem>
                         <SelectItem value="3">3 месяца</SelectItem>
+                        <SelectItem value="6">6 месяцев</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -160,7 +164,10 @@ export function PredictionsTab() {
 function ForecastRow({ item, rank, expanded, onToggle, months }: { item: ForecastItem; rank: number; expanded: boolean; onToggle: () => void; months?: number }) {
   const changePct = item.predicted_change_pct ?? (item.predicted_growth * 100);
   const changePctSign = changePct > 0 ? "+" : "";
-  const methodColors: Record<string, string> = { prophet: "bg-purple-100 text-purple-700", ets: "bg-blue-100 text-blue-700", linear: "bg-gray-100 text-gray-700", genetic: "bg-amber-100 text-amber-700" };
+  const methodColors: Record<string, string> = { prophet: "bg-purple-100 text-purple-700", ets: "bg-blue-100 text-blue-700", linear: "bg-gray-100 text-gray-700", genetic: "bg-amber-100 text-amber-700", trend: "bg-sky-100 text-sky-700", insufficient_data: "bg-gray-200 text-gray-500" };
+  const insufficient = item.method === "insufficient_data" || (item.data_points !== undefined && item.data_points < 3);
+  const horizon = item.forecast_months ?? (insufficient ? 0 : (months || 12));
+  const confPct = Math.round((item.confidence ?? 0) * 100);
 
   return (
     <div className="border border-gray-100 rounded-lg overflow-hidden">
@@ -168,11 +175,13 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
         <span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-500">{rank}</span>
         <span className="flex-1 font-medium text-gray-900">{item.skill}</span>
         <div className="flex items-center gap-2">
-          <span className={`text-sm font-semibold ${changePct > 0 ? "text-green-600" : "text-red-600"}`}>
-            {changePctSign}{changePct.toFixed(1)}%
+          <span className={`text-sm font-semibold ${insufficient ? "text-gray-400" : changePct > 0 ? "text-green-600" : "text-red-600"}`}>
+            {insufficient ? "—" : `${changePctSign}${changePct.toFixed(1)}%`}
           </span>
-          <Badge className={`text-xs border-0 ${methodColors[item.method] || "bg-gray-100"}`}>{item.method}</Badge>
-          <div className={`w-2 h-2 rounded-full ${changePct > 0 ? "bg-green-500" : "bg-red-500"}`} />
+          <Badge className={`text-xs border-0 ${methodColors[item.method] || "bg-gray-100"}`}>
+            {insufficient ? "нет данных" : (item.method || "trend")}
+          </Badge>
+          {!insufficient && <div className={`w-2 h-2 rounded-full ${changePct > 0 ? "bg-green-500" : "bg-red-500"}`} />}
         </div>
         {expanded ? <ChevronUp className="size-4 text-gray-400" /> : <ChevronDown className="size-4 text-gray-400" />}
       </button>
@@ -180,8 +189,22 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
         <div className="px-3 pb-3 pt-0 border-t border-gray-100">
           <div className="grid grid-cols-3 gap-4 mt-3 mb-3">
             <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Сейчас</div><div className="text-lg font-semibold text-gray-900">{item.current_frequency.toFixed(0)}</div></div>
-            <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Через {months === 1 ? "месяц" : `${months || 12} мес`}</div><div className="text-lg font-semibold text-gray-900">{item.next_year_frequency.toFixed(0)}</div></div>
-            <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Уверенность</div><div className="text-lg font-semibold text-gray-900">{(item.confidence * 100).toFixed(0)}%</div></div>
+            <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Через {horizon === 1 ? "месяц" : `${horizon} мес`}</div><div className="text-lg font-semibold text-gray-900">{insufficient ? "—" : item.next_year_frequency.toFixed(0)}</div></div>
+            <div className="text-center p-2 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">Уверенность</div><div className="text-lg font-semibold text-gray-900">{insufficient ? "—" : `${confPct}%`}</div></div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 mb-2">
+            {item.data_points !== undefined && (
+              <span className="px-2 py-0.5 rounded bg-gray-100">точек истории: {item.data_points}</span>
+            )}
+            {item.mape !== undefined && item.mape > 0 && (
+              <span className="px-2 py-0.5 rounded bg-gray-100">hold-out MAPE: {item.mape.toFixed(2)}</span>
+            )}
+            {insufficient && (
+              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700">недостаточно данных для прогноза</span>
+            )}
+            {confPct < 30 && !insufficient && (
+              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700">низкая достоверность</span>
+            )}
           </div>
           {item.uncertainty_upper && item.uncertainty_lower && (
             <div className="text-xs text-gray-400 text-center mb-2">

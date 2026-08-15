@@ -99,6 +99,9 @@ def _serialize(r: ForecastResult, direction: str | None = None, method: str = "g
         "next_year_frequency": round(r.next_year_frequency, 4),
         "method": method,
         "engine_used": getattr(r, "engine_used", method),
+        "data_points": getattr(r, "data_points", 0),
+        "mape": round(getattr(r, "mape", 0.0), 4),
+        "forecast_months": getattr(r, "forecast_months", 0),
         "trend_direction": direction or ("growing" if r.predicted_growth > 0 else "declining"),
     }
 
@@ -106,9 +109,12 @@ def _serialize(r: ForecastResult, direction: str | None = None, method: str = "g
 def _detect_method(engine: ProphetForecastEngine | SkillForecastEngine, skill: str | None = None) -> str:
     if isinstance(engine, ProphetForecastEngine):
         if skill is not None:
-            return "prophet" if skill in engine._models else "genetic"
-        return "prophet" if engine._models else "genetic"
-    return "genetic"
+            if skill in engine._models:
+                return "prophet"
+            # Fallback-движок внутри Prophet: определяем по результату
+            return "trend"
+        return "prophet" if engine._models else "trend"
+    return "trend"
 
 
 def _record_forecast_accuracy(engine, forecasts) -> None:
