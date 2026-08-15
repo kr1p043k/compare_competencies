@@ -274,5 +274,13 @@ async def _try_collect():
                 logger.info("collect_snapshot_saved", path=str(res.unwrap()), skills=len(freq))
             else:
                 logger.warning("collect_snapshot_save_failed", error=str(res.unwrap_err()))
+
+        # Восполнить пропущенные месяцы из parsed_skills (например июль), чтобы
+        # история прогнозов не теряла точки. Не перезаписывает существующие снимки.
+        try:
+            from src.cli.backfill_market_snapshots import main as backfill_main
+            backfill_main(force=False)
+        except Exception as exc:
+            logger.warning("collect_backfill_snapshots_error", error=str(exc))
     except Exception as exc:
         logger.warning("collect_snapshot_error", error=str(exc))

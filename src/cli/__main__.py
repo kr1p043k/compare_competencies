@@ -12,6 +12,7 @@ def main() -> None:
 
     from src.cli import (
         backup_db,
+        backfill_market_snapshots,
         compute_competency_trends,
         compute_competency_vectors,
         create_user,
@@ -72,6 +73,10 @@ def main() -> None:
     p = sub.add_parser("backup", help="Бэкап БД")
     p.add_argument("--restore", nargs="?", const="latest", help="Восстановить из бэкапа")
     p.set_defaults(func=lambda a: backup_db.main(restore=a.restore))
+
+    p = sub.add_parser("backfill-market-snapshots", help="Построить недостающие месячные freq_market снимки из parsed_skills")
+    p.add_argument("--force", action="store_true", help="Перезаписать все месяцы")
+    p.set_defaults(func=lambda a: backfill_market_snapshots.main(force=a.force))
 
     p = sub.add_parser("export-results", help="Экспорт JSON-результатов в БД")
     p.set_defaults(func=lambda a: asyncio.run(export_results.main()))
