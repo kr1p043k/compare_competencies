@@ -282,5 +282,20 @@ async def _try_collect():
             backfill_main(force=False)
         except Exception as exc:
             logger.warning("collect_backfill_snapshots_error", error=str(exc))
+
+        # Снимки по профессиям: не чаще раза в сутки (43 SQL-запроса).
+        try:
+            from src import config as _config
+            prof_files = list(_config.HISTORY_DIR.glob("freq_profession_*.json"))
+            too_recent = False
+            if prof_files:
+                newest = max(f.stat().st_mtime for f in prof_files)
+                if time.time() - newest < 24 * 3600:
+                    too_recent = True
+            if not too_recent:
+                from src.cli.snapshot_professions import main as prof_main
+                prof_main(force=False)
+        except Exception as exc:
+            logger.warning("collect_profession_snapshots_error", error=str(exc))
     except Exception as exc:
         logger.warning("collect_snapshot_error", error=str(exc))
