@@ -101,8 +101,8 @@ class SkillNormalizer:
         "github actions": ["github action", "actions"],
         "gitlab ci/cd": ["gitlab ci"],
         # ML / AI / LLM
-        "ml": ["machine learning", "ml"],
-        "dl": ["deep learning"],
+        "machine learning": ["ml", "машинное обучение"],
+        "deep learning": ["dl", "глубокое обучение"],
         "mlops": ["ml ops"],
         "llm": ["large language model", "large language models", "llms"],
         "rag": ["retrieval augmented generation"],
@@ -130,9 +130,11 @@ class SkillNormalizer:
         "openai api": ["openai api"],
         # Misc aliases from usage tracking
         "c++": ["cc++", "c/c++", "с++", "С++"],
+        "csharp": ["c#", "с#", "С#", "c sharp"],
         "ci/cd": ["cicd", "ci cd"],
         "msoffice": ["ms office", "microsoft office"],
         "neo4j": ["neoj"],
+        "tcp/ip": ["tcpip", "tcp ip", "tcp-ip"],
         # Cloud
         "aws": ["amazon web services", "amazon aws"],
         "azure": ["microsoft azure"],
@@ -350,7 +352,7 @@ class SkillNormalizer:
                     logger.debug("job_title_rejected", original=original)
                     return Ok("")
 
-            text = re.sub(r"[^\w\s\+\#\-\.]", "", text)
+            text = re.sub(r"[^\w\s\+\#\-\./]", "", text)
             text = re.sub(r"\s+", " ", text).strip()
 
             whitelist = SkillNormalizer._get_whitelist()
@@ -419,7 +421,7 @@ class SkillNormalizer:
             text = re.sub(suffix, "", text, flags=re.IGNORECASE)
         text = re.sub(r"\s+", " ", text).strip()
         text = SkillNormalizer._apply_synonym_map(text)
-        text = re.sub(r"[^\w\s\+\#\-\.]", "", text)
+        text = re.sub(r"[^\w\s\+\#\-\./]", "", text)
         text = re.sub(r"\s+", " ", text).strip()
         return text
 

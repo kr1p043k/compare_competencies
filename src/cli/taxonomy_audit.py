@@ -231,6 +231,122 @@ MANUAL_OVERRIDES = {
     "численные методы оптимизации": "mathematics",
     "этика разработки": "soft_skills",
     "эффективное обучение": "ml_advanced",
+    # Рыночные навыки из hh.ru (Этап ingest-market-skills)
+    "json": "frameworks",
+    "http": "frameworks",
+    "dns": "devops",
+    "dhcp": "devops",
+    "vlan": "devops",
+    "bgp": "devops",
+    "ospf": "devops",
+    "ethernet": "devops",
+    "vpn": "devops",
+    "firewall": "devops",
+    "nat": "devops",
+    "soc": "security",
+    "siem": "security",
+    "edr": "security",
+    "ids": "security",
+    "ips": "security",
+    "soar": "security",
+    "sast": "security",
+    "penetration testing": "security",
+    "application security": "security",
+    "wireshark": "security",
+    "kaspersky": "security",
+    "infrastructure as code": "devops",
+    "terraform cloud": "cloud",
+    "helm": "devops",
+    "haproxy": "devops",
+    "proxmox": "devops",
+    "mikrotik": "devops",
+    "juniper": "devops",
+    "cisco": "devops",
+    "active directory": "devops",
+    "ubuntu": "devops",
+    "postman": "testing_qa",
+    "swagger": "testing_qa",
+    "unit testing": "testing_qa",
+    "allure": "testing_qa",
+    "qa": "testing_qa",
+    "asp.net": "frameworks",
+    "ruby": "programming_languages",
+    "stm": "embedded",
+    "arm": "embedded",
+    "arm cortex": "embedded",
+    "stm32": "embedded",
+    "tdorp": "embedded",
+    "json api": "frameworks",
+    "restful": "frameworks",
+    "solid": "methodologies_concepts",
+    "solidity": "programming_languages",
+    "erd": "databases",
+    "oracle pl/sql": "databases",
+    "superset": "data_science",
+    "vertica": "databases",
+    "olap": "databases",
+    "ab тесты": "data_science",
+    "user story": "management",
+    "use case": "management",
+    "draw.io": "management",
+    "miro": "management",
+    "plantuml": "management",
+    "crm": "enterprise",
+    "ms powerpoint": "enterprise",
+    "ms word": "enterprise",
+    "product-market fit": "management",
+    "lan": "devops",
+    "проектный менеджмент": "management",
+    "продуктовые метрики": "management",
+    "техническая документация": "management",
+    # Короткие аббревиатуры / неоднозначные из ingest (эмбеддинг не точен)
+    "can": "embedded",
+    "boost": "frameworks",
+    "circleci": "devops",
+    "citrix": "devops",
+    "fortigate": "security",
+    "incident response": "security",
+    "information security": "security",
+    "kaspersky labs": "security",
+    "lte": "devops",
+    "maxpatrol": "security",
+    "mitre attck": "security",
+    "rdp": "devops",
+    "s-terra": "security",
+    "san": "devops",
+    "sgrc": "security",
+    "sre": "devops",
+    "stlc": "testing_qa",
+    "uart": "embedded",
+    "user flow": "management",
+    "websocket": "frameworks",
+    "rtos": "embedded",
+    "verilog hdl": "embedded",
+    "assembler": "programming_languages",
+    "groovy": "programming_languages",
+    "dart": "programming_languages",
+    "ovirt": "devops",
+    "qdrant": "frameworks",
+    "redmine": "management",
+    "testrail": "testing_qa",
+    "jmeter": "testing_qa",
+    "temporal": "frameworks",
+    "servicedesk": "devops",
+    "game programming": "game_dev",
+    "microservices": "methodologies_concepts",
+    "clean architecture": "methodologies_concepts",
+    "jquery": "frontend",
+    "nuxt": "frontend",
+    "jsp": "frameworks",
+    "graphite": "data_science",
+    "amocrm": "enterprise",
+    "istio": "devops",
+    "iso": "methodologies_concepts",
+    "youtrack": "management",
+    "soap": "frameworks",
+    "waterfall": "management",
+    "e-commerce": "enterprise",
+    "customer journey mapping": "management",
 }
 
 
@@ -338,20 +454,29 @@ def categorize_new_skills(skills: list[str]) -> dict[str, str]:
     Используется extend_skills: новые навыки сразу попадают в таксономию,
     а не остаются в категории "other". Безопасен для пустого списка.
     """
+    scored = categorize_new_skills_with_score(skills)
+    return {s: cat for s, (cat, _score) in scored.items()}
+
+
+def categorize_new_skills_with_score(skills: list[str]) -> dict[str, tuple[str, float]]:
+    """Возвращает {skill: (category_id, score)} — с порогом EXTEND_THRESHOLD.
+
+    "other" + 0.0 — для неоднозначных/ниже порога.
+    """
     if not skills:
         return {}
     taxonomy = load_taxonomy()
     prototypes = build_prototypes(taxonomy)
     suggestions = suggest_categories(skills, prototypes)
-    result: dict[str, str] = {}
+    result: dict[str, tuple[str, float]] = {}
     for skill in skills:
         cat_id, score = suggestions.get(skill, ("other", 0.0))
         if skill in MANUAL_OVERRIDES:
-            result[skill] = MANUAL_OVERRIDES[skill]
+            result[skill] = (MANUAL_OVERRIDES[skill], 1.0)
         elif score >= EXTEND_THRESHOLD:
-            result[skill] = cat_id
+            result[skill] = (cat_id, score)
         else:
-            result[skill] = "other"
+            result[skill] = ("other", score)
     return result
 
 

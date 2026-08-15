@@ -65,7 +65,11 @@
         "параллельное программирование c++",
         "системное программирование",
         "скрипты python",
-        "современный c++"
+        "современный c++",
+        "assembler",
+        "dart",
+        "groovy",
+        "ruby"
       ],
       "aliases": {
         "js": "JavaScript",
@@ -279,7 +283,20 @@
         "stripe api",
         "turborepo",
         "zapier",
-        "zeromq"
+        "zeromq",
+        "asp.net",
+        "boost",
+        "json",
+        "json api",
+        "jsp",
+        "qdrant",
+        "temporal",
+        "websocket",
+        "asoc",
+        "eltex",
+        "vxlan",
+        "soap",
+        "soapui"
       ],
       "aliases": {
         "vue.js": "Vue",
@@ -392,7 +409,10 @@
         "apache hadoop hdfs",
         "vector database",
         "vectordb",
-        "инфраструктура бд"
+        "инфраструктура бд",
+        "erd",
+        "oracle pl/sql",
+        "vertica"
       ],
       "aliases": {
         "psql": "PostgreSQL",
@@ -526,7 +546,32 @@
         "контейнеризация python",
         "оркестрация контейнеров",
         "развёртывание бд в k8s",
-        "сетевые протоколы"
+        "сетевые протоколы",
+        "active directory",
+        "circleci",
+        "citrix",
+        "ethernet",
+        "firewall",
+        "haproxy",
+        "helm",
+        "infrastructure as code",
+        "istio",
+        "juniper",
+        "lan",
+        "lte",
+        "mikrotik",
+        "nat",
+        "ovirt",
+        "proxmox",
+        "rdp",
+        "san",
+        "servicedesk",
+        "sre",
+        "customer support",
+        "ipsec",
+        "isa",
+        "service desk",
+        "vlan"
       ],
       "aliases": {
         "ci/cd": "CI/CD",
@@ -763,7 +808,9 @@
         "предобработка данных",
         "прогнозирование временных рядов",
         "стек больших данных",
-        "управление качеством данных"
+        "управление качеством данных",
+        "graphite",
+        "superset"
       ]
     },
     "ml_advanced": {
@@ -1038,7 +1085,7 @@
         "Adobe XD",
         "Sketch",
         "Balsamiq",
-        "Прототипирование ",
+        "Прототипирование",
         "Axure",
         "Storybook",
         "storybook",
@@ -1055,7 +1102,9 @@
         "Micro Frontends",
         "PWA",
         "Shopify Liquid",
-        "webrtc"
+        "webrtc",
+        "jquery",
+        "nuxt"
       ]
     },
     "mobile": {
@@ -1103,7 +1152,12 @@
         "Vitest",
         "Postman",
         "Swagger",
-        "a/b тестирование"
+        "a/b тестирование",
+        "allure",
+        "jmeter",
+        "stlc",
+        "testrail",
+        "unit testing"
       ]
     },
     "security": {
@@ -1184,7 +1238,26 @@
         "защита моделей",
         "реверс-инжиниринг",
         "сертификация ии",
-        "тестирование на проникновение ии"
+        "тестирование на проникновение ии",
+        "application security",
+        "edr",
+        "fortigate",
+        "ids",
+        "incident response",
+        "information security",
+        "ips",
+        "kaspersky",
+        "kaspersky labs",
+        "maxpatrol",
+        "mitre attck",
+        "penetration testing",
+        "s-terra",
+        "sast",
+        "sgrc",
+        "soar",
+        "soc",
+        "wireshark",
+        "soa"
       ],
       "aliases": {
         "infosec": "Information Security",
@@ -1357,7 +1430,11 @@
         "отказоустойчивость",
         "1c",
         "1c предприятие",
-        "enterprise java"
+        "enterprise java",
+        "amocrm",
+        "ms powerpoint",
+        "ms word",
+        "e-commerce"
       ]
     },
     "gis": {
@@ -1370,7 +1447,8 @@
         "PostGIS",
         "GeoServer",
         "ДЗЗ",
-        "Remote Sensing"
+        "Remote Sensing",
+        "pci dss"
       ]
     },
     "embedded": {
@@ -1397,7 +1475,13 @@
         "cpp для встроенных систем",
         "embedded software",
         "встроенное по c++",
-        "микроконтроллеры c++"
+        "микроконтроллеры c++",
+        "arm",
+        "can",
+        "stm",
+        "tdorp",
+        "uart",
+        "verilog hdl"
       ]
     },
     "game_dev": {
@@ -1413,7 +1497,8 @@
         "Разработка игр",
         "3D Modelling",
         "OpenGL",
-        "WebGL"
+        "WebGL",
+        "game programming"
       ]
     },
     "management": {
@@ -1458,7 +1543,18 @@
         "паттерны проектирования ИИ",
         "Управление конфигурациями",
         "ревью кода",
-        "управление знаниями"
+        "управление знаниями",
+        "draw.io",
+        "miro",
+        "plantuml",
+        "product-market fit",
+        "redmine",
+        "user flow",
+        "user story",
+        "youtrack",
+        "usergate",
+        "customer journey mapping",
+        "waterfall"
       ]
     },
     "soft_skills": {
@@ -1619,7 +1715,11 @@
         "микросервисы python",
         "микросервисы на java",
         "параллельное программирование",
-        "разработка архитектур"
+        "разработка архитектур",
+        "clean architecture",
+        "iso",
+        "microservices",
+        "solid"
       ]
     },
     "business_tools": {

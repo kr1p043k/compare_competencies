@@ -21,6 +21,7 @@ def main() -> None:
         export_vacancies,
         extend_skills,
         import_students,
+        ingest_market_skills,
         populate_parsed_skills,
         rebuild,
         seed_db,
@@ -102,6 +103,12 @@ def main() -> None:
     p.add_argument("--apply", action="store_true", help="Применить предложения в skill_taxonomy.json")
     p.add_argument("--threshold", type=float, default=taxonomy_audit.DEFAULT_THRESHOLD)
     p.set_defaults(func=lambda a: taxonomy_audit.main(a))
+
+    p = sub.add_parser("ingest-market-skills", help="Расширить it_skills рыночными навыками из вакансий")
+    p.add_argument("--dry-run", action="store_true", help="Только показать кандидатов")
+    p.add_argument("--min-freq", type=int, default=ingest_market_skills.DEFAULT_MIN_FREQ)
+    p.add_argument("--threshold", type=float, default=ingest_market_skills.DEFAULT_THRESHOLD)
+    p.set_defaults(func=lambda a: ingest_market_skills.main(a))
 
     args = parser.parse_args()
     args.func(args)
