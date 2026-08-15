@@ -303,7 +303,7 @@ async def run_teacher_analysis(
             disciplines[dn]["competencies"][cc] = set()
         if r["skill_name"]:
             disciplines[dn]["competencies"][cc].add(r["skill_name"])
-        if r["ksa_text"]:
+        if r["ksa_text"] and len(r["ksa_text"]) <= 60:
             disciplines[dn]["competencies"][cc].add(r["ksa_text"])
     # Convert sets to lists for downstream
     for dn in disciplines:
