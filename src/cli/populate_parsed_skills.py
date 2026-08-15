@@ -29,7 +29,7 @@ async def main():
         print(f"Found {total_count} vacancies to parse")
 
         BATCH = 100
-        last_id = 0
+        last_id = "00000000-0000-0000-0000-000000000000"
         processed = 0
         while True:
             rows = await session.execute(
@@ -39,7 +39,7 @@ async def main():
                            employer_name, area_name
                     FROM vacancies
                     WHERE (parsed_skills IS NULL OR jsonb_array_length(parsed_skills) = 0)
-                      AND id > :last_id
+                      AND id::text > :last_id
                     ORDER BY id
                     LIMIT :lim
                 """),
@@ -101,7 +101,7 @@ async def main():
                 )
 
             processed += len(batch)
-            last_id = batch[-1].id
+            last_id = str(batch[-1].id)
             print(f"  parsed {processed}/{total_count} ({processed * 100 // total_count}%)")
             await session.commit()
 
