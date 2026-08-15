@@ -63,7 +63,7 @@ async def tier_explicit_json(session, json_map_path, disc_map, comp_map, skill_m
                     continue
                 session.add(CompetencySkill(
                     competency_id=comp_id, skill_id=sk_id,
-                    ksa_type="flat", source_text=sn, match_type="explicit"))
+                    ksa_type="flat", source_text=sn, match_type="exact"))
                 count += 1
     await session.flush()
     print(f"  [tier1] Explicit: {count}")
@@ -97,7 +97,7 @@ async def tier_substring(session, krm, disc_map, comp_map):
                     continue
                 session.add(CompetencySkill(
                     competency_id=cid, skill_id=iid,
-                    ksa_type="flat", source_text=iname, match_type="substring"))
+                    ksa_type="flat", source_text=iname, match_type="stem"))
                 count += 1
     await session.flush()
     print(f"  [tier2] Substring: {count}")
@@ -154,7 +154,7 @@ async def tier_semantic(session, krm, disc_map, comp_map):
                     continue
                 session.add(CompetencySkill(
                     competency_id=cid, skill_id=it_ids[idx],
-                    ksa_type="flat", source_text=it_names[idx], match_type="semantic"))
+                    ksa_type="flat", source_text=it_names[idx], match_type="fuzzy"))
                 count += 1
     await session.flush()
     print(f"  [tier3] Semantic: {count}")
