@@ -23,6 +23,7 @@ def main() -> None:
         forecast_audit,
         import_students,
         ingest_market_skills,
+        map_ksa_to_skills,
         populate_parsed_skills,
         rebuild,
         seed_db,
@@ -114,6 +115,11 @@ def main() -> None:
     p = sub.add_parser("forecast-audit", help="Аудит качества прогнозов Prophet")
     p.add_argument("--top", type=int, default=20)
     p.set_defaults(func=lambda a: forecast_audit.main(a))
+
+    p = sub.add_parser("map-ksa-to-skills", help="Сопоставить тексты KSA с it_skills (tier1 JSON, tier2 substring, tier3 semantic)")
+    p.add_argument("--json-map", default=None, help="Путь к krm_it_skill_map.json")
+    p.set_defaults(func=lambda a: asyncio.run(map_ksa_to_skills.run_mapping(
+        json_map_path=Path(a.json_map) if a.json_map else None)))
 
     args = parser.parse_args()
     args.func(args)

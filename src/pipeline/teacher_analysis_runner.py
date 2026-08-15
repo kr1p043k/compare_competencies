@@ -212,15 +212,17 @@ async def run_teacher_analysis(
     market_skills: dict[str, int] = {}
     vac_count = 0
 
-    # Кэш: market_skills пересчитываются только при изменении вакансий
+    # Кэш: market_skills пересчитываются только при изменении вакансий.
+    # Навыки берём из parsed_skills (актуальный результат перепарсинга), т.к.
+    # key_skills у новых вакансий HH часто пуст.
     from src.cache_manager import CacheManager
     _cache_dir = config.DATA_CACHE_DIR
     _cache_mgr = CacheManager(_cache_dir)
     _vac_hash = await pool.fetchval(
         "SELECT MD5(COALESCE(MAX(created_at)::text, '0')) FROM vacancies "
-        "WHERE key_skills IS NOT NULL AND jsonb_array_length(key_skills) > 0"
+        "WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0"
     )
-    _cache_key = "teacher_market_skills"
+    _cache_key = "teacher_market_skills_v2"
     match _cache_mgr.load(_cache_key):
         case Ok(cached):
             if isinstance(cached, dict) and cached.get("hash") == _vac_hash:
@@ -232,8 +234,8 @@ async def run_teacher_analysis(
         try:
             vrows = await pool.fetch(
                 """SELECT LOWER(TRIM(value)) AS skill, COUNT(*) AS frequency
-                   FROM vacancies, jsonb_array_elements_text(key_skills) AS value
-                   WHERE key_skills IS NOT NULL AND jsonb_array_length(key_skills) > 0
+                   FROM vacancies, jsonb_array_elements_text(parsed_skills) AS value
+                   WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0
                    GROUP BY LOWER(TRIM(value))
                    ORDER BY frequency DESC"""
             )
@@ -399,6 +401,9 @@ async def run_teacher_analysis(
     _discipline_scorer = DisciplineAwareScorer()
     _discipline_scorer.load()
     matcher = SkillMatcher(market_skills, embedding_provider=EmbeddingProviderFactory.get())
+    # Включаем семантический матчинг: set_market строит эмбеддинги рынка,
+    # иначе _market_embeddings остаётся None и semantic-слой не работает.
+    matcher.set_market(market_skills)
     coverage_analyzer = CoverageAnalyzer(matcher, discipline_scorer=_discipline_scorer)
     trend_analyzer = SnapshotTrendAnalyzer(snapshots)
     rec_engine = CurriculumRecommender()
