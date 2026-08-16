@@ -105,12 +105,12 @@ async def tier_explicit_json(session, json_map_path, disc_map, comp_map, skill_m
     return count
 
 
-async def tier_substring(session, krm, disc_map, comp_map):
+async def tier_substring(session, krm, disc_map, comp_map, dir_code: str = "09.03.02"):
     """Tier 2: Substring scan of KSA phrases (split long texts into phrases)."""
     it_res = await session.execute(select(Skill).where(Skill.source == "it_skills"))
     it_skills = {s.name.lower(): s.id for s in it_res.scalars().all()}
     count = 0
-    for dn, dd in krm.get("09.03.02", {}).get("disciplines", {}).items():
+    for dn, dd in krm.get(dir_code, {}).get("disciplines", {}).items():
         did = disc_map.get(dn)
         if not did:
             continue
@@ -143,7 +143,7 @@ async def tier_substring(session, krm, disc_map, comp_map):
     return count
 
 
-async def tier_semantic(session, krm, disc_map, comp_map):
+async def tier_semantic(session, krm, disc_map, comp_map, dir_code: str = "09.03.02"):
     """Tier 3: Embedding cosine similarity."""
     try:
         from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
@@ -165,7 +165,7 @@ async def tier_semantic(session, krm, disc_map, comp_map):
     it_embs_n = it_embs / it_norms
 
     count = 0
-    for dn, dd in krm.get("09.03.02", {}).get("disciplines", {}).items():
+    for dn, dd in krm.get(dir_code, {}).get("disciplines", {}).items():
         did = disc_map.get(dn)
         if not did:
             continue
@@ -205,16 +205,20 @@ async def tier_semantic(session, krm, disc_map, comp_map):
     return count
 
 
-async def run_mapping(json_map_path: Path | None = None) -> dict:
+async def run_mapping(json_map_path: Path | None = None, dir_code: str = "09.03.02") -> dict:
     """Run all three tiers."""
-    krm = load_json(KRM_PATH)
+    krm_path = DATA_DIR / "reference" / f"krm_disciplines_{dir_code}.json"
+    if not krm_path.exists():
+        print(f"ERROR: KRM file not found: {krm_path}")
+        return {}
+    krm = load_json(krm_path)
     map_path = json_map_path or JSON_MAP_PATH
 
     async with async_session_factory() as session:
-        dir_result = await session.execute(select(Direction).where(Direction.code == "09.03.02"))
+        dir_result = await session.execute(select(Direction).where(Direction.code == dir_code))
         direction = dir_result.scalar_one_or_none()
         if not direction:
-            print("ERROR: Direction 09.03.02 not found")
+            print(f"ERROR: Direction {dir_code} not found")
             return {}
 
         disc_result = await session.execute(select(Discipline).where(Discipline.direction_id == direction.id))
@@ -229,8 +233,8 @@ async def run_mapping(json_map_path: Path | None = None) -> dict:
         print(f"Maps: {len(disc_map)} disciplines, {len(comp_map)} competencies, {len(skill_map)} skills")
 
         t1 = await tier_explicit_json(session, map_path, disc_map, comp_map, skill_map)
-        t2 = await tier_substring(session, krm, disc_map, comp_map)
-        t3 = await tier_semantic(session, krm, disc_map, comp_map)
+        t2 = await tier_substring(session, krm, disc_map, comp_map, dir_code=dir_code)
+        t3 = await tier_semantic(session, krm, disc_map, comp_map, dir_code=dir_code)
 
         await session.commit()
 

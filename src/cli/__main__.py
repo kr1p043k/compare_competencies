@@ -123,8 +123,10 @@ def main() -> None:
 
     p = sub.add_parser("map-ksa-to-skills", help="Сопоставить тексты KSA с it_skills (tier1 JSON, tier2 substring, tier3 semantic)")
     p.add_argument("--json-map", default=None, help="Путь к krm_it_skill_map.json")
+    p.add_argument("--dir-code", default="09.03.02", help="Код направления (09.03.02)")
     p.set_defaults(func=lambda a: asyncio.run(map_ksa_to_skills.run_mapping(
-        json_map_path=Path(a.json_map) if a.json_map else None)))
+        json_map_path=Path(a.json_map) if a.json_map else None,
+        dir_code=a.dir_code)))
 
     args = parser.parse_args()
     args.func(args)
