@@ -109,7 +109,7 @@ async def tier_explicit_json(session, json_map_path, disc_map, comp_map, skill_m
     return count
 
 
-async def tier_substring(session, krm, disc_map, comp_map, dir_code: str = "09.03.02"):
+async def tier_substring(session, disciplines, disc_map, comp_map):
     """Tier 2: Substring scan of KSA phrases (split long texts into phrases)."""
     it_res = await session.execute(select(Skill).where(Skill.source == "it_skills"))
     it_skills = {s.name.lower(): s.id for s in it_res.scalars().all()}
@@ -120,7 +120,7 @@ async def tier_substring(session, krm, disc_map, comp_map, dir_code: str = "09.0
                 CompetencySkill.competency_id.in_(comp_map.values())))
         existing = {(str(r[0]), str(r[1])) for r in ex_rows.all()}
     count = 0
-    for dn, dd in krm.get(dir_code, {}).get("disciplines", {}).items():
+    for dn, dd in disciplines.items():
         did = disc_map.get(dn)
         if not did:
             continue
@@ -151,7 +151,7 @@ async def tier_substring(session, krm, disc_map, comp_map, dir_code: str = "09.0
     return count
 
 
-async def tier_semantic(session, krm, disc_map, comp_map, dir_code: str = "09.03.02"):
+async def tier_semantic(session, disciplines, disc_map, comp_map):
     """Tier 3: Embedding cosine similarity."""
     try:
         from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
@@ -181,7 +181,7 @@ async def tier_semantic(session, krm, disc_map, comp_map, dir_code: str = "09.03
         existing = {(str(r[0]), str(r[1])) for r in ex_rows.all()}
 
     count = 0
-    for dn, dd in krm.get(dir_code, {}).get("disciplines", {}).items():
+    for dn, dd in disciplines.items():
         did = disc_map.get(dn)
         if not did:
             continue
@@ -226,6 +226,20 @@ async def run_mapping(json_map_path: Path | None = None, dir_code: str = "09.03.
         print(f"ERROR: KRM file not found: {krm_path}")
         return {}
     krm = load_json(krm_path)
+    # Контейнер может лежать по ключу dir_code (09.03.02) или direction_name (02.03.02_och)
+    container = None
+    if isinstance(krm, dict):
+        container = krm.get(dir_code)
+        if container is None or not isinstance(container, dict) or "disciplines" not in container:
+            container = next(
+                (v for v in krm.values()
+                 if isinstance(v, dict) and "disciplines" in v),
+                None,
+            )
+    if container is None or "disciplines" not in container:
+        print(f"ERROR: No disciplines container in {krm_path}")
+        return {}
+    disciplines_data = container.get("disciplines", {})
     map_path = json_map_path or JSON_MAP_PATH
 
     async with async_session_factory() as session:
@@ -248,9 +262,9 @@ async def run_mapping(json_map_path: Path | None = None, dir_code: str = "09.03.
 
         t1 = await tier_explicit_json(session, map_path, disc_map, comp_map, skill_map)
         await session.commit()
-        t2 = await tier_substring(session, krm, disc_map, comp_map, dir_code=dir_code)
+        t2 = await tier_substring(session, disciplines_data, disc_map, comp_map)
         await session.commit()
-        t3 = await tier_semantic(session, krm, disc_map, comp_map, dir_code=dir_code)
+        t3 = await tier_semantic(session, disciplines_data, disc_map, comp_map)
 
         await session.commit()
 
