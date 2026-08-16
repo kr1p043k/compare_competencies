@@ -77,6 +77,12 @@ async def tier_explicit_json(session, json_map_path, disc_map, comp_map, skill_m
         print(f"  [tier1] skip: {json_map_path} not found")
         return 0
     mapping = load_json(json_map_path)
+    existing: set[tuple[str, str]] = set()
+    if comp_map:
+        ex_rows = await session.execute(
+            select(CompetencySkill.competency_id, CompetencySkill.skill_id).where(
+                CompetencySkill.competency_id.in_(comp_map.values())))
+        existing = {(str(r[0]), str(r[1])) for r in ex_rows.all()}
     count = 0
     for disc_name, comps in mapping.items():
         disc_id = disc_map.get(disc_name)
@@ -90,12 +96,10 @@ async def tier_explicit_json(session, json_map_path, disc_map, comp_map, skill_m
                 sk_id = skill_map.get(sn.strip().lower())
                 if not sk_id:
                     continue
-                ex = await session.execute(
-                    select(CompetencySkill).where(
-                        CompetencySkill.competency_id == comp_id,
-                        CompetencySkill.skill_id == sk_id))
-                if ex.scalar_one_or_none():
+                cid_str, skid_str = str(comp_id), str(sk_id)
+                if (cid_str, skid_str) in existing:
                     continue
+                existing.add((cid_str, skid_str))
                 session.add(CompetencySkill(
                     competency_id=comp_id, skill_id=sk_id,
                     ksa_type="flat", source_text=sn, match_type="exact"))
@@ -109,6 +113,12 @@ async def tier_substring(session, krm, disc_map, comp_map, dir_code: str = "09.0
     """Tier 2: Substring scan of KSA phrases (split long texts into phrases)."""
     it_res = await session.execute(select(Skill).where(Skill.source == "it_skills"))
     it_skills = {s.name.lower(): s.id for s in it_res.scalars().all()}
+    existing: set[tuple[str, str]] = set()
+    if comp_map:
+        ex_rows = await session.execute(
+            select(CompetencySkill.competency_id, CompetencySkill.skill_id).where(
+                CompetencySkill.competency_id.in_(comp_map.values())))
+        existing = {(str(r[0]), str(r[1])) for r in ex_rows.all()}
     count = 0
     for dn, dd in krm.get(dir_code, {}).get("disciplines", {}).items():
         did = disc_map.get(dn)
@@ -128,12 +138,10 @@ async def tier_substring(session, krm, disc_map, comp_map, dir_code: str = "09.0
                 for iname, iid in it_skills.items():
                     if len(iname) < MIN_SUBSTRING_LEN or iname not in phrase:
                         continue
-                    ex = await session.execute(
-                        select(CompetencySkill).where(
-                            CompetencySkill.competency_id == cid,
-                            CompetencySkill.skill_id == iid))
-                    if ex.scalar_one_or_none():
+                    cid_str, skid_str = str(cid), str(iid)
+                    if (cid_str, skid_str) in existing:
                         continue
+                    existing.add((cid_str, skid_str))
                     session.add(CompetencySkill(
                         competency_id=cid, skill_id=iid,
                         ksa_type="flat", source_text=iname, match_type="stem"))
@@ -164,6 +172,14 @@ async def tier_semantic(session, krm, disc_map, comp_map, dir_code: str = "09.03
     it_norms[it_norms == 0] = 1.0
     it_embs_n = it_embs / it_norms
 
+    # Prefetch existing (comp, skill) pairs for this direction to avoid per-insert SELECT
+    existing: set[tuple[str, str]] = set()
+    if comp_map:
+        ex_rows = await session.execute(
+            select(CompetencySkill.competency_id, CompetencySkill.skill_id).where(
+                CompetencySkill.competency_id.in_(comp_map.values())))
+        existing = {(str(r[0]), str(r[1])) for r in ex_rows.all()}
+
     count = 0
     for dn, dd in krm.get(dir_code, {}).get("disciplines", {}).items():
         did = disc_map.get(dn)
@@ -190,12 +206,10 @@ async def tier_semantic(session, krm, disc_map, comp_map, dir_code: str = "09.03
                 for idx in top:
                     if float(sims[idx]) < SEMANTIC_THRESHOLD:
                         break
-                    ex = await session.execute(
-                        select(CompetencySkill).where(
-                            CompetencySkill.competency_id == cid,
-                            CompetencySkill.skill_id == it_ids[idx]))
-                    if ex.scalar_one_or_none():
+                    cid_str, skid_str = str(cid), str(it_ids[idx])
+                    if (cid_str, skid_str) in existing:
                         continue
+                    existing.add((cid_str, skid_str))
                     session.add(CompetencySkill(
                         competency_id=cid, skill_id=it_ids[idx],
                         ksa_type="flat", source_text=it_names[idx], match_type="fuzzy"))
@@ -233,7 +247,9 @@ async def run_mapping(json_map_path: Path | None = None, dir_code: str = "09.03.
         print(f"Maps: {len(disc_map)} disciplines, {len(comp_map)} competencies, {len(skill_map)} skills")
 
         t1 = await tier_explicit_json(session, map_path, disc_map, comp_map, skill_map)
+        await session.commit()
         t2 = await tier_substring(session, krm, disc_map, comp_map, dir_code=dir_code)
+        await session.commit()
         t3 = await tier_semantic(session, krm, disc_map, comp_map, dir_code=dir_code)
 
         await session.commit()
