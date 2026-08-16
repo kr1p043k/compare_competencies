@@ -39,6 +39,41 @@ def _safe_filename(name: str) -> str:
     return re.sub(r'[\\/*?:"<>|]', "_", name).strip()[:80]
 
 
+# Методические обрывки KSA, не являющиеся навыками (темы, отчёты, часы)
+_KSA_JUNK_MARKERS = (
+    "модуль", "раздел", "тема ", "темы ", "лабораторн", "лабора", "проверка отчета",
+    "промежуточный отчет", "название команды", "роль капитана", "роли исполнителей",
+    "часа)", "часа ", "лекции", "семинар", "индивидуальные", "оценочных средств",
+    "контактная работа", "виды учебной", "трудоемкость", "онлайн курсов", "билеты",
+    "вопросы к", "экзамен", "зачет", "проработка", "повторение материала",
+    "отчетной документации", "отчет №", "оценка членов", "оценка капитана",
+    "брендинг", "презентация", "защита курсового", "дорожная карта",
+    "пояснительной записки", "оформление и содержание", "контрольная работа",
+    "подготовка к", "диалог с", "работа в", "выполнение курсового",
+)
+
+
+def _is_skill_like_ksa(text: str) -> bool:
+    """True если KSA-фрагмент похож на навык, а не методический обрывок.
+
+    Снимает жёсткий лимит длины 60 (длинные формулировки тоже могут быть
+    навыками), но отбрасывает явный методический мусор (темы, отчёты, часы).
+    """
+    if not text:
+        return False
+    t = text.strip().lower()
+    if len(t) < 3 or len(t) > 200:
+        return False
+    if len(t) <= 60 and t[-1] in ". ,;:-\u2014":
+        return False
+    if any(m in t for m in _KSA_JUNK_MARKERS):
+        return False
+    # Обрывки слов/символы, не похожие на навык
+    if len(t) <= 60 and len(t.split()) == 1 and any(ch.isdigit() for ch in t):
+        return False
+    return True
+
+
 def _enhance_disciplines_with_gap_analysis(
     disciplines: dict[str, dict],
     market_skill_names: list[str],
@@ -303,7 +338,7 @@ async def run_teacher_analysis(
             disciplines[dn]["competencies"][cc] = set()
         if r["skill_name"]:
             disciplines[dn]["competencies"][cc].add(r["skill_name"])
-        if r["ksa_text"] and len(r["ksa_text"]) <= 60:
+        if r["ksa_text"] and _is_skill_like_ksa(r["ksa_text"]):
             disciplines[dn]["competencies"][cc].add(r["ksa_text"])
     # Convert sets to lists for downstream
     for dn in disciplines:

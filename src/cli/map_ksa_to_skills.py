@@ -30,6 +30,41 @@ JSON_MAP_PATH = DATA_DIR / "reference" / "krm_it_skill_map.json"
 SEMANTIC_THRESHOLD = 0.45
 MIN_SUBSTRING_LEN = 3
 
+import re as _re
+
+# Методические обрывки, которые не являются навыками (темы занятий, отчёты и т.п.)
+_JUNK_MARKERS = (
+    "модуль", "раздел", "тема ", "темы ", "лабораторн", "лабора", "проверка отчета",
+    "промежуточный отчет", "название команды", "роль капитана", "роли исполнителей",
+    "часа)", "часа ", "лекции", "семинар", "индивидуальные", "оценочных средств",
+    "контактная работа", "виды учебной", "трудоемкость", "онлайн курсов", "билеты",
+    "вопросы к", "экзамен", "зачет", "проработка", "повторение материала",
+    "отчетной документации", "отчет №", "оценка членов", "оценка капитана",
+    "брендинг", "презентация", "защита курсового", "дорожная карта",
+    "пояснительной записки", "оформление и содержание", "контрольная работа",
+    "подготовка к", "диалог с", "работа в", "выполнение курсового",
+)
+
+
+def _split_phrases(text: str) -> list[str]:
+    """Разбивает длинный KSA-текст на фразы по разделителям предложений.
+
+    Длинные формулировки компетенций плохо матчатся целиком (сходство ~0.2-0.4),
+    а отдельные фразы дают сходство 0.6-0.85 с it_skills.
+    """
+    parts = _re.split(r"[;:.\n\-\u2014,()]", text)
+    out = []
+    for p in parts:
+        p = p.strip().lower()
+        if len(p) < 6 or len(p) > 120:
+            continue
+        if p[0].isdigit() or p[0] in "._-,":
+            continue
+        if any(m in p for m in _JUNK_MARKERS):
+            continue
+        out.append(p)
+    return out
+
 
 def load_json(path: Path) -> dict | list:
     with open(path, "r", encoding="utf-8") as f:
@@ -71,7 +106,7 @@ async def tier_explicit_json(session, json_map_path, disc_map, comp_map, skill_m
 
 
 async def tier_substring(session, krm, disc_map, comp_map):
-    """Tier 2: Substring scan of KSA text."""
+    """Tier 2: Substring scan of KSA phrases (split long texts into phrases)."""
     it_res = await session.execute(select(Skill).where(Skill.source == "it_skills"))
     it_skills = {s.name.lower(): s.id for s in it_res.scalars().all()}
     count = 0
@@ -86,19 +121,23 @@ async def tier_substring(session, krm, disc_map, comp_map):
             txt = " ".join(t for kt in ("knowledge", "abilities", "skills") for t in ksa.get(kt, [])).lower()
             if len(txt) < 10:
                 continue
-            for iname, iid in it_skills.items():
-                if len(iname) < MIN_SUBSTRING_LEN or iname not in txt:
-                    continue
-                ex = await session.execute(
-                    select(CompetencySkill).where(
-                        CompetencySkill.competency_id == cid,
-                        CompetencySkill.skill_id == iid))
-                if ex.scalar_one_or_none():
-                    continue
-                session.add(CompetencySkill(
-                    competency_id=cid, skill_id=iid,
-                    ksa_type="flat", source_text=iname, match_type="stem"))
-                count += 1
+            phrases = _split_phrases(txt)
+            if not phrases:
+                phrases = [txt]
+            for phrase in phrases:
+                for iname, iid in it_skills.items():
+                    if len(iname) < MIN_SUBSTRING_LEN or iname not in phrase:
+                        continue
+                    ex = await session.execute(
+                        select(CompetencySkill).where(
+                            CompetencySkill.competency_id == cid,
+                            CompetencySkill.skill_id == iid))
+                    if ex.scalar_one_or_none():
+                        continue
+                    session.add(CompetencySkill(
+                        competency_id=cid, skill_id=iid,
+                        ksa_type="flat", source_text=iname, match_type="stem"))
+                    count += 1
     await session.flush()
     print(f"  [tier2] Substring: {count}")
     return count
@@ -137,25 +176,30 @@ async def tier_semantic(session, krm, disc_map, comp_map):
             txt = " ".join(t for kt in ("knowledge", "abilities", "skills") for t in ksa.get(kt, [])).lower()
             if len(txt) < 10:
                 continue
-            qemb = prov.encode([txt], show_progress_bar=False)
-            qn = np.linalg.norm(qemb)
-            if qn > 0:
-                qemb = qemb / qn
-            sims = it_embs_n @ qemb.T
-            top = [int(i) for i in np.argsort(sims)[::-1][:3]]
-            for idx in top:
-                if float(sims[idx]) < SEMANTIC_THRESHOLD:
-                    break
-                ex = await session.execute(
-                    select(CompetencySkill).where(
-                        CompetencySkill.competency_id == cid,
-                        CompetencySkill.skill_id == it_ids[idx]))
-                if ex.scalar_one_or_none():
-                    continue
-                session.add(CompetencySkill(
-                    competency_id=cid, skill_id=it_ids[idx],
-                    ksa_type="flat", source_text=it_names[idx], match_type="fuzzy"))
-                count += 1
+            phrases = _split_phrases(txt)
+            if not phrases:
+                phrases = [txt]
+            qembs = prov.encode(phrases, show_progress_bar=False)
+            qnorms = np.linalg.norm(qembs, axis=1, keepdims=True)
+            qnorms[qnorms == 0] = 1.0
+            qembs_n = qembs / qnorms
+            sims_all = qembs_n @ it_embs_n.T
+            for row_idx in range(len(phrases)):
+                sims = sims_all[row_idx]
+                top = [int(i) for i in np.argsort(sims)[::-1][:3]]
+                for idx in top:
+                    if float(sims[idx]) < SEMANTIC_THRESHOLD:
+                        break
+                    ex = await session.execute(
+                        select(CompetencySkill).where(
+                            CompetencySkill.competency_id == cid,
+                            CompetencySkill.skill_id == it_ids[idx]))
+                    if ex.scalar_one_or_none():
+                        continue
+                    session.add(CompetencySkill(
+                        competency_id=cid, skill_id=it_ids[idx],
+                        ksa_type="flat", source_text=it_names[idx], match_type="fuzzy"))
+                    count += 1
     await session.flush()
     print(f"  [tier3] Semantic: {count}")
     return count
