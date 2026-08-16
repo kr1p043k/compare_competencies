@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import uuid
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -152,7 +153,11 @@ async def tier_substring(session, disciplines, disc_map, comp_map):
 
 
 async def tier_semantic(session, disciplines, disc_map, comp_map):
-    """Tier 3: Embedding cosine similarity."""
+    """Tier 3: Embedding cosine similarity.
+
+    Все фразы всех компетенций кодируются одним батчем (а не по одному
+    encode на компетенцию), что даёт многократное ускорение.
+    """
     try:
         from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
         prov = EmbeddingProviderFactory.get()
@@ -180,7 +185,8 @@ async def tier_semantic(session, disciplines, disc_map, comp_map):
                 CompetencySkill.competency_id.in_(comp_map.values())))
         existing = {(str(r[0]), str(r[1])) for r in ex_rows.all()}
 
-    count = 0
+    # 1. Собрать все (comp_id, phrase) пары
+    targets: list[tuple[str, str]] = []  # (cid_str, phrase)
     for dn, dd in disciplines.items():
         did = disc_map.get(dn)
         if not did:
@@ -195,25 +201,41 @@ async def tier_semantic(session, disciplines, disc_map, comp_map):
             phrases = _split_phrases(txt)
             if not phrases:
                 phrases = [txt]
-            qembs = prov.encode(phrases, show_progress_bar=False)
-            qnorms = np.linalg.norm(qembs, axis=1, keepdims=True)
-            qnorms[qnorms == 0] = 1.0
-            qembs_n = qembs / qnorms
-            sims_all = qembs_n @ it_embs_n.T
-            for row_idx in range(len(phrases)):
-                sims = sims_all[row_idx]
-                top = [int(i) for i in np.argsort(sims)[::-1][:3]]
-                for idx in top:
-                    if float(sims[idx]) < SEMANTIC_THRESHOLD:
-                        break
-                    cid_str, skid_str = str(cid), str(it_ids[idx])
-                    if (cid_str, skid_str) in existing:
-                        continue
-                    existing.add((cid_str, skid_str))
-                    session.add(CompetencySkill(
-                        competency_id=cid, skill_id=it_ids[idx],
-                        ksa_type="flat", source_text=it_names[idx], match_type="fuzzy"))
-                    count += 1
+            for phrase in phrases:
+                targets.append((str(cid), phrase))
+
+    if not targets:
+        print(f"  [tier3] Semantic: 0")
+        return 0
+
+    # 2. Батч-кодирование всех фраз (один проход по модели)
+    batch_size = 256
+    count = 0
+    for start in range(0, len(targets), batch_size):
+        chunk = targets[start:start + batch_size]
+        texts = [p for _, p in chunk]
+        qembs = prov.encode(texts, show_progress_bar=False)
+        qnorms = np.linalg.norm(qembs, axis=1, keepdims=True)
+        qnorms[qnorms == 0] = 1.0
+        qembs_n = qembs / qnorms
+        sims_all = qembs_n @ it_embs_n.T
+        for row_idx in range(len(chunk)):
+            cid_str = chunk[row_idx][0]
+            sims = sims_all[row_idx]
+            top = [int(i) for i in np.argsort(sims)[::-1][:3]]
+            for idx in top:
+                if float(sims[idx]) < SEMANTIC_THRESHOLD:
+                    break
+                skid_str = str(it_ids[idx])
+                if (cid_str, skid_str) in existing:
+                    continue
+                existing.add((cid_str, skid_str))
+                session.add(CompetencySkill(
+                    competency_id=uuid.UUID(cid_str), skill_id=it_ids[idx],
+                    ksa_type="flat", source_text=it_names[idx], match_type="fuzzy"))
+                count += 1
+        if start % (batch_size * 4) == 0:
+            print(f"    [tier3] encoded {min(start + batch_size, len(targets))}/{len(targets)} phrases, +{count}")
     await session.flush()
     print(f"  [tier3] Semantic: {count}")
     return count
@@ -278,10 +300,40 @@ async def run_mapping(json_map_path: Path | None = None, dir_code: str = "09.03.
         return stats
 
 
+async def run_all(json_map_path: Path | None = None) -> dict:
+    """Последовательно прогоняет map-ksa для всех направлений с KRM-файлом.
+
+    Каждое направление обрабатывается отдельным вызовом run_mapping; модель
+    загружается один раз на процесс (EmbeddingProviderFactory singleton).
+    """
+    codes = [
+        "01.03.01", "01.03.02", "02.03.02_och", "02.03.02_oz", "02.03.03",
+        "09.03.01_ai_och", "09.03.01_ai_zaoch", "09.03.01_bim",
+        "09.03.01_embedded", "09.03.01_prog_och", "09.03.01_prog_zaoch",
+        "09.03.02", "09.03.04",
+    ]
+    results: dict[str, dict] = {}
+    for code in codes:
+        krm_path = DATA_DIR / "reference" / f"krm_disciplines_{code}.json"
+        if not krm_path.exists():
+            print(f"\n=== {code}: no KRM file, skip ===")
+            continue
+        print(f"\n=== {code} ===")
+        try:
+            results[code] = await run_mapping(json_map_path=json_map_path, dir_code=code)
+        except Exception as exc:
+            print(f"  ERROR {code}: {exc}")
+    return results
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Map KSA to it_skills (3-tier)")
     parser.add_argument("--json-map", type=str, default=None)
+    parser.add_argument("--all", action="store_true", help="Прогнать все направления последовательно")
     args = parser.parse_args()
     path = Path(args.json_map) if args.json_map else None
-    asyncio.run(run_mapping(json_map_path=path))
+    if args.all:
+        asyncio.run(run_all(json_map_path=path))
+    else:
+        asyncio.run(run_mapping(json_map_path=path))
