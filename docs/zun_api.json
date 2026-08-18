@@ -1,0 +1,910 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "ZUN API — преподавательский анализ (знать/уметь/навык)",
+    "version": "1.0.0",
+    "description": "Чтение и запись ЗУН (ksa_entries) по направлениям обучения: метаданные, сводки, дерево дисциплин (компетенция → индикаторы → ЗУН), поиск (подстрока + семантический через эмбеддинги), фильтры, связь компетенций с рыночными навыками (competency_skills), покрытие (coverage_analyses), CRUD записей ЗУН, запуск преподавательского анализа и чтение его результатов, импорт ЗУН из KRM JSON (идемпотентно).\n\nВсё построено поверх существующей схемы БД без миграций. Авторизация — JWT-токен (заголовок Authorization: Bearer <token> или cookie token). Доступны роли: admin, teacher, rop. dir_code валидируется регулярным выражением ^\\d{2}\\.\\d{2}\\.\\d{2}(?:_\\w+)?$.",
+    "contact": {
+      "name": "compare_competencies",
+      "url": "https://github.com/kr1p043k/compare_competencies"
+    }
+  },
+  "servers": [
+    { "url": "/api", "description": "Основной префикс (аналогично /api/v1)" }
+  ],
+  "security": [
+    { "bearerAuth": [] }
+  ],
+  "tags": [
+    { "name": "zun", "description": "ЗУН (знать/уметь/навык) — преподавательский анализ" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "JWT-токен, выданный POST /api/auth/login. Передавать в заголовке Authorization: Bearer <token> либо cookie 'token'."
+      }
+    },
+    "schemas": {
+      "DirectionsRow": {
+        "type": "object",
+        "description": "Направление обучения с наличием ЗУН в БД.",
+        "properties": {
+          "dir_code": { "type": "string", "description": "Код направления, например 09.03.02" },
+          "name": { "type": "string", "description": "Название направления" },
+          "profile": { "type": "string", "description": "Профиль (специализация)" },
+          "disciplines_count": { "type": "integer", "description": "Число дисциплин в направлении" },
+          "ksa_total": { "type": "integer", "description": "Всего записей ЗУН в направлении" },
+          "has_ksa": { "type": "boolean", "description": "Есть ли хотя бы одна запись ЗУН" }
+        }
+      },
+      "StatsResponse": {
+        "type": "object",
+        "description": "Сводка по направлению.",
+        "properties": {
+          "dir_code": { "type": "string" },
+          "direction_names": { "type": "array", "items": { "type": "string" }, "description": "Названия направлений (может быть несколько при дубле кода)" },
+          "profiles": { "type": "array", "items": { "type": "string" } },
+          "multiple_profiles": { "type": "boolean", "description": "true, если код направления встречается с несколькими профилями (например 09.03.01)" },
+          "total_disciplines": { "type": "integer" },
+          "total_competencies": { "type": "integer", "description": "Корневых компетенций (parent_id IS NULL)" },
+          "total_indicators": { "type": "integer", "description": "Индикаторов (parent_id NOT NULL, код вида X-Y.Z)" },
+          "ksa_counts": {
+            "type": "object",
+            "properties": {
+              "knowledge": { "type": "integer" },
+              "abilities": { "type": "integer" },
+              "skills": { "type": "integer" },
+              "total": { "type": "integer" }
+            }
+          },
+          "competencies_with_ksa": { "type": "integer" },
+          "disciplines_with_ksa": { "type": "integer" },
+          "linked_skills": { "type": "integer", "description": "Количество связей competency_skills в направлении" },
+          "coverage": {
+            "type": "object",
+            "description": "Покрытие рынка по последнему анализу. null-поля, если coverage_analyses пуст.",
+            "properties": {
+              "latest_analysis_date": { "type": "string", "format": "date-time", "nullable": true },
+              "avg_coverage_ratio": { "type": "number", "format": "float", "description": "Средний coverage_ratio по дисциплинам" },
+              "covered_disciplines": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "DisciplineRow": {
+        "type": "object",
+        "description": "Строка списка дисциплин со счётчиками ЗУН.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "semester": { "type": "integer", "nullable": true },
+          "control_form": { "type": "string", "nullable": true, "description": "Форма контроля (экзамен/зачёт и т.п.)" },
+          "competencies_count": { "type": "integer", "description": "Корневых компетенций" },
+          "indicators_count": { "type": "integer" },
+          "ksa_total": { "type": "integer" },
+          "ksa_by_type": {
+            "type": "object",
+            "properties": {
+              "knowledge": { "type": "integer" },
+              "abilities": { "type": "integer" },
+              "skills": { "type": "integer" }
+            }
+          },
+          "linked_skills": { "type": "integer" },
+          "coverage_ratio": { "type": "number", "format": "float", "nullable": true },
+          "coverage_level": { "type": "string", "nullable": true, "enum": ["high", "medium", "low"] }
+        }
+      },
+      "KSAEntry": {
+        "type": "object",
+        "description": "Одна запись ЗУН (знать/уметь/навык).",
+        "properties": {
+          "ksa_id": { "type": "string", "format": "uuid" },
+          "ksa_type": { "type": "string", "enum": ["knowledge", "abilities", "skills"] },
+          "original_text": { "type": "string" },
+          "cleaned_text": { "type": "string", "nullable": true, "description": "Очищенный текст; если NULL — равен original_text" },
+          "competence_id": { "type": "string", "format": "uuid" },
+          "competence_code": { "type": "string", "description": "Код компетенции/индикатора, например ОПК-2 или ОПК-2.1" },
+          "is_indicator": { "type": "boolean", "description": "true, если запись лежит на индикаторе (parent_id NOT NULL)" },
+          "parent_code": { "type": "string", "nullable": true, "description": "Код родительской компетенции (для индикатора)" },
+          "discipline_id": { "type": "string", "format": "uuid" },
+          "discipline_name": { "type": "string" }
+        }
+      },
+      "DisciplineTree": {
+        "type": "object",
+        "description": "Дерево дисциплины: компетенция → индикаторы → ЗУН + связанные навыки.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "semester": { "type": "integer", "nullable": true },
+          "control_form": { "type": "string", "nullable": true },
+          "direction_code": { "type": "string" },
+          "coverage": {
+            "type": "object",
+            "nullable": true,
+            "description": "Покрытие дисциплины по последнему анализу.",
+            "properties": {
+              "total_skills": { "type": "integer" },
+              "matched_skills": { "type": "integer" },
+              "coverage_ratio": { "type": "number", "format": "float" },
+              "coverage_level": { "type": "string", "enum": ["high", "medium", "low"] },
+              "analysis_date": { "type": "string", "format": "date-time" }
+            }
+          },
+          "competencies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "format": "uuid" },
+                "code": { "type": "string" },
+                "category": { "type": "string", "enum": ["УК", "ОПК", "ПК", "ППК", "ИП", "ВПК"] },
+                "name": { "type": "string", "nullable": true },
+                "development_level": { "type": "string", "nullable": true, "enum": ["КС-1", "КС-2", "КС-3"] },
+                "sort_order": { "type": "integer" },
+                "ksa": {
+                  "type": "object",
+                  "properties": {
+                    "knowledge": { "type": "array", "items": { "type": "string" } },
+                    "abilities": { "type": "array", "items": { "type": "string" } },
+                    "skills": { "type": "array", "items": { "type": "string" } }
+                  }
+                },
+                "linked_skills": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string" },
+                      "match_type": { "type": "string", "enum": ["exact", "fuzzy", "stem", "substring", "semantic", "explicit"] }
+                    }
+                  }
+                },
+                "indicators": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "format": "uuid" },
+                      "code": { "type": "string" },
+                      "name": { "type": "string", "nullable": true },
+                      "ksa": {
+                        "type": "object",
+                        "properties": {
+                          "knowledge": { "type": "array", "items": { "type": "string" } },
+                          "abilities": { "type": "array", "items": { "type": "string" } },
+                          "skills": { "type": "array", "items": { "type": "string" } }
+                        }
+                      },
+                      "linked_skills": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" },
+                            "match_type": { "type": "string" }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "SemanticMatch": {
+        "type": "object",
+        "description": "Результат семантического поиска по тексту ЗУН.",
+        "properties": {
+          "ksa_id": { "type": "string", "format": "uuid" },
+          "ksa_type": { "type": "string" },
+          "original_text": { "type": "string" },
+          "competence_id": { "type": "string", "format": "uuid" },
+          "competence_code": { "type": "string" },
+          "is_indicator": { "type": "boolean" },
+          "parent_code": { "type": "string", "nullable": true },
+          "discipline_id": { "type": "string", "format": "uuid" },
+          "discipline_name": { "type": "string" },
+          "similarity": { "type": "number", "format": "float", "description": "Косинусная близость к запросу (0..1)" }
+        }
+      },
+      "CompetencySkillsRow": {
+        "type": "object",
+        "description": "Рыночный навык, связанный с компетенцией.",
+        "properties": {
+          "skill_id": { "type": "string", "format": "uuid" },
+          "skill_name": { "type": "string" },
+          "match_type": { "type": "string" },
+          "source_text": { "type": "string", "nullable": true },
+          "ksa_type": { "type": "string" }
+        }
+      },
+      "CoverageOut": {
+        "type": "object",
+        "description": "Покрытие компетенции (из coverage_analyses по дисциплине).",
+        "properties": {
+          "competence_id": { "type": "string", "format": "uuid" },
+          "competence_code": { "type": "string" },
+          "discipline_id": { "type": "string", "format": "uuid" },
+          "discipline_name": { "type": "string" },
+          "coverage": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "total_skills": { "type": "integer" },
+              "matched_skills": { "type": "integer" },
+              "coverage_ratio": { "type": "number", "format": "float" },
+              "analysis_date": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      },
+      "ZUNEntryIn": {
+        "type": "object",
+        "description": "Тело для добавления записи ЗУН.",
+        "required": ["ksa_type", "text"],
+        "properties": {
+          "ksa_type": { "type": "string", "enum": ["knowledge", "abilities", "skills"] },
+          "text": { "type": "string", "description": "Текст ЗУН, непустой, до 2000 символов" }
+        }
+      },
+      "ZUNEntryPatch": {
+        "type": "object",
+        "description": "Тело для редактирования записи ЗУН.",
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "description": "Новый текст ЗУН, непустой, до 2000 символов" }
+        }
+      },
+      "ZUNEntryOut": {
+        "type": "object",
+        "properties": {
+          "ksa_id": { "type": "string", "format": "uuid" },
+          "ksa_type": { "type": "string" },
+          "text": { "type": "string" }
+        }
+      },
+      "ImportResult": {
+        "type": "object",
+        "description": "Результат импорта ЗУН из KRM JSON.",
+        "properties": {
+          "dir_code": { "type": "string" },
+          "inserted": { "type": "integer" },
+          "skipped_dups": { "type": "integer", "description": "Пропущено дублей (та же запись уже есть)" },
+          "skipped_gap": { "type": "integer", "description": "Пропущено из-за gap-fill: категория уже заполнена у компетенции" },
+          "disciplines_processed": { "type": "integer" }
+        }
+      },
+      "AnalyzeStatus": {
+        "type": "object",
+        "description": "Статус запуска преподавательского анализа.",
+        "properties": {
+          "run_id": { "type": "string", "format": "uuid" },
+          "action": { "type": "string" },
+          "status": { "type": "string", "enum": ["started", "completed", "failed"] },
+          "started_at": { "type": "string", "format": "date-time", "nullable": true },
+          "completed_at": { "type": "string", "format": "date-time", "nullable": true },
+          "error": { "type": "string", "nullable": true },
+          "stats": { "type": "object", "nullable": true }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/teacher/zun/directions": {
+      "get": {
+        "operationId": "zun_directions",
+        "tags": ["zun"],
+        "summary": "Направления с наличием ЗУН",
+        "description": "Возвращает все направления обучения с количеством дисциплин и записей ЗУН. Агрегируется по (code, profile): если код встречается с несколькими профилями (например 09.03.01), каждая пара — отдельная строка. Источник: directions → disciplines → competencies → ksa_entries.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Список направлений",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/DirectionsRow" } },
+                "example": [
+                  { "dir_code": "01.03.01", "name": "Математика, механика и математическое моделирование", "profile": "Математика, механика и математическое моделирование", "disciplines_count": 0, "ksa_total": 0, "has_ksa": false },
+                  { "dir_code": "09.03.02", "name": "Перспективные информационные технологии", "profile": "Перспективные информационные технологии", "disciplines_count": 60, "ksa_total": 5054, "has_ksa": true }
+                ]
+              }
+            }
+          },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав (нужна роль admin/teacher/rop)" }
+        }
+      }
+    },
+    "/teacher/zun/my-directions": {
+      "get": {
+        "operationId": "zun_my_directions",
+        "tags": ["zun"],
+        "summary": "Направления текущего пользователя",
+        "description": "Для роли rop возвращает направления из таблицы user_directions, привязанные к текущему пользователю (по uid из токена). Для admin/teacher — все направления (тот же ответ, что /teacher/zun/directions).",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Список направлений",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      { "type": "object", "properties": { "dir_code": { "type": "string" }, "name": { "type": "string" }, "profile": { "type": "string" } } },
+                      { "type": "object", "properties": { "dir_code": { "type": "string" } } }
+                    ]
+                  }
+                },
+                "example": [
+                  { "dir_code": "01.03.01", "name": "Математика, механика и математическое моделирование", "profile": "..." },
+                  { "dir_code": "09.03.02", "name": "Перспективные информационные технологии", "profile": "..." }
+                ]
+              }
+            }
+          },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" }
+        }
+      }
+    },
+    "/teacher/zun/stats": {
+      "get": {
+        "operationId": "zun_stats",
+        "tags": ["zun"],
+        "summary": "Сводка по направлению",
+        "description": "Статистика по направлению: число дисциплин, корневых компетенций и индикаторов, количество ЗУН по типам (knowledge/abilities/skills), число компетенций и дисциплин, имеющих ЗУН, число связей с рыночными навыками, а также покрытие рынка по последнему анализу (coverage_analyses). Если код направления встречается с несколькими профилями — данные агрегируются по всем.",
+        "parameters": [
+          {
+            "name": "dir_code",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "default": "09.03.02", "pattern": "^\\d{2}\\.\\d{2}\\.\\d{2}(?:_\\w+)?$" },
+            "description": "Код направления. 400 при неверном формате, 404 если направление не найдено."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Сводка",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StatsResponse" },
+                "example": {
+                  "dir_code": "09.03.02",
+                  "direction_names": ["Перспективные информационные технологии"],
+                  "profiles": ["Перспективные информационные технологии"],
+                  "multiple_profiles": false,
+                  "total_disciplines": 60,
+                  "total_competencies": 189,
+                  "total_indicators": 394,
+                  "ksa_counts": { "knowledge": 1878, "abilities": 1658, "skills": 1518, "total": 5054 },
+                  "competencies_with_ksa": 544,
+                  "disciplines_with_ksa": 60,
+                  "linked_skills": 1073,
+                  "coverage": { "latest_analysis_date": "2026-07-01T14:10:21.537526+00:00", "avg_coverage_ratio": 0.7434, "covered_disciplines": 28 }
+                }
+              }
+            }
+          },
+          "400": { "description": "Неверный формат dir_code" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Направление не найдено" }
+        }
+      }
+    },
+    "/teacher/zun/disciplines": {
+      "get": {
+        "operationId": "zun_disciplines",
+        "tags": ["zun"],
+        "summary": "Список дисциплин направления",
+        "description": "Список дисциплин со счётчиками компетенций/индикаторов, ЗУН по типам, числом связанных рыночных навыков и покрытием по последнему анализу. Фильтр по подстроке имени (ILIKE). Пагинация limit/offset (default 100, max 500).",
+        "parameters": [
+          { "name": "dir_code", "in": "query", "required": false, "schema": { "type": "string", "default": "09.03.02" } },
+          { "name": "q", "in": "query", "required": false, "schema": { "type": "string", "default": "" }, "description": "Подстрока имени дисциплины (ILIKE)" },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 } },
+          { "name": "offset", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 0, "default": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Список дисциплин",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/DisciplineRow" } },
+                "example": [
+                  { "id": "e98cbf0a-e9d1-46b2-bbee-c0434752c505", "name": "Python для научных вычислений и машинного обучения", "semester": null, "control_form": null, "competencies_count": 4, "indicators_count": 9, "ksa_total": 105, "ksa_by_type": { "knowledge": 34, "abilities": 39, "skills": 32 }, "linked_skills": 1, "coverage_ratio": 0.0, "coverage_level": "low" },
+                  { "id": "993600ef-7f79-488a-b5db-5fc5a581bc92", "name": "Алгоритмизация и программирование", "semester": null, "control_form": null, "competencies_count": 4, "indicators_count": 8, "ksa_total": 88, "ksa_by_type": { "knowledge": 35, "abilities": 34, "skills": 19 }, "linked_skills": 54, "coverage_ratio": 0.9474, "coverage_level": "high" }
+                ]
+              }
+            }
+          },
+          "400": { "description": "Неверный формат dir_code" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Направление не найдено" }
+        }
+      }
+    },
+    "/teacher/zun/disciplines/{discipline_id}": {
+      "get": {
+        "operationId": "zun_discipline_tree",
+        "tags": ["zun"],
+        "summary": "Дерево дисциплины по id",
+        "description": "Полное дерево дисциплины: корневые компетенции (parent_id IS NULL), их индикаторы (parent_id = компетенции), ЗУН (knowledge/abilities/skills) на каждом уровне, связанные рыночные навыки (competency_skills → skills) с match_type, и покрытие дисциплины по последнему анализу.",
+        "parameters": [
+          { "name": "discipline_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "UUID дисциплины. 400 при неверном формате, 404 если не найдена." }
+        ],
+        "responses": {
+          "200": {
+            "description": "Дерево дисциплины",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DisciplineTree" },
+                "example": {
+                  "id": "993600ef-7f79-488a-b5db-5fc5a581bc92",
+                  "name": "Алгоритмизация и программирование",
+                  "semester": null,
+                  "control_form": null,
+                  "direction_code": "09.03.02",
+                  "coverage": { "total_skills": 38, "matched_skills": 36, "coverage_ratio": 0.9474, "coverage_level": "high", "analysis_date": "2026-07-01T14:10:21.507530+00:00" },
+                  "competencies": [
+                    {
+                      "id": "08bc42af-fa69-40d6-bc81-cabf7737fc78",
+                      "code": "ПК-10",
+                      "category": "ПК",
+                      "name": "ПК-10",
+                      "development_level": null,
+                      "sort_order": 0,
+                      "ksa": { "knowledge": ["..."], "abilities": ["..."], "skills": ["..."] },
+                      "linked_skills": [{ "name": "c", "match_type": "fuzzy" }, { "name": "c++", "match_type": "fuzzy" }, { "name": "cpp", "match_type": "fuzzy" }],
+                      "indicators": [
+                        { "id": "...", "code": "ПК-10.1", "name": null, "ksa": { "knowledge": [], "abilities": [], "skills": [] }, "linked_skills": [] }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "description": "Неверный формат discipline_id" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Дисциплина не найдена" }
+        }
+      }
+    },
+    "/teacher/zun/disciplines/name/{discipline_name}": {
+      "get": {
+        "operationId": "zun_discipline_by_name",
+        "tags": ["zun"],
+        "summary": "Дерево дисциплины по имени",
+        "description": "Резолвит дисциплину по имени в рамках направления (точное совпадение, затем fuzzy: без пробелов и регистра). Ответ — тот же контракт, что у дерева по id.",
+        "parameters": [
+          { "name": "discipline_name", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Имя дисциплины (URL-encoded)" },
+          { "name": "dir_code", "in": "query", "required": false, "schema": { "type": "string", "default": "09.03.02" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Дерево дисциплины (см. /teacher/zun/disciplines/{discipline_id})",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DisciplineTree" } } }
+          },
+          "400": { "description": "Неверный формат dir_code" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Дисциплина не найдена" }
+        }
+      }
+    },
+    "/teacher/zun/search": {
+      "get": {
+        "operationId": "zun_search",
+        "tags": ["zun"],
+        "summary": "Поиск ЗУН по подстроке",
+        "description": "Поиск записей ЗУН по подстроке в original_text или cleaned_text (ILIKE %q%). Обязательный параметр q (минимум 2 символа, иначе 400). Опциональные фильтры: ksa_type, discipline_id. Пагинация limit/offset.",
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 2 }, "description": "Подстрока для поиска (>= 2 символа)" },
+          { "name": "dir_code", "in": "query", "required": false, "schema": { "type": "string", "default": "09.03.02" } },
+          { "name": "ksa_type", "in": "query", "required": false, "schema": { "type": "string", "enum": ["knowledge", "abilities", "skills"] } },
+          { "name": "discipline_id", "in": "query", "required": false, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 } },
+          { "name": "offset", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 0, "default": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Найденные записи ЗУН",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/KSAEntry" } },
+                "example": [
+                  { "ksa_id": "6bf00a06-5c3f-42d7-a773-8dd197ecba8c", "ksa_type": "knowledge", "original_text": "реализация алгоритмов машинного обучения на Python (от классических методов до нейросетей)", "cleaned_text": "реализация алгоритмов машинного обучения на Python (от классических методов до нейросетей)", "competence_id": "7e114fa3-d05d-48bf-af2a-9507e1427e01", "competence_code": "ОПК-4", "is_indicator": false, "parent_code": null, "discipline_id": "e98cbf0a-e9d1-46b2-bbee-c0434752c505", "discipline_name": "Python для научных вычислений и машинного обучения" }
+                ]
+              }
+            }
+          },
+          "400": { "description": "q меньше 2 символов или неверные параметры" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Направление не найдено" }
+        }
+      }
+    },
+    "/teacher/zun/search/semantic": {
+      "get": {
+        "operationId": "zun_search_semantic",
+        "tags": ["zun"],
+        "summary": "Семантический поиск по тексту ЗУН",
+        "description": "Векторный поиск по тексту ЗУН. Запрос кодируется эмбеддинг-моделью (EmbeddingProviderFactory, как в map_ksa_to_skills), сравнивается косинусной близостью с in-memory кэшем эмбеддингов всех ЗУН направления (пересчитывается по MAX(created_at) и TTL 600 с). Возвращает top-N с similarity. Если эмбеддинги недоступны — переключается в режим fallback_substring (обычный ILIKE) и возвращает mode='fallback_substring'.",
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 2 } },
+          { "name": "dir_code", "in": "query", "required": false, "schema": { "type": "string", "default": "09.03.02" } },
+          { "name": "ksa_type", "in": "query", "required": false, "schema": { "type": "string", "enum": ["knowledge", "abilities", "skills"] } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Семантические совпадения",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mode": { "type": "string", "enum": ["semantic", "fallback_substring"] },
+                    "query": { "type": "string" },
+                    "matches": { "type": "array", "items": { "$ref": "#/components/schemas/SemanticMatch" } }
+                  }
+                },
+                "example": {
+                  "mode": "semantic",
+                  "query": "машинное обучение",
+                  "matches": [
+                    { "ksa_id": "...", "ksa_type": "knowledge", "original_text": "этапы процесса машинного обучения, включая...", "competence_id": "...", "competence_code": "ОПК-4", "is_indicator": false, "parent_code": null, "discipline_id": "...", "discipline_name": "Python для научных вычислений и машинного обучения", "similarity": 0.892 }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "description": "q меньше 2 символов" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Направление не найдено" }
+        }
+      }
+    },
+    "/teacher/zun/filter": {
+      "get": {
+        "operationId": "zun_filter",
+        "tags": ["zun"],
+        "summary": "Фильтр компетенций",
+        "description": "Компетенции направления по фильтрам: категория (УК/ОПК/ПК/ППК/ИП/ВПК), префикс кода (например ПК-10 → ILIKE 'ПК-10%'), либо точный UUID компетенции. Возвращает компактный список с числом ЗУН. Полные ЗУН — через дерево дисциплины.",
+        "parameters": [
+          { "name": "dir_code", "in": "query", "required": false, "schema": { "type": "string", "default": "09.03.02" } },
+          { "name": "category", "in": "query", "required": false, "schema": { "type": "string", "enum": ["УК", "ОПК", "ПК", "ППК", "ИП", "ВПК"] } },
+          { "name": "code_prefix", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Префикс кода, например 'ОПК-2'" },
+          { "name": "competence_id", "in": "query", "required": false, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 } },
+          { "name": "offset", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 0, "default": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Компетенции",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "competence_id": { "type": "string", "format": "uuid" },
+                      "code": { "type": "string" },
+                      "category": { "type": "string" },
+                      "name": { "type": "string", "nullable": true },
+                      "development_level": { "type": "string", "nullable": true },
+                      "discipline_id": { "type": "string", "format": "uuid" },
+                      "discipline_name": { "type": "string" },
+                      "ksa_total": { "type": "integer" }
+                    }
+                  }
+                },
+                "example": [
+                  { "competence_id": "08bc42af-fa69-40d6-bc81-cabf7737fc78", "code": "ПК-10", "category": "ПК", "name": "ПК-10", "development_level": null, "discipline_id": "993600ef-7f79-488a-b5db-5fc5a581bc92", "discipline_name": "Алгоритмизация и программирование", "ksa_total": 21 }
+                ]
+              }
+            }
+          },
+          "400": { "description": "Неверная категория или dir_code" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Направление не найдено" }
+        }
+      }
+    },
+    "/teacher/zun/competencies/{competency_id}/skills": {
+      "get": {
+        "operationId": "zun_competency_skills",
+        "tags": ["zun"],
+        "summary": "Рыночные навыки компетенции",
+        "description": "Навыки, связанные с компетенцией через competency_skills → skills. Опциональный фильтр по match_type (exact/fuzzy/stem/substring/semantic/explicit — полный список значений, допустимых CHECK-ограничением БД).",
+        "parameters": [
+          { "name": "competency_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "match_type", "in": "query", "required": false, "schema": { "type": "string", "enum": ["exact", "fuzzy", "stem", "substring", "semantic", "explicit"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Навыки",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/CompetencySkillsRow" } },
+                "example": [
+                  { "skill_id": "c14f78e6-6c72-46c0-b1cd-b432e8a6ba44", "skill_name": "c", "match_type": "fuzzy", "source_text": "c", "ksa_type": "skills" },
+                  { "skill_id": "01e383b7-f0a3-44bf-b2c3-7cc56c08ced8", "skill_name": "c++", "match_type": "fuzzy", "source_text": "c++", "ksa_type": "skills" }
+                ]
+              }
+            }
+          },
+          "400": { "description": "Неверный match_type или competency_id" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Компетенция не найдена" }
+        }
+      }
+    },
+    "/teacher/zun/competencies/{competency_id}/coverage": {
+      "get": {
+        "operationId": "zun_competency_coverage",
+        "tags": ["zun"],
+        "summary": "Покрытие компетенции",
+        "description": "Покрытие рынка для компетенции. В БД coverage_analyses хранит покрытие по дисциплине (competency_id всегда NULL), поэтому возвращается последняя запись покрытия дисциплины, к которой относится компетенция. Если записи нет — coverage: null.",
+        "parameters": [
+          { "name": "competency_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Покрытие",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CoverageOut" },
+                "example": {
+                  "competence_id": "08bc42af-fa69-40d6-bc81-cabf7737fc78",
+                  "competence_code": "ПК-10",
+                  "discipline_id": "993600ef-7f79-488a-b5db-5fc5a581bc92",
+                  "discipline_name": "Алгоритмизация и программирование",
+                  "coverage": { "total_skills": 38, "matched_skills": 36, "coverage_ratio": 0.9474, "analysis_date": "2026-07-01T14:10:21.507530+00:00" }
+                }
+              }
+            }
+          },
+          "400": { "description": "Неверный competency_id" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Компетенция не найдена" }
+        }
+      }
+    },
+    "/teacher/zun/analyze/results": {
+      "get": {
+        "operationId": "zun_analyze_results",
+        "tags": ["zun"],
+        "summary": "Результаты преподавательского анализа",
+        "description": "Чтение результатов анализа с диска (data/result/teacher/{dir_code}/): без discipline_id — _summary.json; с discipline_id — файл дисциплины (путь строится через safe-имя, защита от path traversal). Чистое чтение, ничего не пишет.",
+        "parameters": [
+          { "name": "dir_code", "in": "query", "required": false, "schema": { "type": "string", "default": "09.03.02" } },
+          { "name": "discipline_id", "in": "query", "required": false, "schema": { "type": "string", "format": "uuid" }, "description": "UUID дисциплины. Без него возвращается _summary.json." }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON результата анализа (summary или по дисциплине)",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "additionalProperties": true },
+                "example": {
+                  "direction": "09.03.02",
+                  "direction_name": "Перспективные информационные технологии",
+                  "discipline": "Безопасность информационных технологий",
+                  "metrics": {
+                    "total_rpd_skills": 27,
+                    "market_matched": 10,
+                    "gaps": 17,
+                    "coverage_ratio": 0.3704,
+                    "coverage_level": "medium",
+                    "gaps_in_curriculum": ["kubernetes", "docker"],
+                    "emerging_market_skills_not_in_rpd": []
+                  },
+                  "competencies": [],
+                  "recommendations": []
+                }
+              }
+            }
+          },
+          "400": { "description": "Неверный dir_code или небезопасный путь" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Результат не найден" }
+        }
+      }
+    },
+    "/teacher/zun/competencies/{competency_id}/entries": {
+      "post": {
+        "operationId": "zun_add_entry",
+        "tags": ["zun"],
+        "summary": "Добавить запись ЗУН",
+        "description": "Добавляет новую запись ЗУН на компетенцию или индикатор. Вставка: original_text = cleaned_text = text, sort_order = MAX(sort_order)+1 по компетенции, parse_version_id = NULL (не создаёт новую parse-версию). Повторная вставка той же (competency_id, ksa_type, original_text) — 409 Conflict.",
+        "parameters": [
+          { "name": "competency_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ZUNEntryIn" },
+              "example": { "ksa_type": "knowledge", "text": "Знает принципы машинного обучения" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Создано",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ZUNEntryOut" },
+                "example": { "ksa_id": "66b33b26-63d7-421c-b10e-51793cd9906f", "ksa_type": "knowledge", "text": "Знает принципы машинного обучения" }
+              }
+            }
+          },
+          "400": { "description": "Неверный ksa_type, пустой текст или слишком длинный текст (>2000)" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Компетенция не найдена" },
+          "409": { "description": "Запись с таким текстом уже существует" }
+        }
+      }
+    },
+    "/teacher/zun/entries/{ksa_id}": {
+      "patch": {
+        "operationId": "zun_patch_entry",
+        "tags": ["zun"],
+        "summary": "Изменить текст записи ЗУН",
+        "description": "Обновляет original_text и cleaned_text записи ЗУН. Возвращает обновлённую запись.",
+        "parameters": [
+          { "name": "ksa_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ZUNEntryPatch" },
+              "example": { "text": "Знает и применяет принципы машинного обучения" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Обновлено",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ZUNEntryOut" },
+                "example": { "ksa_id": "66b33b26-63d7-421c-b10e-51793cd9906f", "ksa_type": "knowledge", "text": "Знает и применяет принципы машинного обучения" }
+              }
+            }
+          },
+          "400": { "description": "Пустой текст или слишком длинный" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Запись не найдена" }
+        }
+      },
+      "delete": {
+        "operationId": "zun_delete_entry",
+        "tags": ["zun"],
+        "summary": "Удалить запись ЗУН",
+        "description": "Удаляет запись ЗУН по id.",
+        "parameters": [
+          { "name": "ksa_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Удалено",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "properties": { "status": { "type": "string", "example": "deleted" } } }
+              }
+            }
+          },
+          "400": { "description": "Неверный ksa_id" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Запись не найдена" }
+        }
+      }
+    },
+    "/teacher/zun/analyze": {
+      "post": {
+        "operationId": "zun_analyze",
+        "tags": ["zun"],
+        "summary": "Запустить преподавательский анализ",
+        "description": "Запускает преподавательский анализ направления в фоне (subprocess: python -m src.cli teacher-analysis --direction {dir_code}). Результаты сохраняются в data/result/teacher/{dir_code}/. Статус отслеживается через /teacher/zun/analyze/status/{run_id}. Долгий процесс (до 40 минут).",
+        "parameters": [
+          { "name": "dir_code", "in": "query", "required": false, "schema": { "type": "string", "default": "09.03.02" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Анализ запущен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "started" },
+                    "dir_code": { "type": "string" }
+                  }
+                },
+                "example": { "status": "started", "dir_code": "09.03.02" }
+              }
+            }
+          },
+          "400": { "description": "Неверный формат dir_code" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" }
+        }
+      }
+    },
+    "/teacher/zun/analyze/status/{run_id}": {
+      "get": {
+        "operationId": "zun_analyze_status",
+        "tags": ["zun"],
+        "summary": "Статус запуска анализа",
+        "description": "Возвращает статус pipeline_run по id: action, status (started/completed/failed), время, ошибка, статистика.",
+        "parameters": [
+          { "name": "run_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Статус",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AnalyzeStatus" },
+                "example": { "run_id": "27d92cd1-ae91-435d-80bf-603caf8c5e3a", "action": "teacher-analysis", "status": "started", "started_at": "2026-08-18T04:41:16+00:00", "completed_at": null, "error": null, "stats": {} }
+              }
+            }
+          },
+          "400": { "description": "Неверный run_id" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Запуск не найден" }
+        }
+      }
+    },
+    "/teacher/zun/import/{dir_code}": {
+      "post": {
+        "operationId": "zun_import",
+        "tags": ["zun"],
+        "summary": "Импорт ЗУН из KRM JSON",
+        "description": "Импортирует ЗУН из data/reference/krm_disciplines_{dir_code}.json в ksa_entries. Идемпотентно: перед вставкой проверяется наличие (competency_id, ksa_type, original_text) — дубли пропускаются. Gap-fill: если категория (ksa_type) у компетенции уже заполнена в БД — весь блок пропускается (skipped_gap). parse_version_id = NULL. При dry_run=true ничего не записывает, только считает.",
+        "parameters": [
+          { "name": "dir_code", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "dry_run", "in": "query", "required": false, "schema": { "type": "boolean", "default": false }, "description": "Только посчитать, без записи" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Результат импорта",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ImportResult" },
+                "example": { "dir_code": "09.03.02", "inserted": 905, "skipped_dups": 139, "skipped_gap": 0, "disciplines_processed": 26 }
+              }
+            }
+          },
+          "400": { "description": "Неверный dir_code или нет контейнера disciplines в KRM" },
+          "401": { "description": "Не авторизован" },
+          "403": { "description": "Недостаточно прав" },
+          "404": { "description": "Направление или KRM-файл не найден" }
+        }
+      }
+    }
+  }
+}
