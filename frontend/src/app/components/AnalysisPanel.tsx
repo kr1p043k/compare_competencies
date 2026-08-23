@@ -44,7 +44,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
 
   useEffect(() => {
     setLoading(true);
-    apiFetch(`/api/teacher/analysis/${disciplineName}`)
+    apiFetch(`/api/teacher/analysis/${encodeURIComponent(disciplineName)}?dir_code=${encodeURIComponent(dirCode)}`)
       .then(r => r.ok ? r.json() : null)
       .then(d => setData(d))
       .catch(() => setData(null))

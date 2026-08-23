@@ -113,6 +113,31 @@ def _refresh_business_gauges() -> None:
         logger.warning("business_gauges_refresh_failed", error=str(exc))
 
 
+async def _finalize_stale_pipeline_runs() -> None:
+    """Помечает зависшие 'started'-задачи старше 2 часов как failed."""
+    try:
+        from src.db import get_pool
+
+        pool = get_pool()
+        if not pool:
+            return
+        result = await pool.execute(
+            """
+            UPDATE pipeline_runs
+            SET status = 'failed',
+                completed_at = NOW(),
+                error_message = COALESCE(error_message, '')
+                    || ' [startup] interrupted: stale started run'
+            WHERE status = 'started' AND started_at < NOW() - INTERVAL '2 hours'
+            """
+        )
+        updated = int(result.split()[-1]) if result else 0
+        if updated:
+            logger.info("stale_pipeline_runs_finalized", count=updated)
+    except Exception as exc:
+        logger.warning("stale_pipeline_runs_cleanup_failed", error=str(exc))
+
+
 async def run_startup(app):
     from src.logging_config import setup_structlog
     setup_structlog()
@@ -127,6 +152,8 @@ async def run_startup(app):
     from src.api_pkg.student_actions import _ensure_table as _ensure_student_actions_table
     await _ensure_student_actions_table()
     logger.info("asyncpg pool ready")
+
+    await _finalize_stale_pipeline_runs()
 
     asyncio.ensure_future(_resolve_pipeline_errors_if_ready())
 

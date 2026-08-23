@@ -701,7 +701,7 @@ export function TeacherDashboard() {
             </h2>
 
             {/* Analysis panel for this discipline */}
-            <AnalysisPanel disciplineName={selected.name} />
+            <AnalysisPanel disciplineName={selected.name} dirCode={selectedDir} />
 
             {selected.competencies.map((comp) => (
               <div

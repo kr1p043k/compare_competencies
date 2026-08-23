@@ -182,6 +182,38 @@ async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
     ]
 
 
+@router.get("/teacher/zun/directions")
+@limiter.limit("30/minute")
+async def zun_directions_alias(request: Request):
+    return _list_krm_directions()
+
+
+@router.get("/teacher/zun/disciplines")
+@limiter.limit("30/minute")
+async def zun_disciplines_alias(request: Request, dir_code: str = "09.03.02"):
+    d = _load_krm_direction(dir_code).get("disciplines", {}) or {}
+    return [
+        {
+            "name": name,
+            "competencies_count": len(info.get("competencies", [])),
+            "skills_count": sum(len(s) for s in info.get("skills", {}).values()),
+        }
+        for name, info in sorted(d.items())
+    ]
+
+
+@router.get("/teacher/zun")
+@limiter.limit("30/minute")
+async def zun_root_alias(request: Request):
+    return {
+        "note": "alias of /teacher/krm/*",
+        "endpoints": [
+            "/api/teacher/zun/directions",
+            "/api/teacher/zun/disciplines?dir_code=",
+        ],
+    }
+
+
 @router.get("/teacher/krm/disciplines/{discipline_name:path}")
 @limiter.limit("30/minute")
 async def krm_discipline_detail(request: Request, discipline_name: str, dir_code: str = "09.03.02"):

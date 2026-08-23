@@ -152,6 +152,50 @@ async def tier_substring(session, disciplines, disc_map, comp_map):
     return count
 
 
+def _it_embs_cache_path() -> Path:
+    return DATA_DIR / "cache" / "embeddings" / "it_skills_embs.joblib"
+
+
+def _load_or_encode_it_embs(prov, it_names: list[str]) -> np.ndarray:
+    """Дисковый кэш эмбеддингов it-навыков (ключ: имена + версия модели)."""
+    import hashlib
+    import os
+    import tempfile
+
+    import joblib
+
+    cache_path = _it_embs_cache_path()
+    key = hashlib.sha256("\x00".join(it_names).encode("utf-8")).hexdigest()
+    if cache_path.exists():
+        try:
+            payload = joblib.load(cache_path)
+            if (
+                isinstance(payload, dict)
+                and payload.get("key") == key
+                and payload.get("model_version") == prov.model_version()
+            ):
+                embs = np.asarray(payload["embs"])
+                if embs.shape[0] == len(it_names):
+                    print(f"  [tier3] it_embs loaded from cache ({len(it_names)})")
+                    return embs
+        except Exception as exc:
+            print(f"  [tier3] it_embs cache load failed: {exc}")
+    embs = prov.encode(it_names, show_progress_bar=False)
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=cache_path.parent, suffix=".joblib.tmp")
+        os.close(fd)
+        joblib.dump(
+            {"key": key, "model_version": prov.model_version(), "embs": embs},
+            tmp_path,
+        )
+        os.replace(tmp_path, cache_path)
+        print(f"  [tier3] it_embs cached to {cache_path.name}")
+    except Exception as exc:
+        print(f"  [tier3] it_embs cache save failed: {exc}")
+    return embs
+
+
 async def tier_semantic(session, disciplines, disc_map, comp_map):
     """Tier 3: Embedding cosine similarity.
 
@@ -172,7 +216,7 @@ async def tier_semantic(session, disciplines, disc_map, comp_map):
     it_names = [n for n, _ in it_list]
     it_ids = [i for _, i in it_list]
 
-    it_embs = prov.encode(it_names, show_progress_bar=False)
+    it_embs = _load_or_encode_it_embs(prov, it_names)
     it_norms = np.linalg.norm(it_embs, axis=1, keepdims=True)
     it_norms[it_norms == 0] = 1.0
     it_embs_n = it_embs / it_norms

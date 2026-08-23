@@ -14,6 +14,8 @@ logger = structlog.get_logger(__name__)
 
 NORMALIZE_RE = re.compile(r"[^\w\s\-/]")
 SEMANTIC_THRESHOLD = 0.78
+MARKET_EMB_CACHE_NAME = "market_embeddings_middle.joblib"
+MARKET_CACHE_MIN_SKILLS = 300
 
 
 def normalize(s: str) -> str:
@@ -58,13 +60,96 @@ class SkillMatcher:
         self._rebuild_fuzzy_patterns()
         if self._embedding_provider and market_skills:
             names = list(market_skills.keys())
-            embs = self._embedding_provider.encode(names, show_progress_bar=False)
+            embs = None
+            if len(names) >= MARKET_CACHE_MIN_SKILLS:
+                embs = self._try_load_market_embs(names)
+            if embs is None:
+                embs = self._embedding_provider.encode(names, show_progress_bar=False)
+                if len(names) >= MARKET_CACHE_MIN_SKILLS:
+                    self._save_market_embs(names, embs)
             norms = np.linalg.norm(embs, axis=1, keepdims=True)
             norms[norms == 0] = 1.0
             self._market_embeddings = embs / norms
             self._market_names = names
         logger.info("market_skills_set", count=len(market_skills))
         return Ok(None)
+
+    def _market_cache_path(self):
+        from src import config
+
+        return config.EMBEDDINGS_CACHE_DIR / MARKET_EMB_CACHE_NAME
+
+    def _try_load_market_embs(self, names: list[str]) -> np.ndarray | None:
+        """Загружает кэш эмбеддингов рынка (формат совместим с EmbeddingComparator)."""
+        try:
+            import joblib
+
+            cache_path = self._market_cache_path()
+            if not cache_path.exists():
+                return None
+            manifest_ok = False
+            try:
+                from src.artifacts import ArtifactManifest
+
+                match ArtifactManifest.load(cache_path):
+                    case Ok(manifest):
+                        match manifest.is_compatible():
+                            case Ok(True):
+                                manifest_ok = True
+                            case _:
+                                logger.info("market_emb_cache_invalidated_by_model")
+                    case Err(err):
+                        logger.warning("market_emb_cache_manifest_load_failed", error=str(err))
+            except ImportError:
+                manifest_ok = True
+            if not manifest_ok:
+                return None
+            loaded = joblib.load(cache_path)
+            skills = loaded["skills"] if isinstance(loaded, dict) else loaded[1]
+            embs = loaded["embeddings"] if isinstance(loaded, dict) else loaded[0]
+            if len(skills) != len(embs) or set(skills) != set(names):
+                return None
+            row_by_skill = {s: i for i, s in enumerate(skills)}
+            idx = np.fromiter((row_by_skill[n] for n in names), dtype=np.int64, count=len(names))
+            logger.info("market_embeddings_cache_reused", count=len(names))
+            return np.asarray(embs)[idx]
+        except Exception as exc:
+            logger.debug("market_emb_cache_unavailable", error=str(exc))
+            return None
+
+    def _save_market_embs(self, names: list[str], embs: np.ndarray) -> None:
+        """Атомарно сохраняет сырые эмбеддинги + манифест (как EmbeddingComparator)."""
+        tmp_path = None
+        try:
+            import os
+            import tempfile
+
+            import joblib
+
+            cache_path = self._market_cache_path()
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp_path = tempfile.mkstemp(dir=cache_path.parent, suffix=".joblib.tmp")
+            os.close(fd)
+            joblib.dump({"embeddings": embs, "skills": names}, tmp_path)
+            os.replace(tmp_path, cache_path)
+            tmp_path = None
+            try:
+                from src.artifacts import ArtifactManifest
+
+                ArtifactManifest(
+                    artifact_path=cache_path,
+                    metrics={"num_skills": len(names)},
+                ).save()
+            except Exception as exc:
+                logger.warning("market_emb_cache_manifest_save_failed", error=str(exc))
+            logger.info("market_embeddings_cache_saved", count=len(names), path=str(cache_path))
+        except Exception as exc:
+            logger.warning("market_emb_cache_save_failed", error=str(exc))
+            if tmp_path:
+                import contextlib
+
+                with contextlib.suppress(Exception):
+                    os.unlink(tmp_path)
 
     def _rebuild_fuzzy_patterns(self) -> None:
         """Precompile whole-word patterns for every market name.

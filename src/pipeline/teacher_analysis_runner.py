@@ -224,6 +224,19 @@ def _enhance_disciplines_with_gap_analysis(
     return dir_summary
 
 
+async def _fail_pipeline_run(run_id: str | None, error: str) -> None:
+    """Финализирует задачу пайплайна статусом failed на аварийном пути."""
+    if not run_id:
+        return
+    try:
+        from src.pipeline.db_writer import complete_pipeline_run
+
+        await complete_pipeline_run(run_id, status="failed", error=error[:500])
+        logger.info("pipeline_run_marked_failed", run_id=run_id)
+    except Exception as exc:
+        logger.warning("pipeline_run_fail_write_failed", error=str(exc))
+
+
 async def run_teacher_analysis(
     direction_code: str | None = None,
     discipline_filter: str | None = None,
@@ -325,6 +338,7 @@ async def run_teacher_analysis(
         )
     except Exception as exc:
         logger.error("discipline_query_failed", error=str(exc))
+        await _fail_pipeline_run(run_id, f"disciplines: {exc}")
         await close_pool()
         return Err(AnalysisRunnerError(stage="disciplines", message=str(exc)))
 
@@ -347,6 +361,7 @@ async def run_teacher_analysis(
 
     if not disciplines:
         logger.error("no_disciplines_loaded", direction=direction_code)
+        await _fail_pipeline_run(run_id, f"disciplines: no disciplines found for {direction_code}")
         await close_pool()
         return Err(AnalysisRunnerError(
             stage="disciplines",
@@ -395,11 +410,13 @@ async def run_teacher_analysis(
             )
     except Exception as exc:
         logger.error("direction_query_failed", error=str(exc))
+        await _fail_pipeline_run(run_id, f"direction: {exc}")
         await close_pool()
         return Err(AnalysisRunnerError(stage="direction", message=str(exc)))
 
     if not direction:
         logger.error("no_direction_found")
+        await _fail_pipeline_run(run_id, f"direction: '{direction_code}' not found")
         await close_pool()
         return Err(AnalysisRunnerError(
             stage="direction",
@@ -413,6 +430,7 @@ async def run_teacher_analysis(
         )
     except Exception as exc:
         logger.error("snapshots_query_failed", error=str(exc))
+        await _fail_pipeline_run(run_id, f"snapshots: {exc}")
         await close_pool()
         return Err(AnalysisRunnerError(stage="snapshots", message=str(exc)))
 
@@ -690,6 +708,7 @@ async def run_teacher_analysis(
 
     if not discipline_reports:
         logger.error("no_disciplines_analyzed")
+        await _fail_pipeline_run(run_id, "analysis: no disciplines were successfully analyzed")
         return Err(AnalysisRunnerError(
             stage="analysis",
             message="No disciplines were successfully analyzed",
@@ -788,6 +807,7 @@ async def run_teacher_analysis(
         )
     except Exception as exc:
         logger.error("summary_write_failed", error=str(exc))
+        await _fail_pipeline_run(run_id, f"write_summary: {exc}")
         return Err(AnalysisRunnerError(stage="write_summary", message=str(exc)))
 
     # — charts —
