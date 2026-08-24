@@ -95,6 +95,8 @@ async def get_profile_image(
     if not image_path.exists():
         image_path = config.DATA_DIR / "result" / f"{image_type}_{profile}.png"
     if not image_path.exists():
+        image_path = config.REPORTS_DIR / profile / f"{image_type}_{profile}.png"
+    if not image_path.exists():
         raise HTTPException(
             status_code=404, detail=f"Image not found: {image_type}_{profile}.png"
         )
