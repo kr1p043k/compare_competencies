@@ -16,7 +16,7 @@ import re
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Body, HTTPException, Request
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -212,7 +212,7 @@ async def krm_teacher_discipline_detail(request: Request, dir_code: str, discipl
 
 @router.post("/krm/teacher/directions/{dir_code}/gap")
 @limiter.limit("20/minute")
-async def krm_teacher_gap(request: Request, dir_code: str, body: GapRequest):
+async def krm_teacher_gap(request: Request, dir_code: str, payload: GapRequest = Body(...)):
     """Анализ разрыва компетенций по теме для направления преподавателя.
 
     Использует локальный AcademicGapAnalyzer (эмбеддинги) с фильтром доступа.
@@ -226,7 +226,7 @@ async def krm_teacher_gap(request: Request, dir_code: str, body: GapRequest):
 
     try:
         result = await asyncio.to_thread(
-            AcademicGapAnalyzer(dir_code=dir_code).analyze, body.topic
+            AcademicGapAnalyzer(dir_code=dir_code).analyze, payload.topic
         )
     except Exception as exc:
         logger.error("krm_teacher_gap_failed", dir_code=dir_code, error=str(exc))
