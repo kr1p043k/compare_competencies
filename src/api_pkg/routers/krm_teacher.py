@@ -9,8 +9,6 @@
 Роуты монтируются под /api/krm/teacher/*.
 """
 
-from __future__ import annotations
-
 import json
 import re
 from typing import Any
