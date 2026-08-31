@@ -129,14 +129,19 @@ async def _try_collect():
         logger.info("collect_no_new_vacancies")
         return
 
-    # Save to JSON
+    # Save to JSON (async I/O — не блокируем event loop на 453 МБ файле)
     detailed_path = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     try:
         import json as j
-        existing = j.loads(detailed_path.read_text(encoding="utf-8")) if detailed_path.exists() else []
+        if detailed_path.exists():
+            raw_text = await asyncio.to_thread(detailed_path.read_text, encoding="utf-8")
+            existing = j.loads(raw_text)
+        else:
+            existing = []
         existing_ids = {v.get("id") for v in existing if v.get("id")}
         merged = existing + [v for v in all_vacancies if v.get("id") and v["id"] not in existing_ids]
-        detailed_path.write_text(j.dumps(merged, ensure_ascii=False, default=str), encoding="utf-8")
+        write_data = j.dumps(merged, ensure_ascii=False, default=str)
+        await asyncio.to_thread(detailed_path.write_text, write_data, encoding="utf-8")
         logger.info("collect_json_saved", total=len(merged))
     except Exception as exc:
         logger.warning("collect_json_save_failed", error=str(exc))
@@ -175,9 +180,9 @@ async def _try_collect():
         from src.models.vacancy import Vacancy as VacModel
         import re as _re
         # Preload it_skills keywords for fast substring check
-        _it_kw = {s.strip().lower() for s in json.loads(
-            (Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json").read_text(encoding="utf-8")
-        ) if s.strip()}
+        _it_path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
+        _it_raw = await asyncio.to_thread(_it_path.read_text, encoding="utf-8")
+        _it_kw = {s.strip().lower() for s in json.loads(_it_raw) if s.strip()}
         parser = VacancyParser()
         conn = await asyncpg.connect(db_url)
         try:
@@ -279,7 +284,7 @@ async def _try_collect():
         # история прогнозов не теряла точки. Не перезаписывает существующие снимки.
         try:
             from src.cli.backfill_market_snapshots import main as backfill_main
-            backfill_main(force=False)
+            await asyncio.to_thread(backfill_main, force=False)
         except Exception as exc:
             logger.warning("collect_backfill_snapshots_error", error=str(exc))
 
@@ -294,7 +299,7 @@ async def _try_collect():
                     too_recent = True
             if not too_recent:
                 from src.cli.snapshot_professions import main as prof_main
-                prof_main(force=False)
+                await asyncio.to_thread(prof_main, force=False)
         except Exception as exc:
             logger.warning("collect_profession_snapshots_error", error=str(exc))
     except Exception as exc:

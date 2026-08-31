@@ -273,8 +273,8 @@ async def _warmup_background(basic_vacancies, raw_file):
         comp_freq_path = config.DATA_PROCESSED_DIR / "competency_frequency.json"
         competency_freq = {}
         if comp_freq_path.exists():
-            with open(comp_freq_path, encoding="utf-8") as f:
-                competency_freq = json.load(f)
+            comp_freq_text = await asyncio.to_thread(comp_freq_path.read_text, encoding="utf-8")
+            competency_freq = json.loads(comp_freq_text)
         match filter_engine.get_clean_weights(
             hybrid_weights_local, competency_freq=competency_freq, use_reference=True
         ):
@@ -427,8 +427,9 @@ async def _warmup_background(basic_vacancies, raw_file):
     # Кластеры
     try:
         for lvl in ExperienceLevel:
-            if not deps.clusterer.load_model(lvl):
-                deps.clusterer.load_model("all")
+            loaded = await asyncio.to_thread(deps.clusterer.load_model, lvl)
+            if not loaded:
+                await asyncio.to_thread(deps.clusterer.load_model, "all")
                 break
         logger.info("фоновая инициализация: кластеры загружены")
         await _resolve_warmup_failure("кластеры")
