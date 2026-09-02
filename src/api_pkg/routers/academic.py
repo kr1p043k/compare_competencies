@@ -239,18 +239,31 @@ async def sso_login(body: SsoRequest, request: Request):
 @router.get("/academic/krm-competencies")
 async def academic_krm_competencies(
     request: Request,
+    dir_code: str | None = None,
     user: dict[str, Any] = Depends(_require_user),
 ):
-    """Все коды компетенций ОП из KRM-файла (для current_competencies в analyze-gap)."""
-    try:
-        data = json.loads(config.KRM_DISCIPLINES_PATH.read_text(encoding="utf-8"))
-    except Exception as exc:
-        logger.warning("krm_competencies_load_failed", error=str(exc))
-        raise HTTPException(status_code=503, detail="KRM-данные недоступны") from None
-    codes: set[str] = set()
-    for disc in data.get("09.03.02", {}).get("disciplines", {}).values():
-        codes.update(disc.get("competencies", []))
-    return {"codes": sorted(codes), "count": len(codes)}
+    """Все коды компетенций ОП из БД (для current_competencies в analyze-gap).
+
+    Параметр dir_code (опционально): фильтр по направлению.
+    Без параметра — все уникальные коды компетенций.
+    """
+    pool = get_pool()
+    if dir_code:
+        rows = await pool.fetch(
+            """SELECT DISTINCT c.code
+               FROM competencies c
+               JOIN disciplines disc ON disc.id = c.discipline_id
+               JOIN directions d ON d.id = disc.direction_id
+               WHERE d.code = $1
+               ORDER BY c.code""",
+            dir_code,
+        )
+    else:
+        rows = await pool.fetch(
+            "SELECT DISTINCT code FROM competencies ORDER BY code"
+        )
+    codes = [r["code"] for r in rows]
+    return {"codes": codes, "count": len(codes)}
 
 
 @router.post("/academic/get-competencies")
