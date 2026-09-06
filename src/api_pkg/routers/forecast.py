@@ -50,7 +50,8 @@ def _get_forecast_data() -> dict[str, float]:
 
 
 async def _get_vacancy_meta() -> dict:
-    meta = {"vacancies_count": 0, "data_from": None, "data_to": date.today().isoformat()}
+    meta = {"vacancies_count": 0, "data_from": None, "data_to": date.today().isoformat(),
+            "snapshots_count": 0}
     try:
         from src.database import async_session_factory
 
@@ -70,6 +71,12 @@ async def _get_vacancy_meta() -> dict:
             if row.cnt:
                 meta["vacancies_count"] = row.cnt
                 meta["data_from"] = row.min_date.isoformat() if row.min_date else None
+            try:
+                snap_cnt = await session.execute(text("SELECT COUNT(*) FROM trend_snapshots"))
+                meta["snapshots_count"] = snap_cnt.scalar() or 0
+            except Exception:
+                pass
+            if row.cnt:
                 return meta
     except Exception:
         logger.warning("vacancy_meta_db_failed_falling_back_to_files")
@@ -143,6 +150,7 @@ def _record_forecast_accuracy(engine, forecasts) -> None:
 @router.get("/forecast/all")
 @limiter.limit("30/minute")
 async def get_all_forecasts(request: Request, months: int = Query(12, ge=1, le=24)):
+    """Прогнозы по всем навыкам."""
     match _get_forecast_engine():
         case Ok(engine):
             match engine.forecast_all(months=months):
@@ -165,6 +173,7 @@ async def get_top_forecasts(
     months: int = Query(12, ge=1, le=24),
     direction: str = Query("growing", regex="^(growing|declining)$"),
 ):
+    """Топ растущих навыков."""
     match _get_forecast_engine():
         case Ok(engine):
             meta = await _get_vacancy_meta()
@@ -208,6 +217,7 @@ async def get_popular_forecasts(
     n: int = Query(25, ge=1, le=50),
     months: int = Query(12, ge=1, le=24),
 ):
+    """Прогнозы популярных навыков."""
     match _get_forecast_engine():
         case Ok(engine):
             meta = await _get_vacancy_meta()
@@ -230,6 +240,7 @@ async def get_popular_forecasts(
 @router.get("/forecast/{skill}")
 @limiter.limit("60/minute")
 async def get_skill_forecast(skill: str, request: Request, months: int = Query(12, ge=1, le=24)):
+    """Прогноз по одному навыку."""
     match _get_forecast_engine():
         case Ok(engine):
             result = engine.forecast(skill, months) if hasattr(engine, "forecast") else engine.predict(skill, months)

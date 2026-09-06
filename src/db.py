@@ -16,6 +16,7 @@ async def create_pool() -> asyncpg.Pool:
             DATABASE_URL,
             min_size=DB_POOL_MIN,
             max_size=DB_POOL_MAX,
+            command_timeout=30,
         )
     return pool
 

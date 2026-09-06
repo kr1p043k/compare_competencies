@@ -68,6 +68,7 @@ async def get_vacancies(
     search: str | None = Query(None, description="Поиск по названию"),
     months: int | None = Query(None, ge=1, le=24, description="Период в месяцах"),
 ):
+    """Список вакансий (фильтры, пагинация)."""
     pool = await _get_db_pool()
     if not pool:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -148,6 +149,7 @@ async def get_vacancies(
 
 @router.get("/vacancies/info")
 async def get_vacancies_info():
+    """Информация об источнике вакансий."""
     from src.api_pkg import deps
     pool = await _get_db_pool()
 
@@ -194,6 +196,7 @@ async def get_vacancy_detail(
     request: Request,
     vacancy_id: str,
 ):
+    """Детали вакансии по ID."""
     pool = await _get_db_pool()
     if not pool:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -262,6 +265,7 @@ async def get_vacancy_detail(
 async def get_vacancies_stats(
     request: Request,
 ):
+    """Сводная статистика вакансий."""
     pool = await _get_db_pool()
     if not pool:
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -309,6 +313,7 @@ async def get_vacancies_stats(
 async def get_vacancies_analytics(
     request: Request,
 ):
+    """Аналитика по вакансиям."""
     pool = await _get_db_pool()
     if not pool:
         raise HTTPException(status_code=503, detail="Database unavailable")

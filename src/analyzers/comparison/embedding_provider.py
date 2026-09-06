@@ -30,14 +30,21 @@ class SentenceTransformerProvider(EmbeddingProvider):
     def __init__(self, model_name: str | None = None, device: str | None = None):
         import os
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
-        import sentence_transformers
 
         from src import config
 
         model_name = model_name or config.EMBEDDING_MODEL
         if device is None:
             device = getattr(config, "EMBEDDING_DEVICE", "cpu")
-        self._model = sentence_transformers.SentenceTransformer(model_name, device=device)
+        # Reuse the shared singleton for the default CPU model instead of
+        # loading the same ~1GB weights twice (loader + factory).
+        # Custom model/device requests still construct directly.
+        if model_name == config.EMBEDDING_MODEL and device == "cpu":
+            from src.parsing.api import embedding_loader as _loader
+            self._model = _loader.get_embedding_model(model_name)
+        else:
+            import sentence_transformers
+            self._model = sentence_transformers.SentenceTransformer(model_name, device=device)
 
     def encode(self, texts: list[str], **kwargs) -> np.ndarray:
         return self._model.encode(

@@ -7,7 +7,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import sys
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +19,7 @@ import structlog
 
 from src import config
 from src.result import Ok, Err, Result
-from src.errors import AnalysisDataError, AnalysisRunnerError, RecommendationError
+from src.errors import AnalysisRunnerError
 from src.db import create_pool, close_pool, get_pool
 from src.models.teacher_analysis import DirectionSummary, GapAnalysisResult
 from src.analyzers.skill_matcher import SkillMatcher, normalize as normalize_skill
@@ -36,6 +35,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 
 
 def _safe_filename(name: str) -> str:
+    """Очистить строку для имени файла/каталога (макс. 80 символов)."""
     return re.sub(r'[\\/*?:"<>|]', "_", name).strip()[:80]
 
 
@@ -219,7 +219,8 @@ def _enhance_disciplines_with_gap_analysis(
                     d["shap_count"] = len(ls.get("shap_values", {}))
                 except Exception:
                     pass
-        dir_summary["has_enhanced_gap"] = True
+        # C6 fix: flag only if at least one discipline was actually enhanced
+        dir_summary["has_enhanced_gap"] = enhanced_total > 0
 
     return dir_summary
 
@@ -242,6 +243,7 @@ async def run_teacher_analysis(
     discipline_filter: str | None = None,
     user_id: str | None = None,
 ) -> Result[dict, AnalysisRunnerError]:
+    """Полный teacher analysis направления: покрытие, гэпы, рекомендации, графики."""
     logger.info("analysis_started", direction=direction_code, discipline=discipline_filter)
 
     # — DB connection —
@@ -675,7 +677,7 @@ async def run_teacher_analysis(
                      gaps=coverage.gaps, emerging=len(coverage.emerging))
         return (dname, result)
 
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    with ThreadPoolExecutor(max_workers=min(os.cpu_count() or 4, 8)) as executor:  # F12 fix: adaptive workers
         futures = {
             executor.submit(_analyze_one, dname, disc_data): dname
             for dname, disc_data in sorted(disciplines.items())
@@ -717,6 +719,10 @@ async def run_teacher_analysis(
     avg_cov = round(
         sum(r.discipline.coverage_ratio for _, r in discipline_reports) / len(discipline_reports), 4
     ) if discipline_reports else 0
+    # C4 fix: quality-weighted average (accounts for match confidence, not just binary count)
+    avg_quality = round(
+        sum(r.discipline.weighted_coverage for _, r in discipline_reports) / len(discipline_reports), 4
+    ) if discipline_reports else 0
 
     # Direction-level emerging: skills not found in ANY discipline
     direction_emerging_result = matcher.get_emerging(direction_rpd_norm, top_n=15)
@@ -740,6 +746,7 @@ async def run_teacher_analysis(
         top_emerging=direction_emerging,
         disciplines=[
             {"name": dn, "coverage_ratio": r.discipline.coverage_ratio,
+             "weighted_coverage": r.discipline.weighted_coverage,
              "coverage_level": r.discipline.coverage_level,
              "gaps": r.discipline.gaps, "emerging": len(r.discipline.emerging)}
             for dn, r in discipline_reports
@@ -768,6 +775,7 @@ async def run_teacher_analysis(
         "profile": direction["profile"],
         "total_disciplines": summary.total_disciplines,
         "average_coverage": summary.average_coverage,
+        "average_quality_coverage": avg_quality,
         "coverage_level": "high" if avg_cov >= 0.5 else "medium" if avg_cov >= 0.2 else "low",
         "total_gaps_across_all": summary.total_gaps,
         "top_cross_discipline_gaps": summary.top_cross_discipline_gaps,
@@ -799,7 +807,19 @@ async def run_teacher_analysis(
                 d["shap_scores"] = ls.get("ltr_scores", [])
             except Exception:
                 pass
-    dir_summary["has_enhanced_gap"] = True
+    # C6 fix: flag only if at least one discipline JSON has enhanced data
+    _has_enh = False
+    for _d in dir_summary.get("disciplines", []):
+        _df = out_dir / _safe_filename(_d["name"]) / (_safe_filename(_d["name"]) + ".json")
+        if _df.exists():
+            try:
+                _dd = json.loads(_df.read_text(encoding="utf-8"))
+                if _dd.get("enhanced"):
+                    _has_enh = True
+                    break
+            except Exception:
+                pass
+    dir_summary["has_enhanced_gap"] = _has_enh
 
     try:
         (out_dir / "_summary.json").write_text(

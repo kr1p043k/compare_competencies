@@ -11,6 +11,15 @@ class ExperienceLevel(StrEnum):
     SENIOR = "senior"
 
 
+class CompetencyLevel(StrEnum):
+    """Уровень освоения компетенции из CSV-матрицы (Б/П/Э/X)."""
+
+    BEGINNING = "B"  # Б - beginning, начальный уровень
+    PRACTICED = "P"  # П - practiced, практический уровень
+    EXPERT = "E"  # Э - expert, экспертный уровень
+    EXCLUDED = "X"  # X - excluded, исключено
+
+
 class PriorityLevel(StrEnum):
     """Приоритеты изучения навыка."""
 

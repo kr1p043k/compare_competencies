@@ -433,7 +433,7 @@ class TestSkillLevelAnalyzerExtended:
         }
         assert analyzer.get_skill_level("python") == "middle"
         assert analyzer.get_skill_level("docker") == "senior"
-        assert analyzer.get_skill_level("git") == "all_levels"
+        assert analyzer.get_skill_level("git") == "middle"  # updated: asymmetric thresholds (m=0.5) mean 4,5,4 is middle-dominant
         assert analyzer.get_skill_level("unknown") == "middle"
 
     def test_get_weights_for_level(self):

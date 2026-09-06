@@ -31,12 +31,7 @@ class CompetencyUser(HttpUser):
     @task(2)
     def get_gap_analysis(self):
         """Gap-анализ (тяжёлый запрос)"""
-        payload = {
-            "student_profile": random.choice(self.profile_ids),
-            "region_id": random.choice(self.regions),
-            "top_n": 10
-        }
-        self.client.post("/api/gap-analysis", json=payload, name="/api/gap-analysis")
+        self.client.get("/api/teacher/krm/coverage", params={"direction": "09.03.02"}, name="/api/teacher/krm/coverage")
     
     @task(1)
     def get_trends(self):
@@ -46,18 +41,18 @@ class CompetencyUser(HttpUser):
     @task(1)
     def get_clusters(self):
         """Получение кластеров вакансий"""
-        self.client.get("/api/clusters", name="/api/clusters")
+        self.client.get("/api/clusters/middle", name="/api/clusters/{level}")
     
     @task(1)
     def get_market_metrics(self):
         """Рыночные метрики"""
         params = {"skill": random.choice(["python", "sql", "machine learning"])}
-        self.client.get("/api/market/metrics", params=params, name="/api/market/metrics")
+        self.client.get("/api/market/top-skills", params=params, name="/api/market/top-skills")
     
     @task(1)
     def trigger_pipeline(self):
         """Запуск пайплайна (редко)"""
-        self.client.post("/api/pipeline/run", name="/api/pipeline/run", timeout=300)
+        self.client.post("/api/pipeline/status", name="/api/pipeline/status", timeout=300)
 
 class HeavyLoadUser(HttpUser):
     """Тяжёлая нагрузка — ML и аналитика"""
@@ -67,21 +62,13 @@ class HeavyLoadUser(HttpUser):
     @task
     def full_gap_analysis(self):
         """Полный gap-анализ со всеми опциями"""
-        payload = {
-            "student_profile": "dc",
-            "region_id": 1,
-            "levels": ["junior", "middle", "senior"],
-            "include_shap": True,
-            "include_recommendations": True
-        }
-        self.client.post("/api/gap-analysis/full", json=payload, timeout=60)
+        self.client.get("/api/teacher/krm/coverage", params={"direction": "09.03.02"}, name="/api/teacher/krm/coverage", timeout=60)
     
     @task
     def ltr_predict(self):
         """LTR-предсказание"""
-        skills = ["python", "django", "postgresql", "docker"]
-        self.client.post("/api/predict/skill-importance", 
-                        json={"skills": skills}, timeout=30)
+        self.client.get("/api/forecast/top", params={"limit": 5},
+                        name="/api/forecast/top", timeout=30)
 
 class PipelineUser(HttpUser):
     """Пользователи, запускающие пайплайн"""
@@ -91,12 +78,12 @@ class PipelineUser(HttpUser):
     @task
     def run_nightly_pipeline(self):
         """Ежедневный пайплайн"""
-        self.client.post("/api/pipeline/nightly", timeout=600)
+        self.client.post("/api/pipeline/status", timeout=600)
     
     @task
     def check_progress(self):
         """Проверка прогресса"""
-        self.client.get("/api/pipeline/progress")
+        self.client.get("/api/pipeline/status")
 
 @events.test_start.add_listener
 def on_test_start(environment, **kwargs):

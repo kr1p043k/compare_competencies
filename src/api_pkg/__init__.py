@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from src.monitoring.metrics import get_metrics
 
 from src import config
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     )
 
     app.state.limiter = limiter
+    app.add_middleware(SlowAPIMiddleware)
     app.add_exception_handler(
         RateLimitExceeded,
         lambda request, exc: JSONResponse(
@@ -187,6 +189,8 @@ def create_app() -> FastAPI:
     _mount(rpd_router)
     from src.api_pkg.routers.zun import router as zun_router
     _mount(zun_router)
+    from src.api_pkg.routers.krm_teacher import router as krm_teacher_router
+    _mount(krm_teacher_router)
     from src.api_pkg.routers.student import router as student_router
     _mount(student_router)
     from src.api_pkg.routers.llm import router as llm_router

@@ -241,7 +241,7 @@ def test_bm25_doc_limit():
     MockBM25.assert_called_once()
     args, _ = MockBM25.call_args
     corpus_passed = args[0]  # это unique_docs после ограничения
-    assert len(corpus_passed) == 300  # 3000 total // 10 = 300
+    assert len(corpus_passed) == 200  # config BM25_MAX_CORPUS_DOCS=200
     # Веса могут содержать все 3000 навыков, т.к. они оцениваются уже после обрезки
     assert weights.is_ok() and len(weights.unwrap()) == 3000
 

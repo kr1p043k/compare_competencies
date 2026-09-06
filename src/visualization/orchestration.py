@@ -62,20 +62,6 @@ def save_all_charts(
             plot_ml_importance(profile_name, save_path=prof_dir / f"ml_importance_{profile_name}.png")
         plot_weight_distribution(skill_weights, save_path=prof_dir / f"weights_{profile_name}.png")
 
-        recs = load_ml_recommendations(profile_name)
-        if recs:
-            deficits = [(r[0], r[1]) for r in recs if r[1] > 50][:10]
-            if deficits:
-                skills = [d[0] for d in deficits]
-                freqs = [d[1] for d in deficits]
-                fig, ax = plt.subplots()
-                ax.barh(skills, freqs, color="salmon")
-                ax.set_title(f"Топ-10 дефицитов высокого спроса — {profile_name}")
-                ax.set_xlabel("Важность (%)")
-                ax.invert_yaxis()
-                fig.savefig(prof_dir / f"deficits_{profile_name}.png", dpi=300, bbox_inches="tight")
-                plt.close(fig)
-                logger.info("deficits_saved", profile=profile_name, count=len(deficits))
 
     logger.info("chart_per_profile_done")
     if vacancies_skills_list:

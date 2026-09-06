@@ -504,12 +504,15 @@ class TestHeadHunterAPIAsyncToken:
         mock_sync_no_token = MagicMock(spec=HeadHunterAPI)
         mock_sync_no_token._token = None
 
-        with patch.object(api, "_get_app_token", new_callable=AsyncMock) as mock_get_token:
-            mock_get_token.return_value = Ok(True)
-            with patch("src.parsing.api.hh_api_async.HeadHunterAPI", return_value=mock_sync_no_token):
-                result = await api._ensure_token()
-            assert result.is_ok()
-            mock_get_token.assert_called_once()
+        # Fix: mock HH credentials (code checks config before calling _get_app_token)
+        with patch('src.parsing.api.hh_api_async.config.HH_CLIENT_ID', 'test_id'), \
+             patch('src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET', 'test_secret'):
+            with patch.object(api, "_get_app_token", new_callable=AsyncMock) as mock_get_token:
+                mock_get_token.return_value = Ok(True)
+                with patch("src.parsing.api.hh_api_async.HeadHunterAPI", return_value=mock_sync_no_token):
+                    result = await api._ensure_token()
+                assert result.is_ok()
+                mock_get_token.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_ensure_token_no_credentials(self):

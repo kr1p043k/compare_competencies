@@ -69,7 +69,7 @@ class HhDataSource(DataSourceProtocol):
 
         # Инкрементальный сбор: определить период с даты последнего запуска
         date_from = getattr(self.args, '_date_from', None)
-        if date_from:
+        if isinstance(date_from, str) and date_from:  # guard non-string (e.g. mocks)
             delta = (datetime.now() - datetime.strptime(date_from, "%Y-%m-%d")).days
             if 1 <= delta <= 30:
                 self.args.period = delta

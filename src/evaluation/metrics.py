@@ -7,8 +7,10 @@ import numpy as np
 
 
 class RetrievalMetrics:
+    """Метрики ранжирования (P@k, MAP, MRR, NDCG)."""
     @staticmethod
     def precision_at_k(relevant: set, retrieved: list, k: int) -> float:
+        """Precision@k."""
         if k <= 0:
             return 0.0
         top = retrieved[:k]
@@ -18,6 +20,7 @@ class RetrievalMetrics:
 
     @staticmethod
     def recall_at_k(relevant: set, retrieved: list, k: int) -> float:
+        """Recall@k."""
         if not relevant:
             return 1.0
         top = retrieved[:k]
@@ -27,6 +30,7 @@ class RetrievalMetrics:
 
     @staticmethod
     def f1_at_k(relevant: set, retrieved: list, k: int) -> float:
+        """F1@k."""
         p = RetrievalMetrics.precision_at_k(relevant, retrieved, k)
         r = RetrievalMetrics.recall_at_k(relevant, retrieved, k)
         if p + r == 0:
@@ -35,6 +39,7 @@ class RetrievalMetrics:
 
     @staticmethod
     def average_precision(relevant: set, retrieved: list) -> float:
+        """Average Precision одного запроса."""
         hits = 0
         sum_prec = 0.0
         for i, item in enumerate(retrieved, 1):
@@ -47,6 +52,7 @@ class RetrievalMetrics:
 
     @staticmethod
     def mean_average_precision(queries: list[tuple[set, list]]) -> float:
+        """MAP по запросам."""
         if not queries:
             return 0.0
         aps = [RetrievalMetrics.average_precision(rel, ret) for rel, ret in queries]
@@ -54,6 +60,7 @@ class RetrievalMetrics:
 
     @staticmethod
     def mean_reciprocal_rank(queries: list[tuple[set, list]]) -> float:
+        """MRR по запросам."""
         if not queries:
             return 0.0
         rrs = []
@@ -68,6 +75,7 @@ class RetrievalMetrics:
 
     @staticmethod
     def ndcg_at_k(relevant: set, retrieved: list, k: int) -> float:
+        """NDCG@k."""
         top = retrieved[:k]
         if not top:
             return 0.0
@@ -83,6 +91,7 @@ class RetrievalMetrics:
 
     @staticmethod
     def hit_rate_at_k(relevant: set, retrieved: list, k: int) -> float:
+        """Hit Rate@k."""
         top = retrieved[:k]
         if not top:
             return 0.0
@@ -90,6 +99,7 @@ class RetrievalMetrics:
 
     @staticmethod
     def report(relevant: set, retrieved: list, ks: list[int] | None = None) -> dict[str, float]:
+        """Сводный отчёт метрик."""
         if ks is None:
             ks = [1, 3, 5, 10, 20]
         result = {}
@@ -105,24 +115,29 @@ class RetrievalMetrics:
 
 
 class RegressionMetrics:
+    """Метрики регрессии (MAE, RMSE, R2, MAPE)."""
     @staticmethod
     def mean_absolute_error(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
+        """MAE."""
         if not y_true or not y_pred:
             return 0.0
         return float(np.mean(np.abs(np.array(y_true) - np.array(y_pred))))
 
     @staticmethod
     def mean_squared_error(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
+        """MSE."""
         if not y_true or not y_pred:
             return 0.0
         return float(np.mean((np.array(y_true) - np.array(y_pred)) ** 2))
 
     @staticmethod
     def root_mean_squared_error(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
+        """RMSE."""
         return float(math.sqrt(RegressionMetrics.mean_squared_error(y_true, y_pred)))
 
     @staticmethod
     def r2_score(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
+        """Коэффициент детерминации R2."""
         y_true_a = np.array(y_true)
         y_pred_a = np.array(y_pred)
         ss_res = np.sum((y_true_a - y_pred_a) ** 2)
@@ -133,6 +148,7 @@ class RegressionMetrics:
 
     @staticmethod
     def mean_absolute_percentage_error(y_true: Sequence[float], y_pred: Sequence[float]) -> float:
+        """MAPE."""
         y_true_a = np.array(y_true, dtype=float)
         y_pred_a = np.array(y_pred, dtype=float)
         mask = y_true_a != 0
@@ -142,6 +158,7 @@ class RegressionMetrics:
 
     @staticmethod
     def report(y_true: Sequence[float], y_pred: Sequence[float]) -> dict[str, float]:
+        """Сводный отчёт метрик."""
         return {
             "MAE": RegressionMetrics.mean_absolute_error(y_true, y_pred),
             "RMSE": RegressionMetrics.root_mean_squared_error(y_true, y_pred),
@@ -151,26 +168,31 @@ class RegressionMetrics:
 
 
 class ClassificationMetrics:
+    """Метрики классификации (accuracy, precision, recall, F1)."""
     @staticmethod
     def accuracy(y_true: Sequence[int], y_pred: Sequence[int]) -> float:
+        """Accuracy."""
         if not y_true:
             return 0.0
         return sum(1 for t, p in zip(y_true, y_pred) if t == p) / len(y_true)
 
     @staticmethod
     def precision(y_true: Sequence[int], y_pred: Sequence[int], pos_label: int = 1) -> float:
+        """Precision."""
         tp = sum(1 for t, p in zip(y_true, y_pred) if p == pos_label and t == pos_label)
         fp = sum(1 for t, p in zip(y_true, y_pred) if p == pos_label and t != pos_label)
         return tp / (tp + fp) if (tp + fp) > 0 else 0.0
 
     @staticmethod
     def recall(y_true: Sequence[int], y_pred: Sequence[int], pos_label: int = 1) -> float:
+        """Recall."""
         tp = sum(1 for t, p in zip(y_true, y_pred) if p == pos_label and t == pos_label)
         fn = sum(1 for t, p in zip(y_true, y_pred) if p != pos_label and t == pos_label)
         return tp / (tp + fn) if (tp + fn) > 0 else 0.0
 
     @staticmethod
     def f1(y_true: Sequence[int], y_pred: Sequence[int], pos_label: int = 1) -> float:
+        """F1-мера."""
         p = ClassificationMetrics.precision(y_true, y_pred, pos_label)
         r = ClassificationMetrics.recall(y_true, y_pred, pos_label)
         if p + r == 0:
@@ -179,6 +201,7 @@ class ClassificationMetrics:
 
     @staticmethod
     def report(y_true: Sequence[int], y_pred: Sequence[int]) -> dict[str, float]:
+        """Сводный отчёт метрик."""
         return {
             "accuracy": ClassificationMetrics.accuracy(y_true, y_pred),
             "precision": ClassificationMetrics.precision(y_true, y_pred),
@@ -188,8 +211,10 @@ class ClassificationMetrics:
 
 
 class ClusteringMetrics:
+    """Метрики кластеризации (silhouette, Davies-Bouldin)."""
     @staticmethod
     def silhouette_score(x: np.ndarray, labels: np.ndarray) -> float:
+        """Коэффициент силуэта."""
         from sklearn.metrics import silhouette_score as sk_silhouette
         if len(set(labels)) < 2:
             return 0.0
@@ -200,6 +225,7 @@ class ClusteringMetrics:
 
     @staticmethod
     def davies_bouldin_score(x: np.ndarray, labels: np.ndarray) -> float:
+        """Индекс Davies-Bouldin."""
         from sklearn.metrics import davies_bouldin_score as sk_db
         if len(set(labels)) < 2:
             return 0.0
@@ -210,6 +236,7 @@ class ClusteringMetrics:
 
     @staticmethod
     def calinski_harabasz_score(x: np.ndarray, labels: np.ndarray) -> float:
+        """Индекс Calinski-Harabasz."""
         from sklearn.metrics import calinski_harabasz_score as sk_ch
         if len(set(labels)) < 2:
             return 0.0
@@ -220,6 +247,7 @@ class ClusteringMetrics:
 
     @staticmethod
     def intra_cluster_distance(x: np.ndarray, labels: np.ndarray) -> dict[str, float]:
+        """Внутрикластерная дистанция."""
         unique = set(labels)
         if -1 in unique:
             unique.discard(-1)
@@ -240,6 +268,7 @@ class ClusteringMetrics:
 
     @staticmethod
     def report(x: np.ndarray, labels: np.ndarray) -> dict[str, float]:
+        """Сводный отчёт метрик."""
         result = {}
         result["n_clusters"] = len(set(labels)) - (1 if -1 in labels else 0)
         result["silhouette"] = ClusteringMetrics.silhouette_score(x, labels)

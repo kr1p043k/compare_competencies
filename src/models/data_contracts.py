@@ -9,12 +9,14 @@ from pydantic import BaseModel, Field
 
 
 class WeightedSkill(BaseModel):
+    """Навык с весом."""
     name: str
     weight: float
     category: str = "other"
 
 
 class LevelVacancy(BaseModel):
+    """Вакансии уровня."""
     skills: list[str]
     description: str = ""
     experience: str = "middle"
@@ -111,6 +113,7 @@ class ProfileEvaluationResult(BaseModel):
 
 
 class RecommendationItem(BaseModel):
+    """Пункт рекомендаций."""
     skill: str = ""
     action: str = ""
     impact: float = 0.0
@@ -118,6 +121,7 @@ class RecommendationItem(BaseModel):
 
 
 class DomainCoverage(BaseModel):
+    """Покрытие домена."""
     score: float = 0.0
     skills: list[str] = Field(default_factory=list)
 

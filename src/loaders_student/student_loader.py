@@ -25,6 +25,7 @@ class StudentLoader:
         self.students_dir = students_dir
 
     def load_student(self, profile_name: str) -> Result[StudentProfile, DomainError]:
+        """Загрузить JSON профиля: компетенции + уровни навыков + целевой уровень."""
         """Загружает данные ученика по имени профиля (base, dc, top_dc)."""
         file_path = self.students_dir / f"{profile_name}_competency.json"
         if not file_path.exists():
@@ -37,11 +38,23 @@ class StudentLoader:
             return Err(DomainError(message=f"Ошибка чтения файла студента: {e}"))
 
         skills = data.get("навыки", [])
+        # C2 fix: fallback to other keys for backward compat
+        if not skills:
+            skills = data.get("компетенции", [])
+        if not skills:
+            for _k, _v in data.items():
+                if isinstance(_v, list) and _v and isinstance(_v[0], str):
+                    skills = _v
+                    break
+        # C2+C3 fix: load per-skill levels, correct target_level per profile
+        skill_levels = data.get("skill_levels", {})
+        _level_map = {"base": "junior", "dc": "middle", "top_dc": "senior"}
         return Ok(StudentProfile(
             profile_name=profile_name,
             competencies=skills,
             skills=skills,
-            target_level="middle",
+            skill_levels=skill_levels,
+            target_level=_level_map.get(profile_name, "middle"),
         ))
 
     def load_all_students(self) -> list[StudentProfile]:
@@ -60,6 +73,7 @@ class StudentLoader:
 def generate_profiles_from_csv(
     csv_path: Path = DATA_RAW_DIR / "competency_matrix.csv", output_dir: Path = STUDENTS_DIR, save_copy: bool = True
 ) -> Result[dict[str, list[str]], DomainError]:
+    """Сгенерировать JSON профилей (+skill_levels) из CSV-матрицы."""
     logger.info("csv_processing_started", path=str(csv_path))
 
     if not csv_path.exists():
@@ -92,6 +106,8 @@ def generate_profiles_from_csv(
         disciplines_df[0] = pd.to_numeric(disciplines_df[0], errors="coerce").fillna(0).astype(int)
 
         profiles_skills = {profile: set() for profile in PROFILES_DISCIPLINES}
+        # C2 fix: track per-skill mastery level (Б/П/Э/X or checkmark variants)
+        profiles_levels: dict[str, dict[str, str]] = {profile: {} for profile in PROFILES_DISCIPLINES}
 
         for _, row in disciplines_df.iterrows():
             discipline_id = int(row[0])
@@ -104,8 +120,13 @@ def generate_profiles_from_csv(
 
                 for col_idx, indicator_code in indicator_mapping.items():
                     val = row.iloc[col_idx]
-                    if pd.notna(val) and str(val).strip() in ("Б", "П", "Э", "X"):
-                        profiles_skills[profile_name].add(indicator_code)
+                    if pd.notna(val):
+                        _v = str(val).strip()
+                        if _v in ("\u2713", "\u0445", "\u0425", "X", "\u0411", "\u041f", "\u042d", "B", "P", "E"):
+                            profiles_skills[profile_name].add(indicator_code)
+                            # C2 fix: preserve mastery level (normalize Cyrillic to Latin)
+                            _lvl = {"\u0411": "B", "\u041f": "P", "\u042d": "E", "\u0445": "X", "\u0425": "X"}.get(_v, _v)
+                            profiles_levels[profile_name][indicator_code] = _lvl
 
         result = {}
         for profile_name, skills in profiles_skills.items():
@@ -115,7 +136,7 @@ def generate_profiles_from_csv(
 
             json_path = output_dir / f"{profile_name}_competency.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump({"навыки": sorted_skills}, f, ensure_ascii=False, indent=2)
+                json.dump({"навыки": sorted_skills, "skill_levels": profiles_levels[profile_name]}, f, ensure_ascii=False, indent=2)
 
         if save_copy:
             LAST_UPLOADED_DIR.mkdir(parents=True, exist_ok=True)

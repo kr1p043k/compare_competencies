@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FileUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
@@ -47,6 +47,7 @@ export function AdminDashboard() {
   const [importJson, setImportJson] = useState("");
   const [rpdDir, setRpdDir] = useState("09.03.02");
   const [rpdFile, setRpdFile] = useState<File | null>(null);
+  const rpdInputRef = useRef<HTMLInputElement | null>(null);
   const [rpdUploading, setRpdUploading] = useState(false);
   const [rpdCollecting, setRpdCollecting] = useState(false);
   const [rpdRunId, setRpdRunId] = useState<string | null>(null);
@@ -108,11 +109,12 @@ export function AdminDashboard() {
     return () => { cancelled = true; };
   }, [rpdRunId]);
 
-  async function uploadRpd() {
-    if (!rpdFile || rpdUploading) return;
+  async function uploadRpd(file?: File | null) {
+    const f = file ?? rpdFile;
+    if (!f || rpdUploading) return;
     setRpdUploading(true); setRpdMsg("Загрузка...");
     const fd = new FormData();
-    fd.append("file", rpdFile);
+    fd.append("file", f);
     fd.append("dir_code", rpdDir);
     try {
       const r = await apiFetch("/api/teacher/rpd/upload", { method: "POST", body: fd });
@@ -542,14 +544,20 @@ export function AdminDashboard() {
                   ))}
                 </select>
                 <input
+                  ref={rpdInputRef}
                   type="file"
                   accept=".pdf"
-                  onChange={(e) => setRpdFile(e.target.files?.[0] || null)}
-                  className="text-sm text-gray-600"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    setRpdFile(f);
+                    e.target.value = "";
+                    if (f) uploadRpd(f);
+                  }}
                 />
               </div>
               <div className="flex items-center gap-3">
-                <Button onClick={uploadRpd} disabled={!rpdFile || rpdUploading} className="bg-purple-600 hover:bg-purple-700">
+                <Button onClick={() => rpdInputRef.current?.click()} disabled={rpdUploading} className="bg-purple-600 hover:bg-purple-700">
                   <Upload className="size-4 mr-2" />{rpdUploading ? "Обработка..." : "Загрузить PDF и обработать"}
                 </Button>
                 {rpdSources.yandex_covered?.includes(rpdDir) && (

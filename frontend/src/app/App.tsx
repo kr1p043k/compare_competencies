@@ -97,6 +97,8 @@ export default function App() {
   }>({ type: null, message: "" });
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState<any>(null);
+  const [gapRunning, setGapRunning] = useState(false);
+  const [gapMsg, setGapMsg] = useState("");
   const [analysisData, setAnalysisData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("vacancies");
 
@@ -204,7 +206,7 @@ export default function App() {
     setPipelineLoading(false);
     pipelineTaskRef.current = null;
     pipelineLoadingRef.current = false;
-    sessionStorage.removeItem("pipelineTaskId");
+    // keep task id: refresh shows final state + restart button
   };
 
   const restartPipeline = () => {
@@ -224,6 +226,7 @@ export default function App() {
         return r.ok ? r.json() : Promise.reject("Ошибка статуса");
       })
       .then(s => {
+        if (pipelineTaskRef.current !== taskId) return; // cancelled or replaced while fetching
         const step = Math.min(s.step || 1, 4);
         let subProgress = s.sub_progress ?? undefined;
         setPipelineStep(prev => {
@@ -338,6 +341,44 @@ export default function App() {
       showStatus("error", `✗ ${e.message}`);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function runGapAnalysis() {
+    if (gapRunning) return;
+    setGapRunning(true);
+    setGapMsg("Запуск gap-анализа...");
+    try {
+      const r = await fetch("/api/pipeline/gap-analysis", { method: "POST" });
+      if (!r.ok) throw new Error("Не удалось запустить задачу gap-анализа");
+      const data = await r.json();
+      const m = String(data.output || "").match(/Task ID: (\S+?)\.?\s/);
+      if (!m) throw new Error("Не получен ID задачи");
+      const taskId = m[1];
+      for (;;) {
+        await new Promise((res) => setTimeout(res, 3000));
+        const s = await fetch(`/api/pipeline/task/${taskId}`).then((x) =>
+          x.ok ? x.json() : null
+        );
+        if (!s) {
+          setGapMsg("Статус задачи недоступен, проверяю результат...");
+          break;
+        }
+        setGapMsg(`${s.message || "Выполняется..."} (шаг ${s.step ?? "?"})`);
+        if (s.status === "completed") {
+          setGapMsg("Готово, обновляю данные...");
+          break;
+        }
+        if (s.status === "failed" || s.status === "cancelled")
+          throw new Error(s.message || "Задача завершилась с ошибкой");
+      }
+      loadProfileDetail();
+      loadRecommendations();
+    } catch (e: any) {
+      setGapMsg("");
+      alert(`Ошибка gap-анализа: ${e?.message || e}`);
+    } finally {
+      setGapRunning(false);
     }
   }
 
@@ -651,7 +692,18 @@ export default function App() {
                     <Zap className="mr-2 size-4" />
                     Проверка
                   </Button>
+                  <Button
+                    onClick={runGapAnalysis}
+                    disabled={loading || gapRunning}
+                    className="h-11 bg-amber-600 hover:bg-amber-700 text-white"
+                  >
+                    <Zap className="mr-2 size-4" />
+                    Запустить gap-анализ
+                  </Button>
                 </div>
+                {gapRunning && (
+                  <p className="text-sm text-amber-700">{gapMsg || "Выполняется..."}</p>
+                )}
 
                 {lastResult && (() => {
                   const d = lastResult as Record<string, unknown>;
@@ -670,24 +722,16 @@ export default function App() {
                           <h3 className="text-lg font-semibold text-amber-800 mb-2">{msg}</h3>
                           <p className="text-sm text-amber-600 mb-4">Запустите gap-анализ для расчёта покрытия</p>
                           <Button
-                            onClick={async () => {
-                              try {
-                                const r = await fetch("/api/pipeline/gap-analysis", { method: "POST" });
-                                if (r.ok) {
-                                  await new Promise(resolve => setTimeout(resolve, 2000));
-                                  loadProfileDetail();
-                                } else {
-                                  alert("Не удалось запустить gap-анализ");
-                                }
-                              } catch {
-                                alert("Ошибка запуска gap-анализа");
-                              }
-                            }}
+                            onClick={runGapAnalysis}
+                            disabled={gapRunning}
                             className="bg-amber-600 hover:bg-amber-700"
                           >
                             <Zap className="size-4 mr-2" />
                             Запустить gap-анализ
                           </Button>
+                          {gapRunning && (
+                            <p className="text-sm text-amber-700 mt-3">{gapMsg || "Выполняется..."}</p>
+                          )}
                         </CardContent>
                       </Card>
                     );
@@ -701,7 +745,7 @@ export default function App() {
           {/* Visualization Tab */}
           {role !== "teacher" && (
             <TabsContent value="visualization">
-              <GapAnalysisVisualizer profile={profile} />
+              <GapAnalysisVisualizer profile={profile} onProfileChange={handleProfileChange} />
             </TabsContent>
           )}
 

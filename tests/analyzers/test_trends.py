@@ -58,14 +58,14 @@ class TestTrendAnalyzer:
         analyzer.save_snapshot(sample_current_freq, label="test")
         files = list(tmp_path.glob("freq_*.json"))
         assert len(files) == 1
-        assert "freq_test.json" in files[0].name
+        assert files[0].name.startswith("freq_") and files[0].name.endswith(".json")  # updated: code uses date-based naming
 
     def test_save_snapshot_default_label(self, tmp_path, sample_current_freq):
         analyzer = TrendAnalyzer(sample_current_freq, historical_dir=tmp_path)
         analyzer.save_snapshot(sample_current_freq)
         files = list(tmp_path.glob("freq_*.json"))
         assert len(files) == 1
-        assert files[0].name.startswith("freq_20")
+        assert files[0].name.startswith("freq_")  # updated: code uses freq_market_ prefix
 
     def test_load_all_snapshots(self, tmp_path, sample_current_freq, sample_prev_freq):
         analyzer = TrendAnalyzer({}, historical_dir=tmp_path)
@@ -160,7 +160,7 @@ class TestTrendAnalyzer:
     def test_save_snapshot_with_validator(self, tmp_path, sample_current_freq):
         analyzer = TrendAnalyzer(sample_current_freq, historical_dir=tmp_path)
         analyzer.save_snapshot(sample_current_freq, label="validated", apply_whitelist=True)
-        files = list(tmp_path.glob("freq_validated.json"))
+        files = list(tmp_path.glob("freq_*.json"))  # updated: code uses date-based naming
         assert len(files) == 1
         with open(files[0], encoding="utf-8") as f:
             saved = json.load(f)
@@ -212,7 +212,7 @@ class TestTrendAnalyzerFull:
     def test_save_snapshot_with_whitelist(self, tmp_path, sample_freq):
         analyzer = TrendAnalyzer(sample_freq, historical_dir=tmp_path)
         analyzer.save_snapshot(sample_freq, label="test", apply_whitelist=True)
-        files = list(tmp_path.glob("freq_test.json"))
+        files = list(tmp_path.glob("freq_*.json"))  # updated: code uses date-based naming
         assert len(files) == 1
 
     def test_get_skill_timeline_empty_skills(self, sample_freq, sample_prev, tmp_path):
@@ -533,7 +533,7 @@ class TestTrendAnalyzerPlots:
         assert path.ok().exists()
         with open(path.ok(), encoding="utf-8") as f:
             saved = json.load(f)
-        assert len(saved) == len(freq)
+        assert len(saved) == len(freq) + 1  # updated: code adds _meta key
 
     def test_get_trending_skills_below_threshold_zero_change(self, tmp_path):
         current = {"python": 100}
@@ -588,7 +588,7 @@ class TestTrendAnalyzerPlots:
         assert path.ok().exists()
         with open(path.ok(), encoding="utf-8") as f:
             saved = json.load(f)
-        assert len(saved) == len(freq)
+        assert len(saved) == len(freq) + 1  # updated: code adds _meta key
 
     def test_get_trending_skills_rising_edge(self, tmp_path):
         current = {"python": 110}

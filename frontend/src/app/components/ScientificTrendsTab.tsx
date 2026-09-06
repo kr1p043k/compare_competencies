@@ -93,9 +93,6 @@ function uniqueTrends(list: ParsedTrend[]): ParsedTrend[] {
   return out;
 }
 
-const HUB_SSO_URL = "https://hub.sfedu.ru/dashboard/go-to-gap-analyzer/";
-const HUB_REDIRECT_DELAY_S = 6;
-
 function bearerHeaders(): Record<string, string> {
   const stored = localStorage.getItem("auth");
   if (stored) {
@@ -135,53 +132,20 @@ async function academicCall(path: string, body: unknown): Promise<unknown> {
 
 export function ScientificTrendsTab() {
   const [topic, setTopic] = useState("");
-  const [gapSource, setGapSource] = useState<"yufu" | "local">("yufu");
   const [loading, setLoading] = useState<"trends" | "gap" | null>(null);
   const [error, setError] = useState("");
   const [trend, setTrend] = useState<TrendResponse | null>(null);
   const [gap, setGap] = useState<GapResponse | null>(null);
   const [krmCount, setKrmCount] = useState<number | null>(null);
   const [gapTopic, setGapTopic] = useState("");
-  const [ssoBlocked, setSsoBlocked] = useState(false);
-  const [redirectIn, setRedirectIn] = useState<number | null>(null);
-  const redirectTimer = useRef<number | null>(null);
-  const ssoBlockedRef = useRef(false);
   const gapProgressTimer = useRef<number | null>(null);
   const [gapProgress, setGapProgress] = useState(0);
 
-  const startHubRedirect = () => {
-    if (redirectTimer.current !== null) return;
-    setRedirectIn(HUB_REDIRECT_DELAY_S);
-    redirectTimer.current = window.setInterval(() => {
-      setRedirectIn((sec) => {
-        if (sec === null || sec <= 1) {
-          if (redirectTimer.current !== null) {
-            window.clearInterval(redirectTimer.current);
-            redirectTimer.current = null;
-          }
-          window.location.href = HUB_SSO_URL;
-          return 0;
-        }
-        return sec - 1;
-      });
-    }, 1000);
-  };
-
   useEffect(() => {
     return () => {
-      if (redirectTimer.current !== null) window.clearInterval(redirectTimer.current);
       if (gapProgressTimer.current !== null) window.clearInterval(gapProgressTimer.current);
     };
   }, []);
-
-  const handleSsoBlocked = (message: string) => {
-    setError(message);
-    if (!ssoBlockedRef.current) {
-      ssoBlockedRef.current = true;
-      setSsoBlocked(true);
-      startHubRedirect();
-    }
-  };
 
   const startGapProgress = () => {
     setGapProgress(0);
@@ -207,7 +171,7 @@ export function ScientificTrendsTab() {
 
   const fetchTrends = async () => {
     if (!topic.trim()) { setError("Введите тему для поиска"); return; }
-    setError(""); setSsoBlocked(false); ssoBlockedRef.current = false; setLoading("trends");
+    setError(""); setLoading("trends");
     try {
       const data = await academicCall("/api/academic/get-competencies", {
         topic: topic.trim(),
@@ -217,8 +181,7 @@ export function ScientificTrendsTab() {
       setTrend(data as TrendResponse);
     } catch (e) {
       const err = e as AcademicError;
-      if (err.status === 419 || err.status === 403) handleSsoBlocked(err.message);
-      else setError(err.message);
+      setError(err.message);
     } finally {
       setLoading(null);
     }
@@ -226,7 +189,7 @@ export function ScientificTrendsTab() {
 
   const analyzeGap = async () => {
     if (!topic.trim()) { setError("Введите тему для анализа разрыва"); return; }
-    setError(""); setSsoBlocked(false); ssoBlockedRef.current = false;
+    setError("");
     try {
       const res = await fetch("/api/academic/krm-competencies", { headers: bearerHeaders() });
       if (!res.ok) throw new Error("Не удалось получить компетенции КРМ");
@@ -235,23 +198,15 @@ export function ScientificTrendsTab() {
       setGapTopic(topic.trim());
       setLoading("gap");
       startGapProgress();
-      const data = gapSource === "local"
-        ? await academicCall("/api/academic/analyze-gap-local", {
-            topic: topic.trim(),
-            broad_top_k: 10,
-            final_top_k: 5,
-          })
-        : await academicCall("/api/academic/analyze-gap", {
-            topic: topic.trim(),
-            current_competencies: krm.codes.map((code) => ({ code })),
-            broad_top_k: 10,
-            final_top_k: 5,
-          });
+      const data = await academicCall("/api/academic/analyze-gap-local", {
+        topic: topic.trim(),
+        broad_top_k: 10,
+        final_top_k: 5,
+      });
       setGap(data as GapResponse);
     } catch (e) {
       const err = e as AcademicError;
-      if (err.status === 419 || err.status === 403) handleSsoBlocked(err.message);
-      else setError(err.message);
+      setError(err.message);
     } finally {
       stopGapProgress();
       setLoading(null);
@@ -272,7 +227,7 @@ export function ScientificTrendsTab() {
                 Академический анализ
               </CardTitle>
               <CardDescription className="text-sm text-gray-600">
-                Компетенции и разрывы по научной тематике (сервис ЮФУ)
+                Компетенции и разрывы по научной тематике (локальный анализ)
               </CardDescription>
             </div>
           </div>
@@ -302,31 +257,6 @@ export function ScientificTrendsTab() {
               Анализ разрыва (вся КРМ)
             </Button>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">Источник анализа разрыва:</span>
-            <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-              <input
-                type="radio"
-                name="gapSource"
-                checked={gapSource === "yufu"}
-                onChange={() => setGapSource("yufu")}
-                disabled={loading !== null}
-                className="accent-indigo-600"
-              />
-              Сервис ЮФУ
-            </label>
-            <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-              <input
-                type="radio"
-                name="gapSource"
-                checked={gapSource === "local"}
-                onChange={() => setGapSource("local")}
-                disabled={loading !== null}
-                className="accent-indigo-600"
-              />
-              Собственный (локальный)
-            </label>
-          </div>
           {krmCount !== null && (
             <p className="text-xs text-gray-500">
               В анализе разрыва учтено компетенций КРМ: <b>{krmCount}</b>
@@ -341,32 +271,11 @@ export function ScientificTrendsTab() {
               </p>
             </div>
           )}
-          {error && !ssoBlocked && (
+          {error && (
             <Alert variant="destructive">
               <AlertCircle className="size-4" />
               <AlertTitle>Ошибка</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          {ssoBlocked && (
-            <Alert variant="destructive">
-              <AlertCircle className="size-4" />
-              <AlertTitle>Доступ к сервису ЮФУ истёк</AlertTitle>
-              <AlertDescription className="space-y-3">
-                <p>{error || "Токен хаба действителен 1 час. Войдите заново через хаб ЮФУ."}</p>
-                <p className="text-sm text-red-700">
-                  {redirectIn !== null && redirectIn > 0
-                    ? `Перенаправление на хаб ЮФУ через ${redirectIn} с…`
-                    : "Перенаправление…"}
-                </p>
-                <Button
-                  onClick={() => { window.location.href = HUB_SSO_URL; }}
-                  variant="outline"
-                  className="border-red-300 text-red-700 hover:bg-red-50"
-                >
-                  Войти через хаб ЮФУ
-                </Button>
-              </AlertDescription>
             </Alert>
           )}
         </CardContent>
@@ -598,7 +507,7 @@ export function ScientificTrendsTab() {
               <TrendingUp className="size-12 mb-4" />
               <p className="text-lg font-medium">Задайте тему</p>
               <p className="text-sm mt-1">
-                Сервис вернёт рекомендуемые компетенции по научным трендам и разрыв относительно компетенций КРМ
+                Анализ вернёт рекомендуемые компетенции по научным трендам и разрыв относительно компетенций КРМ
               </p>
             </div>
           </CardContent>

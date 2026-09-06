@@ -133,6 +133,7 @@ _SEM_TTL = 600
 @router.get("/teacher/zun/directions")
 @limiter.limit("60/minute")
 async def zun_directions(request: Request):
+    """Направления ЗУН."""
     pool = get_pool()
     rows = await pool.fetch(
         """SELECT d.code, d.name, d.profile,
@@ -175,6 +176,7 @@ async def zun_directions(request: Request):
 @router.get("/teacher/zun/my-directions")
 @limiter.limit("60/minute")
 async def zun_my_directions(request: Request):
+    """Мои направления (по правам)."""
     from src.api_pkg.routers.auth import get_current_user
     user = await get_current_user(request)
     if user is None:
@@ -197,6 +199,7 @@ async def zun_my_directions(request: Request):
 @router.get("/teacher/zun/stats")
 @limiter.limit("60/minute")
 async def zun_stats(request: Request, dir_code: str = "09.03.02"):
+    """Статистика ЗУН направления."""
     _validate_dir_code(dir_code)
     pool = get_pool()
     dir_ids = await _direction_ids(pool, dir_code)
@@ -274,6 +277,7 @@ async def zun_disciplines(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
+    """Дисциплины (поиск, пагинация)."""
     _validate_dir_code(dir_code)
     pool = get_pool()
     dir_ids = await _direction_ids(pool, dir_code)
@@ -439,6 +443,7 @@ async def _build_discipline_tree(pool, disc_id: str, dir_code: str | None = None
 @router.get("/teacher/zun/disciplines/{discipline_id}")
 @limiter.limit("60/minute")
 async def zun_discipline_tree(request: Request, discipline_id: str):
+    """Дерево дисциплины."""
     _validate_uuid(discipline_id, "discipline_id")
     return await _build_discipline_tree(get_pool(), discipline_id)
 
@@ -446,6 +451,7 @@ async def zun_discipline_tree(request: Request, discipline_id: str):
 @router.get("/teacher/zun/disciplines/name/{discipline_name:path}")
 @limiter.limit("60/minute")
 async def zun_discipline_by_name(request: Request, discipline_name: str, dir_code: str = "09.03.02"):
+    """Дисциплина по имени."""
     _validate_dir_code(dir_code)
     pool = get_pool()
     dir_ids = await _direction_ids(pool, dir_code)
@@ -489,6 +495,7 @@ async def zun_search(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
+    """Поиск ЗУН-записей."""
     if len(q.strip()) < 2:
         raise HTTPException(status_code=400, detail="q must be at least 2 characters")
     _validate_dir_code(dir_code)
@@ -592,6 +599,7 @@ async def zun_search_semantic(
     ksa_type: str = "",
     limit: int = Query(20, ge=1, le=200),
 ):
+    """Семантический поиск ЗУН."""
     if len(q.strip()) < 2:
         raise HTTPException(status_code=400, detail="q must be at least 2 characters")
     _validate_dir_code(dir_code)
@@ -691,6 +699,7 @@ async def zun_filter(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
+    """Фильтр ЗУН по категории/коду."""
     _validate_dir_code(dir_code)
     if category and category not in CATEGORIES:
         raise HTTPException(status_code=400, detail="Invalid category")
@@ -747,6 +756,7 @@ async def zun_filter(
 @router.get("/teacher/zun/competencies/{competency_id}/skills")
 @limiter.limit("120/minute")
 async def zun_competency_skills(request: Request, competency_id: str, match_type: str = ""):
+    """Навыки компетенции."""
     _validate_uuid(competency_id, "competency_id")
     if match_type and match_type not in MATCH_TYPES:
         raise HTTPException(status_code=400, detail="Invalid match_type")
@@ -784,6 +794,7 @@ async def zun_competency_skills(request: Request, competency_id: str, match_type
 @router.get("/teacher/zun/competencies/{competency_id}/coverage")
 @limiter.limit("120/minute")
 async def zun_competency_coverage(request: Request, competency_id: str):
+    """Покрытие компетенции."""
     _validate_uuid(competency_id, "competency_id")
     pool = get_pool()
     comp = await pool.fetchrow(
@@ -834,6 +845,7 @@ async def zun_analyze_results(
     dir_code: str = "09.03.02",
     discipline_id: str = "",
 ):
+    """Результаты ZUN-анализа."""
     _validate_dir_code(dir_code)
     base = (RESULT_TEACHER / dir_code).resolve()
     if RESULT_TEACHER.resolve() not in base.parents:
@@ -866,6 +878,7 @@ async def zun_analyze_results(
 @router.post("/teacher/zun/competencies/{competency_id}/entries", status_code=201)
 @limiter.limit("30/minute")
 async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
+    """Добавить KSA-запись."""
     _validate_uuid(competency_id, "competency_id")
     if body.ksa_type not in KSA_TYPES:
         raise HTTPException(status_code=400, detail="Invalid ksa_type")
@@ -912,6 +925,7 @@ async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
 @router.patch("/teacher/zun/entries/{ksa_id}")
 @limiter.limit("30/minute")
 async def zun_patch_entry(request: Request, ksa_id: str, body: ZUNPatch):
+    """Обновить KSA-запись."""
     _validate_uuid(ksa_id, "ksa_id")
     text = (body.text or "").strip()
     if not text:
@@ -933,6 +947,7 @@ async def zun_patch_entry(request: Request, ksa_id: str, body: ZUNPatch):
 @router.delete("/teacher/zun/entries/{ksa_id}")
 @limiter.limit("30/minute")
 async def zun_delete_entry(request: Request, ksa_id: str):
+    """Удалить KSA-запись."""
     _validate_uuid(ksa_id, "ksa_id")
     pool = get_pool()
     res = await pool.execute("DELETE FROM ksa_entries WHERE id = $1", ksa_id)
@@ -948,6 +963,7 @@ async def zun_delete_entry(request: Request, ksa_id: str):
 @router.post("/teacher/zun/analyze")
 @limiter.limit("2/minute")
 async def zun_analyze(request: Request, background_tasks: BackgroundTasks, dir_code: str = "09.03.02"):
+    """Запустить ZUN-анализ."""
     _validate_dir_code(dir_code)
 
     async def _run():
@@ -975,6 +991,7 @@ async def zun_analyze(request: Request, background_tasks: BackgroundTasks, dir_c
 @router.get("/teacher/zun/analyze/status/{run_id}")
 @limiter.limit("120/minute")
 async def zun_analyze_status(request: Request, run_id: str):
+    """Статус ZUN-анализа."""
     _validate_uuid(run_id, "run_id")
     pool = get_pool()
     row = await pool.fetchrow(
@@ -1087,6 +1104,7 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
 @router.post("/teacher/zun/import/{dir_code}")
 @limiter.limit("5/minute")
 async def zun_import(request: Request, dir_code: str, dry_run: bool = False):
+    """Импорт KRM направления."""
     _validate_dir_code(dir_code)
     pool = get_pool()
     return await _import_direction(pool, dir_code, dry_run=dry_run)

@@ -176,6 +176,7 @@ async def rpd_upload(
     direction_name: Annotated[str, Form()] = "",
     profile: Annotated[str, Form()] = "",
 ):
+    """Загрузка PDF РПД дисциплины."""
     _validate_dir_code(dir_code)
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only .pdf files are supported")
@@ -247,6 +248,7 @@ async def _collect_pipeline(run_id: str, dir_code: str) -> None:
 @router.post("/teacher/rpd/collect")
 @limiter.limit("2/minute")
 async def rpd_collect(request: Request, background_tasks: BackgroundTasks, dir_code: Annotated[str, Form()] = "09.03.02"):
+    """Сбор компетенций из загруженных РПД."""
     _validate_dir_code(dir_code)
     if dir_code not in YANDEX_COVERED:
         raise HTTPException(status_code=400, detail=f"Yandex Disk collection is not available for {dir_code}")
@@ -263,6 +265,7 @@ async def rpd_collect(request: Request, background_tasks: BackgroundTasks, dir_c
 
 @router.get("/teacher/rpd/sources")
 async def rpd_sources(request: Request):
+    """Источники РПД."""
     return {"yandex_covered": sorted(YANDEX_COVERED), "all_directions": sorted(YANDEX_COVERED | {
         p.name[len("krm_disciplines_"):-len(".json")]
         for p in REFERENCE_DIR.glob("krm_disciplines_*.json")
@@ -272,6 +275,7 @@ async def rpd_sources(request: Request):
 
 @router.get("/teacher/rpd/status/{run_id}")
 async def rpd_status(run_id: str, request: Request):
+    """Статус задачи сбора РПД."""
     from sqlalchemy import select
     from src.database import async_session_factory
     from src.models.krm_models import PipelineRun

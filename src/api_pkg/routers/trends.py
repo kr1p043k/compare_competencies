@@ -35,6 +35,7 @@ async def get_trends(
     min_change: float = Query(3.0),
     trend_analyzer_instance: TrendAnalyzer = Depends(deps.get_trend_analyzer),
 ):
+    """Тренды навыков."""
     match trend_analyzer_instance.get_trending_skills(
         top_n=top_n, min_change_percent=min_change
     ):

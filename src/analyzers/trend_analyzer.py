@@ -1,8 +1,6 @@
 """Trend analyzer: skill demand trends over time."""
 from __future__ import annotations
 
-from datetime import date
-from typing import Any
 
 import structlog
 
@@ -78,6 +76,7 @@ class SnapshotTrendAnalyzer:
         return Ok(result)
 
     def get_declining(self, top_n: int = 10) -> Result[list[dict], TrendError]:
+        """Навыки с падающей частотой, включая исчезнувшие (-100%)."""
         if len(self.snapshots) < 2:
             logger.warning("insufficient_snapshots_for_declining", count=len(self.snapshots))
             return Err(TrendError(
@@ -113,6 +112,10 @@ class SnapshotTrendAnalyzer:
                 elif change < -200:
                     change = -200
                 changes.append({"skill": skill, "change_pct": round(change, 1), "frequency": freq})
+        # Include skills that disappeared (in previous, not in latest)
+        for skill, prev_freq in previous.items():
+            if skill not in latest and prev_freq >= 10:
+                changes.append({"skill": skill, "change_pct": -100.0, "frequency": 0})
         result = sorted(changes, key=lambda x: -x["change_pct"])[:top_n]
         logger.info("declining_skills_found", count=len(result))
         return Ok(result)

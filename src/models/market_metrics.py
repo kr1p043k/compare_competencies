@@ -13,6 +13,7 @@ logger = structlog.get_logger(__name__)
 
 @dataclass(slots=True)
 class SkillMetrics:
+    """Метрики навыка по уровням."""
     skill: str
     gap_j: float = 0.0
     gap_m: float = 0.0
@@ -73,6 +74,7 @@ class SkillMetrics:
 
 @dataclass(slots=True)
 class DomainMetrics:
+    """Метрики домена."""
     domain: str
     required_skills: list[str]
     user_has: int = 0

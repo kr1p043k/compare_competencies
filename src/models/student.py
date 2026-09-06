@@ -19,6 +19,9 @@ class StudentProfile(BaseModel):
     profile_name: str
     competencies: list[str] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
+    # C2 fix: per-skill mastery levels from CSV matrix (Б/П/Э/X -> B/P/E/X)
+    # Maps skill or competency code -> level letter. Empty dict = all binary exists.
+    skill_levels: dict[str, str] = Field(default_factory=dict)
     target_level: ExperienceLevel = ExperienceLevel.MIDDLE
     created_at: datetime = Field(default_factory=datetime.now)
 

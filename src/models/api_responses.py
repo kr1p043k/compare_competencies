@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, RootModel
 
 
 class HealthResponse(BaseModel):
+    """Ответ health-check."""
     status: str
     version: str
     evaluator: bool
@@ -15,11 +16,13 @@ class HealthResponse(BaseModel):
 
 
 class ReadyResponse(BaseModel):
+    """Готовность сервиса и компонентов."""
     status: str
     components: dict[str, bool]
 
 
 class StatusResponse(BaseModel):
+    """Статус загрузки данных."""
     vacancies_loaded: bool
     skill_weights_count: int
     taxonomy_loaded: bool
@@ -31,6 +34,7 @@ class StatusResponse(BaseModel):
 
 
 class ProfileShort(BaseModel):
+    """Краткий профиль студента."""
     profile_name: str
     target_level: str
     skills_count: int
@@ -40,6 +44,7 @@ class ProfileShort(BaseModel):
 
 
 class ProfiledEval(BaseModel):
+    """Оценки профиля."""
     market_coverage_score: float | None = None
     skill_coverage: float | None = None
     domain_coverage_score: float | None = None
@@ -49,19 +54,23 @@ class ProfiledEval(BaseModel):
 
 
 class ProfilesCompareResponse(BaseModel):
+    """Сравнение профилей."""
     profiles: dict[str, ProfiledEval]
 
 
 class SkillItem(BaseModel):
+    """Навык с весом."""
     skill: str
     weight: float
 
 
 class TopSkillsResponse(BaseModel):
+    """Топ навыков."""
     skills: list[SkillItem]
 
 
 class SkillInfoResponse(BaseModel):
+    """Информация о навыке."""
     skill: str
     frequency: int
     weight: float
@@ -70,17 +79,20 @@ class SkillInfoResponse(BaseModel):
 
 
 class MarketCompetenciesResponse(BaseModel):
+    """Компетенции рынка."""
     skills: list[dict[str, Any]]
     total: int
 
 
 class ClusterSummaryItem(BaseModel):
+    """Сводка кластера."""
     id: int
     name: str
     top_skills: list[str]
 
 
 class LevelClusters(BaseModel):
+    """Кластеры уровня."""
     clusters: int | None = None
     type: str | None = None
     top_clusters: list[ClusterSummaryItem] | None = None
@@ -88,19 +100,23 @@ class LevelClusters(BaseModel):
 
 
 class ClusterSummaryResponse(RootModel):
+    """Сводка кластеризации."""
     root: dict[str, LevelClusters]
 
 
 class ClustersByLevelResponse(BaseModel):
+    """Кластеры по уровню."""
     level: str
     clusters: list[ClusterSummaryItem]
 
 
 class TrendsResponse(BaseModel):
+    """Тренды навыков."""
     trends: dict[str, list[dict[str, Any]]]
 
 
 class CategoryCoverage(BaseModel):
+    """Покрытие категории."""
     label: str
     icon: str
     total: int
@@ -109,10 +125,12 @@ class CategoryCoverage(BaseModel):
 
 
 class TaxonomyCoverageResponse(BaseModel):
+    """Покрытие таксономии."""
     coverage: dict[str, CategoryCoverage]
 
 
 class ProfessionItem(BaseModel):
+    """Профессия."""
     name: str
     domains: list[str]
     competency_codes: list[str]
@@ -121,16 +139,19 @@ class ProfessionItem(BaseModel):
 
 
 class ProfessionsResponse(BaseModel):
+    """Список профессий."""
     professions: list[ProfessionItem]
     total: int
 
 
 class KRMCompetency(BaseModel):
+    """Компетенция KRM с навыками."""
     skill_count: int
     skills: list[str]
 
 
 class ProfessionDetailResponse(BaseModel):
+    """Детали профессии."""
     name: str
     domains: list[str]
     skill_count: int
@@ -140,6 +161,7 @@ class ProfessionDetailResponse(BaseModel):
 
 
 class KRMExpertiseItem(BaseModel):
+    """Экспертиза KRM."""
     coverage: float
     total_required: int
     covered_skills: list[str]
@@ -147,6 +169,7 @@ class KRMExpertiseItem(BaseModel):
 
 
 class KRMCoverageResponse(BaseModel):
+    """KRM-покрытие."""
     profession: str
     user_skills: list[str]
     competency_coverage: dict[str, KRMExpertiseItem]
@@ -154,6 +177,7 @@ class KRMCoverageResponse(BaseModel):
 
 
 class ProfessionEvalResponse(BaseModel):
+    """Оценка профиля под профессию."""
     profile: str
     target_profession: str
     target_domains: list[str]
@@ -165,19 +189,23 @@ class ProfessionEvalResponse(BaseModel):
 
 
 class MissingSkillItem(BaseModel):
+    """Отсутствующий навык."""
     skill: str
     frequency: int
 
 
 class MissingSkillsResponse(BaseModel):
+    """Отсутствующие навыки."""
     missing_skills: list[MissingSkillItem]
 
 
 class DeadSkillsResponse(BaseModel):
+    """Мёртвые навыки."""
     dead_skills: list[str]
 
 
 class PipelineTaskStatus(BaseModel):
+    """Статус задачи пайплайна."""
     task_id: str
     status: str
     message: str
@@ -190,6 +218,7 @@ class PipelineTaskStatus(BaseModel):
 
 
 class GapProgressResponse(BaseModel):
+    """Прогресс gap-анализа."""
     pct: float = 0.0
     message: str = ""
     stage: str = ""
@@ -197,11 +226,13 @@ class GapProgressResponse(BaseModel):
 
 
 class PipelineTaskListResponse(BaseModel):
+    """Список задач."""
     tasks: list[PipelineTaskStatus]
     total: int
 
 
 class PipelineStatusResponse(BaseModel):
+    """Статус пайплайна."""
     clusters: dict[str, bool]
     clusters_all_ready: bool
     ltr_model: bool
@@ -212,12 +243,14 @@ class PipelineStatusResponse(BaseModel):
 
 
 class PipelineSimpleResponse(BaseModel):
+    """Простой ответ пайплайна."""
     status: str
     message: str
     task_id: str | None = None
 
 
 class CacheRefreshResponse(BaseModel):
+    """Результат обновления кэша."""
     status: str
     message: str
     removed: list[str]
@@ -225,6 +258,7 @@ class CacheRefreshResponse(BaseModel):
 
 
 class VacancyItem(BaseModel):
+    """Краткая вакансия."""
     id: Any = None
     name: str
     experience: str
@@ -241,6 +275,7 @@ class VacancyItem(BaseModel):
 
 
 class VacanciesResponse(BaseModel):
+    """Список вакансий с пагинацией."""
     items: list[VacancyItem]
     total: int
     limit: int
@@ -249,6 +284,7 @@ class VacanciesResponse(BaseModel):
 
 
 class VacancyDetailResponse(BaseModel):
+    """Детали вакансии."""
     id: Any = None
     name: str | None = None
     description: str = ""
@@ -266,18 +302,21 @@ class VacancyDetailResponse(BaseModel):
 
 
 class VacancyStatsResponse(BaseModel):
+    """Статистика вакансий."""
     total: int
     by_experience: dict[str, int]
     salary: dict[str, float]
 
 
 class RegionsResponse(BaseModel):
+    """Регионы поиска."""
     regions: list[str]
     total: int
     default: str = "Все регионы"
 
 
 class VacanciesByRegionResponse(BaseModel):
+    """Вакансии региона."""
     region: str
     count: int
     limit: int

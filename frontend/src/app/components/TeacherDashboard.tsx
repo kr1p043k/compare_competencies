@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "../api";
 import { authHeaders } from "../../lib/auth";
 import { AnalysisPanel } from "./AnalysisPanel";
@@ -19,13 +19,14 @@ type DirectionAnalysis = {
   profile: string;
   total_disciplines: number;
   average_coverage: number;
+  average_quality_coverage?: number;
   coverage_level: string;
   total_gaps_across_all: number;
   top_cross_discipline_gaps: { skill: string; disciplines: number }[];
   top_emerging_across_all: { skill: string; frequency: number }[];
   recommendations: { type: string; priority: string; message: string }[];
   trends: { rising: any[]; declining: any[] };
-  disciplines: { name: string; coverage_ratio: number; coverage_level: string; gaps: number; emerging: number }[];
+  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number }[];
   generated_at: string;
 };
 
@@ -81,9 +82,11 @@ export function TeacherDashboard() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedCompetency, setSelectedCompetency] = useState("");
   const [runLoading, setRunLoading] = useState(false);
+  const [runMsg, setRunMsg] = useState("");
 
   const [rpdSources, setRpdSources] = useState<{ yandex_covered: string[] }>({ yandex_covered: [] });
   const [rpdFile, setRpdFile] = useState<File | null>(null);
+  const rpdInputRef = useRef<HTMLInputElement | null>(null);
   const [rpdUploading, setRpdUploading] = useState(false);
   const [rpdCollecting, setRpdCollecting] = useState(false);
   const [rpdRun, setRpdRun] = useState<{ run_id: string } | null>(null);
@@ -154,11 +157,12 @@ export function TeacherDashboard() {
     return () => { cancelled = true; };
   }, [rpdRun?.run_id]);
 
-  async function uploadRpd() {
-    if (!rpdFile || rpdUploading) return;
+  async function uploadRpd(file?: File | null) {
+    const f = file ?? rpdFile;
+    if (!f || rpdUploading) return;
     setRpdUploading(true); setRpdMsg("Загрузка...");
     const fd = new FormData();
-    fd.append("file", rpdFile);
+    fd.append("file", f);
     fd.append("dir_code", selectedDir);
     try {
       const res = await fetch(`/api/teacher/rpd/upload`, {
@@ -322,26 +326,44 @@ export function TeacherDashboard() {
               outline: "none",
             }}
           >
-            {directions.map((d) => (
-              <option key={d.dir_code} value={d.dir_code}>{d.dir_code} - {d.name}</option>
+            {directions.map((d, idx) => (
+              <option key={`${d.dir_code}-${idx}`} value={d.dir_code}>{d.dir_code} - {d.name}</option>
             ))}
           </select>
 
           {/* Run analysis button */}
           <button
             onClick={async () => {
+              if (runLoading) return;
               setRunLoading(true);
+              setRunMsg("Запуск анализа...");
               try {
+                let before: string | null = null;
+                try {
+                  const cur: any = await api(`/teacher/analysis?dir_code=${selectedDir}`);
+                  before = cur?.generated_at ?? null;
+                } catch {}
                 await api(`/teacher/krm/run-analysis?dir_code=${selectedDir}`, { method: "POST" });
-                // wait a bit then reload
-                setTimeout(async () => {
+                const t0 = Date.now();
+                for (let i = 0; i < 360; i++) {
+                  await new Promise((res) => setTimeout(res, 5000));
+                  const spent = Math.round((Date.now() - t0) / 1000);
+                  setRunMsg(`Анализ выполняется... ${spent} c`);
                   try {
-                    const a = await api(`/teacher/analysis?dir_code=${selectedDir}`);
-                    setAnalysis(a);
-                  } catch {}
-                  setRunLoading(false);
-                }, 3000);
-              } catch {
+                    const a: any = await api(`/teacher/analysis?dir_code=${selectedDir}`);
+                    if (a && a.generated_at && a.generated_at !== before) {
+                      setAnalysis(a);
+                      setRunMsg("Готово");
+                      break;
+                    }
+                    if (i === 359) setRunMsg("Превышено ожидание — проверьте результат позже");
+                  } catch {
+                    // analysis endpoint 404s until the first run finishes — keep polling
+                  }
+                }
+              } catch (e: any) {
+                setRunMsg(`Ошибка запуска: ${e?.message || e}`);
+              } finally {
                 setRunLoading(false);
               }
             }}
@@ -361,6 +383,9 @@ export function TeacherDashboard() {
           >
             {runLoading ? "Анализ запущен..." : "Запустить анализ"}
           </button>
+            {runMsg && (
+              <div style={{ fontSize: 12, color: "#b45309", marginTop: 6 }}>{runMsg}</div>
+            )}
 
           {/* RPD upload block */}
           <div
@@ -376,27 +401,28 @@ export function TeacherDashboard() {
               Подгрузка РПД
             </div>
             <input
+              ref={rpdInputRef}
               type="file"
               accept=".pdf"
-              onChange={(e) => setRpdFile(e.target.files?.[0] || null)}
-              style={{
-                width: "100%",
-                fontSize: 11,
-                color: "#78350f",
-                marginBottom: 8,
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setRpdFile(f);
+                e.target.value = "";
+                if (f) uploadRpd(f);
               }}
             />
             <button
-              onClick={uploadRpd}
-              disabled={!rpdFile || rpdUploading}
+              onClick={() => rpdInputRef.current?.click()}
+              disabled={rpdUploading}
               style={{
                 width: "100%",
                 padding: "8px 12px",
-                background: rpdUploading || !rpdFile ? "#9ca3af" : "#7c3aed",
+                background: rpdUploading ? "#9ca3af" : "#7c3aed",
                 color: "#fff",
                 border: "none",
                 borderRadius: 6,
-                cursor: rpdUploading || !rpdFile ? "default" : "pointer",
+                cursor: rpdUploading ? "default" : "pointer",
                 fontSize: 12,
                 fontWeight: 600,
               }}
@@ -462,6 +488,11 @@ export function TeacherDashboard() {
                 <span style={{ color: "#7c3aed", fontWeight: 600 }}>Analysis</span>
                 <span style={{ color: covColor(analysis.average_coverage), fontWeight: 700 }}>
                   {(analysis.average_coverage * 100).toFixed(1)}%
+                  {analysis.average_quality_coverage != null && (
+                    <span style={{ display: "block", fontSize: 12, color: covColor(analysis.average_quality_coverage), marginTop: 2 }}>
+                      Quality: {(analysis.average_quality_coverage * 100).toFixed(1)}%
+                    </span>
+                  )}
                 </span>
               </div>
               <div style={{ color: "#6b7280", marginTop: 2 }}>
@@ -678,6 +709,9 @@ export function TeacherDashboard() {
                     <span style={{ color: "#374151", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
                     <div style={{ display: "flex", gap: 12 }}>
                       <span style={{ color: covColor(d.coverage_ratio), fontWeight: 600 }}>{(d.coverage_ratio * 100).toFixed(1)}%</span>
+                      {d.weighted_coverage != null && (
+                        <span style={{ color: covColor(d.weighted_coverage), fontSize: 11 }} title="Quality-weighted coverage">Q:{(d.weighted_coverage * 100).toFixed(0)}%</span>
+                      )}
                       <span style={{ color: "#dc2626" }}>{d.gaps}g</span>
                       <span style={{ color: "#2563eb" }}>{d.emerging}e</span>
                     </div>

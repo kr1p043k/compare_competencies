@@ -213,7 +213,7 @@ class TestHhDataSource:
         with patch("src.pipeline.data_source.HeadHunterAPI"), \
             patch("src.pipeline.data_source.VacancyParser"), \
             patch("src.pipeline.data_source.validate_safe_path", return_value=Path("queries.txt")), \
-            patch("src.pipeline.data_source.load_queries_from_file", return_value=["QA"]), \
+            patch("src.pipeline.data_source.load_queries_from_file", return_value=Ok(["QA"])), \
             patch("src.pipeline.data_source.collect_vacancies_multiple") as mock_collect, \
             patch("src.pipeline.data_source.get_load_mode", return_value=(False,0,"sync")), \
             patch("src.pipeline.data_source.load_vacancies_details", return_value=Ok([{"id":"1"}])), \

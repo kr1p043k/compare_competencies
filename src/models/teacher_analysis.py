@@ -12,6 +12,7 @@ logger = structlog.get_logger(__name__)
 
 @dataclass
 class SkillMatch:
+    """Совпадение навыка с рынком."""
     skill_name: str
     frequency: int = 0
     market_match: str | None = None
@@ -21,6 +22,7 @@ class SkillMatch:
 
 @dataclass
 class CrossReference:
+    """Перекрёстная ссылка на дисциплину."""
     skill_name: str
     frequency: int = 0
     discipline: str = ""
@@ -28,6 +30,7 @@ class CrossReference:
 
 @dataclass
 class CompetencyCoverage:
+    """Покрытие компетенции."""
     code: str
     total_skills: int = 0
     matched_skills: int = 0
@@ -38,6 +41,7 @@ class CompetencyCoverage:
 
 @dataclass
 class DisciplineCoverage:
+    """Покрытие дисциплины."""
     discipline_id: str
     discipline_name: str
     total_skills: int = 0
@@ -56,6 +60,7 @@ class DisciplineCoverage:
 
 @dataclass
 class Recommendation:
+    """Рекомендация teacher analysis."""
     type: str       # "foundational" | "review_content" | "add_new_content" | "cross_reference" | "major_revision"
     priority: str   # "high" | "medium" | "low"
     message: str
@@ -64,6 +69,7 @@ class Recommendation:
 
 @dataclass
 class DirectionSummary:
+    """Сводка направления."""
     direction_code: str
     direction_name: str
     profile: str
@@ -77,12 +83,14 @@ class DirectionSummary:
 
 @dataclass
 class GapAnalysisResult:
+    """Результат gap-анализа дисциплины."""
     discipline: DisciplineCoverage | None = None
     recommendations: list[Recommendation] = field(default_factory=list)
 
 
 @dataclass
 class TeacherAnalysisReport:
+    """Отчёт teacher analysis."""
     direction: DirectionSummary
     discipline_reports: list[tuple[str, GapAnalysisResult]] = field(default_factory=list)
     generated_at: datetime = field(default_factory=datetime.now)

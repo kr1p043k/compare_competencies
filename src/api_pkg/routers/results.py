@@ -25,6 +25,7 @@ async def get_results_summary(
     request: Request,
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
+    """Сводка результатов анализа."""
     evaluations = build_summary_payload(load_recommendations_from_disk())
     if evaluations:
         return {
@@ -56,6 +57,7 @@ async def get_recommendations_result(
     profile: str,
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
+    """Сохранённые рекомендации профиля."""
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
 
@@ -83,11 +85,12 @@ async def get_profile_image(
     profile: str,
     image_type: str,
 ):
+    """PNG-график профиля по типу."""
     import re
     if not re.match(r"^[a-zA-Z0-9_-]+$", profile):
         raise HTTPException(status_code=400, detail="Invalid profile name")
 
-    safe_types = ["radar", "ml_importance", "cluster_insights", "deficits", "skills_heatmap", "skill_correlation"]
+    safe_types = ["radar", "ml_importance", "cluster_insights", "skills_heatmap", "skill_correlation"]
     if image_type not in safe_types:
         raise HTTPException(status_code=400, detail="Invalid image type")
 
@@ -112,6 +115,7 @@ async def get_profile_image(
 @router.get("/results/images/coverage-comparison")
 @limiter.limit("30/minute")
 async def get_coverage_comparison_image(request: Request):
+    """PNG сравнения покрытия."""
     image_path = config.REPORTS_DIR / "coverage_comparison.png"
     if not image_path.exists():
         raise HTTPException(
@@ -123,6 +127,7 @@ async def get_coverage_comparison_image(request: Request):
 @router.get("/results/images/skills-heatmap")
 @limiter.limit("30/minute")
 async def get_skills_heatmap_image(request: Request):
+    """PNG тепловой карты навыков."""
     image_path = config.REPORTS_DIR / "skills_heatmap.png"
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Skills heatmap not found")
@@ -132,6 +137,7 @@ async def get_skills_heatmap_image(request: Request):
 @router.get("/results/images/skill-correlation")
 @limiter.limit("30/minute")
 async def get_skill_correlation_image(request: Request):
+    """PNG корреляций навыков."""
     image_path = config.REPORTS_DIR / "skill_correlation_heatmap.png"
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Skill correlation not found")

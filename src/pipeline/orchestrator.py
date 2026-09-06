@@ -42,10 +42,12 @@ class PipelineOrchestrator:
         stages: list[PipelineStage],
         num_retries: int = 1,
         event_bus: EventBus | None = None,
+        should_cancel: Any = None,
     ):
         self.stages = stages
         self.num_retries = num_retries
         self.event_bus = event_bus or EventBus()
+        self.should_cancel = should_cancel
 
     def run(
         self,
@@ -63,6 +65,11 @@ class PipelineOrchestrator:
         for idx, stage in enumerate(self.stages):
             stage_name = stage.name or stage.__class__.__name__
             pct_base = int(idx / total * 100)
+            if self.should_cancel is not None and self.should_cancel():
+                run.finished_at = time.time()
+                logger.warning("pipeline_cancelled", at_stage=stage_name)
+                write_progress(pct_base, "Отменено пользователем")
+                return Err(PipelineError(message="cancelled by user"))
             write_progress(pct_base, f"Этап {idx + 1}/{total}: {stage_name}")
 
             last_error = None

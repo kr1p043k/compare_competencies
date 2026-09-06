@@ -49,9 +49,21 @@ class BM25Ranker:
         return _DEFAULT_STOP_LEMMAS
 
     def _compute_corpus_hash(self, vacancies: list) -> str:
+        """Хеш ID + длин + содержимого (одни ID протухают при правках)."""
         import hashlib, json
-        ids = sorted(v.get("id", "") if isinstance(v, dict) else v.id for v in vacancies if v)
-        return hashlib.sha256(json.dumps(ids, ensure_ascii=False).encode()).hexdigest()[:16]
+        parts = []
+        for v in vacancies:
+            if not v:
+                continue
+            vid = v.get("id", "") if isinstance(v, dict) else v.id
+            try:
+                vtext = self._extract_vacancy_text(v)
+            except Exception:
+                vtext = ""
+            parts.append((str(vid), len(vtext),
+                          hashlib.sha256(vtext.encode("utf-8", errors="replace")).hexdigest()[:16]))
+        parts.sort()
+        return hashlib.sha256(json.dumps(parts, ensure_ascii=False).encode()).hexdigest()[:16]
 
     def _extract_vacancy_text(self, vac) -> str:
         parts = []
@@ -112,6 +124,7 @@ class BM25Ranker:
         return doc_skills
 
     def calculate_weights(self, vacancies: list) -> Result[dict[str, float], DomainError]:
+        """BM25-веса навыков по корпусу вакансий (IDF-корпус семплируется)."""
         try:
             ch = self._compute_corpus_hash(vacancies)
             if self._cached_corpus is not None and self._corpus_hash == ch:
@@ -153,7 +166,16 @@ class BM25Ranker:
             # Используем все доступные вакансии — BM25Okapi сам нормализует длину doc через b=0.75
             # Чем больше корпус, тем точнее IDF
 
-            bm25 = BM25Okapi(corpus_docs)
+
+            # Bound IDF corpus (config BM25_MAX_CORPUS_DOCS); score all skills.
+            _max_docs = getattr(config, "BM25_MAX_CORPUS_DOCS", 200) or 200
+            if len(corpus_docs) > _max_docs:
+                _step = max(1, len(corpus_docs) // _max_docs)
+                _corpus_sample = corpus_docs[::_step][:_max_docs]
+            else:
+                _corpus_sample = corpus_docs
+            bm25 = BM25Okapi(_corpus_sample)
+
             weights = {}
             for term in all_skills:
                 try:

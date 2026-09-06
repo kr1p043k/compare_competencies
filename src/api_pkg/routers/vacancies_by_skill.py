@@ -15,6 +15,7 @@ async def get_vacancies_by_skill(
     snapshot_date: str = Query(...),
     limit: int = Query(50, ge=1, le=200),
 ):
+    """Вакансии по навыку."""
     if len(skill) < 3:
         return {"vacancies": [], "total": 0}
 

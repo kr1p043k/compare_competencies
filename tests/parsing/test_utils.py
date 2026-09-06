@@ -231,10 +231,11 @@ class TestExtractAndCountSkills:
 
     def test_extract_and_count_skills_success(self):
         mock_parser = MagicMock()
-        mock_parser.extract_skills_from_vacancies.return_value = {
+        from src.result import Ok as _Ok
+        mock_parser.extract_skills_from_vacancies.return_value = _Ok({
             "frequencies": {"python": 10},
             "tfidf_weights": {"python": 0.9},
-        }
+        })
         result = utils.extract_and_count_skills([{"id": 1}], mock_parser).ok()
         assert result["frequencies"] == {"python": 10}
 

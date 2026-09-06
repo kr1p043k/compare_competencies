@@ -27,6 +27,7 @@ def _profile():
 def mock_globals():
     """Подменяет глобальные переменные src.api_pkg на моки перед каждым тестом."""
     import src.api_pkg as _api
+    import src.api_pkg.deps as _deps
     _originals = {}
     _mocks = {
         'evaluator': MagicMock(),
@@ -40,12 +41,19 @@ def mock_globals():
         'basic_vacancies': [{"id": 1}],
         'student_profiles': {"base": _profile()},
     }
+    _deps_originals = {}
     for name, mock in _mocks.items():
         _originals[name] = getattr(_api, name, None)
         setattr(_api, name, mock)
+        # Also patch deps module (where routers actually read via deps.get_*)
+        if hasattr(_deps, name):
+            _deps_originals[name] = getattr(_deps, name, None)
+            setattr(_deps, name, mock)
     yield
     for name, original in _originals.items():
         setattr(_api, name, original)
+    for name, original in _deps_originals.items():
+        setattr(_deps, name, original)
 
 
 class TestHealth:

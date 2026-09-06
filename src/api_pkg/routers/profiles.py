@@ -50,6 +50,7 @@ async def compare_profiles(
     eval_instance: ProfileEvaluator = Depends(deps.get_evaluator),
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
+    """Сравнение профилей студентов."""
     evaluations = {}
     for pname, student in profiles.items():
         match eval_instance.evaluate_profile(student):
@@ -74,6 +75,7 @@ async def get_profile(
     profile: str,
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
+    """Профиль студента по имени."""
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
     student = profiles[profile]
@@ -93,6 +95,7 @@ async def get_profile(
 )
 @limiter.limit("30/minute")
 async def get_profile_profession_evaluation(request: Request, profile: str):
+    """Оценка профиля под профессию."""
     if profile not in deps.student_profiles:
         raise HTTPException(status_code=404, detail=f"Profile '{profile}' not found")
     if deps.evaluator is None:
@@ -137,6 +140,7 @@ async def get_recommendations(
     engine: RecommendationEngine = Depends(deps.get_recommendation_engine),
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
+    """Рекомендации навыков профилю."""
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
     student = profiles[profile]
@@ -160,6 +164,7 @@ async def missing_skills(
     min_frequency: int = Query(1),
     freq: dict[str, int] = Depends(deps.get_skill_freq),
 ):
+    """Отсутствующие навыки (по частоте)."""
     validator = SkillValidator(whitelist=None)
     extracted = {}
     for skill, freq_val in freq.items():
@@ -180,6 +185,7 @@ async def dead_skills(
     request: Request,
     freq: dict[str, int] = Depends(deps.get_skill_freq),
 ):
+    """Мёртвые навыки (нулевой спрос)."""
     extracted_lower = {s.lower() for s in freq}
     dead = sorted(
         s for s in deps.current_skills_set if s.lower() not in extracted_lower

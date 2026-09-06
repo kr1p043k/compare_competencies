@@ -75,7 +75,7 @@ class SkillNormalizer:
         "cassandra": ["cassandra"],
         "dynamodb": ["dynamodb"],
         "couchdb": ["couchdb"],
-        "neo4j": ["neo4j"],
+        "neo4j": ["neo4j", "neoj"],
         "clickhouse": ["clickhouse"],
         # DevOps / Cloud
         "docker": ["docker container", "docker-compose", "docker compose", "containerization"],
@@ -129,11 +129,7 @@ class SkillNormalizer:
         "prompt engineering": ["prompting", "prompt engineering"],
         "openai api": ["openai api"],
         # Misc aliases from usage tracking
-        "c++": ["cc++", "c/c++", "с++", "С++"],
-        "csharp": ["c#", "с#", "С#", "c sharp"],
-        "ci/cd": ["cicd", "ci cd"],
         "msoffice": ["ms office", "microsoft office"],
-        "neo4j": ["neoj"],
         "tcp/ip": ["tcpip", "tcp ip", "tcp-ip"],
         # Cloud
         "aws": ["amazon web services", "amazon aws"],
@@ -168,6 +164,10 @@ class SkillNormalizer:
     }
 
     _canonical_map: dict[str, str] | None = None
+    # Versioned normalize cache: {input: (taxonomy_version, Result)}.
+    # Invalidates automatically when skill_taxonomy.json changes (fixes stale @cache).
+    _normalize_cache: dict[str, tuple[str, object]] = {}
+    _normalize_cache_version: str | None = None
 
     @classmethod
     def _get_canonical_map(cls) -> dict[str, str]:
@@ -308,8 +308,39 @@ class SkillNormalizer:
     ]
 
     @staticmethod
-    @cache
+    def _taxonomy_version() -> str:
+        """Ключ инвалидации кэша: mtime + размер skill_taxonomy.json."""
+        """Version key for cache invalidation: mtime + size of taxonomy files."""
+        try:
+            from pathlib import Path as _P
+            tax = _P(__file__).resolve().parent.parent.parent.parent / "data" / "reference" / "skill_taxonomy.json"
+            st = tax.stat()
+            return f"{st.st_mtime_ns}:{st.st_size}"
+        except Exception:
+            return "unknown"
+
+    @staticmethod
+    # 8b fix v2: versioned cache wrapper (fast + correct; invalidates on taxonomy change)
     def normalize(skill: str) -> Result[str, DomainError]:
+        try:
+            if not skill:
+                return Ok("")
+            _ver = SkillNormalizer._taxonomy_version()
+            if SkillNormalizer._normalize_cache_version != _ver:
+                SkillNormalizer._normalize_cache.clear()
+                SkillNormalizer._normalize_cache_version = _ver
+            _hit = SkillNormalizer._normalize_cache.get(skill)
+            if _hit is not None and _hit[0] == _ver:
+                return _hit[1]
+            _res = SkillNormalizer._normalize_inner(skill)
+            SkillNormalizer._normalize_cache[skill] = (_ver, _res)
+            return _res
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail=f"normalize({skill})"))
+
+    @staticmethod
+    def _normalize_inner(skill: str) -> Result[str, DomainError]:
+        """Собственно нормализация (вызывается через кэширующую обёртку `normalize`)."""
         try:
             if not skill:
                 return Ok("")
@@ -359,6 +390,11 @@ class SkillNormalizer:
             if text in whitelist:
                 return Ok(text)
 
+            # If text is already a canonical synonym key, don't fuzzy-match it
+            # away (e.g. "nodejs" canonical must not become "node.js" via fuzzy).
+            if text in SkillNormalizer.SYNONYM_MAP:
+                return Ok(text)
+
             # Token pre-filter: only compare against whitelist entries sharing tokens
             input_tokens = set(text.split())
             candidates = [
@@ -367,8 +403,18 @@ class SkillNormalizer:
             ]
 
             if not candidates:
-                logger.debug("no_fuzzy_candidates", original=original, normalized=text)
-                return Ok(text)
+                # Fallback for typos with no token overlap (e.g. "reackt" vs "react"):
+                # compare against entries with same first char and similar length.
+                # Keeps fuzzy matching fast without scanning the full whitelist.
+                _first = text[:1] if text else ""
+                _tlen = len(text)
+                candidates = [
+                    w for w in whitelist
+                    if w[:1] == _first and abs(len(w) - _tlen) <= 2
+                ][:50]
+                if not candidates:
+                    logger.debug("no_fuzzy_candidates", original=original, normalized=text)
+                    return Ok(text)
 
             matches = process.extract(text, candidates, scorer=fuzz.WRatio,
                                       limit=SkillNormalizer.MAX_FUZZY_CANDIDATES)
@@ -396,6 +442,7 @@ class SkillNormalizer:
 
     @staticmethod
     def normalize_batch(skills: list[str]) -> Result[list[str], DomainError]:
+        """Нормализовать список навыков (пустые отбрасываются)."""
         results = []
         for skill in skills:
             if skill:
@@ -427,6 +474,7 @@ class SkillNormalizer:
 
     @staticmethod
     def deduplicate(skills: list[str]) -> Result[list[str], DomainError]:
+        """Нормализовать и убрать дубликаты с сохранением порядка."""
         seen = set()
         result = []
         for skill in skills:

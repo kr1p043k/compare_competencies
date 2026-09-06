@@ -41,7 +41,7 @@ class TestVerifyN8NSecret:
         mock_request = MagicMock()
         mock_request.headers = {}
         with patch("src.config.N8N_WEBHOOK_SECRET", None):
-            assert _verify_n8n_secret(mock_request) is True
+            assert _verify_n8n_secret(mock_request) is False  # updated: fail-closed when no secret (secure)
 
     def test_valid_secret_returns_true(self):
         mock_request = MagicMock()

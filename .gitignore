@@ -60,3 +60,6 @@ env
 backups/
 .mimocode/
 cache/
+
+# User-uploaded files (RPD PDFs etc.) — never commit
+uploads/

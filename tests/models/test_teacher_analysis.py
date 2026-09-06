@@ -130,4 +130,4 @@ class TestTeacherAnalysisReport:
         r = TeacherAnalysisReport(direction=ds)
         assert r.direction.direction_code == "09.03.04"
         assert r.discipline_reports == []
-        assert r.generated_at == ""
+        assert isinstance(r.generated_at, datetime)

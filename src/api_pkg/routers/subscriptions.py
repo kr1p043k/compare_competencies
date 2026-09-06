@@ -41,6 +41,7 @@ async def require_auth(request: Request) -> dict:
 @router.get("/subscriptions")
 @limiter.limit("30/minute")
 async def list_subscriptions(request: Request, user: dict = Depends(require_auth)):
+    """Подписки пользователя."""
     uid = user["uid"]
     from sqlalchemy import select
     from src.database import async_session_factory
@@ -74,6 +75,7 @@ async def list_subscriptions(request: Request, user: dict = Depends(require_auth
 @router.post("/subscriptions")
 @limiter.limit("10/minute")
 async def create_subscription(request: Request, body: SubscriptionCreate, user: dict = Depends(require_auth)):
+    """Создать подписку."""
     uid = user["uid"]
     from src.database import async_session_factory
     from src.models.krm_models import Subscription
@@ -97,6 +99,7 @@ async def create_subscription(request: Request, body: SubscriptionCreate, user: 
 @router.delete("/subscriptions/{sub_id}")
 @limiter.limit("10/minute")
 async def delete_subscription(sub_id: str, request: Request, user: dict = Depends(require_auth)):
+    """Удалить подписку."""
     uid = user["uid"]
     from src.database import async_session_factory
     from src.models.krm_models import Subscription
@@ -115,6 +118,7 @@ async def delete_subscription(sub_id: str, request: Request, user: dict = Depend
 @router.get("/notifications")
 @limiter.limit("30/minute")
 async def list_notifications(request: Request, limit: int = 50, unread_only: bool = False, user: dict = Depends(require_auth)):
+    """Уведомления пользователя."""
     uid = user["uid"]
     from sqlalchemy import select, desc
     from src.database import async_session_factory
@@ -153,6 +157,7 @@ async def list_notifications(request: Request, limit: int = 50, unread_only: boo
 @router.post("/notifications/{notif_id}/read")
 @limiter.limit("30/minute")
 async def mark_read(notif_id: str, request: Request, user: dict = Depends(require_auth)):
+    """Пометить уведомление прочитанным."""
     uid = user["uid"]
     from src.database import async_session_factory
     from src.models.krm_models import Notification
@@ -171,6 +176,7 @@ async def mark_read(notif_id: str, request: Request, user: dict = Depends(requir
 @router.get("/notifications/unread-count")
 @limiter.limit("30/minute")
 async def unread_count(request: Request, user: dict = Depends(require_auth)):
+    """Число непрочитанных уведомлений."""
     uid = user["uid"]
     from src.database import async_session_factory
     from src.models.krm_models import Notification

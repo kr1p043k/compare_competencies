@@ -181,6 +181,13 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
 }
 
 export function RecommendationsReport({ data }: RecommendationsReportProps) {
+  if (!data || !data.summary) {
+    return (
+      <div className="py-8 text-center text-gray-500 text-sm">
+        <p>No recommendations yet — run the analysis first.</p>
+      </div>
+    );
+  }
   const getPriorityColor = (priority: string) => {
     switch (priority.toUpperCase()) {
       case "HIGH":

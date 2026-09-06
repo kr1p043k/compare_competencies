@@ -3,7 +3,6 @@
 import hashlib
 import json
 import logging
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -161,7 +160,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             except Exception:
                 logger.warning("hybrid_weights_load_failed")
         if not hybrid_weights:
-            hybrid_weights = {s: f / max(frequencies.values(), 1) for s, f in frequencies.items()}
+            hybrid_weights = {s: f / max([*frequencies.values(), 1]) for s, f in frequencies.items()}  # fix: max() needs iterable unpack
 
         processed_vacancies = self._prepare_vacancies_for_levels(vacancies)
         self.level_analyzer.analyze_vacancies(processed_vacancies)

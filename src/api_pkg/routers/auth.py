@@ -128,6 +128,7 @@ def require_any_role(*roles: str):
 @router.post("/auth/login")
 @limiter.limit("10/minute")
 async def login(body: LoginRequest, request: Request):
+    """Вход по email/паролю, выдача токена."""
     try:
         pool = get_pool()
         row = await pool.fetchrow(
@@ -165,6 +166,7 @@ async def login(body: LoginRequest, request: Request):
 
 @router.post("/auth/logout")
 async def logout(request: Request):
+    """Выход (инвалидация сессии)."""
     user_data = await get_current_user(request)
     if user_data is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -184,6 +186,7 @@ async def logout(request: Request):
 
 @router.get("/auth/me")
 async def me(request: Request):
+    """Текущий пользователь по токену."""
     user_data = await get_current_user(request)
     if user_data is None:
         raise HTTPException(status_code=401, detail="Unauthorized")

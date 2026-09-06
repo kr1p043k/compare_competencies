@@ -27,6 +27,7 @@ async def get_top_skills(
     limit: int = Query(15, ge=1, le=50),
     weights: dict[str, float] = Depends(deps.get_skill_weights),
 ):
+    """Топ навыков рынка по частоте."""
     top = sorted(weights.items(), key=lambda x: x[1], reverse=True)[:limit]
     return {"skills": [{"skill": s, "weight": round(w, 4)} for s, w in top]}
 
@@ -40,6 +41,7 @@ async def get_skill_info(
     freq: dict[str, int] = Depends(deps.get_skill_freq),
     taxonomy_instance: SkillTaxonomy | None = Depends(deps.get_taxonomy),
 ):
+    """Информация о навыке (частота, тренд)."""
     weight = weights.get(skill, 0.0)
     freq_val = freq.get(skill, 0)
     category = (
@@ -61,6 +63,7 @@ async def get_market_competencies(
     request: Request,
     weights: dict[str, float] = Depends(deps.get_skill_weights),
 ):
+    """Компетенции рынка."""
     top_skills = sorted(weights.items(), key=lambda x: x[1], reverse=True)[:100]
     return {
         "skills": [{"skill": s, "weight": w} for s, w in top_skills],

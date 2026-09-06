@@ -32,11 +32,7 @@ export default function () {
   
   // 2. Gap analysis (тяжёлый)
   const start = Date.now();
-  const gapRes = http.post(`${BASE_URL}/api/gap-analysis`, JSON.stringify({
-    student_profile: PROFILES[Math.floor(Math.random() * PROFILES.length)],
-    region_id: 1,
-    top_n: 10
-  }), { headers: { 'Content-Type': 'application/json' } });
+  const gapRes = http.get(`${BASE_URL}/api/teacher/krm/coverage?direction=09.03.02`);
   gapDuration.add(Date.now() - start);
   check(gapRes, { 'gap status 200': (r) => r.status === 200 });
   

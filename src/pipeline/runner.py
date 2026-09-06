@@ -323,7 +323,12 @@ def run_full_pipeline(args) -> Result[None, str]:
     show_context_info()
 
     from src.monitoring.metrics import pipeline_run_counter
-    orchestrator = PipelineOrchestrator(stages, num_retries=1)
+    cancel_event = getattr(args, "cancel_event", None)
+    orchestrator = PipelineOrchestrator(
+        stages,
+        num_retries=1,
+        should_cancel=(cancel_event.is_set if cancel_event is not None else None),
+    )
     pipeline_result = orchestrator.run(name="full_pipeline")
     if pipeline_result.is_err():
         pipeline_run_counter.labels(status="failed", trigger="cli").inc()

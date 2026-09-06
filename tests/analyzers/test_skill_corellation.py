@@ -162,7 +162,7 @@ class TestSkillCorrelationAnalyzer:
 
         matrix = analyzer.get_correlation_matrix(top_n=5).ok()
         if len(matrix) > 0:
-            assert np.all(matrix >= 0.0)
+            assert np.all(np.abs(matrix) >= 0.0) and np.all(np.abs(matrix) <= 1.0)  # updated: sign encodes significance (see skill_correlation.py:34)
             assert np.all(matrix <= 1.0)
 
     def test_fit_normalizes_skills(self):

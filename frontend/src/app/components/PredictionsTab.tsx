@@ -37,23 +37,26 @@ export function PredictionsTab() {
   const [vacanciesCount, setVacanciesCount] = useState<number>(0);
   const [dataFrom, setDataFrom] = useState<string | null>(null);
   const [dataTo, setDataTo] = useState<string | null>(null);
-  const [months, setMonths] = useState(12);
+  const [months, setMonths] = useState(3);
+  const [snapshotsCount, setSnapshotsCount] = useState<number | null>(null);
 
   useEffect(() => {
     loadForecasts("growing");
   }, []);
 
-  const loadForecasts = async (direction: string) => {
+  const loadForecasts = async (direction: string, monthsOverride?: number) => {
+    const effMonths = monthsOverride ?? months;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/forecast/top?n=25&months=${months}&direction=${direction}`);
+      const res = await fetch(`/api/forecast/top?n=25&months=${effMonths}&direction=${direction}`);
       if (!res.ok) throw new Error("Failed to load forecasts");
       const data = await res.json();
       setForecasts(data.forecasts || []);
       setVacanciesCount(data.vacancies_count || 0);
       setDataFrom(data.data_from || null);
       setDataTo(data.data_to || null);
+      setSnapshotsCount(typeof data.snapshots_count === "number" ? data.snapshots_count : null);
       if (data.requested_months && data.months !== data.requested_months) {
         setMonths(data.months);
       }
@@ -96,7 +99,7 @@ export function PredictionsTab() {
                   </div>
                   <div className="ml-auto flex items-center gap-2">
                     <CalendarDays className="size-4 text-gray-400" />
-                    <Select value={String(months)} onValueChange={(v) => { setMonths(Number(v)); loadForecasts(activeTab); }}>
+                    <Select value={String(months)} onValueChange={(v) => { const m = Number(v); setMonths(m); loadForecasts(activeTab, m); }}>
                       <SelectTrigger className="w-28 h-9 text-sm">
                         <SelectValue />
                       </SelectTrigger>
@@ -121,6 +124,12 @@ export function PredictionsTab() {
                   <span>{error}</span>
                 </div>
               ) : (<div className="space-y-2">
+              {forecasts.length === 0 && (
+                <div className="py-8 text-center text-gray-500 text-sm">
+                  <p>No forecasts yet — not enough history snapshots ({snapshotsCount}).</p>
+                  <p className="mt-1">Run the nightly pipeline a few times to accumulate trend snapshots.</p>
+                </div>
+              )}
               {forecasts.map((f, i) => (<ForecastRow key={f.skill} item={f} rank={i + 1} expanded={selectedSkill?.skill === f.skill} months={months} onToggle={() => setSelectedSkill(selectedSkill?.skill === f.skill ? null : f)} />))}
               </div>)}
             </CardContent>
@@ -140,7 +149,7 @@ export function PredictionsTab() {
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   <CalendarDays className="size-4 text-gray-400" />
-                  <Select value={String(months)} onValueChange={(v) => { setMonths(Number(v)); loadForecasts(activeTab); }}>
+                  <Select value={String(months)} onValueChange={(v) => { const m = Number(v); setMonths(m); loadForecasts(activeTab, m); }}>
                     <SelectTrigger className="w-28 h-9 text-sm">
                       <SelectValue />
                     </SelectTrigger>
@@ -152,6 +161,12 @@ export function PredictionsTab() {
               </div>
             </CardHeader>
             <CardContent className="p-6">
+              {forecasts.length === 0 && (
+                <div className="py-8 text-center text-gray-500 text-sm">
+                  <p>No declining skills — not enough history snapshots ({snapshotsCount}).</p>
+                  <p className="mt-1">Run the nightly pipeline a few times to accumulate trend snapshots.</p>
+                </div>
+              )}
               {forecasts.map((f, i) => (<ForecastRow key={f.skill} item={f} rank={i + 1} expanded={selectedSkill?.skill === f.skill} onToggle={() => setSelectedSkill(selectedSkill?.skill === f.skill ? null : f)} />))}
             </CardContent>
           </Card>
@@ -202,8 +217,8 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
             {insufficient && (
               <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700">недостаточно данных для прогноза</span>
             )}
-            {confPct < 30 && !insufficient && (
-              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700">низкая достоверность</span>
+            {((confPct < 30) || (confPct < 50) || ((item.data_points ?? 99) < 4)) && !insufficient && (
+              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700">{confPct < 30 ? "низкая достоверность" : "низкая достоверность (мало данных)"}</span>
             )}
           </div>
           {item.uncertainty_upper && item.uncertainty_lower && (
@@ -222,6 +237,14 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
 
 function MiniChart({ data }: { data: number[] }) {
   if (!data.length) return null;
+  if (data.length < 2) {
+    // Single point: dot instead of NaN polyline (verified: i/0 = NaN)
+    return (
+      <svg viewBox="0 0 400 60" className="w-full h-12" preserveAspectRatio="none">
+        <circle cx="200" cy="30" r="4" fill="#3b82f6" />
+      </svg>
+    );
+  }
   const max = Math.max(...data);
   const min = Math.min(...data);
   const range = max - min || 1;

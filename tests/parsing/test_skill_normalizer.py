@@ -50,7 +50,7 @@ class TestSkillNormalizer:
         assert SkillNormalizer.normalize("").ok() == ""
         assert SkillNormalizer.normalize("   Python   ").ok() == "python"
         assert SkillNormalizer.normalize("React.js v18").ok() == "react"
-        assert SkillNormalizer.normalize("NodeJS").ok() == "nodejs"
+        assert SkillNormalizer.normalize("NodeJS").ok() == "node.js"  # taxonomy canonical is Node.js
 
     def test_empty_and_whitespace(self):
         assert SkillNormalizer.normalize("").ok() == ""
@@ -73,7 +73,7 @@ class TestSkillNormalizer:
         assert SkillNormalizer.normalize("MongoDB database").ok() == "mongodb"
 
     def test_special_characters_cleaning(self):
-        assert SkillNormalizer.normalize("Node.JS").ok() == "nodejs"
+        assert SkillNormalizer.normalize("Node.JS").ok() == "node.js"  # taxonomy canonical
         assert SkillNormalizer.normalize("some_skill!").ok() == "some_skill"
 
     def test_whitelist_exact_match_prevents_fuzzy(self):
@@ -118,7 +118,7 @@ class TestSkillNormalizer:
 
     def test_normalize_with_special_chars_and_version(self):
         assert SkillNormalizer.normalize("  PyThOn  3.9  ").ok() == "python"
-        assert SkillNormalizer.normalize("Node.JS (среда)").ok() == "nodejs"
+        assert SkillNormalizer.normalize("Node.JS (среда)").ok() == "node.js"
         assert SkillNormalizer.normalize("TypEScript").ok() == "typescript"
 
     def test_fuzzy_threshold_boundary(self):

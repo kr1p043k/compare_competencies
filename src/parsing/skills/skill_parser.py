@@ -7,7 +7,6 @@ import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 
 import structlog
 
@@ -60,13 +59,33 @@ def _normalize_for_matching(text: str) -> str:
 _VERSION_RE = re.compile(r"[-\s]*v?\d+(?:\.\d+)*")
 
 
+# Module-level patterns for location/abbreviation filtering.
+# Moved from _marker_search locals (C1 fix: _regex_search referenced them as undefined).
+LOCATION_PATTERNS = [
+    re.compile(r"метро\s", re.IGNORECASE),
+    re.compile(r"м\.\s*[А-ЯЁа-яё]", re.IGNORECASE),
+    re.compile(r"ул\.\s", re.IGNORECASE),
+    re.compile(r"д\.\s*\d", re.IGNORECASE),
+    re.compile(r"г\.\s*[А-ЯЁ]", re.IGNORECASE),
+    re.compile(r"район\s", re.IGNORECASE),
+    re.compile(r"станци[яию]\s", re.IGNORECASE),
+]
+# 2-5 letter abbreviations are likely noise, not skills
+ABBREV_RE = re.compile(r"^[А-ЯЁ]{2,5}$")
+
+# Homoglyph map for parse_vacancy dedup (F6 fix: module-level, was recreated per-call)
+_HOMOGLYPH_MAP = str.maketrans("саорехуеСАОРЕХУЕ", "caopexyeCAOPEXYE")
+
+
+
 def _is_word_char(c: str) -> bool:
     return c.isalnum() or c == "_"
 
 
 def _load_it_skills() -> set[str]:
     """Load skill list from it_skills.json, normalized for matching."""
-    path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "reference" / "it_skills.json"
+    from src import config as _cfg
+    path = _cfg.IT_SKILLS_PATH
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         skills = {_normalize_for_matching(s.strip()) for s in raw if s.strip()}
@@ -195,9 +214,9 @@ class SkillParser:
             self.stats.total_extracted += len(skills)
 
             # Normalize cyrillic homoglyphs and deduplicate (case-insensitive)
-            _HOMOGLYPH_MAP = str.maketrans("саорехуеСАОРЕХУЕ", "caopexyeCAOPEXYE")
-            seen: set[str] = set()
+            # _HOMOGLYPH_MAP now module-level (F6 fix)
             deduped = []
+            seen: set[str] = set()
             for s in skills:
                 norm = s.text.lower().translate(_HOMOGLYPH_MAP)
                 if norm not in seen:
@@ -332,17 +351,7 @@ class SkillParser:
             text_norm = _normalize_for_matching(text)
 
             # Паттерны для фильтрации не-навыков
-            LOCATION_PATTERNS = [
-                re.compile(r"метро\s", re.IGNORECASE),
-                re.compile(r"м\.\s*[А-ЯЁа-яё]", re.IGNORECASE),
-                re.compile(r"ул\.\s", re.IGNORECASE),
-                re.compile(r"д\.\s*\d", re.IGNORECASE),
-                re.compile(r"г\.\s*[А-ЯЁ]", re.IGNORECASE),
-                re.compile(r"район\s", re.IGNORECASE),
-                re.compile(r"станци[яию]\s", re.IGNORECASE),
-            ]
-            # Аббревиатуры 2-5 букв кириллицей — пропускаем
-            ABBREV_RE = re.compile(r"^[А-ЯЁ]{2,5}$")
+            # LOCATION_PATTERNS and ABBREV_RE now module-level (C1 fix)
 
             for marker in self.SKILL_MARKERS:
                 if marker not in text_norm:
@@ -378,10 +387,15 @@ class SkillParser:
             skills = []
             text_norm = _normalize_for_matching(text)
 
+            # Pattern prefixes normalized to match homoglyph-normalized text (C1 fix)
+            _rx_p1 = _normalize_for_matching("опыт работы с|опыт с|работа с|знание|владение|умение")
+            _rx_p2 = _normalize_for_matching("должен")
+            _rx_p3 = _normalize_for_matching("знать|уметь")
+            _rx_p4 = _normalize_for_matching("требуется|требуется знание")
             patterns = [
-                (r"(?:опыт работы с|опыт с|работа с|знание|владение|умение)\s+([a-z0-9\s\+\#\-]+)", 0.85),
-                (r"(?:должен (?:знать|уметь))\s+([a-z0-9\s\+\#\-]+)", 0.75),
-                (r"(?:требуется|требуется знание)\s+([a-z0-9\s\+\#\-]+)", 0.80),
+                (r"(?:" + _rx_p1 + r")\s+([a-zа-яё0-9\s\+\#\-]+)", 0.85),
+                (r"(?:" + _rx_p2 + " (?:" + _rx_p3 + r"))\s+([a-zа-яё0-9\s\+\#\-]+)", 0.75),
+                (r"(?:" + _rx_p4 + r")\s+([a-zа-яё0-9\s\+\#\-]+)", 0.80),
             ]
 
             for pattern, confidence in patterns:
@@ -389,14 +403,18 @@ class SkillParser:
                 for match in matches:
                     match = match.strip()
                     if 3 < len(match) < 100:
-                        # Фильтрация локаций
-                        if any(p.search(match) for p in LOCATION_PATTERNS):
-                            continue
-                        # Фильтрация аббревиатур
-                        if ABBREV_RE.match(match):
-                            continue
-                        skills.append(ExtractedSkill(text=match, source=source, raw_match=match, confidence=confidence))
-                        self._update_stats(source)
+                        # Split multi-skill phrases into individual tokens (C1 fix)
+                        tokens = re.split(r'[,;]\s*|\s+и\s+|\s+или\s+', match)
+                        for token in tokens:
+                            token = token.strip()
+                            if 2 < len(token) < 50:
+                                # Filter locations/abbreviations per-token (C1 fix)
+                                if any(p.search(token) for p in LOCATION_PATTERNS):
+                                    continue
+                                if ABBREV_RE.match(token):
+                                    continue
+                                skills.append(ExtractedSkill(text=token, source=source, raw_match=match, confidence=confidence))
+                                self._update_stats(source)
 
             return Ok(skills)
         except Exception as e:

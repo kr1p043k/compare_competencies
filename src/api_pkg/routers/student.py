@@ -24,6 +24,7 @@ class LogActionRequest(BaseModel):
 @router.get("/student/history")
 @limiter.limit("30/minute")
 async def student_history(request: Request, limit: int = 50):
+    """История действий студента."""
     user = getattr(request.state, "user", None)
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -34,6 +35,7 @@ async def student_history(request: Request, limit: int = 50):
 @router.post("/student/log-action")
 @limiter.limit("20/minute")
 async def student_log_action(request: Request, body: LogActionRequest):
+    """Залогировать действие студента."""
     user = getattr(request.state, "user", None)
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")

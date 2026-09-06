@@ -550,7 +550,11 @@ def extract_and_count_skills(vacancies: list[dict[str, Any]], parser: VacancyPar
     logger.info("extracting_skills_from_vacancies", count=len(vacancies))
     if not vacancies:
         return Ok({"frequencies": {}, "tfidf_weights": {}})
-    return parser.extract_skills_from_vacancies(vacancies)
+    try:
+        return parser.extract_skills_from_vacancies(vacancies)
+    except Exception as e:
+        logger.warning("extract_and_count_failed", error=str(e))
+        return Err(DomainError(message=str(e), detail="extract_and_count_skills"))
 
 
 def map_to_competencies(skill_frequencies: dict[str, int], mapping: dict[str, list[str]]) -> Counter:

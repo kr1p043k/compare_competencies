@@ -35,7 +35,10 @@ class DataCollectionStage(PipelineStage):
         from src.monitoring.metrics import track_pipeline_stage, vacancies_loaded as vm
         @track_pipeline_stage("data_collection")
         def _run():
-            self._progress(0, "Инициализация сбора вакансий с hh.ru...")
+            if self.args.skip_collection:
+                self._progress(0, "Подготовка данных из БД (без сбора)...")
+            else:
+                self._progress(0, "Инициализация сбора вакансий с hh.ru...")
             source = HhDataSource(self.args)
             match source.get_vacancies():
                 case Ok((vacancies, parser)):

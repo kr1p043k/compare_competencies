@@ -28,6 +28,7 @@ async def taxonomy_coverage(
     request: Request,
     taxonomy_instance: SkillTaxonomy | None = Depends(deps.get_taxonomy),
 ):
+    """Покрытие таксономии."""
     if not taxonomy_instance:
         raise HTTPException(status_code=503, detail="Таксономия не загружена")
     match taxonomy_instance.get_all_categories():
@@ -58,6 +59,7 @@ async def taxonomy_coverage(
 @router.get("/taxonomy/professions", response_model=ProfessionsResponse)
 @limiter.limit("60/minute")
 async def get_professions(request: Request):
+    """Список профессий."""
     try:
         from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 
@@ -86,6 +88,7 @@ async def get_professions(request: Request):
 )
 @limiter.limit("60/minute")
 async def get_profession_detail(request: Request, profession_name: str):
+    """Детали профессии."""
     try:
         from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 
@@ -128,6 +131,7 @@ async def get_profession_detail(request: Request, profession_name: str):
 async def get_profession_krm_coverage(
     request: Request, profession_name: str, skills: str = Query("")
 ):
+    """KRM-покрытие профессии."""
     try:
         from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 

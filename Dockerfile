@@ -58,4 +58,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 EXPOSE 8000
 
 # Запуск приложения
-CMD ["uvicorn", "src.api_pkg:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.api_pkg:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "65", "--limit-concurrency", "200", "--backlog", "100"]

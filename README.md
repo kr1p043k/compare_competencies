@@ -451,7 +451,7 @@ docker compose build --no-cache
    cd frontend && npm install && npm run build
    ```
 3. **Backend не стартует** — проверьте `.env` и что PostgreSQL доступен (он стартует дольше всех).
-4. **Метрики пустые** — выполните pipeline через API (POST `/api/pipeline/run`) или CLI (`python main.py --it-sector --excel`).
+4. **Метрики пустые** — выполните pipeline через API (POST `/api/pipeline/full-cycle`) или CLI (`python main.py --it-sector --excel`).
 5. **cAdvisor не видит контейнеры** — проверьте `docker logs cadvisor`. Требуются монтирования `/var/lib/docker/` и `/sys/`.
 
 ## Зависимости
@@ -460,10 +460,42 @@ docker compose build --no-cache
 
 **Frontend:** React 18, TypeScript, Vite 6.3, shadcn/ui (60+), recharts, motion, react-router, lucide-react
 
+## Метрики
+
+### Покрытие, бинарное (coverage_ratio)
+Доля навыков РПД, найденных на рынке хоть как-нибудь: `matched / N`.
+Отвечает на вопрос «сколько есть», но не «насколько точно».
+
+### Quality — качество покрытия (weighted_coverage / average_quality_coverage)
+Средняя уверенность совпадений. Каждый найденный навык даёт не 1,
+а свой `conf` от матчера (0..1): точное совпадение ≈ 1.0,
+нечёткое/семантическое — 0.5–0.7.
+
+```
+Quality дисциплины = Σ conf(найденных навыков) / N навыков РПД
+Quality направления = среднее Quality дисциплин
+```
+
+- Quality всегда ≤ бинарного покрытия.
+- Большой разрыв «покрытие высокое, quality низкий» = совпадения
+  натянуты: терминология РПД и рынка расходится. Лечится
+  переформулировкой навыков под рыночные термины, а не добавлением
+  новых. В интерфейсе: строка `Quality: XX%` и чип `Q:XX%`.
+
+### Составные метрики профиля
+```
+Market Coverage = 0.60 × skill_coverage + 0.40 × domain_coverage
+Readiness = 0.45 × market + 0.30 × (сильные / все навыки рынка)
+            − 0.25 × (слабые / все навыки рынка), clamp 0..100
+Match Score = (skill_coverage + market_coverage + readiness) / 3
+```
+Сильный навык — разрыв ниже порога strong (вес 1.0),
+слабый — между strong и weak (вес 0.5), иначе — пробел (вес 0).
+
 ## Тестирование
 
 ```bash
-pytest --cov=src --cov-report=term --ignore=tests/test_api.py
+pytest --cov=src --cov-report=term --ignore=tests/api/test_api.py
 ```
 
 - 1900+ тестов, 74% покрытие (0 failed), 79 skipped

@@ -21,6 +21,7 @@ def _uuid() -> str:
 # ─── Vacancy ────────────────────────────────────────────────────────────────
 
 class Vacancy(Base):
+    """Вакансия в БД."""
     __tablename__ = "vacancies"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -54,6 +55,7 @@ class Vacancy(Base):
 # ─── Direction ─────────────────────────────────────────────────────────────
 
 class Direction(Base):
+    """Направление подготовки."""
     __tablename__ = "directions"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -77,6 +79,7 @@ class Direction(Base):
 # ─── Discipline ────────────────────────────────────────────────────────────
 
 class Discipline(Base):
+    """Дисциплина направления."""
     __tablename__ = "disciplines"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -104,6 +107,7 @@ class Discipline(Base):
 # ─── PDF Source ────────────────────────────────────────────────────────────
 
 class PDFSource(Base):
+    """PDF-источник РПД."""
     __tablename__ = "pdf_sources"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -125,6 +129,7 @@ class PDFSource(Base):
 # ─── Parse Version ─────────────────────────────────────────────────────────
 
 class ParseVersion(Base):
+    """Версия парсинга."""
     __tablename__ = "parse_versions"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -147,6 +152,7 @@ class ParseVersion(Base):
 # ─── Competency ────────────────────────────────────────────────────────────
 
 class Competency(Base):
+    """Компетенция дисциплины."""
     __tablename__ = "competencies"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -183,6 +189,7 @@ class Competency(Base):
 # ─── KSA Entry ─────────────────────────────────────────────────────────────
 
 class KSAEntry(Base):
+    """Запись ЗУН (знания/умения/навыки)."""
     __tablename__ = "ksa_entries"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -205,6 +212,7 @@ class KSAEntry(Base):
 # ─── Skill ─────────────────────────────────────────────────────────────────
 
 class Skill(Base):
+    """Навык в БД."""
     __tablename__ = "skills"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -229,6 +237,7 @@ class Skill(Base):
 # ─── Competency ↔ Skill ────────────────────────────────────────────────────
 
 class CompetencySkill(Base):
+    """Связь компетенции и навыка."""
     __tablename__ = "competency_skills"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -256,6 +265,7 @@ class CompetencySkill(Base):
 # ─── User ──────────────────────────────────────────────────────────────────
 
 class User(Base):
+    """Пользователь."""
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -281,6 +291,7 @@ class User(Base):
 # ─── UserDirection (привязка РОП к направлениям) ──────────────────────────
 
 class UserDirection(Base):
+    """Привязка пользователя к направлению."""
     __tablename__ = "user_directions"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -298,6 +309,7 @@ class UserDirection(Base):
 # ─── Recommendation ────────────────────────────────────────────────────────
 
 class Recommendation(Base):
+    """Рекомендация."""
     __tablename__ = "recommendations"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -324,6 +336,7 @@ class Recommendation(Base):
 # ─── Student Group ─────────────────────────────────────────────────────────
 
 class StudentGroup(Base):
+    """Группа студентов."""
     __tablename__ = "student_groups"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -339,6 +352,7 @@ class StudentGroup(Base):
 # ─── Student ───────────────────────────────────────────────────────────────
 
 class Student(Base):
+    """Студент."""
     __tablename__ = "students"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -354,6 +368,7 @@ class Student(Base):
 # ─── Student Skill ─────────────────────────────────────────────────────────
 
 class StudentSkill(Base):
+    """Навык студента."""
     __tablename__ = "student_skills"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -381,6 +396,7 @@ class StudentSkill(Base):
 # ─── Session ───────────────────────────────────────────────────────────────
 
 class Session(Base):
+    """Сессия пользователя."""
     __tablename__ = "sessions"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -399,6 +415,7 @@ class Session(Base):
 # ─── Request Log ───────────────────────────────────────────────────────────
 
 class RequestLog(Base):
+    """Лог HTTP-запроса."""
     __tablename__ = "request_logs"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -419,6 +436,7 @@ class RequestLog(Base):
 # ─── Coverage Analysis ─────────────────────────────────────────────────────
 
 class CoverageAnalysis(Base):
+    """Результат анализа покрытия."""
     __tablename__ = "coverage_analyses"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -436,6 +454,7 @@ class CoverageAnalysis(Base):
 # ─── Pipeline Run ──────────────────────────────────────────────────────────
 
 class PipelineRun(Base):
+    """Запуск пайплайна."""
     __tablename__ = "pipeline_runs"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -455,6 +474,7 @@ class PipelineRun(Base):
 # ─── Analysis Result ───────────────────────────────────────────────────────
 
 class AnalysisResult(Base):
+    """Результат анализа."""
     __tablename__ = "analysis_results"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -474,6 +494,7 @@ class AnalysisResult(Base):
 # ─── Trend Snapshot ────────────────────────────────────────────────────────
 
 class TrendSnapshot(Base):
+    """Снимок трендов."""
     __tablename__ = "trend_snapshots"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -487,6 +508,7 @@ class TrendSnapshot(Base):
 # ─── LLM Interaction (аудит) ──────────────────────────────────────────────
 
 class LLMInteraction(Base):
+    """Обращение к LLM."""
     __tablename__ = "llm_interactions"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -505,6 +527,7 @@ class LLMInteraction(Base):
 # ─── LLM Recommendation (кэш запросов) ────────────────────────────────────
 
 class LLMRecommendation(Base):
+    """LLM-рекомендация."""
     __tablename__ = "llm_recommendations"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -522,6 +545,7 @@ class LLMRecommendation(Base):
 # ─── Profile Evaluation (история оценок) ──────────────────────────────────
 
 class ProfileEvaluation(Base):
+    """Оценка профиля в БД."""
     __tablename__ = "profile_evaluations"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -541,6 +565,7 @@ class ProfileEvaluation(Base):
 # ─── Subscription ──────────────────────────────────────────────────────────
 
 class Subscription(Base):
+    """Подписка пользователя."""
     __tablename__ = "subscriptions"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
@@ -566,6 +591,7 @@ class Subscription(Base):
 # ─── Notification ──────────────────────────────────────────────────────────
 
 class Notification(Base):
+    """Уведомление."""
     __tablename__ = "notifications"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)

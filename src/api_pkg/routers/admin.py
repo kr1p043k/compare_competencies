@@ -69,6 +69,7 @@ def _save_whitelist(skills: list[str]):
 @router.get("/admin/whitelist")
 @limiter.limit("30/minute")
 async def get_whitelist(request: Request):
+    """Текущий whitelist навыков."""
     skills = _load_whitelist()
     return {"skills": skills, "total": len(skills)}
 
@@ -76,6 +77,7 @@ async def get_whitelist(request: Request):
 @router.post("/admin/whitelist/add")
 @limiter.limit("10/minute")
 async def whitelist_add(request: Request, body: WhitelistAddRequest):
+    """Добавить навыки в whitelist."""
     current = set(_load_whitelist())
     before = len(current)
     current.update(body.skills)
@@ -99,6 +101,7 @@ async def whitelist_add(request: Request, body: WhitelistAddRequest):
 @router.post("/admin/whitelist/remove")
 @limiter.limit("10/minute")
 async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
+    """Убрать навыки из whitelist."""
     current = set(_load_whitelist())
     before = len(current)
     current -= set(body.skills)
@@ -122,6 +125,7 @@ async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
 @router.post("/admin/whitelist/backup", response_model=WhitelistBackupResponse)
 @limiter.limit("5/minute")
 async def whitelist_backup(request: Request):
+    """Бэкап whitelist в файл."""
     backup_dir = config.DATA_DIR / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -142,6 +146,7 @@ async def whitelist_backup(request: Request):
 @router.get("/admin/students")
 @limiter.limit("30/minute")
 async def list_students(request: Request):
+    """Список студентов."""
     students_dir = config.DATA_DIR / "students"
     if not students_dir.exists():
         return {"students": [], "total": 0}
@@ -186,6 +191,7 @@ class PipelineTriggerRequest(BaseModel):
 async def admin_trigger_pipeline(
     request: Request, body: PipelineTriggerRequest, background_tasks: BackgroundTasks
 ):
+    """Запустить пайплайн из админки."""
     from src.api_pkg.routers.pipeline import PipelineAction, run_pipeline_task
 
     action_map = {
@@ -235,6 +241,7 @@ def _format_experience(exp: Any) -> str:
 @router.get("/admin/export/excel")
 @limiter.limit("3/minute")
 async def export_excel(request: Request):
+    """Экспорт вакансий в Excel."""
     import json
     import pandas as pd
 
@@ -302,6 +309,7 @@ async def export_excel(request: Request):
 @router.get("/admin/export/full-report")
 @limiter.limit("2/minute")
 async def export_full_report(request: Request):
+    """Полный отчёт (Excel/ZIP)."""
     from fastapi.responses import StreamingResponse
 
     result_dir = config.DATA_RESULT_DIR
@@ -326,6 +334,7 @@ async def export_full_report(request: Request):
 @router.get("/admin/users")
 @limiter.limit("30/minute")
 async def admin_users(request: Request):
+    """Список пользователей."""
     from sqlalchemy import select, text
     from src.database import async_session_factory
     from src.models.krm_models import UserDirection
@@ -380,6 +389,7 @@ def _validate_uuid(value: str, label: str = "id") -> str:
 @router.get("/admin/users/{user_id}/directions")
 @limiter.limit("30/minute")
 async def admin_user_directions(request: Request, user_id: str):
+    """Направления пользователя."""
     from sqlalchemy import select
     from src.database import async_session_factory
     from src.models.krm_models import UserDirection
@@ -395,6 +405,7 @@ async def admin_user_directions(request: Request, user_id: str):
 @router.put("/admin/users/{user_id}/directions")
 @limiter.limit("30/minute")
 async def admin_set_user_directions(request: Request, user_id: str, body: UserDirectionsBody):
+    """Назначить направления пользователю."""
     from sqlalchemy import delete, select
     from src.database import async_session_factory
     from src.models.krm_models import User, UserDirection
@@ -413,6 +424,7 @@ async def admin_set_user_directions(request: Request, user_id: str, body: UserDi
 
 @router.get("/admin/monitoring")
 async def admin_monitoring(request: Request):
+    """JSON-мониторинг (метрики)."""
     from prometheus_client.parser import text_string_to_metric_families
     from src.monitoring.metrics import get_metrics
     raw, _ = get_metrics()
@@ -428,6 +440,7 @@ async def admin_monitoring(request: Request):
 @router.get("/admin/logs")
 @limiter.limit("30/minute")
 async def admin_logs(request: Request, user: str | None = None, limit: int = 100):
+    """Логи запросов."""
     if user and user == "all":
         user = None
     entries = get_logs(user=user, limit=limit)

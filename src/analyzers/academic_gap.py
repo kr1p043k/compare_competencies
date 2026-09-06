@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -102,6 +101,7 @@ class AcademicGapAnalyzer:
     # ── шаг 1: тема → навыки ──────────────────────────────────────────────
 
     def topic_to_skills(self, topic: str) -> list[str]:
+        """Извлечь токены навыков из темы (сама тема-строка исключена)."""
         import re
 
         parser = SkillParser()
@@ -112,8 +112,8 @@ class AcademicGapAnalyzer:
             extracted = extracted.unwrap()
         skills = [s.text.strip() for s in extracted if s.text and s.text.strip()]
         # сама тема как единый фрагмент
-        if topic and topic.strip():
-            skills.append(topic.strip())
+        # C5 fix: raw topic removed (was: if topic and topic.strip():)
+            # C5 fix: raw topic string is not a skill - removed to avoid inflating coverage
         # отдельные значимые слова/словосочетания темы (для семантики)
         words = re.findall(r"[А-Яа-яЁёA-Za-z][А-Яа-яЁёA-Za-z-]{2,}", topic)
         stop = {
@@ -186,7 +186,7 @@ class AcademicGapAnalyzer:
             if not skills:
                 results.append({
                     "code": code,
-                    "status": "gap",
+                    "status": "no_data",
                     "coverage_percent": 0,
                     "disciplines": entry["disciplines"],
                     "skills_count": 0,
@@ -334,6 +334,7 @@ class AcademicGapAnalyzer:
     # ── публичный метод ───────────────────────────────────────────────────
 
     def analyze(self, topic: str) -> dict[str, Any]:
+        """Полный анализ разрыва по теме: overall_score, детали, summary."""
         if not topic or not topic.strip():
             return {
                 "overall_score": 0,

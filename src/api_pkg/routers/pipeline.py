@@ -164,7 +164,7 @@ def _pct_to_step(pct: int) -> int:
     return 4
 
 
-async def _rotate_progress(task_id: str, step: int = 1):
+async def _rotate_progress(task_id: str, step: int = 1, skip_collection: bool = False):
     i = 0
     phases_map = {
         1: ["Поиск вакансий на hh.ru...", "Загрузка деталей...", "Оценка качества...", "Извлечение навыков..."],
@@ -172,6 +172,11 @@ async def _rotate_progress(task_id: str, step: int = 1):
         3: ["Обучение кластеров...", "Обучение LTR-модели..."],
         4: ["GAP-анализ: инициализация...", "GAP-анализ: оценка профилей...", "GAP-анализ: генерация рекомендаций...", "Генерация графиков..."],
     }
+    if skip_collection:
+        # No hh.ru collection in this run: drop the misleading label.
+        phases_map[1] = ["Подготовка данных из БД..."] + [
+            m for m in phases_map[1] if "hh.ru" not in m
+        ]
     prev_pct = -1
     while True:
         t = pipeline_tasks.get(task_id)
@@ -276,6 +281,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             pipeline_tasks[task_id].step = 1
             pipeline_tasks[task_id].message = "Запуск полного цикла..."
 
+            pipeline_args.cancel_event = cancel_event
             main_task = asyncio.ensure_future(
                 loop.run_in_executor(None, lambda: cancel_aware(pr.run_full_pipeline, pipeline_args))
             )
@@ -319,7 +325,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
                 msg = "Модель обучена."
 
         elif action == PipelineAction.GAP_ANALYSIS:
-            progress_rotator = asyncio.ensure_future(_rotate_progress(task_id, step=4))
+            progress_rotator = asyncio.ensure_future(_rotate_progress(task_id, step=4, skip_collection=True))
             import argparse
             gap_args = argparse.Namespace(
                 skip_collection=True, run_gap_analysis=True, skip_gap_analysis=False,
@@ -331,6 +337,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
                 interactive=False, max_vacancies_per_query=2000, it_sector=False,
                 use_async=True, async_workers=3, async_threshold=10000,
             )
+            gap_args.cancel_event = cancel_event
             main_task = asyncio.ensure_future(
                 loop.run_in_executor(None, lambda: cancel_aware(pr.run_full_pipeline, gap_args))
             )
@@ -387,6 +394,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
 @router.post("/pipeline/rebuild", response_model=PipelineResponse)
 @limiter.limit("2/minute")
 async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
+    """Полная пересборка данных пайплайна."""
     task_id = f"rebuild_{int(time.time())}"
     started_at = time.time()
     pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0)
@@ -401,6 +409,7 @@ async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
 @router.post("/pipeline/refresh-cache", response_model=CacheRefreshResponse)
 @limiter.limit("5/minute")
 async def refresh_cache(request: Request):
+    """Обновить кэши пайплайна."""
     cache_dirs = [
         BASE_DIR / "data" / "cache" / "embeddings",
         BASE_DIR / "data" / "cache" / "clusters",
@@ -424,6 +433,7 @@ async def refresh_cache(request: Request):
 @router.post("/pipeline/reload-api", response_model=PipelineResponse)
 @limiter.limit("3/minute")
 async def reload_api(request: Request):
+    """Перезагрузить данные API без рестарта."""
     try:
         asyncio.create_task(_reload_api_data())
         return PipelineResponse(
@@ -460,6 +470,7 @@ async def run_pipeline_action_sync(
     max_pages: int = Query(20, ge=1, le=100, description="Количество страниц"),
     period: int = Query(30, ge=1, le=365, description="Период поиска в днях"),
 ):
+    """Запустить действие пайплайна."""
     from src.pipeline import runner as pr
 
     if action == PipelineAction.REBUILD:
@@ -544,6 +555,7 @@ async def run_pipeline_action_sync(
 @router.get("/pipeline/active", response_model=PipelineTaskStatus | None)
 @limiter.limit("30/minute")
 async def get_active_pipeline_task(request: Request):
+    """Активная задача пайплайна."""
     for t in pipeline_tasks.values():
         if t.status == "running":
             return t
@@ -553,6 +565,7 @@ async def get_active_pipeline_task(request: Request):
 @router.get("/pipeline/task/{task_id}", response_model=PipelineTaskStatus)
 @limiter.limit("60/minute")
 async def get_pipeline_task_status(request: Request, task_id: str):
+    """Статус задачи по ID."""
     if task_id not in pipeline_tasks:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     return pipeline_tasks[task_id]
@@ -561,6 +574,7 @@ async def get_pipeline_task_status(request: Request, task_id: str):
 @router.get("/pipeline/tasks", response_model=PipelineTaskListResponse)
 @limiter.limit("30/minute")
 async def list_pipeline_tasks(request: Request, limit: int = Query(10, ge=1, le=50)):
+    """Список задач пайплайна."""
     tasks = list(pipeline_tasks.values())
     tasks.reverse()
     return {"tasks": tasks[:limit], "total": len(tasks)}
@@ -569,6 +583,7 @@ async def list_pipeline_tasks(request: Request, limit: int = Query(10, ge=1, le=
 @router.get("/pipeline/status", response_model=dict)
 @limiter.limit("30/minute")
 async def get_pipeline_status(request: Request):
+    """Общий статус пайплайна."""
     clusters_exist = {
         "junior": (BASE_DIR / "data" / "cache" / "clusters" / "vacancy_clusters_junior.joblib").exists(),
         "middle": (BASE_DIR / "data" / "cache" / "clusters" / "vacancy_clusters_middle.joblib").exists(),
@@ -613,6 +628,7 @@ async def reload_api_data():
 @router.post("/pipeline/cancel/{task_id}")
 @limiter.limit("10/minute")
 async def cancel_pipeline_task(task_id: str, request: Request):
+    """Отменить задачу."""
     if task_id not in pipeline_tasks:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     t = pipeline_tasks[task_id]
@@ -639,6 +655,7 @@ async def cancel_pipeline_task(task_id: str, request: Request):
 @router.get("/pipeline/gap-progress/{task_id}", response_model=GapProgressResponse)
 @limiter.limit("60/minute")
 async def get_gap_progress(task_id: str, request: Request):
+    """Прогресс gap-анализа задачи."""
     gp = _read_gap_progress()
     if gp:
         return GapProgressResponse(

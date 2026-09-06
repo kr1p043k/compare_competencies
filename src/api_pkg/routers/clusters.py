@@ -27,6 +27,7 @@ async def clusters_summary(
     request: Request,
     clusterer_instance: VacancyClusterer = Depends(deps.get_clusterer),
 ):
+    """Сводка кластеров вакансий."""
     result = {}
     for lvl in ExperienceLevel:
         clusterer_instance.load_model(lvl)
@@ -57,6 +58,7 @@ async def get_clusters(
     level: ExperienceLevel = ExperienceLevel.MIDDLE,
     clusterer_instance: VacancyClusterer = Depends(deps.get_clusterer),
 ):
+    """Кластеры вакансий заданного уровня."""
     if not clusterer_instance.is_fitted:
         clusterer_instance.load_model(level)
     if not clusterer_instance.is_fitted:

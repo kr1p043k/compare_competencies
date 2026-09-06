@@ -35,6 +35,26 @@ def _word_pattern(word: str) -> re.Pattern[str]:
     return re.compile(r"(?<!\w)" + re.escape(word) + r"(?!\w)")
 
 
+def adaptive_semantic_threshold(query: str, candidate: str, base: float = 0.70) -> float:
+    """Адаптивный порог (вывод Exp1: фикс. 0.78 режет recall вдвое).
+
+    Base 0.70; -0.05 cross-script; -0.05 long query; +0.10 very short query.
+    Clamped to [0.55, 0.85].
+    """
+    t = base
+    has_cyr_q = bool(re.search(r"[а-яёА-ЯЁ]", query))
+    has_lat_c = bool(re.search(r"[a-zA-Z]{3,}", candidate))
+    has_cyr_c = bool(re.search(r"[а-яёА-ЯЁ]", candidate))
+    has_lat_q = bool(re.search(r"[a-zA-Z]{3,}", query))
+    if (has_cyr_q and has_lat_c) or (has_cyr_c and has_lat_q):
+        t -= 0.05
+    if len(query) > 40:
+        t -= 0.05
+    if len(query.strip()) < 5:
+        t += 0.10
+    return max(0.55, min(0.85, t))
+
+
 class SkillMatcher:
     def __init__(self, market_skills: dict[str, int] | None = None,
                  embedding_provider: Any | None = None):
@@ -51,6 +71,7 @@ class SkillMatcher:
         self._rebuild_fuzzy_patterns()
 
     def set_market(self, market_skills: dict[str, int]) -> Result[None, MatchingError]:
+        """Загрузить навыки рынка, предвычислить эмбеддинги, сбросить кэши."""
         if not market_skills:
             logger.warning("market_skills_empty")
             return Err(MatchingError(skill_name="", message="Empty market skills map"))
@@ -181,7 +202,7 @@ class SkillMatcher:
         """True if 'a' appears as a whole word in 'b' (word-boundary aware)."""
         return bool(re.search(r"(?<!\w)" + re.escape(a) + r"(?!\w)", b))
 
-    def _semantic_match(self, n: str) -> tuple[str | None, str, float]:
+    def _semantic_match(self, n: str, original: str | None = None) -> tuple[str | None, str, float]:
         if n in self._semantic_cache:
             return (self._semantic_cache[n], "semantic", 1.0)
         if self._market_embeddings is None or self._embedding_provider is None:
@@ -193,12 +214,14 @@ class SkillMatcher:
         sims = self._market_embeddings @ qemb.T
         best = int(np.argmax(sims))
         score = float(sims[best])
-        if score >= SEMANTIC_THRESHOLD:
+        _thresh = adaptive_semantic_threshold(original or n, self._market_names[best])
+        if score >= _thresh:
             self._semantic_cache[n] = self._market_names[best]
             return (self._market_names[best], "semantic", score)
         return (None, "no_match", 0.0)
 
     def match(self, skill_name: str) -> Result[tuple[str | None, str, float], MatchingError]:
+        """Сопоставить навык: exact -> fuzzy -> typo? -> semantic. Возвращает (совпадение, тип, уверенность)."""
         n = normalize(skill_name)
         if not n or len(n) < 3:
             logger.debug("skill_too_short", skill=skill_name)
@@ -223,7 +246,7 @@ class SkillMatcher:
             logger.debug("skill_fuzzy_match", rpd_skill=n, market_skill=mn)
             return Ok((mn, "fuzzy", 0.5))
 
-        mn, mt, score = self._semantic_match(n)
+        mn, mt, score = self._semantic_match(n, skill_name)
         if mn:
             logger.debug("skill_semantic_match", rpd_skill=n, market_skill=mn)
         return Ok((mn, mt, score))
@@ -232,6 +255,7 @@ class SkillMatcher:
         self, rpd_normalized: set[str], top_n: int = 10,
         also_exclude: set[str] | None = None,
     ) -> Result[list[tuple[str, int, str]], MatchingError]:
+        """Топ-N навыков рынка, отсутствующих в переданном наборе."""
         if not self.market_skills:
             logger.warning("no_market_skills_for_emerging")
             return Err(MatchingError(skill_name="", message="No market skills loaded"))

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import {
   Card,
@@ -15,13 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { Badge } from "./ui/badge";
 import {
   BarChart3,
   Activity,
   Radar,
   Flame,
-  TrendingDown,
   Network,
   Download,
   Maximize2,
@@ -31,9 +29,16 @@ import {
 
 interface GapAnalysisVisualizerProps {
   profile: string;
+  onProfileChange?: (p: string) => void;
 }
 
-type ImageType = "radar" | "ml_importance" | "cluster_insights" | "deficits";
+const PROFILES = [
+  { id: "base", label: "Base" },
+  { id: "dc", label: "DC" },
+  { id: "top_dc", label: "Top DC" },
+];
+
+type ImageType = "radar" | "ml_importance" | "cluster_insights";
 
 interface ImageData {
   type: ImageType;
@@ -65,22 +70,16 @@ const IMAGE_CONFIGS: ImageData[] = [
     icon: Network,
     gradient: "from-emerald-500 to-teal-500",
   },
-  {
-    type: "deficits",
-    title: "Дефициты компетенций",
-    description: "Анализ недостающих навыков",
-    icon: TrendingDown,
-    gradient: "from-orange-500 to-red-500",
-  },
 ];
 
-export function GapAnalysisVisualizer({ profile }: GapAnalysisVisualizerProps) {
+export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisVisualizerProps) {
+  const [viewProfile, setViewProfile] = useState(profile);
   const [selectedImage, setSelectedImage] = useState<ImageType>("radar");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  const imageUrl = `/api/results/images/${profile}/${selectedImage}`;
+  const imageUrl = `/api/results/images/${viewProfile}/${selectedImage}`;
   const coverageUrl = "/api/results/images/coverage-comparison";
   const heatmapUrl = "/api/results/images/skills-heatmap";
   const correlationUrl = "/api/results/images/skill-correlation";
@@ -97,6 +96,18 @@ export function GapAnalysisVisualizer({ profile }: GapAnalysisVisualizerProps) {
     setError("Изображение не найдено. Запустите GAP-анализ для генерации визуализаций.");
   };
 
+  // Reset state when profile changes (image URLs change too)
+  useEffect(() => {
+    setLoading(true);
+    setImageLoaded(false);
+    setError(null);
+  }, [viewProfile]);
+
+  // Keep in sync if parent switches profile
+  useEffect(() => {
+    setViewProfile(profile);
+  }, [profile]);
+
   const handleImageChange = (type: ImageType) => {
     setSelectedImage(type);
     setLoading(true);
@@ -105,6 +116,7 @@ export function GapAnalysisVisualizer({ profile }: GapAnalysisVisualizerProps) {
   };
 
   const selectedConfig = IMAGE_CONFIGS.find((cfg) => cfg.type === selectedImage);
+
 
   return (
     <div className="space-y-6">
@@ -125,12 +137,26 @@ export function GapAnalysisVisualizer({ profile }: GapAnalysisVisualizerProps) {
                 </CardDescription>
               </div>
             </div>
-            <Badge
-              variant="outline"
-              className="text-sm font-semibold border-2 px-4 py-1.5"
-            >
-              {profile.toUpperCase()}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Select
+                value={viewProfile}
+                onValueChange={(v) => {
+                  setViewProfile(v);
+                  onProfileChange?.(v);
+                }}
+              >
+                <SelectTrigger className="w-32 h-9 text-sm font-semibold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROFILES.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-8">
@@ -159,6 +185,7 @@ export function GapAnalysisVisualizer({ profile }: GapAnalysisVisualizerProps) {
               </motion.div>
             ))}
           </div>
+
 
           {/* Image display */}
           <motion.div
@@ -190,12 +217,21 @@ export function GapAnalysisVisualizer({ profile }: GapAnalysisVisualizerProps) {
                   <p className="text-sm text-slate-600 dark:text-slate-400">
                     {error}
                   </p>
+                  <button
+                    onClick={() => window.dispatchEvent(
+                      new CustomEvent("navigate-analysis", { detail: { profile: viewProfile } })
+                    )}
+                    className="inline-flex items-center gap-2 mt-4 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                  >
+                    Run analysis to generate charts
+                  </button>
                 </div>
               </div>
             )}
 
             {!error && (
               <img
+                key={`manual-${selectedImage}`}
                 src={imageUrl}
                 alt={selectedConfig?.title}
                 onLoad={handleImageLoad}
@@ -231,7 +267,7 @@ export function GapAnalysisVisualizer({ profile }: GapAnalysisVisualizerProps) {
                 onClick={() => {
                   const link = document.createElement("a");
                   link.href = imageUrl;
-                  link.download = `${selectedImage}_${profile}.png`;
+                  link.download = `${selectedImage}_${viewProfile}.png`;
                   link.click();
                 }}
               >

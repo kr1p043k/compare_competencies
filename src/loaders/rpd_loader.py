@@ -7,7 +7,6 @@ Usage:
 """
 
 import json, os, re, sys
-from collections import defaultdict
 from typing import Optional
 
 from pypdf import PdfReader
@@ -132,11 +131,22 @@ def extract_text_pypdf(fpath: str) -> Optional[str]:
         return None
 
 
+
+# F13 fix: module-level OCR singleton (was recreated per-call)
+_module_ocr_reader = None
+
+
+def _get_module_ocr_reader():
+    """Модульный синглтон EasyOCR (модель ~2GB, нельзя перезагружать на вызов)."""
+    global _module_ocr_reader
+    if _module_ocr_reader is None and HAS_EASYOCR:
+        _module_ocr_reader = easyocr.Reader(["ru", "en"], gpu=False)
+    return _module_ocr_reader
 def extract_text_ocr(fpath: str) -> Optional[str]:
     if not HAS_EASYOCR or not HAS_PDF2IMAGE:
         return None
     try:
-        reader = easyocr.Reader(["ru", "en"], gpu=False)
+        reader = _get_module_ocr_reader()  # F13 fix: singleton
         images = pdf2image.convert_from_path(fpath, dpi=200)
         text = ""
         for img in images:

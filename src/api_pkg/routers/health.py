@@ -35,6 +35,7 @@ def _get_registry() -> ModelRegistry:
 
 @router.get("/")
 async def root():
+    """Корневой health-check."""
     v = config.VERSION if hasattr(config, "VERSION") else "2.0"
     return {
         "service": "Compare Competencies API",
@@ -72,6 +73,7 @@ def _write_log_sync(entry: LogEntry) -> None:
 
 @router.post("/api/log")
 async def write_log(entry: LogEntry):
+    """Запись клиентского лога."""
     try:
         await asyncio.to_thread(_write_log_sync, entry)
     except Exception as e:
@@ -82,6 +84,7 @@ async def write_log(entry: LogEntry):
 @router.get("/health", response_model=HealthResponse)
 @router.get("/api/health", response_model=HealthResponse)
 async def health_check():
+    """Готовность сервиса и зависимостей."""
     registry = _get_registry()
     ltr_model = registry.latest("ltr")
     clusters = {

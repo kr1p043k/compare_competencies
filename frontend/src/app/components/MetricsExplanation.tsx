@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { CheckCircle2, TrendingUp, Target, Award, BarChart3, Brain } from "lucide-react";
+import { CheckCircle2, TrendingUp, Target, Award, BarChart3, Brain, Gauge } from "lucide-react";
 
 export function MetricsExplanation() {
   const metrics = [
@@ -30,6 +30,15 @@ export function MetricsExplanation() {
       explanation: "Для каждого уровня (Junior/Middle/Senior) K-Means выделяет эталонный набор навыков. Считается пересечение навыков студента с эталоном.",
       trustReason: "K-Means работает на parsed_skills из вакансий. Качество кластеризации зависит от чистоты данных и полноты выборки.",
       formula: "Skill Coverage = (|навыки студента ∩ эталон|) / |эталон| × 100"
+    },
+    {
+      name: "Quality Coverage (качество покрытия)",
+      icon: Gauge,
+      color: "teal",
+      description: "Средняя уверенность совпадений: каждый найденный навык даёт не 1, а свою уверенность матчера (0..1).",
+      explanation: "По дисциплине: сумма conf найденных навыков / число навыков РПД. Точное совпадение ≈ 1.0, нечёткое/семантическое — 0.5–0.7. По направлению: среднее quality дисциплин (average_quality_coverage).",
+      trustReason: "Quality всегда ≤ бинарного покрытия. Разрыв между ними — доля натянутых совпадений: высокое покрытие + низкий quality значит, что РПД говорит на другом языке, чем рынок, и навыки стоит переформулировать, а не добавлять новые.",
+      formula: "Quality = Σ conf(найденных) / N навыков РПД; Quality направления = среднее по дисциплинам"
     },
     {
       name: "Readiness Score (Готовность)",
@@ -68,6 +77,7 @@ export function MetricsExplanation() {
       orange: "from-orange-500 to-orange-600",
       pink: "from-pink-500 to-pink-600",
       indigo: "from-indigo-500 to-indigo-600",
+      teal: "from-teal-500 to-teal-600",
     };
     return colors[color] || colors.blue;
   };
