@@ -86,6 +86,7 @@ export function TeacherDashboard() {
 
   const [rpdSources, setRpdSources] = useState<{ yandex_covered: string[] }>({ yandex_covered: [] });
   const [rpdFile, setRpdFile] = useState<File | null>(null);
+  const [rpdYandexUrl, setRpdYandexUrl] = useState("");
   const rpdInputRef = useRef<HTMLInputElement | null>(null);
   const [rpdUploading, setRpdUploading] = useState(false);
   const [rpdCollecting, setRpdCollecting] = useState(false);
@@ -185,13 +186,16 @@ export function TeacherDashboard() {
     if (rpdCollecting) return;
     setRpdCollecting(true); setRpdMsg("Сбор аннотаций с Yandex Disk...");
     try {
+      const body = new URLSearchParams();
+      body.set("dir_code", selectedDir);
+      if (rpdYandexUrl.trim()) body.set("public_url", rpdYandexUrl.trim());
       const res = await fetch(`/api/teacher/rpd/collect`, {
         method: "POST",
         headers: {
           ...authHeaders(),
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: `dir_code=${encodeURIComponent(selectedDir)}`,
+        body: body.toString(),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || res.statusText);
@@ -449,6 +453,48 @@ export function TeacherDashboard() {
                 {rpdCollecting ? "Сбор..." : "Собрать с Yandex Disk"}
               </button>
             )}
+            <div
+              style={{
+                marginTop: 8,
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                borderTop: "1px dashed #fde68a",
+                paddingTop: 8,
+              }}
+            >
+              <input
+                type="text"
+                value={rpdYandexUrl}
+                onChange={(e) => setRpdYandexUrl(e.target.value)}
+                placeholder="Ссылка на папку Yandex Disk (например https://disk.360.yandex.ru/d/...)"
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  border: "1px solid #fde68a",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  boxSizing: "border-box",
+                }}
+              />
+              <button
+                onClick={collectRpd}
+                disabled={rpdCollecting || !rpdYandexUrl.trim()}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  background: rpdCollecting || !rpdYandexUrl.trim() ? "#9ca3af" : "#0d9488",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: rpdCollecting || !rpdYandexUrl.trim() ? "default" : "pointer",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {rpdCollecting ? "Сбор..." : "Загрузить по ссылке"}
+              </button>
+            </div>
             {rpdStatus && (rpdStatus.status === "completed" || rpdStatus.status === "failed") && (
               <div
                 style={{

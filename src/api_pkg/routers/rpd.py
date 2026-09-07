@@ -204,14 +204,16 @@ async def rpd_upload(
 # ---------- Collect (Yandex Disk) pipeline ----------
 
 
-async def _collect_pipeline(run_id: str, dir_code: str) -> None:
+async def _collect_pipeline(run_id: str, dir_code: str, public_url: str | None = None) -> None:
     from src.pipeline.db_writer import complete_pipeline_run
 
     try:
-        await _update_run(run_id, {"stage": "collect", "status": "running", "dir_code": dir_code})
-        code, out = await _run_cli([
-            sys.executable, "scripts/sfu_annotations.py", "collect", dir_code,
-        ], timeout=1800)
+        await _update_run(run_id, {"stage": "collect", "status": "running", "dir_code": dir_code,
+                                   "source": "yandex", "url": public_url or ""})
+        cmd = [sys.executable, "scripts/sfu_annotations.py", "collect", dir_code]
+        if public_url:
+            cmd += ["--url", public_url]
+        code, out = await _run_cli(cmd, timeout=1800)
         if code != 0:
             raise RuntimeError(f"sfu collect failed: {out[-500:]}")
 
@@ -247,17 +249,28 @@ async def _collect_pipeline(run_id: str, dir_code: str) -> None:
 
 @router.post("/teacher/rpd/collect")
 @limiter.limit("2/minute")
-async def rpd_collect(request: Request, background_tasks: BackgroundTasks, dir_code: Annotated[str, Form()] = "09.03.02"):
-    """Сбор компетенций из загруженных РПД."""
+async def rpd_collect(request: Request, background_tasks: BackgroundTasks,
+                      dir_code: Annotated[str, Form()] = "09.03.02",
+                      public_url: Annotated[str, Form()] = ""):
+    """Сбор компетенций из загруженных РПД.
+
+    public_url — публичная ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...);
+    позволяет собирать аннотации для направлений вне предустановленного списка YANDEX_COVERED.
+    """
     _validate_dir_code(dir_code)
-    if dir_code not in YANDEX_COVERED:
-        raise HTTPException(status_code=400, detail=f"Yandex Disk collection is not available for {dir_code}")
+    if not public_url and dir_code not in YANDEX_COVERED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Yandex Disk collection is not available for {dir_code}; укажите public_url",
+        )
 
     from src.pipeline.db_writer import create_pipeline_run
     run_id = await create_pipeline_run("rpd-import")
-    await _update_run(run_id, {"stage": "collect", "status": "running", "dir_code": dir_code, "source": "yandex"})
-    background_tasks.add_task(_collect_pipeline, run_id, dir_code)
-    return {"status": "started", "run_id": run_id, "dir_code": dir_code, "source": "yandex"}
+    await _update_run(run_id, {"stage": "collect", "status": "running", "dir_code": dir_code,
+                               "source": "yandex", "url": public_url})
+    background_tasks.add_task(_collect_pipeline, run_id, dir_code, public_url or None)
+    return {"status": "started", "run_id": run_id, "dir_code": dir_code, "source": "yandex",
+            "has_url": bool(public_url)}
 
 
 # ---------- Metadata ----------

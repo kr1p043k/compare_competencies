@@ -164,10 +164,8 @@ def main() -> None:
     REFERENCE_DIR = Path(args.dir)
 
     anns_all = json.loads(ANN_ALL_PATH.read_text(encoding="utf-8"))
-    codes = [args.only] if args.only else DIR_CODES
+    codes = ([args.only] if args.only else DIR_CODES)
     for code in codes:
-        if args.only and args.only not in DIR_CODES:
-            print(f"{args.only}: вне списка покрытых аннотациями направлений")
         enrich_direction(code, anns_all.get(code, []))
 
 

@@ -7,7 +7,7 @@ import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import {
   AlertCircle, RefreshCw, Users, FileText, Database,
-  Upload, Brain, BookOpen,
+  Upload, Brain, BookOpen, Download,
 } from "lucide-react";
 import { apiFetch, logAction } from "../../lib/auth";
 import { TeacherDashboard } from "./TeacherDashboard";
@@ -47,6 +47,7 @@ export function AdminDashboard() {
   const [importJson, setImportJson] = useState("");
   const [rpdDir, setRpdDir] = useState("09.03.02");
   const [rpdFile, setRpdFile] = useState<File | null>(null);
+  const [rpdYandexUrl, setRpdYandexUrl] = useState("");
   const rpdInputRef = useRef<HTMLInputElement | null>(null);
   const [rpdUploading, setRpdUploading] = useState(false);
   const [rpdCollecting, setRpdCollecting] = useState(false);
@@ -133,10 +134,13 @@ export function AdminDashboard() {
     if (rpdCollecting) return;
     setRpdCollecting(true); setRpdMsg("Сбор аннотаций с Yandex Disk...");
     try {
+      const body = new URLSearchParams();
+      body.set("dir_code", rpdDir);
+      if (rpdYandexUrl.trim()) body.set("public_url", rpdYandexUrl.trim());
       const r = await apiFetch("/api/teacher/rpd/collect", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `dir_code=${encodeURIComponent(rpdDir)}`,
+        body: body.toString(),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || r.statusText);
@@ -565,6 +569,18 @@ export function AdminDashboard() {
                     {rpdCollecting ? "Сбор..." : "Собрать с Yandex Disk"}
                   </Button>
                 )}
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={rpdYandexUrl}
+                  onChange={(e) => setRpdYandexUrl(e.target.value)}
+                  placeholder="Ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...)"
+                  className="h-9 flex-1 px-3 rounded-lg border border-gray-300 text-sm"
+                />
+                <Button onClick={collectRpd} disabled={rpdCollecting || !rpdYandexUrl.trim()} className="bg-teal-600 hover:bg-teal-700">
+                  <Download className="size-4 mr-2" />{rpdCollecting ? "Сбор..." : "Загрузить по ссылке"}
+                </Button>
               </div>
               {rpdStatus && rpdStatus.status === "running" && (
                 <p className="text-sm text-amber-700">Этап: {rpdStatus.stats?.stage || "..."}</p>

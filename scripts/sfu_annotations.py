@@ -112,6 +112,15 @@ def safe_cache_name(fname: str) -> str:
     return re.sub(r"[^\w.\-]+", "_", fname)
 
 
+def list_pdf_files(root: dict) -> list[str]:
+    """Имена PDF-файлов в переданном ответе resources API."""
+    return [
+        it.get("name")
+        for it in root.get("_embedded", {}).get("items", [])
+        if it.get("type") == "file" and it.get("name", "").lower().endswith(".pdf")
+    ]
+
+
 def collect(public_key: str, cache_dir: Path) -> list[dict]:
     os.makedirs(cache_dir, exist_ok=True)
     root = yandex_list(public_key)
@@ -123,23 +132,22 @@ def collect(public_key: str, cache_dir: Path) -> list[dict]:
         if it.get("type") == "dir" and "ннотац" in it.get("name", ""):
             folder_path = it.get("path")
             break
-    if not folder_path:
-        return []
-    listing = yandex_list(public_key, folder_path)
-    if not listing:
-        return []
-    files = [
-        it.get("name")
-        for it in listing.get("_embedded", {}).get("items", [])
-        if it.get("type") == "file" and it.get("name", "").lower().endswith(".pdf")
-    ]
+    if folder_path:
+        listing = yandex_list(public_key, folder_path)
+        if not listing:
+            return []
+        files = list_pdf_files(listing)
+    else:
+        # Ссылка может вести прямо на папку с PDF — берём корень.
+        files = list_pdf_files(root)
     anns: list[dict] = []
     for fname in files:
         pdf_path = cache_dir / safe_cache_name(fname)
         if pdf_path.exists():
             data = pdf_path.read_bytes()
         else:
-            data = yandex_download(public_key, folder_path + "/" + fname)
+            dl_path = (folder_path + "/" if folder_path else "") + fname
+            data = yandex_download(public_key, dl_path)
             if not data:
                 anns.append({"file": fname, "ok": False})
                 continue
@@ -160,12 +168,19 @@ def collect(public_key: str, cache_dir: Path) -> list[dict]:
 
 
 def cmd_collect(args: argparse.Namespace) -> None:
-    targets = {k: v for k, v in TARGETS.items() if args.dir_code is None or k == args.dir_code}
+    targets: dict[str, str] = {}
+    if args.url:
+        if not args.dir_code:
+            print("--url требует указать dir_code")
+            sys.exit(1)
+        targets[args.dir_code] = args.url
+    else:
+        targets = {k: v for k, v in TARGETS.items() if args.dir_code is None or k == args.dir_code}
     import tempfile
     cache_base = Path(os.environ.get("TMPDIR", tempfile.gettempdir())) / "sfu_pdfs"
     for dir_code, pk in targets.items():
         out_json = ANN_DIR / f"{dir_code}.json"
-        if out_json.exists():
+        if out_json.exists() and not args.url:
             print(f"{dir_code}: already done, skip")
             continue
         anns = collect(pk, cache_base / dir_code)
@@ -238,6 +253,12 @@ def main() -> None:
         nargs="?",
         default=None,
         help="код направления (например 09.03.04); все если не указан",
+    )
+    p_collect.add_argument(
+        "--url",
+        default=None,
+        help="публичная ссылка на папку Yandex Disk (например https://disk.360.yandex.ru/d/...); "
+             "пересканирует/переписывает файл для dir_code",
     )
     p_collect.set_defaults(func=cmd_collect)
     p_compare = sub.add_parser("compare", help="сравнить компетенции аннотаций с KRM")
