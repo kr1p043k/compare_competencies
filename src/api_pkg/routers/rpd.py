@@ -135,11 +135,12 @@ async def _upload_pipeline(run_id: str, dir_code: str, fname: str, direction_nam
     from src.pipeline.db_writer import complete_pipeline_run
 
     try:
-        await _update_run(run_id, {"stage": "parse", "status": "running"})
+        await _update_run(run_id, {"stage": "parse", "status": "running", "progress": 10})
         merged = await asyncio.to_thread(_parse_pdfs_to_krm, dir_code, direction_name, profile)
         stats = {
             "stage": "seed",
             "status": "running",
+            "progress": 30,
             "disciplines": len(merged.get(dir_code, {}).get("disciplines", {})),
         }
         await _update_run(run_id, stats)
@@ -148,14 +149,14 @@ async def _upload_pipeline(run_id: str, dir_code: str, fname: str, direction_nam
         if code != 0:
             raise RuntimeError(f"seed failed: {out[-500:]}")
 
-        await _update_run(run_id, {"stage": "analysis", "status": "running"})
+        await _update_run(run_id, {"stage": "analysis", "status": "running", "progress": 60})
         code, out = await _run_teacher_analysis(dir_code)
         if code != 0:
             raise RuntimeError(f"teacher-analysis failed: {out[-500:]}")
 
         await complete_pipeline_run(
             run_id, status="completed",
-            stats={"stage": "done", "status": "completed", "file": fname, "dir_code": dir_code},
+            stats={"stage": "done", "status": "completed", "progress": 100, "file": fname, "dir_code": dir_code},
         )
     except Exception as exc:
         logger.error("rpd_upload_pipeline_failed", run_id=run_id, dir_code=dir_code, error=str(exc))
@@ -208,35 +209,35 @@ async def _collect_pipeline(run_id: str, dir_code: str, public_url: str | None =
     from src.pipeline.db_writer import complete_pipeline_run
 
     try:
-        await _update_run(run_id, {"stage": "collect", "status": "running", "dir_code": dir_code,
-                                   "source": "yandex", "url": public_url or ""})
+        await _update_run(run_id, {"stage": "collect", "status": "running", "progress": 5,
+                                   "dir_code": dir_code, "source": "yandex", "url": public_url or ""})
         cmd = [sys.executable, "scripts/sfu_annotations.py", "collect", dir_code]
         if public_url:
             cmd += ["--url", public_url]
         code, out = await _run_cli(cmd, timeout=1800)
         if code != 0:
             raise RuntimeError(f"sfu collect failed: {out[-500:]}")
+        await _update_run(run_id, {"stage": "merge", "status": "running", "progress": 25})
 
-        await _update_run(run_id, {"stage": "merge", "status": "running"})
         code, out = await _run_cli([
             sys.executable, "scripts/merge_annotations_to_krm.py", "--only", dir_code,
         ], timeout=1200)
         if code != 0:
             raise RuntimeError(f"merge failed: {out[-500:]}")
+        await _update_run(run_id, {"stage": "seed", "status": "running", "progress": 45})
 
-        await _update_run(run_id, {"stage": "seed", "status": "running"})
         code, out = await _seed_direction(dir_code)
         if code != 0:
             raise RuntimeError(f"seed failed: {out[-500:]}")
+        await _update_run(run_id, {"stage": "analysis", "status": "running", "progress": 65})
 
-        await _update_run(run_id, {"stage": "analysis", "status": "running"})
         code, out = await _run_teacher_analysis(dir_code)
         if code != 0:
             raise RuntimeError(f"teacher-analysis failed: {out[-500:]}")
 
         await complete_pipeline_run(
             run_id, status="completed",
-            stats={"stage": "done", "status": "completed", "dir_code": dir_code},
+            stats={"stage": "done", "status": "completed", "progress": 100, "dir_code": dir_code},
         )
     except Exception as exc:
         logger.error("rpd_collect_pipeline_failed", run_id=run_id, dir_code=dir_code, error=str(exc))

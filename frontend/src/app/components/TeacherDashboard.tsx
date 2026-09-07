@@ -510,8 +510,27 @@ export function TeacherDashboard() {
               </div>
             )}
             {rpdUploading && rpdStatus && rpdStatus.status === "running" && (
-              <div style={{ marginTop: 8, fontSize: 11, color: "#92400e" }}>
-                Этап: {rpdStatus.stats?.stage || "..."}
+              <div style={{ marginTop: 10 }}>
+                <div
+                  style={{
+                    height: 8,
+                    background: "#fde68a",
+                    borderRadius: 4,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${rpdStatus.stats?.progress ?? 10}%`,
+                      background: "#0d9488",
+                      transition: "width 0.5s ease",
+                    }}
+                  />
+                </div>
+                <div style={{ marginTop: 6, fontSize: 11, color: "#92400e" }}>
+                  Этап: {({ collect: "Сбор аннотаций с Yandex Disk", merge: "Слияние с KRM", seed: "Загрузка в базу", analysis: "Анализ компетенций", parse: "Разбор PDF" } as Record<string, string>)[rpdStatus.stats?.stage] || rpdStatus.stats?.stage || "..."} · {rpdStatus.stats?.progress ?? 10}%
+                </div>
               </div>
             )}
           </div>

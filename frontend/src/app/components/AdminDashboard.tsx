@@ -583,7 +583,17 @@ export function AdminDashboard() {
                 </Button>
               </div>
               {rpdStatus && rpdStatus.status === "running" && (
-                <p className="text-sm text-amber-700">Этап: {rpdStatus.stats?.stage || "..."}</p>
+                <div>
+                  <div className="h-2 w-full rounded bg-amber-100 overflow-hidden">
+                    <div
+                      className="h-full rounded bg-teal-600 transition-all"
+                      style={{ width: `${rpdStatus.stats?.progress ?? 10}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-sm text-amber-700">
+                    Этап: {({ collect: "Сбор аннотаций с Yandex Disk", merge: "Слияние с KRM", seed: "Загрузка в базу", analysis: "Анализ компетенций", parse: "Разбор PDF" } as Record<string, string>)[rpdStatus.stats?.stage] || rpdStatus.stats?.stage || "..."} · {rpdStatus.stats?.progress ?? 10}%
+                  </p>
+                </div>
               )}
               {rpdMsg && <p className="text-sm text-gray-600">{rpdMsg}</p>}
             </CardContent>
