@@ -135,6 +135,44 @@ async def _get_sso_token(request: Request) -> tuple[str, str]:
     return sso_token, token_hash
 
 
+async def _user_direction_codes(user: dict[str, Any]) -> list[str]:
+    """Коды направлений пользователя (admin — все KRM-файлы, иначе user_directions)."""
+    role = user.get("r")
+    pool = get_pool()
+    if role != "admin" and pool is not None:
+        rows = await pool.fetch(
+            "SELECT dir_code FROM user_directions WHERE user_id=$1 ORDER BY dir_code",
+            user.get("uid"),
+        )
+        codes = [r["dir_code"] for r in rows]
+        if codes:
+            return codes
+    dirs: list[str] = []
+    if config.REFERENCE_DIR.exists():
+        for path in sorted(config.REFERENCE_DIR.glob("krm_disciplines_*.json")):
+            if "_clean" in path.name:
+                continue
+            dir_code = path.name[len("krm_disciplines_"):-len(".json")]
+            if dir_code:
+                dirs.append(dir_code)
+    return dirs
+
+
+def _local_competencies(topic: str, final_top_k: int | None, dir_codes: list[str]) -> dict[str, Any]:
+    """Локальные рекомендации компетенций (AcademicGapAnalyzer.recommend)."""
+    from src.analyzers.academic_gap import AcademicGapAnalyzer
+
+    lag = [d for d in dir_codes or []]
+    lag = lag or ["09.03.02"]
+    result: dict[str, Any] = {}
+    for dir_code in lag:
+        analyzer = AcademicGapAnalyzer(dir_code=dir_code)
+        result = analyzer.recommend(topic, final_top_k=final_top_k or 5)
+        if result.get("recommended_competencies") or result.get("found_trends"):
+            break
+    return result
+
+
 async def _academic_post(
     path: str,
     sso_token: str,
@@ -273,14 +311,35 @@ async def academic_get_competencies(
     request: Request,
     user: dict[str, Any] = Depends(_require_user),
 ):
-    """Компетенции направления из БД."""
-    sso_token, token_hash = await _get_sso_token(request)
+    """Компетенции направления из БД.
+
+    При недоступности SSO (нет привязки к хабу, истёк токен) или сбое сервиса
+    ЮФУ отдаются локальные рекомендации по направлению пользователя.
+    """
+    fallback_codes = await _user_direction_codes(user)
+    try:
+        sso_token, token_hash = await _get_sso_token(request)
+    except HTTPException as exc:
+        if exc.status_code in (403, 419):
+            logger.info("academic_fallback_local", reason="sso_unavailable", status=exc.status_code)
+            return await asyncio.to_thread(
+                _local_competencies, body.topic, body.final_top_k, fallback_codes
+            )
+        raise
     payload = {
         "topic": body.topic,
         "broad_top_k": body.broad_top_k,
         "final_top_k": body.final_top_k,
     }
-    return await _academic_post("/get-competencies", sso_token, payload, token_hash)
+    try:
+        return await _academic_post("/get-competencies", sso_token, payload, token_hash)
+    except HTTPException as exc:
+        if exc.status_code in (502, 503, 504):
+            logger.info("academic_fallback_local", reason="academic_api_error", status=exc.status_code)
+            return await asyncio.to_thread(
+                _local_competencies, body.topic, body.final_top_k, fallback_codes
+            )
+        raise
 
 
 @router.post("/academic/analyze-gap")

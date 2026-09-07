@@ -358,3 +358,62 @@ class AcademicGapAnalyzer:
             "detailed_analysis": results,
             "summary": summary,
         }
+
+    # ── публичный метод: рекомендуемые компетенции ───────────────────────
+
+    def recommend(self, topic: str, final_top_k: int = 5) -> dict[str, Any]:
+        """Локальные рекомендации компетенций по теме (формат /get-competencies).
+
+        Ответ совместим с TrendResponse фронта: topic, found_trends (строки
+        "{title.. summary.. keywords..}"), recommended_competencies, rationale.
+        Не зависит от сервиса ЮФУ (только чтение, эмбеддинги с диска).
+        """
+        if not topic or not topic.strip():
+            return {
+                "topic": topic,
+                "found_trends": [],
+                "recommended_competencies": [],
+                "rationale": "Тема не задана.",
+            }
+        topic_skills = self.topic_to_skills(topic)
+        market_stats = self._market_stats(topic_skills)
+        results = self._competency_analysis(
+            topic_skills,
+            market_stats.get("top_market", []),
+            market_stats.get("market_embs"),
+            topic_lower=topic.strip().lower(),
+        )
+
+        found_trends: list[str] = []
+        for m in market_stats.get("top_market", [])[:10]:
+            found_trends.append(
+                '{title: "%s", summary: "Близость к теме: %.2f", keywords: ["%s"]}'
+                % (m["skill"], m["similarity"], m["skill"])
+            )
+
+        ranked = [r for r in results if r["status"] != "no_data"]
+        ranked.sort(key=lambda r: r["coverage_percent"], reverse=True)
+
+        recommended: list[dict[str, Any]] = []
+        for r in ranked[:final_top_k]:
+            near = [n["skill"] for n in r.get("near_skills", [])]
+            comp_trends: list[str] = []
+            for s in near[:3]:
+                comp_trends.append(
+                    '{title: "%s", summary: "Навык компетенции", keywords: ["%s"]}'
+                    % (s, s)
+                )
+            recommended.append({
+                "code": r["code"],
+                "description": r.get("recommendation") or r.get("reason") or "",
+                "keywords": ", ".join(near),
+                "trend_source": "\n".join(comp_trends),
+            })
+
+        rationale = self._build_summary(results, market_stats)
+        return {
+            "topic": topic.strip(),
+            "found_trends": found_trends,
+            "recommended_competencies": recommended,
+            "rationale": rationale,
+        }
