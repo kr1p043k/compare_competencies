@@ -6,6 +6,7 @@
 - /academic/* — проксирует запросы в academic-api с Authorization: Bearer <hub-jwt>.
 """
 
+import asyncio
 import base64
 import json
 import time
@@ -375,8 +376,6 @@ async def academic_analyze_gap_local(
     Тема → навыки → сравнение с рынком (it_skills) и компетенциями КРМ.
     Выполняется в фоне в потоке (эмбеддинги). Формат ответа — как у ЮФУ.
     """
-    import asyncio
-
     from src.analyzers.academic_gap import AcademicGapAnalyzer
 
     try:
