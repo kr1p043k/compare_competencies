@@ -126,9 +126,27 @@ def save_detailed_vacancies(vacancies, log) -> Result[None, DomainError]:
     try:
         file.parent.mkdir(parents=True, exist_ok=True)
         data = [v.raw_data if isinstance(v, Vacancy) else v for v in vacancies]
+        # Merge с существующим файлом: НЕ затирать уже накопленные вакансии
+        # (per-direction одиночные сборы и background-коллектор пишут в тот же файл).
+        if file.exists():
+            try:
+                existing = json.loads(file.read_text(encoding="utf-8"))
+                if isinstance(existing, list):
+                    by_id: dict = {}
+                    for v in existing:
+                        if isinstance(v, dict) and v.get("id") is not None:
+                            by_id[v["id"]] = v
+                    for v in data:
+                        if isinstance(v, dict) and v.get("id") is not None:
+                            by_id[v["id"]] = v
+                        else:
+                            by_id[f"_{len(by_id)}"] = v
+                    data = list(by_id.values())
+            except Exception:
+                pass
         with open(file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        log.info("detailed_vacancies_saved", path=str(file), count=len(vacancies))
+        log.info("detailed_vacancies_saved", path=str(file), count=len(data))
         return Ok(None)
     except Exception as e:
         return Err(DomainError(message="Failed to save detailed vacancies", detail=str(e)))
