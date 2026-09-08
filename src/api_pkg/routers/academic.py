@@ -45,7 +45,7 @@ class SsoRequest(BaseModel):
 class CompetenciesRequest(BaseModel):
     topic: str
     broad_top_k: int | None = 10
-    final_top_k: int | None = 10
+    final_top_k: int | None = None
 
 
 class CurrentCompetency(BaseModel):
@@ -168,7 +168,7 @@ def _local_competencies(topic: str, final_top_k: int | None, dir_codes: list[str
     result: dict[str, Any] = {}
     for dir_code in lag:
         analyzer = AcademicGapAnalyzer(dir_code=dir_code)
-        result = analyzer.recommend(topic, final_top_k=final_top_k or 10)
+        result = analyzer.recommend(topic, final_top_k=final_top_k)
         if result.get("recommended_competencies") or result.get("found_trends"):
             break
     return result

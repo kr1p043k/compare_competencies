@@ -383,12 +383,13 @@ class AcademicGapAnalyzer:
 
     # ── публичный метод: рекомендуемые компетенции ───────────────────────
 
-    def recommend(self, topic: str, final_top_k: int = 5) -> dict[str, Any]:
+    def recommend(self, topic: str, final_top_k: int | None = None) -> dict[str, Any]:
         """Локальные рекомендации компетенций по теме (формат /get-competencies).
 
         Ответ совместим с TrendResponse фронта: topic, found_trends (строки
         "{title.. summary.. keywords..}"), recommended_competencies, rationale.
         Не зависит от сервиса ЮФУ (только чтение, эмбеддинги с диска).
+        final_top_k=None означает «все компетенции направления».
         """
         if not topic or not topic.strip():
             return {
@@ -417,6 +418,9 @@ class AcademicGapAnalyzer:
 
         ranked = [r for r in results if r["status"] != "no_data"]
         ranked.sort(key=lambda r: (r["coverage_percent"], r["skills_count"]), reverse=True)
+
+        if not final_top_k or final_top_k <= 0 or final_top_k >= len(ranked):
+            final_top_k = len(ranked)
 
         recommended: list[dict[str, Any]] = []
         for r in ranked[:final_top_k]:

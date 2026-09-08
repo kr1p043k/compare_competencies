@@ -185,7 +185,6 @@ export function ScientificTrendsTab() {
       const data = await academicCall("/api/academic/get-competencies", {
         topic: topic.trim(),
         broad_top_k: 10,
-        final_top_k: 10,
       });
       setTrend(data as TrendResponse);
     } catch (e) {
