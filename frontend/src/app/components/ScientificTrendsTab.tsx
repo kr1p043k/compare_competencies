@@ -13,6 +13,15 @@ interface TrendCompetency {
   description: string;
   keywords: string;
   trend_source: string;
+  status?: string;
+  coverage_percent?: number;
+  skills_count?: number;
+  disciplines?: string[];
+  near_skills?: GapSkill[];
+  missing_topic_skills?: string[];
+  suggested_skills?: GapSkill[];
+  reason?: string;
+  recommendation?: string;
 }
 
 interface TrendResponse {
@@ -176,7 +185,7 @@ export function ScientificTrendsTab() {
       const data = await academicCall("/api/academic/get-competencies", {
         topic: topic.trim(),
         broad_top_k: 10,
-        final_top_k: 5,
+        final_top_k: 10,
       });
       setTrend(data as TrendResponse);
     } catch (e) {
@@ -351,22 +360,99 @@ export function ScientificTrendsTab() {
                         <div key={c.code} className="rounded-lg border border-gray-200 p-4">
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <span className="font-mono text-sm font-semibold text-indigo-700">{c.code}</span>
-                            {cardTrends.length > 0 && (
-                              <div className="flex gap-1.5 flex-wrap justify-end">
-                                {cardTrends.map((t) => (
-                                  <span
-                                    key={t.title}
-                                    title={t.summary || t.title}
-                                    className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100"
-                                  >
-                                    {t.title}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {c.coverage_percent !== undefined && (
+                                <Badge
+                                  variant={
+                                    c.coverage_percent >= 80
+                                      ? "secondary"
+                                      : c.coverage_percent >= 40
+                                        ? "default"
+                                        : "destructive"
+                                  }
+                                >
+                                  {c.status ?? "gap"} · {c.coverage_percent}%
+                                </Badge>
+                              )}
+                              {c.skills_count !== undefined && (
+                                <span className="text-xs text-gray-400">{c.skills_count} навыков</span>
+                              )}
+                            </div>
                           </div>
-                          {c.description && <p className="text-sm text-gray-700">{c.description}</p>}
+
+                          {c.disciplines && c.disciplines.length > 0 && (
+                            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                              {c.disciplines.slice(0, 3).map((d) => (
+                                <span key={d} className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                                  {d}
+                                </span>
+                              ))}
+                              {c.disciplines.length > 3 && (
+                                <span className="text-[11px] text-gray-400">+{c.disciplines.length - 3}</span>
+                              )}
+                            </div>
+                          )}
+
+                          {c.near_skills && c.near_skills.length > 0 && (
+                            <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                              {c.near_skills.map((n) => (
+                                <span
+                                  key={n.skill}
+                                  className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                >
+                                  {n.skill.length > 40 ? n.skill.slice(0, 40) + "…" : n.skill} ({n.similarity.toFixed(2)})
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {c.missing_topic_skills && c.missing_topic_skills.length > 0 && (
+                            <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                              {c.missing_topic_skills.map((m) => (
+                                <span
+                                  key={m}
+                                  className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100"
+                                >
+                                  {m.length > 40 ? m.slice(0, 40) + "…" : m}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {c.description && <p className="text-sm text-gray-700 mt-2">{c.description}</p>}
                           {c.keywords && <p className="text-xs text-gray-500 mt-1">Ключевые слова: {c.keywords}</p>}
+                          {c.reason && !c.description && <p className="text-xs text-gray-500 mt-1">{c.reason}</p>}
+
+                          {c.suggested_skills && c.suggested_skills.length > 0 && (
+                            <div className="mt-2 text-xs text-gray-500">
+                              <span className="font-medium">Рекомендуемые навыки:</span>
+                              <ul className="mt-1 space-y-0.5">
+                                {c.suggested_skills.map((s) => (
+                                  <li key={s.skill + s.source}>
+                                    <span className="font-mono text-indigo-700">{s.skill}</span>{" "}
+                                    <span className="text-gray-400">
+                                      ({s.similarity.toFixed(2)}
+                                      {s.source === "competency" ? ", близок к компетенции" : ", по теме"})
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {cardTrends.length > 0 && (
+                            <div className="flex gap-1.5 flex-wrap mt-2">
+                              {cardTrends.map((t) => (
+                                <span
+                                  key={t.title}
+                                  title={t.summary || t.title}
+                                  className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100"
+                                >
+                                  {t.title}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     });

@@ -429,6 +429,16 @@ class AcademicGapAnalyzer:
                 "description": r.get("recommendation") or r.get("reason") or "",
                 "keywords": ", ".join(near),
                 "trend_source": "\n".join(comp_trends),
+                # расширенные поля для обширных рекомендаций
+                "status": r.get("status"),
+                "coverage_percent": r.get("coverage_percent", 0),
+                "skills_count": r.get("skills_count", 0),
+                "disciplines": (r.get("disciplines") or [])[:5],
+                "near_skills": r.get("near_skills", []) or [],
+                "missing_topic_skills": r.get("missing_topic_skills", []) or [],
+                "suggested_skills": (r.get("suggested_skills") or [])[:6],
+                "reason": r.get("reason", ""),
+                "recommendation": r.get("recommendation", ""),
             })
 
         rationale = self._build_summary(results, market_stats)
