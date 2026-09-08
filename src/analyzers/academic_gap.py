@@ -175,14 +175,14 @@ class AcademicGapAnalyzer:
             return []
 
         topic_embs = comp.embed_skills(topic_skills)
-        if len(topic_embs) == 0:
-            return []
+        has_topic = len(topic_embs) > 0
 
         market = _load_it_skills()
 
         results: list[dict] = []
         for code, entry in krm.items():
             skills = entry["skills"]
+            skill_examples = [s for s in skills[:_TOP_NEAR]]
             if not skills:
                 results.append({
                     "code": code,
@@ -195,6 +195,7 @@ class AcademicGapAnalyzer:
                     "suggested_skills": [],
                     "reason": "У компетенции нет навыков в KRM.",
                     "recommendation": "Добавьте ЗУН для компетенции в РПД.",
+                    "skill_examples": skill_examples,
                 })
                 continue
             try:
@@ -212,6 +213,23 @@ class AcademicGapAnalyzer:
                     "suggested_skills": [],
                     "reason": "Не удалось вычислить эмбеддинги навыков.",
                     "recommendation": "",
+                    "skill_examples": skill_examples,
+                })
+                continue
+
+            if not has_topic:
+                results.append({
+                    "code": code,
+                    "status": "gap",
+                    "coverage_percent": 0,
+                    "disciplines": entry["disciplines"],
+                    "skills_count": len(skills),
+                    "near_skills": [],
+                    "missing_topic_skills": [],
+                    "suggested_skills": [],
+                    "reason": "Из темы не удалось извлечь навыки для анализа.",
+                    "recommendation": "Рекомендуется усилить компетенцию.",
+                    "skill_examples": skill_examples,
                 })
                 continue
 
@@ -307,6 +325,7 @@ class AcademicGapAnalyzer:
                 "suggested_skills": suggested,
                 "reason": reason,
                 "recommendation": recommendation,
+                "skill_examples": skill_examples,
             })
 
         results.sort(key=lambda r: r["coverage_percent"])
@@ -392,11 +411,13 @@ class AcademicGapAnalyzer:
             )
 
         ranked = [r for r in results if r["status"] != "no_data"]
-        ranked.sort(key=lambda r: r["coverage_percent"], reverse=True)
+        ranked.sort(key=lambda r: (r["coverage_percent"], r["skills_count"]), reverse=True)
 
         recommended: list[dict[str, Any]] = []
         for r in ranked[:final_top_k]:
             near = [n["skill"] for n in r.get("near_skills", [])]
+            if not near:
+                near = r.get("skill_examples", [])
             comp_trends: list[str] = []
             for s in near[:3]:
                 comp_trends.append(
