@@ -11,6 +11,7 @@ from src.di import DIContainer, get_container
 from src.models.student import StudentProfile
 from src.predictors.prophet_forecast import ProphetForecastEngine
 from src.predictors.recommendation_engine import RecommendationEngine
+from src.predictors.skill_forecast import SkillForecastEngine
 
 # Module-level globals — устанавливаются в startup.py, read-only после инициализации.
 # Защищены блокировкой для избежания race condition при параллельных запросах во время startup.
@@ -31,6 +32,7 @@ basic_vacancies: list = []
 raw_file = None
 vacancy_load_error: str | None = None
 prophet_engine: ProphetForecastEngine | None = None
+skill_engine: SkillForecastEngine | None = None
 is_ready: bool = False
 _regions_cache: list[str] = []
 _regions_cache_time: float = 0

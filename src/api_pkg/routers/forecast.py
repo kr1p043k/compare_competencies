@@ -1,3 +1,4 @@
+import asyncio
 import re
 from datetime import date
 from pathlib import Path
@@ -20,14 +21,39 @@ router = APIRouter(tags=["forecast"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-def _get_forecast_engine() -> Result[ProphetForecastEngine | SkillForecastEngine, DomainError]:
+def _get_forecast_data() -> dict[str, float]:
+    data: dict[str, float] = {}
+    freq_path = config.COMPETENCY_FREQ_PATH
+    if freq_path.exists():
+        raw = safe_read_json(freq_path)
+        if isinstance(raw, dict):
+            for k, v in raw.items():
+                if isinstance(v, (int, float)):
+                    data[k] = float(v)
+    weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
+    if weights_path.exists():
+        raw = safe_read_json(weights_path)
+        if isinstance(raw, dict):
+            for k, v in raw.items():
+                if k not in data and isinstance(v, (int, float)):
+                    data[k] = float(v)
+    return data
+
+
+async def _get_forecast_engine() -> Result[ProphetForecastEngine | SkillForecastEngine, DomainError]:
     if deps.prophet_engine is not None and deps.prophet_engine.is_fitted:
         return Ok(deps.prophet_engine)
+    if deps.skill_engine is not None:
+        return Ok(deps.skill_engine)
     freqs = _get_forecast_data()
     if not freqs:
         return Err(DomainError("No frequency data available for forecast"))
     engine = SkillForecastEngine()
-    return engine.fit(freqs)
+    result = await asyncio.to_thread(engine.fit, freqs)
+    if isinstance(result, Err):
+        return result
+    deps.skill_engine = engine
+    return Ok(engine)
 
 
 def _get_forecast_data() -> dict[str, float]:
@@ -151,7 +177,7 @@ def _record_forecast_accuracy(engine, forecasts) -> None:
 @limiter.limit("30/minute")
 async def get_all_forecasts(request: Request, months: int = Query(12, ge=1, le=24)):
     """Прогнозы по всем навыкам."""
-    match _get_forecast_engine():
+    match await _get_forecast_engine():
         case Ok(engine):
             match engine.forecast_all(months=months):
                 case Ok(forecasts):
@@ -174,7 +200,7 @@ async def get_top_forecasts(
     direction: str = Query("growing", regex="^(growing|declining)$"),
 ):
     """Топ растущих навыков."""
-    match _get_forecast_engine():
+    match await _get_forecast_engine():
         case Ok(engine):
             meta = await _get_vacancy_meta()
             if isinstance(engine, ProphetForecastEngine):
@@ -218,7 +244,7 @@ async def get_popular_forecasts(
     months: int = Query(12, ge=1, le=24),
 ):
     """Прогнозы популярных навыков."""
-    match _get_forecast_engine():
+    match await _get_forecast_engine():
         case Ok(engine):
             meta = await _get_vacancy_meta()
             if isinstance(engine, ProphetForecastEngine):
@@ -241,7 +267,7 @@ async def get_popular_forecasts(
 @limiter.limit("60/minute")
 async def get_skill_forecast(skill: str, request: Request, months: int = Query(12, ge=1, le=24)):
     """Прогноз по одному навыку."""
-    match _get_forecast_engine():
+    match await _get_forecast_engine():
         case Ok(engine):
             result = engine.forecast(skill, months) if hasattr(engine, "forecast") else engine.predict(skill, months)
             match result:
