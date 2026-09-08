@@ -361,6 +361,8 @@ class AcademicGapAnalyzer:
                 "summary": "Тема не задана.",
             }
         topic_skills = self.topic_to_skills(topic)
+        if not topic_skills:
+            topic_skills = [topic.strip()]
         market_stats = self._market_stats(topic_skills)
         results = self._competency_analysis(
             topic_skills,
@@ -368,9 +370,10 @@ class AcademicGapAnalyzer:
             market_stats.get("market_embs"),
             topic_lower=topic.strip().lower(),
         )
+        scored = [r for r in results if r["status"] != "no_data"]
         overall = round(
-            sum(r["coverage_percent"] for r in results) / len(results) / 100, 4
-        ) if results else 0.0
+            sum(r["coverage_percent"] for r in scored) / len(scored) / 100, 4
+        ) if scored else 0.0
         summary = self._build_summary(results, market_stats)
         return {
             "overall_score": overall,
@@ -395,6 +398,8 @@ class AcademicGapAnalyzer:
                 "rationale": "Тема не задана.",
             }
         topic_skills = self.topic_to_skills(topic)
+        if not topic_skills:
+            topic_skills = [topic.strip()]
         market_stats = self._market_stats(topic_skills)
         results = self._competency_analysis(
             topic_skills,
