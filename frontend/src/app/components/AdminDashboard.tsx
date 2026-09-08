@@ -7,7 +7,7 @@ import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import {
   AlertCircle, RefreshCw, Users, FileText, Database,
-  Upload, Brain, BookOpen,
+  Upload, Brain, BookOpen, Download,
 } from "lucide-react";
 import { apiFetch, logAction } from "../../lib/auth";
 import { TeacherDashboard } from "./TeacherDashboard";
@@ -64,6 +64,7 @@ export function AdminDashboard() {
   const rpdInputRef = useRef<HTMLInputElement | null>(null);
   const [rpdUploading, setRpdUploading] = useState(false);
   const [rpdCollecting, setRpdCollecting] = useState(false);
+  const [rpdYandexUrl, setRpdYandexUrl] = useState("");
   const [collectCooldown, setCollectCooldown] = useState(0);
   const [rpdRunId, setRpdRunId] = useState<string | null>(null);
   const [rpdStatus, setRpdStatus] = useState<any>(null);
@@ -213,7 +214,7 @@ export function AdminDashboard() {
       const r = await apiFetch("/api/teacher/rpd/collect", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `dir_code=${encodeURIComponent(rpdDir)}`,
+        body: `dir_code=${encodeURIComponent(rpdDir)}${rpdYandexUrl.trim() ? `&public_url=${encodeURIComponent(rpdYandexUrl.trim())}` : ""}`,
       });
       if (r.status === 429) {
         setCollectCooldown(30);
@@ -650,8 +651,30 @@ export function AdminDashboard() {
                   </Button>
                 )}
               </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={rpdYandexUrl}
+                  onChange={(e) => setRpdYandexUrl(e.target.value)}
+                  placeholder="Ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...)"
+                  className="h-9 flex-1 px-3 rounded-lg border border-gray-300 text-sm"
+                />
+                <Button onClick={collectRpd} disabled={rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim()} className="bg-teal-600 hover:bg-teal-700">
+                  <Download className="size-4 mr-2" />{rpdCollecting ? "Сбор..." : "Загрузить по ссылке"}
+                </Button>
+              </div>
               {rpdStatus && (rpdStatus.status === "running" || rpdStatus.status === "started") && (
-                <p className="text-sm text-amber-700">Этап: {rpdStageLabel(rpdStatus.stats?.stage)}</p>
+                <div>
+                  <div className="h-2 w-full rounded bg-amber-100 overflow-hidden">
+                    <div
+                      className="h-full rounded bg-teal-600 transition-all"
+                      style={{ width: `${rpdStatus.stats?.progress ?? 10}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-sm text-amber-700">
+                    Этап: {rpdStageLabel(rpdStatus.stats?.stage)} · {rpdStatus.stats?.progress ?? 10}%
+                  </p>
+                </div>
               )}
               {rpdMsg && <p className="text-sm text-gray-600">{rpdMsg}</p>}
             </CardContent>

@@ -122,6 +122,7 @@ export function TeacherDashboard() {
   const rpdInputRef = useRef<HTMLInputElement | null>(null);
   const [rpdUploading, setRpdUploading] = useState(false);
   const [rpdCollecting, setRpdCollecting] = useState(false);
+  const [rpdYandexUrl, setRpdYandexUrl] = useState("");
   const [rpdRun, setRpdRun] = useState<{ run_id: string } | null>(null);
   const [rpdStatus, setRpdStatus] = useState<any>(null);
   const [rpdMsg, setRpdMsg] = useState("");
@@ -287,7 +288,7 @@ export function TeacherDashboard() {
           ...authHeaders(),
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: `dir_code=${encodeURIComponent(selectedDir)}`,
+        body: `dir_code=${encodeURIComponent(selectedDir)}${rpdYandexUrl.trim() ? `&public_url=${encodeURIComponent(rpdYandexUrl.trim())}` : ""}`,
       });
       if (res.status === 429) {
         setCollectCooldown(30);
@@ -557,6 +558,39 @@ export function TeacherDashboard() {
                 {rpdCollecting ? "Отмена" : collectCooldown > 0 ? `Подождите ${collectCooldown} сек` : "Собрать с Yandex Disk"}
               </button>
             )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: "1px dashed #fde68a", paddingTop: 8, marginTop: 8 }}>
+              <input
+                type="text"
+                value={rpdYandexUrl}
+                onChange={(e) => setRpdYandexUrl(e.target.value)}
+                placeholder="Ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...)"
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  border: "1px solid #fde68a",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  boxSizing: "border-box",
+                }}
+              />
+              <button
+                onClick={collectRpd}
+                disabled={rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim()}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  background: rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim() ? "#9ca3af" : "#0d9488",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim() ? "default" : "pointer",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {rpdCollecting ? "Сбор..." : "Загрузить по ссылке"}
+              </button>
+            </div>
             {rpdStatus && (rpdStatus.status === "completed" || rpdStatus.status === "failed") && (
               <div
                 style={{
@@ -572,8 +606,27 @@ export function TeacherDashboard() {
               </div>
             )}
             {(rpdUploading || rpdCollecting) && rpdStatus && (rpdStatus.status === "running" || rpdStatus.status === "started") && (
-              <div style={{ marginTop: 8, fontSize: 11, color: "#92400e" }}>
-                Этап: {rpdStageLabel(rpdStatus.stats?.stage)}
+              <div style={{ marginTop: 10 }}>
+                <div
+                  style={{
+                    height: 8,
+                    background: "#fde68a",
+                    borderRadius: 4,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${rpdStatus.stats?.progress ?? 10}%`,
+                      background: "#0d9488",
+                      transition: "width 0.5s ease",
+                    }}
+                  />
+                </div>
+                <div style={{ marginTop: 6, fontSize: 11, color: "#92400e" }}>
+                  Этап: {rpdStageLabel(rpdStatus.stats?.stage)} · {rpdStatus.stats?.progress ?? 10}%
+                </div>
               </div>
             )}
           </div>

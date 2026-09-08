@@ -229,13 +229,14 @@ async def _upload_pipeline(run_id: str, dir_code: str, fname: str, direction_nam
 
     _rpd_cancel[run_id] = threading.Event()
     try:
-        await _update_run(run_id, {"stage": "parse", "status": "running"})
+        await _update_run(run_id, {"stage": "parse", "status": "running", "progress": 10})
         merged = await asyncio.to_thread(_parse_pdfs_to_krm, dir_code, direction_name, profile)
         if _cancel_requested(run_id):
             raise _RpdCancelled()
         stats = {
             "stage": "seed",
             "status": "running",
+            "progress": 30,
             "disciplines": len(merged.get(dir_code, {}).get("disciplines", {})),
         }
         await _update_run(run_id, stats)
@@ -244,14 +245,14 @@ async def _upload_pipeline(run_id: str, dir_code: str, fname: str, direction_nam
         if code != 0:
             raise RuntimeError(f"seed failed: {out[-500:]}")
 
-        await _update_run(run_id, {"stage": "analysis", "status": "running"})
+        await _update_run(run_id, {"stage": "analysis", "status": "running", "progress": 60})
         code, out = await _run_teacher_analysis(dir_code, run_id)
         if code != 0:
             raise RuntimeError(f"teacher-analysis failed: {out[-500:]}")
 
         await complete_pipeline_run(
             run_id, status="completed",
-            stats={"stage": "done", "status": "completed", "file": fname, "dir_code": dir_code},
+            stats={"stage": "done", "status": "completed", "progress": 100, "file": fname, "dir_code": dir_code},
         )
     except _RpdCancelled:
         logger.info("rpd_upload_pipeline_cancelled", run_id=run_id, dir_code=dir_code)
@@ -308,39 +309,41 @@ async def rpd_upload(
 # ---------- Collect (Yandex Disk) pipeline ----------
 
 
-async def _collect_pipeline(run_id: str, dir_code: str) -> None:
+async def _collect_pipeline(run_id: str, dir_code: str, public_url: str | None = None) -> None:
     from src.pipeline.db_writer import complete_pipeline_run
 
     _rpd_cancel[run_id] = threading.Event()
     ycode = _yandex_code(dir_code)
     try:
-        await _update_run(run_id, {"stage": "collect", "status": "running", "dir_code": dir_code})
-        code, out = await _run_cli([
-            sys.executable, "scripts/sfu_annotations.py", "collect", ycode,
-        ], timeout=1800, run_id=run_id)
+        await _update_run(run_id, {"stage": "collect", "status": "running", "progress": 5,
+                                   "dir_code": dir_code, "source": "yandex", "url": public_url or ""})
+        cmd = [sys.executable, "scripts/sfu_annotations.py", "collect", ycode]
+        if public_url:
+            cmd += ["--url", public_url]
+        code, out = await _run_cli(cmd, timeout=1800, run_id=run_id)
         if code != 0:
             raise RuntimeError(f"sfu collect failed: {out[-500:]}")
 
-        await _update_run(run_id, {"stage": "merge", "status": "running"})
+        await _update_run(run_id, {"stage": "merge", "status": "running", "progress": 25})
         code, out = await _run_cli([
             sys.executable, "scripts/merge_annotations_to_krm.py", "--only", ycode,
         ], timeout=1200, run_id=run_id)
         if code != 0:
             raise RuntimeError(f"merge failed: {out[-500:]}")
 
-        await _update_run(run_id, {"stage": "seed", "status": "running"})
+        await _update_run(run_id, {"stage": "seed", "status": "running", "progress": 45})
         code, out = await _seed_direction(ycode, run_id)
         if code != 0:
             raise RuntimeError(f"seed failed: {out[-500:]}")
 
-        await _update_run(run_id, {"stage": "analysis", "status": "running"})
+        await _update_run(run_id, {"stage": "analysis", "status": "running", "progress": 65})
         code, out = await _run_teacher_analysis(dir_code, run_id)
         if code != 0:
             raise RuntimeError(f"teacher-analysis failed: {out[-500:]}")
 
         await complete_pipeline_run(
             run_id, status="completed",
-            stats={"stage": "done", "status": "completed", "dir_code": dir_code},
+            stats={"stage": "done", "status": "completed", "progress": 100, "dir_code": dir_code},
         )
     except _RpdCancelled:
         logger.info("rpd_collect_pipeline_cancelled", run_id=run_id, dir_code=dir_code)
@@ -361,17 +364,28 @@ async def _collect_pipeline(run_id: str, dir_code: str) -> None:
 
 @router.post("/teacher/rpd/collect")
 @limiter.limit("2/minute")
-async def rpd_collect(request: Request, background_tasks: BackgroundTasks, dir_code: Annotated[str, Form()] = "09.03.02"):
-    """Сбор компетенций из загруженных РПД."""
+async def rpd_collect(request: Request, background_tasks: BackgroundTasks,
+                      dir_code: Annotated[str, Form()] = "09.03.02",
+                      public_url: Annotated[str, Form()] = ""):
+    """Сбор компетенций из загруженных РПД.
+
+    public_url — публичная ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...);
+    позволяет собирать аннотации для направлений вне предустановленного списка YANDEX_COVERED.
+    """
     _validate_dir_code(dir_code)
-    if dir_code not in YANDEX_COVERED:
-        raise HTTPException(status_code=400, detail=f"Yandex Disk collection is not available for {dir_code}")
+    if not public_url and dir_code not in YANDEX_COVERED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Yandex Disk collection is not available for {dir_code}; укажите public_url",
+        )
 
     from src.pipeline.db_writer import create_pipeline_run
     run_id = await create_pipeline_run("rpd-import")
-    await _update_run(run_id, {"stage": "collect", "status": "running", "dir_code": dir_code, "source": "yandex"})
-    background_tasks.add_task(_collect_pipeline, run_id, dir_code)
-    return {"status": "started", "run_id": run_id, "dir_code": dir_code, "source": "yandex"}
+    await _update_run(run_id, {"stage": "collect", "status": "running", "dir_code": dir_code,
+                               "source": "yandex", "url": public_url})
+    background_tasks.add_task(_collect_pipeline, run_id, dir_code, public_url or None)
+    return {"status": "started", "run_id": run_id, "dir_code": dir_code, "source": "yandex",
+            "has_url": bool(public_url)}
 
 
 @router.post("/teacher/rpd/cancel/{run_id}")
