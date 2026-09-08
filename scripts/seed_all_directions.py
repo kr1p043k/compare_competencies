@@ -22,6 +22,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 from sqlalchemy import select, text
 
 from src.database import Base, async_session_factory, get_engine
+from src.loaders.rpd_loader import normalize_disc_name
 from src.models.krm_models import (
     Competency,
     CompetencySkill,
@@ -138,15 +139,19 @@ async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path
     await session.flush()
 
     disc_count = comp_count = cs_count = ksa_count = 0
+
+    result = await session.execute(
+        select(Discipline).where(Discipline.direction_id == direction.id)
+    )
+    existing_by_norm = {normalize_disc_name(d.name): d for d in result.scalars().all()}
+
     for disc_name, disc_data in sorted(disciplines_raw.items()):
-        existing = await session.execute(
-            select(Discipline).where(Discipline.direction_id == direction.id, Discipline.name == disc_name)
-        )
-        disc = existing.scalar_one_or_none()
+        disc = existing_by_norm.get(normalize_disc_name(disc_name))
         if not disc:
             disc = Discipline(direction_id=direction.id, name=disc_name)
             session.add(disc)
             await session.flush()
+            existing_by_norm[normalize_disc_name(disc_name)] = disc
             disc_count += 1
 
         competencies = disc_data.get("competencies", [])

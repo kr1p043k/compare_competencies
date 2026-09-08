@@ -18,6 +18,7 @@ import argparse
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -49,7 +50,8 @@ def normalize_comp(code: str) -> str:
 
 
 def norm_name(s: str) -> str:
-    s = (s or "").lower().strip()
+    s = unicodedata.normalize("NFC", s or "")
+    s = s.lower().strip()
     s = re.sub(r"^(аннотация|анн|апп -?|а -)\s*", "", s)
     s = re.sub(r"^\d{2}\.\d{2}\.\d{2}-?(анн)?\s*", "", s)
     s = re.sub(r"\s+", " ", s).strip(" -")

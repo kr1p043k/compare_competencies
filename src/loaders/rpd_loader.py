@@ -6,7 +6,7 @@ Usage:
     disc = loader.load_discipline("Операционные системы")  # one discipline
 """
 
-import json, os, re, sys
+import json, os, re, sys, unicodedata
 from typing import Optional
 
 from pypdf import PdfReader
@@ -367,6 +367,19 @@ def find_section_text(text: str, sec_matches: list) -> Optional[str]:
 
 # ─── Discipline dedup ───────────────────────────────────────────────────────
 
+def normalize_disc_name(name: str) -> str:
+    """Normalize discipline name for dedup matching.
+
+    - NFC: collapses decomposed Cyrillic (U+0438 + combining breve U+0306 → U+0439
+      «й»), otherwise decomposed names compare differently from composed ones.
+    - lower + strip whitespace so lookups like 'Operating Systems (Операционные системы)'
+      are consistent regardless of spacing/case; NFC makes decomposed «й» match «й».
+    """
+    name = unicodedata.normalize("NFC", (name or "").strip().lower())
+    name = re.sub(r"\s+", "", name)
+    return name
+
+
 DISCIPLINE_ALIASES = {
     # English filename → canonical Russian name
     "Operating Systems (Операционные системы)": "Операционные системы",
@@ -378,17 +391,12 @@ DISCIPLINE_ALIASES = {
     "Discrete Mathematics (Дискретная математика)": "Дискретная математика",
 }
 
-# Pre-compute normalized lookup
+# Pre-compute normalized lookup using the same normalizer as _resolve_canonical
 DISC_NORM = {
-    k.replace(" ", "").lower(): v
+    normalize_disc_name(k): v
     for k, v in DISCIPLINE_ALIASES.items()
     if v is not None
 }
-
-
-def normalize_disc_name(name: str) -> str:
-    """Normalize discipline name for dedup matching."""
-    return name.replace(" ", "").lower()
 
 
 # ─── Main Loader ────────────────────────────────────────────────────────────
