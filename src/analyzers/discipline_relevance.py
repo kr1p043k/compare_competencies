@@ -89,15 +89,43 @@ class DisciplineAwareScorer:
                     logger.warning("discipline_embedding_failed", discipline=disc_name, error=str(exc))
             logger.info("discipline_embeddings_computed", count=len(self._discipline_embeddings))
 
+    def _disc_vector(self, discipline_name: str | None):
+        """Вектор дисциплины: из карты либо fallback на эмбеддинг названия.
+
+        Карта покрывает только дисциплины с по-кодовыми текстами в KRM
+        (~26/60). Без fallback остальные получали пустой rel_map и дроп
+        рекомендаций молча не работал.
+        """
+        if discipline_name and discipline_name in self._discipline_embeddings:
+            return self._discipline_embeddings[discipline_name]
+        if not discipline_name:
+            return None
+        with self._emb_lock:
+            if discipline_name in self._discipline_embeddings:
+                return self._discipline_embeddings[discipline_name]
+            try:
+                if self._model is None:
+                    from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+                    self._model = EmbeddingProviderFactory.get()
+                e = self._model.encode([discipline_name], show_progress_bar=False)[0]
+                norm = np.linalg.norm(e)
+                if norm > 0:
+                    e = e / norm
+                self._discipline_embeddings[discipline_name] = e
+                logger.info("discipline_name_fallback_emb", discipline=discipline_name)
+                return e
+            except Exception as exc:
+                logger.warning("discipline_fallback_failed", discipline=discipline_name, error=str(exc))
+                return None
+
     def compute_relevance(self, skill_name: str, discipline_name: str | None = None) -> DisciplineRelevance:
         if not self._loaded:
             self.load()
         self._ensure_embeddings()
         if not self._discipline_texts:
             return DisciplineRelevance(0.0)
-        if discipline_name and discipline_name in self._discipline_embeddings:
-            disc_emb = self._discipline_embeddings[discipline_name]
-        else:
+        disc_emb = self._disc_vector(discipline_name)
+        if disc_emb is None:
             return DisciplineRelevance(0.0)
         if self._model is None:
             return DisciplineRelevance(0.0)
@@ -133,9 +161,9 @@ class DisciplineAwareScorer:
         result: dict[str, float] = {}
         if not self._discipline_texts or self._model is None:
             return result
-        if not (discipline_name and discipline_name in self._discipline_embeddings):
+        disc_emb = self._disc_vector(discipline_name)
+        if disc_emb is None:
             return result
-        disc_emb = self._discipline_embeddings[discipline_name]
 
         unique = [s for s in dict.fromkeys(skill_names) if s not in self._skill_emb_cache]
         if unique:
@@ -154,6 +182,54 @@ class DisciplineAwareScorer:
             if emb is not None:
                 result[s] = float(np.dot(emb, disc_emb))
         return result
+
+    def prime_all(self, mapping: dict[str, list[str]]) -> int:
+        """Добрать векторы из живых KSA-текстов (батч, один encode).
+
+        Карта из KRM-файла покрывает ~26/60 дисциплин. Остальным считаем
+        вектор как среднее эмбеддингов их KSA-текстов — тем же качеством,
+        что у покрытых. Возвращает число дописанных векторов.
+        """
+        self._ensure_embeddings()
+        if self._model is None:
+            return 0
+        missing = {
+            name: [t for t in texts if t and len(t.strip()) > 3]
+            for name, texts in (mapping or {}).items()
+            if name not in self._discipline_embeddings
+        }
+        missing = {n: t for n, t in missing.items() if t}
+        if not missing:
+            return 0
+        with self._emb_lock:
+            missing = {n: t for n, t in missing.items()
+                       if n not in self._discipline_embeddings}
+            if not missing:
+                return 0
+            try:
+                flat: list[str] = []
+                spans: list[tuple[str, int, int]] = []
+                for n, t in missing.items():
+                    spans.append((n, len(flat), len(flat) + len(t)))
+                    flat.extend(t)
+                embs = self._model.encode(flat, show_progress_bar=False)
+                norms = np.linalg.norm(embs, axis=1, keepdims=True)
+                norms[norms == 0] = 1.0
+                embs = embs / norms
+                n = 0
+                for name, a, b in spans:
+                    mean_emb = np.mean(embs[a:b], axis=0)
+                    norm = np.linalg.norm(mean_emb)
+                    if norm > 0:
+                        mean_emb = mean_emb / norm
+                    self._discipline_embeddings[name] = mean_emb
+                    self._discipline_texts[name] = missing[name]
+                    n += 1
+                logger.info("discipline_vectors_primed", count=n)
+                return n
+            except Exception as exc:
+                logger.warning("discipline_prime_failed", error=str(exc))
+                return 0
 
     def get_discipline_names(self) -> list[str]:
         return list(self._disciplines.keys())

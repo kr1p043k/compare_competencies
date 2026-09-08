@@ -37,6 +37,11 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 if not DATA_DIR.exists():
     DATA_DIR = Path.cwd() / "data"
 REFERENCE_DIR = DATA_DIR / "reference"
+
+# Файл KRM -> код направления в БД (суффиксы форм обучения схлопываются).
+FILE_TO_DIRECTION = {
+    "02.03.02_och": "02.03.02",
+}
 IT_SKILLS_PATH = REFERENCE_DIR / "it_skills.json"
 RPD_SKILLS_PATH = REFERENCE_DIR / "rpd_skills.json"
 
@@ -114,11 +119,11 @@ async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path
         print(f"  {dir_code}: no disciplines, skipped")
         return
 
-    result = await session.execute(select(Direction).where(Direction.code == dir_code))
+    result = await session.execute(select(Direction).where(Direction.code == FILE_TO_DIRECTION.get(dir_code, dir_code)))
     direction = result.scalar_one_or_none()
     if not direction:
         direction = Direction(
-            code=dir_code,
+            code=FILE_TO_DIRECTION.get(dir_code, dir_code),
             name=direction_data.get("direction_name", dir_code),
             profile=direction_data.get("profile", ""),
             opop_year=2024,

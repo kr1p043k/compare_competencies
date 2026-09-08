@@ -196,7 +196,10 @@ async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
     rows = await pool.fetch("""
         SELECT disc.name,
                COUNT(DISTINCT c.id) AS competencies_count,
-               COUNT(DISTINCT k.id) AS skills_count
+               COUNT(DISTINCT k.id) AS skills_count,
+               COUNT(DISTINCT k.id) FILTER (WHERE k.ksa_type::text = 'knowledge') AS knowledge_count,
+               COUNT(DISTINCT k.id) FILTER (WHERE k.ksa_type::text = 'abilities') AS abilities_count,
+               MAX(disc.semester) AS semester
         FROM directions d
         JOIN disciplines disc ON disc.direction_id = d.id
         LEFT JOIN competencies c ON c.discipline_id = disc.id
@@ -210,6 +213,10 @@ async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
             "name": r["name"],
             "competencies_count": r["competencies_count"],
             "skills_count": r["skills_count"],
+            "knowledge_count": r["knowledge_count"],
+            "abilities_count": r["abilities_count"],
+            "semester": r["semester"],
+            "course": (r["semester"] + 1) // 2 if r["semester"] else None,
         }
         for r in rows
     ]
@@ -234,7 +241,10 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
 
     comps = await pool.fetch("""
         SELECT c.code,
-               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.cleaned_text IS NOT NULL) AS skills
+               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.cleaned_text IS NOT NULL) AS skills,
+               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.ksa_type::text = 'knowledge' AND k.cleaned_text IS NOT NULL) AS knowledge,
+               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.ksa_type::text = 'abilities' AND k.cleaned_text IS NOT NULL) AS abilities,
+               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.ksa_type::text = 'skills' AND k.cleaned_text IS NOT NULL) AS prof_skills
         FROM competencies c
         LEFT JOIN ksa_entries k ON k.competency_id = c.id
         WHERE c.discipline_id = $1 AND c.parent_id IS NULL
@@ -249,6 +259,11 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
             {
                 "code": c["code"],
                 "skills": c["skills"] or [],
+                "ksa": {
+                    "knowledge": c["knowledge"] or [],
+                    "abilities": c["abilities"] or [],
+                    "skills": c["prof_skills"] or [],
+                },
             }
             for c in comps
         ],
@@ -432,28 +447,38 @@ async def run_teacher_analysis_endpoint(
     background_tasks: BackgroundTasks,
     dir_code: str = "09.03.02",
 ):
-    """Запустить teacher analysis."""
+    """Запустить teacher analysis (с run_id, прогрессом и ошибками)."""
+    from src.api_pkg.routers.rpd import _run_cli, _update_run
+    from src.pipeline.db_writer import complete_pipeline_run, create_pipeline_run
+
     _validate_dir_code(dir_code)
+    run_id = await create_pipeline_run("teacher-analysis")
+    await _update_run(run_id, {"stage": "analysis", "status": "running", "dir_code": dir_code})
+
     async def _run():
         try:
-            proc = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "src.cli", "teacher-analysis",
-                "--direction", dir_code,
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-                cwd=Path(__file__).resolve().parent.parent.parent.parent,
+            code, out = await _run_cli(
+                [sys.executable, "-m", "src.cli", "teacher-analysis",
+                 "--direction", dir_code],
+                timeout=1800, run_id=run_id,
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=1800)
-            logger.info("teacher_analysis_cli_done", returncode=proc.returncode,
-                         stderr=stderr.decode("utf-8", errors="ignore")[-500:])
-        except asyncio.TimeoutError:
-            logger.error("teacher_analysis_cli_timeout")
-            if proc and proc.returncode is None:
-                proc.kill()
+            if code != 0:
+                raise RuntimeError(f"teacher-analysis failed: {out[-500:]}")
+            await complete_pipeline_run(
+                run_id, status="completed",
+                stats={"stage": "done", "status": "completed", "dir_code": dir_code},
+            )
         except Exception as exc:
-            logger.error("teacher_analysis_cli_error", error=str(exc))
+            logger.error("teacher_analysis_cli_error", run_id=run_id,
+                         exc_type=type(exc).__name__, exc_repr=repr(exc))
+            try:
+                await complete_pipeline_run(run_id, status="failed", error=str(exc),
+                                            stats={"stage": "error", "status": "failed"})
+            except Exception:
+                pass
 
     background_tasks.add_task(_run)
-    return {"status": "started", "direction": dir_code}
+    return {"status": "started", "direction": dir_code, "run_id": run_id}
 
 
 @router.get("/teacher/export/vacancies")

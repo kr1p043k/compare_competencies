@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import structlog
@@ -13,6 +14,7 @@ from src.models.teacher_analysis import Recommendation, DisciplineCoverage
 logger = structlog.get_logger(__name__)
 
 SKILL_TYPES_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "skill_types.json"
+TAXONOMY_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "skill_taxonomy.json"
 
 
 def _load_skill_types() -> dict[str, list[str]]:
@@ -35,6 +37,41 @@ def _classify_skill(skill: str, types: dict[str, list[str]]) -> str:
 class CurriculumRecommender:
     def __init__(self):
         self.skill_types = _load_skill_types()
+        self._taxo_map: dict[str, set[str]] = {}
+        try:
+            if TAXONOMY_PATH.exists():
+                import json as _json
+                _tax = _json.loads(TAXONOMY_PATH.read_text(encoding="utf-8"))
+                _cats = _tax.get("categories", {})
+                _items = _cats.values() if isinstance(_cats, dict) else _cats
+                for _c in _items:
+                    _label = _c.get("label", "") if isinstance(_c, dict) else ""
+                    for _s in (_c.get("skills", []) if isinstance(_c, dict) else []):
+                        self._taxo_map.setdefault(str(_s).lower(), set()).add(_label)
+        except Exception as exc:
+            logger.warning("taxonomy_load_failed", error=str(exc))
+
+    def _cats_of(self, skill_name: str) -> set[str]:
+        """Области таксономии навыка: короткие эталоны — только по границам слов.
+
+        Иначе «erp» матчится в «enterprise», «go» — в «django», и глобальный
+        топ пролезает в чужие дисциплины.
+        """
+        sn = (skill_name or "").lower().strip()
+        if not sn:
+            return set()
+        words = set(re.findall(r"\w+", sn, flags=re.UNICODE))
+        cats: set[str] = set()
+        for ref, labels in self._taxo_map.items():
+            if not ref:
+                continue
+            if ref == sn or ref in words:
+                cats.update(labels)
+            elif len(ref) > 4 and ref in sn:
+                cats.update(labels)
+            elif len(sn) > 4 and sn in ref:
+                cats.update(labels)
+        return cats
 
     def generate(self, coverage: DisciplineCoverage) -> Result[list[Recommendation], RecommendationError]:
         if not coverage:
@@ -57,10 +94,17 @@ class CurriculumRecommender:
                     message=f"«{s}» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность.",
                 ))
 
-        # Truly missing: market skills not in ANY discipline — one per skill
+        # Truly missing: market skills not in ANY discipline — только из тех же
+        # областей таксономии, что уже покрытые навыки дисциплины (семантика
+        # через области, а не глобальный топ: linux в БЖД сюда не попадает).
         if coverage.truly_missing:
-            relevant = self._filter_relevant(coverage.truly_missing, coverage.discipline_name)
-            for m in relevant[:5]:
+            matched_names = [m.skill_name for m in (coverage.top_matched or [])]
+            matched_cats: set[str] = set()
+            for _nm in matched_names:
+                matched_cats.update(self._cats_of(_nm))
+            for m in coverage.truly_missing:
+                if not matched_cats or not (self._cats_of(m.skill_name) & matched_cats):
+                    continue
                 recs.append(Recommendation(
                     type="add_new_content", priority="medium", skill_name=m.skill_name,
                     message=(
@@ -68,6 +112,8 @@ class CurriculumRecommender:
                         f"(частота на рынке: {m.frequency})."
                     ),
                 ))
+                if sum(1 for r in recs if r.type == "add_new_content") >= 5:
+                    break
 
         # Cross-references: skills taught in other disciplines
         if coverage.cross_references:
@@ -115,29 +161,6 @@ class CurriculumRecommender:
         logger.info("recommendations_generated",
                      discipline=coverage.discipline_name, count=len(recs))
         return Ok(recs)
-
-    @staticmethod
-    def _filter_relevant(
-        skills: list, discipline_name: str
-    ) -> list:
-        """Filter truly_missing skills to those plausibly relevant to discipline."""
-        dn = discipline_name.lower().strip()
-        # Simple heuristic: match discipline name keywords against skill name
-        discipline_tokens = set(dn.replace("(", " ").replace(")", " ").replace(",", " ").split())
-        # Remove very generic tokens
-        stop = {"и", "в", "на", "с", "по", "для", "их", "средства", "технологии", "системы",
-                "программного", "обеспечения", "информационных"}
-        discipline_tokens -= stop
-        if not discipline_tokens:
-            return list(skills)
-
-        result = []
-        for m in skills:
-            sn = m.skill_name.lower().strip()
-            if any(t in sn or sn.startswith(t) for t in discipline_tokens if len(t) > 2):
-                result.append(m)
-        # If filter eliminated everything, return original (conservative — show all)
-        return result if result else list(skills)
 
     def generate_summary_recommendations(
         self, all_coverages: list[DisciplineCoverage],

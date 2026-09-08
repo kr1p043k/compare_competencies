@@ -6,6 +6,30 @@ import CompetencyTrendsPanel from "./CompetencyTrendsPanel";
 
 const API = "/api/teacher";
 
+function plural(n: number, one: string, few: string, many: string): string {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
+const RPD_STAGE_LABELS: Record<string, string> = {
+  saved: "файл сохранён",
+  parse: "разбор PDF и извлечение компетенций",
+  collect: "скачивание аннотаций с Yandex Disk",
+  merge: "слияние аннотаций в KRM",
+  seed: "запись направления в базу данных",
+  analysis: "пересчёт анализа направления",
+  done: "готово",
+  error: "ошибка",
+};
+
+function rpdStageLabel(stage?: string): string {
+  if (!stage) return "...";
+  return RPD_STAGE_LABELS[stage] ?? stage;
+}
+
 type Direction = {
   dir_code: string;
   name: string;
@@ -35,6 +59,10 @@ type Discipline = {
   name: string;
   competencies_count: number;
   skills_count: number;
+  knowledge_count?: number;
+  abilities_count?: number;
+  semester?: number | null;
+  course?: number | null;
 };
 
 type Competency = {
@@ -42,6 +70,11 @@ type Competency = {
   code: string;
   name: string;
   skills: string[];
+  ksa?: {
+    knowledge: string[];
+    abilities: string[];
+    skills: string[];
+  };
 };
 
 type DisciplineDetail = {
@@ -86,13 +119,21 @@ export function TeacherDashboard() {
 
   const [rpdSources, setRpdSources] = useState<{ yandex_covered: string[] }>({ yandex_covered: [] });
   const [rpdFile, setRpdFile] = useState<File | null>(null);
-  const [rpdYandexUrl, setRpdYandexUrl] = useState("");
   const rpdInputRef = useRef<HTMLInputElement | null>(null);
   const [rpdUploading, setRpdUploading] = useState(false);
   const [rpdCollecting, setRpdCollecting] = useState(false);
   const [rpdRun, setRpdRun] = useState<{ run_id: string } | null>(null);
   const [rpdStatus, setRpdStatus] = useState<any>(null);
   const [rpdMsg, setRpdMsg] = useState("");
+  const [collectCooldown, setCollectCooldown] = useState(0);
+  const runAnalysisBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  // Кнопка "Запустить анализ" из пустого состояния деталки дисциплины.
+  useEffect(() => {
+    const handler = () => { runAnalysisBtnRef.current?.click(); };
+    window.addEventListener("run-direction-analysis", handler);
+    return () => window.removeEventListener("run-direction-analysis", handler);
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -126,23 +167,43 @@ export function TeacherDashboard() {
   }, [selectedDir]);
 
   useEffect(() => {
+    if (collectCooldown <= 0) return;
+    const t = setTimeout(() => setCollectCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [collectCooldown]);
+
+  useEffect(() => {
     api("/teacher/rpd/sources")
       .then(setRpdSources)
       .catch(() => {});
   }, []);
 
+  // Возобновление поллинга после переключения вкладок (табы размонтируют компонент).
+  useEffect(() => {
+    let stored: string | null = null;
+    try { stored = sessionStorage.getItem("rpdRunId"); } catch {}
+    if (stored) {
+      setRpdRun({ run_id: stored });
+      setRpdCollecting(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!rpdRun?.run_id) return;
     let cancelled = false;
+    let misses = 0;
     const poll = () => {
       api(`/teacher/rpd/status/${rpdRun.run_id}`)
         .then((s) => {
           if (cancelled) return;
+          misses = 0;
           setRpdStatus(s);
-          if (s?.status === "completed" || s?.status === "failed") {
+          if (s?.status === "completed" || s?.status === "failed" || s?.status === "cancelled") {
             setRpdUploading(false);
             setRpdCollecting(false);
-            setRpdMsg(s?.status === "completed" ? "Готово" : `Ошибка: ${s?.error || "unknown"}`);
+            try { sessionStorage.removeItem("rpdRunId"); } catch {}
+            setRpdMsg(s?.status === "completed" ? "Готово" : s?.status === "cancelled" ? "Отменено пользователем" : `Ошибка: ${s?.error || "unknown"}`);
             if (s?.status === "completed") {
               api(`/teacher/analysis?dir_code=${selectedDir}`)
                 .then(setAnalysis)
@@ -152,7 +213,19 @@ export function TeacherDashboard() {
             setTimeout(poll, 3000);
           }
         })
-        .catch(() => setTimeout(poll, 5000));
+        .catch(() => {
+          if (cancelled) return;
+          // Разовый сбой сети/рестарт сервера — ждём, а не висим молча.
+          misses += 1;
+          if (misses < 10) {
+            setRpdMsg(`Сервер перезапускается, жду статус... (${misses})`);
+            setTimeout(poll, 5000);
+          } else {
+            setRpdUploading(false);
+            setRpdCollecting(false);
+            setRpdMsg("Ошибка: статус задачи недоступен. Проверьте сервер и повторите.");
+          }
+        });
     };
     poll();
     return () => { cancelled = true; };
@@ -171,8 +244,11 @@ export function TeacherDashboard() {
         headers: { ...authHeaders() },
         body: fd,
       });
-      const data = await res.json();
+      if (res.status === 429) throw new Error("Слишком частые запросы — подождите минуту и повторите");
+      const data = await res.json().catch(() => ({} as any));
       if (!res.ok) throw new Error(data.detail || res.statusText);
+      if (!data.run_id) throw new Error("Сервер не вернул ID задачи");
+      try { sessionStorage.setItem("rpdRunId", data.run_id); } catch {}
       setRpdRun({ run_id: data.run_id });
       setRpdMsg("Обработка запущена...");
       setRpdFile(null);
@@ -183,22 +259,44 @@ export function TeacherDashboard() {
   }
 
   async function collectRpd() {
-    if (rpdCollecting) return;
+    if (collectCooldown > 0) return;
+    if (rpdCollecting) {
+      // Повторный клик во время сбора = отмена.
+      if (!rpdRun?.run_id) {
+        setRpdCollecting(false);
+        setRpdMsg("");
+        return;
+      }
+      try {
+        setRpdMsg("Останавливаю сбор...");
+        await fetch(`/api/teacher/rpd/cancel/${rpdRun.run_id}`, {
+          method: "POST",
+          headers: { ...authHeaders() },
+        });
+      } catch {
+        setRpdCollecting(false);
+        setRpdMsg("");
+      }
+      return;
+    }
     setRpdCollecting(true); setRpdMsg("Сбор аннотаций с Yandex Disk...");
     try {
-      const body = new URLSearchParams();
-      body.set("dir_code", selectedDir);
-      if (rpdYandexUrl.trim()) body.set("public_url", rpdYandexUrl.trim());
       const res = await fetch(`/api/teacher/rpd/collect`, {
         method: "POST",
         headers: {
           ...authHeaders(),
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: body.toString(),
+        body: `dir_code=${encodeURIComponent(selectedDir)}`,
       });
-      const data = await res.json();
+      if (res.status === 429) {
+        setCollectCooldown(30);
+        throw new Error("Слишком частые запросы — кнопка заблокирована на 30 секунд");
+      }
+      const data = await res.json().catch(() => ({} as any));
       if (!res.ok) throw new Error(data.detail || res.statusText);
+      if (!data.run_id) throw new Error("Сервер не вернул ID задачи");
+      try { sessionStorage.setItem("rpdRunId", data.run_id); } catch {}
       setRpdRun({ run_id: data.run_id });
       setRpdMsg("Сбор и обработка запущены...");
     } catch (e: any) {
@@ -337,33 +435,39 @@ export function TeacherDashboard() {
 
           {/* Run analysis button */}
           <button
+            ref={runAnalysisBtnRef}
             onClick={async () => {
               if (runLoading) return;
               setRunLoading(true);
               setRunMsg("Запуск анализа...");
               try {
-                let before: string | null = null;
-                try {
-                  const cur: any = await api(`/teacher/analysis?dir_code=${selectedDir}`);
-                  before = cur?.generated_at ?? null;
-                } catch {}
-                await api(`/teacher/krm/run-analysis?dir_code=${selectedDir}`, { method: "POST" });
+                const started: any = await api(`/teacher/krm/run-analysis?dir_code=${selectedDir}`, { method: "POST" });
+                const runId = started?.run_id;
                 const t0 = Date.now();
+                if (!runId) throw new Error("Сервер не вернул ID задачи");
                 for (let i = 0; i < 360; i++) {
                   await new Promise((res) => setTimeout(res, 5000));
                   const spent = Math.round((Date.now() - t0) / 1000);
-                  setRunMsg(`Анализ выполняется... ${spent} c`);
+                  let s: any = null;
                   try {
-                    const a: any = await api(`/teacher/analysis?dir_code=${selectedDir}`);
-                    if (a && a.generated_at && a.generated_at !== before) {
-                      setAnalysis(a);
-                      setRunMsg("Готово");
-                      break;
-                    }
-                    if (i === 359) setRunMsg("Превышено ожидание — проверьте результат позже");
+                    s = await api(`/teacher/rpd/status/${runId}`);
                   } catch {
-                    // analysis endpoint 404s until the first run finishes — keep polling
+                    setRunMsg(`Этап: пересчёт анализа… нет связи (${spent} c)`);
+                    continue;
                   }
+                  if (!s) continue;
+                  if (s.status === "completed") {
+                    const a: any = await api(`/teacher/analysis?dir_code=${selectedDir}`).catch(() => null);
+                    if (a) setAnalysis(a);
+                    setRunMsg("Готово");
+                    break;
+                  }
+                  if (s.status === "failed" || s.status === "cancelled") {
+                    setRunMsg(s.status === "cancelled" ? "Отменено пользователем" : `Ошибка анализа: ${s.error || "unknown"}`);
+                    break;
+                  }
+                  setRunMsg(`Этап: пересчёт анализа (60 дисциплин)… ${spent} c`);
+                  if (i === 359) setRunMsg("Превышено ожидание — проверьте результат позже");
                 }
               } catch (e: any) {
                 setRunMsg(`Ошибка запуска: ${e?.message || e}`);
@@ -436,65 +540,23 @@ export function TeacherDashboard() {
             {rpdSources.yandex_covered?.includes(selectedDir) && (
               <button
                 onClick={collectRpd}
-                disabled={rpdCollecting}
+                disabled={collectCooldown > 0}
                 style={{
                   width: "100%",
                   marginTop: 8,
                   padding: "8px 12px",
-                  background: rpdCollecting ? "#9ca3af" : "#7c3aed",
+                  background: rpdCollecting ? "#dc2626" : collectCooldown > 0 ? "#9ca3af" : "#7c3aed",
                   color: "#fff",
                   border: "none",
                   borderRadius: 6,
-                  cursor: rpdCollecting ? "default" : "pointer",
+                  cursor: collectCooldown > 0 ? "default" : "pointer",
                   fontSize: 12,
                   fontWeight: 600,
                 }}
               >
-                {rpdCollecting ? "Сбор..." : "Собрать с Yandex Disk"}
+                {rpdCollecting ? "Отмена" : collectCooldown > 0 ? `Подождите ${collectCooldown} сек` : "Собрать с Yandex Disk"}
               </button>
             )}
-            <div
-              style={{
-                marginTop: 8,
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-                borderTop: "1px dashed #fde68a",
-                paddingTop: 8,
-              }}
-            >
-              <input
-                type="text"
-                value={rpdYandexUrl}
-                onChange={(e) => setRpdYandexUrl(e.target.value)}
-                placeholder="Ссылка на папку Yandex Disk (например https://disk.360.yandex.ru/d/...)"
-                style={{
-                  width: "100%",
-                  padding: "8px 10px",
-                  border: "1px solid #fde68a",
-                  borderRadius: 6,
-                  fontSize: 12,
-                  boxSizing: "border-box",
-                }}
-              />
-              <button
-                onClick={collectRpd}
-                disabled={rpdCollecting || !rpdYandexUrl.trim()}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  background: rpdCollecting || !rpdYandexUrl.trim() ? "#9ca3af" : "#0d9488",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: rpdCollecting || !rpdYandexUrl.trim() ? "default" : "pointer",
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
-                {rpdCollecting ? "Сбор..." : "Загрузить по ссылке"}
-              </button>
-            </div>
             {rpdStatus && (rpdStatus.status === "completed" || rpdStatus.status === "failed") && (
               <div
                 style={{
@@ -509,28 +571,9 @@ export function TeacherDashboard() {
                 )}
               </div>
             )}
-            {rpdUploading && rpdStatus && rpdStatus.status === "running" && (
-              <div style={{ marginTop: 10 }}>
-                <div
-                  style={{
-                    height: 8,
-                    background: "#fde68a",
-                    borderRadius: 4,
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${rpdStatus.stats?.progress ?? 10}%`,
-                      background: "#0d9488",
-                      transition: "width 0.5s ease",
-                    }}
-                  />
-                </div>
-                <div style={{ marginTop: 6, fontSize: 11, color: "#92400e" }}>
-                  Этап: {({ collect: "Сбор аннотаций с Yandex Disk", merge: "Слияние с KRM", seed: "Загрузка в базу", analysis: "Анализ компетенций", parse: "Разбор PDF" } as Record<string, string>)[rpdStatus.stats?.stage] || rpdStatus.stats?.stage || "..."} · {rpdStatus.stats?.progress ?? 10}%
-                </div>
+            {(rpdUploading || rpdCollecting) && rpdStatus && (rpdStatus.status === "running" || rpdStatus.status === "started") && (
+              <div style={{ marginTop: 8, fontSize: 11, color: "#92400e" }}>
+                Этап: {rpdStageLabel(rpdStatus.stats?.stage)}
               </div>
             )}
           </div>
@@ -550,24 +593,24 @@ export function TeacherDashboard() {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#7c3aed", fontWeight: 600 }}>Analysis</span>
+                <span style={{ color: "#7c3aed", fontWeight: 600 }}>Анализ</span>
                 <span style={{ color: covColor(analysis.average_coverage), fontWeight: 700 }}>
                   {(analysis.average_coverage * 100).toFixed(1)}%
                   {analysis.average_quality_coverage != null && (
                     <span style={{ display: "block", fontSize: 12, color: covColor(analysis.average_quality_coverage), marginTop: 2 }}>
-                      Quality: {(analysis.average_quality_coverage * 100).toFixed(1)}%
+                      Качество: {(analysis.average_quality_coverage * 100).toFixed(1)}%
                     </span>
                   )}
                 </span>
               </div>
               <div style={{ color: "#6b7280", marginTop: 2 }}>
-                {analysis.total_disciplines} disciplines, {analysis.total_gaps_across_all} gaps
+                {analysis.total_disciplines} {plural(analysis.total_disciplines, "дисциплина", "дисциплины", "дисциплин")}, {analysis.total_gaps_across_all} {plural(analysis.total_gaps_across_all, "пробел", "пробела", "пробелов")}
               </div>
             </div>
           )}
 
           <input
-            placeholder="Search disciplines..."
+            placeholder="Поиск дисциплин..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
@@ -614,8 +657,11 @@ export function TeacherDashboard() {
                   )}
                 </div>
                 <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-                  {d.competencies_count} comps / {d.skills_count} skills
-                  {discAnalysis && ` / ${discAnalysis.gaps} gaps`}
+                  {d.course != null && `${d.course} курс · `}
+                  {d.competencies_count} {plural(d.competencies_count, "комп.", "комп.", "комп.")} · {d.skills_count} {plural(d.skills_count, "навык", "навыка", "навыков")}
+                  {d.abilities_count != null && ` · ${d.abilities_count} ${plural(d.abilities_count, "умение", "умения", "умений")}`}
+                  {d.knowledge_count != null && ` · ${d.knowledge_count} ${plural(d.knowledge_count, "знание", "знания", "знаний")}`}
+                  {discAnalysis && ` / ${discAnalysis.gaps} ${plural(discAnalysis.gaps, "пробел", "пробела", "пробелов")}`}
                 </div>
               </div>
             );
@@ -626,7 +672,7 @@ export function TeacherDashboard() {
       <div style={mainStyle}>
         {!selected && !showAnalysis && (
           <div style={{ textAlign: "center", marginTop: 80, color: "#9ca3af", fontSize: 14 }}>
-            Select a discipline or open analysis
+            Выберите дисциплину или откройте анализ
           </div>
         )}
 
@@ -665,6 +711,11 @@ export function TeacherDashboard() {
         </div>
 
         {analysisMode === "coverage" && analysis && (<>
+          <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>
+            {selected
+              ? `Дисциплина: ${selected.name} (направление ${selectedDir})`
+              : `Направление ${selectedDir} — сводка по всем ${analysis.total_disciplines} дисциплинам, ни одна дисциплина не выбрана`}
+          </div>
           {/* When a discipline is selected, show its coverage instead of direction average */}
           {(() => {
             const discData = selected && analysis.disciplines
@@ -701,13 +752,16 @@ export function TeacherDashboard() {
               </div>
           </>)})()}
 
+              {/* Общие блоки направления — только пока дисциплина не выбрана.
+                  При выбранной дисциплине её детали ниже (AnalysisPanel). */}
+              {!selected && (<>
               {/* Direction-level recommendations */}
-              {analysis.recommendations.length > 0 && (
+              {(analysis.recommendations || []).length > 0 && (
                 <div style={card}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>
                     Рекомендации
                   </div>
-                  {analysis.recommendations.map((r, i) => (
+                  {(analysis.recommendations || []).map((r, i) => (
                     <div key={i} style={{ padding: "8px 10px", marginBottom: 6, background: "#f9fafb", borderRadius: 6, borderLeft: `3px solid ${r.priority === "high" ? "#dc2626" : r.priority === "medium" ? "#d97706" : "#2563eb"}`, fontSize: 12 }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
                         <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: r.priority === "high" ? "#fee2e2" : r.priority === "medium" ? "#fef3c7" : "#dbeafe", color: r.priority === "high" ? "#dc2626" : r.priority === "medium" ? "#92400e" : "#1d4ed8", fontWeight: 600 }}>{r.priority === "high" ? "высокий" : r.priority === "medium" ? "средний" : "низкий"}</span>
@@ -721,7 +775,7 @@ export function TeacherDashboard() {
 
                  <div style={card}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Междисциплинарные разрывы</div>
-                {analysis.top_cross_discipline_gaps.map((g, i) => (
+                {((analysis.top_cross_discipline_gaps || []) as any[]).map((g: any, i: number) => (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid #e5e7eb", fontSize: 12 }}>
                     <span style={{ color: "#b91c1c", fontWeight: 500 }}>{g.skill}</span>
                     <span style={{ color: "#6b7280" }}>{g.disciplines} дисциплин</span>
@@ -732,7 +786,7 @@ export function TeacherDashboard() {
               <div style={card}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Востребованные навыки рынка</div>
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                  {analysis.top_emerging_across_all.map((s, i) => (
+                  {((analysis.top_emerging_across_all || []) as any[]).map((s: any, i: number) => (
                     <span key={i} style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: "#e0e7ff", color: "#4338ca", margin: 2 }}>
                       {s.skill} <span style={{ opacity: 0.5 }}>×{s.frequency}</span>
                     </span>
@@ -783,6 +837,7 @@ export function TeacherDashboard() {
                   </div>
                 ))}
               </div>
+              </>)}
             </>)}
 
           {analysisMode === "trends" && (
@@ -802,7 +857,20 @@ export function TeacherDashboard() {
             {/* Analysis panel for this discipline */}
             <AnalysisPanel disciplineName={selected.name} dirCode={selectedDir} />
 
-            {selected.competencies.map((comp) => (
+            {selected.competencies.map((comp) => {
+              const ksa = comp.ksa;
+              const hasGroups = !!ksa && (
+                (ksa.knowledge?.length || 0) + (ksa.abilities?.length || 0) + (ksa.skills?.length || 0)
+              ) > 0;
+              const total = hasGroups
+                ? (ksa!.knowledge.length + ksa!.abilities.length + ksa!.skills.length)
+                : comp.skills.length;
+              const groups = hasGroups ? [
+                { title: "Знания", items: ksa!.knowledge },
+                { title: "Умения", items: ksa!.abilities },
+                { title: "Навыки", items: ksa!.skills },
+              ] : [];
+              return (
               <div
                 key={comp.code}
                 className="mb-2 border border-gray-200 rounded-lg overflow-hidden"
@@ -812,12 +880,25 @@ export function TeacherDashboard() {
                     {comp.code}
                   </span>
                   <span className="text-xs text-gray-400">
-                    {comp.skills.length} skills
+                    {total} {plural(total, "навык", "навыка", "навыков")}
                   </span>
                 </div>
                 <div className="px-4 py-2">
-                  {comp.skills.length === 0 ? (
-                    <div className="text-xs text-gray-400">No skills extracted</div>
+                  {total === 0 ? (
+                    <div className="text-xs text-gray-400">Навыки не извлечены</div>
+                  ) : hasGroups ? (
+                    groups.map((g) => g.items.length > 0 && (
+                      <div key={g.title} className="mb-2 last:mb-0">
+                        <div className="text-[11px] font-semibold text-purple-500 uppercase tracking-wide mt-1.5 mb-1">
+                          {g.title} ({g.items.length})
+                        </div>
+                        {g.items.map((sk, i) => (
+                          <div key={i} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 last:border-0">
+                            {sk}
+                          </div>
+                        ))}
+                      </div>
+                    ))
                   ) : (
                     comp.skills.map((sk, i) => (
                       <div key={i} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 last:border-0">
@@ -827,7 +908,8 @@ export function TeacherDashboard() {
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
 
             <div className="mt-6">
               <div className="flex items-center gap-3 mb-3">

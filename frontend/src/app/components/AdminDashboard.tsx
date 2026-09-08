@@ -7,12 +7,26 @@ import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import {
   AlertCircle, RefreshCw, Users, FileText, Database,
-  Upload, Brain, BookOpen, Download,
+  Upload, Brain, BookOpen,
 } from "lucide-react";
 import { apiFetch, logAction } from "../../lib/auth";
 import { TeacherDashboard } from "./TeacherDashboard";
 
 export function AdminDashboard() {
+  const RPD_STAGE_LABELS: Record<string, string> = {
+    saved: "файл сохранён",
+    parse: "разбор PDF и извлечение компетенций",
+    collect: "скачивание аннотаций с Yandex Disk",
+    merge: "слияние аннотаций в KRM",
+    seed: "запись направления в базу данных",
+    analysis: "пересчёт анализа направления",
+    done: "готово",
+    error: "ошибка",
+  };
+  const rpdStageLabel = (stage?: string): string => {
+    if (!stage) return "...";
+    return RPD_STAGE_LABELS[stage] ?? stage;
+  };
   const [users, setUsers] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,10 +61,10 @@ export function AdminDashboard() {
   const [importJson, setImportJson] = useState("");
   const [rpdDir, setRpdDir] = useState("09.03.02");
   const [rpdFile, setRpdFile] = useState<File | null>(null);
-  const [rpdYandexUrl, setRpdYandexUrl] = useState("");
   const rpdInputRef = useRef<HTMLInputElement | null>(null);
   const [rpdUploading, setRpdUploading] = useState(false);
   const [rpdCollecting, setRpdCollecting] = useState(false);
+  const [collectCooldown, setCollectCooldown] = useState(0);
   const [rpdRunId, setRpdRunId] = useState<string | null>(null);
   const [rpdStatus, setRpdStatus] = useState<any>(null);
   const [rpdMsg, setRpdMsg] = useState("");
@@ -80,6 +94,23 @@ export function AdminDashboard() {
 
   useEffect(() => { loadData(); }, []);
 
+  // Возобновление поллинга после переключения вкладок (табы размонтируют компонент).
+  useEffect(() => {
+    let stored: string | null = null;
+    try { stored = sessionStorage.getItem("rpdRunId"); } catch {}
+    if (stored && !rpdRunId) {
+      setRpdRunId(stored);
+      setRpdCollecting(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (collectCooldown <= 0) return;
+    const t = setTimeout(() => setCollectCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [collectCooldown]);
+
   useEffect(() => {
     apiFetch("/api/teacher/rpd/sources")
       .then((r) => r.ok ? r.json() : null)
@@ -90,21 +121,47 @@ export function AdminDashboard() {
   useEffect(() => {
     if (!rpdRunId) return;
     let cancelled = false;
+    let misses = 0;
     const poll = () => {
       apiFetch(`/api/teacher/rpd/status/${rpdRunId}`)
         .then((r) => r.ok ? r.json() : null)
         .then((s) => {
-          if (cancelled || !s) return;
-          setRpdStatus(s);
-          if (s.status === "completed" || s.status === "failed") {
+          if (cancelled) return;
+          if (!s) {
+            // Разовый сбой сети/рестарт сервера — не умираем молча, ждём.
+            misses += 1;
+            if (misses < 10) {
+              setRpdMsg(`Сервер перезапускается, жду статус... (${misses})`);
+              setTimeout(poll, 5000);
+              return;
+            }
             setRpdUploading(false);
             setRpdCollecting(false);
-            setRpdMsg(s.status === "completed" ? "Готово" : `Ошибка: ${s.error || "unknown"}`);
+            setRpdMsg("Ошибка: статус задачи недоступен. Проверьте сервер и повторите.");
+            return;
+          }
+          misses = 0;
+          setRpdStatus(s);
+          if (s.status === "completed" || s.status === "failed" || s.status === "cancelled") {
+            setRpdUploading(false);
+            setRpdCollecting(false);
+            try { sessionStorage.removeItem("rpdRunId"); } catch {}
+            setRpdMsg(s.status === "completed" ? "Готово" : s.status === "cancelled" ? "Отменено пользователем" : `Ошибка: ${s.error || "unknown"}`);
           } else {
             setTimeout(poll, 3000);
           }
         })
-        .catch(() => setTimeout(poll, 5000));
+        .catch(() => {
+          if (cancelled) return;
+          misses += 1;
+          if (misses < 10) {
+            setTimeout(poll, 5000);
+          } else {
+            setRpdUploading(false);
+            setRpdCollecting(false);
+            setRpdMsg("Ошибка: нет связи с сервером. Проверьте сервер и повторите.");
+          }
+        });
     };
     poll();
     return () => { cancelled = true; };
@@ -119,8 +176,11 @@ export function AdminDashboard() {
     fd.append("dir_code", rpdDir);
     try {
       const r = await apiFetch("/api/teacher/rpd/upload", { method: "POST", body: fd });
-      const d = await r.json();
+      if (r.status === 429) throw new Error("Слишком частые запросы — подождите минуту и повторите");
+      const d = await r.json().catch(() => ({} as any));
       if (!r.ok) throw new Error(d.detail || r.statusText);
+      if (!d.run_id) throw new Error("Сервер не вернул ID задачи");
+      try { sessionStorage.setItem("rpdRunId", d.run_id); } catch {}
       setRpdRunId(d.run_id);
       setRpdMsg("Обработка запущена...");
       setRpdFile(null);
@@ -131,19 +191,38 @@ export function AdminDashboard() {
   }
 
   async function collectRpd() {
-    if (rpdCollecting) return;
+    if (collectCooldown > 0) return;
+    if (rpdCollecting) {
+      // Повторный клик во время сбора = отмена.
+      if (!rpdRunId) {
+        setRpdCollecting(false);
+        setRpdMsg("");
+        return;
+      }
+      try {
+        setRpdMsg("Останавливаю сбор...");
+        await apiFetch(`/api/teacher/rpd/cancel/${rpdRunId}`, { method: "POST" });
+      } catch {
+        setRpdCollecting(false);
+        setRpdMsg("");
+      }
+      return;
+    }
     setRpdCollecting(true); setRpdMsg("Сбор аннотаций с Yandex Disk...");
     try {
-      const body = new URLSearchParams();
-      body.set("dir_code", rpdDir);
-      if (rpdYandexUrl.trim()) body.set("public_url", rpdYandexUrl.trim());
       const r = await apiFetch("/api/teacher/rpd/collect", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: body.toString(),
+        body: `dir_code=${encodeURIComponent(rpdDir)}`,
       });
-      const d = await r.json();
+      if (r.status === 429) {
+        setCollectCooldown(30);
+        throw new Error("Слишком частые запросы — кнопка заблокирована на 30 секунд");
+      }
+      const d = await r.json().catch(() => ({} as any));
       if (!r.ok) throw new Error(d.detail || r.statusText);
+      if (!d.run_id) throw new Error("Сервер не вернул ID задачи");
+      try { sessionStorage.setItem("rpdRunId", d.run_id); } catch {}
       setRpdRunId(d.run_id);
       setRpdMsg("Сбор и обработка запущены...");
     } catch (e: any) {
@@ -565,35 +644,14 @@ export function AdminDashboard() {
                   <Upload className="size-4 mr-2" />{rpdUploading ? "Обработка..." : "Загрузить PDF и обработать"}
                 </Button>
                 {rpdSources.yandex_covered?.includes(rpdDir) && (
-                  <Button onClick={collectRpd} disabled={rpdCollecting} variant="outline">
-                    {rpdCollecting ? "Сбор..." : "Собрать с Yandex Disk"}
+                  <Button onClick={collectRpd} disabled={collectCooldown > 0} variant="outline"
+                    className={rpdCollecting ? "bg-red-600 hover:bg-red-700 text-white border-red-600" : ""}>
+                    {rpdCollecting ? "Отмена" : collectCooldown > 0 ? `Подождите ${collectCooldown} сек` : "Собрать с Yandex Disk"}
                   </Button>
                 )}
               </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={rpdYandexUrl}
-                  onChange={(e) => setRpdYandexUrl(e.target.value)}
-                  placeholder="Ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...)"
-                  className="h-9 flex-1 px-3 rounded-lg border border-gray-300 text-sm"
-                />
-                <Button onClick={collectRpd} disabled={rpdCollecting || !rpdYandexUrl.trim()} className="bg-teal-600 hover:bg-teal-700">
-                  <Download className="size-4 mr-2" />{rpdCollecting ? "Сбор..." : "Загрузить по ссылке"}
-                </Button>
-              </div>
-              {rpdStatus && rpdStatus.status === "running" && (
-                <div>
-                  <div className="h-2 w-full rounded bg-amber-100 overflow-hidden">
-                    <div
-                      className="h-full rounded bg-teal-600 transition-all"
-                      style={{ width: `${rpdStatus.stats?.progress ?? 10}%` }}
-                    />
-                  </div>
-                  <p className="mt-1 text-sm text-amber-700">
-                    Этап: {({ collect: "Сбор аннотаций с Yandex Disk", merge: "Слияние с KRM", seed: "Загрузка в базу", analysis: "Анализ компетенций", parse: "Разбор PDF" } as Record<string, string>)[rpdStatus.stats?.stage] || rpdStatus.stats?.stage || "..."} · {rpdStatus.stats?.progress ?? 10}%
-                  </p>
-                </div>
+              {rpdStatus && (rpdStatus.status === "running" || rpdStatus.status === "started") && (
+                <p className="text-sm text-amber-700">Этап: {rpdStageLabel(rpdStatus.stats?.stage)}</p>
               )}
               {rpdMsg && <p className="text-sm text-gray-600">{rpdMsg}</p>}
             </CardContent>

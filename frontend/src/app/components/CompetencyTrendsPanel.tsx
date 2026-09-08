@@ -303,7 +303,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
               <div style={{ padding: "8px 16px 12px" }}>
                 {comp.skills.length === 0 && (
                   <div style={{ color: "#9ca3af", fontSize: 12 }}>
-                    No skills extracted
+                    Навыки не извлечены
                   </div>
                 )}
                 {comp.skills.map((sk, i) => (

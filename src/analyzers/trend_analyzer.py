@@ -116,6 +116,8 @@ class SnapshotTrendAnalyzer:
         for skill, prev_freq in previous.items():
             if skill not in latest and prev_freq >= 10:
                 changes.append({"skill": skill, "change_pct": -100.0, "frequency": 0})
-        result = sorted(changes, key=lambda x: -x["change_pct"])[:top_n]
+        # Самые падающие — первые (по возрастанию change_pct), только отрицательные.
+        declining = [c for c in changes if c["change_pct"] < 0]
+        result = sorted(declining, key=lambda x: x["change_pct"])[:top_n]
         logger.info("declining_skills_found", count=len(result))
         return Ok(result)
