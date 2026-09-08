@@ -1,6 +1,7 @@
 """Results summary, recommendations files, images."""
 
 import json
+from datetime import datetime, timezone
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -67,7 +68,13 @@ async def get_recommendations_result(
     if result_path.exists():
         try:
             with open(result_path, encoding="utf-8") as f:
-                return json.load(f)
+                payload = json.load(f)
+            try:
+                mtime = result_path.stat().st_mtime
+                payload["generated_at"] = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+            except Exception:
+                pass
+            return payload
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 

@@ -8,8 +8,11 @@ Endpoints:
 """
 import asyncio
 import json
+import os
 import re
+import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Annotated
 
@@ -32,6 +35,7 @@ _DIR_CODE_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$")
 YANDEX_COVERED = {
     "01.03.01",
     "01.03.02",
+    "02.03.02",
     "02.03.02_och",
     "02.03.03",
     "09.03.01_bim",
@@ -39,9 +43,32 @@ YANDEX_COVERED = {
     "09.03.04",
 }
 
+# Код направления в UI/БД -> код для скриптов сбора (ключи TARGETS).
+YANDEX_ALIASES = {
+    "02.03.02": "02.03.02_och",
+}
+
+
+def _yandex_code(dir_code: str) -> str:
+    return YANDEX_ALIASES.get(dir_code, dir_code)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 UPLOAD_RPD_DIR = PROJECT_ROOT / "uploads" / "rpd_pdfs"
 REFERENCE_DIR = config.REFERENCE_DIR
+
+
+class _RpdCancelled(Exception):
+    """Pipeline остановлен пользователем через cancel endpoint."""
+
+
+# run_id -> запущенный процесс (для kill при отмене) и флаг отмены.
+_rpd_procs: dict[str, object] = {}
+_rpd_cancel: dict[str, threading.Event] = {}
+
+
+def _cancel_requested(run_id: str | None) -> bool:
+    ev = _rpd_cancel.get(run_id or "")
+    return ev.is_set() if ev is not None else False
 
 
 def _validate_dir_code(dir_code: str) -> None:
@@ -53,20 +80,73 @@ def _krm_path(dir_code: str) -> Path:
     return REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
 
 
-async def _run_cli(args: list[str], timeout: int = 1800) -> tuple[int, str]:
-    """Run a subprocess (python script / module) and capture output."""
-    proc = await asyncio.create_subprocess_exec(
-        *args,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        cwd=PROJECT_ROOT,
+def _cli_env() -> dict:
+    return {
+        **os.environ,
+        # Скрипты лежат в scripts/ и импортируют src.* — без этого
+        # `python scripts/*.py` падает с ModuleNotFoundError: No module named 'src'.
+        "PYTHONPATH": str(PROJECT_ROOT) + os.pathsep + os.environ.get("PYTHONPATH", ""),
+    }
+
+
+def _run_cli_sync(args: list[str], timeout: int, run_id: str | None = None) -> tuple[int, str]:
+    """Синхронный запуск (для потоков): работает на любом event loop."""
+    proc = subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=str(PROJECT_ROOT),
+        env=_cli_env(),
     )
+    if run_id:
+        _rpd_procs[run_id] = proc
     try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        if proc.returncode is None:
+        try:
+            out_b, err_b = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
             proc.kill()
-        return -1, "TIMEOUT"
+            out_b, err_b = proc.communicate()
+            return -1, "TIMEOUT"
+    finally:
+        if run_id:
+            _rpd_procs.pop(run_id, None)
+    out = (out_b or b"").decode("utf-8", errors="ignore")
+    err = (err_b or b"").decode("utf-8", errors="ignore")
+    return proc.returncode or 0, (out + "\n" + err)[-3000:]
+
+
+async def _run_cli(args: list[str], timeout: int = 1800, run_id: str | None = None) -> tuple[int, str]:
+    """Run a subprocess (python script / module) and capture output."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(PROJECT_ROOT),
+            env=_cli_env(),
+        )
+    except NotImplementedError:
+        # Windows SelectorEventLoop не умеет async-сабпроцессы —
+        # уходим в worker thread с синхронным запуском.
+        logger.warning("rpd_cli_thread_fallback", reason="selector_loop")
+        code, out = await asyncio.to_thread(_run_cli_sync, args, timeout, run_id)
+        if _cancel_requested(run_id):
+            raise _RpdCancelled()
+        return code, out
+    if run_id:
+        _rpd_procs[run_id] = proc
+    try:
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            if proc.returncode is None:
+                proc.kill()
+            return -1, "TIMEOUT"
+    finally:
+        if run_id:
+            _rpd_procs.pop(run_id, None)
+    if _cancel_requested(run_id):
+        raise _RpdCancelled()
     out = (stdout or b"").decode("utf-8", errors="ignore")
     err = (stderr or b"").decode("utf-8", errors="ignore")
     return proc.returncode or 0, (out + "\n" + err)[-3000:]
@@ -83,17 +163,30 @@ async def _update_run(run_id: str, stats: dict) -> None:
     )
 
 
-async def _run_teacher_analysis(dir_code: str) -> tuple[int, str]:
+async def _seed_direction(dir_code: str, run_id: str | None = None) -> tuple[int, str]:
+    return await _run_cli([
+        sys.executable, "scripts/seed_all_directions.py", "--only", dir_code,
+    ], timeout=1800, run_id=run_id)
+
+
+async def _run_teacher_analysis(dir_code: str, run_id: str | None = None) -> tuple[int, str]:
     return await _run_cli([
         sys.executable, "-m", "src.cli", "teacher-analysis",
         "--direction", dir_code,
-    ], timeout=2400)
+    ], timeout=2400, run_id=run_id)
 
 
-async def _seed_direction(dir_code: str) -> tuple[int, str]:
-    return await _run_cli([
-        sys.executable, "scripts/seed_all_directions.py", "--only", dir_code,
-    ], timeout=1800)
+async def _finish_cancelled(run_id: str) -> None:
+    from src.pipeline.db_writer import complete_pipeline_run
+
+    try:
+        await complete_pipeline_run(run_id, status="cancelled", error="Отменено пользователем",
+                                    stats={"stage": "cancelled", "status": "cancelled"})
+    except Exception:
+        pass
+    finally:
+        _rpd_cancel.pop(run_id, None)
+        _rpd_procs.pop(run_id, None)
 
 
 # ---------- Upload pipeline ----------
@@ -134,37 +227,47 @@ def _parse_pdfs_to_krm(dir_code: str, direction_name: str | None, profile: str |
 async def _upload_pipeline(run_id: str, dir_code: str, fname: str, direction_name: str | None, profile: str | None) -> None:
     from src.pipeline.db_writer import complete_pipeline_run
 
+    _rpd_cancel[run_id] = threading.Event()
     try:
-        await _update_run(run_id, {"stage": "parse", "status": "running", "progress": 10})
+        await _update_run(run_id, {"stage": "parse", "status": "running"})
         merged = await asyncio.to_thread(_parse_pdfs_to_krm, dir_code, direction_name, profile)
+        if _cancel_requested(run_id):
+            raise _RpdCancelled()
         stats = {
             "stage": "seed",
             "status": "running",
-            "progress": 30,
             "disciplines": len(merged.get(dir_code, {}).get("disciplines", {})),
         }
         await _update_run(run_id, stats)
 
-        code, out = await _seed_direction(dir_code)
+        code, out = await _seed_direction(dir_code, run_id)
         if code != 0:
             raise RuntimeError(f"seed failed: {out[-500:]}")
 
-        await _update_run(run_id, {"stage": "analysis", "status": "running", "progress": 60})
-        code, out = await _run_teacher_analysis(dir_code)
+        await _update_run(run_id, {"stage": "analysis", "status": "running"})
+        code, out = await _run_teacher_analysis(dir_code, run_id)
         if code != 0:
             raise RuntimeError(f"teacher-analysis failed: {out[-500:]}")
 
         await complete_pipeline_run(
             run_id, status="completed",
-            stats={"stage": "done", "status": "completed", "progress": 100, "file": fname, "dir_code": dir_code},
+            stats={"stage": "done", "status": "completed", "file": fname, "dir_code": dir_code},
         )
+    except _RpdCancelled:
+        logger.info("rpd_upload_pipeline_cancelled", run_id=run_id, dir_code=dir_code)
+        await _finish_cancelled(run_id)
+        return
     except Exception as exc:
-        logger.error("rpd_upload_pipeline_failed", run_id=run_id, dir_code=dir_code, error=str(exc))
+        logger.error("rpd_upload_pipeline_failed", run_id=run_id, dir_code=dir_code,
+                     exc_type=type(exc).__name__, exc_repr=repr(exc))
         try:
             await complete_pipeline_run(run_id, status="failed", error=str(exc),
                                         stats={"stage": "error", "status": "failed"})
         except Exception:
             pass
+    finally:
+        _rpd_cancel.pop(run_id, None)
+        _rpd_procs.pop(run_id, None)
 
 
 @router.post("/teacher/rpd/upload")
@@ -205,73 +308,103 @@ async def rpd_upload(
 # ---------- Collect (Yandex Disk) pipeline ----------
 
 
-async def _collect_pipeline(run_id: str, dir_code: str, public_url: str | None = None) -> None:
+async def _collect_pipeline(run_id: str, dir_code: str) -> None:
     from src.pipeline.db_writer import complete_pipeline_run
 
+    _rpd_cancel[run_id] = threading.Event()
+    ycode = _yandex_code(dir_code)
     try:
-        await _update_run(run_id, {"stage": "collect", "status": "running", "progress": 5,
-                                   "dir_code": dir_code, "source": "yandex", "url": public_url or ""})
-        cmd = [sys.executable, "scripts/sfu_annotations.py", "collect", dir_code]
-        if public_url:
-            cmd += ["--url", public_url]
-        code, out = await _run_cli(cmd, timeout=1800)
+        await _update_run(run_id, {"stage": "collect", "status": "running", "dir_code": dir_code})
+        code, out = await _run_cli([
+            sys.executable, "scripts/sfu_annotations.py", "collect", ycode,
+        ], timeout=1800, run_id=run_id)
         if code != 0:
             raise RuntimeError(f"sfu collect failed: {out[-500:]}")
-        await _update_run(run_id, {"stage": "merge", "status": "running", "progress": 25})
 
+        await _update_run(run_id, {"stage": "merge", "status": "running"})
         code, out = await _run_cli([
-            sys.executable, "scripts/merge_annotations_to_krm.py", "--only", dir_code,
-        ], timeout=1200)
+            sys.executable, "scripts/merge_annotations_to_krm.py", "--only", ycode,
+        ], timeout=1200, run_id=run_id)
         if code != 0:
             raise RuntimeError(f"merge failed: {out[-500:]}")
-        await _update_run(run_id, {"stage": "seed", "status": "running", "progress": 45})
 
-        code, out = await _seed_direction(dir_code)
+        await _update_run(run_id, {"stage": "seed", "status": "running"})
+        code, out = await _seed_direction(ycode, run_id)
         if code != 0:
             raise RuntimeError(f"seed failed: {out[-500:]}")
-        await _update_run(run_id, {"stage": "analysis", "status": "running", "progress": 65})
 
-        code, out = await _run_teacher_analysis(dir_code)
+        await _update_run(run_id, {"stage": "analysis", "status": "running"})
+        code, out = await _run_teacher_analysis(dir_code, run_id)
         if code != 0:
             raise RuntimeError(f"teacher-analysis failed: {out[-500:]}")
 
         await complete_pipeline_run(
             run_id, status="completed",
-            stats={"stage": "done", "status": "completed", "progress": 100, "dir_code": dir_code},
+            stats={"stage": "done", "status": "completed", "dir_code": dir_code},
         )
+    except _RpdCancelled:
+        logger.info("rpd_collect_pipeline_cancelled", run_id=run_id, dir_code=dir_code)
+        await _finish_cancelled(run_id)
+        return
     except Exception as exc:
-        logger.error("rpd_collect_pipeline_failed", run_id=run_id, dir_code=dir_code, error=str(exc))
+        logger.error("rpd_collect_pipeline_failed", run_id=run_id, dir_code=dir_code,
+                     exc_type=type(exc).__name__, exc_repr=repr(exc))
         try:
             await complete_pipeline_run(run_id, status="failed", error=str(exc),
                                         stats={"stage": "error", "status": "failed"})
         except Exception:
             pass
+    finally:
+        _rpd_cancel.pop(run_id, None)
+        _rpd_procs.pop(run_id, None)
 
 
 @router.post("/teacher/rpd/collect")
 @limiter.limit("2/minute")
-async def rpd_collect(request: Request, background_tasks: BackgroundTasks,
-                      dir_code: Annotated[str, Form()] = "09.03.02",
-                      public_url: Annotated[str, Form()] = ""):
-    """Сбор компетенций из загруженных РПД.
-
-    public_url — публичная ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...);
-    позволяет собирать аннотации для направлений вне предустановленного списка YANDEX_COVERED.
-    """
+async def rpd_collect(request: Request, background_tasks: BackgroundTasks, dir_code: Annotated[str, Form()] = "09.03.02"):
+    """Сбор компетенций из загруженных РПД."""
     _validate_dir_code(dir_code)
-    if not public_url and dir_code not in YANDEX_COVERED:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Yandex Disk collection is not available for {dir_code}; укажите public_url",
-        )
+    if dir_code not in YANDEX_COVERED:
+        raise HTTPException(status_code=400, detail=f"Yandex Disk collection is not available for {dir_code}")
 
     from src.pipeline.db_writer import create_pipeline_run
     run_id = await create_pipeline_run("rpd-import")
-    await _update_run(run_id, {"stage": "collect", "status": "running", "dir_code": dir_code,
-                               "source": "yandex", "url": public_url})
-    background_tasks.add_task(_collect_pipeline, run_id, dir_code, public_url or None)
-    return {"status": "started", "run_id": run_id, "dir_code": dir_code, "source": "yandex",
-            "has_url": bool(public_url)}
+    await _update_run(run_id, {"stage": "collect", "status": "running", "dir_code": dir_code, "source": "yandex"})
+    background_tasks.add_task(_collect_pipeline, run_id, dir_code)
+    return {"status": "started", "run_id": run_id, "dir_code": dir_code, "source": "yandex"}
+
+
+@router.post("/teacher/rpd/cancel/{run_id}")
+async def rpd_cancel(request: Request, run_id: str):
+    """Остановить сбор/загрузку РПД: флаг отмены + kill процесса."""
+    from src.pipeline.db_writer import complete_pipeline_run
+
+    ev = _rpd_cancel.get(run_id)
+    proc = _rpd_procs.get(run_id)
+    if ev is None and proc is None:
+        # Задача уже завершилась или неизвестна — смотрим БД.
+        from sqlalchemy import select
+        from src.database import async_session_factory
+        from src.models.krm_models import PipelineRun
+
+        async with async_session_factory() as session:
+            run = await session.get(PipelineRun, run_id)
+            if not run:
+                raise HTTPException(status_code=404, detail="Run not found")
+            if run.status in ("completed", "failed", "cancelled"):
+                return {"status": run.status, "message": "Задача уже завершена"}
+            await complete_pipeline_run(run_id, status="cancelled", error="Отменено пользователем",
+                                        stats={"stage": "cancelled", "status": "cancelled"})
+            return {"status": "cancelled", "message": "Задача остановлена"}
+    if ev is not None:
+        ev.set()
+    if proc is not None:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+    logger.info("rpd_cancel_requested", run_id=run_id)
+    return {"status": "cancelling", "message": "Останавливаю задачу..."}
 
 
 # ---------- Metadata ----------

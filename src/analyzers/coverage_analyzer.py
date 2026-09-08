@@ -279,6 +279,28 @@ class CoverageAnalyzer:
                      total=total, matched=len(matched_list),
                      gaps=len(gaps_list), coverage=ratio, weighted=weighted)
 
+        # Дедуп топа по совпавшему рыночному навыку: разные формулировки
+        # одного ЗУНа в РПД бьют в один навык рынка и плодят клоны.
+        # Дедуп пробелов по нормализованному тексту (те же формулировки).
+        seen_top: set[str] = set()
+        deduped_top: list[SkillMatch] = []
+        for m in sorted(matched_list, key=lambda x: -x.frequency):
+            key = (normalize_skill(m.market_match) if m.market_match else "") or normalize_skill(m.skill_name or "")
+            if not key or key in seen_top:
+                continue
+            seen_top.add(key)
+            deduped_top.append(m)
+            if len(deduped_top) >= 10:
+                break
+        seen_gaps: set[str] = set()
+        deduped_gaps: list[str] = []
+        for g in gaps_list:
+            key = normalize_skill(g)
+            if not key or key in seen_gaps:
+                continue
+            seen_gaps.add(key)
+            deduped_gaps.append(g)
+
         return Ok(DisciplineCoverage(
             discipline_id=discipline_id,
             discipline_name=discipline_name,
@@ -288,8 +310,8 @@ class CoverageAnalyzer:
             coverage_ratio=ratio,
             weighted_coverage=weighted,
             coverage_level=coverage_level(ratio),
-            top_matched=sorted(matched_list, key=lambda x: -x.frequency)[:10],
-            gaps_list=gaps_list[:20],
+            top_matched=deduped_top,
+            gaps_list=deduped_gaps[:20],
             emerging=emerging_skills,
             truly_missing=truly_missing,
             cross_references=cross_refs,

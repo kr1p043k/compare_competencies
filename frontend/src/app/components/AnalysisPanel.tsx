@@ -61,6 +61,14 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
       <CardContent className="p-6 text-center text-gray-400 text-sm">
         <AlertCircle className="size-8 mx-auto mb-2 opacity-40" />
         Анализ не найден. Запустите teacher analysis через пайплайн.
+        <div>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("run-direction-analysis"))}
+            className="mt-3 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 cursor-pointer border-0"
+          >
+            Запустить анализ
+          </button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -81,29 +89,29 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
         <CardContent className="p-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div>
-              <div className="text-xs text-gray-500">Binary Coverage</div>
+              <div className="text-xs text-gray-500">Бинарное покрытие</div>
               <div className="text-2xl font-bold">
                 {(cov * 100).toFixed(1)}%
               </div>
             </div>
             {wcov !== undefined && (
               <div>
-                <div className="text-xs text-gray-500">Weighted Coverage</div>
+                <div className="text-xs text-gray-500">Взвешенное покрытие</div>
                 <div className="text-2xl font-bold text-indigo-600">
                   {(wcov * 100).toFixed(1)}%
                 </div>
               </div>
             )}
             <div>
-              <div className="text-xs text-gray-500">RPD Skills</div>
+              <div className="text-xs text-gray-500">Навыков в РПД</div>
               <div className="text-lg font-semibold text-gray-900">{metrics.total_rpd_skills}</div>
             </div>
             <div>
-              <div className="text-xs text-gray-500">Market Matched</div>
+              <div className="text-xs text-gray-500">Совпало с рынком</div>
               <div className="text-lg font-semibold text-green-600">{metrics.market_matched}</div>
             </div>
             <div>
-              <div className="text-xs text-gray-500">Gaps</div>
+              <div className="text-xs text-gray-500">Пробелы</div>
               <div className="text-lg font-semibold text-red-600">{metrics.gaps}</div>
             </div>
           </div>
@@ -127,7 +135,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
 
           {metrics.top_market_matched_skills.length > 0 && (
             <div className="mb-4">
-              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Top Market-Matched Skills</div>
+              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Топ совпадений с рынком</div>
               <div className="flex flex-wrap gap-1.5">
                 {metrics.top_market_matched_skills.map((s, i) => {
                   const mtColors: Record<string,string> = {
@@ -152,7 +160,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
             <div className="mb-4">
               <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
                 <TrendingUp className="inline size-3 mr-1 text-blue-600" />
-                Emerging Market Skills
+                Новые навыки рынка
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {metrics.emerging_market_skills_not_in_rpd.map((s, i) => (
@@ -168,7 +176,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
             <div className="mb-4">
               <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
                 <TrendingDown className="inline size-3 mr-1 text-red-600" />
-                RPD Skills Not Found on Market
+                Навыки РПД без спроса на рынке
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {metrics.gaps_in_curriculum.slice(0, 10).map((g, i) => (

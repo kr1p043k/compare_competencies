@@ -52,22 +52,38 @@ TARGETS: dict[str, str] = {
 }
 
 
+def _http_get(url: str, params: dict | None = None, timeout: int = 60, tries: int = 3):
+    """GET с ретраями: медленный Диск не должен ронять весь сбор."""
+    last_err: Exception | None = None
+    for i in range(tries):
+        try:
+            r = requests.get(url, params=params, timeout=timeout)
+            if r.status_code != 200:
+                return None
+            return r
+        except requests.RequestException as e:
+            last_err = e
+            time.sleep(2 * (i + 1))
+    print(f"GET failed after {tries} tries: {url} ({last_err})")
+    return None
+
+
 def yandex_list(public_key: str, path: str = "") -> dict | None:
-    r = requests.get(YAPI, params={"public_key": public_key, "path": path, "limit": 1000}, timeout=40)
-    if r.status_code != 200:
+    r = _http_get(YAPI, params={"public_key": public_key, "path": path, "limit": 1000}, timeout=40)
+    if r is None:
         return None
     return r.json()
 
 
 def yandex_download(public_key: str, path: str) -> bytes | None:
-    r = requests.get(YAPI + "/download", params={"public_key": public_key, "path": path}, timeout=40)
-    if r.status_code != 200:
+    r = _http_get(YAPI + "/download", params={"public_key": public_key, "path": path}, timeout=40)
+    if r is None:
         return None
     href = r.json().get("href")
     if not href:
         return None
-    d = requests.get(href, timeout=90)
-    return d.content if d.status_code == 200 else None
+    d = _http_get(href, timeout=300, tries=3)
+    return d.content if d is not None and d.status_code == 200 else None
 
 
 def extract_pdf_text(data: bytes) -> str:

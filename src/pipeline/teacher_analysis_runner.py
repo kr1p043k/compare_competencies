@@ -33,6 +33,11 @@ OUTPUT = Path(__file__).resolve().parent.parent.parent / "data" / "result" / "te
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 
+# Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
+# skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
+# пересчитывает даже без изменения входных данных.
+CODE_VERSION = 7
+
 
 def _safe_filename(name: str) -> str:
     """Очистить строку для имени файла/каталога (макс. 80 символов)."""
@@ -286,6 +291,7 @@ async def run_teacher_analysis(
                 """SELECT LOWER(TRIM(value)) AS skill, COUNT(*) AS frequency
                    FROM vacancies, jsonb_array_elements_text(parsed_skills) AS value
                    WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0
+                     AND NULLIF(TRIM(value), '') IS NOT NULL
                    GROUP BY LOWER(TRIM(value))
                    ORDER BY frequency DESC"""
             )
@@ -509,7 +515,13 @@ async def run_teacher_analysis(
             krm_file_path = config.REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
             file_unchanged = not krm_file_path.exists() or summary_mtime > krm_file_path.stat().st_mtime
 
-            if market_unchanged and krm_unchanged and file_unchanged:
+            try:
+                sdata = json.loads(summary_path.read_text(encoding="utf-8"))
+            except Exception:
+                sdata = {}
+            version_ok = sdata.get("code_version") == CODE_VERSION
+
+            if market_unchanged and krm_unchanged and file_unchanged and version_ok:
                 logger.info("skipping_analysis_data_unchanged", direction=dir_code)
                 try:
                     await complete_pipeline_run(
@@ -593,8 +605,23 @@ async def run_teacher_analysis(
         except Exception as exc:
             logger.warning("relevance_batch_skipped", discipline=dname, error=str(exc))
         filtered: list = []
+        scorer_ok = bool(rel_map)
+        # Навыки, буквально упомянутые в KSA дисциплины — якорь релевантности.
+        mentioned_all: set[str] = set()
+        for _ctx in ksa_context.values():
+            mentioned_all.update(m.lower() for m in _ctx.get("mentioned_in_ksa", []))
         for r in recs:
             skill = r.skill_name or r.type
+            unrelated = scorer_ok and rel_map.get(skill, 0.0) < 0.15
+            if unrelated and r.type in ("add_new_content", "cross_reference"):
+                # Семантически чужой навык (напр. linux для БЖД) — не предлагаем вовсе.
+                logger.info("rec_dropped_unrelated", discipline=dname, skill=skill, type=r.type)
+                continue
+            if r.type == "cross_reference" and skill.lower() not in mentioned_all \
+                    and rel_map.get(skill, 0.0) < 0.30:
+                # Ссылка на чужую дисциплину без связи со своей программой — шум.
+                logger.info("rec_dropped_crossref", discipline=dname, skill=skill)
+                continue
             # UNRELATED == combined < 0.15 (см. DisciplineRelevance)
             if rel_map.get(skill, 0.0) < 0.15:
                 r.priority = "low"
@@ -602,7 +629,9 @@ async def run_teacher_analysis(
             filtered.append(r)
         recs = filtered
 
-        # — KSA-based recommendations: skills in KSA but not on market, and vice versa —
+        # — KSA-based recommendations: skills in KSA but not on market —
+        # (обратное направление "топ рынка в каждую компетенцию" убрано:
+        # глобальный топ без семантической привязки — это спам вида linux в БЖД)
         from src.models.teacher_analysis import Recommendation
         for comp_code, ctx in ksa_context.items():
             for skill in ctx.get("ksa_not_on_market", []):
@@ -610,12 +639,6 @@ async def run_teacher_analysis(
                     type="ksa_context", priority="medium",
                     skill_name=skill,
                     message=f"Навык «{skill}» упомянут в KSA компетенции {comp_code}, но не обнаружен на рынке. Рекомендуется проверить актуальность.",
-                ))
-            for skill in ctx.get("market_not_in_ksa", [])[:3]:
-                recs.append(Recommendation(
-                    type="ksa_context", priority="medium",
-                    skill_name=skill,
-                    message=f"Рыночный навык «{skill}» не упомянут в KSA компетенции {comp_code}. Рассмотрите возможность углубления.",
                 ))
 
         with _discipline_lock:
@@ -678,6 +701,24 @@ async def run_teacher_analysis(
         return (dname, result)
 
     with ThreadPoolExecutor(max_workers=min(os.cpu_count() or 4, 8)) as executor:  # F12 fix: adaptive workers
+        # Добиваем векторы релевантности живыми KSA-текстами (батч, один encode).
+        # KRM-карта покрывает ~26/60 — без этого остальные получали пустой rel_map.
+        try:
+            _prime_map: dict[str, list[str]] = {}
+            for _dn, _dd in disciplines.items():
+                _texts: list[str] = []
+                for _v in (_dd.get("ksa") or {}).values():
+                    if isinstance(_v, list):
+                        _texts.extend(_v)
+                    elif isinstance(_v, dict):
+                        for _vv in _v.values():
+                            if isinstance(_vv, list):
+                                _texts.extend(_vv)
+                if _texts:
+                    _prime_map[_dn] = _texts
+            _discipline_scorer.prime_all(_prime_map)
+        except Exception as exc:
+            logger.warning("discipline_prime_skipped", error=str(exc))
         futures = {
             executor.submit(_analyze_one, dname, disc_data): dname
             for dname, disc_data in sorted(disciplines.items())
@@ -773,6 +814,7 @@ async def run_teacher_analysis(
         "direction": dir_code,
         "direction_name": direction["name"],
         "profile": direction["profile"],
+        "code_version": CODE_VERSION,
         "total_disciplines": summary.total_disciplines,
         "average_coverage": summary.average_coverage,
         "average_quality_coverage": avg_quality,

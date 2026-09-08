@@ -103,11 +103,41 @@ def build_ksa(comp_codes: list[str], topics: list[str], old_ksa: dict) -> dict:
     return ksa
 
 
+def _scaffold_krm(dir_code: str, anns: dict) -> bool:
+    """Создать минимальный KRM из аннотаций, если файла нет."""
+    discs: dict[str, dict] = {}
+    for a in anns:
+        if not a.get("ok") or not a.get("text"):
+            continue
+        name = (a.get("name") or "").strip()
+        if not name:
+            continue
+        comps = sorted({normalize_comp(c) for c in a.get("competencies", [])})
+        if not comps:
+            continue
+        topics = extract_content(a.get("text", ""))
+        discs[name] = {
+            "competencies": comps,
+            "ksa": build_ksa(comps, topics, {}),
+            "skills": {},
+        }
+    if not discs:
+        return False
+    data = {dir_code: {"direction_name": dir_code, "profile": "", "disciplines": discs}}
+    krm_path = REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
+    krm_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"{dir_code}: скаффолд KRM из аннотаций ({len(discs)} дисциплин)")
+    return True
+
+
 def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
     krm_path = REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
     if not krm_path.exists():
-        print(f"{dir_code}: KRM-файл не найден, пропуск")
-        return 0, 0, 0
+        # Каркаса нет (новое направление) — строим из аннотаций:
+        # дисциплины + коды + темы как knowledge.
+        if not _scaffold_krm(dir_code, anns):
+            print(f"{dir_code}: KRM-файл не найден и скаффолд пуст, пропуск")
+            return 0, 0, 0
 
     data = json.loads(krm_path.read_text(encoding="utf-8"))
     sub = next(iter(data.values()))
