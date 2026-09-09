@@ -31,7 +31,65 @@ def _classify_skill(skill: str, types: dict[str, list[str]]) -> str:
         for ref in types.get(cat, []):
             if ref in sl or sl in ref:
                 return cat
+    if _is_knowledge_description(skill):
+        return "academic"
     return "generic"
+
+
+_KNOWLEDGE_WORDS = (
+    "особенност", "поняти", "теори", "фундаментал", "сущност",
+    "представлени", "закономерност", "концепци", "методологи",
+    "определени", "характеристик", "свойств", "структур",
+    "принцип", "основ", "знани",
+)
+
+
+def _is_knowledge_description(skill: str) -> bool:
+    """Long RPD knowledge formulation, not a market skill (v9)."""
+    s = (skill or "").lower().strip()
+    if len(s) < 60:
+        return False
+    return any(w in s for w in _KNOWLEDGE_WORDS)
+
+
+_CYRILLIC = re.compile(r"[\u0430-\u044f\u0451]", re.IGNORECASE)
+
+
+_DANGLING_END = re.compile(
+    r"\s(и|в|на|с|к|о|а|но|не|ни|или|для|от|по|из|у|же|ли|бы|как)$",
+    re.IGNORECASE,
+)
+
+
+_PUNCT_WS = re.compile("[\\s\"\'«»„“”().,:;!?—–-]")
+
+
+def _vocab_refs(phrases, vocab) -> set:
+    """Market-vocab skills evidenced by discipline phrases (v11)."""
+    refs: set = set()
+    if not vocab:
+        return refs
+    for ph in phrases or []:
+        words = re.findall(r"\w+", (ph or "").lower(), flags=re.UNICODE)
+        for n in (1, 2, 3):
+            for i in range(len(words) - n + 1):
+                gram = " ".join(words[i:i + n])
+                if gram in vocab:
+                    refs.add(gram)
+    return refs
+
+
+def _norm_msg(msg: str) -> str:
+    """Declension-insensitive key: lemmas when available, else fold (v10)."""
+    try:
+        from src.text.ru_morph import lemma_key
+
+        key = lemma_key(msg)
+        if key:
+            return key
+    except Exception:
+        pass
+    return _PUNCT_WS.sub(" ", (msg or "").casefold()).strip()
 
 
 class CurriculumRecommender:
@@ -50,6 +108,24 @@ class CurriculumRecommender:
                         self._taxo_map.setdefault(str(_s).lower(), set()).add(_label)
         except Exception as exc:
             logger.warning("taxonomy_load_failed", error=str(exc))
+
+    def _is_fragment(self, skill: str) -> bool:
+        """RPD parser shreds (v9.1): dangling conjunction, or tiny lowercase
+        token unknown to taxonomy (sql/erp stay, shreds like 'ческие' go)."""
+        s = (skill or "").strip()
+        if not s:
+            return True
+        if _DANGLING_END.search(s):
+            return True
+        toks = s.split()
+        if len(toks) == 1:
+            tok = toks[0].strip(chr(0xAB) + chr(0xBB) + chr(34) + chr(39) + chr(40) + chr(41)
+                            + ".,;:-")
+            if len(tok) <= 6 and tok[:1].islower() and _CYRILLIC.search(tok) \
+                    and tok.lower() not in self._taxo_map:
+                return True
+        return False
+
 
     def _cats_of(self, skill_name: str) -> set[str]:
         """Области таксономии навыка: короткие эталоны — только по границам слов.
@@ -73,7 +149,7 @@ class CurriculumRecommender:
                 cats.update(labels)
         return cats
 
-    def generate(self, coverage: DisciplineCoverage) -> Result[list[Recommendation], RecommendationError]:
+    def generate(self, coverage: DisciplineCoverage, cooc=None) -> Result[list[Recommendation], RecommendationError]:
         if not coverage:
             logger.error("coverage_none")
             return Err(RecommendationError(message="Coverage data is required"))
@@ -82,6 +158,8 @@ class CurriculumRecommender:
 
         # Gaps: RPD skills not found on market — one per skill
         for s in coverage.gaps_list:
+            if self._is_fragment(s):
+                continue
             cls = _classify_skill(s, self.skill_types)
             if cls == "academic":
                 recs.append(Recommendation(
@@ -102,23 +180,45 @@ class CurriculumRecommender:
             matched_cats: set[str] = set()
             for _nm in matched_names:
                 matched_cats.update(self._cats_of(_nm))
+            ranked: list = []
             for m in coverage.truly_missing:
-                if not matched_cats or not (self._cats_of(m.skill_name) & matched_cats):
+                cats = self._cats_of(m.skill_name)
+                shared = cats & matched_cats
+                if not matched_cats or not shared:
                     continue
+                ranked.append((len(shared), getattr(m, "frequency", 0) or 0, m, shared))
+            ranked.sort(key=lambda z: (z[0], z[1]), reverse=True)
+            # relevance-ranked: shared taxonomy cats, then market frequency (v9).
+            # runner keeps final top-5 by embedding relevance; 25-cap below stays.
+            for n_shared, freq, m, shared in ranked:
+                pri = "high" if n_shared >= 2 and freq >= 1000 else "medium"
+                reason = ", ".join(sorted(shared))
+                refs = _vocab_refs(matched_names, getattr(cooc, "vocab", None)) if cooc is not None else set()
+                if refs:
+                    lk = cooc.link(m.skill_name, refs)
+                    if freq >= 20 and lk < 0.03:
+                        logger.info("rec_dropped_weaklink", discipline=coverage.discipline_name,
+                                    skill=m.skill_name, link=round(lk, 4))
+                        continue
                 recs.append(Recommendation(
-                    type="add_new_content", priority="medium", skill_name=m.skill_name,
+                    type="add_new_content", priority=pri, skill_name=m.skill_name,
                     message=(
                         f"Рассмотрите возможность включения навыка «{m.skill_name}» "
                         f"(частота на рынке: {m.frequency})."
+                        f" (смежно: {reason})."
                     ),
                 ))
-                if sum(1 for r in recs if r.type == "add_new_content") >= 5:
+                # Кандидатов больше, чем покажем: финальный топ-5 по релевантности
+                # режет раннер (персонализация под дисциплину).
+                if sum(1 for r in recs if r.type == "add_new_content") >= 25:
                     break
 
         # Cross-references: skills taught in other disciplines
         if coverage.cross_references:
             seen: set[str] = set()
             for cr in coverage.cross_references:
+                if len((cr.skill_name or "").strip()) < 2:
+                    continue
                 if cr.skill_name in seen:
                     continue
                 seen.add(cr.skill_name)
@@ -156,11 +256,68 @@ class CurriculumRecommender:
 
         # Дедупликация: убрать повторяющиеся сообщения
         seen: set[str] = set()
-        recs = [r for r in recs if not (r.message in seen or seen.add(r.message))]
+        seen = set()
+        drops: dict = {}
+        deduped: list = []
+        for r in recs:
+            key = _norm_msg(r.message)
+            if key in seen:
+                drops[key] = drops.get(key, 0) + 1
+                continue
+            seen.add(key)
+            deduped.append(r)
+        recs = deduped
+        # fold near-duplicate review_content sharing first 7 words (v9).
+        groups: dict = {}
+        order: list = []
+        for r in recs:
+            if r.type == "review_content":
+                gkey = ("review", tuple(_norm_msg(r.message).split()[:7]))
+            else:
+                gkey = ("single", id(r))
+            if gkey not in groups:
+                groups[gkey] = []
+                order.append(gkey)
+            groups[gkey].append(r)
+        folded: list = []
+        for gkey in order:
+            g = groups[gkey]
+            extra = len(g) - 1 + sum(drops.get(_norm_msg(m.message), 0) for m in g)
+            if extra > 0:
+                first = g[0]
+                folded.append(Recommendation(
+                    type=first.type, priority=first.priority,
+                    skill_name=first.skill_name,
+                    message=first.message + f" (и ещё {extra} похожих формулировок из РПД).",
+                ))
+            else:
+                folded.append(g[0])
+        recs = folded
+        recs = self.validate(recs, coverage)
 
         logger.info("recommendations_generated",
                      discipline=coverage.discipline_name, count=len(recs))
         return Ok(recs)
+
+    def validate(self, recs: list, coverage: DisciplineCoverage) -> list:
+        """Hard invariants: noise never reaches teachers even if upstream shifts (v10)."""
+        matched = {str(m.skill_name or "").strip().lower() for m in (coverage.top_matched or [])}
+        out: list = []
+        for r in recs:
+            sk = (r.skill_name or "").strip()
+            if not r.type or not r.message:
+                logger.info("rec_invalid_dropped", reason="empty_type_or_message")
+                continue
+            if r.type in ("add_new_content", "cross_reference", "review_content", "foundational"):
+                if sk and len(sk) < 2:
+                    logger.info("rec_invalid_dropped", reason="short_skill", skill=sk)
+                    continue
+            if r.type == "add_new_content" and sk.lower() in matched:
+                logger.info("rec_invalid_dropped", reason="already_covered", skill=sk)
+                continue
+            out.append(r)
+        return out
+
 
     def generate_summary_recommendations(
         self, all_coverages: list[DisciplineCoverage],

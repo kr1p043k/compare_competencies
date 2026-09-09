@@ -36,7 +36,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 7
+CODE_VERSION = 11  # cross-ref attribution + anchor + add_new fixes
 
 
 def _safe_filename(name: str) -> str:
@@ -317,6 +317,39 @@ async def run_teacher_analysis(
         logger.warning("no_market_skills_found")
     logger.info("market_skills_loaded", count=len(market_skills), from_vacancies=vac_count)
 
+    # Skill co-occurrence for polysemy filter: P(ref | skill) over vacancies (v10).
+    from src.analyzers.skill_cooccurrence import SkillCooccurrence
+    _cooc: SkillCooccurrence | None = None
+    _cooc_key = "teacher_cooc_v1"
+    match _cache_mgr.load(_cooc_key):
+        case Ok(cached):
+            if isinstance(cached, dict) and cached.get("hash") == _vac_hash and cached.get("cooc"):
+                try:
+                    _cooc = SkillCooccurrence.from_cache(cached["cooc"])
+                    logger.info("cooc_loaded_from_cache", skills=len(_cooc.freq))
+                except Exception as exc:
+                    logger.warning("cooc_cache_corrupt", error=str(exc))
+    if _cooc is None:
+        try:
+            _vrows = await pool.fetch("SELECT parsed_skills FROM vacancies WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0")
+            import json as _json
+            _vocab = {s for s, _ in sorted(market_skills.items(), key=lambda x: -x[1])[:500]}
+            _sets = []
+            for _vr in _vrows:
+                _ps = _vr["parsed_skills"]
+                if isinstance(_ps, str):
+                    try:
+                        _ps = _json.loads(_ps)
+                    except Exception:
+                        continue
+                _sets.append(_ps)
+            _cooc = SkillCooccurrence().build(_sets, vocab=_vocab, top_n=40)
+            _cache_mgr.save(_cooc_key, {"hash": _vac_hash, "cooc": _cooc.to_cache()})
+            logger.info("cooc_built", skills=len(_cooc.freq))
+        except Exception as exc:
+            logger.warning("cooc_build_failed", error=str(exc))
+            _cooc = None
+
     # — load disciplines —
     dir_filter = ""
     params: list = []
@@ -577,12 +610,16 @@ async def run_teacher_analysis(
         top_market_skills = {s for s, _ in sorted(market_skills.items(), key=lambda x: -x[1])[:500]}
         top_market_list = sorted(top_market_skills, key=lambda s: -market_skills.get(s, 0))
 
+        _mention_pats = {sk: re.compile(r"(?<!\w)" + re.escape(sk) + r"(?!\w)")
+                           for sk in top_market_skills}
         for comp_code, ksa_texts in disc_data.get("ksa", {}).items():
             mentioned = set()
             for text in ksa_texts:
                 tl = text.lower()
                 for sk in top_market_skills:
-                    if sk in tl:
+                    # substring ("sql" in "postgresql") is a false anchor;
+                    # whole-word only.
+                    if _mention_pats[sk].search(tl):
                         mentioned.add(sk)
             ksa_only = mentioned - set(market_skills.keys())
             # Top market skills NOT mentioned in KSA (simple list, no nested loop)
@@ -594,7 +631,7 @@ async def run_teacher_analysis(
                 "total_ksa_items": len(ksa_texts),
             }
 
-        recs_result = rec_engine.generate(coverage)
+        recs_result = rec_engine.generate(coverage, cooc=_cooc)
         recs = recs_result.unwrap_or([])
 
         # Filter recommendations by discipline relevance (batched encode)
@@ -627,6 +664,14 @@ async def run_teacher_analysis(
                 r.priority = "low"
                 r.message += " (низкая релевантность дисциплине)"
             filtered.append(r)
+        # add_new приходит глобальным списком (один на все дисциплины):
+        # сортируем по релевантности ЭТОЙ дисциплине и режем до 5.
+        adds = [r for r in filtered if r.type == "add_new_content"]
+        if len(adds) > 5:
+            adds_sorted = sorted(adds, key=lambda r: -rel_map.get(r.skill_name or "", 0.0))
+            keep_ids = {id(r) for r in adds_sorted[:5]}
+            filtered = [r for r in filtered
+                        if r.type != "add_new_content" or id(r) in keep_ids]
         recs = filtered
 
         # — KSA-based recommendations: skills in KSA but not on market —
@@ -683,7 +728,7 @@ async def run_teacher_analysis(
                 for cc in coverage.competencies
             ],
             "recommendations": [
-                {"type": r.type, "priority": r.priority, "message": r.message}
+                {"type": r.type, "priority": r.priority, "message": r.message, "skill": r.skill_name}
                 for r in recs
             ],
         }
@@ -823,7 +868,7 @@ async def run_teacher_analysis(
         "top_cross_discipline_gaps": summary.top_cross_discipline_gaps,
         "top_emerging_across_all": summary.top_emerging,
         "recommendations": [
-            {"type": r.type, "priority": r.priority, "message": r.message}
+            {"type": r.type, "priority": r.priority, "message": r.message, "skill": r.skill_name}
             for r in summary_recs + optimizer_recs
         ],
         "trends": {

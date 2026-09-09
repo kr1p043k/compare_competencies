@@ -15,7 +15,7 @@ import structlog
 import xgboost as xgb
 from sklearn.metrics import mean_absolute_error, ndcg_score, r2_score
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedShuffleSplit, train_test_split
 
 from src import (
     ModelError,
@@ -101,7 +101,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         self.level_analyzer = SkillLevelAnalyzer()
         self.embedding_model = get_embedding_model()
 
-        self.model: xgb.XGBRegressor | None = None
+        self.model: xgb.XGBRegressor | xgb.XGBRanker | None = None
         self.feature_names: list[str] = []
         self.skill_metadata: dict[str, dict[str, Any]] = {}
         self.skill_embeddings: dict[str, np.ndarray] = {}
@@ -340,6 +340,279 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         }
         return Ok(self)
 
+    # ------------------------------------------------------------------
+    # НАСТОЯЩИЙ LTR: XGBRanker на человеческих метках (gold)
+    # ------------------------------------------------------------------
+
+    RANK_MODEL_FILENAME = "ltr_ranker_xgb_rank.joblib"
+
+    def fit_ranker(
+        self,
+        gold_rows: list[dict],
+        vacancies: list[dict],
+        test_size: float = 0.25,
+        seed: int = 42,
+        model_out: Path | None = None,
+    ) -> Result[dict, ModelError]:
+        """Настоящий Learning-to-Rank: query=роль, документы=навыки.
+
+        Отличия от fit() (суррогат):
+        - таргет — человеческие оценки gold (0/1/2), а не synthetic relevance;
+        - модель — XGBRanker (rank:ndcg) с qid-группами по ролям;
+        - признаковое пространство и формат артефакта — ТЕ ЖЕ, что у fit(),
+          поэтому инференс (predict_skill_impact_with_shap) и SHAP работают
+          без изменений; продовая регрессор-модель не трогается.
+
+        Anti-leakage:
+        - профиль роли строится ТОЛЬКО из train-оценок «2», причём для каждой
+          строки валится LOO (сама строка исключена из профиля);
+        - сплит стратифицирован по оценкам внутри каждой роли;
+        - category_avg_weight считается по рыночным данным без меток
+          (лейблы в него не входят) — утечки меток нет.
+        """
+        rows = [
+            {"role": str(r["role"]), "skill": str(r["skill"]), "grade": int(r["grade"])}
+            for r in gold_rows
+            if str(r.get("skill", "")).strip() != "" and int(r.get("grade", -1)) in (0, 1, 2)
+        ]
+        roles = sorted({r["role"] for r in rows})
+        if len(rows) < 50 or len(roles) < 2:
+            return Err(ModelTrainingError(
+                message="Нужно ≥50 размеченных пар и ≥2 ролей",
+                n_samples=len(rows),
+            ))
+        logger.info("ranker_training_started", rows=len(rows), roles=len(roles))
+
+        # --- market state: зеркало fit(), те же поля и те же ключи ---
+        frequencies: dict[str, int] = {}
+        for v in vacancies:
+            skills = v.get("extracted_skills", []) or v.get("parsed_skills", [])
+            if not skills:
+                skills = [
+                    ks.get("name")
+                    for ks in (v.get("key_skills") or [])
+                    if isinstance(ks, dict) and ks.get("name")
+                ]
+            for s in skills:
+                if isinstance(s, str):
+                    frequencies[s] = frequencies.get(s, 0) + 1
+        if len(frequencies) < 5:
+            return Err(ModelTrainingError(message="Слишком мало навыков в корпусе", n_samples=len(frequencies)))
+        max_freq = max(frequencies.values()) or 1
+        hybrid_weights = {s: f / max_freq for s, f in frequencies.items()}
+
+        processed_vacancies = self._prepare_vacancies_for_levels(vacancies)
+        self.level_analyzer.analyze_vacancies(processed_vacancies)
+        self.vacancy_skills_corpus = [set(self._extract_skills_from_vacancy(v)) for v in vacancies]
+        self.total_vacancies = len(vacancies)
+
+        vocab = sorted({r["skill"] for r in rows})
+        logger.info("ranker_encoding_skills", count=len(vocab))
+        embs = self.embedding_model.encode(vocab, convert_to_numpy=True, show_progress_bar=False)
+        self.skill_embeddings = {s: e for s, e in zip(vocab, embs, strict=False)}
+        for skill, freq in frequencies.items():
+            self.skill_metadata[skill] = {
+                "frequency": freq,
+                "hybrid_weight": hybrid_weights.get(skill, 0.0),
+                "level": self.level_analyzer.get_skill_level(skill),
+                "category": self._get_skill_category(skill),
+                "hybrid_weight_normalized": hybrid_weights.get(skill, 0.0),
+                "freq_normalized": freq / max_freq,
+            }
+        # category_avg_weight — только рыночные веса, без меток: утечки нет.
+        cat_buckets: dict[str, list[float]] = {}
+        for skill, meta in self.skill_metadata.items():
+            cat_buckets.setdefault(meta.get("category", "other"), []).append(meta.get("hybrid_weight", 0.0))
+        self.category_avg_weight = {c: float(np.mean(v)) for c, v in cat_buckets.items() if v}
+
+        # --- split: стратификация по оценкам внутри роли ---
+        qid_of = {role: i for i, role in enumerate(roles)}
+        train_idx: list[int] = []
+        test_idx: list[int] = []
+        for role in roles:
+            idx = [i for i, r in enumerate(rows) if r["role"] == role]
+            grades = [rows[i]["grade"] for i in idx]
+            try:
+                tr, te = next(StratifiedShuffleSplit(
+                    n_splits=1, test_size=test_size, random_state=seed,
+                ).split(idx, grades))
+                train_idx.extend(idx[i] for i in tr)
+                test_idx.extend(idx[i] for i in te)
+            except ValueError:
+                logger.warning("ranker_stratify_fallback", role=role)
+                cut = int(len(idx) * (1 - test_size))
+                train_idx.extend(idx[:cut])
+                test_idx.extend(idx[cut:])
+        logger.info("ranker_split", train=len(train_idx), test=len(test_idx))
+
+        # --- профили ролей из train-двоек + LOO на строку ---
+        train_core: dict[str, list[str]] = {role: [] for role in roles}
+        for i in train_idx:
+            if rows[i]["grade"] == 2 and rows[i]["skill"] in self.skill_embeddings:
+                train_core[rows[i]["role"]].append(rows[i]["skill"])
+        market_emb = np.mean(list(self.skill_embeddings.values()), axis=0)
+        prof_sum: dict[str, np.ndarray] = {}
+        prof_cnt: dict[str, int] = {}
+        for role, skills in train_core.items():
+            vecs = [self.skill_embeddings[s] for s in skills]
+            prof_sum[role] = np.sum(vecs, axis=0) if vecs else market_emb.copy()
+            prof_cnt[role] = len(vecs)
+
+        def profile_for(role: str, skill: str):
+            """Средний эмбеддинг train-двоек роли без самой строки (LOO)."""
+            vecs = [s for s in train_core.get(role, []) if s != skill]
+            if vecs:
+                return np.mean([self.skill_embeddings[s] for s in vecs], axis=0), vecs
+            if prof_cnt.get(role, 0) > 0:
+                return prof_sum[role] / prof_cnt[role], []
+            return market_emb, []
+
+        def build_frame(idxs: list[int]):
+            X_rows, y_rows, groups = [], [], []
+            for i in idxs:
+                r = rows[i]
+                emb, prof_skills = profile_for(r["role"], r["skill"])
+                X_rows.append(self._extract_features(r["skill"], emb, prof_skills))
+                y_rows.append(r["grade"])
+                groups.append(qid_of[r["role"]])
+            order = np.argsort(groups, kind="stable")
+            X = pd.DataFrame([X_rows[i] for i in order])
+            y = np.array([y_rows[i] for i in order])
+            g = np.array([groups[i] for i in order])
+            _, counts = np.unique(g, return_counts=True)
+            return X, y, counts.tolist(), [idxs[i] for i in order]
+
+        X_train, y_train, g_train, _ = build_frame(train_idx)
+        X_test, y_test, g_test, test_order = build_frame(test_idx)
+        self.feature_names = X_train.columns.tolist()
+
+        # val для early stopping — стратифицированный кусок train с группами
+        val_idx, _ = train_test_split(
+            np.arange(len(X_train)), test_size=0.2, random_state=seed,
+            stratify=y_train if len(set(y_train.tolist())) > 1 else None,
+        )
+        # группы для val: порядок строк train уже сгруппирован по qid
+        train_qids = []
+        pos = 0
+        for c in g_train:
+            train_qids.extend([pos] * 0)  # placeholder, replaced below
+            pos += 1
+        # Проще: qid каждой строки train известен — восстанавливаем из групп.
+        qids_train: list[int] = []
+        for qi, c in enumerate(g_train):
+            qids_train.extend([qi] * c)
+        val_mask = np.zeros(len(X_train), dtype=bool)
+        val_mask[np.asarray(val_idx)] = True
+        X_val, y_val = X_train[val_mask], y_train[val_mask]
+        X_tr, y_tr = X_train[~val_mask], y_train[~val_mask]
+        g_val = [int(np.sum((np.asarray(qids_train) == q) & val_mask)) for q in range(len(g_train))]
+        g_val = [c for c in g_val if c > 0]
+        g_tr = [int(np.sum((np.asarray(qids_train) == q) & ~val_mask)) for q in range(len(g_train))]
+        g_tr = [c for c in g_tr if c > 0]
+
+        self.model = xgb.XGBRanker(
+            objective="rank:ndcg",
+            lambdarank_pair_method="topk",
+            n_estimators=500,
+            max_depth=6,
+            learning_rate=0.05,
+            subsample=0.9,
+            colsample_bytree=0.9,
+            random_state=seed,
+            n_jobs=-1,
+            verbosity=0,
+            early_stopping_rounds=30,
+        )
+        self.model.fit(
+            X_tr, y_tr, group=g_tr,
+            eval_set=[(X_val, y_val)], eval_group=[g_val], verbose=False,
+        )
+        self.is_fitted = True
+
+        # --- метрики на holdout + бейзлайны на тех же строках ---
+        pred = np.asarray(self.model.predict(X_test))
+        test_qids = [qid_of[rows[i]["role"]] for i in test_order]
+        ndcg = self._ndcg_by_query(y_test, pred, test_qids, k=10)
+        prec = self._precision_at_k(y_test, pred, test_qids, k=10)
+        baselines: dict[str, dict] = {}
+        for name, col in (("frequency", "skill_freq_normalized"), ("cosine", "cosine_sim")):
+            bp = np.asarray(X_test[col].to_numpy(), dtype=float)
+            baselines[name] = {
+                "ndcg@10": round(self._ndcg_by_query(y_test, bp, test_qids, k=10), 4),
+                "p@10": round(self._precision_at_k(y_test, bp, test_qids, k=10), 4),
+            }
+        metrics: dict[str, float | dict] = {
+            "ndcg@10": round(ndcg, 4),
+            "p@10": round(prec, 4),
+            "baselines": baselines,
+            "n_train": len(X_tr),
+            "n_test": len(X_test),
+            "roles": len(roles),
+        }
+        logger.info("ranker_training_completed", **{k: v for k, v in metrics.items() if not isinstance(v, dict)})
+
+        out_path = model_out or (config.MODELS_DIR / self.RANK_MODEL_FILENAME)
+        joblib.dump(
+            {
+                "model": self.model,
+                "kind": "xgb_ranker_human_gold",
+                "feature_names": self.feature_names,
+                "skill_metadata": self.skill_metadata,
+                "skill_embeddings": self.skill_embeddings,
+                "vacancy_skills_corpus": self.vacancy_skills_corpus,
+                "category_avg_weight": self.category_avg_weight,
+                "total_vacancies": self.total_vacancies,
+            },
+            out_path,
+        )
+        try:
+            plt.figure(figsize=(12, 8))
+            xgb.plot_importance(self.model, max_num_features=15)
+            plt.savefig(out_path.parent / "ltr_ranker_feature_importance.png", dpi=200, bbox_inches="tight")
+            plt.close()
+        except Exception as e:
+            logger.warning("failed_to_save_importance_plot", error=str(e))
+        manifest = ArtifactManifest(
+            artifact_path=out_path,
+            data_hash=hashlib.sha256(
+                json.dumps([f"{r['role']}|{r['skill']}|{r['grade']}" for r in rows], sort_keys=True).encode()
+            ).hexdigest(),
+            metrics={"human_ndcg_at_10": round(ndcg, 4), "human_p_at_10": round(prec, 4)},
+        )
+        if manifest.save().is_err():
+            logger.warning("manifest_save_failed")
+        self.last_metrics = dict(metrics)
+        return Ok(metrics)
+
+    @staticmethod
+    def _ndcg_by_query(y_true: np.ndarray, y_pred: np.ndarray, qids: list[int], k: int = 10) -> float:
+        """Средний NDCG@k по запросам (рол Hg)."""
+        from sklearn.metrics import ndcg_score
+
+        scores = []
+        for q in sorted(set(qids)):
+            mask = np.asarray(qids) == q
+            yt, pt = y_true[mask], y_pred[mask]
+            if len(yt) < 2 or np.all(yt == yt[0]):
+                continue
+            try:
+                v = ndcg_score(yt.reshape(1, -1), pt.reshape(1, -1), k=min(k, len(yt)))
+            except Exception:
+                continue
+            if not np.isnan(v):
+                scores.append(float(v))
+        return float(np.mean(scores)) if scores else 0.0
+
+    @staticmethod
+    def _precision_at_k(y_true: np.ndarray, y_pred: np.ndarray, qids: list[int], k: int = 10) -> float:
+        """Доля релевантных (grade>=1) в топ-k, усреднённая по запросам."""
+        scores = []
+        for q in sorted(set(qids)):
+            idx = np.where(np.asarray(qids) == q)[0]
+            topk = idx[np.argsort(-np.asarray(y_pred)[idx], kind="stable")[:k]]
+            rel = sum(1 for i in topk if y_true[i] >= 1)
+            scores.append(rel / min(k, len(idx)))
+        return float(np.mean(scores)) if scores else 0.0
     def _compute_ndcg_per_query(
         self,
         y_true: np.ndarray,

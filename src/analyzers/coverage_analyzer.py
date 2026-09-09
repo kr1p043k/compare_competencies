@@ -218,49 +218,44 @@ class CoverageAnalyzer:
                         sk_emb = sk_embs.get(em.skill_name)
                         if sk_emb is None:
                             continue
-                        found = False
-                        for dn in discipline_skill_map:
+                        # Evidence-first attribution: a cross-reference is emitted ONLY
+                        # for disciplines with a textual trace in their RPD (exact
+                        # normalized phrase or whole-word hit, market token >= 4 chars).
+                        # Embeddings only choose AMONG evidenced disciplines, never
+                        # invent attribution. Proven: "1c"/"bash" occur in 0 RPDs of
+                        # 09.03.02 yet were attributed to random disciplines.
+                        em_norm = normalize_skill(em.skill_name)
+                        evidenced: list[str] = []
+                        for dn, dskills in discipline_skill_map.items():
                             if dn == discipline_name:
                                 continue
-                            disc_emb = self._discipline_scorer.get_discipline_embedding(dn)
-                            if disc_emb is not None:
-                                sim = float(np.dot(sk_emb, disc_emb))
-                                if sim > 0.55:
-                                    cross_refs.append(CrossReference(
-                                        skill_name=em.skill_name,
-                                        frequency=em.frequency,
-                                        discipline=dn,
-                                    ))
-                                    found = True
-                                    break
-                        if not found:
-                            for dn, dskills in discipline_skill_map.items():
-                                if dn == discipline_name:
-                                    continue
-                                if em.skill_name in dskills:
-                                    cross_refs.append(CrossReference(
-                                        skill_name=em.skill_name,
-                                        frequency=em.frequency,
-                                        discipline=dn,
-                                    ))
-                                    found = True
-                                    break
-                        if not found:
-                            for dn, dskills in discipline_skill_map.items():
-                                if dn == discipline_name:
-                                    continue
-                                for rn in dskills:
-                                    if (self.matcher._word_match(em.skill_name, rn)
+                            if em_norm in dskills:
+                                evidenced.append(dn)
+                                continue
+                            # No length guard: the evidence requirement itself is the
+                            # guard. Short tokens ("sql") with a real whole-word trace
+                            # are true positives; without any trace nothing fires.
+                            for rn in dskills:
+                                if (self.matcher._word_match(em.skill_name, rn)
                                         or self.matcher._word_match(rn, em.skill_name)):
-                                        cross_refs.append(CrossReference(
-                                            skill_name=em.skill_name,
-                                            frequency=em.frequency,
-                                            discipline=dn,
-                                        ))
-                                        found = True
-                                        break
-                                if found:
+                                    evidenced.append(dn)
                                     break
+                        if evidenced:
+                            best_dn = evidenced[0]
+                            if len(evidenced) > 1:
+                                scored: list[tuple[float, str]] = []
+                                for dn in evidenced:
+                                    disc_emb = self._discipline_scorer.get_discipline_embedding(dn)
+                                    if disc_emb is not None:
+                                        scored.append((float(np.dot(sk_emb, disc_emb)), dn))
+                                if scored:
+                                    scored.sort(key=lambda t: -t[0])
+                                    best_dn = scored[0][1]
+                            cross_refs.append(CrossReference(
+                                skill_name=em.skill_name,
+                                frequency=em.frequency,
+                                discipline=best_dn,
+                            ))
                 truly_raw = self.matcher.get_emerging(
                     direction_rpd_norm, top_n=10,
                 )
