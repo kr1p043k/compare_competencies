@@ -180,11 +180,13 @@ class CurriculumRecommender:
             matched_cats: set[str] = set()
             for _nm in matched_names:
                 matched_cats.update(self._cats_of(_nm))
+            refs_all = _vocab_refs(matched_names, getattr(cooc, "vocab", None)) if cooc is not None else set()
             ranked: list = []
             for m in coverage.truly_missing:
                 cats = self._cats_of(m.skill_name)
                 shared = cats & matched_cats
-                if not matched_cats or not shared:
+                self_hit = (m.skill_name or "").strip().lower() in refs_all
+                if not matched_cats or (not shared and not self_hit):
                     continue
                 ranked.append((len(shared), getattr(m, "frequency", 0) or 0, m, shared))
             ranked.sort(key=lambda z: (z[0], z[1]), reverse=True)
@@ -193,13 +195,22 @@ class CurriculumRecommender:
             for n_shared, freq, m, shared in ranked:
                 pri = "high" if n_shared >= 2 and freq >= 1000 else "medium"
                 reason = ", ".join(sorted(shared))
-                refs = _vocab_refs(matched_names, getattr(cooc, "vocab", None)) if cooc is not None else set()
-                if refs:
-                    lk = cooc.link(m.skill_name, refs)
+                cooc_obj = cooc if cooc is not None else None
+                partners = cooc_obj.top_partners(m.skill_name, 3) if cooc_obj is not None else []
+                if partners:
+                    reason = reason + "; в вакансиях рядом: " + ", ".join(partners)
+                cand_low = (m.skill_name or "").strip().lower()
+                if refs_all and cand_low not in refs_all:
+                    lk = cooc.link(m.skill_name, refs_all)
                     if freq >= 20 and lk < 0.03:
-                        logger.info("rec_dropped_weaklink", discipline=coverage.discipline_name,
-                                    skill=m.skill_name, link=round(lk, 4))
-                        continue
+                        rescued = any(
+                            cooc.cond(m.skill_name, r) >= 0.03 and cooc.freq.get(r, 0) >= 5
+                            for r in refs_all
+                        )
+                        if not rescued:
+                            logger.info("rec_dropped_weaklink", discipline=coverage.discipline_name,
+                                        skill=m.skill_name, link=round(lk, 4))
+                            continue
                 recs.append(Recommendation(
                     type="add_new_content", priority=pri, skill_name=m.skill_name,
                     message=(

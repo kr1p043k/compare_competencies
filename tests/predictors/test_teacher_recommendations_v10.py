@@ -118,16 +118,68 @@ def test_stronglink_keeps_candidate_with_reason():
     recs = r.generate(cov, cooc=co).ok()
     adds = [x for x in recs if x.type == "add_new_content"]
     assert len(adds) == 1 and adds[0].skill_name == "индексы"
+    assert "рядом" in adds[0].message and "python" in adds[0].message
     assert "смежно" in adds[0].message
 
-def test_stronglink_keeps_candidate_with_reason():
+def test_reverse_link_rescues_niche_ref():
+    # docker huge (forward < 0.03) but niche tcp loyal to it: P(docker|tcp) = 1.0
+    sets = [["docker", "kubernetes"]] * 400 + [["tcp", "docker"]] * 6
+    co = SkillCooccurrence().build(sets, vocab={"docker", "kubernetes", "tcp", "linux"})
+    assert co.link("docker", ["linux", "tcp"]) < 0.03
+    assert co.cond("docker", "tcp") == 1.0
     r = _rec()
-    co = SkillCooccurrence().build([["индексы", "python"], ["индексы", "sql"]])
-    _, cov = _math_coverage()
+    cov = DisciplineCoverage(
+        discipline_id="t1",
+        discipline_name="Test networks",
+        top_matched=[SkillMatch("администрирование linux сетей tcp", 50)],
+        gaps_list=[],
+        truly_missing=[SkillMatch("docker", 500)],
+        cross_references=[],
+        competencies=[],
+        coverage_ratio=0.9,
+    )
     recs = r.generate(cov, cooc=co).ok()
-    adds = [x for x in recs if x.type == "add_new_content"]
-    assert len(adds) == 1 and adds[0].skill_name == "индексы"
-    assert "смежно" in adds[0].message
+    assert [x.skill_name for x in recs if x.type == "add_new_content"] == ["docker"]
+
+
+def test_reverse_link_zero_still_drops():
+    sets = [["docker", "kubernetes"]] * 400 + [["tcp", "git"]] * 6
+    co = SkillCooccurrence().build(
+        sets, vocab={"docker", "kubernetes", "tcp", "git", "linux"}
+    )
+    r = _rec()
+    cov = DisciplineCoverage(
+        discipline_id="t1",
+        discipline_name="Test networks",
+        top_matched=[SkillMatch("администрирование linux сетей tcp", 50)],
+        gaps_list=[],
+        truly_missing=[SkillMatch("docker", 500)],
+        cross_references=[],
+        competencies=[],
+        coverage_ratio=0.9,
+    )
+    recs = r.generate(cov, cooc=co).ok()
+    assert [x for x in recs if x.type == "add_new_content"] == []
+
+
+def test_self_mentioned_candidate_bypasses_gate():
+    # discipline names tcp but does not teach it: mentioned-in-passing -> keep
+    co = SkillCooccurrence().build(
+        [["docker", "kubernetes"]], vocab={"docker", "kubernetes", "tcp", "linux"}
+    )
+    r = _rec()
+    cov = DisciplineCoverage(
+        discipline_id="t1",
+        discipline_name="Test networks",
+        top_matched=[SkillMatch("администрирование linux сетей tcp", 50)],
+        gaps_list=[],
+        truly_missing=[SkillMatch("tcp", 100)],
+        cross_references=[],
+        competencies=[],
+        coverage_ratio=0.9,
+    )
+    recs = r.generate(cov, cooc=co).ok()
+    assert [x.skill_name for x in recs if x.type == "add_new_content"] == ["tcp"]
 
 
 def test_single_char_crossref_dropped():

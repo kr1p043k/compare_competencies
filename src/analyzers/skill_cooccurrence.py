@@ -54,6 +54,11 @@ class SkillCooccurrence:
                 best = p
         return best
 
+    def top_partners(self, skill: str, n: int = 3) -> list:
+        """Top-n co-occurring skills by pair count (for sense context, v13)."""
+        s = (skill or "").strip().lower()
+        return list(self.top.get(s, {}).keys())[:n]
+
     def to_cache(self) -> dict:
         payload = {"freq": self.freq, "top": self.top}
         if self.vocab is not None:

@@ -36,7 +36,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 11  # cross-ref attribution + anchor + add_new fixes
+CODE_VERSION = 13  # cross-ref attribution + anchor + add_new fixes
 
 
 def _safe_filename(name: str) -> str:
@@ -320,7 +320,7 @@ async def run_teacher_analysis(
     # Skill co-occurrence for polysemy filter: P(ref | skill) over vacancies (v10).
     from src.analyzers.skill_cooccurrence import SkillCooccurrence
     _cooc: SkillCooccurrence | None = None
-    _cooc_key = "teacher_cooc_v1"
+    _cooc_key = "teacher_cooc_v2"
     match _cache_mgr.load(_cooc_key):
         case Ok(cached):
             if isinstance(cached, dict) and cached.get("hash") == _vac_hash and cached.get("cooc"):
