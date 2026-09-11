@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -36,7 +37,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 13  # cross-ref attribution + anchor + add_new fixes
+CODE_VERSION = 21  # cross-ref attribution + anchor + add_new fixes
 
 
 def _safe_filename(name: str) -> str:
@@ -94,6 +95,7 @@ def _enhance_disciplines_with_gap_analysis(
     logger.info("gap_enhance_start", disciplines=len(disciplines), market_skills=len(market_skill_names))
     if not market_skill_names:
         logger.warning("gap_enhance_skipped_no_market_skills")
+        print("TEACHER-ANALYSIS STAGE-SKIP: gap_enhance (no market skills)", file=sys.stderr, flush=True)
         return dir_summary
 
     # — 1. Build EmbeddingComparator with market skills —
@@ -107,6 +109,7 @@ def _enhance_disciplines_with_gap_analysis(
         logger.info("market_embedding_index_built", skills=len(market_skill_names))
     except Exception as exc:
         logger.warning("gap_enhance_skip_embedding", error=str(exc))
+        print(f"TEACHER-ANALYSIS STAGE-SKIP: gap_enhance build failed: {exc}", file=sys.stderr, flush=True)
         return dir_summary
 
     # — 2. Load LTR model for SHAP —
@@ -133,7 +136,7 @@ def _enhance_disciplines_with_gap_analysis(
         disc_skills: list[str] = []
         for skills_list in disc_data["competencies"].values():
             disc_skills.extend(skills_list)
-        disc_skills = list(set(s.lower().strip() for s in disc_skills if s and len(s.strip()) >= 2))
+        disc_skills = sorted({s.lower().strip() for s in disc_skills if s and len(s.strip()) >= 2})
         if not disc_skills:
             continue
 
@@ -277,7 +280,7 @@ async def run_teacher_analysis(
         "SELECT MD5(COALESCE(MAX(created_at)::text, '0')) FROM vacancies "
         "WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0"
     )
-    _cache_key = "teacher_market_skills_v2"
+    _cache_key = "teacher_market_skills_v3"
     match _cache_mgr.load(_cache_key):
         case Ok(cached):
             if isinstance(cached, dict) and cached.get("hash") == _vac_hash:
@@ -293,7 +296,7 @@ async def run_teacher_analysis(
                    WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0
                      AND NULLIF(TRIM(value), '') IS NOT NULL
                    GROUP BY LOWER(TRIM(value))
-                   ORDER BY frequency DESC"""
+                   ORDER BY frequency DESC, skill ASC"""
             )
             for r in vrows:
                 market_skills[r["skill"]] = r["frequency"]
@@ -313,6 +316,12 @@ async def run_teacher_analysis(
 
         _cache_mgr.save(_cache_key, {"hash": _vac_hash, "skills": market_skills, "count": vac_count})
 
+    _dirty = [k for k in market_skills if not (k or "").strip()]
+    for k in _dirty:
+        market_skills.pop(k, None)
+    if _dirty:
+        logger.info("market_skills_sanitized", dropped=len(_dirty))
+        print(f"TEACHER-ANALYSIS SANITIZED market skills: dropped {len(_dirty)} empty keys", file=sys.stderr, flush=True)
     if not market_skills:
         logger.warning("no_market_skills_found")
     logger.info("market_skills_loaded", count=len(market_skills), from_vacancies=vac_count)
@@ -320,7 +329,7 @@ async def run_teacher_analysis(
     # Skill co-occurrence for polysemy filter: P(ref | skill) over vacancies (v10).
     from src.analyzers.skill_cooccurrence import SkillCooccurrence
     _cooc: SkillCooccurrence | None = None
-    _cooc_key = "teacher_cooc_v2"
+    _cooc_key = "teacher_cooc_v3"
     match _cache_mgr.load(_cooc_key):
         case Ok(cached):
             if isinstance(cached, dict) and cached.get("hash") == _vac_hash and cached.get("cooc"):
@@ -331,9 +340,9 @@ async def run_teacher_analysis(
                     logger.warning("cooc_cache_corrupt", error=str(exc))
     if _cooc is None:
         try:
-            _vrows = await pool.fetch("SELECT parsed_skills FROM vacancies WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0")
+            _vrows = await pool.fetch("SELECT parsed_skills FROM vacancies WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0 ORDER BY id")
             import json as _json
-            _vocab = {s for s, _ in sorted(market_skills.items(), key=lambda x: -x[1])[:500]}
+            _vocab = {s for s, _ in sorted(market_skills.items(), key=lambda x: (-x[1], x[0]))[:500]}
             _sets = []
             for _vr in _vrows:
                 _ps = _vr["parsed_skills"]
@@ -390,15 +399,15 @@ async def run_teacher_analysis(
             disciplines[dn] = {"id": str(r["disc_id"]), "competencies": {}}
         cc = r["comp_code"]
         if cc not in disciplines[dn]["competencies"]:
-            disciplines[dn]["competencies"][cc] = set()
+            disciplines[dn]["competencies"][cc] = {}
         if r["skill_name"]:
-            disciplines[dn]["competencies"][cc].add(r["skill_name"])
+            disciplines[dn]["competencies"][cc][r["skill_name"]] = None
         if r["ksa_text"] and _is_skill_like_ksa(r["ksa_text"]):
-            disciplines[dn]["competencies"][cc].add(r["ksa_text"])
-    # Convert sets to lists for downstream
+            disciplines[dn]["competencies"][cc][r["ksa_text"]] = None
+    # Preserve DB (ORDER BY) insertion order for downstream (v15: set broke determinism)
     for dn in disciplines:
         for cc in disciplines[dn]["competencies"]:
-            disciplines[dn]["competencies"][cc] = list(disciplines[dn]["competencies"][cc])
+            disciplines[dn]["competencies"][cc] = list(disciplines[dn]["competencies"][cc].keys())
 
     if not disciplines:
         logger.error("no_disciplines_loaded", direction=direction_code)
@@ -607,8 +616,8 @@ async def run_teacher_analysis(
         # — KSA context analysis: check which market skills are mentioned in raw KSA —
         # Optimized: only check top 500 market skills (by frequency) for speed
         ksa_context: dict[str, dict] = {}  # {comp_code: {mentioned: [...], missing: [...]}}
-        top_market_skills = {s for s, _ in sorted(market_skills.items(), key=lambda x: -x[1])[:500]}
-        top_market_list = sorted(top_market_skills, key=lambda s: -market_skills.get(s, 0))
+        top_market_skills = {s for s, _ in sorted(market_skills.items(), key=lambda x: (-x[1], x[0]))[:500]}
+        top_market_list = sorted(top_market_skills, key=lambda s: (-market_skills.get(s, 0), s))
 
         _mention_pats = {sk: re.compile(r"(?<!\w)" + re.escape(sk) + r"(?!\w)")
                            for sk in top_market_skills}
@@ -668,7 +677,7 @@ async def run_teacher_analysis(
         # сортируем по релевантности ЭТОЙ дисциплине и режем до 5.
         adds = [r for r in filtered if r.type == "add_new_content"]
         if len(adds) > 5:
-            adds_sorted = sorted(adds, key=lambda r: -rel_map.get(r.skill_name or "", 0.0))
+            adds_sorted = sorted(adds, key=lambda r: (-rel_map.get(r.skill_name or "", 0.0), r.skill_name or ""))
             keep_ids = {id(r) for r in adds_sorted[:5]}
             filtered = [r for r in filtered
                         if r.type != "add_new_content" or id(r) in keep_ids]
@@ -776,6 +785,7 @@ async def run_teacher_analysis(
                     discipline_reports.append(res)
             except Exception as e:
                 logger.error("discipline_parallel_failed", discipline=dname, error=str(e))
+                print(f"TEACHER-ANALYSIS DISCIPLINE-FAILED (stale file kept): {dname}: {e}", file=sys.stderr, flush=True)
 
     # — enhanced gap analysis (embedding + LTR/SHAP) —
     try:
@@ -793,7 +803,10 @@ async def run_teacher_analysis(
         )
     except Exception as exc:
         logger.warning("enhanced_gap_analysis_skipped", error=str(exc))
+        print(f"TEACHER-ANALYSIS STAGE-SKIP: enhanced gap analysis: {exc}", file=sys.stderr, flush=True)
 
+    # Completion order varies across runs: sort for deterministic summary (v18).
+    discipline_reports.sort(key=lambda item: item[0])
     if not discipline_reports:
         logger.error("no_disciplines_analyzed")
         await _fail_pipeline_run(run_id, "analysis: no disciplines were successfully analyzed")

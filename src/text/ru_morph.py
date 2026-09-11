@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import re
+import threading
 
 _WORD = re.compile(r"\w+", flags=re.UNICODE)
 
 _analyzer = None
 _analyzer_failed = False
 _token_cache: dict[str, str] = {}
+_MORPH_LOCK = threading.RLock()
 
 
 def get_analyzer():
@@ -32,18 +34,19 @@ def lemma(token: str) -> str:
     t = (token or "").lower()
     if not t:
         return ""
-    hit = _token_cache.get(t)
-    if hit is not None:
-        return hit
-    out = t
-    analyzer = get_analyzer()
-    if analyzer is not None:
-        try:
-            out = analyzer.parse(t)[0].normal_form
-        except Exception:
-            out = t
-    _token_cache[t] = out
-    return out
+    with _MORPH_LOCK:
+        hit = _token_cache.get(t)
+        if hit is not None:
+            return hit
+        out = t
+        analyzer = get_analyzer()
+        if analyzer is not None:
+            try:
+                out = analyzer.parse(t)[0].normal_form
+            except Exception:
+                out = t
+        _token_cache[t] = out
+        return out
 
 
 def lemmas(text: str) -> list[str]:

@@ -69,6 +69,7 @@ class SkillCooccurrence:
     def from_cache(cls, payload: dict):
         obj = cls()
         obj.freq = dict(payload.get("freq", {}))
-        obj.top = {s: dict(v) for s, v in payload.get("top", {}).items()}
-        obj.vocab = set(payload["vocab"]) if payload.get("vocab") else None
+        obj.top = {s: {o: c for o, c in v.items() if (o or "").strip()}
+                   for s, v in payload.get("top", {}).items() if (s or "").strip()}
+        obj.vocab = {s for s in payload["vocab"] if (s or "").strip()} if payload.get("vocab") else None
         return obj

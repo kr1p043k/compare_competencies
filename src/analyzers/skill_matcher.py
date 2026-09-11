@@ -75,7 +75,7 @@ class SkillMatcher:
         if not market_skills:
             logger.warning("market_skills_empty")
             return Err(MatchingError(skill_name="", message="Empty market skills map"))
-        self.market_skills = market_skills
+        self.market_skills = dict(sorted(market_skills.items(), key=lambda kv: (-kv[1], kv[0])))
         self._semantic_cache.clear()
         self._match_cache.clear()
         self._rebuild_fuzzy_patterns()
@@ -264,7 +264,9 @@ class SkillMatcher:
         excl_pats = [(_word_pattern(r)) for r in also_exclude] if also_exclude else []
 
         result = []
-        for mn, mf in sorted(self.market_skills.items(), key=lambda x: -x[1]):
+        for mn, mf in sorted(self.market_skills.items(), key=lambda x: (-x[1], x[0])):
+            if not (mn or "").strip():
+                continue
             if mn in rpd_normalized:
                 continue
             if also_exclude and mn in also_exclude:

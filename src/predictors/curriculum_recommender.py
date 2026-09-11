@@ -259,6 +259,7 @@ class CurriculumRecommender:
                 recs.append(Recommendation(
                     type="review_content",
                     priority="medium",
+                    skill_name=cc.code,
                     message=(
                         f"Компетенция «{cc.code}» имеет 0% покрытие рынком"
                         f" — рекомендуется наполнить её востребованными навыками."

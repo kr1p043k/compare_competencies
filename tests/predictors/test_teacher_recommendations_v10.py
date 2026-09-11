@@ -200,6 +200,14 @@ def test_declension_dupes_folded():
     assert "похожих формулировок" in reviews[0].message
 
 
+def test_phantom_empty_skill_never_emerges():
+    from src.analyzers.skill_matcher import SkillMatcher
+    m = SkillMatcher(market_skills={'': 5442, 'sql': 3519, 'linux': 3020})
+    res = m.get_emerging(set(), top_n=10).unwrap()
+    assert all(s.strip() for s, _, _ in res)
+    assert res[0][0] == 'sql'
+
+
 def test_validator_invariants():
     r = _rec()
     cov = DisciplineCoverage(
