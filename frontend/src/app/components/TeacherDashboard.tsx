@@ -113,6 +113,9 @@ export function TeacherDashboard() {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends">("coverage");
   const [showAddForm, setShowAddForm] = useState(false);
+  const [zunForm, setZunForm] = useState<{ compId: string; ksaType: string; text: string } | null>(null);
+  const [zunMsg, setZunMsg] = useState("");
+  const [zunSaving, setZunSaving] = useState(false);
   const [selectedCompetency, setSelectedCompetency] = useState("");
   const [runLoading, setRunLoading] = useState(false);
   const [runMsg, setRunMsg] = useState("");
@@ -303,6 +306,25 @@ export function TeacherDashboard() {
     } catch (e: any) {
       setRpdMsg("Ошибка: " + e.message);
       setRpdCollecting(false);
+    }
+  }
+
+  async function addZunEntry() {
+    if (!selected || !zunForm || !zunForm.text.trim() || zunSaving) return;
+    setZunSaving(true);
+    setZunMsg("");
+    try {
+      await api(`/teacher/zun/competencies/${zunForm.compId}/entries`, {
+        method: "POST",
+        body: JSON.stringify({ ksa_type: zunForm.ksaType, text: zunForm.text.trim() }),
+      });
+      setZunForm(null);
+      setZunMsg("ЗУН добавлен. Учтётся при следующем пересчёте анализа.");
+      await loadDiscipline(selected.name);
+    } catch (e: any) {
+      setZunMsg("Ошибка: " + (e.message || "не удалось сохранить"));
+    } finally {
+      setZunSaving(false);
     }
   }
 
@@ -932,11 +954,58 @@ export function TeacherDashboard() {
                   <span className="font-semibold text-sm text-purple-600">
                     {comp.code}
                   </span>
+                  <button
+                    onClick={() => { setZunForm({ compId: comp.id, ksaType: "skills", text: "" }); setZunMsg(""); }}
+                    className="ml-auto text-xs text-purple-600 hover:text-purple-800 border-0 bg-transparent cursor-pointer"
+                    title="Добавить пункт (знание / умение / навык) в эту компетенцию"
+                  >
+                    + ЗУН
+                  </button>
                   <span className="text-xs text-gray-400">
                     {total} {plural(total, "навык", "навыка", "навыков")}
                   </span>
                 </div>
                 <div className="px-4 py-2">
+                {zunForm && zunForm.compId === comp.id && (
+                  <div className="mb-2 rounded-lg border border-purple-200 bg-purple-50 p-2">
+                    <div className="flex gap-2 mb-2">
+                      <select
+                        value={zunForm.ksaType}
+                        onChange={(e) => setZunForm({ ...zunForm, ksaType: e.target.value })}
+                        className="text-xs border border-gray-300 rounded-md px-2 py-1 bg-white"
+                      >
+                        <option value="knowledge">Знания</option>
+                        <option value="abilities">Умения</option>
+                        <option value="skills">Навыки</option>
+                      </select>
+                      <button
+                        onClick={() => setZunForm(null)}
+                        className="text-xs text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer"
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                    <textarea
+                      value={zunForm.text}
+                      onChange={(e) => setZunForm({ ...zunForm, text: e.target.value })}
+                      rows={3}
+                      maxLength={2000}
+                      placeholder="Текст пункта: знание, умение или навык…"
+                      className="w-full text-xs border border-gray-300 rounded-md px-2 py-1 mb-2"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={addZunEntry}
+                        disabled={zunSaving || !zunForm.text.trim()}
+                        className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors cursor-pointer border-0 disabled:opacity-50"
+                      >
+                        {zunSaving ? "Сохранение…" : "Добавить"}
+                      </button>
+                      {zunMsg && <span className="text-xs text-gray-600">{zunMsg}</span>}
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-1">Пункт попадёт в анализ при следующем пересчёте.</div>
+                  </div>
+                )}
                   {total === 0 ? (
                     <div className="text-xs text-gray-400">Навыки не извлечены</div>
                   ) : hasGroups ? (
