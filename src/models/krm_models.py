@@ -379,7 +379,7 @@ class StudentSkill(Base):
     achieved_level: Mapped[Optional[str]] = mapped_column(String(10))
     direction_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("directions.id", ondelete="SET NULL"))
     competency_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="SET NULL"))
-    assessed_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc))
+    assessed_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
 
     student: Mapped["Student"] = relationship(back_populates="skills")
@@ -404,8 +404,8 @@ class Session(Base):
     token_hash: Mapped[str] = mapped_column(Text, nullable=False)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45))
     user_agent: Mapped[Optional[str]] = mapped_column(Text)
-    logged_in_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc))
-    last_activity: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc))
+    logged_in_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    last_activity: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
     logged_out_at: Mapped[Optional[datetime]]
     sso_token: Mapped[Optional[str]] = mapped_column(Text)
 
@@ -446,7 +446,7 @@ class CoverageAnalysis(Base):
     total_skills: Mapped[int] = mapped_column(Integer, default=0)
     market_matched_skills: Mapped[int] = mapped_column(Integer, default=0)
     coverage_ratio: Mapped[float] = mapped_column(Float, default=0.0)
-    analysis_date: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc))
+    analysis_date: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
 
     discipline: Mapped["Discipline"] = relationship(back_populates="coverage_analyses")
 
@@ -460,14 +460,14 @@ class PipelineRun(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="started")
-    started_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc))
+    started_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
     completed_at: Mapped[Optional[datetime]]
     error_message: Mapped[Optional[str]] = mapped_column(Text)
     stats: Mapped[Optional[dict]] = mapped_column(sa.JSON())
 
     __table_args__ = (
-        CheckConstraint(action.in_(["full-cycle", "rebuild", "train-clusters", "train-model", "gap-analysis", "teacher-analysis", "data-collection"]), name="ck_pr_action"),
-        CheckConstraint(status.in_(["started", "completed", "failed"]), name="ck_pr_status"),
+        CheckConstraint(action.in_(["full-cycle", "rebuild", "train-clusters", "train-model", "gap-analysis", "teacher-analysis", "data-collection", "rpd-import"]), name="ck_pr_action"),
+        CheckConstraint(status.in_(["started", "completed", "failed", "cancelled"]), name="ck_pr_status"),
     )
 
 
