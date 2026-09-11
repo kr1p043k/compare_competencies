@@ -118,6 +118,8 @@ export function TeacherDashboard() {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends">("coverage");
   const [showAddForm, setShowAddForm] = useState(false);
+  const [seedMsg, setSeedMsg] = useState("");
+  const [seedLoading, setSeedLoading] = useState(false);
   const [zunForm, setZunForm] = useState<{ compId: string; ksaType: string; text: string } | null>(null);
   const [zunMsg, setZunMsg] = useState("");
   const [zunSaving, setZunSaving] = useState(false);
@@ -366,6 +368,21 @@ export function TeacherDashboard() {
       setZunMsg("Ошибка: " + (e.message || "не удалось удалить"));
     } finally {
       setZunSaving(false);
+    }
+  }
+
+  async function seedAutoRecs() {
+    setSeedLoading(true);
+    setSeedMsg("");
+    try {
+      const r = await api(`/teacher/krm/recommendations/seed/auto?dir_code=${selectedDir}`, { method: "POST" });
+      const data = await api("/teacher/krm/recommendations");
+      setRecs(data);
+      setSeedMsg(`Добавлено ${r.seeded} авторекомендаций (ручные не тронуты).`);
+    } catch (e: any) {
+      setSeedMsg("Ошибка: " + (e.message || "не удалось заполнить"));
+    } finally {
+      setSeedLoading(false);
     }
   }
 
@@ -1099,11 +1116,20 @@ export function TeacherDashboard() {
                 </div>
                 <h3 className="text-sm font-semibold text-gray-900">Recommendations</h3>
                 <span className="text-xs text-gray-400">({recs.filter((r) => r.discipline_id === selected?.name).length})</span>
+                {seedMsg && <span className="text-xs text-gray-500">{seedMsg}</span>}
                 <button
                   onClick={() => setShowAddForm(!showAddForm)}
                   className="ml-auto text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors cursor-pointer border-0"
                 >
                   {showAddForm ? "Cancel" : "Add Recommendation"}
+                </button>
+                <button
+                  onClick={seedAutoRecs}
+                  disabled={seedLoading}
+                  title="Заполнить панель топ-рекомендациями из автоанализа (ручные сохранятся)"
+                  className="text-xs bg-white text-purple-700 border border-purple-300 px-3 py-1.5 rounded-lg hover:bg-purple-50 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {seedLoading ? "Заполнение…" : "Заполнить из анализа"}
                 </button>
               </div>
               {showAddForm && (

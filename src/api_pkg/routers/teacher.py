@@ -308,6 +308,55 @@ async def krm_delete_recommendation(request: Request, index: int):
     return {"status": "ok"}
 
 
+@router.post("/teacher/krm/recommendations/seed/auto")
+@limiter.limit("10/minute")
+async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03.02",
+                                        per_discipline: int = 3):
+    """Seed curated store with top auto-generated recommendations (idempotent)."""
+    import re
+    if not re.match(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$", dir_code):
+        raise HTTPException(status_code=400, detail="Invalid direction code format")
+    per_discipline = max(1, min(int(per_discipline), 10))
+    base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher"
+    resolved = (base / dir_code).resolve()
+    if base.resolve() not in resolved.parents:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if not resolved.is_dir():
+        raise HTTPException(404, f"Analysis not found for {dir_code}")
+    prio = {"high": 0, "medium": 1, "low": 2}
+    type_rank = {"major_revision": -1, "add_new_content": 0, "cross_reference": 1,
+                 "review_content": 2, "foundational": 3}
+    seeded: list = []
+    for sub in sorted(resolved.iterdir()):
+        if not sub.is_dir() or sub.name.startswith("_"):
+            continue
+        files = list(sub.glob("*.json"))
+        if not files:
+            continue
+        try:
+            disc = json.loads(files[0].read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        recs = [r for r in (disc.get("recommendations") or [])
+                if (r.get("message") or "").strip()]
+        recs.sort(key=lambda r: (prio.get(r.get("priority"), 9),
+                                 type_rank.get(r.get("type"), 9),
+                                 -(r.get("skill") and len(r.get("skill")) or 0)))
+        dname = disc.get("discipline", sub.name)
+        for r in recs[:per_discipline]:
+            seeded.append({"discipline_id": dname, "competency_id": None,
+                           "suggestion": r["message"], "suggestion_type": "auto"})
+    store = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
+    if not isinstance(store, list):
+        store = []
+    kept = [r for r in store if r.get("suggestion_type") != "auto"]
+    removed = len(store) - len(kept)
+    kept.extend(seeded)
+    _save_json(config.TEACHER_RECOMMENDATIONS_PATH, kept)
+    return {"status": "ok", "seeded": len(seeded),
+            "removed_auto": removed, "total": len(kept)}
+
+
 # ---------- DB-backed coverage analysis ----------
 
 
