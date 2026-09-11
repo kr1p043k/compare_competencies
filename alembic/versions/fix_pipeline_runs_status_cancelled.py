@@ -8,7 +8,7 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "fix_pipeline_runs_status_cancelled"
+revision: str = "fix_pipeline_cancelled"
 down_revision: Union[str, None] = "add_rpd_import_action"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
