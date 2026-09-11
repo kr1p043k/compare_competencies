@@ -37,7 +37,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 21  # cross-ref attribution + anchor + add_new fixes
+CODE_VERSION = 24  # cross-ref attribution + anchor + add_new fixes
 
 
 def _safe_filename(name: str) -> str:
@@ -658,7 +658,12 @@ async def run_teacher_analysis(
             mentioned_all.update(m.lower() for m in _ctx.get("mentioned_in_ksa", []))
         for r in recs:
             skill = r.skill_name or r.type
-            unrelated = scorer_ok and rel_map.get(skill, 0.0) < 0.15
+            strict_profile = (
+                _discipline_scorer is not None
+                and not _discipline_scorer.has_full_profile(dname)
+            )
+            drop_thr = 0.30 if strict_profile else 0.15
+            unrelated = scorer_ok and rel_map.get(skill, 0.0) < drop_thr
             if unrelated and r.type in ("add_new_content", "cross_reference"):
                 # Семантически чужой навык (напр. linux для БЖД) — не предлагаем вовсе.
                 logger.info("rec_dropped_unrelated", discipline=dname, skill=skill, type=r.type)
@@ -708,6 +713,8 @@ async def run_teacher_analysis(
             "metrics": {
                 "total_rpd_skills": coverage.total_skills,
                 "market_matched": coverage.market_matched,
+                "strong_matched": coverage.strong_matched,
+                "strong_coverage": coverage.strong_coverage,
                 "gaps": coverage.gaps,
                 "coverage_ratio": coverage.coverage_ratio,
                 "weighted_coverage": coverage.weighted_coverage,
@@ -846,6 +853,7 @@ async def run_teacher_analysis(
         disciplines=[
             {"name": dn, "coverage_ratio": r.discipline.coverage_ratio,
              "weighted_coverage": r.discipline.weighted_coverage,
+             "strong_coverage": r.discipline.strong_coverage,
              "coverage_level": r.discipline.coverage_level,
              "gaps": r.discipline.gaps, "emerging": len(r.discipline.emerging)}
             for dn, r in discipline_reports

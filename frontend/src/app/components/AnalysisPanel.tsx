@@ -11,6 +11,7 @@ interface CompetencyCov {
   matched_skills: number;
   coverage: number;
   weighted_coverage?: number;
+  strong_coverage?: number;
 }
 
 interface Rec {
@@ -29,6 +30,7 @@ interface DisciplineAnalysis {
     gaps: number;
     coverage_ratio: number;
     weighted_coverage?: number;
+    strong_coverage?: number;
     coverage_level: string;
     top_market_matched_skills: { skill: string; frequency: number; match_type: string }[];
     gaps_in_curriculum: string[];
@@ -76,6 +78,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
   const { metrics, competencies, recommendations } = data;
   const cov = metrics.coverage_ratio;
   const wcov = metrics.weighted_coverage;
+  const scov = metrics.strong_coverage;
 
   return (
     <div className="space-y-4 mt-6">
@@ -98,7 +101,11 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
               <div>
                 <div className="text-xs text-gray-500">Взвешенное покрытие</div>
                 <div className="text-2xl font-bold text-indigo-600">
-                  {(wcov * 100).toFixed(1)}%
+              {scov !== undefined && (
+              <div>
+                <div className="text-xs text-gray-500">Сильное покрытие</div>
+                <div className="text-2xl font-bold text-emerald-600">
+                  {(scov * 100).toFixed(1)}%
                 </div>
               </div>
             )}

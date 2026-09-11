@@ -114,6 +114,7 @@ class CoverageAnalyzer:
             ))
 
         all_rpd: list[str] = []
+        strong_total = 0
         comp_results: list[CompetencyCoverage] = []
 
         for ccode, skills in competencies.items():
@@ -126,10 +127,12 @@ class CoverageAnalyzer:
                 if match_result.is_err():
                     logger.warning("skill_match_failed", skill=s)
                     continue
-                m, _, conf = match_result.unwrap()
+                m, mtype, conf = match_result.unwrap()
                 if m:
                     comp_matched += 1
                     comp_weighted += conf
+                    if mtype in ("exact", "fuzzy"):
+                        strong_total += 1
                 else:
                     comp_gaps.append(s)
             n = len(skills)
@@ -303,6 +306,8 @@ class CoverageAnalyzer:
             market_matched=len(matched_list),
             gaps=len(gaps_list),
             coverage_ratio=ratio,
+            strong_matched=strong_total,
+            strong_coverage=round(strong_total / total, 4) if total else 0,
             weighted_coverage=weighted,
             coverage_level=coverage_level(ratio),
             top_matched=deduped_top,

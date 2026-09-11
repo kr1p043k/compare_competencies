@@ -208,6 +208,111 @@ def test_phantom_empty_skill_never_emerges():
     assert res[0][0] == 'sql'
 
 
+def test_crossref_dropped_without_taxonomy_overlap():
+    # БЖД case: git {DevOps} vs math-matched discipline -> dropped at source
+    from src.models.teacher_analysis import CrossReference, DisciplineCoverage, SkillMatch
+    from src.predictors.curriculum_recommender import CurriculumRecommender
+    r = CurriculumRecommender()
+    assert not (r._cats_of("git") & r._cats_of("теория вероятностей"))
+    cov = DisciplineCoverage(
+        discipline_id="t1", discipline_name="Test Life Safety",
+        top_matched=[SkillMatch("теория вероятностей", 65)],
+        gaps_list=[], truly_missing=[],
+        cross_references=[CrossReference("git", 1817, "Infra DB")],
+        competencies=[], coverage_ratio=0.9,
+    )
+    recs = r.generate(cov).ok()
+    assert [x for x in recs if x.type == "cross_reference"] == []
+
+
+def test_crossref_dropped_when_discipline_uncategorized():
+    # БЖД hole: matched skills with zero taxonomy cats must not emit cross-refs
+    from src.models.teacher_analysis import CrossReference, DisciplineCoverage, SkillMatch
+    from src.predictors.curriculum_recommender import CurriculumRecommender
+    r = CurriculumRecommender()
+    cov = DisciplineCoverage(
+        discipline_id="t1", discipline_name="Test BZhD",
+        top_matched=[SkillMatch("некоторая немаркированная фраза без категории", 5)],
+        gaps_list=[], truly_missing=[],
+        cross_references=[CrossReference("git", 1817, "Infra DB")],
+        competencies=[], coverage_ratio=0.9,
+    )
+    assert r._cats_of("некоторая немаркированная фраза без категории") == set()
+    recs = r.generate(cov).ok()
+    assert [x for x in recs if x.type == "cross_reference"] == []
+
+
+def test_crossref_kept_with_taxonomy_overlap():
+    from src.models.teacher_analysis import CrossReference, DisciplineCoverage, SkillMatch
+    from src.predictors.curriculum_recommender import CurriculumRecommender
+    r = CurriculumRecommender()
+    cov = DisciplineCoverage(
+        discipline_id="t1", discipline_name="Test Python",
+        top_matched=[SkillMatch("python", 3016)],
+        gaps_list=[], truly_missing=[],
+        cross_references=[CrossReference("git", 1817, "Infra DB")],
+        competencies=[], coverage_ratio=0.9,
+    )
+    recs = r.generate(cov).ok()
+    assert [x.skill_name for x in recs if x.type == "cross_reference"] == ["git"]
+
+
+def test_has_full_profile():
+    from src.analyzers.discipline_relevance import DisciplineAwareScorer
+    sc = DisciplineAwareScorer()
+    assert sc.has_full_profile("Несуществующая дисциплина") is False
+    assert sc.has_full_profile("") is False
+    assert sc.has_full_profile(None) is False
+    sc.load()
+    names = sc.get_discipline_names()
+    assert len(names) > 0
+    assert sc.has_full_profile(names[0]) is True
+
+
+def test_strong_coverage_tiers():
+    from src import Ok
+    from src.analyzers.coverage_analyzer import CoverageAnalyzer
+    from src.analyzers.skill_matcher import SkillMatcher, normalize
+
+    class _Stub(SkillMatcher):
+        def __init__(self, hits):
+            super().__init__(market_skills={'sql': 10, 'docker': 5})
+            self._hits = hits
+
+        def match(self, skill_name):
+            n = normalize(skill_name)
+            if n in self._hits:
+                m, mt, c = self._hits[n]
+                return Ok((m, mt, c))
+            return Ok((None, 'no_match', 0.0))
+
+    stub = _Stub({'sql': ('sql', 'exact', 1.0), 'docker': ('docker', 'fuzzy', 0.5)})
+    cov = CoverageAnalyzer(stub).analyze_discipline(
+        'd1', 'Test Disc', {'K1': ['sql', 'docker', 'длинная формулировка без совпадений']}).unwrap()
+    assert cov.market_matched == 2
+    assert cov.strong_matched == 2
+    assert cov.strong_coverage == round(2 / 3, 4)
+
+
+def test_foundational_near_dupes_folded():
+    from src.models.teacher_analysis import DisciplineCoverage
+    from src.predictors.curriculum_recommender import CurriculumRecommender
+    r = CurriculumRecommender()
+    a = ('отличительных особенностей фундаментальных и пользовательских типов данных'
+         ' и объектов программ, для хранения и обработки информации различного типа')
+    b = ('отличительных особенностей фундаментальных и пользовательских типов данных'
+         ' и объектов программ, используемых для хранения и обработки информации различного типа')
+    cov = DisciplineCoverage(
+        discipline_id='t1', discipline_name='Test Algo',
+        top_matched=[], gaps_list=[a, b], truly_missing=[], cross_references=[],
+        competencies=[], coverage_ratio=0.9,
+    )
+    recs = r.generate(cov).ok()
+    found = [x for x in recs if x.type == 'foundational']
+    assert len(found) == 1
+    assert 'похожих формулировок' in found[0].message
+
+
 def test_validator_invariants():
     r = _rec()
     cov = DisciplineCoverage(

@@ -118,6 +118,10 @@ class DisciplineAwareScorer:
                 logger.warning("discipline_fallback_failed", discipline=discipline_name, error=str(exc))
                 return None
 
+    def has_full_profile(self, discipline_name: str | None) -> bool:
+        """True when the discipline has a KRM skill-text profile (v22)."""
+        return bool(discipline_name) and discipline_name in self._discipline_texts
+
     def compute_relevance(self, skill_name: str, discipline_name: str | None = None) -> DisciplineRelevance:
         if not self._loaded:
             self.load()

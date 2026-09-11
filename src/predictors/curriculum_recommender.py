@@ -155,6 +155,11 @@ class CurriculumRecommender:
             return Err(RecommendationError(message="Coverage data is required"))
 
         recs = []
+        # Discipline profile for relevance gates (v22: shared by add_new + cross_ref).
+        matched_names = [m.skill_name for m in (coverage.top_matched or [])]
+        matched_cats: set[str] = set()
+        for _nm in matched_names:
+            matched_cats.update(self._cats_of(_nm))
 
         # Gaps: RPD skills not found on market — one per skill
         for s in coverage.gaps_list:
@@ -176,10 +181,6 @@ class CurriculumRecommender:
         # областей таксономии, что уже покрытые навыки дисциплины (семантика
         # через области, а не глобальный топ: linux в БЖД сюда не попадает).
         if coverage.truly_missing:
-            matched_names = [m.skill_name for m in (coverage.top_matched or [])]
-            matched_cats: set[str] = set()
-            for _nm in matched_names:
-                matched_cats.update(self._cats_of(_nm))
             refs_all = _vocab_refs(matched_names, getattr(cooc, "vocab", None)) if cooc is not None else set()
             ranked: list = []
             for m in coverage.truly_missing:
@@ -230,6 +231,11 @@ class CurriculumRecommender:
             for cr in coverage.cross_references:
                 if len((cr.skill_name or "").strip()) < 2:
                     continue
+                cr_cats = self._cats_of(cr.skill_name)
+                if not matched_cats or not (cr_cats & matched_cats):
+                    logger.info("rec_dropped_crossref_uncategorized", discipline=coverage.discipline_name,
+                                skill=cr.skill_name)
+                    continue
                 if cr.skill_name in seen:
                     continue
                 seen.add(cr.skill_name)
@@ -279,12 +285,12 @@ class CurriculumRecommender:
             seen.add(key)
             deduped.append(r)
         recs = deduped
-        # fold near-duplicate review_content sharing first 7 words (v9).
+        # fold near-duplicate review/foundational sharing first 7 words (v24).
         groups: dict = {}
         order: list = []
         for r in recs:
-            if r.type == "review_content":
-                gkey = ("review", tuple(_norm_msg(r.message).split()[:7]))
+            if r.type in ("review_content", "foundational"):
+                gkey = ("fold", r.type, tuple(_norm_msg(r.message).split()[:7]))
             else:
                 gkey = ("single", id(r))
             if gkey not in groups:
