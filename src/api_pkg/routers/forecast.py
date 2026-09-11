@@ -20,6 +20,9 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["forecast"])
 limiter = Limiter(key_func=get_remote_address)
 
+_forecast_engine_lock = asyncio.Lock()
+_FORECAST_FIT_TIMEOUT_S = 180
+
 
 def _get_forecast_data() -> dict[str, float]:
     data: dict[str, float] = {}
@@ -45,34 +48,28 @@ async def _get_forecast_engine() -> Result[ProphetForecastEngine | SkillForecast
         return Ok(deps.prophet_engine)
     if deps.skill_engine is not None:
         return Ok(deps.skill_engine)
-    freqs = _get_forecast_data()
-    if not freqs:
-        return Err(DomainError("No frequency data available for forecast"))
-    engine = SkillForecastEngine()
-    result = await asyncio.to_thread(engine.fit, freqs)
-    if isinstance(result, Err):
-        return result
-    deps.skill_engine = engine
-    return Ok(engine)
-
-
-def _get_forecast_data() -> dict[str, float]:
-    data: dict[str, float] = {}
-    freq_path = config.COMPETENCY_FREQ_PATH
-    if freq_path.exists():
-        raw = safe_read_json(freq_path)
-        if isinstance(raw, dict):
-            for k, v in raw.items():
-                if isinstance(v, (int, float)):
-                    data[k] = float(v)
-    weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
-    if weights_path.exists():
-        raw = safe_read_json(weights_path)
-        if isinstance(raw, dict):
-            for k, v in raw.items():
-                if k not in data and isinstance(v, (int, float)):
-                    data[k] = float(v)
-    return data
+    async with _forecast_engine_lock:
+        # Повторная проверка под локом: движок могли собрать параллельный запрос
+        if deps.prophet_engine is not None and deps.prophet_engine.is_fitted:
+            return Ok(deps.prophet_engine)
+        if deps.skill_engine is not None:
+            return Ok(deps.skill_engine)
+        freqs = _get_forecast_data()
+        if not freqs:
+            return Err(DomainError("No frequency data available for forecast"))
+        engine = SkillForecastEngine()
+        try:
+            result = await asyncio.wait_for(asyncio.to_thread(engine.fit, freqs), timeout=_FORECAST_FIT_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            logger.warning("skill_forecast_fit_timeout")
+            return Err(DomainError("Forecast engine fit timed out"))
+        except Exception as e:
+            logger.warning("skill_forecast_fit_failed", error=str(e))
+            return Err(DomainError(f"Forecast engine fit failed: {e}"))
+        if isinstance(result, Err):
+            return result
+        deps.skill_engine = engine
+        return Ok(engine)
 
 
 async def _get_vacancy_meta() -> dict:

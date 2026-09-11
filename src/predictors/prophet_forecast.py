@@ -255,7 +255,7 @@ class ProphetForecastEngine(BasePredictor):
 
         # Parallel Prophet fitting
         if prophet_candidates:
-            with ThreadPoolExecutor(max_workers=4) as pool:
+            with ThreadPoolExecutor(max_workers=2) as pool:
                 futures = {pool.submit(self._fit_prophet_for_skill, s, p): s for s, p in prophet_candidates}
                 for future in as_completed(futures):
                     skill = futures[future]
