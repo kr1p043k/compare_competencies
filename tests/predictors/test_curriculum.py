@@ -161,6 +161,7 @@ class TestCurriculumRecommender:
         mock_load.return_value = {"academic": [], "professional": []}
         rec = CurriculumRecommender()
         coverage = self.make_coverage(
+            top_matched=[SkillMatch(skill_name="Python", frequency=100)],
             cross_references=[
                 CrossReference(skill_name="Docker", frequency=10, discipline="DevOps"),
                 CrossReference(skill_name="Docker", frequency=10, discipline="DevOps"),
