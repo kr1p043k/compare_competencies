@@ -91,8 +91,16 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
         </CardHeader>
         <CardContent className="p-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            {scov !== undefined && (
+              <div>
+                <div className="text-xs text-gray-500">Сильное покрытие</div>
+                <div className="text-2xl font-bold text-emerald-600">
+                  {(scov * 100).toFixed(1)}%
+                </div>
+              </div>
+            )}
             <div>
-              <div className="text-xs text-gray-500">Бинарное покрытие</div>
+              <div className="text-xs text-gray-500">Покрытие с учётом смежных</div>
               <div className="text-2xl font-bold">
                 {(cov * 100).toFixed(1)}%
               </div>
@@ -101,11 +109,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
               <div>
                 <div className="text-xs text-gray-500">Взвешенное покрытие</div>
                 <div className="text-2xl font-bold text-indigo-600">
-              {scov !== undefined && (
-              <div>
-                <div className="text-xs text-gray-500">Сильное покрытие</div>
-                <div className="text-2xl font-bold text-emerald-600">
-                  {(scov * 100).toFixed(1)}%
+                  {(wcov * 100).toFixed(1)}%
                 </div>
               </div>
             )}

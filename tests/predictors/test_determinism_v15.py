@@ -30,5 +30,23 @@ def test_deterministic_across_hash_seeds():
     assert out0 == out1
 
 
+def test_assembler_preserves_row_order_with_null_ties():
+    from src.pipeline.teacher_analysis_runner import _assemble_disciplines
+    rows = [
+        {'disc_id': 'd1', 'disc_name': 'D', 'comp_code': 'K1',
+         'skill_name': None, 'ksa_text': 'второй пункт'},
+        {'disc_id': 'd1', 'disc_name': 'D', 'comp_code': 'K1',
+         'skill_name': 'python', 'ksa_text': None},
+        {'disc_id': 'd1', 'disc_name': 'D', 'comp_code': 'K1',
+         'skill_name': None, 'ksa_text': 'первый пункт'},
+        {'disc_id': 'd1', 'disc_name': 'D', 'comp_code': 'K1',
+         'skill_name': 'второй пункт', 'ksa_text': None},
+    ]
+    out = _assemble_disciplines(rows)
+    assert out['D']['competencies']['K1'] == [
+        'второй пункт', 'python', 'первый пункт',
+    ]
+
+
 def test_deterministic_twice_same_seed():
     assert _run(0) == _run(0)

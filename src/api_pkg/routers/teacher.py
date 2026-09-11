@@ -240,11 +240,14 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
         raise HTTPException(404, f"Discipline '{discipline_name}' not found")
 
     comps = await pool.fetch("""
-        SELECT c.code,
-               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.cleaned_text IS NOT NULL) AS skills,
-               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.ksa_type::text = 'knowledge' AND k.cleaned_text IS NOT NULL) AS knowledge,
-               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.ksa_type::text = 'abilities' AND k.cleaned_text IS NOT NULL) AS abilities,
-               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.ksa_type::text = 'skills' AND k.cleaned_text IS NOT NULL) AS prof_skills
+        SELECT c.id, c.code,
+               ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.cleaned_text IS NOT NULL) AS skills,
+               ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'knowledge' AND k.cleaned_text IS NOT NULL) AS knowledge,
+               ARRAY_AGG(k.id ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'knowledge' AND k.cleaned_text IS NOT NULL) AS knowledge_ids,
+               ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'abilities' AND k.cleaned_text IS NOT NULL) AS abilities,
+               ARRAY_AGG(k.id ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'abilities' AND k.cleaned_text IS NOT NULL) AS abilities_ids,
+               ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'skills' AND k.cleaned_text IS NOT NULL) AS prof_skills,
+               ARRAY_AGG(k.id ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'skills' AND k.cleaned_text IS NOT NULL) AS prof_skills_ids
         FROM competencies c
         LEFT JOIN ksa_entries k ON k.competency_id = c.id
         WHERE c.discipline_id = $1 AND c.parent_id IS NULL
@@ -257,12 +260,13 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
         "dir_code": dir_code,
         "competencies": [
             {
+                "id": str(c["id"]),
                 "code": c["code"],
                 "skills": c["skills"] or [],
                 "ksa": {
-                    "knowledge": c["knowledge"] or [],
-                    "abilities": c["abilities"] or [],
-                    "skills": c["prof_skills"] or [],
+                    "knowledge": [{"id": str(i), "text": t} for i, t in zip(c["knowledge_ids"] or [], c["knowledge"] or [])],
+                    "abilities": [{"id": str(i), "text": t} for i, t in zip(c["abilities_ids"] or [], c["abilities"] or [])],
+                    "skills": [{"id": str(i), "text": t} for i, t in zip(c["prof_skills_ids"] or [], c["prof_skills"] or [])],
                 },
             }
             for c in comps

@@ -37,7 +37,27 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 24  # cross-ref attribution + anchor + add_new fixes
+CODE_VERSION = 27  # cross-ref attribution + anchor + add_new fixes
+
+
+def _assemble_disciplines(drows) -> dict[str, dict]:
+    """Group DB rows into disciplines, preserving row order (v26: total ORDER BY)."""
+    disciplines: dict[str, dict] = {}
+    for r in drows:
+        dn = r["disc_name"]
+        if dn not in disciplines:
+            disciplines[dn] = {"id": str(r["disc_id"]), "competencies": {}}
+        cc = r["comp_code"]
+        if cc not in disciplines[dn]["competencies"]:
+            disciplines[dn]["competencies"][cc] = {}
+        if r["skill_name"]:
+            disciplines[dn]["competencies"][cc][r["skill_name"]] = None
+        if r["ksa_text"] and _is_skill_like_ksa(r["ksa_text"]):
+            disciplines[dn]["competencies"][cc][r["ksa_text"]] = None
+    for dn in disciplines:
+        for cc in disciplines[dn]["competencies"]:
+            disciplines[dn]["competencies"][cc] = list(disciplines[dn]["competencies"][cc].keys())
+    return disciplines
 
 
 def _safe_filename(name: str) -> str:
@@ -383,7 +403,8 @@ async def run_teacher_analysis(
                  LEFT JOIN skills s ON s.id = cs.skill_id AND s.source != 'market'
                 LEFT JOIN ksa_entries k ON k.competency_id = c.id
                 WHERE 1=1{dir_filter}{disc_filter}
-                ORDER BY d2.name, c.code, k.sort_order""",
+                ORDER BY d2.name, c.code, k.sort_order NULLS LAST,
+                         s.name NULLS LAST, k.original_text""",
             *params,
         )
     except Exception as exc:
@@ -392,22 +413,7 @@ async def run_teacher_analysis(
         await close_pool()
         return Err(AnalysisRunnerError(stage="disciplines", message=str(exc)))
 
-    disciplines: dict[str, dict] = {}
-    for r in drows:
-        dn = r["disc_name"]
-        if dn not in disciplines:
-            disciplines[dn] = {"id": str(r["disc_id"]), "competencies": {}}
-        cc = r["comp_code"]
-        if cc not in disciplines[dn]["competencies"]:
-            disciplines[dn]["competencies"][cc] = {}
-        if r["skill_name"]:
-            disciplines[dn]["competencies"][cc][r["skill_name"]] = None
-        if r["ksa_text"] and _is_skill_like_ksa(r["ksa_text"]):
-            disciplines[dn]["competencies"][cc][r["ksa_text"]] = None
-    # Preserve DB (ORDER BY) insertion order for downstream (v15: set broke determinism)
-    for dn in disciplines:
-        for cc in disciplines[dn]["competencies"]:
-            disciplines[dn]["competencies"][cc] = list(disciplines[dn]["competencies"][cc].keys())
+    disciplines = _assemble_disciplines(drows)
 
     if not disciplines:
         logger.error("no_disciplines_loaded", direction=direction_code)
@@ -548,6 +554,11 @@ async def run_teacher_analysis(
                          JOIN disciplines disc ON c.discipline_id = disc.id WHERE disc.direction_id = $1
                        UNION ALL SELECT k.created_at FROM ksa_entries k
                          JOIN competencies c ON k.competency_id = c.id
+                         JOIN disciplines disc ON c.discipline_id = disc.id WHERE disc.direction_id = $1
+                       UNION ALL SELECT k.updated_at FROM ksa_entries k
+                         JOIN competencies c ON k.competency_id = c.id
+                         JOIN disciplines disc ON c.discipline_id = disc.id WHERE disc.direction_id = $1
+                       UNION ALL SELECT c.updated_at FROM competencies c
                          JOIN disciplines disc ON c.discipline_id = disc.id WHERE disc.direction_id = $1
                    ) t""",
                 direction["id"],
@@ -829,6 +840,10 @@ async def run_teacher_analysis(
     avg_quality = round(
         sum(r.discipline.weighted_coverage for _, r in discipline_reports) / len(discipline_reports), 4
     ) if discipline_reports else 0
+    # v25: honest average over strong (exact+fuzzy) matches only
+    avg_strong = round(
+        sum(r.discipline.strong_coverage for _, r in discipline_reports) / len(discipline_reports), 4
+    ) if discipline_reports else 0
 
     # Direction-level emerging: skills not found in ANY discipline
     direction_emerging_result = matcher.get_emerging(direction_rpd_norm, top_n=15)
@@ -884,6 +899,7 @@ async def run_teacher_analysis(
         "total_disciplines": summary.total_disciplines,
         "average_coverage": summary.average_coverage,
         "average_quality_coverage": avg_quality,
+        "average_strong_coverage": avg_strong,
         "coverage_level": "high" if avg_cov >= 0.5 else "medium" if avg_cov >= 0.2 else "low",
         "total_gaps_across_all": summary.total_gaps,
         "top_cross_discipline_gaps": summary.top_cross_discipline_gaps,

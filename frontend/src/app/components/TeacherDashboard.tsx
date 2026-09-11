@@ -65,15 +65,20 @@ type Discipline = {
   course?: number | null;
 };
 
+interface KsaItem {
+  id: string;
+  text: string;
+}
+
 type Competency = {
   id: string;
   code: string;
   name: string;
   skills: string[];
   ksa?: {
-    knowledge: string[];
-    abilities: string[];
-    skills: string[];
+    knowledge: KsaItem[];
+    abilities: KsaItem[];
+    skills: KsaItem[];
   };
 };
 
@@ -116,6 +121,7 @@ export function TeacherDashboard() {
   const [zunForm, setZunForm] = useState<{ compId: string; ksaType: string; text: string } | null>(null);
   const [zunMsg, setZunMsg] = useState("");
   const [zunSaving, setZunSaving] = useState(false);
+  const [ksaEditing, setKsaEditing] = useState<{ id: string; text: string } | null>(null);
   const [selectedCompetency, setSelectedCompetency] = useState("");
   const [runLoading, setRunLoading] = useState(false);
   const [runMsg, setRunMsg] = useState("");
@@ -323,6 +329,41 @@ export function TeacherDashboard() {
       await loadDiscipline(selected.name);
     } catch (e: any) {
       setZunMsg("Ошибка: " + (e.message || "не удалось сохранить"));
+    } finally {
+      setZunSaving(false);
+    }
+  }
+
+  async function saveKsaEdit() {
+    if (!selected || !ksaEditing || !ksaEditing.text.trim() || zunSaving) return;
+    setZunSaving(true);
+    setZunMsg("");
+    try {
+      await api(`/teacher/zun/entries/${ksaEditing.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ text: ksaEditing.text.trim() }),
+      });
+      setKsaEditing(null);
+      setZunMsg("Пункт обновлён. Учтётся при следующем пересчёте анализа.");
+      await loadDiscipline(selected.name);
+    } catch (e: any) {
+      setZunMsg("Ошибка: " + (e.message || "не удалось сохранить"));
+    } finally {
+      setZunSaving(false);
+    }
+  }
+
+  async function delKsa(id: string) {
+    if (!selected || zunSaving) return;
+    if (!window.confirm("Удалить пункт?")) return;
+    setZunSaving(true);
+    setZunMsg("");
+    try {
+      await api(`/teacher/zun/entries/${id}`, { method: "DELETE" });
+      setZunMsg("Пункт удалён. Учтётся при следующем пересчёте анализа.");
+      await loadDiscipline(selected.name);
+    } catch (e: any) {
+      setZunMsg("Ошибка: " + (e.message || "не удалось удалить"));
     } finally {
       setZunSaving(false);
     }
@@ -1014,9 +1055,27 @@ export function TeacherDashboard() {
                         <div className="text-[11px] font-semibold text-purple-500 uppercase tracking-wide mt-1.5 mb-1">
                           {g.title} ({g.items.length})
                         </div>
-                        {g.items.map((sk, i) => (
-                          <div key={i} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 last:border-0">
-                            {sk}
+                        {g.items.map((sk) => (
+                          <div key={sk.id} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 last:border-0">
+                            {ksaEditing && ksaEditing.id === sk.id ? (
+                              <div className="flex gap-2 items-start">
+                                <textarea
+                                  value={ksaEditing.text}
+                                  onChange={(e) => setKsaEditing({ ...ksaEditing, text: e.target.value })}
+                                  rows={2}
+                                  maxLength={2000}
+                                  className="flex-1 text-xs border border-gray-300 rounded-md px-2 py-1"
+                                />
+                                <button onClick={saveKsaEdit} disabled={zunSaving} className="text-xs bg-purple-600 text-white px-2 py-1 rounded-md hover:bg-purple-700 cursor-pointer border-0 disabled:opacity-50">OK</button>
+                                <button onClick={() => setKsaEditing(null)} className="text-xs text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
+                              </div>
+                            ) : (
+                              <div className="flex gap-1 items-start group">
+                                <span className="flex-1">{sk.text}</span>
+                                <button onClick={() => { setKsaEditing({ id: sk.id, text: sk.text }); setZunMsg(""); }} title="Редактировать" className="text-gray-300 hover:text-purple-600 border-0 bg-transparent cursor-pointer text-xs">Изменить</button>
+                                <button onClick={() => delKsa(sk.id)} title="Удалить" className="text-gray-300 hover:text-red-600 border-0 bg-transparent cursor-pointer text-xs">Удалить</button>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

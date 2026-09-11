@@ -934,12 +934,13 @@ async def zun_patch_entry(request: Request, ksa_id: str, body: ZUNPatch):
         raise HTTPException(status_code=400, detail="text too long (max 2000)")
     pool = get_pool()
     row = await pool.fetchrow(
-        """UPDATE ksa_entries SET original_text = $1, cleaned_text = $1
-           WHERE id = $2 RETURNING id, ksa_type""",
+        """UPDATE ksa_entries SET original_text = $1, cleaned_text = $1, updated_at = NOW()
+           WHERE id = $2 RETURNING id, ksa_type, competency_id""",
         text, ksa_id,
     )
     if not row:
         raise HTTPException(status_code=404, detail="KSA entry not found")
+    await pool.execute("UPDATE competencies SET updated_at = NOW() WHERE id = $1", row["competency_id"])
     logger.info("zun_entry_updated", ksa_id=ksa_id)
     return {"ksa_id": ksa_id, "ksa_type": row["ksa_type"], "text": text}
 
@@ -950,9 +951,10 @@ async def zun_delete_entry(request: Request, ksa_id: str):
     """Удалить KSA-запись."""
     _validate_uuid(ksa_id, "ksa_id")
     pool = get_pool()
-    res = await pool.execute("DELETE FROM ksa_entries WHERE id = $1", ksa_id)
-    if res == "DELETE 0":
+    row = await pool.fetchrow("DELETE FROM ksa_entries WHERE id = $1 RETURNING competency_id", ksa_id)
+    if not row:
         raise HTTPException(status_code=404, detail="KSA entry not found")
+    await pool.execute("UPDATE competencies SET updated_at = NOW() WHERE id = $1", row["competency_id"])
     logger.info("zun_entry_deleted", ksa_id=ksa_id)
     return {"status": "deleted"}
 
