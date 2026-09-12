@@ -48,6 +48,50 @@ export function AdminDashboard() {
   const [uncatLoading, setUncatLoading] = useState(false);
   const [uncatMsg, setUncatMsg] = useState("");
   const [uncatSelections, setUncatSelections] = useState<Record<string, string>>({});
+  const [linkSkill, setLinkSkill] = useState<string | null>(null);
+  const [compQuery, setCompQuery] = useState("");
+  const [compResults, setCompResults] = useState<any[]>([]);
+  const [compLoading, setCompLoading] = useState(false);
+  const [linkKsa, setLinkKsa] = useState("skills");
+  const [linkCompId, setLinkCompId] = useState("");
+  const [linkMsg, setLinkMsg] = useState("");
+  const [linkSaving, setLinkSaving] = useState(false);
+
+  const searchCompetencies = async (q: string) => {
+    setCompQuery(q);
+    if (!q.trim()) { setCompResults([]); return; }
+    setCompLoading(true);
+    try {
+      const r = await apiFetch(`/api/teacher/zun/competencies/search?q=${encodeURIComponent(q)}&dir_code=09.03.02&limit=20`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      setCompResults(d.items || []);
+    } catch (e: any) {
+      setLinkMsg("Поиск: " + e.message);
+    } finally {
+      setCompLoading(false);
+    }
+  };
+
+  const saveSkillLink = async () => {
+    if (!linkSkill || !linkCompId) { setLinkMsg("Выберите компетенцию из поиска"); return; }
+    setLinkSaving(true); setLinkMsg("");
+    try {
+      const r = await apiFetch(`/api/teacher/zun/competencies/${linkCompId}/skills`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skill_name: linkSkill, ksa_type: linkKsa }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      setLinkMsg(`Привязано: ${d.skill_name} → explicit. Учтётся в следующем teacher-анализе.`);
+      setLinkSkill(null); setCompQuery(""); setCompResults([]); setLinkCompId("");
+    } catch (e: any) {
+      setLinkMsg("Ошибка: " + e.message);
+    } finally {
+      setLinkSaving(false);
+    }
+  };
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPass, setNewUserPass] = useState("");
   const [newUserRole, setNewUserRole] = useState("teacher");
@@ -509,7 +553,7 @@ export function AdminDashboard() {
                       </label>
                     ))}
                   </div>
-                  <Button onClick={saveDirections} className="bg-purple-600 hover:bg-purple-700">Сохранить</Button>
+                  <Button onClick={saveDirections} className="bg-blue-700 hover:bg-blue-800 transition-colors">Сохранить</Button>
                   {dirMsg && <p className="text-sm text-green-600">{dirMsg}</p>}
                 </>
               )}
@@ -641,7 +685,7 @@ export function AdminDashboard() {
                 />
               </div>
               <div className="flex items-center gap-3">
-                <Button onClick={() => rpdInputRef.current?.click()} disabled={rpdUploading} className="bg-purple-600 hover:bg-purple-700">
+                <Button onClick={() => rpdInputRef.current?.click()} disabled={rpdUploading} className="bg-blue-700 hover:bg-blue-800 transition-colors">
                   <Upload className="size-4 mr-2" />{rpdUploading ? "Обработка..." : "Загрузить PDF и обработать"}
                 </Button>
                 {rpdSources.yandex_covered?.includes(rpdDir) && (
@@ -742,6 +786,7 @@ export function AdminDashboard() {
                           <th className="px-3 py-2 font-medium">Навык</th>
                           <th className="px-3 py-2 font-medium">Категория</th>
                           <th className="px-3 py-2 font-medium text-right">Score</th>
+                          <th className="px-3 py-2 font-medium text-right">В БД</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -763,13 +808,70 @@ export function AdminDashboard() {
                               </select>
                             </td>
                             <td className="px-3 py-1.5 text-right text-xs text-gray-500">{it.score.toFixed(3)}</td>
+                            <td className="px-3 py-1.5 text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs cursor-pointer transition-colors"
+                                onClick={() => { setLinkSkill(it.skill); setLinkMsg(""); setCompQuery(""); setCompResults([]); setLinkCompId(""); }}
+                              >
+                                В комп.
+                              </Button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+                  {linkSkill && (
+                    <div className="border border-emerald-200 bg-emerald-50/60 rounded-lg p-3 space-y-2">
+                      <div className="text-sm font-medium text-gray-900">
+                        Привязать <span className="font-mono text-emerald-700">{linkSkill}</span> к компетенции (запись в БД, match=exact)
+                      </div>
+                      <div className="flex flex-col md:flex-row gap-2">
+                        <Input
+                          value={compQuery}
+                          onChange={(e) => searchCompetencies(e.target.value)}
+                          placeholder="Поиск компетенции: код или дисциплина..."
+                          className="h-9 bg-white focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                        />
+                        <select
+                          value={linkKsa}
+                          onChange={(e) => setLinkKsa(e.target.value)}
+                          className="h-9 px-2 rounded border border-gray-300 bg-white text-xs"
+                        >
+                          {["knowledge", "abilities", "skills", "flat"].map((k) => (
+                            <option key={k} value={k}>{k}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {compLoading && <p className="text-xs text-gray-500">Поиск...</p>}
+                      {compResults.length > 0 && (
+                        <div className="max-h-40 overflow-y-auto border rounded bg-white text-sm">
+                          {compResults.map((c: any) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => setLinkCompId(c.id)}
+                              className={`w-full text-left px-3 py-1.5 hover:bg-emerald-50 cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none ${linkCompId === c.id ? "bg-emerald-100 font-medium" : ""}`}
+                            >
+                              <span className="font-mono text-xs text-emerald-700">{c.code}</span>
+                              <span className="ml-2 text-gray-600">{c.discipline_name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Button onClick={saveSkillLink} disabled={linkSaving || !linkCompId} size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+                          {linkSaving ? "..." : "Сохранить в БД"}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setLinkSkill(null)}>Отмена</Button>
+                        {linkMsg && <span className="text-xs text-gray-600">{linkMsg}</span>}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-center gap-3">
-                    <Button onClick={applyCategorization} className="bg-purple-600 hover:bg-purple-700">Применить категории</Button>
+                    <Button onClick={applyCategorization} className="bg-blue-700 hover:bg-blue-800 transition-colors">Применить категории</Button>
                     {uncatMsg && <span className="text-sm text-green-600">{uncatMsg}</span>}
                   </div>
                 </>

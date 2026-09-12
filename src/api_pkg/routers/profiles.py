@@ -7,6 +7,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from pydantic import BaseModel
 
 from src import Err, Ok
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
@@ -19,6 +20,8 @@ from src.models.api_responses import (
     ProfileShort,
 )
 from src.models.student import StudentProfile
+from src.models.enums import ExperienceLevel
+from src import config
 from src.parsing.skills.skill_validator import SkillValidator
 from src.predictors.recommendation_engine import RecommendationEngine
 
@@ -66,6 +69,81 @@ async def compare_profiles(
                 logger.error("Ошибка оценки профиля", profile=pname, error=str(err))
                 evaluations[pname] = {"error": str(err)}
     return {"profiles": evaluations}
+
+
+@router.get("/profiles")
+@limiter.limit("60/minute")
+async def list_profiles(request: Request):
+    """Profile names available in memory (built-ins + custom created via POST /profiles/custom)."""
+    return {"profiles": sorted(deps.student_profiles.keys())}
+
+
+class CustomProfileIn(BaseModel):
+    name: str
+    target_level: str = "middle"
+    competencies: list[str] = []
+    skills: list[str] = []
+
+
+_CUSTOM_NAME_RE = "^[a-z0-9_]{2,32}$"
+
+
+@router.post("/profiles/custom", status_code=201)
+@limiter.limit("10/minute")
+async def create_custom_profile(request: Request, body: CustomProfileIn):
+    """Create your own competency profile (Data tab): persists to
+    data/students/<name>_competency.json and registers it in memory."""
+    import json
+    import re
+    from pathlib import Path
+
+    name = (body.name or "").strip().lower()
+    if not re.match(_CUSTOM_NAME_RE, name):
+        raise HTTPException(status_code=400,
+                            detail="name must match [a-z0-9_]{2,32}")
+    if name in deps.student_profiles:
+        raise HTTPException(status_code=409, detail="Profile already exists")
+    try:
+        level = ExperienceLevel(body.target_level.strip().lower())
+    except ValueError:
+        raise HTTPException(status_code=400,
+                            detail="target_level must be junior|middle|senior")
+    codes = list(dict.fromkeys(c.strip() for c in (body.competencies or [])
+                               if c and c.strip()))[:200]
+    skills = list(dict.fromkeys(s.strip() for s in (body.skills or [])
+                                if s and s.strip()))[:500]
+    if not codes and not skills:
+        raise HTTPException(status_code=400,
+                            detail="provide competencies or skills")
+    if not skills and codes:
+        # same code->skills mapping as startup loader
+        try:
+            mp = json.loads((Path(config.DATA_DIR) / "processed" / "competency_mapping.json")
+                            .read_text(encoding="utf-8"))
+        except Exception:
+            mp = {}
+        mapped: set[str] = set()
+        for code in codes:
+            cn = "".join(c for c in code if c.isalnum()).upper()
+            for key, value in (mp.items() if isinstance(mp, dict) else []):
+                kn = "".join(c for c in str(key) if c.isalnum()).upper()
+                if cn and cn == kn:
+                    mapped.update(value if isinstance(value, list) else [value])
+                    break
+        skills = sorted(mapped)[:500]
+    students_dir = Path(config.DATA_DIR) / "students"
+    students_dir.mkdir(parents=True, exist_ok=True)
+    fpath = (students_dir / f"{name}_competency.json").resolve()
+    if students_dir.resolve() not in fpath.parents:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    fpath.write_text(json.dumps({"competencies": codes, "skills": skills},
+                                ensure_ascii=False, indent=1), encoding="utf-8")
+    deps.student_profiles[name] = StudentProfile(
+        profile_name=name, competencies=codes, skills=skills, target_level=level)
+    logger.info("custom_profile_created", profile=name, competencies=len(codes),
+                skills=len(skills))
+    return {"profile": name, "target_level": level.value,
+            "competencies_count": len(codes), "skills_count": len(skills)}
 
 
 @router.get("/profiles/{profile}", response_model=ProfileShort)

@@ -872,6 +872,28 @@ async def zun_analyze_results(
     return json.loads(summary.read_text(encoding="utf-8"))
 
 
+@router.get("/teacher/zun/competencies/search")
+@limiter.limit("60/minute")
+async def zun_search_competencies(request: Request, q: str = "", dir_code: str = "09.03.02",
+                                  limit: int = 20):
+    """Lightweight competency picker: [{id, code, discipline_name}]."""
+    _validate_dir_code(dir_code)
+    limit = max(1, min(int(limit or 20), 50))
+    pool = get_pool()
+    like = f"%{(q or '').strip()}%"
+    rows = await pool.fetch(
+        """SELECT c.id AS id, c.code AS code, d2.name AS discipline_name
+           FROM competencies c
+           JOIN disciplines d2 ON d2.id = c.discipline_id
+           JOIN directions d ON d.id = d2.direction_id
+           WHERE d.code = $1 AND (c.code ILIKE $2 OR d2.name ILIKE $2)
+           ORDER BY d2.name, c.code LIMIT $3""",
+        dir_code, like, limit,
+    )
+    return {"items": [{"id": str(r["id"]), "code": r["code"],
+                       "discipline_name": r["discipline_name"]} for r in rows]}
+
+
 # ---------- G. write KSA (no migrations) ----------
 
 
@@ -920,6 +942,72 @@ async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
     )
     logger.info("zun_entry_added", ksa_id=str(ksa_id), competency_id=competency_id, ksa_type=body.ksa_type)
     return {"ksa_id": str(ksa_id), "ksa_type": body.ksa_type, "text": text}
+
+
+class SkillLinkIn(BaseModel):
+    skill_name: str
+    ksa_type: str = "skills"
+
+
+_CS_KSA_TYPES = ("knowledge", "abilities", "skills", "flat")
+
+
+@router.post("/teacher/zun/competencies/{competency_id}/skills", status_code=201)
+@limiter.limit("30/minute")
+async def zun_link_skill(request: Request, competency_id: str, body: SkillLinkIn):
+    """Attach a market/admin tool to a competency in DB (explicit link).
+
+    The skill row uses source='rpd_skills' so the teacher runner counts it on
+    the RPD side (its query excludes source='market'). match_type='exact':
+    an admin asserts identity, no fuzzy guessing.
+    """
+    _validate_uuid(competency_id, "competency_id")
+    if body.ksa_type not in _CS_KSA_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid ksa_type")
+    name = (body.skill_name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="skill_name must not be empty")
+    if len(name) > 200:
+        raise HTTPException(status_code=400, detail="skill_name too long (max 200)")
+
+    pool = get_pool()
+    comp = await pool.fetchrow("SELECT id FROM competencies WHERE id = $1", competency_id)
+    if not comp:
+        raise HTTPException(status_code=404, detail="Competency not found")
+
+    skill = await pool.fetchrow(
+        """SELECT id, source FROM skills WHERE LOWER(name) = LOWER($1)
+           ORDER BY (source = 'rpd_skills') DESC, created_at LIMIT 1""",
+        name,
+    )
+    if skill and skill["source"] == "rpd_skills":
+        skill_id = skill["id"]
+    else:
+        skill_id = await pool.fetchval(
+            """INSERT INTO skills (name, source, description, is_active)
+               VALUES ($1, 'rpd_skills', 'admin-added tool link', TRUE)
+               RETURNING id""",
+            name,
+        )
+    dup = await pool.fetchrow(
+        """SELECT 1 FROM competency_skills cs
+           JOIN skills s ON s.id = cs.skill_id
+           WHERE cs.competency_id = $1 AND cs.ksa_type = $2
+             AND cs.parse_version_id IS NULL AND LOWER(s.name) = LOWER($3)""",
+        competency_id, body.ksa_type, name,
+    )
+    if dup:
+        raise HTTPException(status_code=409, detail="Skill already linked to competency")
+    await pool.execute(
+        """INSERT INTO competency_skills
+             (competency_id, skill_id, ksa_type, source_text, match_type, parse_version_id)
+           VALUES ($1, $2, $3, $4, 'exact', NULL)""",
+        competency_id, skill_id, body.ksa_type, f"admin-link:{name}",
+    )
+    await pool.execute("UPDATE competencies SET updated_at = NOW() WHERE id = $1", competency_id)
+    logger.info("zun_skill_linked", competency_id=competency_id, skill=name)
+    return {"skill_id": str(skill_id), "skill_name": name,
+            "ksa_type": body.ksa_type, "match_type": "exact"}
 
 
 @router.patch("/teacher/zun/entries/{ksa_id}")

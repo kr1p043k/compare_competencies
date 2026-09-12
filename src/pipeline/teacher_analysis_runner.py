@@ -37,7 +37,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 32  # market synonyms + weak-comp recs + report lineage
+CODE_VERSION = 33  # skill-link inputs + custom profiles (analysis inputs can change via UI)
 
 
 def _git_sha_short() -> str:
