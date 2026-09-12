@@ -17,6 +17,22 @@ NORMALIZE_RE = re.compile(r"[^\w\s\-/]")
 # Allowlist: языки с однобуквенным именем. Остальное режется везде (v28).
 _MARKET_SINGLE_ALLOW = frozenset({"r", "c"})
 SEMANTIC_THRESHOLD = 0.78
+# Version-split market aliases folded into canonical keys at market build
+# (v32, flag-gated via FF_MARKET_SYNONYMS). Minimal grounded set: each alias
+# verified to denote the same tool (DB check 12.09.2026: python3 freq 1,
+# 'python 3' freq 8 - both the Python language; java 17/11/21 deliberately
+# NOT folded - versions can matter for curriculum).
+MARKET_SYNONYMS: dict[str, str] = {"python3": "python", "python 3": "python"}
+
+
+def fold_market_synonyms(market: dict[str, int]) -> dict[str, int]:
+    """Return a copy with aliases merged into canonical keys (freq summed). Deterministic."""
+    out = dict(market)
+    for alias in sorted(MARKET_SYNONYMS):
+        if alias in out:
+            canon = MARKET_SYNONYMS[alias]
+            out[canon] = out.get(canon, 0) + out.pop(alias)
+    return out
 MARKET_EMB_CACHE_NAME = "market_embeddings_middle.joblib"
 MARKET_CACHE_MIN_SKILLS = 300
 

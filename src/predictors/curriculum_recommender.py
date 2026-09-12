@@ -10,6 +10,7 @@ import structlog
 from src.result import Ok, Err, Result
 from src.errors import RecommendationError
 from src.models.teacher_analysis import Recommendation, DisciplineCoverage
+from src.feature_flags import weak_comp_recs_enabled
 
 logger = structlog.get_logger(__name__)
 
@@ -318,6 +319,25 @@ class CurriculumRecommender:
                 ))
 
         # Дедупликация: убрать повторяющиеся сообщения
+        # Weak (0 < cov < 0.5) competencies: one targeted add_new per competency (v32, flag-gated).
+        if weak_comp_recs_enabled():
+            for cc in coverage.competencies:
+                if 0 < cc.coverage < 0.5 and cc.gap_skills:
+                    _top = cc.gap_skills[:3]
+                    _rest = (
+                        f" (и ещё {len(cc.gap_skills) - len(_top)} вне топ-3)"
+                        if len(cc.gap_skills) > len(_top)
+                        else ""
+                    )
+                    recs.append(Recommendation(
+                        type="add_new_content",
+                        priority="medium",
+                        skill_name=cc.code,
+                        message=(
+                            f"Компетенция <{cc.code}>: покрытие {cc.coverage:.0%} — "
+                            f"точечно добрать: {', '.join(_top)}{_rest}."
+                        ),
+                    ))
         seen: set[str] = set()
         seen = set()
         drops: dict = {}

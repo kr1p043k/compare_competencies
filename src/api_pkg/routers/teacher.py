@@ -667,6 +667,55 @@ async def get_analysis(dir_code: str = "09.03.02"):
     return json.loads(resolved.read_text(encoding="utf-8"))
 
 
+
+
+def _report_meta_path(dir_code: str) -> Path:
+    """Resolve _report_meta.json with the same traversal guard as get_analysis."""
+    _validate_dir_code(dir_code)
+    base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher"
+    resolved = (base / dir_code / "_report_meta.json").resolve()
+    if base.resolve() not in resolved.parents:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    return resolved
+
+
+def report_staleness(meta: dict, current_vac_hash: str | None,
+                     code_version: int) -> tuple[bool, str]:
+    """Pure: is the stored read-model stale vs current code/data? (unit-tested)."""
+    if not meta:
+        return True, "no-report"
+    if meta.get("report_schema") != 1:
+        return True, "schema-mismatch"
+    if meta.get("code_version") != code_version:
+        return True, f"code-changed:{meta.get('code_version')}->{code_version}"
+    if current_vac_hash is None:
+        return False, "db-unavailable-assumed-fresh"
+    if meta.get("vac_hash") != current_vac_hash:
+        return True, "vacancies-changed"
+    return False, "fresh"
+
+
+@router.get("/teacher/analysis/meta")
+async def get_analysis_meta(dir_code: str = "09.03.02"):
+    """CQRS read-model lineage: which code/data produced the stored report + staleness."""
+    from src.pipeline.teacher_analysis_runner import CODE_VERSION
+    path = _report_meta_path(dir_code)
+    if not path.exists():
+        raise HTTPException(404, f"No report meta for {dir_code}")
+    meta = json.loads(path.read_text(encoding="utf-8"))
+    current_hash = None
+    try:
+        pool = get_pool()
+        current_hash = await pool.fetchval(
+            "SELECT MD5(COALESCE(MAX(created_at)::text, '0')) FROM vacancies "
+            "WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0"
+        )
+    except Exception:
+        current_hash = None
+    stale, reason = report_staleness(meta, current_hash, CODE_VERSION)
+    return {"meta": meta, "stale": stale, "stale_reason": reason,
+            "current_vac_hash": current_hash}
+
 @router.get("/teacher/analysis/{discipline_name:path}")
 async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02"):
     """Teacher analysis дисциплины."""

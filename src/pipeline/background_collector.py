@@ -11,6 +11,8 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
+from src.circuit_breaker import CircuitBreaker
+
 _INTERVAL_HOURS = 6
 _BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -22,9 +24,21 @@ async def start_background_collector():
 async def _collect_loop():
     await asyncio.sleep(30)
     logger.info("background_collector_started", interval_hours=_INTERVAL_HOURS)
+    # Breaker guards "collector itself keeps crashing" (e.g. hh.ru down hard).
+    # Serving is unaffected: reads come from DB + market cache (the fallback).
+    _breaker = CircuitBreaker(fail_threshold=3, cooldown_s=_INTERVAL_HOURS * 3600)
     while True:
         try:
-            await _try_collect()
+            if not _breaker.allow():
+                logger.warning("collect_skipped_breaker_open", state=_breaker.state,
+                               failures=_breaker.consecutive_failures)
+            else:
+                try:
+                    await _try_collect()
+                except Exception:
+                    _breaker.record_failure()
+                    raise
+                _breaker.record_success()
         except asyncio.CancelledError:
             raise
         except Exception as exc:

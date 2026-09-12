@@ -37,7 +37,19 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 31  # cross-ref attribution + anchor + add_new fixes
+CODE_VERSION = 32  # market synonyms + weak-comp recs + report lineage
+
+
+def _git_sha_short() -> str:
+    """Short HEAD sha for report lineage; never raises."""
+    try:
+        import subprocess
+        repo = Path(__file__).resolve().parent.parent.parent
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=repo,
+                             capture_output=True, text=True, timeout=10)
+        return (out.stdout or "").strip() or "unknown"
+    except Exception:
+        return "unknown"
 
 
 def _assemble_disciplines(drows) -> dict[str, dict]:
@@ -342,6 +354,13 @@ async def run_teacher_analysis(
     if _dirty:
         logger.info("market_skills_sanitized", dropped=len(_dirty))
         print(f"TEACHER-ANALYSIS SANITIZED market skills: dropped {len(_dirty)} empty keys", file=sys.stderr, flush=True)
+    # Track B (v32, flag-gated): fold version-split aliases into canonical keys.
+    from src.feature_flags import market_synonyms_enabled as _syn_on
+    if _syn_on() and market_skills:
+        from src.analyzers.skill_matcher import fold_market_synonyms as _fold_syn
+        _before = len(market_skills)
+        market_skills = _fold_syn(market_skills)
+        logger.info("market_synonyms_folded", before=_before, after=len(market_skills))
     if not market_skills:
         logger.warning("no_market_skills_found")
     logger.info("market_skills_loaded", count=len(market_skills), from_vacancies=vac_count)
@@ -953,6 +972,26 @@ async def run_teacher_analysis(
         logger.error("summary_write_failed", error=str(exc))
         await _fail_pipeline_run(run_id, f"write_summary: {exc}")
         return Err(AnalysisRunnerError(stage="write_summary", message=str(exc)))
+
+    # CQRS read-model lineage (v32, additive): never breaks the summary write above.
+    try:
+        from src.feature_flags import active_flags as _active_flags
+        _meta = {
+            "report_schema": 1,
+            "direction": dir_code,
+            "code_version": CODE_VERSION,
+            "market_cache_key": _cache_key,
+            "vac_hash": _vac_hash,
+            "vac_count": vac_count,
+            "market_size": len(market_skills),
+            "flags": _active_flags(),
+            "git_sha": _git_sha_short(),
+            "generated_at": datetime.now().isoformat(),
+        }
+        (out_dir / "_report_meta.json").write_text(
+            json.dumps(_meta, ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception as exc:
+        logger.warning("report_meta_write_failed", error=str(exc))
 
     # — charts —
     try:
