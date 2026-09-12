@@ -19,6 +19,11 @@ from src.analyzers.skill_matcher import SkillMatcher, coverage_level, normalize 
 logger = structlog.get_logger(__name__)
 
 
+MIN_MATCH_FREQ = 5
+# A match counts as coverage only if the market skill has real demand (v29).
+# Fringe skills (1-4 vacancies, e.g. one-off listings) must not inflate coverage.
+
+
 class CoverageAnalyzer:
     def __init__(self, matcher: SkillMatcher, discipline_scorer=None):
         self.matcher = matcher
@@ -66,6 +71,12 @@ class CoverageAnalyzer:
             os.replace(tmp_path, cache_file)
         except Exception as exc:
             logger.warning("skill_emb_disk_cache_save_failed", error=str(exc))
+
+    def _is_fringe_match(self, market_skill: str | None) -> bool:
+        """Market evidence too thin to count as coverage (v29)."""
+        if not market_skill:
+            return True
+        return self.matcher.market_skills.get(market_skill, 0) < MIN_MATCH_FREQ
 
     def _get_skill_embeddings(self, skills: list[str]) -> dict[str, np.ndarray]:
         """Batched embedding of skills not yet cached; thread-safe.
@@ -128,7 +139,7 @@ class CoverageAnalyzer:
                     logger.warning("skill_match_failed", skill=s)
                     continue
                 m, mtype, conf = match_result.unwrap()
-                if m:
+                if m and not self._is_fringe_match(m):
                     comp_matched += 1
                     comp_weighted += conf
                     if mtype in ("exact", "fuzzy"):
@@ -181,7 +192,7 @@ class CoverageAnalyzer:
             if match_result.is_err():
                 continue
             m, mtype, conf = match_result.unwrap()
-            if m:
+            if m and not self._is_fringe_match(m):
                 matched_list.append(SkillMatch(
                     skill_name=s, market_match=m,
                     frequency=self.matcher.market_skills.get(m, 0),

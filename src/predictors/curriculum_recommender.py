@@ -36,6 +36,15 @@ def _classify_skill(skill: str, types: dict[str, list[str]]) -> str:
     return "generic"
 
 
+# Categories where market-alignment overhaul orders make no sense (v29).
+# A philosophy/math/management course is not rebuilt because vacancies ignore it.
+NON_IT_CATS = frozenset({
+    "Soft Skills и рефлексия",
+    "Математика и статистика",
+    "Управление и менеджмент",
+})
+
+
 _KNOWLEDGE_WORDS = (
     "особенност", "поняти", "теори", "фундаментал", "сущност",
     "представлени", "закономерност", "концепци", "методологи",
@@ -161,6 +170,19 @@ class CurriculumRecommender:
         for _nm in matched_names:
             matched_cats.update(self._cats_of(_nm))
 
+        recs = []
+        # phrase -> competency codes owning it (for actionable messages, v29).
+        comp_of: dict[str, list[str]] = {}
+        for cc in (coverage.competencies or []):
+            for g in (cc.gap_skills or []):
+                key = (g or "").lower().strip()
+                if key and cc.code not in comp_of.setdefault(key, []):
+                    comp_of[key].append(cc.code)
+
+        def _codes(skill: str) -> str:
+            codes = comp_of.get((skill or "").lower().strip(), [])[:3]
+            return (" (" + ", ".join(codes) + ")") if codes else ""
+
         # Gaps: RPD skills not found on market — one per skill
         for s in coverage.gaps_list:
             if self._is_fragment(s):
@@ -176,6 +198,13 @@ class CurriculumRecommender:
                     type="review_content", priority="medium", skill_name=s,
                     message=f"«{s}» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность.",
                 ))
+
+        # v29: attach owning competency codes to gap messages (actionability).
+        for r in recs:
+            if r.type in ("review_content", "foundational") and r.skill_name:
+                suffix = _codes(r.skill_name)
+                if suffix and suffix not in r.message:
+                    r.message = r.message.rstrip() + suffix
 
         # Truly missing: market skills not in ANY discipline — только из тех же
         # областей таксономии, что уже покрытые навыки дисциплины (семантика
@@ -248,8 +277,10 @@ class CurriculumRecommender:
                     ),
                 ))
 
-        # Low coverage warning
-        if coverage.coverage_ratio < 0.3:
+        # Low coverage warning: only where the market has authority (v29).
+        # Without IT-domain evidence this would spam non-IT disciplines.
+        it_evidence = bool(matched_cats - NON_IT_CATS)
+        if coverage.coverage_ratio < 0.3 and it_evidence:
             recs.append(Recommendation(
                 type="major_revision",
                 priority="high",
@@ -258,6 +289,20 @@ class CurriculumRecommender:
                     f" Требуется существенный пересмотр дисциплины."
                 ),
             ))
+
+        # v29: empty competencies (no parsed skills at all) get an explicit rec.
+        for cc in coverage.competencies:
+            if cc.coverage == 0 and cc.total_skills == 0 and cc.code:
+                recs.append(Recommendation(
+                    type="review_content",
+                    priority="medium",
+                    skill_name=cc.code,
+                    message=(
+                        f"Компетенция «{cc.code}» пуста: в РПД нет извлечённых пунктов. "
+                        f"Добавьте знания/умения/навыки кнопкой +ЗУН в карточке компетенции — "
+                        f"иначе её нечем сопоставлять с рынком."
+                    ),
+                ))
 
         # Zero-coverage competencies — one per competency
         for cc in coverage.competencies:

@@ -313,6 +313,31 @@ def test_foundational_near_dupes_folded():
     assert 'похожих формулировок' in found[0].message
 
 
+def test_major_revision_suppressed_without_it_evidence():
+    from src.models.teacher_analysis import DisciplineCoverage, SkillMatch
+    from src.predictors.curriculum_recommender import CurriculumRecommender
+    cov = DisciplineCoverage(
+        discipline_id='t1', discipline_name='Test Philo', top_matched=[],
+        gaps_list=['a', 'b', 'c', 'd'], truly_missing=[], cross_references=[],
+        competencies=[], coverage_ratio=0.1,
+    )
+    recs = CurriculumRecommender().generate(cov).ok()
+    assert [r for r in recs if r.type == 'major_revision'] == []
+
+
+def test_major_revision_fires_with_it_evidence():
+    from src.models.teacher_analysis import DisciplineCoverage, SkillMatch
+    from src.predictors.curriculum_recommender import CurriculumRecommender
+    cov = DisciplineCoverage(
+        discipline_id='t1', discipline_name='Test Web',
+        top_matched=[SkillMatch('python', 100)],
+        gaps_list=['a', 'b', 'c', 'd', 'e', 'f', 'g'], truly_missing=[], cross_references=[],
+        competencies=[], coverage_ratio=0.1,
+    )
+    recs = CurriculumRecommender().generate(cov).ok()
+    assert len([r for r in recs if r.type == 'major_revision']) == 1
+
+
 def test_validator_invariants():
     r = _rec()
     cov = DisciplineCoverage(
@@ -338,3 +363,34 @@ def test_market_purge_drops_single_char_junk():
     assert m.market_skills.get('r') == 1386
     assert m.market_skills.get('c') == 21
     assert m.market_skills.get('sql') == 3519
+
+
+def test_empty_competency_gets_explicit_rec():
+    from src.models.teacher_analysis import CompetencyCoverage, DisciplineCoverage
+    from src.predictors.curriculum_recommender import CurriculumRecommender
+    cov = DisciplineCoverage(
+        discipline_id='t1', discipline_name='Test', top_matched=[], gaps_list=[],
+        truly_missing=[], cross_references=[],
+        competencies=[CompetencyCoverage(code='УК-8.2', total_skills=0, matched_skills=0, coverage=0.0)],
+        coverage_ratio=0.9,
+    )
+    recs = CurriculumRecommender().generate(cov).ok()
+    hits = [r for r in recs if r.type == 'review_content' and 'УК-8.2' in r.message]
+    assert len(hits) == 1
+    assert hits[0].skill_name == 'УК-8.2'
+
+
+def test_review_carries_competency_codes():
+    from src.models.teacher_analysis import CompetencyCoverage, DisciplineCoverage
+    from src.predictors.curriculum_recommender import CurriculumRecommender
+    cov = DisciplineCoverage(
+        discipline_id='t1', discipline_name='Test', top_matched=[],
+        gaps_list=['положение военной доктрины'], truly_missing=[], cross_references=[],
+        competencies=[CompetencyCoverage(code='УК-8', total_skills=3, matched_skills=0, coverage=0.0,
+                                         gap_skills=['положение военной доктрины'])],
+        coverage_ratio=0.0,
+    )
+    recs = CurriculumRecommender().generate(cov).ok()
+    reviews = [r for r in recs if r.type == 'review_content' and 'доктрины' in r.message]
+    assert len(reviews) == 1
+    assert '(УК-8)' in reviews[0].message
