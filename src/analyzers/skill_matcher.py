@@ -211,6 +211,20 @@ class SkillMatcher:
         """True if 'a' appears as a whole word in 'b' (word-boundary aware)."""
         return bool(re.search(r"(?<!\w)" + re.escape(a) + r"(?!\w)", b))
 
+    def _mapped_match(self, n: str) -> tuple[str | None, str, float]:
+        """ACTION->TOOL resolution (v31): RPD verbs resolve to market tools."""
+        try:
+            from src.analyzers.action_map import phrase_lemmas, resolve_action_tools
+            lemmas = phrase_lemmas(n)
+            if not lemmas:
+                return (None, "no_match", 0.0)
+            hit = resolve_action_tools(lemmas, self.market_skills)
+            if hit:
+                return (hit[0], "mapped", 0.85)
+        except Exception as exc:
+            logger.debug("mapped_match_failed", error=str(exc))
+        return (None, "no_match", 0.0)
+
     def _semantic_match(self, n: str, original: str | None = None) -> tuple[str | None, str, float]:
         if n in self._semantic_cache:
             return (self._semantic_cache[n], "semantic", 1.0)
@@ -254,6 +268,11 @@ class SkillMatcher:
         if mn:
             logger.debug("skill_fuzzy_match", rpd_skill=n, market_skill=mn)
             return Ok((mn, "fuzzy", 0.5))
+
+        mapped, _, _ = self._mapped_match(n)
+        if mapped:
+            logger.debug("skill_mapped_match", rpd_skill=n, market_skill=mapped)
+            return Ok((mapped, "mapped", 0.85))
 
         mn, mt, score = self._semantic_match(n, skill_name)
         if mn:

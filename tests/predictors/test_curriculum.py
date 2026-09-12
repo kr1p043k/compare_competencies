@@ -177,7 +177,10 @@ class TestCurriculumRecommender:
     def test_generate_low_coverage_ratio(self, mock_load):
         mock_load.return_value = {"academic": [], "professional": []}
         rec = CurriculumRecommender()
-        coverage = self.make_coverage(coverage_ratio=0.2)
+        coverage = self.make_coverage(
+            coverage_ratio=0.2,
+            top_matched=[SkillMatch(skill_name="Python", frequency=100)],
+        )
         result = rec.generate(coverage)
         assert result.is_ok()
         types = {r.type for r in result.ok()}

@@ -51,7 +51,7 @@ limiter = Limiter(key_func=get_remote_address)
 _DIR_CODE_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$")
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 KSA_TYPES = ("knowledge", "abilities", "skills")
-MATCH_TYPES = ("exact", "fuzzy", "stem", "substring", "semantic", "explicit")
+MATCH_TYPES = ("exact", "fuzzy", "stem", "substring", "semantic", "explicit", "mapped")
 CATEGORIES = ("УК", "ОПК", "ПК", "ППК", "ИП", "ВПК")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent

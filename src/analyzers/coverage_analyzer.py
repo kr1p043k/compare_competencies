@@ -142,7 +142,7 @@ class CoverageAnalyzer:
                 if m and not self._is_fringe_match(m):
                     comp_matched += 1
                     comp_weighted += conf
-                    if mtype in ("exact", "fuzzy"):
+                    if mtype in ("exact", "fuzzy", "mapped"):
                         strong_total += 1
                 else:
                     comp_gaps.append(s)

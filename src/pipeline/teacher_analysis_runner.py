@@ -37,7 +37,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 30  # cross-ref attribution + anchor + add_new fixes
+CODE_VERSION = 31  # cross-ref attribution + anchor + add_new fixes
 
 
 def _assemble_disciplines(drows) -> dict[str, dict]:
