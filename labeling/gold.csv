@@ -1,0 +1,501 @@
+﻿id;role;skill;gold;rule
+0;Data Scientist;deep learning;2;agree
+1;Data Scientist;конвейеры данных;2;agree
+2;Data Scientist;инфраструктура данных;2;agree
+3;Data Scientist;mysql;1;band 1v2: e3 inflation
+4;Data Scientist;дашборды;1;agree
+5;Data Scientist;grafana;1;agree
+6;Data Scientist;администрирование windows server;0;agree
+7;Data Scientist;apache;1;band 2v1: e2 soft inflation
+8;Data Scientist;consul;0;agree
+9;Data Scientist;vault;0;agree
+10;Data Scientist;tailwind;0;agree
+11;Data Scientist;dom;0;agree
+12;Data Scientist;svelte;0;agree
+13;Data Scientist;zustand;0;agree
+14;Data Scientist;balsamiq;0;agree
+15;Data Scientist;инженерия подсказок;1;band 1v2: e3 inflation
+16;Data Scientist;gpt;1;band 1v2: e3 inflation
+17;Data Scientist;nltk;1;band 1v2: e3 inflation
+18;Data Scientist;составление запросов к llm;2;agree
+19;Data Scientist;question answering;1;band 1v2: e3 inflation
+20;Data Scientist;долгосрочные эффекты;1;band 0v1: e2 strictness
+21;Data Scientist;эффективное общение;1;band 2v1: e2 soft inflation
+22;Data Scientist;рефлексивная практика;1;agree
+23;Data Scientist;анализ поведения ии;1;agree
+24;Data Scientist;этика разработки;1;agree
+25;Data Scientist;neo4j;1;band 1v2: e3 inflation
+26;Data Scientist;trino;1;band 1v2: e3 inflation
+27;Data Scientist;oracle db;1;band 1v2: e3 inflation
+28;Data Scientist;database design;1;band 1v2: e3 inflation
+29;Data Scientist;hadoop hdfs;1;band 1v2: e3 inflation
+30;Data Scientist;защита информации;1;agree
+31;Data Scientist;cpp;1;band 0v1: e2 strictness
+32;Data Scientist;обеспечение качества;1;agree
+33;Data Scientist;нефункциональные требования;1;band 0v1: e2 strictness
+34;Data Scientist;сетевое взаимодействие;1;band 0v1: e2 strictness
+35;Data Scientist;защищённый ии;1;agree
+36;Data Scientist;responsible ai;1;agree
+37;Data Scientist;этика ии;1;agree
+38;Data Scientist;этические риски;1;agree
+39;Data Scientist;oidc;0;agree
+40;Data Scientist;c++ embedded;0;agree
+41;Data Scientist;c++;1;band 0v1: e2 strictness
+42;Data Scientist;esp32;0;agree
+43;Data Scientist;ros;0;agree
+44;Data Scientist;встроенное по c++;0;agree
+45;Data Scientist;arcgis;1;band 0v1: e2 strictness
+46;Data Scientist;гис;1;band 0v1: e2 strictness
+47;Data Scientist;postgis;1;band 0v1: e2 strictness
+48;Data Scientist;qgis;1;band 0v1: e2 strictness
+49;Data Scientist;дзз;1;band 0v1: e2 strictness
+50;Data Scientist;uml;1;band 0v1: e2 strictness
+51;Data Scientist;интеграция 1с с другими системами;0;agree
+52;Data Scientist;1c розница;0;agree
+53;Data Scientist;программирование 1с;0;agree
+54;Data Scientist;администрирование 1с;0;agree
+55;Data Scientist;bayesian regression;2;agree
+56;Data Scientist;апостериорное распределение;2;agree
+57;Data Scientist;теория вероятностей;2;agree
+58;Data Scientist;статистический вывод;2;agree
+59;Data Scientist;байесовская оптимизация гиперпараметров;2;agree
+60;Data Scientist;логическое программирование;1;band 0v1: e2 strictness
+61;Data Scientist;reactive programming;1;band 0v1: e2 strictness
+62;Data Scientist;обработка естественного языка;2;agree
+63;Data Scientist;параллельное программирование;1;agree
+64;Data Scientist;data analysis;2;agree
+65;Data Scientist;react native;0;agree
+66;Data Scientist;swiftui;0;agree
+67;Data Scientist;ios;0;agree
+68;Data Scientist;android;0;agree
+69;Data Scientist;cocoapods;0;agree
+70;Data Scientist;firebase;1;band 0v1: e2 strictness
+71;Data Scientist;gcp;1;agree
+72;Data Scientist;serverless framework;1;band 0v1: e2 strictness
+73;Data Scientist;directus;0;agree
+74;Data Scientist;netlify;0;agree
+75;Data Scientist;машинное обучение python;2;agree
+76;Data Scientist;аугментация данных;2;agree
+77;Data Scientist;градиентный бустинг;2;agree
+78;Data Scientist;подбор гиперпараметров;2;agree
+79;Data Scientist;тонкая настройка;2;agree
+80;Data Scientist;unreal engine;0;agree
+81;Data Scientist;разработка игр;0;agree
+82;Data Scientist;unity;0;agree
+83;Data Scientist;webgl;0;agree
+84;Data Scientist;opengl;0;agree
+85;Data Scientist;сквозное тестирование;1;band 0v1: e2 strictness
+86;Data Scientist;a/b тестирование;1;band 2v1: e2 soft inflation
+87;Data Scientist;vitest;0;agree
+88;Data Scientist;mocha;0;agree
+89;Data Scientist;модульное тестирование;1;agree
+90;Data Scientist;atlassian confluence;1;agree
+91;Data Scientist;определение метрик успеха;1;band 2v1: e2 soft inflation
+92;Data Scientist;соблюдение архитектуры;1;agree
+93;Data Scientist;ведение бэклога;1;band 0v1: e2 strictness
+94;Data Scientist;системный анализ;1;agree
+95;Data Scientist;ktor;0;agree
+96;Data Scientist;apollo graphql;0;agree
+97;Data Scientist;testng;0;agree
+98;Data Scientist;junit;0;agree
+99;Data Scientist;tailwind css;0;agree
+100;Data Scientist;solidity;0;agree
+101;Data Scientist;c++ разработка;0;agree
+102;Data Scientist;lua;0;agree
+103;Data Scientist;elixir;0;agree
+104;Data Scientist;typescript;0;agree
+105;Data Scientist;устойчивость к атакам;1;agree
+106;Data Scientist;feature preprocessing;2;agree
+107;Data Scientist;управление проектами ии;1;agree
+108;Data Scientist;многослойный перцептрон;2;agree
+109;Data Scientist;data engineering;1;band 1v2: e3 inflation
+110;Data Scientist;обучение нейросетей;2;agree
+111;Data Scientist;язык запросов graphql;1;band 2v1: e2 soft inflation
+112;Data Scientist;power automate;0;agree
+113;Data Scientist;воплощённый ии;1;band 2v1: e2 soft inflation
+114;Data Scientist;кодирование категорий;1;band 1v2: e3 inflation
+115;Data Scientist;веб-аналитика;1;band 0v1: e2 strictness
+116;Data Scientist;инженерная документация;1;agree
+117;Data Scientist;fine-tuning;2;agree
+118;Data Scientist;randomizedsearchcv;1;band 1v2: e3 inflation
+119;Data Scientist;hadoop java;1;extreme: adjudicated
+120;Data Scientist;rspec;0;agree
+121;Data Scientist;cot;1;band 1v2: e3 inflation
+122;Data Scientist;conversational ai;1;band 1v2: e3 inflation
+123;Data Scientist;интеграция компонентов;1;agree
+124;Data Scientist;теория алгоритмов;1;band 1v2: e3 inflation
+125;Backend-разработчик;data science python;1;band 0v1: e2 strictness
+126;Backend-разработчик;flink;1;agree
+127;Backend-разработчик;t-sne;0;agree
+128;Backend-разработчик;feature importance;0;agree
+129;Backend-разработчик;streamlit;0;agree
+130;Backend-разработчик;контейнеризация python;1;band 1v2: e3 inflation
+131;Backend-разработчик;kibana;1;agree
+132;Backend-разработчик;grafana;1;agree
+133;Backend-разработчик;cmake;1;extreme: adjudicated
+134;Backend-разработчик;apache;1;band 1v2: e3 inflation
+135;Backend-разработчик;angular;0;agree
+136;Backend-разработчик;figma;0;agree
+137;Backend-разработчик;webgl;0;agree
+138;Backend-разработчик;storybook;0;agree
+139;Backend-разработчик;framer motion;0;agree
+140;Backend-разработчик;эффективные промпты;1;band 0v1: e2 strictness
+141;Backend-разработчик;llm-as-a-judge;1;band 0v1: e2 strictness
+142;Backend-разработчик;визуально-языковые модели;1;band 0v1: e2 strictness
+143;Backend-разработчик;agents;1;agree
+144;Backend-разработчик;question answering;1;band 0v1: e2 strictness
+145;Backend-разработчик;рефлексивная практика;1;agree
+146;Backend-разработчик;работа в команде;1;band 1v2: e3 inflation
+147;Backend-разработчик;коллаборация;1;band 1v2: e3 inflation
+148;Backend-разработчик;кросс-функциональное взаимодействие;1;band 1v2: e3 inflation
+149;Backend-разработчик;метарефлексия;1;band 0v1: e2 strictness
+150;Backend-разработчик;ms sql server;1;band 1v2: e3 inflation
+151;Backend-разработчик;timescaledb;1;agree
+152;Backend-разработчик;amazon redshift;1;agree
+153;Backend-разработчик;big data;1;agree
+154;Backend-разработчик;presto;1;agree
+155;Backend-разработчик;c;1;band 1v2: e3 inflation
+156;Backend-разработчик;информационная безопасность;1;band 1v2: e3 inflation
+157;Backend-разработчик;программные средства;1;band 1v2: e3 inflation
+158;Backend-разработчик;программная документация;1;band 1v2: e3 inflation
+159;Backend-разработчик;оценка трудоемкости;1;band 1v2: e3 inflation
+160;Backend-разработчик;справедливый алгоритм;1;band 0v1: e2 strictness
+161;Backend-разработчик;ai safety;1;band 0v1: e2 strictness
+162;Backend-разработчик;валидация модели;1;band 0v1: e2 strictness
+163;Backend-разработчик;explainable ai;1;band 0v1: e2 strictness
+164;Backend-разработчик;trustworthy ai;1;band 0v1: e2 strictness
+165;Backend-разработчик;esp32;0;agree
+166;Backend-разработчик;c++ embedded;0;agree
+167;Backend-разработчик;c++;1;band 1v2: e3 inflation
+168;Backend-разработчик;разработка драйверов;0;agree
+169;Backend-разработчик;rust;1;band 1v2: e3 inflation
+170;Backend-разработчик;qgis;1;band 0v1: e2 strictness
+171;Backend-разработчик;postgis;1;band 0v1: e2 strictness
+172;Backend-разработчик;arcgis;1;band 0v1: e2 strictness
+173;Backend-разработчик;гис;1;band 0v1: e2 strictness
+174;Backend-разработчик;дзз;1;band 0v1: e2 strictness
+175;Backend-разработчик;ms project;1;band 0v1: e2 strictness
+176;Backend-разработчик;1c бухгалтерия;0;agree
+177;Backend-разработчик;sap (модули);0;agree
+178;Backend-разработчик;uml;1;agree
+179;Backend-разработчик;администрирование 1с;0;agree
+180;Backend-разработчик;теорема байеса;1;band 0v1: e2 strictness
+181;Backend-разработчик;непараметрические тесты;1;band 0v1: e2 strictness
+182;Backend-разработчик;bayesian regression;1;band 0v1: e2 strictness
+183;Backend-разработчик;условная вероятность;1;band 0v1: e2 strictness
+184;Backend-разработчик;сетевой анализ;1;band 0v1: e2 strictness
+185;Backend-разработчик;спецификации (openapi);2;agree
+186;Backend-разработчик;микросервисы python;2;agree
+187;Backend-разработчик;проектирование restful api;2;agree
+188;Backend-разработчик;domain-driven design;2;agree
+189;Backend-разработчик;микросервисная архитектура;2;agree
+190;Backend-разработчик;разработка мобильных приложений;1;band 0v1: e2 strictness
+191;Backend-разработчик;ios;1;band 0v1: e2 strictness
+192;Backend-разработчик;swiftui;1;band 0v1: e2 strictness
+193;Backend-разработчик;core data;1;band 0v1: e2 strictness
+194;Backend-разработчик;objective-c;1;band 0v1: e2 strictness
+195;Backend-разработчик;azure;1;band 1v2: e3 inflation
+196;Backend-разработчик;firebase;1;band 1v2: e3 inflation
+197;Backend-разработчик;supabase;1;band 1v2: e3 inflation
+198;Backend-разработчик;netlify;0;extreme: adjudicated
+199;Backend-разработчик;gnn;1;band 0v1: e2 strictness
+200;Backend-разработчик;мультиагентные системы;1;band 0v1: e2 strictness
+201;Backend-разработчик;adversarial training;1;band 0v1: e2 strictness
+202;Backend-разработчик;model selection;1;band 0v1: e2 strictness
+203;Backend-разработчик;graph neural networks;1;band 0v1: e2 strictness
+204;Backend-разработчик;разработка игр;0;agree
+205;Backend-разработчик;opengl;1;band 0v1: e2 strictness
+206;Backend-разработчик;unreal engine;0;agree
+207;Backend-разработчик;unity;0;agree
+208;Backend-разработчик;appium;0;extreme: adjudicated
+209;Backend-разработчик;юзабилити-тестирование;0;extreme: adjudicated
+210;Backend-разработчик;тестирование безопасности;1;band 1v2: e3 inflation
+211;Backend-разработчик;jest;1;extreme: adjudicated
+212;Backend-разработчик;mocha;1;extreme: adjudicated
+213;Backend-разработчик;определение метрик успеха;1;agree
+214;Backend-разработчик;управление знаниями;1;band 1v2: e3 inflation
+215;Backend-разработчик;проектирование ии-решений;1;band 0v1: e2 strictness
+216;Backend-разработчик;jira;1;band 1v2: e3 inflation
+217;Backend-разработчик;управление ит-проектами;1;band 1v2: e3 inflation
+218;Backend-разработчик;orm (prisma, sequelize);2;agree
+219;Backend-разработчик;xgboost;1;band 0v1: e2 strictness
+220;Backend-разработчик;windows forms;0;agree
+221;Backend-разработчик;flux;1;band 2v1: e2 soft inflation
+222;Backend-разработчик;lightgbm;1;band 0v1: e2 strictness
+223;Backend-разработчик;swift;1;band 0v1: e2 strictness
+224;Backend-разработчик;современный c++;1;band 1v2: e3 inflation
+225;Backend-разработчик;системное программирование;1;band 1v2: e3 inflation
+226;Backend-разработчик;c++ разработка;1;band 1v2: e3 inflation
+227;Backend-разработчик;язык запросов graphql;2;agree
+228;Backend-разработчик;неструктурированные данные;1;band 1v2: e3 inflation
+229;Backend-разработчик;стохастическая оптимизация;1;band 0v1: e2 strictness
+230;Backend-разработчик;identity server;2;agree
+231;Backend-разработчик;gan;1;band 0v1: e2 strictness
+232;Backend-разработчик;риск-менеджмент;0;extreme: adjudicated
+233;Backend-разработчик;парсинг данных;1;band 1v2: e3 inflation
+234;Backend-разработчик;графическое представление данных;1;band 0v1: e2 strictness
+235;Backend-разработчик;управление рисками ии;0;extreme: adjudicated
+236;Backend-разработчик;teamcity;1;band 1v2: e3 inflation
+237;Backend-разработчик;openapi;2;agree
+238;Backend-разработчик;постановка задач разработчикам;1;agree
+239;Backend-разработчик;когнитивные искажения;1;band 0v1: e2 strictness
+240;Backend-разработчик;adversarial defense;1;band 0v1: e2 strictness
+241;Backend-разработчик;eslint;1;band 0v1: e2 strictness
+242;Backend-разработчик;material-ui;0;agree
+243;Backend-разработчик;blazor;1;agree
+244;Backend-разработчик;вариационный вывод;1;band 0v1: e2 strictness
+245;Backend-разработчик;кластеры данных;1;band 0v1: e2 strictness
+246;Backend-разработчик;jpa;2;agree
+247;Backend-разработчик;коллективный интеллект;1;band 0v1: e2 strictness
+248;Backend-разработчик;дискриминация данных;1;band 0v1: e2 strictness
+249;DevOps-инженер;data processing;1;agree
+250;DevOps-инженер;power automate;1;band 0v1: e2 strictness
+251;DevOps-инженер;feature store;1;agree
+252;DevOps-инженер;анализ данных на python;1;band 0v1: e2 strictness
+253;DevOps-инженер;пакетная обработка;1;agree
+254;DevOps-инженер;jenkins;2;agree
+255;DevOps-инженер;teamcity;2;agree
+256;DevOps-инженер;openshift;2;agree
+257;DevOps-инженер;автоматизация развёртывания;2;agree
+258;DevOps-инженер;chef;2;agree
+259;DevOps-инженер;flux;2;agree
+260;DevOps-инженер;d3.js;1;band 0v1: e2 strictness
+261;DevOps-инженер;sketch;1;band 0v1: e2 strictness
+262;DevOps-инженер;next.js;1;band 0v1: e2 strictness
+263;DevOps-инженер;zustand;1;band 0v1: e2 strictness
+264;DevOps-инженер;улучшение промптов;1;band 0v1: e2 strictness
+265;DevOps-инженер;prompt engineering;1;band 0v1: e2 strictness
+266;DevOps-инженер;составление запросов к llm;1;band 0v1: e2 strictness
+267;DevOps-инженер;gpt;1;band 0v1: e2 strictness
+268;DevOps-инженер;agents;1;band 0v1: e2 strictness
+269;DevOps-инженер;учёт компетенций коллег;1;agree
+270;DevOps-инженер;неопределенность;1;band 0v1: e2 strictness
+271;DevOps-инженер;коммуникация;1;agree
+272;DevOps-инженер;рефлексивная практика;1;agree
+273;DevOps-инженер;перенос методов;1;band 0v1: e2 strictness
+274;DevOps-инженер;работа с базами данных;1;band 1v2: e3 inflation
+275;DevOps-инженер;nosql;1;band 1v2: e3 inflation
+276;DevOps-инженер;amazon redshift;1;band 1v2: e3 inflation
+277;DevOps-инженер;arenadata db;1;band 1v2: e3 inflation
+278;DevOps-инженер;data vault;0;extreme: adjudicated
+279;DevOps-инженер;наладка программного обеспечения;1;band 1v2: e3 inflation
+280;DevOps-инженер;программные средства;1;band 1v2: e3 inflation
+281;DevOps-инженер;резервное копирование;2;agree
+282;DevOps-инженер;программная документация;1;band 1v2: e3 inflation
+283;DevOps-инженер;мультимедиа;0;agree
+284;DevOps-инженер;ai safety;1;band 0v1: e2 strictness
+285;DevOps-инженер;этика ии;1;band 0v1: e2 strictness
+286;DevOps-инженер;этический аудит;1;band 0v1: e2 strictness
+287;DevOps-инженер;безопасность алгоритмов;1;band 0v1: e2 strictness
+288;DevOps-инженер;identity server;1;agree
+289;DevOps-инженер;c++ embedded;0;agree
+290;DevOps-инженер;микроконтроллеры c++;0;agree
+291;DevOps-инженер;fpga;0;agree
+292;DevOps-инженер;встроенное по c++;0;agree
+293;DevOps-инженер;c++;0;agree
+294;DevOps-инженер;arcgis;0;agree
+295;DevOps-инженер;дзз;0;agree
+296;DevOps-инженер;postgis;0;agree
+297;DevOps-инженер;qgis;0;agree
+298;DevOps-инженер;гис;0;agree
+299;DevOps-инженер;1c розница;0;agree
+300;DevOps-инженер;uml;1;band 0v1: e2 strictness
+301;DevOps-инженер;интеграция 1с с другими системами;0;agree
+302;DevOps-инженер;программирование 1с;0;agree
+303;DevOps-инженер;1c предприятие;0;agree
+304;DevOps-инженер;проверка гипотез;0;agree
+305;DevOps-инженер;байесовские модели;0;agree
+306;DevOps-инженер;байесовская оптимизация;0;agree
+307;DevOps-инженер;теорема байеса;0;agree
+308;DevOps-инженер;теория случайных процессов;0;agree
+309;DevOps-инженер;computer vision;0;agree
+310;DevOps-инженер;data analysis;0;agree
+311;DevOps-инженер;togaf;1;agree
+312;DevOps-инженер;mlops;1;band 1v2: e3 inflation
+313;DevOps-инженер;restful;1;band 1v2: e3 inflation
+314;DevOps-инженер;swift;0;agree
+315;DevOps-инженер;kotlin;0;agree
+316;DevOps-инженер;android;0;agree
+317;DevOps-инженер;swiftui;0;agree
+318;DevOps-инженер;flutter;0;agree
+319;DevOps-инженер;gcp;2;agree
+320;DevOps-инженер;cloudformation;2;agree
+321;DevOps-инженер;azure;2;agree
+322;DevOps-инженер;directus;1;band 0v1: e2 strictness
+323;DevOps-инженер;serverless framework;1;band 2v1: e2 soft inflation
+324;DevOps-инженер;робототехника;0;agree
+325;DevOps-инженер;vae;0;agree
+326;DevOps-инженер;apriori;0;agree
+327;DevOps-инженер;распределённый градиентный спуск;0;agree
+328;DevOps-инженер;статистическая значимость;1;band 0v1: e2 strictness
+329;DevOps-инженер;unity;0;agree
+330;DevOps-инженер;opengl;0;agree
+331;DevOps-инженер;webgl;0;agree
+332;DevOps-инженер;разработка игр;0;agree
+333;DevOps-инженер;unreal engine;0;agree
+334;DevOps-инженер;swagger;1;band 1v2: e3 inflation
+335;DevOps-инженер;selenium;1;band 1v2: e3 inflation
+336;DevOps-инженер;тестирование безопасности;1;band 1v2: e3 inflation
+337;DevOps-инженер;тестирование по;1;band 1v2: e3 inflation
+338;DevOps-инженер;a/b тестирование;0;extreme: adjudicated
+339;DevOps-инженер;системное проектирование;1;band 1v2: e3 inflation
+340;DevOps-инженер;анализ бизнес-проблем;0;extreme: adjudicated
+341;DevOps-инженер;архитектура ии;1;band 0v1: e2 strictness
+342;DevOps-инженер;ведение бэклога;1;band 2v1: e2 soft inflation
+343;DevOps-инженер;управление конфигурациями;2;agree
+344;DevOps-инженер;hibernate;1;band 0v1: e2 strictness
+345;DevOps-инженер;quarkus;1;band 0v1: e2 strictness
+346;DevOps-инженер;rspec;1;band 0v1: e2 strictness
+347;DevOps-инженер;babel;1;band 0v1: e2 strictness
+348;DevOps-инженер;gradle;1;agree
+349;DevOps-инженер;c++ разработка;0;agree
+350;DevOps-инженер;typescript;1;agree
+351;DevOps-инженер;scss;1;band 0v1: e2 strictness
+352;DevOps-инженер;protobuf;1;band 1v2: e3 inflation
+353;DevOps-инженер;xslt;1;band 0v1: e2 strictness
+354;DevOps-инженер;устойчивость к атакам;1;agree
+355;DevOps-инженер;hadoop java;1;agree
+356;DevOps-инженер;оценка распределений;1;band 0v1: e2 strictness
+357;DevOps-инженер;байесовская статистика;1;band 0v1: e2 strictness
+358;DevOps-инженер;развёртывание nlp;1;agree
+359;DevOps-инженер;глубокое обучение с подкреплением;0;agree
+360;DevOps-инженер;теория категорий;0;agree
+361;DevOps-инженер;оценка трудоемкости;1;agree
+362;DevOps-инженер;matplotlib;1;band 0v1: e2 strictness
+363;DevOps-инженер;ado.net;0;agree
+364;DevOps-инженер;r;1;band 0v1: e2 strictness
+365;DevOps-инженер;администрирование систем;2;agree
+366;DevOps-инженер;веб-аналитика;1;band 0v1: e2 strictness
+367;DevOps-инженер;parameter-efficient fine-tuning;1;band 0v1: e2 strictness
+368;DevOps-инженер;transformer;1;band 0v1: e2 strictness
+369;DevOps-инженер;параметрическая настройка;1;agree
+370;DevOps-инженер;учет ролевых особенностей;1;band 0v1: e2 strictness
+371;DevOps-инженер;видео-языковые модели;1;band 0v1: e2 strictness
+372;DevOps-инженер;статистическое моделирование;1;band 0v1: e2 strictness
+373;DevOps-инженер;приватность;1;agree
+374;Системный аналитик;sas;1;band 0v1: e2 strictness
+375;Системный аналитик;ssrs;1;band 0v1: e2 strictness
+376;Системный аналитик;feature selection;1;band 0v1: e2 strictness
+377;Системный аналитик;обработка выбросов;1;band 0v1: e2 strictness
+378;Системный аналитик;feature engineering;1;band 0v1: e2 strictness
+379;Системный аналитик;powershell;1;agree
+380;Системный аналитик;администрирование windows server;1;band 0v1: e2 strictness
+381;Системный аналитик;vault;1;band 0v1: e2 strictness
+382;Системный аналитик;vagrant;1;band 0v1: e2 strictness
+383;Системный аналитик;kibana;1;band 0v1: e2 strictness
+384;Системный аналитик;scss;1;band 0v1: e2 strictness
+385;Системный аналитик;tailwind css;1;band 0v1: e2 strictness
+386;Системный аналитик;gatsby;1;band 0v1: e2 strictness
+387;Системный аналитик;redwoodjs;1;band 0v1: e2 strictness
+388;Системный аналитик;storybook;1;band 0v1: e2 strictness
+389;Системный аналитик;structured outputs;1;band 0v1: e2 strictness
+390;Системный аналитик;multimodal;1;band 0v1: e2 strictness
+391;Системный аналитик;nltk;1;band 0v1: e2 strictness
+392;Системный аналитик;fine-tuning;1;band 0v1: e2 strictness
+393;Системный аналитик;отладка промптов;1;band 0v1: e2 strictness
+394;Системный аналитик;soft skills;2;agree
+395;Системный аналитик;этика разработки;1;band 1v2: e3 inflation
+396;Системный аналитик;критический анализ ии;1;band 1v2: e3 inflation
+397;Системный аналитик;работа в команде;2;agree
+398;Системный аналитик;когнитивная предвзятость;1;band 1v2: e3 inflation
+399;Системный аналитик;greenplum;1;band 0v1: e2 strictness
+400;Системный аналитик;big data;1;agree
+401;Системный аналитик;data vault;1;agree
+402;Системный аналитик;amazon redshift;1;band 0v1: e2 strictness
+403;Системный аналитик;trino;1;band 0v1: e2 strictness
+404;Системный аналитик;технологический стек;2;agree
+405;Системный аналитик;нефункциональные требования;2;agree
+406;Системный аналитик;программно-аппаратные комплексы;1;agree
+407;Системный аналитик;технические средства;1;agree
+408;Системный аналитик;межсетевой экран;1;agree
+409;Системный аналитик;безопасность алгоритмов;1;extreme: adjudicated
+410;Системный аналитик;соответствие стандартам;2;agree
+411;Системный аналитик;регуляторика ии;1;band 1v2: e3 inflation
+412;Системный аналитик;справедливый алгоритм;0;extreme: adjudicated
+413;Системный аналитик;оценка рисков ии;1;band 1v2: e3 inflation
+414;Системный аналитик;fpga;0;agree
+415;Системный аналитик;микроконтроллеры c++;0;agree
+416;Системный аналитик;rust;0;agree
+417;Системный аналитик;встроенное по c++;0;agree
+418;Системный аналитик;c++;0;agree
+419;Системный аналитик;arcgis;1;band 0v1: e2 strictness
+420;Системный аналитик;дзз;1;band 0v1: e2 strictness
+421;Системный аналитик;гис;1;band 0v1: e2 strictness
+422;Системный аналитик;qgis;1;band 0v1: e2 strictness
+423;Системный аналитик;postgis;1;band 0v1: e2 strictness
+424;Системный аналитик;enterprise java;1;agree
+425;Системный аналитик;uml;2;agree
+426;Системный аналитик;ms project;1;agree
+427;Системный аналитик;erp;2;agree
+428;Системный аналитик;1c программирование;1;band 0v1: e2 strictness
+429;Системный аналитик;байесовские методы;1;band 0v1: e2 strictness
+430;Системный аналитик;гауссовские процессы;1;band 0v1: e2 strictness
+431;Системный аналитик;байесовский подход;1;band 0v1: e2 strictness
+432;Системный аналитик;байесовская оптимизация гиперпараметров;0;agree
+433;Системный аналитик;hyperopt;0;agree
+434;Системный аналитик;микросервисная архитектура;2;agree
+435;Системный аналитик;web application development;1;agree
+436;Системный аналитик;jamstack;0;agree
+437;Системный аналитик;data mining;0;agree
+438;Системный аналитик;etl;1;agree
+439;Системный аналитик;разработка мобильных приложений;1;band 0v1: e2 strictness
+440;Системный аналитик;swiftui;1;band 0v1: e2 strictness
+441;Системный аналитик;swift;1;band 0v1: e2 strictness
+442;Системный аналитик;objective-c;1;band 0v1: e2 strictness
+443;Системный аналитик;kotlin;1;band 0v1: e2 strictness
+444;Системный аналитик;headless cms;1;agree
+445;Системный аналитик;gcp;1;agree
+446;Системный аналитик;firebase;1;band 0v1: e2 strictness
+447;Системный аналитик;cloudformation;1;band 0v1: e2 strictness
+448;Системный аналитик;azure;1;agree
+449;Системный аналитик;градиентный бустинг;1;band 0v1: e2 strictness
+450;Системный аналитик;деревья решений;1;band 0v1: e2 strictness
+451;Системный аналитик;knn;1;band 0v1: e2 strictness
+452;Системный аналитик;подбор гиперпараметров;1;band 0v1: e2 strictness
+453;Системный аналитик;нейросетевые инновации;1;band 0v1: e2 strictness
+454;Системный аналитик;opengl;0;closed ecosystem
+455;Системный аналитик;webgl;0;closed ecosystem
+456;Системный аналитик;unity;0;closed ecosystem
+457;Системный аналитик;разработка игр;0;closed ecosystem
+458;Системный аналитик;unreal engine;0;closed ecosystem
+459;Системный аналитик;тестирование по;2;agree
+460;Системный аналитик;тестирование безопасности;1;band 1v2: e3 inflation
+461;Системный аналитик;playwright;0;extreme: adjudicated
+462;Системный аналитик;a/b тестирование;1;band 1v2: e3 inflation
+463;Системный аналитик;testng;0;extreme: adjudicated
+464;Системный аналитик;atlassian confluence;2;agree
+465;Системный аналитик;управление проектами ии;1;band 1v2: e3 inflation
+466;Системный аналитик;системное проектирование;2;agree
+467;Системный аналитик;task management;1;band 1v2: e3 inflation
+468;Системный аналитик;разработка технических заданий;2;agree
+469;Системный аналитик;kafka streams;1;agree
+470;Системный аналитик;webpack;1;band 0v1: e2 strictness
+471;Системный аналитик;three.js;0;closed ecosystem
+472;Системный аналитик;quarkus;1;band 0v1: e2 strictness
+473;Системный аналитик;socket.io;1;agree
+474;Системный аналитик;typescript;1;band 0v1: e2 strictness
+475;Системный аналитик;llvm;1;band 0v1: e2 strictness
+476;Системный аналитик;shell script;0;extreme: adjudicated
+477;Системный аналитик;современный c++;1;band 0v1: e2 strictness
+478;Системный аналитик;xpath;1;band 1v2: e3 inflation
+479;Системный аналитик;мета-обучение;1;band 0v1: e2 strictness
+480;Системный аналитик;1c документооборот;1;agree
+481;Системный аналитик;openai api;1;band 0v1: e2 strictness
+482;Системный аналитик;presto;1;band 0v1: e2 strictness
+483;Системный аналитик;deep learning research;1;band 0v1: e2 strictness
+484;Системный аналитик;robot framework;1;agree
+485;Системный аналитик;dom;1;agree
+486;Системный аналитик;механизм внимания;1;band 0v1: e2 strictness
+487;Системный аналитик;диффузионные модели;1;band 0v1: e2 strictness
+488;Системный аналитик;jdbc;1;band 1v2: e3 inflation
+489;Системный аналитик;remix;1;band 0v1: e2 strictness
+490;Системный аналитик;спецификации (openapi);2;agree
+491;Системный аналитик;net core;1;agree
+492;Системный аналитик;визуально-языковые модели;1;band 0v1: e2 strictness
+493;Системный аналитик;generative ai;1;agree
+494;Системный аналитик;командная работа;2;agree
+495;Системный аналитик;ассоциативные правила;1;band 0v1: e2 strictness
+496;Системный аналитик;оптимизация sql-запросов;1;band 1v2: e3 inflation
+497;Системный аналитик;мультимодальные llm;1;band 0v1: e2 strictness
+498;Системный аналитик;анализ данных;1;band 1v2: e3 inflation
+499;Backend-разработчик;1c erp;1;band 0v1: e2 strictness

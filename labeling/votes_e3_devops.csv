@@ -1,0 +1,126 @@
+id;role;skill;vote;argtype
+249;DevOps-инженер;data processing;1;S
+250;DevOps-инженер;power automate;1;S
+251;DevOps-инженер;feature store;1;S
+252;DevOps-инженер;анализ данных на python;1;S
+253;DevOps-инженер;пакетная обработка;1;S
+254;DevOps-инженер;jenkins;2;K
+255;DevOps-инженер;teamcity;2;K
+256;DevOps-инженер;openshift;2;K
+257;DevOps-инженер;автоматизация развёртывания;2;K
+258;DevOps-инженер;chef;2;K
+259;DevOps-инженер;flux;2;K
+260;DevOps-инженер;d3.js;1;S
+261;DevOps-инженер;sketch;1;S
+262;DevOps-инженер;next.js;1;S
+263;DevOps-инженер;zustand;1;S
+264;DevOps-инженер;улучшение промптов;1;S
+265;DevOps-инженер;prompt engineering;1;S
+266;DevOps-инженер;составление запросов к llm;1;S
+267;DevOps-инженер;gpt;1;S
+268;DevOps-инженер;agents;1;S
+269;DevOps-инженер;учёт компетенций коллег;1;S
+270;DevOps-инженер;неопределенность;1;S
+271;DevOps-инженер;коммуникация;1;S
+272;DevOps-инженер;рефлексивная практика;1;S
+273;DevOps-инженер;перенос методов;1;S
+274;DevOps-инженер;работа с базами данных;2;K
+275;DevOps-инженер;nosql;2;K
+276;DevOps-инженер;amazon redshift;2;K
+277;DevOps-инженер;arenadata db;2;K
+278;DevOps-инженер;data vault;2;K
+279;DevOps-инженер;наладка программного обеспечения;2;K
+280;DevOps-инженер;программные средства;2;K
+281;DevOps-инженер;резервное копирование;2;K
+282;DevOps-инженер;программная документация;2;K
+283;DevOps-инженер;мультимедиа;0;M
+284;DevOps-инженер;ai safety;1;S
+285;DevOps-инженер;этика ии;1;S
+286;DevOps-инженер;этический аудит;1;S
+287;DevOps-инженер;безопасность алгоритмов;1;S
+288;DevOps-инженер;identity server;1;S
+289;DevOps-инженер;c++ embedded;0;M
+290;DevOps-инженер;микроконтроллеры c++;0;M
+291;DevOps-инженер;fpga;0;M
+292;DevOps-инженер;встроенное по c++;0;M
+293;DevOps-инженер;c++;0;M
+294;DevOps-инженер;arcgis;0;M
+295;DevOps-инженер;дзз;0;M
+296;DevOps-инженер;postgis;0;M
+297;DevOps-инженер;qgis;0;M
+298;DevOps-инженер;гис;0;M
+299;DevOps-инженер;1c розница;0;M
+300;DevOps-инженер;uml;1;S
+301;DevOps-инженер;интеграция 1с с другими системами;0;M
+302;DevOps-инженер;программирование 1с;0;M
+303;DevOps-инженер;1c предприятие;0;M
+304;DevOps-инженер;проверка гипотез;0;M
+305;DevOps-инженер;байесовские модели;0;M
+306;DevOps-инженер;байесовская оптимизация;0;M
+307;DevOps-инженер;теорема байеса;0;M
+308;DevOps-инженер;теория случайных процессов;0;M
+309;DevOps-инженер;computer vision;0;M
+310;DevOps-инженер;data analysis;0;M
+311;DevOps-инженер;togaf;1;S
+312;DevOps-инженер;mlops;2;K
+313;DevOps-инженер;restful;2;K
+314;DevOps-инженер;swift;0;M
+315;DevOps-инженер;kotlin;0;M
+316;DevOps-инженер;android;0;M
+317;DevOps-инженер;swiftui;0;M
+318;DevOps-инженер;flutter;0;M
+319;DevOps-инженер;gcp;2;K
+320;DevOps-инженер;cloudformation;2;K
+321;DevOps-инженер;azure;2;K
+322;DevOps-инженер;directus;1;S
+323;DevOps-инженер;serverless framework;1;S
+324;DevOps-инженер;робототехника;0;M
+325;DevOps-инженер;vae;0;M
+326;DevOps-инженер;apriori;0;M
+327;DevOps-инженер;распределённый градиентный спуск;0;M
+328;DevOps-инженер;статистическая значимость;1;S
+329;DevOps-инженер;unity;0;M
+330;DevOps-инженер;opengl;0;M
+331;DevOps-инженер;webgl;0;M
+332;DevOps-инженер;разработка игр;0;M
+333;DevOps-инженер;unreal engine;0;M
+334;DevOps-инженер;swagger;2;K
+335;DevOps-инженер;selenium;2;K
+336;DevOps-инженер;тестирование безопасности;2;K
+337;DevOps-инженер;тестирование по;2;K
+338;DevOps-инженер;a/b тестирование;2;K
+339;DevOps-инженер;системное проектирование;2;K
+340;DevOps-инженер;анализ бизнес-проблем;2;K
+341;DevOps-инженер;архитектура ии;1;S
+342;DevOps-инженер;ведение бэклога;0;M
+343;DevOps-инженер;управление конфигурациями;2;K
+344;DevOps-инженер;hibernate;1;S
+345;DevOps-инженер;quarkus;1;S
+346;DevOps-инженер;rspec;1;S
+347;DevOps-инженер;babel;1;S
+348;DevOps-инженер;gradle;1;S
+349;DevOps-инженер;c++ разработка;0;M
+350;DevOps-инженер;typescript;1;S
+351;DevOps-инженер;scss;1;S
+352;DevOps-инженер;protobuf;2;K
+353;DevOps-инженер;xslt;1;S
+354;DevOps-инженер;устойчивость к атакам;1;S
+355;DevOps-инженер;hadoop java;1;S
+356;DevOps-инженер;оценка распределений;1;S
+357;DevOps-инженер;байесовская статистика;1;S
+358;DevOps-инженер;развёртывание nlp;1;S
+359;DevOps-инженер;глубокое обучение с подкреплением;0;M
+360;DevOps-инженер;теория категорий;0;M
+361;DevOps-инженер;оценка трудоемкости;1;S
+362;DevOps-инженер;matplotlib;1;S
+363;DevOps-инженер;ado.net;0;M
+364;DevOps-инженер;r;1;S
+365;DevOps-инженер;администрирование систем;2;K
+366;DevOps-инженер;веб-аналитика;1;S
+367;DevOps-инженер;parameter-efficient fine-tuning;1;S
+368;DevOps-инженер;transformer;1;S
+369;DevOps-инженер;параметрическая настройка;1;S
+370;DevOps-инженер;учет ролевых особенностей;1;S
+371;DevOps-инженер;видео-языковые модели;1;S
+372;DevOps-инженер;статистическое моделирование;1;S
+373;DevOps-инженер;приватность;1;S
