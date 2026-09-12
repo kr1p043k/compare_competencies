@@ -13,6 +13,9 @@ from src.errors import MatchingError
 logger = structlog.get_logger(__name__)
 
 NORMALIZE_RE = re.compile(r"[^\w\s\-/]")
+# Single-char market tokens are почти всегда мусор парсинга (напр. 'я').
+# Allowlist: языки с однобуквенным именем. Остальное режется везде (v28).
+_MARKET_SINGLE_ALLOW = frozenset({"r", "c"})
 SEMANTIC_THRESHOLD = 0.78
 MARKET_EMB_CACHE_NAME = "market_embeddings_middle.joblib"
 MARKET_CACHE_MIN_SKILLS = 300
@@ -58,7 +61,7 @@ def adaptive_semantic_threshold(query: str, candidate: str, base: float = 0.70) 
 class SkillMatcher:
     def __init__(self, market_skills: dict[str, int] | None = None,
                  embedding_provider: Any | None = None):
-        self.market_skills: dict[str, int] = market_skills or {}
+        self.market_skills: dict[str, int] = self._clean_market(market_skills or {})
         self._embedding_provider = embedding_provider
         self._market_embeddings: np.ndarray | None = None
         self._market_names: list[str] = []
@@ -75,7 +78,7 @@ class SkillMatcher:
         if not market_skills:
             logger.warning("market_skills_empty")
             return Err(MatchingError(skill_name="", message="Empty market skills map"))
-        self.market_skills = dict(sorted(market_skills.items(), key=lambda kv: (-kv[1], kv[0])))
+        self.market_skills = dict(sorted(self._clean_market(market_skills).items(), key=lambda kv: (-kv[1], kv[0])))
         self._semantic_cache.clear()
         self._match_cache.clear()
         self._rebuild_fuzzy_patterns()
@@ -171,6 +174,12 @@ class SkillMatcher:
 
                 with contextlib.suppress(Exception):
                     os.unlink(tmp_path)
+
+    @staticmethod
+    def _clean_market(market_skills: dict[str, int]) -> dict[str, int]:
+        """Drop falsy and single-char junk tokens (v28: market contained 'я')."""
+        return {k: v for k, v in market_skills.items()
+                if (k or "").strip() and (len(k.strip()) > 1 or k.strip().lower() in _MARKET_SINGLE_ALLOW)}
 
     def _rebuild_fuzzy_patterns(self) -> None:
         """Precompile whole-word patterns for every market name.

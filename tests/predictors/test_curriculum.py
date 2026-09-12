@@ -146,6 +146,7 @@ class TestCurriculumRecommender:
         mock_load.return_value = {"academic": [], "professional": []}
         rec = CurriculumRecommender()
         coverage = self.make_coverage(
+            top_matched=[SkillMatch(skill_name="Python", frequency=100)],
             truly_missing=[
                 SkillMatch(skill_name="Kubernetes", frequency=50),
                 SkillMatch(skill_name="Terraform", frequency=30),
@@ -227,6 +228,7 @@ class TestCurriculumRecommender:
         rec = CurriculumRecommender()
         coverage = self.make_coverage(
             discipline_name="Software Engineering",
+            top_matched=[SkillMatch(skill_name="javascript", frequency=80)],
             truly_missing=[
                 SkillMatch(skill_name="React", frequency=100),
                 SkillMatch(skill_name="Cooking", frequency=5),
@@ -236,20 +238,28 @@ class TestCurriculumRecommender:
         assert result.is_ok()
         recs = result.ok()
         add_new = [r for r in recs if r.type == "add_new_content"]
-        if add_new:
-            assert any("React" in r.message for r in add_new)
+        assert any(r.skill_name == "React" for r in add_new)
+        assert all(r.skill_name != "Cooking" for r in add_new)
 
-    def test_filter_relevant_empty_skills(self):
-        result = CurriculumRecommender._filter_relevant([], "Test")
-        assert result == []
+    @patch("src.predictors.curriculum_recommender._load_skill_types")
+    def test_add_new_empty_input(self, mock_load):
+        mock_load.return_value = {"academic": [], "professional": []}
+        rec = CurriculumRecommender()
+        coverage = self.make_coverage(truly_missing=[])
+        result = rec.generate(coverage)
+        assert result.is_ok()
+        assert [r for r in result.ok() if r.type == "add_new_content"] == []
 
-    def test_filter_relevant_with_match(self):
-        skills = [
-            SkillMatch(skill_name="Python", frequency=10),
-            SkillMatch(skill_name="Java", frequency=5),
-        ]
-        result = CurriculumRecommender._filter_relevant(skills, "Python Developer")
-        assert len(result) >= 0
+    @patch("src.predictors.curriculum_recommender._load_skill_types")
+    def test_add_new_requires_matched_profile(self, mock_load):
+        mock_load.return_value = {"academic": [], "professional": []}
+        rec = CurriculumRecommender()
+        coverage = self.make_coverage(
+            truly_missing=[SkillMatch(skill_name="Kubernetes", frequency=50)],
+        )
+        result = rec.generate(coverage)
+        assert result.is_ok()
+        assert [r for r in result.ok() if r.type == "add_new_content"] == []
 
     @patch("src.predictors.curriculum_recommender._load_skill_types")
     def test_generate_summary_recommendations_success(self, mock_load):

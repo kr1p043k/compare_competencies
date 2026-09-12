@@ -8,11 +8,11 @@ from fastapi.testclient import TestClient
 sys.modules['shap'] = MagicMock()
 sys.modules['cv2'] = MagicMock()
 
-# Mock sentence_transformers BEFORE importing src.api_pkg to prevent real import
-_sent_original = sys.modules.get('sentence_transformers')
-_sent_mock = MagicMock()
-_sent_mock.__version__ = "0.0.0"
-sys.modules['sentence_transformers'] = _sent_mock
+# NOTE: sentence_transformers is mocked session-wide by tests/conftest.py
+# (configured mock with working encode). Do NOT overwrite sys.modules here:
+# a bare MagicMock breaks every other test file importing embeddings
+# (proven: 15 comparator failures). shap/cv2 mocks below are load-bearing
+# (packages not installed) and harmless (additive, nothing overwritten).
 from src.api_pkg import app
 from src.models.student import StudentProfile
 

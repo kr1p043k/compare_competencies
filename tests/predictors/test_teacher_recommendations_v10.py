@@ -328,3 +328,13 @@ def test_validator_invariants():
     ]
     out = r.validate(recs, cov)
     assert [x.message for x in out] == ["m3"]
+
+
+def test_market_purge_drops_single_char_junk():
+    from src.analyzers.skill_matcher import SkillMatcher
+    m = SkillMatcher(market_skills={'': 5442, 'я': 5, 'r': 1386, 'c': 21, 'sql': 3519})
+    assert '' not in m.market_skills
+    assert 'я' not in m.market_skills
+    assert m.market_skills.get('r') == 1386
+    assert m.market_skills.get('c') == 21
+    assert m.market_skills.get('sql') == 3519

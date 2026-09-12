@@ -89,7 +89,11 @@ class ProfileEvaluator:
             ExperienceLevel.MIDDLE: 0.6,
             ExperienceLevel.SENIOR: 0.9,
         }.get(student.target_level, 0.5)
-        user_levels = {skill: getattr(student, 'skill_levels', {}).get(skill, _base_level) for skill in user_skills_list}
+        _lvl_raw = getattr(student, 'skill_levels', {}) or {}
+        _lvl = {}
+        for _k, _v in _lvl_raw.items():
+            _lvl.setdefault((_k or "").lower().strip(), _v)
+        user_levels = {s.lower().strip(): _lvl.get(s.lower().strip(), _base_level) for s in user_skills_list}
         user_skills_set = set(s.lower().strip() for s in user_skills_list)
 
         # === Фильтрация навыков по целевой профессии/домену ===

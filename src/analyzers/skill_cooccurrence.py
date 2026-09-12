@@ -16,7 +16,8 @@ class SkillCooccurrence:
         freq: Counter = Counter()
         pair: Counter = Counter()
         for raw in vacancy_skill_sets or []:
-            skills = {str(s).strip().lower() for s in (raw or []) if str(s).strip()}
+            skills = {str(s).strip().lower() for s in (raw or []) if str(s).strip()
+                      and (len(str(s).strip()) > 1 or str(s).strip().lower() in ("r", "c"))}
             if vocab is not None:
                 skills &= set(vocab)
             for s in skills:

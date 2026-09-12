@@ -611,3 +611,41 @@ class TestRecommendationEngineExtended:
         engine._taxonomy.get_category_label = MagicMock(side_effect=Exception("taxonomy error"))
         expl = engine._generate_explanation("docker", 0.8, eval_copy)
         assert "технический" in expl
+
+
+# ---------------------------------------------------------------------------
+# Tests for cluster core-skill gate (llm must not be 'key skill' for Mgmt)
+# ---------------------------------------------------------------------------
+class TestRoleCoreGate:
+    def _roles(self):
+        core = [f"mgmt_skill_{i:02d}" for i in range(15)]
+        tail = [f"tail_skill_{i:02d}" for i in range(35)]
+        return [{
+            "role": "Mgmt",
+            "semantic_similarity": 92.0,
+            "coverage_percent": 27.3,
+            "skills_covered": "12/44",
+            "cluster_skills": core + tail,
+            "cluster_core_skills": core,
+        }]
+
+    def test_tail_skill_not_attributed_to_role(self, mock_profile_evaluator):
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        out = engine._get_role_outcome("tail_skill_00", self._roles())
+        assert "tail_skill_00" in out and "Mgmt" in out
+        assert "(+" not in out
+
+    def test_core_skill_gets_coverage_math(self, mock_profile_evaluator):
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        out = engine._get_role_outcome("mgmt_skill_00", self._roles())
+        assert "(+" in out
+
+    def test_build_roles_has_sorted_core(self, mock_profile_evaluator):
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        mock_profile_evaluator.clusterer = MagicMock()
+        mock_profile_evaluator.clusterer.get_top_skills_in_cluster.return_value = [
+            f"s{i:02d}" for i in range(50)]
+        roles = engine._build_closest_roles(
+            [{"id": 0, "name": "R", "similarity": 0.9}], {}, set())
+        assert roles[0]["cluster_core_skills"] == [f"s{i:02d}" for i in range(15)]
+        assert roles[0]["cluster_skills"] == sorted(roles[0]["cluster_skills"])
