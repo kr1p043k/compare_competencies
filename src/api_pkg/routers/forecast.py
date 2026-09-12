@@ -176,7 +176,8 @@ async def get_all_forecasts(request: Request, months: int = Query(12, ge=1, le=2
     """Прогнозы по всем навыкам."""
     match await _get_forecast_engine():
         case Ok(engine):
-            match engine.forecast_all(months=months):
+            result = await asyncio.to_thread(engine.forecast_all, months=months)
+            match result:
                 case Ok(forecasts):
                     _record_forecast_accuracy(engine, forecasts)
                     method = _detect_method(engine)
@@ -200,30 +201,14 @@ async def get_top_forecasts(
     match await _get_forecast_engine():
         case Ok(engine):
             meta = await _get_vacancy_meta()
-            if isinstance(engine, ProphetForecastEngine):
-                if direction == "declining":
-                    match engine.top_declining(n=n, months=months):
-                        case Ok(results):
-                            _record_forecast_accuracy(engine, results)
-                            items = [_serialize(r, direction, "prophet") for r in results]
-                        case Err(e):
-                            raise HTTPException(status_code=500, detail=str(e))
-                else:
-                    match engine.top_growing(n=n, months=months):
-                        case Ok(results):
-                            _record_forecast_accuracy(engine, results)
-                            items = [_serialize(r, direction, "prophet") for r in results]
-                        case Err(e):
-                            raise HTTPException(status_code=500, detail=str(e))
-            else:
-                match engine.top_growing(n=n * 2, months=months):
-                    case Ok(all_results):
-                        _record_forecast_accuracy(engine, all_results)
-                        if direction == "declining":
-                            all_results = sorted(all_results, key=lambda x: x.predicted_growth)[:n]
-                        items = [_serialize(r, direction, "genetic") for r in all_results[:n]]
-                    case Err(e):
-                        raise HTTPException(status_code=500, detail=str(e))
+            result = await asyncio.to_thread(_run_top_forecast, engine, direction, n, months)
+            match result:
+                case Ok(results):
+                    _record_forecast_accuracy(engine, results)
+                    method = "prophet" if isinstance(engine, ProphetForecastEngine) else "genetic"
+                    items = [_serialize(r, direction, method) for r in results]
+                case Err(e):
+                    raise HTTPException(status_code=500, detail=str(e))
             # Determine actual forecast horizon (Prophet caps it internally)
             actual_months = months
             if isinstance(engine, ProphetForecastEngine) and engine.is_fitted:
@@ -231,6 +216,21 @@ async def get_top_forecasts(
             return {"direction": direction, "n": n, "months": actual_months, "requested_months": months, "forecasts": items, **meta}
         case Err(e):
             raise HTTPException(status_code=503, detail=str(e))
+
+
+def _run_top_forecast(engine, direction: str, n: int, months: int) -> Result[list, DomainError]:
+    """Синхронный расчёт топ-прогнозов (выполняется в потоке)."""
+    if isinstance(engine, ProphetForecastEngine):
+        if direction == "declining":
+            return engine.top_declining(n=n, months=months)
+        return engine.top_growing(n=n, months=months)
+    match engine.top_growing(n=n * 2, months=months):
+        case Ok(all_results):
+            if direction == "declining":
+                all_results = sorted(all_results, key=lambda x: x.predicted_growth)[:n]
+            return Ok(all_results[:n])
+        case Err(e):
+            return Err(e)
 
 
 @router.get("/forecast/popular")
@@ -244,20 +244,25 @@ async def get_popular_forecasts(
     match await _get_forecast_engine():
         case Ok(engine):
             meta = await _get_vacancy_meta()
-            if isinstance(engine, ProphetForecastEngine):
-                match engine.top_popular(n=n, months=months):
-                    case Ok(results):
-                        _record_forecast_accuracy(engine, results)
-                        items = [_serialize(r, "growing", "prophet") for r in results]
-                    case Err(e):
-                        raise HTTPException(status_code=500, detail=str(e))
-            else:
-                all_results = sorted(engine.forecast_all(months).unwrap_or([]), key=lambda x: x.current_frequency, reverse=True)
-                _record_forecast_accuracy(engine, all_results)
-                items = [_serialize(r, "growing", "genetic") for r in all_results[:n]]
+            result = await asyncio.to_thread(_run_popular_forecast, engine, n, months)
+            match result:
+                case Ok(results):
+                    _record_forecast_accuracy(engine, results)
+                    method = "prophet" if isinstance(engine, ProphetForecastEngine) else "genetic"
+                    items = [_serialize(r, "growing", method) for r in results]
+                case Err(e):
+                    raise HTTPException(status_code=500, detail=str(e))
             return {"direction": "popular", "n": n, "months": months, "forecasts": items, **meta}
         case Err(e):
             raise HTTPException(status_code=503, detail=str(e))
+
+
+def _run_popular_forecast(engine, n: int, months: int) -> Result[list, DomainError]:
+    """Синхронный расчёт популярных прогнозов (выполняется в потоке)."""
+    if isinstance(engine, ProphetForecastEngine):
+        return engine.top_popular(n=n, months=months)
+    all_results = sorted(engine.forecast_all(months).unwrap_or([]), key=lambda x: x.current_frequency, reverse=True)
+    return Ok(all_results[:n])
 
 
 @router.get("/forecast/{skill}")
@@ -266,7 +271,8 @@ async def get_skill_forecast(skill: str, request: Request, months: int = Query(1
     """Прогноз по одному навыку."""
     match await _get_forecast_engine():
         case Ok(engine):
-            result = engine.forecast(skill, months) if hasattr(engine, "forecast") else engine.predict(skill, months)
+            predict = engine.forecast if hasattr(engine, "forecast") else engine.predict
+            result = await asyncio.to_thread(predict, skill, months)
             match result:
                 case Ok(r):
                     _record_forecast_accuracy(engine, [r])
