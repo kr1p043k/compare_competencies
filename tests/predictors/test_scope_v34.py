@@ -3,12 +3,12 @@ from src.pipeline.teacher_analysis_runner import SCOPE_EXCLUDED, discipline_in_s
 
 
 def test_exact_exclusions():
-    assert len(SCOPE_EXCLUDED) == 6
+    assert len(SCOPE_EXCLUDED) == 7
     for name in ["Дисциплины по ФКиС", "Физическая культура и спорт",
                  "Эмоциональный интеллект и критическое мышление инженера",
                  "Экономико-правовое обеспечение инженерной деятельности_очная",
                  "Стрессоустойчивость и личная эффективность",
-                 "История России"]:
+                 "История России", "Философия"]:
         assert discipline_in_scope(name) is False
 
 

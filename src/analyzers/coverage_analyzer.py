@@ -14,14 +14,20 @@ from src import config
 from src.result import Ok, Err, Result
 from src.errors import CoverageError
 from src.models.teacher_analysis import CompetencyCoverage, CrossReference, DisciplineCoverage, SkillMatch
-from src.analyzers.skill_matcher import SkillMatcher, coverage_level, normalize as normalize_skill
+from src.analyzers.skill_matcher import (
+    MARKET_MIN_FREQ,
+    SkillMatcher,
+    coverage_level,
+    normalize as normalize_skill,
+)
 
 logger = structlog.get_logger(__name__)
 
 
-MIN_MATCH_FREQ = 5
+MIN_MATCH_FREQ = MARKET_MIN_FREQ
 # A match counts as coverage only if the market skill has real demand (v29).
 # Fringe skills (1-4 vacancies, e.g. one-off listings) must not inflate coverage.
+# Single source of truth lives in skill_matcher (v36).
 
 
 class CoverageAnalyzer:

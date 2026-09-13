@@ -37,7 +37,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 34  # analysis scope: drop non-core disciplines diluting IT coverage
+CODE_VERSION = 36  # fringe-shadow fix (fuzzy fringe no longer blocks mapped/semantic)
 
 # Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
 # IT-coverage picture. Data stays in DB (nothing deleted); they are only
@@ -49,6 +49,7 @@ SCOPE_EXCLUDED: frozenset = frozenset({
     "Экономико-правовое обеспечение инженерной деятельности_очная",
     "Стрессоустойчивость и личная эффективность",
     "История России",
+    "Философия",
 })
 # English: keep only C1 (highest requirement) + business English.
 # Russian is kept (not an English variant; flagged as next-cut candidate).

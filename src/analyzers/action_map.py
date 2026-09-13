@@ -64,6 +64,11 @@ ACTION_TOOLS: list[dict] = [
      "grounded": ['redis'], "expert": []},
     {"id": 'orm', "triggers": ['orm', 'sqlalchemy', 'миграции', 'alembic'],
      "grounded": ['sqlalchemy'], "expert": ['alembic']},
+    {"id": 'techdocs', "triggers": ['отчетная документация', 'техническая документация',
+     'оформление документации', 'документирование'],
+     "grounded": ['техническая документация'], "expert": []},
+    {"id": 'gost', "triggers": ['гост', 'стандарты нормы правила'],
+     "grounded": ['гост'], "expert": []},
 ]
 
 

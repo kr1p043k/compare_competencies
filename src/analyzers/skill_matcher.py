@@ -17,6 +17,11 @@ NORMALIZE_RE = re.compile(r"[^\w\s\-/]")
 # Allowlist: языки с однобуквенным именем. Остальное режется везде (v28).
 _MARKET_SINGLE_ALLOW = frozenset({"r", "c"})
 SEMANTIC_THRESHOLD = 0.78
+# A market token with fewer vacancies is fringe: it must neither count as
+# coverage (see CoverageAnalyzer) nor shadow stronger stages (v36: e.g. the
+# fringe token 'документация'/1 hijacked 'отчетная документация' via fuzzy
+# and blocked the mapped hit 'техническая документация'/63).
+MARKET_MIN_FREQ = 5
 # Version-split market aliases folded into canonical keys at market build
 # (v32, flag-gated via FF_MARKET_SYNONYMS). Minimal grounded set: each alias
 # verified to denote the same tool (DB check 12.09.2026: python3 freq 1,
@@ -282,8 +287,11 @@ class SkillMatcher:
 
         mn = self._fuzzy_hit_name(n)
         if mn:
-            logger.debug("skill_fuzzy_match", rpd_skill=n, market_skill=mn)
-            return Ok((mn, "fuzzy", 0.5))
+            if self.market_skills.get(mn, 0) < MARKET_MIN_FREQ:
+                logger.debug("skill_fuzzy_fringe_skipped", rpd_skill=n, market_skill=mn)
+            else:
+                logger.debug("skill_fuzzy_match", rpd_skill=n, market_skill=mn)
+                return Ok((mn, "fuzzy", 0.5))
 
         mapped, _, _ = self._mapped_match(n)
         if mapped:
