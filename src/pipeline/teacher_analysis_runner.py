@@ -37,7 +37,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 37  # shred-strip, ksa-type routing, per-competency skill lists
+CODE_VERSION = 38  # strip RPD metadata tails (direction codes, template markers)
 
 # Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
 # IT-coverage picture. Data stays in DB (nothing deleted); they are only
@@ -93,7 +93,7 @@ def _assemble_disciplines(drows) -> dict[str, dict]:
         if r["skill_name"]:
             disciplines[dn]["competencies"][cc][r["skill_name"]] = None
         if r["ksa_text"]:
-            _kt = _strip_bullet(r["ksa_text"])
+            _kt = _strip_rpd_tail(_strip_bullet(r["ksa_text"]))
             if _kt and _is_skill_like_ksa(_kt):
                 disciplines[dn]["competencies"][cc][_kt] = None
                 if r.get("ksa_type"):
@@ -132,6 +132,26 @@ def _strip_bullet(text: str) -> str:
     for b in _BULLET_LEAD:
         if t.startswith(b + " ") or t.startswith(b + "\u00a0"):
             return t[len(b):].strip()
+    return t
+
+
+_DIRCODE_TOK = re.compile(r"\b\d{2}\.\d{2}\.\d{2}\b")
+_WS = re.compile(r"\s+")
+
+
+def _strip_rpd_tail(text: str) -> str:
+    """Drop RPD metadata tails (v38, pollution audit 13.09.2026, 18 texts):
+    'Код направления подготовки, специальности ...' template tails and
+    direction codes ('09.03.02'). Content skills stay ('администрирование
+    СУБД PostgreSQL 09.03.02' -> 'администрирование СУБД PostgreSQL').
+    """
+    t = (text or "").strip()
+    low = t.lower()
+    cut = low.find("код направления")
+    if cut > 0:
+        t = t[:cut].strip()
+    t = _DIRCODE_TOK.sub("", t)
+    t = _WS.sub(" ", t).strip(" .,;:-\u2014")
     return t
 
 
