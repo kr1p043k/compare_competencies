@@ -37,7 +37,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 41  # UI scope overrides (discipline checkboxes)
+CODE_VERSION = 42  # direction emerging capped (same giant-cap)
 
 # Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
 # IT-coverage picture. Data stays in DB (nothing deleted); they are only
@@ -943,8 +943,10 @@ async def run_teacher_analysis(
         sum(r.discipline.strong_coverage for _, r in discipline_reports) / len(discipline_reports), 4
     ) if discipline_reports else 0
 
-    # Direction-level emerging: skills not found in ANY discipline
-    direction_emerging_result = matcher.get_emerging(direction_rpd_norm, top_n=15)
+    # Direction-level emerging: skills not found in ANY discipline (giants capped, v42)
+    from src.analyzers.skill_matcher import EMERGING_MAX_FREQ
+    direction_emerging_result = matcher.get_emerging(
+        direction_rpd_norm, top_n=15, max_freq=EMERGING_MAX_FREQ)
     direction_emerging: list[dict] = []
     if direction_emerging_result.is_ok():
         direction_emerging = [
