@@ -185,10 +185,14 @@ class CurriculumRecommender:
             return (" (" + ", ".join(codes) + ")") if codes else ""
 
         # Gaps: RPD skills not found on market — one per skill
+        _ksa_types = coverage.ksa_types or {}
         for s in coverage.gaps_list:
             if self._is_fragment(s):
                 continue
-            cls = _classify_skill(s, self.skill_types)
+            if _ksa_types.get(s) == "knowledge":
+                cls = "academic"  # DB ground truth beats text heuristics (v37)
+            else:
+                cls = _classify_skill(s, self.skill_types)
             if cls == "academic":
                 recs.append(Recommendation(
                     type="foundational", priority="low", skill_name=s,

@@ -119,6 +119,7 @@ class CoverageAnalyzer:
         competencies: dict[str, list[str]],
         direction_rpd_norm: set[str] | None = None,
         discipline_skill_map: dict[str, set[str]] | None = None,
+        ksa_types: dict[str, str] | None = None,
     ) -> Result[DisciplineCoverage, CoverageError]:
         if not discipline_id:
             logger.error("missing_discipline_id")
@@ -138,6 +139,7 @@ class CoverageAnalyzer:
             comp_matched = 0
             comp_weighted = 0.0
             comp_gaps = []
+            comp_matched_names = []
             for s in skills:
                 all_rpd.append(s)
                 match_result = self.matcher.match(s)
@@ -148,6 +150,8 @@ class CoverageAnalyzer:
                 if m and not self._is_fringe_match(m):
                     comp_matched += 1
                     comp_weighted += conf
+                    if len(comp_matched_names) < 20:
+                        comp_matched_names.append(s)
                     if mtype in ("exact", "fuzzy", "mapped"):
                         strong_total += 1
                 else:
@@ -157,6 +161,7 @@ class CoverageAnalyzer:
                 code=ccode,
                 total_skills=n,
                 matched_skills=comp_matched,
+                matched_names=list(comp_matched_names),
                 coverage=round(comp_matched / n, 4) if n else 0,
                 weighted_coverage=round(comp_weighted / n, 4) if n else 0,
                 gap_skills=comp_gaps[:10],
@@ -180,6 +185,7 @@ class CoverageAnalyzer:
                         code=cc.code,
                         total_skills=total,
                         matched_skills=matched,
+                        matched_names=[n for c in children for n in c.matched_names][:20],
                         coverage=round(matched / total, 4) if total else 0,
                         weighted_coverage=round(weighted, 4) if total else 0,
                         gap_skills=cc.gap_skills,
@@ -328,6 +334,7 @@ class CoverageAnalyzer:
             weighted_coverage=weighted,
             coverage_level=coverage_level(ratio),
             top_matched=deduped_top,
+            ksa_types=dict(ksa_types or {}),
             gaps_list=deduped_gaps[:20],
             emerging=emerging_skills,
             truly_missing=truly_missing,

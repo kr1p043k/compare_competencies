@@ -7,7 +7,13 @@ interface CompetencyNode {
   matched_skills?: number;
   coverage?: number;
   weighted_coverage?: number;
+  matched?: string[];
+  gaps?: string[];
   children?: CompetencyNode[];
+}
+
+function shortSkill(s: string): string {
+  return s.length > 35 ? s.slice(0, 35) + "\u2026" : s;
 }
 
 function buildTree(flat: CompetencyNode[]): CompetencyNode[] {
@@ -62,13 +68,16 @@ function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
   const displayCov = node.weighted_coverage ?? (node.total_skills === 0 ? childCov : node.coverage) ?? childCov;
   const matched = node.matched_skills ?? 0;
   const total = node.total_skills ?? 0;
+  const matchedList = node.matched ?? [];
+  const gapList = node.gaps ?? [];
+  const hasSkills = matchedList.length + gapList.length > 0;
 
   return (
     <div>
       <div
         className={`flex items-center justify-between px-3 py-2 text-sm border rounded mb-0.5 cursor-pointer transition-colors hover:bg-gray-100 ${bgColor(displayCov)}`}
         style={{ marginLeft: depth * 16 }}
-        onClick={() => hasChildren && setOpen(!open)}
+        onClick={() => (hasChildren || hasSkills) && setOpen(!open)}
       >
         <div className="flex items-center gap-2 min-w-0">
           {hasChildren ? (
@@ -95,6 +104,25 @@ function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
           {node.children!.map((child) => (
             <TreeNode key={child.code} node={child} depth={depth + 1} />
           ))}
+        </div>
+      )}
+      {open && hasSkills && (
+        <div className="flex flex-wrap gap-1 px-3 py-2" style={{ marginLeft: depth * 16 + 20 }}>
+          {matchedList.slice(0, 8).map((s, i) => (
+            <span key={"m" + i} title={s} className="text-[11px] px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+              {shortSkill(s)}
+            </span>
+          ))}
+          {gapList.slice(0, 8).map((s, i) => (
+            <span key={"g" + i} title={s} className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
+              {shortSkill(s)}
+            </span>
+          ))}
+          {(matchedList.length > 8 || gapList.length > 8) && (
+            <span className="text-[11px] px-2 py-0.5 text-gray-400">
+              +{Math.max(0, matchedList.length - 8) + Math.max(0, gapList.length - 8)} more
+            </span>
+          )}
         </div>
       )}
     </div>

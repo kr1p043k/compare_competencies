@@ -37,7 +37,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 36  # fringe-shadow fix (fuzzy fringe no longer blocks mapped/semantic)
+CODE_VERSION = 37  # shred-strip, ksa-type routing, per-competency skill lists
 
 # Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
 # IT-coverage picture. Data stays in DB (nothing deleted); they are only
@@ -92,8 +92,12 @@ def _assemble_disciplines(drows) -> dict[str, dict]:
             disciplines[dn]["competencies"][cc] = {}
         if r["skill_name"]:
             disciplines[dn]["competencies"][cc][r["skill_name"]] = None
-        if r["ksa_text"] and _is_skill_like_ksa(r["ksa_text"]):
-            disciplines[dn]["competencies"][cc][r["ksa_text"]] = None
+        if r["ksa_text"]:
+            _kt = _strip_bullet(r["ksa_text"])
+            if _kt and _is_skill_like_ksa(_kt):
+                disciplines[dn]["competencies"][cc][_kt] = None
+                if r.get("ksa_type"):
+                    disciplines[dn].setdefault("ksa_types", {})[_kt] = r["ksa_type"]
     for dn in disciplines:
         for cc in disciplines[dn]["competencies"]:
             disciplines[dn]["competencies"][cc] = list(disciplines[dn]["competencies"][cc].keys())
@@ -119,6 +123,18 @@ _KSA_JUNK_MARKERS = (
 )
 
 
+_BULLET_LEAD = ("-", "\u2013", "\u2014", "*", "\u2022")
+
+
+def _strip_bullet(text: str) -> str:
+    """Drop RPD list-bullet prefix ('- ...'); content stays for honest matching (v37)."""
+    t = (text or "").strip()
+    for b in _BULLET_LEAD:
+        if t.startswith(b + " ") or t.startswith(b + "\u00a0"):
+            return t[len(b):].strip()
+    return t
+
+
 def _is_skill_like_ksa(text: str) -> bool:
     """True если KSA-фрагмент похож на навык, а не методический обрывок.
 
@@ -127,12 +143,15 @@ def _is_skill_like_ksa(text: str) -> bool:
     """
     if not text:
         return False
-    t = text.strip().lower()
+    t = _strip_bullet(text).lower()
     if len(t) < 3 or len(t) > 200:
         return False
     if len(t) <= 60 and t[-1] in ". ,;:-\u2014":
         return False
     if any(m in t for m in _KSA_JUNK_MARKERS):
+        return False
+    # Leading conditionals are parser shreds, not skills (v37, BJD audit).
+    if t.startswith(("при наличии", "в случае", "при условии", "если ", "при отсутствии")):
         return False
     # Обрывки слов/символы, не похожие на навык
     if len(t) <= 60 and len(t.split()) == 1 and any(ch.isdigit() for ch in t):
@@ -671,6 +690,7 @@ async def run_teacher_analysis(
             disc_data["id"], dname, disc_data["competencies"],
             direction_rpd_norm=direction_rpd_norm,
             discipline_skill_map=discipline_skill_map,
+            ksa_types=disc_data.get("ksa_types"),
         )
         if cov_result.is_err():
             logger.error("discipline_analysis_failed", discipline=dname, error=str(cov_result.err()))
@@ -804,6 +824,8 @@ async def run_teacher_analysis(
             "competencies": [
                 {"code": cc.code, "total_skills": cc.total_skills,
                  "matched_skills": cc.matched_skills, "coverage": cc.coverage,
+                 "matched": list(cc.matched_names or [])[:20],
+                 "gaps": list(cc.gap_skills or [])[:20],
                  "ksa_context": ksa_context.get(cc.code, {})}
                 for cc in coverage.competencies
             ],
