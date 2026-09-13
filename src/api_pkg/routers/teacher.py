@@ -192,7 +192,9 @@ async def krm_directions(request: Request):
 @limiter.limit("30/minute")
 async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
     """Дисциплины направления."""
+    from src.teacher_scope import effective_in_scope, load_scope_overrides, scope_source
     pool = get_pool()
+    over = await load_scope_overrides(pool, dir_code)
     rows = await pool.fetch("""
         SELECT disc.name,
                COUNT(DISTINCT c.id) AS competencies_count,
@@ -217,6 +219,8 @@ async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
             "abilities_count": r["abilities_count"],
             "semester": r["semester"],
             "course": (r["semester"] + 1) // 2 if r["semester"] else None,
+            "in_scope": effective_in_scope(r["name"], over),
+            "scope_source": scope_source(r["name"], over),
         }
         for r in rows
     ]

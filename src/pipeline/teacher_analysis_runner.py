@@ -37,7 +37,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 40  # arts elective out of scope
+CODE_VERSION = 41  # UI scope overrides (discipline checkboxes)
 
 # Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
 # IT-coverage picture. Data stays in DB (nothing deleted); they are only
@@ -501,8 +501,10 @@ async def run_teacher_analysis(
         return Err(AnalysisRunnerError(stage="disciplines", message=str(exc)))
 
     disciplines = _assemble_disciplines(drows)
-    # v34 scope: drop non-core disciplines before any analysis/averaging.
-    _excluded = sorted(d for d in disciplines if not discipline_in_scope(d))
+    # v34 scope (+v41 UI overrides): drop out-of-scope before any analysis/averaging.
+    from src.teacher_scope import effective_in_scope, load_scope_overrides
+    _scope_over = await load_scope_overrides(pool, dir_code)
+    _excluded = sorted(d for d in disciplines if not effective_in_scope(d, _scope_over))
     if _excluded:
         for _d in _excluded:
             del disciplines[_d]
@@ -1062,6 +1064,7 @@ async def run_teacher_analysis(
             "vac_count": vac_count,
             "market_size": len(market_skills),
             "scope_excluded": sorted(_excluded),
+            "scope_custom": {k: _scope_over[k] for k in sorted(_scope_over)},
             "flags": _active_flags(),
             "git_sha": _git_sha_short(),
             "generated_at": datetime.now().isoformat(),

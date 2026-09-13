@@ -57,6 +57,8 @@ type DirectionAnalysis = {
 type Discipline = {
   id: string;
   name: string;
+  in_scope?: boolean;
+  scope_source?: string;
   competencies_count: number;
   skills_count: number;
   knowledge_count?: number;
@@ -105,6 +107,27 @@ type Stats = {
 export function TeacherDashboard() {
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [selected, setSelected] = useState<DisciplineDetail | null>(null);
+  const [scopeSaving, setScopeSaving] = useState<string | null>(null);
+  const [scopeMsg, setScopeMsg] = useState("");
+
+  async function saveScope(name: string, included: boolean) {
+    setScopeSaving(name); setScopeMsg("");
+    try {
+      await api(`/teacher/zun/scope`, {
+        method: "PUT",
+        body: JSON.stringify({ dir_code: selectedDir, changes: [{ discipline_name: name, included }] }),
+      });
+      setDisciplines((prev) => prev.map((d) =>
+        d.name === name ? { ...d, in_scope: included, scope_source: "custom" } : d));
+      setScopeMsg("Scope обновлён. Перезапустите teacher-анализ, чтобы средние пересчитались.");
+    } catch (e: any) {
+      let msg = e.message || "неизвестная ошибка";
+      try { const j = JSON.parse(msg); msg = j.detail || msg; } catch {}
+      setScopeMsg("Ошибка scope: " + msg);
+    } finally {
+      setScopeSaving(null);
+    }
+  }
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [recs, setRecs] = useState<Recommendation[]>([]);
@@ -921,7 +944,7 @@ export function TeacherDashboard() {
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                   {((analysis.top_emerging_across_all || []) as any[]).map((s: any, i: number) => (
                     <span key={i} style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: "#e0e7ff", color: "#4338ca", margin: 2 }}>
-                      {s.skill} <span style={{ opacity: 0.5 }}>×{s.frequency}</span>
+                      {s.skill}
                     </span>
                   ))}
                 </div>
@@ -954,21 +977,59 @@ export function TeacherDashboard() {
 
               <div style={card}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Разбивка по дисциплинам</div>
-                {analysis.disciplines.map((d, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #e5e7eb", fontSize: 12, cursor: "pointer" }}
-                    onClick={() => { const found = disciplines.find((dd) => dd.name === d.name); if (found) loadDiscipline(found.name); }}
-                  >
-                    <span style={{ color: "#374151", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
-                    <div style={{ display: "flex", gap: 12 }}>
-                      <span style={{ color: covColor(d.coverage_ratio), fontWeight: 600 }}>{(d.coverage_ratio * 100).toFixed(1)}%</span>
-                      {d.weighted_coverage != null && (
-                        <span style={{ color: covColor(d.weighted_coverage), fontSize: 11 }} title="Quality-weighted coverage">Q:{(d.weighted_coverage * 100).toFixed(0)}%</span>
-                      )}
-                      <span style={{ color: "#dc2626" }}>{d.gaps}g</span>
-                      <span style={{ color: "#2563eb" }}>{d.emerging}e</span>
+                {(() => {
+                  const aMap = new Map(analysis.disciplines.map((x) => [x.name, x]));
+                  const rows = disciplines.map((k) => ({
+                    name: k.name,
+                    a: aMap.get(k.name),
+                    inScope: k.in_scope ?? true,
+                    src: k.scope_source ?? "default",
+                  }));
+                  const inN = rows.filter((r) => r.inScope).length;
+                  return (<>
+                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>
+                      В учёте: {inN} из {rows.length}
+                      {scopeMsg && (<span style={{ marginLeft: 8, color: "#92400e" }}>{scopeMsg}</span>)}
                     </div>
-                  </div>
-                ))}
+                    {rows.map((r, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid #e5e7eb", fontSize: 12, opacity: r.inScope ? 1 : 0.55 }}>
+                      <input
+                        type="checkbox"
+                        checked={r.inScope}
+                        disabled={scopeSaving === r.name}
+                        title={r.src === "methodology" ? "Исключена методологией (можно вернуть)" : "Учитывать в анализе"}
+                        onChange={(e) => saveScope(r.name, e.target.checked)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: 15, height: 15, accentColor: "#7c3aed", cursor: "pointer", flexShrink: 0 }}
+                      />
+                      <span
+                        style={{ color: "#374151", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: r.a ? "pointer" : "default", flex: 1 }}
+                        onClick={() => { if (r.a) { const found = disciplines.find((dd) => dd.name === r.name); if (found) loadDiscipline(found.name); } }}
+                      >
+                        {r.name}
+                        {r.src === "methodology" && (
+                          <span style={{ marginLeft: 6, fontSize: 10, color: "#9333ea", background: "#f3e8ff", borderRadius: 4, padding: "1px 5px" }}>методология</span>
+                        )}
+                        {r.src === "custom" && (
+                          <span style={{ marginLeft: 6, fontSize: 10, color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "1px 5px" }}>вручную</span>
+                        )}
+                      </span>
+                      {r.a ? (
+                        <div style={{ display: "flex", gap: 12 }}>
+                          <span style={{ color: covColor(r.a.coverage_ratio), fontWeight: 600 }}>{(r.a.coverage_ratio * 100).toFixed(1)}%</span>
+                          {r.a.weighted_coverage != null && (
+                            <span style={{ color: covColor(r.a.weighted_coverage), fontSize: 11 }} title="Quality-weighted coverage">Q:{(r.a.weighted_coverage * 100).toFixed(0)}%</span>
+                          )}
+                          <span style={{ color: "#dc2626" }}>{r.a.gaps}g</span>
+                          <span style={{ color: "#2563eb" }}>{r.a.emerging}e</span>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 11, color: "#9ca3af" }}>вне учёта</span>
+                      )}
+                    </div>
+                    ))}
+                  </>);
+                })()}
               </div>
               </>)}
             </>)}

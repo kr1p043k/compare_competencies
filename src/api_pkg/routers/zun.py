@@ -894,6 +894,71 @@ async def zun_search_competencies(request: Request, q: str = "", dir_code: str =
                        "discipline_name": r["discipline_name"]} for r in rows]}
 
 
+@router.get("/teacher/zun/scope")
+@limiter.limit("60/minute")
+async def zun_get_scope(request: Request, dir_code: str = "09.03.02"):
+    """Scope state for UI checkboxes: effective per-discipline + methodology list."""
+    from src.teacher_scope import effective_in_scope, load_scope_overrides, scope_source
+    from src.pipeline.teacher_analysis_runner import SCOPE_EXCLUDED
+    _validate_dir_code(dir_code)
+    pool = get_pool()
+    names = [r["name"] for r in await pool.fetch(
+        """SELECT d2.name FROM disciplines d2
+           JOIN directions d ON d.id = d2.direction_id
+           WHERE d.code = $1 ORDER BY 1""", dir_code)]
+    over = await load_scope_overrides(pool, dir_code)
+    return {
+        "dir_code": dir_code,
+        "disciplines": [
+            {"name": n, "in_scope": effective_in_scope(n, over),
+             "source": scope_source(n, over)} for n in names],
+        "methodology_excluded": sorted(SCOPE_EXCLUDED),
+    }
+
+
+class ScopeChange(BaseModel):
+    discipline_name: str
+    included: bool
+
+
+class ScopePut(BaseModel):
+    dir_code: str = "09.03.02"
+    changes: list[ScopeChange] = []
+
+
+@router.put("/teacher/zun/scope")
+@limiter.limit("30/minute")
+async def zun_put_scope(request: Request, body: ScopePut):
+    """Set UI scope overrides (checkboxes). Takes effect on next teacher-analysis."""
+    _validate_dir_code(body.dir_code)
+    changes = (body.changes or [])[:100]
+    if not changes:
+        raise HTTPException(status_code=400, detail="changes must not be empty")
+    pool = get_pool()
+    known = {r["name"] for r in await pool.fetch(
+        """SELECT d2.name FROM disciplines d2
+           JOIN directions d ON d.id = d2.direction_id
+           WHERE d.code = $1""", body.dir_code)}
+    cleaned = []
+    for c in changes:
+        name = (c.discipline_name or "").strip()
+        if not name or len(name) > 200:
+            raise HTTPException(status_code=400, detail="invalid discipline_name")
+        if name not in known:
+            raise HTTPException(status_code=400, detail=f"Unknown discipline: {name[:80]}")
+        cleaned.append((name, bool(c.included)))
+    for name, included in cleaned:
+        await pool.execute(
+            """INSERT INTO discipline_scope (direction_code, discipline_name, included, updated_at)
+               VALUES ($1, $2, $3, NOW())
+               ON CONFLICT (direction_code, discipline_name)
+               DO UPDATE SET included = EXCLUDED.included, updated_at = NOW()""",
+            body.dir_code, name, included,
+        )
+    logger.info("scope_updated", dir_code=body.dir_code, updated=len(cleaned))
+    return {"dir_code": body.dir_code, "updated": len(cleaned)}
+
+
 # ---------- G. write KSA (no migrations) ----------
 
 
