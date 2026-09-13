@@ -158,7 +158,6 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                   return (
                     <Badge key={i} variant="outline" className={`${cls} border text-xs`}>
                       {s.skill}
-                      <span className="opacity-60 mx-1">×{s.frequency}</span>
                       <span className="text-[10px] opacity-50">{s.match_type}</span>
                     </Badge>
                   );
@@ -176,7 +175,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
               <div className="flex flex-wrap gap-1.5">
                 {metrics.emerging_market_skills_not_in_rpd.map((s, i) => (
                   <Badge key={i} variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
-                    {s.skill} <span className="opacity-50 ml-1">×{s.frequency}</span>
+                    {s.skill}
                   </Badge>
                 ))}
               </div>

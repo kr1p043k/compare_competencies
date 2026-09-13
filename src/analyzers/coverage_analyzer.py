@@ -213,8 +213,10 @@ class CoverageAnalyzer:
             else:
                 gaps_list.append(s)
 
-        # Per-discipline emerging (not in THIS discipline)
-        emerging_result = self.matcher.get_emerging(rpd_norm, top_n=10)
+        # Per-discipline emerging (not in THIS discipline; giants capped, v39)
+        from src.analyzers.skill_matcher import EMERGING_MAX_FREQ
+        emerging_result = self.matcher.get_emerging(
+            rpd_norm, top_n=10, max_freq=EMERGING_MAX_FREQ)
         emerging_skills: list[SkillMatch] = []
         if emerging_result.is_ok():
             emerging_raw = emerging_result.unwrap()

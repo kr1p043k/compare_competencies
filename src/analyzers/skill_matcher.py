@@ -22,6 +22,10 @@ SEMANTIC_THRESHOLD = 0.78
 # fringe token 'документация'/1 hijacked 'отчетная документация' via fuzzy
 # and blocked the mapped hit 'техническая документация'/63).
 MARKET_MIN_FREQ = 5
+# Baseline giants (measured 13.09.2026: 10 skills with freq >= 1227 appear in
+# 42-49 of 49 emerging lists) carry no per-discipline signal. Emerging keeps
+# only freq < cap (kubernetes/1199 survives as genuine infra signal).
+EMERGING_MAX_FREQ = 1200
 # Version-split market aliases folded into canonical keys at market build
 # (v32, flag-gated via FF_MARKET_SYNONYMS). Minimal grounded set: each alias
 # verified to denote the same tool (DB check 12.09.2026: python3 freq 1,
@@ -306,6 +310,7 @@ class SkillMatcher:
     def get_emerging(
         self, rpd_normalized: set[str], top_n: int = 10,
         also_exclude: set[str] | None = None,
+        max_freq: int | None = None,
     ) -> Result[list[tuple[str, int, str]], MatchingError]:
         """Топ-N навыков рынка, отсутствующих в переданном наборе."""
         if not self.market_skills:
@@ -318,6 +323,8 @@ class SkillMatcher:
         result = []
         for mn, mf in sorted(self.market_skills.items(), key=lambda x: (-x[1], x[0])):
             if not (mn or "").strip():
+                continue
+            if max_freq is not None and mf >= max_freq:
                 continue
             if mn in rpd_normalized:
                 continue
