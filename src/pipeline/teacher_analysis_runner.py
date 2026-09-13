@@ -37,7 +37,34 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 33  # skill-link inputs + custom profiles (analysis inputs can change via UI)
+CODE_VERSION = 34  # analysis scope: drop non-core disciplines diluting IT coverage
+
+# Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
+# IT-coverage picture. Data stays in DB (nothing deleted); they are only
+# excluded from teacher-analysis averages and per-discipline outputs.
+SCOPE_EXCLUDED: frozenset = frozenset({
+    "Дисциплины по ФКиС",
+    "Физическая культура и спорт",
+    "Эмоциональный интеллект и критическое мышление инженера",
+    "Экономико-правовое обеспечение инженерной деятельности_очная",
+    "Стрессоустойчивость и личная эффективность",
+    "История России",
+})
+# English: keep only C1 (highest requirement) + business English.
+# Russian is kept (not an English variant; flagged as next-cut candidate).
+SCOPE_ENGLISH_KEEP_LEVEL = "уровень с1"
+
+
+def discipline_in_scope(name: str) -> bool:
+    # Pure scope predicate (unit-tested).
+    if not name:
+        return False
+    if name in SCOPE_EXCLUDED:
+        return False
+    nl = name.lower()
+    if "иностранный язык" in nl and "делов" not in nl and "русский" not in nl:
+        return SCOPE_ENGLISH_KEEP_LEVEL in nl
+    return True
 
 
 def _git_sha_short() -> str:
@@ -433,6 +460,12 @@ async def run_teacher_analysis(
         return Err(AnalysisRunnerError(stage="disciplines", message=str(exc)))
 
     disciplines = _assemble_disciplines(drows)
+    # v34 scope: drop non-core disciplines before any analysis/averaging.
+    _excluded = sorted(d for d in disciplines if not discipline_in_scope(d))
+    if _excluded:
+        for _d in _excluded:
+            del disciplines[_d]
+        logger.info("scope_excluded", count=len(_excluded), excluded=_excluded)
 
     if not disciplines:
         logger.error("no_disciplines_loaded", direction=direction_code)
@@ -984,6 +1017,7 @@ async def run_teacher_analysis(
             "vac_hash": _vac_hash,
             "vac_count": vac_count,
             "market_size": len(market_skills),
+            "scope_excluded": sorted(_excluded),
             "flags": _active_flags(),
             "git_sha": _git_sha_short(),
             "generated_at": datetime.now().isoformat(),
