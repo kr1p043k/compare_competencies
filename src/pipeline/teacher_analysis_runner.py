@@ -37,7 +37,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 39  # emerging giant-cap (freq < 1200)
+CODE_VERSION = 40  # arts elective out of scope
 
 # Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
 # IT-coverage picture. Data stays in DB (nothing deleted); they are only
@@ -50,6 +50,7 @@ SCOPE_EXCLUDED: frozenset = frozenset({
     "Стрессоустойчивость и личная эффективность",
     "История России",
     "Философия",
+    "Воображение, изображение, реальность",
 })
 # English: keep only C1 (highest requirement) + business English.
 # Russian is kept (not an English variant; flagged as next-cut candidate).
