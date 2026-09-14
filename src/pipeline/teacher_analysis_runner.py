@@ -501,14 +501,6 @@ async def run_teacher_analysis(
         return Err(AnalysisRunnerError(stage="disciplines", message=str(exc)))
 
     disciplines = _assemble_disciplines(drows)
-    # v34 scope (+v41 UI overrides): drop out-of-scope before any analysis/averaging.
-    from src.teacher_scope import effective_in_scope, load_scope_overrides
-    _scope_over = await load_scope_overrides(pool, dir_code)
-    _excluded = sorted(d for d in disciplines if not effective_in_scope(d, _scope_over))
-    if _excluded:
-        for _d in _excluded:
-            del disciplines[_d]
-        logger.info("scope_excluded", count=len(_excluded), excluded=_excluded)
 
     if not disciplines:
         logger.error("no_disciplines_loaded", direction=direction_code)
@@ -623,6 +615,19 @@ async def run_teacher_analysis(
         pass
 
     dir_code = direction["code"]
+    # v34 scope (+v41 UI overrides): drop out-of-scope before any analysis/averaging.
+    from src.teacher_scope import effective_in_scope, load_scope_overrides
+    _scope_over = await load_scope_overrides(pool, dir_code)
+    _excluded = sorted(d for d in disciplines if not effective_in_scope(d, _scope_over))
+    if _excluded:
+        for _d in _excluded:
+            del disciplines[_d]
+        logger.info("scope_excluded", count=len(_excluded), excluded=_excluded)
+    if not disciplines:
+        logger.error("no_disciplines_in_scope", direction=dir_code)
+        await _fail_pipeline_run(run_id, f"disciplines: all excluded by scope for {dir_code}")
+        await close_pool()
+        return Err(AnalysisRunnerError(stage="disciplines", message="All disciplines excluded by scope"))
     out_dir = OUTPUT / dir_code
     os.makedirs(out_dir, exist_ok=True)
 
@@ -655,8 +660,10 @@ async def run_teacher_analysis(
                          JOIN disciplines disc ON c.discipline_id = disc.id WHERE disc.direction_id = $1
                        UNION ALL SELECT c.updated_at FROM competencies c
                          JOIN disciplines disc ON c.discipline_id = disc.id WHERE disc.direction_id = $1
+                       UNION ALL SELECT s.updated_at FROM discipline_scope s
+                         WHERE s.direction_code = $2
                    ) t""",
-                direction["id"],
+                direction["id"], dir_code,
             )
             krm_unchanged = not krm_max or summary_mtime > krm_max.timestamp()
 
