@@ -22,6 +22,36 @@ SEMANTIC_THRESHOLD = 0.78
 # fringe token 'документация'/1 hijacked 'отчетная документация' via fuzzy
 # and blocked the mapped hit 'техническая документация'/63).
 MARKET_MIN_FREQ = 5
+# Leading competency verbs stripped before matching (v44, flag-gated).
+# RPD speaks in actions ('владеть X'), the market in nouns ('X').
+_LEAD_VERB_LEMMAS = frozenset({
+    "владеть", "знать", "уметь", "применять", "понимать", "обладать",
+})
+# Fallback wordforms when pymorphy is unavailable.
+_LEAD_VERB_FORMS = frozenset({
+    "владеть", "владеет", "владеют", "знать", "знает", "знают",
+    "уметь", "умеет", "умеют", "применять", "применяет", "применяют",
+    "понимать", "понимает", "понимают", "обладать", "обладает",
+})
+
+
+def strip_lead_verbs(text: str) -> str:
+    """Drop leading competency verbs ("знать python" -> "python"). Deterministic."""
+    words = (text or "").split()
+    try:
+        from src.text.ru_morph import lemma as _lemma, available as _avail
+        use_morph = _avail()
+    except Exception:
+        use_morph = False
+    i = 0
+    while i < len(words):
+        w = words[i].lower()
+        is_verb = (_lemma(w) in _LEAD_VERB_LEMMAS) if use_morph else (w in _LEAD_VERB_FORMS)
+        if not is_verb:
+            break
+        i += 1
+    stripped = " ".join(words[i:])
+    return stripped or (text or "")
 # Baseline giants (measured 13.09.2026: 10 skills with freq >= 1227 appear in
 # 42-49 of 49 emerging lists) carry no per-discipline signal. Emerging keeps
 # only freq < cap (kubernetes/1199 survives as genuine infra signal).
@@ -94,6 +124,7 @@ class SkillMatcher:
         # so fuzzy matching stays 100% equivalent to the old per-name loop
         # (which compiled a regex on every call inside the hot path).
         self._market_word_pats: list[tuple[str, re.Pattern[str]]] = []
+        self._market_lemma_pats: list[tuple[str, re.Pattern[str]]] = []
         self._semantic_cache: dict[str, str] = {}
         self._match_cache: dict[str, tuple[str | None, str, float]] = {}
         self._rebuild_fuzzy_patterns()
@@ -215,6 +246,20 @@ class SkillMatcher:
         self._market_word_pats = [
             (name, _word_pattern(name)) for name in self.market_skills
         ]
+        # Lemma-space patterns for inflection-insensitive fuzzy (v44).
+        self._market_lemma_pats = []
+        try:
+            from src.text.ru_morph import available as _avail, lemma_key as _lkey
+            if _avail():
+                self._market_lemma_pats = [
+                    (name, _word_pattern(lk))
+                    for name in self.market_skills
+                    for lk in [_lkey(name)]
+                    # Degenerate keys ('с#' -> 'с') would match prepositions (v44 ablation).
+                    if len(lk) >= 2
+                ]
+        except Exception:
+            self._market_lemma_pats = []
 
     def _fuzzy_hit_name(self, n: str) -> str | None:
         """First market name having a whole-word overlap with `n`.
@@ -274,17 +319,42 @@ class SkillMatcher:
         if not n or len(n) < 3:
             logger.debug("skill_too_short", skill=skill_name)
             return Ok((None, "no_match", 0.0))
+        from src.feature_flags import lemma_fuzzy_enabled as _lf_on
+        from src.feature_flags import market_verbs_enabled as _verbs_on
+        if _verbs_on():
+            stripped = strip_lead_verbs(n)
+            if stripped and stripped != n:
+                logger.debug("skill_verbs_stripped", original=n, stripped=stripped)
+                n = stripped
 
         cached = self._match_cache.get(n)
         if cached is not None:
             return Ok(cached)
 
-        result = self._match_uncached(n, skill_name)
+        result = self._match_uncached(n, skill_name, lemma_fuzzy=_lf_on())
         if result.is_ok():
             self._match_cache[n] = result.unwrap()
         return result
 
-    def _match_uncached(self, n: str, skill_name: str) -> Result[tuple[str | None, str, float], MatchingError]:
+    def _lemma_fuzzy_hit_name(self, n: str) -> str | None:
+        """Whole-word overlap in lemma space (declension-insensitive, v44)."""
+        if not self._market_lemma_pats:
+            return None
+        try:
+            from src.text.ru_morph import lemma_key as _lkey
+        except Exception:
+            return None
+        ln = _lkey(n)
+        if not ln:
+            return None
+        qpat = _word_pattern(ln)
+        for mn, mpat in self._market_lemma_pats:
+            lm = _lkey(mn)
+            if qpat.search(lm) or mpat.search(ln):
+                return mn
+        return None
+
+    def _match_uncached(self, n: str, skill_name: str, lemma_fuzzy: bool = False) -> Result[tuple[str | None, str, float], MatchingError]:
         if n in self.market_skills:
             logger.debug("skill_exact_match", skill=n)
             return Ok((n, "exact", 1.0))
@@ -297,10 +367,20 @@ class SkillMatcher:
                 logger.debug("skill_fuzzy_match", rpd_skill=n, market_skill=mn)
                 return Ok((mn, "fuzzy", 0.5))
 
+
         mapped, _, _ = self._mapped_match(n)
         if mapped:
             logger.debug("skill_mapped_match", rpd_skill=n, market_skill=mapped)
             return Ok((mapped, "mapped", 0.85))
+
+        if lemma_fuzzy:
+            lm = self._lemma_fuzzy_hit_name(n)
+            if lm:
+                if self.market_skills.get(lm, 0) < MARKET_MIN_FREQ:
+                    logger.debug("skill_lemma_fringe_skipped", rpd_skill=n, market_skill=lm)
+                else:
+                    logger.debug("skill_lemma_match", rpd_skill=n, market_skill=lm)
+                    return Ok((lm, "lemma", 0.5))
 
         mn, mt, score = self._semantic_match(n, skill_name)
         if mn:

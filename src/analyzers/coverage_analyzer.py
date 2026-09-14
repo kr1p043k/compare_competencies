@@ -152,7 +152,7 @@ class CoverageAnalyzer:
                     comp_weighted += conf
                     if len(comp_matched_names) < 20:
                         comp_matched_names.append(s)
-                    if mtype in ("exact", "fuzzy", "mapped"):
+                    if mtype in ("exact", "fuzzy", "mapped", "lemma"):
                         strong_total += 1
                 else:
                     comp_gaps.append(s)

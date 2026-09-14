@@ -15,7 +15,8 @@ def test_defaults_on(monkeypatch):
     m = _reload()
     assert m.market_synonyms_enabled() is True
     assert m.weak_comp_recs_enabled() is True
-    assert m.active_flags() == {"FF_MARKET_SYNONYMS": True, "FF_WEAK_COMP_RECS": True}
+    assert m.active_flags() == {"FF_MARKET_SYNONYMS": True, "FF_WEAK_COMP_RECS": True,
+                                   "FF_MATCH_VERBS": True, "FF_LEMMA_FUZZY": True}
 
 
 def test_env_opt_out(monkeypatch):

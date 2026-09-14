@@ -12,6 +12,8 @@ import os
 
 FF_MARKET_SYNONYMS = "FF_MARKET_SYNONYMS"
 FF_WEAK_COMP_RECS = "FF_WEAK_COMP_RECS"
+FF_MATCH_VERBS = "FF_MATCH_VERBS"
+FF_LEMMA_FUZZY = "FF_LEMMA_FUZZY"
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -31,8 +33,20 @@ def weak_comp_recs_enabled() -> bool:
     return _env_bool(FF_WEAK_COMP_RECS, True)
 
 
+def market_verbs_enabled() -> bool:
+    """Strip leading competency verbs before matching."""
+    return _env_bool(FF_MATCH_VERBS, True)
+
+
+def lemma_fuzzy_enabled() -> bool:
+    """Lemma-space fuzzy stage after mapped (v44: mapped keeps precedence)."""
+    return _env_bool(FF_LEMMA_FUZZY, True)
+
+
 def active_flags() -> dict[str, bool]:
     return {
         FF_MARKET_SYNONYMS: market_synonyms_enabled(),
         FF_WEAK_COMP_RECS: weak_comp_recs_enabled(),
+        FF_MATCH_VERBS: market_verbs_enabled(),
+        FF_LEMMA_FUZZY: lemma_fuzzy_enabled(),
     }
