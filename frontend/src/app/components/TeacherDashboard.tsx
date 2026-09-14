@@ -784,6 +784,10 @@ export function TeacherDashboard() {
           />
         </div>
         <div style={{ flex: 1, overflow: "auto" }}>
+          <div style={{ padding: "6px 16px", fontSize: 11, color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
+            В учёте: {disciplines.filter((x) => x.in_scope ?? true).length} из {disciplines.length}
+            {scopeMsg && (<div style={{ color: "#92400e", marginTop: 2 }}>{scopeMsg}</div>)}
+          </div>
           {filtered.map((d) => {
             const discAnalysis = analysis?.disciplines.find((a) => a.name === d.name);
             return (
@@ -791,16 +795,35 @@ export function TeacherDashboard() {
                 key={d.name}
                 onClick={() => loadDiscipline(d.name)}
                 style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "flex-start",
                   padding: "10px 16px",
                   cursor: "pointer",
                   borderBottom: "1px solid #e5e7eb",
                   background:
                     selected?.name === d.name ? "#eef2ff" : "transparent",
+                  opacity: (d.in_scope ?? true) ? 1 : 0.55,
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <input
+                  type="checkbox"
+                  checked={d.in_scope ?? true}
+                  disabled={scopeSaving === d.name}
+                  title={(d.scope_source === "methodology" ? "Исключена методологией (можно вернуть). " : "") + "Учитывать в анализе"}
+                  onChange={(e) => saveScope(d.name, e.target.checked)}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ width: 15, height: 15, accentColor: "#7c3aed", cursor: "pointer", flexShrink: 0, marginTop: 2 }}
+                />
+                <div style={{ display: "flex", justifyContent: "space-between", flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#7c3aed" }}>
                     {d.name}
+                    {d.scope_source === "methodology" && (
+                      <span style={{ marginLeft: 6, fontSize: 10, color: "#9333ea", background: "#f3e8ff", borderRadius: 4, padding: "1px 5px" }}>методология</span>
+                    )}
+                    {d.scope_source === "custom" && (
+                      <span style={{ marginLeft: 6, fontSize: 10, color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "1px 5px" }}>вручную</span>
+                    )}
                   </div>
                   {discAnalysis && (
                     <span style={{
