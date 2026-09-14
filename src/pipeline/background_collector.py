@@ -46,8 +46,12 @@ async def _collect_loop():
         await asyncio.sleep(_INTERVAL_HOURS * 3600)
 
 
-async def _try_collect():
-    """Direct HH API collection, saves JSON + DB."""
+async def _try_collect(force_period_days: int | None = None, force: bool = False):
+    """Direct HH API collection, saves JSON + DB.
+
+    Defaults preserve background behavior (skip if recent, incremental period).
+    force_period_days=30 + force=True performs a full monthly sweep.
+    """
     import asyncpg
     from src import config, Ok, Result
     from src.parsing.api.hh_api import HeadHunterAPI
@@ -67,7 +71,7 @@ async def _try_collect():
         logger.warning("collect_db_unavailable")
         return
 
-    if last_run:
+    if last_run and not force:
         elapsed = (datetime.now(timezone.utc) - last_run.replace(tzinfo=timezone.utc)).total_seconds()
         if elapsed < _INTERVAL_HOURS * 3600:
             logger.debug("collect_skipped_recent", last_run=str(last_run)[:16])
@@ -76,7 +80,10 @@ async def _try_collect():
     max_pages = 5
     period = 30
 
-    if last_run:
+    if force_period_days is not None:
+        period = max(1, min(int(force_period_days), 30))
+        logger.info("collect_forced_period", days=period)
+    elif last_run:
         delta = (datetime.now(timezone.utc) - last_run.replace(tzinfo=timezone.utc)).days
         if 1 <= delta <= 30:
             period = delta
