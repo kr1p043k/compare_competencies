@@ -12,6 +12,8 @@ interface CompetencyCov {
   coverage: number;
   weighted_coverage?: number;
   strong_coverage?: number;
+  matched?: string[];
+  gaps?: string[];
 }
 
 interface Rec {
@@ -66,7 +68,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
         <div>
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("run-direction-analysis"))}
-            className="mt-3 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 cursor-pointer border-0"
+            className="mt-3 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 cursor-pointer border-0"
           >
             Запустить анализ
           </button>
@@ -86,7 +88,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
         <CardHeader className="border-b border-gray-200 bg-gray-50 py-3">
           <div className="flex items-center gap-2">
             <Target className="size-4 text-blue-600" />
-            <CardTitle className="text-sm font-semibold text-gray-900">Market Coverage Analysis</CardTitle>
+            <CardTitle className="text-sm font-semibold text-gray-900">Анализ покрытия рынком</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="p-4">
@@ -108,7 +110,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
             {wcov !== undefined && (
               <div>
                 <div className="text-xs text-gray-500">Взвешенное покрытие</div>
-                <div className="text-2xl font-bold text-indigo-600">
+                <div className="text-2xl font-bold text-gray-900">
                   {(wcov * 100).toFixed(1)}%
                 </div>
               </div>
@@ -129,7 +131,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
 
           {recommendations.length > 0 && (
             <div className="space-y-2 mb-4">
-              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Recommendations</div>
+              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Рекомендации</div>
               {recommendations.map((r, i) => (
                 <div key={i} className="p-3 rounded-lg border text-sm">
                   <div className="flex items-center gap-2 mb-1">
@@ -203,7 +205,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
 
           {competencies.length > 0 && (
             <div>
-              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Per-Competency Coverage</div>
+              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Покрытие по компетенциям</div>
               <CompetencyTree competencies={competencies} />
             </div>
           )}

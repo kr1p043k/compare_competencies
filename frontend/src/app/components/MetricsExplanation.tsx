@@ -73,7 +73,7 @@ export function MetricsExplanation() {
     const colors: Record<string, string> = {
       blue: "from-blue-500 to-blue-600",
       green: "from-green-500 to-green-600",
-      purple: "from-purple-500 to-purple-600",
+      purple: "from-violet-500 to-violet-600",
       orange: "from-orange-500 to-orange-600",
       pink: "from-pink-500 to-pink-600",
       indigo: "from-indigo-500 to-indigo-600",
@@ -145,7 +145,7 @@ export function MetricsExplanation() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8 }}
-            className="mt-6 p-6 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 rounded-xl border-2 border-blue-200 dark:border-blue-800"
+            className="mt-6 p-6 bg-gradient-to-br from-blue-50 to-violet-50 dark:from-blue-950/20 dark:to-purple-950/20 rounded-xl border-2 border-blue-200 dark:border-blue-800"
           >
             <h4 className="font-bold text-lg text-slate-900 dark:text-white mb-3 flex items-center gap-2">
               <CheckCircle2 className="size-5 text-blue-600" />

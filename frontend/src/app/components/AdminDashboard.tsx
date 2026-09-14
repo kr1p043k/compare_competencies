@@ -453,7 +453,7 @@ export function AdminDashboard() {
                           <Badge variant="outline" className={
                             u.role === "admin" ? "bg-red-50 text-red-700 border-red-200" :
                             u.role === "teacher" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                            u.role === "rop" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                            u.role === "rop" ? "bg-violet-50 text-violet-700 border-violet-200" :
                             "bg-green-50 text-green-700 border-green-200"
                           }>
                             {u.role === "admin" ? "Админ" : u.role === "teacher" ? "Преподаватель" : u.role === "rop" ? "РОП" : "Студент"}
@@ -470,7 +470,7 @@ export function AdminDashboard() {
                               )}
                               <button
                                 onClick={() => startEdit(u)}
-                                className="ml-1 text-xs text-purple-600 underline cursor-pointer bg-transparent border-0"
+                                className="ml-1 text-xs text-violet-600 underline cursor-pointer bg-transparent border-0"
                               >
                                 изм.
                               </button>
@@ -509,7 +509,7 @@ export function AdminDashboard() {
                         type="checkbox"
                         checked={newUserDirs.includes(d.dir_code)}
                         onChange={(e) => setNewUserDirs((prev) => e.target.checked ? [...prev, d.dir_code] : prev.filter((x) => x !== d.dir_code))}
-                        className="accent-purple-600"
+                        className="accent-violet-600"
                       />
                       <span className="font-mono text-xs text-gray-600">{d.dir_code}</span>
                       <span className="text-xs text-gray-500 truncate">{d.name}</span>
@@ -546,7 +546,7 @@ export function AdminDashboard() {
                           type="checkbox"
                           checked={editUserDirs.includes(d.dir_code)}
                           onChange={(e) => setEditUserDirs((prev) => e.target.checked ? [...prev, d.dir_code] : prev.filter((x) => x !== d.dir_code))}
-                          className="accent-purple-600"
+                          className="accent-violet-600"
                         />
                         <span className="font-mono text-xs text-gray-600">{d.dir_code}</span>
                         <span className="text-xs text-gray-500 truncate">{d.name}</span>
@@ -627,7 +627,7 @@ export function AdminDashboard() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
                 <Button onClick={() => callAction("/api/admin/db/seed", { drop: false }, setSeedMsg, setSeedLoading)} disabled={seedLoading}>
-                  {seedLoading ? "..." : "Seed DB"}
+                  {seedLoading ? "..." : "Заполнить БД"}
                 </Button>
                 <Button variant="outline" onClick={() => callAction("/api/admin/db/seed", { drop: true }, setSeedMsg, setSeedLoading)} disabled={seedLoading}>
                   Drop + Seed
@@ -636,7 +636,7 @@ export function AdminDashboard() {
               </div>
               <div className="flex items-center gap-4">
                 <Button onClick={() => callAction("/api/admin/embeddings/generate", { force: false }, setEmbMsg, setEmbLoading)} disabled={embLoading}>
-                  <Brain className="size-4 mr-2" />{embLoading ? "..." : "Generate embeddings"}
+                  <Brain className="size-4 mr-2" />{embLoading ? "..." : "Сгенерировать эмбеддинги"}
                 </Button>
                 <Button variant="outline" onClick={() => callAction("/api/admin/embeddings/generate", { force: true }, setEmbMsg, setEmbLoading)} disabled={embLoading}>
                   Force regenerate
@@ -645,13 +645,13 @@ export function AdminDashboard() {
               </div>
               <div className="flex items-center gap-4">
                 <Button onClick={callExport} disabled={exportLoading}>
-                  <FileText className="size-4 mr-2" />{exportLoading ? "..." : "Export DB → JSON"}
+                  <FileText className="size-4 mr-2" />{exportLoading ? "..." : "Экспорт БД в JSON"}
                 </Button>
                 {exportMsg && <span className="text-sm text-gray-600">{exportMsg}</span>}
               </div>
               <div className="flex items-center gap-4">
                 <Button onClick={() => callAction("/api/admin/db/backup", {}, setBackupMsg, setBackupLoading)} disabled={backupLoading}>
-                  {backupLoading ? "..." : "Backup DB (pg_dump)"}
+                  {backupLoading ? "..." : "Бэкап БД (pg_dump)"}
                 </Button>
                 {backupMsg && <span className="text-sm text-gray-600">{backupMsg}</span>}
               </div>

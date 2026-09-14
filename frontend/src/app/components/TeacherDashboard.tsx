@@ -108,7 +108,25 @@ export function TeacherDashboard() {
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [selected, setSelected] = useState<DisciplineDetail | null>(null);
   const [scopeSaving, setScopeSaving] = useState<string | null>(null);
+  const [metaStale, setMetaStale] = useState(false);
   const [scopeMsg, setScopeMsg] = useState("");
+
+  async function saveScopeBulk(included: boolean) {
+    setScopeSaving("__all__"); setScopeMsg("");
+    try {
+      const names = disciplines.map((d) => d.name);
+      await api(`/teacher/zun/scope`, {
+        method: "PUT",
+        body: JSON.stringify({ dir_code: selectedDir, changes: names.map((n) => ({ discipline_name: n, included })) }),
+      });
+      setDisciplines((prev) => prev.map((d) => ({ ...d, in_scope: included, scope_source: "custom" })));
+      setScopeMsg("Scope обновлён для всех. Перезапустите teacher-анализ, чтобы средние пересчитались.");
+    } catch (e: any) {
+      setScopeMsg("Ошибка scope: " + (e.message || "неизвестная ошибка"));
+    } finally {
+      setScopeSaving(null);
+    }
+  }
 
   async function saveScope(name: string, included: boolean) {
     setScopeSaving(name); setScopeMsg("");
@@ -199,6 +217,9 @@ export function TeacherDashboard() {
     api(`/teacher/analysis?dir_code=${selectedDir}`)
       .then(setAnalysis)
       .catch(() => setAnalysis(null));
+    api(`/teacher/analysis/meta?dir_code=${selectedDir}`)
+      .then((m: any) => setMetaStale(!!m?.stale))
+      .catch(() => setMetaStale(false));
   }, [selectedDir]);
 
   useEffect(() => {
@@ -454,7 +475,7 @@ export function TeacherDashboard() {
   if (loading) {
     return (
       <div style={{ padding: "40px", fontFamily: "system-ui, sans-serif" }}>
-        Loading...
+        Загрузка...
       </div>
     );
   }
@@ -767,6 +788,7 @@ export function TeacherDashboard() {
 
           <input
             placeholder="Поиск дисциплин..."
+            aria-label="Поиск дисциплины"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
@@ -787,6 +809,17 @@ export function TeacherDashboard() {
           <div style={{ padding: "6px 16px", fontSize: 11, color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
             В учёте: {disciplines.filter((x) => x.in_scope ?? true).length} из {disciplines.length}
             {scopeMsg && (<div style={{ color: "#92400e", marginTop: 2 }}>{scopeMsg}</div>)}
+            <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
+              <button onClick={() => saveScopeBulk(true)} disabled={scopeSaving !== null}
+                style={{ fontSize: 11, padding: "3px 10px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer" }}>
+                Выбрать все
+              </button>
+              <button onClick={() => saveScopeBulk(false)} disabled={scopeSaving !== null}
+                style={{ fontSize: 11, padding: "3px 10px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer" }}>
+                Снять все
+              </button>
+              {metaStale && (<span style={{ fontSize: 11, color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "2px 7px" }}>данные устарели — обновите анализ</span>)}
+            </div>
           </div>
           {filtered.map((d) => {
             const discAnalysis = analysis?.disciplines.find((a) => a.name === d.name);
@@ -794,11 +827,14 @@ export function TeacherDashboard() {
               <div
                 key={d.name}
                 onClick={() => loadDiscipline(d.name)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter") loadDiscipline(d.name); }}
                 style={{
                   display: "flex",
                   gap: 8,
                   alignItems: "flex-start",
-                  padding: "10px 16px",
+                  padding: "10px 12px 10px 8px",
                   cursor: "pointer",
                   borderBottom: "1px solid #e5e7eb",
                   background:
@@ -809,21 +845,17 @@ export function TeacherDashboard() {
                 <input
                   type="checkbox"
                   checked={d.in_scope ?? true}
+                  aria-label="Учитывать в анализе"
                   disabled={scopeSaving === d.name}
                   title={(d.scope_source === "methodology" ? "Исключена методологией (можно вернуть). " : "") + "Учитывать в анализе"}
                   onChange={(e) => saveScope(d.name, e.target.checked)}
                   onClick={(e) => e.stopPropagation()}
                   style={{ width: 15, height: 15, accentColor: "#7c3aed", cursor: "pointer", flexShrink: 0, marginTop: 2 }}
                 />
+                <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#7c3aed" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#7c3aed", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                     {d.name}
-                    {d.scope_source === "methodology" && (
-                      <span style={{ marginLeft: 6, fontSize: 10, color: "#9333ea", background: "#f3e8ff", borderRadius: 4, padding: "1px 5px" }}>методология</span>
-                    )}
-                    {d.scope_source === "custom" && (
-                      <span style={{ marginLeft: 6, fontSize: 10, color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "1px 5px" }}>вручную</span>
-                    )}
                   </div>
                   {discAnalysis && (
                     <span style={{
@@ -836,11 +868,18 @@ export function TeacherDashboard() {
                   )}
                 </div>
                 <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                    {d.scope_source === "methodology" && (
+                      <span style={{ marginRight: 6, fontSize: 10, color: "#9333ea", background: "#f3e8ff", borderRadius: 4, padding: "1px 5px" }}>методология</span>
+                    )}
+                    {d.scope_source === "custom" && (
+                      <span style={{ marginRight: 6, fontSize: 10, color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "1px 5px" }}>вручную</span>
+                    )}
                   {d.course != null && `${d.course} курс · `}
                   {d.competencies_count} {plural(d.competencies_count, "комп.", "комп.", "комп.")} · {d.skills_count} {plural(d.skills_count, "навык", "навыка", "навыков")}
                   {d.abilities_count != null && ` · ${d.abilities_count} ${plural(d.abilities_count, "умение", "умения", "умений")}`}
                   {d.knowledge_count != null && ` · ${d.knowledge_count} ${plural(d.knowledge_count, "знание", "знания", "знаний")}`}
                   {discAnalysis && ` / ${discAnalysis.gaps} ${plural(discAnalysis.gaps, "пробел", "пробела", "пробелов")}`}
+                </div>
                 </div>
               </div>
             );
@@ -870,7 +909,7 @@ export function TeacherDashboard() {
               color: analysisMode === "coverage" ? "#fff" : "#7c3aed",
             }}
           >
-            Coverage
+            Покрытие
           </button>
           <button
             onClick={() => setAnalysisMode("trends")}
@@ -885,7 +924,7 @@ export function TeacherDashboard() {
               color: analysisMode === "trends" ? "#fff" : "#7c3aed",
             }}
           >
-            Competency Trends
+            Тренды компетенций
           </button>
         </div>
 
@@ -941,7 +980,7 @@ export function TeacherDashboard() {
                     Рекомендации
                   </div>
                   {(analysis.recommendations || []).map((r, i) => (
-                    <div key={i} style={{ padding: "8px 10px", marginBottom: 6, background: "#f9fafb", borderRadius: 6, borderLeft: `3px solid ${r.priority === "high" ? "#dc2626" : r.priority === "medium" ? "#d97706" : "#2563eb"}`, fontSize: 12 }}>
+                    <div key={i} style={{ padding: "8px 10px", marginBottom: 6, borderRadius: 6, fontSize: 12, background: r.priority === "high" ? "#fef2f2" : r.priority === "medium" ? "#fffbeb" : "#eff6ff", border: `1px solid ${r.priority === "high" ? "#fecaca" : r.priority === "medium" ? "#fde68a" : "#bfdbfe"}` }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
                         <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: r.priority === "high" ? "#fee2e2" : r.priority === "medium" ? "#fef3c7" : "#dbeafe", color: r.priority === "high" ? "#dc2626" : r.priority === "medium" ? "#92400e" : "#1d4ed8", fontWeight: 600 }}>{r.priority === "high" ? "высокий" : r.priority === "medium" ? "средний" : "низкий"}</span>
                         <span style={{ fontSize: 11, color: "#6b7280" }}>{r.type}</span>
@@ -1019,6 +1058,7 @@ export function TeacherDashboard() {
                       <input
                         type="checkbox"
                         checked={r.inScope}
+                          aria-label="Учитывать в анализе"
                         disabled={scopeSaving === r.name}
                         title={r.src === "methodology" ? "Исключена методологией (можно вернуть)" : "Учитывать в анализе"}
                         onChange={(e) => saveScope(r.name, e.target.checked)}
@@ -1041,10 +1081,10 @@ export function TeacherDashboard() {
                         <div style={{ display: "flex", gap: 12 }}>
                           <span style={{ color: covColor(r.a.coverage_ratio), fontWeight: 600 }}>{(r.a.coverage_ratio * 100).toFixed(1)}%</span>
                           {r.a.weighted_coverage != null && (
-                            <span style={{ color: covColor(r.a.weighted_coverage), fontSize: 11 }} title="Quality-weighted coverage">Q:{(r.a.weighted_coverage * 100).toFixed(0)}%</span>
+                            <span style={{ color: covColor(r.a.weighted_coverage), fontSize: 11 }} title="Взвешенное покрытие (качество)">Кач.:{(r.a.weighted_coverage * 100).toFixed(0)}%</span>
                           )}
-                          <span style={{ color: "#dc2626" }}>{r.a.gaps}g</span>
-                          <span style={{ color: "#2563eb" }}>{r.a.emerging}e</span>
+                          <span style={{ color: "#dc2626" }} title="Пробелов">{r.a.gaps} пр.</span>
+                          <span style={{ color: "#2563eb" }} title="Новые навыки рынка">{r.a.emerging} нов.</span>
                         </div>
                       ) : (
                         <span style={{ fontSize: 11, color: "#9ca3af" }}>вне учёта</span>
@@ -1093,12 +1133,12 @@ export function TeacherDashboard() {
                 className="mb-2 border border-gray-200 rounded-lg overflow-hidden"
               >
                 <div className="px-4 py-2.5 bg-gray-50 flex items-center gap-2">
-                  <span className="font-semibold text-sm text-purple-600">
+                  <span className="font-semibold text-sm text-violet-600">
                     {comp.code}
                   </span>
                   <button
                     onClick={() => { setZunForm({ compId: comp.id, ksaType: "skills", text: "" }); setZunMsg(""); }}
-                    className="ml-auto text-xs text-purple-600 hover:text-purple-800 border-0 bg-transparent cursor-pointer"
+                    className="ml-auto text-xs text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer"
                     title="Добавить пункт (знание / умение / навык) в эту компетенцию"
                   >
                     + ЗУН
@@ -1109,7 +1149,7 @@ export function TeacherDashboard() {
                 </div>
                 <div className="px-4 py-2">
                 {zunForm && zunForm.compId === comp.id && (
-                  <div className="mb-2 rounded-lg border border-purple-200 bg-purple-50 p-2">
+                  <div className="mb-2 rounded-lg border border-violet-200 bg-violet-50 p-2">
                     <div className="flex gap-2 mb-2">
                       <select
                         value={zunForm.ksaType}
@@ -1139,7 +1179,7 @@ export function TeacherDashboard() {
                       <button
                         onClick={addZunEntry}
                         disabled={zunSaving || !zunForm.text.trim()}
-                        className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors cursor-pointer border-0 disabled:opacity-50"
+                        className="text-xs bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 transition-colors cursor-pointer border-0 disabled:opacity-50"
                       >
                         {zunSaving ? "Сохранение…" : "Добавить"}
                       </button>
@@ -1153,7 +1193,7 @@ export function TeacherDashboard() {
                   ) : hasGroups ? (
                     groups.map((g) => g.items.length > 0 && (
                       <div key={g.title} className="mb-2 last:mb-0">
-                        <div className="text-[11px] font-semibold text-purple-500 uppercase tracking-wide mt-1.5 mb-1">
+                        <div className="text-[11px] font-semibold text-violet-500 uppercase tracking-wide mt-1.5 mb-1">
                           {g.title} ({g.items.length})
                         </div>
                         {g.items.map((sk) => (
@@ -1167,13 +1207,13 @@ export function TeacherDashboard() {
                                   maxLength={2000}
                                   className="flex-1 text-xs border border-gray-300 rounded-md px-2 py-1"
                                 />
-                                <button onClick={saveKsaEdit} disabled={zunSaving} className="text-xs bg-purple-600 text-white px-2 py-1 rounded-md hover:bg-purple-700 cursor-pointer border-0 disabled:opacity-50">OK</button>
+                                <button onClick={saveKsaEdit} disabled={zunSaving} className="text-xs bg-violet-600 text-white px-2 py-1 rounded-md hover:bg-violet-700 cursor-pointer border-0 disabled:opacity-50">OK</button>
                                 <button onClick={() => setKsaEditing(null)} className="text-xs text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
                               </div>
                             ) : (
                               <div className="flex gap-1 items-start group">
                                 <span className="flex-1">{sk.text}</span>
-                                <button onClick={() => { setKsaEditing({ id: sk.id, text: sk.text }); setZunMsg(""); }} title="Редактировать" className="text-gray-300 hover:text-purple-600 border-0 bg-transparent cursor-pointer text-xs">Изменить</button>
+                                <button onClick={() => { setKsaEditing({ id: sk.id, text: sk.text }); setZunMsg(""); }} title="Редактировать" className="text-gray-300 hover:text-violet-600 border-0 bg-transparent cursor-pointer text-xs">Изменить</button>
                                 <button onClick={() => delKsa(sk.id)} title="Удалить" className="text-gray-300 hover:text-red-600 border-0 bg-transparent cursor-pointer text-xs">Удалить</button>
                               </div>
                             )}
@@ -1195,23 +1235,23 @@ export function TeacherDashboard() {
 
             <div className="mt-6">
               <div className="flex items-center gap-3 mb-3">
-                <div className="flex items-center justify-center w-8 h-8 bg-purple-600 rounded-lg">
+                <div className="flex items-center justify-center w-8 h-8 bg-violet-600 rounded-lg">
                   <span className="text-white text-sm font-bold">!</span>
                 </div>
-                <h3 className="text-sm font-semibold text-gray-900">Recommendations</h3>
+                <h3 className="text-sm font-semibold text-gray-900">Рекомендации</h3>
                 <span className="text-xs text-gray-400">({recs.filter((r) => r.discipline_id === selected?.name).length})</span>
                 {seedMsg && <span className="text-xs text-gray-500">{seedMsg}</span>}
                 <button
                   onClick={() => setShowAddForm(!showAddForm)}
-                  className="ml-auto text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors cursor-pointer border-0"
+                  className="ml-auto text-xs bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 transition-colors cursor-pointer border-0"
                 >
-                  {showAddForm ? "Cancel" : "Add Recommendation"}
+                  {showAddForm ? "Отмена" : "Добавить рекомендацию"}
                 </button>
                 <button
                   onClick={seedAutoRecs}
                   disabled={seedLoading}
                   title="Заполнить панель топ-рекомендациями из автоанализа (ручные сохранятся)"
-                  className="text-xs bg-white text-purple-700 border border-purple-300 px-3 py-1.5 rounded-lg hover:bg-purple-50 transition-colors cursor-pointer disabled:opacity-50"
+                  className="text-xs bg-white text-violet-700 border border-purple-300 px-3 py-1.5 rounded-lg hover:bg-violet-50 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   {seedLoading ? "Заполнение…" : "Заполнить из анализа"}
                 </button>
@@ -1250,7 +1290,7 @@ export function TeacherDashboard() {
                     </select>
                     <button
                       onClick={() => { addRec(); setShowAddForm(false); setSelectedCompetency(""); }}
-                      className="h-9 px-4 text-sm bg-purple-600 text-white border-0 rounded-lg cursor-pointer hover:bg-purple-700 transition-colors"
+                      className="h-9 px-4 text-sm bg-violet-600 text-white border-0 rounded-lg cursor-pointer hover:bg-violet-700 transition-colors"
                     >
                       Send
                     </button>
@@ -1267,9 +1307,9 @@ export function TeacherDashboard() {
                   .map((r, i) => (
                     <div
                       key={i}
-                      className="border border-gray-100 rounded-lg p-3 mb-2 text-sm"
+                      className="rounded-lg p-3 mb-2 text-sm"
                       style={{
-                        borderLeft: "3px solid #7c3aed",
+                        border: "1px solid #ddd6fe", background: "#faf9ff",
                       }}
                     >
                       <div className="text-gray-400 mb-1 text-xs">
@@ -1277,10 +1317,10 @@ export function TeacherDashboard() {
                       </div>
                       <div className="text-gray-900">{r.suggestion}</div>
                       <button
-                        onClick={() => deleteRec(r.id)}
+                        onClick={() => { if (window.confirm("Удалить рекомендацию безвозвратно?")) deleteRec(r.id); }}
                         className="mt-2 text-xs text-red-500 border border-red-500 rounded px-2 py-0.5 hover:bg-red-50 transition-colors bg-transparent cursor-pointer"
                       >
-                        Delete
+                        Удалить
                       </button>
                     </div>
                   ))
