@@ -19,6 +19,7 @@ from src.models.api_responses import (
     ProfilesCompareResponse,
     ProfileShort,
 )
+from src.api_pkg.routers.auth import require_any_role
 from src.models.student import StudentProfile
 from src.models.enums import ExperienceLevel
 from src import config
@@ -88,7 +89,7 @@ class CustomProfileIn(BaseModel):
 _CUSTOM_NAME_RE = "^[a-z0-9_]{2,32}$"
 
 
-@router.post("/profiles/custom", status_code=201)
+@router.post("/profiles/custom", status_code=201, dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("10/minute")
 async def create_custom_profile(request: Request, body: CustomProfileIn):
     """Create your own competency profile (Data tab): persists to

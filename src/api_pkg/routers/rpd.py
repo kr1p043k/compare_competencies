@@ -152,6 +152,31 @@ async def _run_cli(args: list[str], timeout: int = 1800, run_id: str | None = No
     return proc.returncode or 0, (out + "\n" + err)[-3000:]
 
 
+_NOISE_LINE_RES = None
+
+
+def _noise_res():
+    global _NOISE_LINE_RES
+    if _NOISE_LINE_RES is None:
+        _NOISE_LINE_RES = (
+            re.compile(r"Importing plotly failed"),
+            re.compile(r"warnings summary"),
+        )
+    return _NOISE_LINE_RES
+
+
+def short_cli_error(out: str, limit: int = 10) -> str:
+    """Last traceback tail (or last meaningful lines) without known noise (v43)."""
+    lines = [l.rstrip() for l in (out or "").splitlines() if l.strip()]
+    lines = [l for l in lines if not any(rx.search(l) for rx in _noise_res())]
+    if not lines:
+        return "no output"
+    tb = [i for i, l in enumerate(lines) if l.startswith("Traceback ")]
+    if tb:
+        return "\n".join(lines[tb[-1]:][: limit * 3])
+    return "\n".join(lines[-limit:])
+
+
 async def _update_run(run_id: str, stats: dict) -> None:
     """Patch pipeline_runs.stats with current stage (no status change)."""
     from src.pipeline.db_writer import _pool
@@ -248,7 +273,7 @@ async def _upload_pipeline(run_id: str, dir_code: str, fname: str, direction_nam
         await _update_run(run_id, {"stage": "analysis", "status": "running", "progress": 60})
         code, out = await _run_teacher_analysis(dir_code, run_id)
         if code != 0:
-            raise RuntimeError(f"teacher-analysis failed: {out[-500:]}")
+            raise RuntimeError(f"teacher-analysis failed: {short_cli_error(out)}")
 
         await complete_pipeline_run(
             run_id, status="completed",
@@ -339,7 +364,7 @@ async def _collect_pipeline(run_id: str, dir_code: str, public_url: str | None =
         await _update_run(run_id, {"stage": "analysis", "status": "running", "progress": 65})
         code, out = await _run_teacher_analysis(dir_code, run_id)
         if code != 0:
-            raise RuntimeError(f"teacher-analysis failed: {out[-500:]}")
+            raise RuntimeError(f"teacher-analysis failed: {short_cli_error(out)}")
 
         await complete_pipeline_run(
             run_id, status="completed",

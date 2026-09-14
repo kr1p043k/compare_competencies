@@ -826,53 +826,6 @@ export default function App() {
                   </Select>
                 </div>
 
-                <div className="border border-dashed border-gray-300 rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => setCpOpen(!cpOpen)}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
-                  >
-                    <UserCheck className="size-4 text-emerald-600" />
-                    {cpOpen ? "Скрыть конструктор профиля" : "Создать свой профиль компетенций"}
-                  </button>
-                  {cpOpen && (
-                    <div className="px-4 pb-4 pt-1 space-y-3">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-gray-600">Имя профиля (латиница)</Label>
-                          <Input value={cpName} onChange={(e) => setCpName(e.target.value)} placeholder="my_ds" className="h-10" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-gray-600">Целевой уровень</Label>
-                          <Select value={cpLevel} onValueChange={setCpLevel}>
-                            <SelectTrigger className="h-10 bg-white border-gray-300"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="junior">junior</SelectItem>
-                              <SelectItem value="middle">middle</SelectItem>
-                              <SelectItem value="senior">senior</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-gray-600">Коды компетенций (через запятую или с новой строки)</Label>
-                        <Textarea value={cpCodes} onChange={(e) => setCpCodes(e.target.value)} placeholder={"УК-1, ОПК-2\nПК-4"} className="min-h-16 text-sm" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-gray-600">Навыки явно (необязательно — иначе подтянутся из маппинга кодов)</Label>
-                        <Textarea value={cpSkills} onChange={(e) => setCpSkills(e.target.value)} placeholder={"python, sql, git"} className="min-h-16 text-sm" />
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Button onClick={createCustomProfile} disabled={cpSaving} className="h-10 bg-emerald-600 hover:bg-emerald-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none">
-                          <UserCheck className="mr-2 size-4" />
-                          {cpSaving ? "Создание..." : "Создать профиль"}
-                        </Button>
-                        {cpMsg && <span className="text-sm text-gray-600">{cpMsg}</span>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                   <Button
                     onClick={loadRecommendations}

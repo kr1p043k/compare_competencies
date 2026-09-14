@@ -1009,6 +1009,55 @@ async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
     return {"ksa_id": str(ksa_id), "ksa_type": body.ksa_type, "text": text}
 
 
+_COMP_CODE_RE = re.compile("^(УК|ОПК|ПК|ППК|ИП|ВПК)[- ]([0-9]+(?:\\.[0-9]+)*)$")
+
+
+class CompetencyIn(BaseModel):
+    code: str
+    name: str = ""
+    description: str = ""
+
+
+@router.post("/teacher/zun/disciplines/{discipline_id}/competencies", status_code=201)
+@limiter.limit("30/minute")
+async def zun_add_competency(request: Request, discipline_id: str, body: CompetencyIn):
+    """Create a custom competency under a discipline (code like УК-1, ПК-2.1)."""
+    _validate_uuid(discipline_id, "discipline_id")
+    code = (body.code or "").strip().upper()
+    m = _COMP_CODE_RE.match(code)
+    if not m:
+        raise HTTPException(status_code=400,
+                            detail="code must match УК|ОПК|ПК|ППК|ИП|ВПК + number, e.g. ПК-2.1")
+    category, number = m.group(1), m.group(2)
+    name = (body.name or "").strip()
+    if len(name) > 500:
+        raise HTTPException(status_code=400, detail="name too long (max 500)")
+    description = (body.description or "").strip()
+    if len(description) > 2000:
+        raise HTTPException(status_code=400, detail="description too long (max 2000)")
+
+    pool = get_pool()
+    disc = await pool.fetchrow("SELECT id FROM disciplines WHERE id = $1", discipline_id)
+    if not disc:
+        raise HTTPException(status_code=404, detail="Discipline not found")
+    dup = await pool.fetchrow(
+        "SELECT 1 FROM competencies WHERE discipline_id = $1 AND code = $2",
+        discipline_id, code)
+    if dup:
+        raise HTTPException(status_code=409, detail="Competency code already exists in discipline")
+    sort = await pool.fetchval(
+        "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM competencies WHERE discipline_id = $1",
+        discipline_id)
+    comp_id = await pool.fetchval(
+        """INSERT INTO competencies
+             (discipline_id, code, category, number, name, description, sort_order, parse_version_id)
+           VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), $7, NULL)
+           RETURNING id""",
+        discipline_id, code, category, number, name, description, sort)
+    logger.info("zun_competency_added", competency_id=str(comp_id), code=code)
+    return {"competency_id": str(comp_id), "code": code, "category": category}
+
+
 class SkillLinkIn(BaseModel):
     skill_name: str
     ksa_type: str = "skills"

@@ -20,8 +20,31 @@ def isolated(tmp_path, monkeypatch):
     yield data_dir
 
 
+def _open_auth(app):
+    for route in app.routes:
+        dep = getattr(route, "dependant", None)
+        for sub in (getattr(dep, "dependencies", None) or []):
+            fn = sub.call
+            if getattr(fn, "__qualname__", "").startswith("require_any_role"):
+                app.dependency_overrides[fn] = lambda: {"r": "admin"}
+
+
+def _client():
+    app = create_app()
+    _open_auth(app)
+    return TestClient(app)
+
+
+def test_custom_profile_requires_auth(isolated):
+    from fastapi.testclient import TestClient as _TC
+    from src.api_pkg import create_app as _mk
+    c = _TC(_mk())
+    r = c.post("/api/profiles/custom", json={"name": "zzz", "skills": ["a"]})
+    assert r.status_code == 401, r.status_code
+
+
 def test_custom_profile_create_list_get(isolated):
-    c = TestClient(create_app())
+    c = _client()
     r = c.post("/api/profiles/custom", json={
         "name": "my_ds", "target_level": "middle",
         "competencies": ["UK-1"], "skills": []})
@@ -36,7 +59,7 @@ def test_custom_profile_create_list_get(isolated):
 
 
 def test_custom_profile_explicit_skills(isolated):
-    c = TestClient(create_app())
+    c = _client()
     r = c.post("/api/profiles/custom", json={
         "name": "ops", "target_level": "senior",
         "competencies": [], "skills": ["linux", "bash"]})
@@ -45,7 +68,7 @@ def test_custom_profile_explicit_skills(isolated):
 
 
 def test_custom_profile_validations(isolated):
-    c = TestClient(create_app())
+    c = _client()
     assert c.post("/api/profiles/custom", json={"name": "Bad Name!"}).status_code == 400
     assert c.post("/api/profiles/custom",
                   json={"name": "x", "skills": ["a"]}).status_code == 400  # too short

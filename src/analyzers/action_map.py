@@ -65,8 +65,12 @@ ACTION_TOOLS: list[dict] = [
     {"id": 'orm', "triggers": ['orm', 'sqlalchemy', 'миграции', 'alembic'],
      "grounded": ['sqlalchemy'], "expert": ['alembic']},
     {"id": 'techdocs', "triggers": ['отчетная документация', 'техническая документация',
-     'оформление документации', 'документирование'],
+     'оформление документации', 'документирование', 'программная документация'],
      "grounded": ['техническая документация'], "expert": []},
+    {"id": 'prompts', "triggers": ['промпт', 'промптов', 'промпты', 'prompt', 'промптах'],
+     "grounded": ['prompt engineering'], "expert": []},
+    {"id": 'bigdata', "triggers": ['неструктурированные данные'],
+     "grounded": ['big data'], "expert": []},
     {"id": 'gost', "triggers": ['гост', 'стандарты нормы правила'],
      "grounded": ['гост'], "expert": []},
 ]

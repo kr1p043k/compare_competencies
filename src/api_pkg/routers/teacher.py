@@ -8,13 +8,14 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.routers.auth import require_any_role
 from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
@@ -288,7 +289,7 @@ async def krm_get_recommendations(request: Request):
     return []
 
 
-@router.post("/teacher/krm/recommendations")
+@router.post("/teacher/krm/recommendations", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def krm_add_recommendation(request: Request):
     """Добавить рекомендацию KRM."""
     raw = await request.json()
@@ -301,7 +302,7 @@ async def krm_add_recommendation(request: Request):
     return {"status": "ok", "id": len(recs) - 1}
 
 
-@router.delete("/teacher/krm/recommendations/{index}")
+@router.delete("/teacher/krm/recommendations/{index}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def krm_delete_recommendation(request: Request, index: int):
     """Удалить рекомендацию KRM."""
     recs = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
@@ -312,7 +313,7 @@ async def krm_delete_recommendation(request: Request, index: int):
     return {"status": "ok"}
 
 
-@router.post("/teacher/krm/recommendations/seed/auto")
+@router.post("/teacher/krm/recommendations/seed/auto", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("10/minute")
 async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03.02",
                                         per_discipline: int = 3):
@@ -499,13 +500,13 @@ async def krm_search_run_detail(run_id: str):
     }
 
 
-@router.post("/teacher/krm/run-analysis")
+@router.post("/teacher/krm/run-analysis", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def run_teacher_analysis_endpoint(
     background_tasks: BackgroundTasks,
     dir_code: str = "09.03.02",
 ):
     """Запустить teacher analysis (с run_id, прогрессом и ошибками)."""
-    from src.api_pkg.routers.rpd import _run_cli, _update_run
+    from src.api_pkg.routers.rpd import _run_cli, _update_run, short_cli_error
     from src.pipeline.db_writer import complete_pipeline_run, create_pipeline_run
 
     _validate_dir_code(dir_code)
@@ -520,7 +521,7 @@ async def run_teacher_analysis_endpoint(
                 timeout=1800, run_id=run_id,
             )
             if code != 0:
-                raise RuntimeError(f"teacher-analysis failed: {out[-500:]}")
+                raise RuntimeError(f"teacher-analysis failed: {short_cli_error(out)}")
             await complete_pipeline_run(
                 run_id, status="completed",
                 stats={"stage": "done", "status": "completed", "dir_code": dir_code},

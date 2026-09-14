@@ -9,11 +9,12 @@ from enum import Enum
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src.api_pkg.routers.auth import require_any_role
 from src.models.api_responses import (
     CacheRefreshResponse,
     GapProgressResponse,
@@ -391,7 +392,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
         _running_futures.pop(task_id, None)
 
 
-@router.post("/pipeline/rebuild", response_model=PipelineResponse)
+@router.post("/pipeline/rebuild", response_model=PipelineResponse, dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("2/minute")
 async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
     """Полная пересборка данных пайплайна."""
@@ -406,7 +407,7 @@ async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
     )
 
 
-@router.post("/pipeline/refresh-cache", response_model=CacheRefreshResponse)
+@router.post("/pipeline/refresh-cache", response_model=CacheRefreshResponse, dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("5/minute")
 async def refresh_cache(request: Request):
     """Обновить кэши пайплайна."""
@@ -430,7 +431,7 @@ async def refresh_cache(request: Request):
     }
 
 
-@router.post("/pipeline/reload-api", response_model=PipelineResponse)
+@router.post("/pipeline/reload-api", response_model=PipelineResponse, dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("3/minute")
 async def reload_api(request: Request):
     """Перезагрузить данные API без рестарта."""
@@ -457,7 +458,7 @@ async def reload_api_data():
     await _reload_api_data()
 
 
-@router.post("/pipeline/{action}", response_model=PipelineResponse)
+@router.post("/pipeline/{action}", response_model=PipelineResponse, dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("5/minute")
 async def run_pipeline_action_sync(
     request: Request,
@@ -625,7 +626,7 @@ async def reload_api_data():
     await _reload_api_data()
 
 
-@router.post("/pipeline/cancel/{task_id}")
+@router.post("/pipeline/cancel/{task_id}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("10/minute")
 async def cancel_pipeline_task(task_id: str, request: Request):
     """Отменить задачу."""

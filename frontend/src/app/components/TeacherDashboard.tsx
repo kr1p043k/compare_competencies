@@ -162,6 +162,38 @@ export function TeacherDashboard() {
   const [seedMsg, setSeedMsg] = useState("");
   const [seedLoading, setSeedLoading] = useState(false);
   const [zunForm, setZunForm] = useState<{ compId: string; ksaType: string; text: string } | null>(null);
+  const [compForm, setCompForm] = useState(false);
+  const [compCode, setCompCode] = useState("");
+  const [compName, setCompName] = useState("");
+  const [compErr, setCompErr] = useState<{ code?: string; name?: string; msg?: string }>({});
+  const [compSaving, setCompSaving] = useState(false);
+
+  const COMP_CODE_RE = /^(УК|ОПК|ПК|ППК|ИП|ВПК)[- ]\d+(\.\d+)*$/i;
+
+  async function saveCompetency() {
+    const code = compCode.trim().toUpperCase();
+    const errs: { code?: string; name?: string } = {};
+    if (!COMP_CODE_RE.test(code)) errs.code = "Формат: УК-1, ОПК-2, ПК-2.1…";
+    if (compName.trim().length > 500) errs.name = "Слишком длинное (макс. 500)";
+    setCompErr(errs);
+    if (errs.code || errs.name || !selected) return;
+    setCompSaving(true);
+    try {
+      await api(`/teacher/zun/disciplines/${selected.id}/competencies`, {
+        method: "POST",
+        body: JSON.stringify({ code, name: compName.trim() }),
+      });
+      setCompForm(false); setCompCode(""); setCompName(""); setCompErr({});
+      await loadDiscipline(selected.name);
+    } catch (e: any) {
+      let msg = e.message || "неизвестная ошибка";
+      try { const j = JSON.parse(msg); msg = j.detail || msg; } catch {}
+      if (/code|формат/i.test(msg)) setCompErr({ code: msg });
+      else setCompErr({ msg });
+    } finally {
+      setCompSaving(false);
+    }
+  }
   const [zunMsg, setZunMsg] = useState("");
   const [zunSaving, setZunSaving] = useState(false);
   const [ksaEditing, setKsaEditing] = useState<{ id: string; text: string } | null>(null);
@@ -530,9 +562,9 @@ export function TeacherDashboard() {
               </h1>
               {stats && (
                   <div style={{ fontSize: 11, color: "#6b7280", textAlign: "right" }}>
-                    <div>{(stats as any).total_disciplines ?? (stats as any).total_reports ?? 0} disc</div>
-                    <div>{(stats as any).total_competencies ?? Object.keys((stats as any).by_profession || {}).length} comp</div>
-                    <div>{((stats as any).total_skills ?? 0).toLocaleString()} skills</div>
+                    <div>{(() => { const n = (stats as any).total_disciplines ?? (stats as any).total_reports ?? 0; return `${n} ${plural(n, "дисциплина", "дисциплины", "дисциплин")}`; })()}</div>
+                    <div>{(() => { const n = (stats as any).total_competencies ?? Object.keys((stats as any).by_profession || {}).length; return `${n} ${plural(n, "компетенция", "компетенции", "компетенций")}`; })()}</div>
+                    <div>{(() => { const n = (stats as any).total_skills ?? 0; return `${n.toLocaleString()} ${plural(n, "навык", "навыка", "навыков")}`; })()}</div>
                   </div>
                 )}
           </div>
@@ -1113,6 +1145,44 @@ export function TeacherDashboard() {
 
             {/* Analysis panel for this discipline */}
             <AnalysisPanel disciplineName={selected.name} dirCode={selectedDir} />
+
+            <div className="mb-3">
+              {!compForm ? (
+                <button onClick={() => { setCompForm(true); setCompErr({}); }}
+                  className="text-xs text-white bg-emerald-600 hover:bg-emerald-700 transition-colors px-3 py-1.5 rounded-lg cursor-pointer border-0">
+                  + Компетенция
+                </button>
+              ) : (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div>
+                      <input value={compCode} onChange={(e) => setCompCode(e.target.value)}
+                        placeholder="Код: ПК-2.1"
+                        aria-label="Код компетенции"
+                        className={`h-9 w-full px-2 rounded border bg-white text-xs ${compErr.code ? "border-red-400" : "border-gray-300"}`} />
+                      {compErr.code && <div className="text-[11px] text-red-600 mt-1">{compErr.code}</div>}
+                    </div>
+                    <div>
+                      <input value={compName} onChange={(e) => setCompName(e.target.value)}
+                        placeholder="Название (необязательно)"
+                        aria-label="Название компетенции"
+                        className={`h-9 w-full px-2 rounded border bg-white text-xs ${compErr.name ? "border-red-400" : "border-gray-300"}`} />
+                      {compErr.name && <div className="text-[11px] text-red-600 mt-1">{compErr.name}</div>}
+                    </div>
+                  </div>
+                  {compErr.msg && <div className="text-xs text-red-600">{compErr.msg}</div>}
+                  <div className="flex items-center gap-2">
+                    <button onClick={saveCompetency} disabled={compSaving}
+                      className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer border-0 disabled:opacity-50">
+                      {compSaving ? "..." : "Создать"}
+                    </button>
+                    <button onClick={() => setCompForm(false)}
+                      className="text-xs text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
+                  </div>
+                  <div className="text-[11px] text-gray-400">ЗУН и инструменты дописываются после создания: +ЗУН у компетенции, инструменты — через Администрирование → Навыки.</div>
+                </div>
+              )}
+            </div>
 
             {selected.competencies.map((comp) => {
               const ksa = comp.ksa;
