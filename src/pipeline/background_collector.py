@@ -220,6 +220,9 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
                 match parser.skill_parser.parse_vacancy(vac_obj):
                     case Ok(extracted):
                         texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                        # Write-back for the later INSERT (it reads extracted_skills;
+                        # the UPDATE below only matches already-stored rows).
+                        v["extracted_skills"] = texts
                         if texts:
                             hh_id = int(vid)
                             await conn.execute(
