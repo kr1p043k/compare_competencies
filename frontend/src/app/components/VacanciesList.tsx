@@ -698,31 +698,31 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   </SelectContent>
                 </Select>
               </div>
+              <div className="md:col-span-3 flex items-end justify-end gap-3">
+                <Button
+                  onClick={() => applyFilters()}
+                  disabled={loading}
+                  className="h-11 px-6 bg-blue-700 hover:bg-blue-800 text-white transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none gap-2"
+                >
+                  {loading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Search className="size-4" />
+                  )}
+                  Применить фильтры
+                </Button>
+                <Button
+                  onClick={clearFilters}
+                  disabled={loading}
+                  variant="outline"
+                  className="h-11 px-6 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none gap-2"
+                >
+                  <X className="size-4" />
+                  Очистить
+                </Button>
+              </div>
             </div>
 
-            <div className="flex flex-wrap gap-3 mt-4">
-              <Button
-                onClick={() => applyFilters()}
-                disabled={loading}
-                className="h-11 px-6 bg-blue-700 hover:bg-blue-800 text-white transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none gap-2"
-              >
-                {loading ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Search className="size-4" />
-                )}
-                Применить фильтры
-              </Button>
-              <Button
-                onClick={clearFilters}
-                disabled={loading}
-                variant="outline"
-                className="h-11 px-6 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none gap-2"
-              >
-                <X className="size-4" />
-                Очистить
-              </Button>
-            </div>
             {/* Active filters */}
             {(applied.experience !== "all" || applied.city !== "all" || applied.search) && (
               <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
