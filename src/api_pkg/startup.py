@@ -235,7 +235,8 @@ async def run_startup(app):
         deps.is_ready = False
 
     if not raw_file.exists():
-        logger.warning("Нет файлов вакансий — режим ожидания. Запустите pipeline для сбора данных.")
+        logger.warning("no_vacancy_files_waiting_mode",
+                           detailed=str(detailed_file), basic=str(basic_file))
         await _set_waiting_mode()
         return
 
@@ -280,6 +281,72 @@ async def run_startup(app):
 async def _warmup_background(basic_vacancies, raw_file):
     """Загружает тяжёлые компоненты после старта API."""
     logger.info("фоновая инициализация: парсинг навыков, evaluator, тренды, Prophet...")
+
+    # --- Step 0: student profiles FIRST (fast, no ML deps) ---
+    # /api/profiles must answer seconds after boot, not after the full ML warmup (v45).
+    # Студенческие профили
+    try:
+        deps.competency_mapping = deps.competency_mapping or load_competency_mapping()
+
+        def load_student_codes(name):
+            path = config.DATA_DIR / "students" / f"{name}_competency.json"
+            if not path.exists():
+                path = config.DATA_DIR / "students" / f"{name}.json"
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                return data.get("компетенции") or data.get("навыки") or data.get("codes") or []
+            except Exception:
+                return []
+
+        def map_codes(codes):
+            if not deps.competency_mapping:
+                return codes
+            skills = set()
+            for code in codes:
+                code_norm = "".join(c for c in code if c.isalnum()).upper()
+                for key, value in deps.competency_mapping.items():
+                    key_norm = "".join(c for c in key if c.isalnum()).upper()
+                    if code_norm == key_norm:
+                        skills.update(value)
+                        break
+            return list(skills)
+
+        profile_levels = {"base": ExperienceLevel.JUNIOR, "dc": ExperienceLevel.MIDDLE, "top_dc": ExperienceLevel.SENIOR}
+        for pname, target in profile_levels.items():
+            codes = load_student_codes(pname)
+            if pname == "top_dc":
+                top_codes = load_student_codes("top_dc")
+                dc_codes = load_student_codes("dc")
+                base_codes = load_student_codes("base")
+                top_skills = map_codes(top_codes)
+                dc_skills = map_codes(dc_codes)
+                base_skills = map_codes(base_codes)
+                skills = merge_skills_hierarchically(top_skills, dc_skills, base_skills)
+            else:
+                skills = map_codes(codes)
+
+            def _unwrap(s):
+                match SkillNormalizer.normalize(s):
+                    case Ok(n):
+                        return n
+                    case _:
+                        return None
+            skills = [n for s in skills if (n := _unwrap(s))]
+            skills = list(dict.fromkeys(skills))
+            deps.student_profiles[pname] = StudentProfile(
+                profile_name=pname, competencies=codes, skills=skills, target_level=target,
+            )
+        restored = register_custom_student_profiles(
+            Path(config.DATA_DIR) / "students", deps.student_profiles,
+            map_codes)
+        if restored:
+            logger.info("custom_profiles_restored_total", count=len(restored))
+        logger.info("фоновая инициализация: студенческие профили готовы")
+        await _resolve_warmup_failure("студенческие профили")
+    except Exception as e:
+        logger.warning("фоновая инициализация: студенческие профили не загружены", error=str(e))
+        _notify_warmup_failure("студенческие профили", e)
 
     # --- Шаг 1: Извлечение навыков (с кэшированием) ---
     try:
@@ -560,70 +627,6 @@ async def _warmup_background(basic_vacancies, raw_file):
         deps.prophet_engine = None
         logger.warning("фоновая инициализация: Prophet не загружен", error=str(e))
         _notify_warmup_failure("Prophet", e)
-
-    # Студенческие профили
-    try:
-        deps.competency_mapping = deps.competency_mapping or load_competency_mapping()
-
-        def load_student_codes(name):
-            path = config.DATA_DIR / "students" / f"{name}_competency.json"
-            if not path.exists():
-                path = config.DATA_DIR / "students" / f"{name}.json"
-            try:
-                with open(path, encoding="utf-8") as f:
-                    data = json.load(f)
-                return data.get("компетенции") or data.get("навыки") or data.get("codes") or []
-            except Exception:
-                return []
-
-        def map_codes(codes):
-            if not deps.competency_mapping:
-                return codes
-            skills = set()
-            for code in codes:
-                code_norm = "".join(c for c in code if c.isalnum()).upper()
-                for key, value in deps.competency_mapping.items():
-                    key_norm = "".join(c for c in key if c.isalnum()).upper()
-                    if code_norm == key_norm:
-                        skills.update(value)
-                        break
-            return list(skills)
-
-        profile_levels = {"base": ExperienceLevel.JUNIOR, "dc": ExperienceLevel.MIDDLE, "top_dc": ExperienceLevel.SENIOR}
-        for pname, target in profile_levels.items():
-            codes = load_student_codes(pname)
-            if pname == "top_dc":
-                top_codes = load_student_codes("top_dc")
-                dc_codes = load_student_codes("dc")
-                base_codes = load_student_codes("base")
-                top_skills = map_codes(top_codes)
-                dc_skills = map_codes(dc_codes)
-                base_skills = map_codes(base_codes)
-                skills = merge_skills_hierarchically(top_skills, dc_skills, base_skills)
-            else:
-                skills = map_codes(codes)
-
-            def _unwrap(s):
-                match SkillNormalizer.normalize(s):
-                    case Ok(n):
-                        return n
-                    case _:
-                        return None
-            skills = [n for s in skills if (n := _unwrap(s))]
-            skills = list(dict.fromkeys(skills))
-            deps.student_profiles[pname] = StudentProfile(
-                profile_name=pname, competencies=codes, skills=skills, target_level=target,
-            )
-        restored = register_custom_student_profiles(
-            Path(config.DATA_DIR) / "students", deps.student_profiles,
-            map_codes)
-        if restored:
-            logger.info("custom_profiles_restored_total", count=len(restored))
-        logger.info("фоновая инициализация: студенческие профили готовы")
-        await _resolve_warmup_failure("студенческие профили")
-    except Exception as e:
-        logger.warning("фоновая инициализация: студенческие профили не загружены", error=str(e))
-        _notify_warmup_failure("студенческие профили", e)
 
     _refresh_business_gauges()
     logger.info("Фоновая инициализация завершена. API готов к работе")

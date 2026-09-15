@@ -218,6 +218,21 @@ async def _rotate_progress(task_id: str, step: int = 1, skip_collection: bool = 
         await asyncio.sleep(5)
 
 
+def _format_task_error(prefix: str, err) -> str:
+    """User-facing task message that keeps the error detail (root cause).
+
+    DomainError.__str__ returns message only, so without this the UI shows
+    'Pipeline failed at stage X' with no hint whether the vacancy file is
+    missing, hh.ru blocked the egress IP, or a record failed validation (v45).
+    """
+    prefix = prefix.rstrip(": ")  # wrapped call sites already include ": "
+    base = f"{prefix}: {err}"
+    detail = getattr(err, "detail", "")
+    if detail and str(detail) not in base:
+        return f"{base} \u2014 {detail}"
+    return base
+
+
 async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
     from src.pipeline import runner as pr
 
@@ -240,7 +255,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             pipeline_tasks[task_id].message = "Запуск полной пересборки..."
             result = await loop.run_in_executor(None, lambda: cancel_aware(pr.rebuild))
             if result.is_err():
-                msg = f"Пересборка не завершена: {result.err()}"
+                msg = _format_task_error("Пересборка не завершена: ", result.err())
                 status = "failed"
             else:
                 msg = "Пересборка завершена."
@@ -294,7 +309,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             progress_rotator.cancel()
             if result.is_err():
                 status = "failed"
-                msg = f"Пайплайн не завершён: {result.err()}"
+                msg = _format_task_error("Пайплайн не завершён: ", result.err())
             else:
                 status = "completed"
                 msg = "Все этапы выполнены. Данные обновлены."
@@ -320,7 +335,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             result = await loop.run_in_executor(None, lambda: cancel_aware(pr.run_train_model))
             if result.is_err():
                 status = "failed"
-                msg = f"Обучение не удалось: {result.err()}"
+                msg = _format_task_error("Обучение не удалось: ", result.err())
             else:
                 status = "completed"
                 msg = "Модель обучена."
@@ -349,7 +364,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
             progress_rotator.cancel()
             if result.is_err():
                 status = "failed"
-                msg = f"GAP-анализ не завершён: {result.err()}"
+                msg = _format_task_error("GAP-анализ не завершён: ", result.err())
             else:
                 status = "completed"
                 msg = "GAP-анализ завершен. Отчёты готовы."

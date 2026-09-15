@@ -44,13 +44,40 @@ class HhDataSource(DataSourceProtocol):
     def _load_from_cache(self) -> Result[tuple[list, VacancyParser], DataSourceError]:
         raw_file = self._find_file()
         if raw_file is None:
-            return Err(DataSourceError(message="❌ Файлы вакансий не найдены."))
+            detailed = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
+            basic = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+            return Err(DataSourceError(
+                message=f"\u274c \u0424\u0430\u0439\u043b\u044b \u0432\u0430\u043a\u0430\u043d\u0441\u0438\u0439 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u044b: {detailed} | {basic}"))
         data = safe_read_json(raw_file)
         if not data:
-            return Err(DataSourceError(message="❌ Не удалось прочитать файл вакансий."))
+            # v45: detailed unreadable -> fall back to basic instead of dying
+            detailed = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
+            basic = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+            if str(raw_file) == str(detailed) and basic.exists():
+                logger.warning("cache_primary_unreadable_fallback",
+                               primary=str(raw_file), fallback=str(basic))
+                data = safe_read_json(basic)
+                if data:
+                    raw_file = basic
+        if not data:
+            return Err(DataSourceError(
+                message=f"\u274c \u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043f\u0440\u043e\u0447\u0438\u0442\u0430\u0442\u044c \u0444\u0430\u0439\u043b \u0432\u0430\u043a\u0430\u043d\u0441\u0438\u0439: {raw_file}"))
         parser = VacancyParser()
         from src.models.vacancy import Vacancy
-        vacancies = [Vacancy.from_api(v) if isinstance(v, dict) else v for v in data]
+        vacancies = []
+        skipped = 0
+        for v in data:
+            try:
+                vacancies.append(Vacancy.from_api(v) if isinstance(v, dict) else v)
+            except Exception as exc:  # v45: one bad record must not kill gap-analysis
+                skipped += 1
+                logger.warning("cache_record_skipped", error=str(exc)[:200])
+        if skipped:
+            logger.warning("cache_records_skipped_total", skipped=skipped, total=len(data))
+        if not vacancies:
+            return Err(DataSourceError(
+                message="\u274c \u0412 \u0444\u0430\u0439\u043b\u0435 \u0432\u0430\u043a\u0430\u043d\u0441\u0438\u0439 \u043d\u0435\u0442 \u043f\u0440\u0438\u0433\u043e\u0434\u043d\u044b\u0445 \u0437\u0430\u043f\u0438\u0441\u0435\u0439."))
+        logger.info("cache_loaded", file=str(raw_file), vacancies=len(vacancies), skipped=skipped)
         return Ok((vacancies, parser))
 
     def _collect_from_hh(self) -> Result[tuple[list, VacancyParser], DataSourceError]:
