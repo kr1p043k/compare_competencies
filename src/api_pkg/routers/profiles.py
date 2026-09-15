@@ -137,7 +137,8 @@ async def create_custom_profile(request: Request, body: CustomProfileIn):
     fpath = (students_dir / f"{name}_competency.json").resolve()
     if students_dir.resolve() not in fpath.parents:
         raise HTTPException(status_code=400, detail="Invalid path")
-    fpath.write_text(json.dumps({"competencies": codes, "skills": skills},
+    fpath.write_text(json.dumps({"competencies": codes, "skills": skills,
+                                "target_level": level.value},
                                 ensure_ascii=False, indent=1), encoding="utf-8")
     deps.student_profiles[name] = StudentProfile(
         profile_name=name, competencies=codes, skills=skills, target_level=level)
