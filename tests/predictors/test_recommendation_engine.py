@@ -246,7 +246,8 @@ class TestGenerateRecommendations:
 class TestGenerateExplanation:
     def test_explanation_high_cluster_relevance(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        expl = engine._generate_explanation("docker", 0.85, _unwrap(mock_profile_evaluator.evaluate_profile.return_value))
+        expl = engine._generate_explanation(
+            "docker", 0.85, _unwrap(mock_profile_evaluator.evaluate_profile.return_value), True)
         assert "🎯" in expl
 
     def test_explanation_high_score_no_cluster(self, mock_profile_evaluator):
@@ -303,7 +304,7 @@ class TestTimeframes:
 
     def test_get_timeframe_default(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        assert engine._get_timeframe("unknown") == "1-3 месяца"
+        assert engine._get_timeframe("unknown").startswith("оценка")
 
 
 # ---------------------------------------------------------------------------
@@ -320,12 +321,12 @@ class TestLearningPaths:
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         profile = StudentProfile(profile_name="s", competencies=[], skills=["python"], target_level="senior", created_at=datetime.now())
         path = engine._get_learning_path("docker", False, profile)
-        assert "Углублённое изучение" in path
+        assert path == ""
 
     def test_get_learning_path_default(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         path = engine._get_learning_path("unknown", False, None)
-        assert "Изучите документацию" in path
+        assert path == ""
 
 
 # ---------------------------------------------------------------------------
@@ -381,14 +382,17 @@ class TestRoleOutcome:
             "coverage_percent": 50.0,
             "skills_covered": "3/6",
         }]
-        outcome = engine._get_role_outcome("docker", roles)
+        roles[0]["cluster_core_skills"] = ["docker"]
+        outcome = engine._get_role_outcome("docker", roles, True)
         assert "docker" in outcome
         assert "Backend" in outcome
+        assert "(+" in outcome
+        assert engine._get_role_outcome("docker", roles) == ""
 
     def test_get_role_outcome_no_roles(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         outcome = engine._get_role_outcome("docker", [])
-        assert "расширит ваш технический кругозор" in outcome
+        assert outcome == ""
 
 
 # ---------------------------------------------------------------------------
@@ -559,14 +563,17 @@ class TestRecommendationEngineExtended:
     def test_get_role_outcome_no_roles(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         outcome = engine._get_role_outcome("docker", [])
-        assert "расширит" in outcome
+        assert outcome == ""
 
     def test_get_role_outcome_with_roles(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         roles = [{"role": "Backend", "semantic_similarity": 80.0, "coverage_percent": 50.0,
                   "skills_covered": "3/6"}]
-        outcome = engine._get_role_outcome("docker", roles)
+        roles[0]["cluster_core_skills"] = ["docker"]
+        outcome = engine._get_role_outcome("docker", roles, True)
         assert "Backend" in outcome
+        assert "(+" in outcome
+        assert engine._get_role_outcome("docker", roles) == ""
 
     def test_llm_explain_with_retry_without_credentials(self, mock_profile_evaluator, monkeypatch):
         monkeypatch.setattr(config, "YC_API_KEY", None)
@@ -632,12 +639,11 @@ class TestRoleCoreGate:
     def test_tail_skill_not_attributed_to_role(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         out = engine._get_role_outcome("tail_skill_00", self._roles())
-        assert "tail_skill_00" in out and "Mgmt" in out
-        assert "(+" not in out
+        assert out == ""
 
     def test_core_skill_gets_coverage_math(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        out = engine._get_role_outcome("mgmt_skill_00", self._roles())
+        out = engine._get_role_outcome("mgmt_skill_00", self._roles(), True)
         assert "(+" in out
 
     def test_build_roles_has_sorted_core(self, mock_profile_evaluator):
@@ -649,3 +655,28 @@ class TestRoleCoreGate:
             [{"id": 0, "name": "R", "similarity": 0.9}], {}, set())
         assert roles[0]["cluster_core_skills"] == [f"s{i:02d}" for i in range(15)]
         assert roles[0]["cluster_skills"] == sorted(roles[0]["cluster_skills"])
+
+
+# ---------------------------------------------------------------------------
+# Template consistency: explanation and outcome must never contradict
+# ---------------------------------------------------------------------------
+class TestTemplateConsistency:
+    def _roles(self):
+        return [{"role": "Backend", "semantic_similarity": 80.0,
+                  "coverage_percent": 50.0, "skills_covered": "3/6",
+                  "cluster_core_skills": ["docker"]}]
+    def test_core_skill_no_contradiction(self, mock_profile_evaluator):
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        expl = engine._generate_explanation("docker", 0.85,
+            _unwrap(mock_profile_evaluator.evaluate_profile.return_value), True)
+        out = engine._get_role_outcome("docker", self._roles(), True)
+        assert "Backend" in expl and "Backend" in out
+        assert "(+" in out
+        assert "не входит в топ" not in expl and "не входит в топ" not in out
+    def test_tail_skill_silent(self, mock_profile_evaluator):
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        expl = engine._generate_explanation("flask", 0.4,
+            _unwrap(mock_profile_evaluator.evaluate_profile.return_value), False)
+        out = engine._get_role_outcome("flask", self._roles(), False)
+        assert "Ключевой навык для роли" not in expl
+        assert out == ""

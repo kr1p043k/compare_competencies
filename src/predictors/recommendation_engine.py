@@ -30,6 +30,28 @@ from src.predictors.models import (
 logger = structlog.get_logger(__name__)
 
 
+
+
+_TIMEFRAME_BY_CATEGORY = {
+    "programming_languages": "оценка: ~2–4 месяца",
+    "frameworks": "оценка: ~1–3 месяца",
+    "databases": "оценка: ~1–3 месяца",
+    "data_science": "оценка: ~1–3 месяца",
+    "frontend": "оценка: ~1–3 месяца",
+    "mobile": "оценка: ~1–3 месяца",
+    "devops": "оценка: ~1–2 месяца",
+    "cloud": "оценка: ~1–2 месяца",
+    "security": "оценка: ~1–2 месяца",
+    "llm_ai": "оценка: ~1–2 месяца",
+    "embedded": "оценка: ~1–2 месяца",
+    "game_dev": "оценка: ~1–2 месяца",
+    "enterprise": "оценка: ~1–2 месяца",
+    "gis": "оценка: ~1–2 месяца",
+    "mathematics": "оценка: ~1–2 месяца",
+    "ml_advanced": "оценка: ~2–4 месяца",
+    "testing_qa": "оценка: ~1–2 месяца",
+    "methodologies_concepts": "оценка: ~2–4 недели",
+}
 class RecommendationEngine(RecommenderPredictor["RecommendationEngine", RecommendationResult]):
     """
     Движок рекомендаций с профильной оценкой, LTR-ранжированием
@@ -331,12 +353,19 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
 
             rec_objects: list[Recommendation] = []
             skill_metrics = eval_result.get("skill_metrics", {})
+            top_role = closest_roles[0] if closest_roles else None
+            top_core_pool = set()
+            if top_role:
+                top_core_pool = {s.lower() for s in (top_role.get("cluster_core_skills") or [])}
             for skill, score in combined_scores.items():
                 metric = skill_metrics.get(skill, {})
                 try:
-                    explanation = self._generate_explanation(skill, score, eval_result)
-                    if skill.lower() in trend_bonuses:
-                        explanation += f" 📈 Растущий тренд (+{trend_bonuses[skill.lower()] * 100:.0f}%)."
+                    skill_relevant = skill.lower() in top_core_pool
+                    explanation = self._generate_explanation(skill, score, eval_result, skill_relevant)
+                    if skill.lower() in self._always_hot:
+                        explanation += " 📈 Стабильно востребован."
+                    elif skill.lower() in trend_bonuses:
+                        explanation += f" 📈 Топ роста (+{trend_bonuses[skill.lower()] * 100:.0f}%)."
                     if skill.lower() in domain_skills:
                         explanation += f" 🔗 Ключевой навык для домена «{dominant_domain}»."
                     is_soft = not self._is_hard_skill(skill)
@@ -359,7 +388,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                     why_important=explanation,
                     how_to_learn=self._get_learning_path(skill, is_soft, student),
                     expected_timeframe=self._get_timeframe(skill),
-                    expected_outcome=self._get_role_outcome(skill, closest_roles),
+                    expected_outcome=self._get_role_outcome(skill, closest_roles, skill_relevant),
                     is_soft_skill=is_soft,
                     market_frequency_percent=score * 100,
                 ))
@@ -503,31 +532,22 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 leftover.append(rec)
         return priority + leftover
 
-    def _get_role_outcome(self, skill: str, closest_roles: list[dict]) -> str:
-        if not closest_roles:
-            return f"Освоение '{skill}' расширит ваш технический кругозор."
+    def _get_role_outcome(self, skill: str, closest_roles: list[dict], skill_relevant: bool = False) -> str:
+        if not closest_roles or not skill_relevant:
+            return ""
         top_role = closest_roles[0]
         role_name = top_role["role"]
         similarity = top_role["semantic_similarity"]
         coverage = top_role["coverage_percent"]
         total_skills = int(top_role["skills_covered"].split("/")[1]) if "/" in top_role["skills_covered"] else 50
 
-        core_skills = top_role.get("cluster_core_skills") or []
-        core_pool = core_skills if core_skills else top_role.get("cluster_skills", [])
-        skill_is_relevant = skill.lower() in (s.lower() for s in core_pool)
 
-        if skill_is_relevant and total_skills > 0:
+        if total_skills > 0:
             new_coverage = round((coverage * total_skills / 100 + 1) / total_skills * 100, 1)
         else:
             new_coverage = coverage
         improvement = round(new_coverage - coverage, 1)
 
-        if not skill_is_relevant:
-            return (
-                f"Освоение '{skill}' расширит ваш технический кругозор. "
-                f"Навык не входит в топ ключевых навыков для роли «{role_name}», "
-                f"но может быть полезен в смежных областях."
-            )
         return (
             f"После освоения '{skill}' ваше покрытие навыков для роли "
             f"«{role_name}» вырастет с {coverage}% до {new_coverage}% (+{improvement}%). "
@@ -535,29 +555,25 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             f"и откроет доступ к смежным вакансиям."
         )
 
-    def _generate_explanation(self, skill: str, score: float, eval_result: dict) -> str:
+    def _generate_explanation(self, skill: str, score: float, eval_result: dict, skill_relevant: bool = False) -> str:
         metric = eval_result.get("skill_metrics", {}).get(skill, {})
-        cluster_rel = metric.get("cluster_relevance", 0)
         category = metric.get("category", "missing")
         cluster_context = eval_result.get("cluster_context") or {}
         closest = cluster_context.get("closest_clusters", [])
         top_cluster = closest[0] if closest else None
         top_cluster_name = top_cluster.get("name") if top_cluster else None
         top_cluster_sim = top_cluster.get("similarity", 0) if top_cluster else 0
-        cluster_skills = cluster_context.get("skills", {})
-        skill_in_top_cluster = skill in cluster_skills
 
         try:
             skill_cat = self._taxonomy.get_category_label(skill)
         except Exception:
             skill_cat = "технический"
 
-        prefix = "🔶 УСИЛИТЬ: " if category == SkillCategory.WEAK else ""
         suffix = " У вас уже есть базовое понимание — углубите его." if category == SkillCategory.WEAK else ""
 
-        if skill_in_top_cluster and top_cluster_name and cluster_rel > 0.5:
+        if skill_relevant and top_cluster_name:
             return (
-                f"{prefix}🎯 Ключевой навык для роли «{top_cluster_name}».\n"
+                f"🎯 Ключевой навык для роли «{top_cluster_name}».\n"
                 f"   Ваш профиль семантически близок к этой роли "
                 f"({top_cluster_sim * 100:.0f}%), но для полного соответствия "
                 f"не хватает '{skill}'.\n"
@@ -566,20 +582,20 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             )
         if score > 0.6:
             return (
-                f"{prefix}🔴 Высокий рыночный спрос.\n"
+                f"🔴 Высокий рыночный спрос.\n"
                 f"   '{skill}' ({skill_cat}) — один из самых востребованных навыков "
                 f"на рынке. Работодатели часто указывают его в требованиях."
                 f"{suffix}"
             )
         if score > 0.35:
             return (
-                f"{prefix}🟡 Умеренный спрос.\n"
+                f"🟡 Умеренный спрос.\n"
                 f"   '{skill}' ({skill_cat}) дополнит ваш профиль и повысит "
                 f"привлекательность для работодателей в смежных областях."
                 f"{suffix}"
             )
         return (
-            f"{prefix}🟢 Дополнительное преимущество.\n"
+            f"🟢 Дополнительное преимущество.\n"
             f"   '{skill}' полезен для расширения кругозора в категории '{skill_cat}'."
             f"{suffix}"
         )
@@ -593,9 +609,11 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         skill_lower = skill.lower()
         level = student_profile.target_level if student_profile else "middle"
         if is_soft:
-            base = self.SOFT_LEARNING_PATHS.get(skill_lower, "Практикуйте навык постоянно.")
+            base = self.SOFT_LEARNING_PATHS.get(skill_lower, "")
         else:
-            base = self.HARD_LEARNING_PATHS.get(skill_lower, f"Изучите документацию '{skill}' и выполните проекты.")
+            base = self.HARD_LEARNING_PATHS.get(skill_lower, "")
+        if not base:
+            return ""
         if level == "junior":
             base = "Сфокусируйтесь на основах: " + base
         elif level == "senior":
@@ -646,7 +664,14 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             return "1-2 месяца"
         if skill_lower in self._timeframe_hard:
             return "2-6 месяцев"
-        return "1-3 месяца"
+        try:
+            cat = self._taxonomy.get_category(skill_lower)
+        except Exception:
+            cat = None
+        estimate = _TIMEFRAME_BY_CATEGORY.get(cat) if cat else None
+        if estimate:
+            return estimate
+        return "оценка: ~1–2 месяца"
 
     # ------------------------------------------------------------------
     # LLM (YandexGPT) — вспомогательный, необязательный

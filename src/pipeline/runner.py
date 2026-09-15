@@ -155,9 +155,10 @@ def print_recommendations(profiles, all_recommendations):
         for rec in full_rec.get("recommendations", [])[:5]:
             print(f"{rec['rank']:2}. {rec['skill']:<25} важность: {rec['importance_score']:.3f} ({rec['priority']})")
             print(f"    {rec['why_important']}")
-            print(f"    Как учить: {rec['how_to_learn']}")
-            print(f"    Время: {rec['expected_timeframe']}")
-            print(f"    Результат: {rec['expected_outcome']}")
+            if rec['how_to_learn']:
+                print(f"    Как учить: {rec['how_to_learn']}")
+            if rec['expected_outcome']:
+                print(f"    Результат: {rec['expected_outcome']}")
             print()
         rec_file = config.DATA_DIR / "result" / profile_name / f"full_recommendations_{profile_name}.json"
         rec_file.parent.mkdir(parents=True, exist_ok=True)

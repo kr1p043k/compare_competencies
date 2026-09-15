@@ -833,7 +833,7 @@ export default function App() {
                     className="h-11 bg-blue-700 hover:bg-blue-800 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                   >
                     <Search className="mr-2 size-4" />
-                    Загрузить результаты
+                    Показать сохранённые
                   </Button>
                   <Button
                     onClick={loadProfileDetail}
@@ -875,8 +875,8 @@ export default function App() {
                     variant="outline"
                     className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
-                    <Zap className="mr-2 size-4" />
-                    Проверка
+                    <Activity className="mr-2 size-4" />
+                    Состояние
                   </Button>
                   <Button
                     onClick={runGapAnalysis}
@@ -898,6 +898,14 @@ export default function App() {
                     return isNaN(d.getTime()) ? iso : d.toLocaleString("ru-RU");
                   })()}
                 </p>
+                {(() => {
+                  const g = (lastResult as any)?.generated_at;
+                  if (typeof g !== "string") return null;
+                  const age = Date.now() - new Date(g).getTime();
+                  if (isNaN(age) || age < 7 * 864e5) return null;
+                  const days = Math.floor(age / 864e5);
+                  return <span className="ml-2 px-2 py-0.5 rounded bg-amber-100 text-amber-800">данные устарели ({days} дн.)</span>;
+                })()}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card className="border-2 border-green-200 dark:border-green-800 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20">

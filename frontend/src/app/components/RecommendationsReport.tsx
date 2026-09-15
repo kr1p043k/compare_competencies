@@ -87,6 +87,35 @@ interface RecommendationsReportProps {
 
 export const INITIAL_SKILLS = 12;
 
+function formatCovered(s: string): string {
+  const m = /^(\d+)\/(\d+)$/.exec((s || "").trim());
+  return m ? `знаете ${m[1]} из ${m[2]}` : s;
+}
+
+function stripRoleTag(s: string): string {
+  return (s || "").replace(/^\[[^\]]+\]\s*/, "");
+}
+
+function ruPriority(p: string): string {
+  const m: Record<string, string> = { HIGH: "Высокий", MEDIUM: "Средний", LOW: "Низкий" };
+  return m[(p || "").toUpperCase()] || p;
+}
+
+const GAP_STATUS_RU: Record<string, { label: string; cls: string }> = {
+  missing: { label: "нет", cls: "bg-red-100 text-red-800 border-red-300" },
+  weak: { label: "слабый", cls: "bg-amber-100 text-amber-800 border-amber-300" },
+  strong: { label: "сильный", cls: "bg-green-100 text-green-800 border-green-300" },
+};
+
+function GapStatusBadge({ category }: { category: string }) {
+  const key = (category || "").toLowerCase();
+  const meta = GAP_STATUS_RU[key] || {
+    label: category || "—",
+    cls: "bg-slate-100 text-slate-600 border-slate-300",
+  };
+  return <Badge className={`${meta.cls} border text-xs`}>{meta.label}</Badge>;
+}
+
 function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
   const [expanded, setExpanded] = useState(false);
   const skills = entry.required_skills || [];
@@ -102,8 +131,8 @@ function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
         </div>
         <div className="flex items-center gap-4 text-sm">
           <span className="text-slate-600">
-            <span className={`font-semibold ${entry.user_has > 0 ? "text-green-600" : "text-red-500"}`}>{entry.user_has}</span>
-            <span className="text-slate-400"> / {entry.total_required}</span>
+            <span className="text-slate-600">ваши <span className={`font-semibold ${entry.user_has > 0 ? "text-green-600" : "text-red-500"}`}>{entry.user_has}</span></span>
+            <span className="text-slate-400"> из {entry.total_required}</span>
           </span>
           <span className={`font-semibold ${entry.coverage >= 0.3 ? "text-green-600" : entry.coverage >= 0.1 ? "text-orange-500" : "text-red-500"}`}>
             {(entry.coverage * 100).toFixed(1)}%
@@ -143,20 +172,18 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
       <div className="flex items-center justify-between gap-2">
         <div>
           <span className="font-medium text-slate-900">{entry.skill || skill}</span>
-          <span className="ml-2 text-xs text-slate-400">{entry.category}</span>
+            <GapStatusBadge category={entry.category} />
         </div>
         <div className="flex items-center gap-3 text-xs">
-          <span className="text-slate-500">gap: <span className={`font-semibold ${gapColor}`}>{(gapAvg * 100).toFixed(0)}%</span></span>
-          <span className="text-slate-500">demand: <span className="font-semibold text-blue-600">{((entry.demand_j + entry.demand_m + entry.demand_s) / 3 * 100).toFixed(0)}%</span></span>
+          <span className="text-slate-500">разрыв: <span className={`font-semibold ${gapColor}`}>{(gapAvg * 100).toFixed(0)}%</span></span>
+          <span className="text-slate-500">спрос: <span className="font-semibold text-blue-600">{((entry.demand_j + entry.demand_m + entry.demand_s) / 3 * 100).toFixed(0)}%</span></span>
         </div>
       </div>
       {expanded && (
         <div className="mt-3 space-y-2">
           <p className="text-xs text-slate-500 italic">
-            gap — разрыв между текущим уровнем и требуемым (0% = нет разрыва),
-            demand — востребованность навыка на рынке,
-            user_level — ваш текущий уровень владения,
-            importance — общая важность навыка для карьеры
+              разрыв — насколько навыка не хватает до требуемого (0% = нет разрыва),
+              спрос — востребованность навыка на рынке. Ниже — детали по уровням.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600">
             <div title="Разрыв на уровне Junior">gap_j: {(entry.gap_j * 100).toFixed(0)}%</div>
@@ -181,6 +208,7 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
 }
 
 export function RecommendationsReport({ data }: RecommendationsReportProps) {
+  const [gapFilter, setGapFilter] = useState<string>("all");
   if (!data || !data.summary) {
     return (
       <div className="py-8 text-center text-gray-500 text-sm">
@@ -229,11 +257,28 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
     >
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-2 border-orange-200 dark:border-orange-800 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20">
+          <CardHeader className="pb-3">
+            <CardDescription className="flex items-center gap-2">
+              <CheckCircle2 className="size-4" />
+                <span title="Оценка с учётом критичности навыков. Readiness = (Critical Skills × 0.5) + (Role Match × 0.3) + (Balance × 0.2)">Готовность</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-3xl font-bold ${getScoreColor(data.summary.readiness_score)}`}>
+              {data.summary.readiness_score.toFixed(1)}%
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+              Готовность к работе
+            </p>
+          </CardContent>
+        </Card>
+
         <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/20 dark:to-sky-950/20">
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2">
               <Target className="size-4" />
-              Match Score
+                <span title="Средневзвешенная оценка по трём метрикам. Match Score = (Market Coverage × 0.4) + (Skill Coverage × 0.3) + (Readiness × 0.3)">Соответствие рынку</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -250,7 +295,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2">
               <TrendingUp className="size-4" />
-              Market Coverage
+                <span title="Доля навыков студента от всех навыков на рынке. Market Coverage = (Σ весов навыков студента) / (Σ весов всех навыков) × 100">Покрытие рынка</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -267,7 +312,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2">
               <Award className="size-4" />
-              Skill Coverage
+                <span title="Сравнение с эталонным набором навыков уровня. Skill Coverage = (|навыки студента ∩ эталон|) / |эталон| × 100">Навыки профиля</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -280,22 +325,6 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           </CardContent>
         </Card>
 
-        <Card className="border-2 border-orange-200 dark:border-orange-800 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20">
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2">
-              <CheckCircle2 className="size-4" />
-              Readiness
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-3xl font-bold ${getScoreColor(data.summary.readiness_score)}`}>
-              {data.summary.readiness_score.toFixed(1)}%
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-              Готовность к работе
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Closest Roles */}
@@ -308,7 +337,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
             Ближайшие роли
           </CardTitle>
           <CardDescription>
-            Роли, которые лучше всего соответствуют вашему профилю
+            Роли, которые лучше всего соответствуют вашему профилю. Сходство — похожесть навыков на требования вакансий; полного соответствия не гарантирует.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
@@ -322,19 +351,16 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                 className="border-2 border-slate-100 dark:border-slate-800 rounded-xl p-4"
               >
                 <div className="flex items-start justify-between gap-4 mb-3">
-                  <h4 className="font-bold text-slate-900 dark:text-white flex-1">{role.role}</h4>
+                  <h4 className="font-bold text-slate-900 dark:text-white flex-1">{stripRoleTag(role.role)}</h4>
                   <div className="flex gap-2 flex-shrink-0">
                     <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-300 border border-blue-300">
-                      {role.semantic_similarity.toFixed(1)}% similarity
+                      {role.semantic_similarity.toFixed(1)}% сходство
                     </Badge>
                     <Badge className="bg-green-100 text-green-800 dark:bg-green-950/20 dark:text-green-300 border border-green-300">
-                      {role.skills_covered}
+                      {formatCovered(role.skills_covered)}
                     </Badge>
                   </div>
                 </div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
-                  {role.similarity_explanation}
-                </p>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   {role.coverage_explanation}
                 </p>
@@ -382,12 +408,12 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                         <Badge className={`${getPriorityColor(rec.priority)} border`}>
                           <span className="flex items-center gap-1">
                             {getPriorityIcon(rec.priority)}
-                            {rec.priority}
+                            {ruPriority(rec.priority)}
                           </span>
                         </Badge>
                         {rec.is_soft_skill && (
                           <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950/20 dark:text-purple-300 border border-purple-300">
-                            Soft Skill
+                            Софт-скилл
                           </Badge>
                         )}
                       </div>
@@ -413,20 +439,20 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                       </p>
                     </div>
 
-                    <div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-3 border border-green-200 dark:border-green-800">
+                    {rec.how_to_learn && (<div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-3 border border-green-200 dark:border-green-800">
                       <p className="text-xs font-semibold text-green-900 dark:text-green-100 mb-1">
                         📚 Как изучать:
                       </p>
                       <p className="text-sm text-green-800 dark:text-green-200">{rec.how_to_learn}</p>
-                    </div>
+                    </div>)}
 
-                    <div className="bg-purple-50 dark:bg-purple-950/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
+                    {rec.expected_outcome && (<div className="bg-purple-50 dark:bg-purple-950/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
                       <p className="text-xs font-semibold text-purple-900 dark:text-purple-100 mb-1 flex items-center gap-1">
                         <ArrowUp className="size-3" />
                         Ожидаемый результат:
                       </p>
                       <p className="text-sm text-purple-800 dark:text-purple-200">{rec.expected_outcome}</p>
-                    </div>
+                    </div>)}
                   </div>
                 </div>
               </motion.div>
@@ -471,14 +497,29 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
               <div className="p-2 bg-gradient-to-br from-rose-500 to-pink-600 rounded-lg">
                 <AlertCircle className="size-5 text-white" />
               </div>
-              Пробелы (Gaps)
+              Пробелы
             </CardTitle>
             <CardDescription>
               Навыки, по которым у вас наибольшие пробелы
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-2">
-            {Object.entries(data.gaps).map(([skill, entry]) => (
+            <div className="flex gap-2 mb-3">
+              {[["all", "Все"], ["missing", "Нет"], ["weak", "Слабые"], ["strong", "Сильные"]].map(([v, label]) => (
+                <button
+                  key={v}
+                  onClick={() => setGapFilter(v)}
+                  className={`px-3 py-1 text-xs rounded-full border font-medium cursor-pointer ${gapFilter === v ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-600 border-slate-300 hover:border-blue-400"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {Object.entries(data.gaps)
+              .map(([skill, entry]) => ({ skill, entry, avg: (entry.gap_j + entry.gap_m + entry.gap_s) / 3 }))
+              .filter((g) => gapFilter === "all" || (g.entry.category || "").toLowerCase() === gapFilter)
+              .sort((a, b) => b.avg - a.avg)
+              .map(({ skill, entry }) => (
               <motion.div
                 key={skill}
                 initial={{ opacity: 0, y: 10 }}
