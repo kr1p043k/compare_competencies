@@ -52,8 +52,16 @@ class GapRunner:
     def run(self) -> Result[tuple[dict, dict], GapAnalysisError]:
         skill_weights = self.ctx.hybrid_weights or self.ctx.skill_freq
         if not self.ctx.skill_freq or not self.ctx.vacancies_skills or not skill_weights:
-            logger.warning("gap_runner_skipped", reason="missing required data")
-            return Err(GapAnalysisError(message="Недостаточно данных для gap-анализа"))
+            # v45c: report COUNTS so the UI message names the starved input.
+            detail = (
+                f"skill_freq_n={len(getattr(self.ctx, 'skill_freq', None) or {})} "
+                f"hybrid_n={len(getattr(self.ctx, 'hybrid_weights', None) or {})} "
+                f"vacancies_skills_n={len(getattr(self.ctx, 'vacancies_skills', None) or [])} "
+                f"level_data_n={len(getattr(self.ctx, 'level_vacancies_data', None) or [])} "
+                f"profiles={self._profile_names}"
+            )
+            logger.warning("gap_runner_skipped", reason="missing required data", detail=detail)
+            return Err(GapAnalysisError(detail=detail, message="Недостаточно данных для gap-анализа"))
 
         try:
             pct = self._update_progress()

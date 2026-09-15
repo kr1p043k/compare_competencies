@@ -139,3 +139,16 @@ class TestVacancyFileStatus:
         monkeypatch.setattr("src.pipeline.helpers.config.DATA_DIR", tmp_path / "nope")
         st = vacancy_file_status()  # must not raise
         assert st["raw_exists"] is False
+
+
+class TestGapRunnerDetail:
+    def test_empty_ctx_reports_counts(self):
+        from src.pipeline.gap_runner import GapRunner
+        args = MagicMock()
+        args.use_llm = False
+        runner = GapRunner({}, {}, args)
+        res = runner.run()
+        assert res.is_err()
+        err = res.err()
+        assert "skill_freq_n=0" in err.detail
+        assert "vacancies_skills_n=0" in err.detail
