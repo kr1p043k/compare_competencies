@@ -159,6 +159,11 @@ async def get_vacancies_info():
     pool = await _get_db_pool()
 
     info = {"count": 0, "file_modified": None, "date_range": None, "load_error": deps.vacancy_load_error}
+    try:
+        from src.pipeline.helpers import vacancy_file_status
+        info["cache_status"] = vacancy_file_status()
+    except Exception as exc:
+        info["cache_status"] = {"error": str(exc)[:200]}
 
     if pool:
         try:

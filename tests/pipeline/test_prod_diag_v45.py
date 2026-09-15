@@ -101,3 +101,41 @@ class TestProfilesFirstOrder:
     def test_profiles_block_precedes_heavy_ml(self):
         src = Path("src/api_pkg/startup.py").read_text(encoding="utf-8")
         assert src.index("deps.student_profiles[pname]") < src.index("def _run_skill_extraction")
+
+
+class TestVacancyFileStatus:
+    def test_missing_files_reported(self, tmp_path, monkeypatch):
+        from src.pipeline.helpers import vacancy_file_status
+        monkeypatch.setattr("src.pipeline.helpers.config.DATA_PROCESSED_DIR", tmp_path)
+        monkeypatch.setattr("src.pipeline.helpers.config.DATA_RAW_DIR", tmp_path)
+        monkeypatch.setattr("src.pipeline.helpers.config.DATA_DIR", tmp_path)
+        st = vacancy_file_status()
+        assert st["raw_exists"] is False
+        assert st["detailed_exists"] is False
+        assert st["raw_size"] is None
+        assert st["students_files"] == []
+        assert "cwd" in st
+
+    def test_present_files_reported(self, tmp_path, monkeypatch):
+        from src.pipeline.helpers import vacancy_file_status
+        raw = tmp_path / "hh_vacancies_basic.json"
+        raw.write_text("[1,2,3]", encoding="utf-8")
+        sdir = tmp_path / "students"
+        sdir.mkdir()
+        (sdir / "base_competency.json").write_text("{}", encoding="utf-8")
+        monkeypatch.setattr("src.pipeline.helpers.config.DATA_PROCESSED_DIR", tmp_path)
+        monkeypatch.setattr("src.pipeline.helpers.config.DATA_RAW_DIR", tmp_path)
+        monkeypatch.setattr("src.pipeline.helpers.config.DATA_DIR", tmp_path)
+        st = vacancy_file_status()
+        assert st["raw_exists"] is True
+        assert st["raw_size"] == 7
+        assert st["students_files"] == ["base_competency.json"]
+
+    def test_never_raises(self, tmp_path, monkeypatch):
+        import pytest as _pt
+        from src.pipeline.helpers import vacancy_file_status
+        monkeypatch.setattr("src.pipeline.helpers.config.DATA_PROCESSED_DIR", tmp_path / "nope")
+        monkeypatch.setattr("src.pipeline.helpers.config.DATA_RAW_DIR", tmp_path / "nope")
+        monkeypatch.setattr("src.pipeline.helpers.config.DATA_DIR", tmp_path / "nope")
+        st = vacancy_file_status()  # must not raise
+        assert st["raw_exists"] is False

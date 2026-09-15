@@ -160,3 +160,36 @@ def console_header(msg: str):
     print(f"\n{'=' * 70}")
     print(f"  {msg}")
     print(f"{'=' * 70}")
+def vacancy_file_status() -> dict:
+    """Resolved vacancy-cache file diagnostics for /api/vacancies/info (v45).
+
+    Prod reported load_error=not_found while the raw file is tracked in git,
+    so expose the resolved paths + existence flags to see what the container
+    actually sees (wrong CWD? bad DATA_* override in .env? empty bind?).
+    Pure: no I/O beyond stat calls, never raises.
+    """
+    import os
+    status: dict = {"cwd": os.getcwd()}
+    try:
+        detailed = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
+        basic = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
+        students = config.DATA_DIR / "students"
+        status["detailed_path"] = str(detailed)
+        status["detailed_exists"] = detailed.exists()
+        status["raw_path"] = str(basic)
+        status["raw_exists"] = basic.exists()
+        try:
+            status["raw_size"] = basic.stat().st_size if basic.exists() else None
+        except OSError:
+            status["raw_size"] = None
+        try:
+            status["students_dir"] = str(students)
+            status["students_files"] = (
+                sorted(p.name for p in students.glob("*_competency.json"))
+                if students.is_dir() else []
+            )
+        except OSError:
+            status["students_files"] = []
+    except Exception as exc:
+        status["error"] = str(exc)[:200]
+    return status
