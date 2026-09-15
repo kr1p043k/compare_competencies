@@ -34,6 +34,7 @@ class CompetencyCoverage:
     code: str
     total_skills: int = 0
     matched_skills: int = 0
+    matched_names: list[str] = field(default_factory=list)
     coverage: float = 0.0
     weighted_coverage: float = 0.0
     gap_skills: list[str] = field(default_factory=list)
@@ -49,6 +50,8 @@ class DisciplineCoverage:
     gaps: int = 0
     coverage_ratio: float = 0.0
     weighted_coverage: float = 0.0
+    strong_matched: int = 0
+    strong_coverage: float = 0.0
     coverage_level: str = "low"
     top_matched: list[SkillMatch] = field(default_factory=list)
     gaps_list: list[str] = field(default_factory=list)
@@ -56,6 +59,7 @@ class DisciplineCoverage:
     truly_missing: list[SkillMatch] = field(default_factory=list)
     cross_references: list[CrossReference] = field(default_factory=list)
     competencies: list[CompetencyCoverage] = field(default_factory=list)
+    ksa_types: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

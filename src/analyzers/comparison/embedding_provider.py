@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Any
+import threading
 
 import numpy as np
 
@@ -26,6 +27,9 @@ class EmbeddingProvider(ABC):
         return self.dimension
 
 
+_ENCODE_LOCK = threading.Lock()
+
+
 class SentenceTransformerProvider(EmbeddingProvider):
     def __init__(self, model_name: str | None = None, device: str | None = None):
         import os
@@ -47,13 +51,16 @@ class SentenceTransformerProvider(EmbeddingProvider):
             self._model = sentence_transformers.SentenceTransformer(model_name, device=device)
 
     def encode(self, texts: list[str], **kwargs) -> np.ndarray:
-        return self._model.encode(
-            texts,
-            convert_to_numpy=kwargs.pop("convert_to_numpy", True),
-            show_progress_bar=kwargs.pop("show_progress_bar", False),
-            batch_size=kwargs.pop("batch_size", 64),
-            **kwargs,
-        )
+        # Serialize inference: concurrent torch calls contend in oneDNN/MKL pools
+        # and produce run-to-run float jitter (v18 determinism fix).
+        with _ENCODE_LOCK:
+            return self._model.encode(
+                texts,
+                convert_to_numpy=kwargs.pop("convert_to_numpy", True),
+                show_progress_bar=kwargs.pop("show_progress_bar", False),
+                batch_size=kwargs.pop("batch_size", 64),
+                **kwargs,
+            )
 
     @property
     def dimension(self) -> int:

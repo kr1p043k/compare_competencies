@@ -15,7 +15,7 @@
 # WebSocket: /api/pipeline/ws — real-time pipeline progress
 
 # ──────────────────────────────────────────────
-# 2. ALL ENDPOINTS (51 HTTP + 1 WebSocket)
+# 2. ALL ENDPOINTS (52 HTTP + 1 WebSocket)
 # ──────────────────────────────────────────────
 # Legend:
 #   M — Method, P — Path, RL — Rate Limit, Q — Query params, B — Body

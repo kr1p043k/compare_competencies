@@ -7,7 +7,9 @@ from pathlib import Path
 
 import structlog
 from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from src.models.api_responses import (
     HealthResponse,
@@ -19,6 +21,7 @@ from src import config
 from src.model_registry import ModelRegistry
 
 logger = structlog.get_logger("api")
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(tags=["monitoring"])
 
@@ -48,9 +51,16 @@ async def root():
 
 class LogEntry(BaseModel):
     level: str = "info"
-    message: str
+    message: str = Field(max_length=2000)
     data: dict | None = None
     timestamp: str | None = None
+
+    @model_validator(mode="after")
+    def _cap_data(self):
+        if self.data is not None:
+            if len(self.data) > 20 or len(json.dumps(self.data, ensure_ascii=False, default=str)) > 10000:
+                raise ValueError("data too large")
+        return self
 
 
 _LOG_FILE = Path(__file__).parent.parent.parent.parent / "frontend" / "logs" / "app.log"
@@ -72,7 +82,8 @@ def _write_log_sync(entry: LogEntry) -> None:
 
 
 @router.post("/api/log")
-async def write_log(entry: LogEntry):
+@limiter.limit("60/minute")
+async def write_log(request: Request, entry: LogEntry):
     """Запись клиентского лога."""
     try:
         await asyncio.to_thread(_write_log_sync, entry)

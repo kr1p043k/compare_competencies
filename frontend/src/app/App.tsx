@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Label } from "./components/ui/label";
+import { Input } from "./components/ui/input";
+import { Textarea } from "./components/ui/textarea";
 import {
   Card,
   CardContent,
@@ -89,9 +91,63 @@ function MaintenanceScreen() {
 }
 
 export default function App() {
-  useEffect(() => { initApiLogger(); }, []);
+  useEffect(() => { initApiLogger(); loadProfiles(); }, []);
   const [backendDown, setBackendDown] = useState(false);
   const [profile, setProfile] = useState("base");
+  const [profilesList, setProfilesList] = useState<string[]>(["base", "dc", "top_dc"]);
+  const [cpName, setCpName] = useState("");
+  const [cpLevel, setCpLevel] = useState("middle");
+  const [cpCodes, setCpCodes] = useState("");
+  const [cpSkills, setCpSkills] = useState("");
+  const [cpMsg, setCpMsg] = useState("");
+  const [cpSaving, setCpSaving] = useState(false);
+  const [cpOpen, setCpOpen] = useState(false);
+
+  const parseList = (s: string) =>
+    s.split(/[,\n;]+/).map((x) => x.trim()).filter(Boolean);
+
+  async function loadProfiles(select?: string) {
+    try {
+      const r = await fetch(`${API}/profiles`);
+      if (!r.ok) return;
+      const d = await r.json();
+      const names = Array.isArray(d.profiles) && d.profiles.length ? d.profiles : ["base", "dc", "top_dc"];
+      setProfilesList(names);
+      if (select && names.includes(select)) setProfile(select);
+      else if (!names.includes(profile)) setProfile(names[0]);
+    } catch { /* keep hardcoded fallback */ }
+  }
+
+  async function createCustomProfile() {
+    setCpMsg("");
+    const name = cpName.trim().toLowerCase();
+    if (!/^[a-z0-9_]{2,32}$/.test(name)) {
+      setCpMsg("Имя: латиница/цифры/_, 2-32 символа");
+      return;
+    }
+    setCpSaving(true);
+    try {
+      const r = await fetch(`${API}/profiles/custom`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          target_level: cpLevel,
+          competencies: parseList(cpCodes),
+          skills: parseList(cpSkills),
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error((d as any).detail || r.statusText);
+      setCpMsg(`Профиль «${name}» создан: компетенций ${d.competencies_count}, навыков ${d.skills_count}`);
+      setCpName(""); setCpCodes(""); setCpSkills("");
+      await loadProfiles(name);
+    } catch (e: any) {
+      setCpMsg("Ошибка: " + e.message);
+    } finally {
+      setCpSaving(false);
+    }
+  }
   const [status, setStatus] = useState<{
     type: "success" | "error" | "info" | null;
     message: string;
@@ -758,24 +814,14 @@ export default function App() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="base">
-                        <div className="flex items-center gap-2">
-                          <Award className="size-4 text-blue-600" />
-                          <span>BASE (junior)</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="dc">
-                        <div className="flex items-center gap-2">
-                          <Award className="size-4 text-purple-600" />
-                          <span>DATA SCIENTIST (middle)</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="top_dc">
-                        <div className="flex items-center gap-2">
-                          <Award className="size-4 text-pink-600" />
-                          <span>TOP DATA SCIENTIST (senior)</span>
-                        </div>
-                      </SelectItem>
+                      {profilesList.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          <div className="flex items-center gap-2">
+                            <Award className={`size-4 ${p === profile ? "text-emerald-600" : "text-gray-400"}`} />
+                            <span>{p === "base" ? "BASE (junior)" : p === "dc" ? "DATA SCIENTIST (middle)" : p === "top_dc" ? "TOP DATA SCIENTIST (senior)" : p}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -784,7 +830,7 @@ export default function App() {
                   <Button
                     onClick={loadRecommendations}
                     disabled={loading}
-                    className="h-11 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                    className="h-11 bg-blue-700 hover:bg-blue-800 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                   >
                     <Search className="mr-2 size-4" />
                     Загрузить результаты
@@ -792,7 +838,7 @@ export default function App() {
                   <Button
                     onClick={loadProfileDetail}
                     disabled={loading}
-                    className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
                   >
                     <FileText className="mr-2 size-4" />
                     Профиль
@@ -800,7 +846,7 @@ export default function App() {
                   <Button
                     onClick={loadRecommendations}
                     disabled={loading}
-                    className="h-11 bg-purple-600 hover:bg-purple-700 text-white"
+                    className="h-11 bg-blue-600 hover:bg-blue-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                   >
                     <Sparkles className="mr-2 size-4" />
                     Рекомендации
@@ -809,7 +855,7 @@ export default function App() {
                     onClick={loadMarket}
                     disabled={loading}
                     variant="outline"
-                    className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50"
+                    className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
                     <BarChart3 className="mr-2 size-4" />
                     Рынок
@@ -818,7 +864,7 @@ export default function App() {
                     onClick={loadSummary}
                     disabled={loading}
                     variant="outline"
-                    className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50"
+                    className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
                     <FileText className="mr-2 size-4" />
                     Сводка
@@ -827,7 +873,7 @@ export default function App() {
                     onClick={loadHealth}
                     disabled={loading}
                     variant="outline"
-                    className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50"
+                    className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
                     <Zap className="mr-2 size-4" />
                     Проверка
@@ -835,7 +881,7 @@ export default function App() {
                   <Button
                     onClick={runGapAnalysis}
                     disabled={loading || gapRunning}
-                    className="h-11 bg-amber-600 hover:bg-amber-700 text-white"
+                    className="h-11 bg-amber-600 hover:bg-amber-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
                   >
                     <Zap className="mr-2 size-4" />
                     Запустить gap-анализ

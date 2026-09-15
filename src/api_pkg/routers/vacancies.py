@@ -56,6 +56,26 @@ async def _get_db_pool():
     return get_pool()
 
 
+def build_vacancy_where(search=None, experience=None, region=None, months=None):
+    """Shared WHERE builder for list + export (v45). Returns (clause, params), $N from 1."""
+    conditions: list[str] = []
+    params: list = []
+    if experience:
+        conditions.append(f"({_EXP_LEVEL_CASE}) = ${len(params) + 1}")
+        params.append(experience.lower())
+    if search and search.strip():
+        conditions.append(f"LOWER(v.name) LIKE '%' || ${len(params) + 1} || '%'")
+        params.append(search.strip().lower())
+    if region and region.strip().lower() not in ("all", ""):
+        conditions.append(f"v.area_name ILIKE ${len(params) + 1}")
+        params.append(region.strip())
+    if months:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=int(months) * 30)
+        conditions.append(f"v.published_at >= ${len(params) + 1}")
+        params.append(cutoff)
+    return (" AND ".join(conditions) if conditions else "TRUE"), params
+
+
 @router.get("/vacancies", response_model=VacanciesResponse)
 @limiter.limit("60/minute")
 async def get_vacancies(
@@ -67,30 +87,15 @@ async def get_vacancies(
     ),
     search: str | None = Query(None, description="Поиск по названию"),
     months: int | None = Query(None, ge=1, le=24, description="Период в месяцах"),
+    region: str | None = Query(None, description="Город (точное название)"),
 ):
     """Список вакансий (фильтры, пагинация)."""
     pool = await _get_db_pool()
     if not pool:
         raise HTTPException(status_code=503, detail="Database unavailable")
 
-    conditions: list[str] = []
-    params: list = []
-
-    if experience:
-        exp_lower = experience.lower()
-        conditions.append(f"({_EXP_LEVEL_CASE}) = ${len(params) + 1}")
-        params.append(exp_lower)
-
-    if search:
-        conditions.append(f"LOWER(v.name) LIKE '%' || ${len(params) + 1} || '%'")
-        params.append(search.lower())
-
-    if months:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=months * 30)
-        conditions.append(f"v.published_at >= ${len(params) + 1}")
-        params.append(cutoff)
-
-    where_clause = " AND ".join(conditions) if conditions else "TRUE"
+    where_clause, params = build_vacancy_where(
+        search=search, experience=experience, region=region, months=months)
 
     count_sql = f"SELECT COUNT(*) FROM vacancies v WHERE {where_clause}"
     total = await pool.fetchval(count_sql, *params)

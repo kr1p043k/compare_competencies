@@ -11,6 +11,9 @@ interface CompetencyCov {
   matched_skills: number;
   coverage: number;
   weighted_coverage?: number;
+  strong_coverage?: number;
+  matched?: string[];
+  gaps?: string[];
 }
 
 interface Rec {
@@ -29,6 +32,7 @@ interface DisciplineAnalysis {
     gaps: number;
     coverage_ratio: number;
     weighted_coverage?: number;
+    strong_coverage?: number;
     coverage_level: string;
     top_market_matched_skills: { skill: string; frequency: number; match_type: string }[];
     gaps_in_curriculum: string[];
@@ -64,7 +68,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
         <div>
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("run-direction-analysis"))}
-            className="mt-3 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 cursor-pointer border-0"
+            className="mt-3 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 cursor-pointer border-0"
           >
             Запустить анализ
           </button>
@@ -76,6 +80,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
   const { metrics, competencies, recommendations } = data;
   const cov = metrics.coverage_ratio;
   const wcov = metrics.weighted_coverage;
+  const scov = metrics.strong_coverage;
 
   return (
     <div className="space-y-4 mt-6">
@@ -83,13 +88,21 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
         <CardHeader className="border-b border-gray-200 bg-gray-50 py-3">
           <div className="flex items-center gap-2">
             <Target className="size-4 text-blue-600" />
-            <CardTitle className="text-sm font-semibold text-gray-900">Market Coverage Analysis</CardTitle>
+            <CardTitle className="text-sm font-semibold text-gray-900">Анализ покрытия рынком</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="p-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            {scov !== undefined && (
+              <div>
+                <div className="text-xs text-gray-500">Сильное покрытие</div>
+                <div className="text-2xl font-bold text-emerald-600">
+                  {(scov * 100).toFixed(1)}%
+                </div>
+              </div>
+            )}
             <div>
-              <div className="text-xs text-gray-500">Бинарное покрытие</div>
+              <div className="text-xs text-gray-500">Покрытие с учётом смежных</div>
               <div className="text-2xl font-bold">
                 {(cov * 100).toFixed(1)}%
               </div>
@@ -97,7 +110,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
             {wcov !== undefined && (
               <div>
                 <div className="text-xs text-gray-500">Взвешенное покрытие</div>
-                <div className="text-2xl font-bold text-indigo-600">
+                <div className="text-2xl font-bold text-gray-900">
                   {(wcov * 100).toFixed(1)}%
                 </div>
               </div>
@@ -118,7 +131,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
 
           {recommendations.length > 0 && (
             <div className="space-y-2 mb-4">
-              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Recommendations</div>
+              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Рекомендации</div>
               {recommendations.map((r, i) => (
                 <div key={i} className="p-3 rounded-lg border text-sm">
                   <div className="flex items-center gap-2 mb-1">
@@ -147,7 +160,6 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                   return (
                     <Badge key={i} variant="outline" className={`${cls} border text-xs`}>
                       {s.skill}
-                      <span className="opacity-60 mx-1">×{s.frequency}</span>
                       <span className="text-[10px] opacity-50">{s.match_type}</span>
                     </Badge>
                   );
@@ -165,7 +177,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
               <div className="flex flex-wrap gap-1.5">
                 {metrics.emerging_market_skills_not_in_rpd.map((s, i) => (
                   <Badge key={i} variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
-                    {s.skill} <span className="opacity-50 ml-1">×{s.frequency}</span>
+                    {s.skill}
                   </Badge>
                 ))}
               </div>
@@ -193,7 +205,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
 
           {competencies.length > 0 && (
             <div>
-              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Per-Competency Coverage</div>
+              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Покрытие по компетенциям</div>
               <CompetencyTree competencies={competencies} />
             </div>
           )}

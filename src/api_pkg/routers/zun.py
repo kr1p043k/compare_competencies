@@ -51,7 +51,7 @@ limiter = Limiter(key_func=get_remote_address)
 _DIR_CODE_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$")
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 KSA_TYPES = ("knowledge", "abilities", "skills")
-MATCH_TYPES = ("exact", "fuzzy", "stem", "substring", "semantic", "explicit")
+MATCH_TYPES = ("exact", "fuzzy", "stem", "substring", "semantic", "explicit", "mapped")
 CATEGORIES = ("УК", "ОПК", "ПК", "ППК", "ИП", "ВПК")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -872,6 +872,93 @@ async def zun_analyze_results(
     return json.loads(summary.read_text(encoding="utf-8"))
 
 
+@router.get("/teacher/zun/competencies/search")
+@limiter.limit("60/minute")
+async def zun_search_competencies(request: Request, q: str = "", dir_code: str = "09.03.02",
+                                  limit: int = 20):
+    """Lightweight competency picker: [{id, code, discipline_name}]."""
+    _validate_dir_code(dir_code)
+    limit = max(1, min(int(limit or 20), 50))
+    pool = get_pool()
+    like = f"%{(q or '').strip()}%"
+    rows = await pool.fetch(
+        """SELECT c.id AS id, c.code AS code, d2.name AS discipline_name
+           FROM competencies c
+           JOIN disciplines d2 ON d2.id = c.discipline_id
+           JOIN directions d ON d.id = d2.direction_id
+           WHERE d.code = $1 AND (c.code ILIKE $2 OR d2.name ILIKE $2)
+           ORDER BY d2.name, c.code LIMIT $3""",
+        dir_code, like, limit,
+    )
+    return {"items": [{"id": str(r["id"]), "code": r["code"],
+                       "discipline_name": r["discipline_name"]} for r in rows]}
+
+
+@router.get("/teacher/zun/scope")
+@limiter.limit("60/minute")
+async def zun_get_scope(request: Request, dir_code: str = "09.03.02"):
+    """Scope state for UI checkboxes: effective per-discipline + methodology list."""
+    from src.teacher_scope import effective_in_scope, load_scope_overrides, scope_source
+    from src.pipeline.teacher_analysis_runner import SCOPE_EXCLUDED
+    _validate_dir_code(dir_code)
+    pool = get_pool()
+    names = [r["name"] for r in await pool.fetch(
+        """SELECT d2.name FROM disciplines d2
+           JOIN directions d ON d.id = d2.direction_id
+           WHERE d.code = $1 ORDER BY 1""", dir_code)]
+    over = await load_scope_overrides(pool, dir_code)
+    return {
+        "dir_code": dir_code,
+        "disciplines": [
+            {"name": n, "in_scope": effective_in_scope(n, over),
+             "source": scope_source(n, over)} for n in names],
+        "methodology_excluded": sorted(SCOPE_EXCLUDED),
+    }
+
+
+class ScopeChange(BaseModel):
+    discipline_name: str
+    included: bool
+
+
+class ScopePut(BaseModel):
+    dir_code: str = "09.03.02"
+    changes: list[ScopeChange] = []
+
+
+@router.put("/teacher/zun/scope")
+@limiter.limit("30/minute")
+async def zun_put_scope(request: Request, body: ScopePut):
+    """Set UI scope overrides (checkboxes). Takes effect on next teacher-analysis."""
+    _validate_dir_code(body.dir_code)
+    changes = (body.changes or [])[:100]
+    if not changes:
+        raise HTTPException(status_code=400, detail="changes must not be empty")
+    pool = get_pool()
+    known = {r["name"] for r in await pool.fetch(
+        """SELECT d2.name FROM disciplines d2
+           JOIN directions d ON d.id = d2.direction_id
+           WHERE d.code = $1""", body.dir_code)}
+    cleaned = []
+    for c in changes:
+        name = (c.discipline_name or "").strip()
+        if not name or len(name) > 200:
+            raise HTTPException(status_code=400, detail="invalid discipline_name")
+        if name not in known:
+            raise HTTPException(status_code=400, detail=f"Unknown discipline: {name[:80]}")
+        cleaned.append((name, bool(c.included)))
+    for name, included in cleaned:
+        await pool.execute(
+            """INSERT INTO discipline_scope (direction_code, discipline_name, included, updated_at)
+               VALUES ($1, $2, $3, NOW())
+               ON CONFLICT (direction_code, discipline_name)
+               DO UPDATE SET included = EXCLUDED.included, updated_at = NOW()""",
+            body.dir_code, name, included,
+        )
+    logger.info("scope_updated", dir_code=body.dir_code, updated=len(cleaned))
+    return {"dir_code": body.dir_code, "updated": len(cleaned)}
+
+
 # ---------- G. write KSA (no migrations) ----------
 
 
@@ -922,6 +1009,121 @@ async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
     return {"ksa_id": str(ksa_id), "ksa_type": body.ksa_type, "text": text}
 
 
+_COMP_CODE_RE = re.compile("^(УК|ОПК|ПК|ППК|ИП|ВПК)[- ]([0-9]+(?:\\.[0-9]+)*)$")
+
+
+class CompetencyIn(BaseModel):
+    code: str
+    name: str = ""
+    description: str = ""
+
+
+@router.post("/teacher/zun/disciplines/{discipline_id}/competencies", status_code=201)
+@limiter.limit("30/minute")
+async def zun_add_competency(request: Request, discipline_id: str, body: CompetencyIn):
+    """Create a custom competency under a discipline (code like УК-1, ПК-2.1)."""
+    _validate_uuid(discipline_id, "discipline_id")
+    code = (body.code or "").strip().upper()
+    m = _COMP_CODE_RE.match(code)
+    if not m:
+        raise HTTPException(status_code=400,
+                            detail="code must match УК|ОПК|ПК|ППК|ИП|ВПК + number, e.g. ПК-2.1")
+    category, number = m.group(1), m.group(2)
+    name = (body.name or "").strip()
+    if len(name) > 500:
+        raise HTTPException(status_code=400, detail="name too long (max 500)")
+    description = (body.description or "").strip()
+    if len(description) > 2000:
+        raise HTTPException(status_code=400, detail="description too long (max 2000)")
+
+    pool = get_pool()
+    disc = await pool.fetchrow("SELECT id FROM disciplines WHERE id = $1", discipline_id)
+    if not disc:
+        raise HTTPException(status_code=404, detail="Discipline not found")
+    dup = await pool.fetchrow(
+        "SELECT 1 FROM competencies WHERE discipline_id = $1 AND code = $2",
+        discipline_id, code)
+    if dup:
+        raise HTTPException(status_code=409, detail="Competency code already exists in discipline")
+    sort = await pool.fetchval(
+        "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM competencies WHERE discipline_id = $1",
+        discipline_id)
+    comp_id = await pool.fetchval(
+        """INSERT INTO competencies
+             (discipline_id, code, category, number, name, description, sort_order, parse_version_id)
+           VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), $7, NULL)
+           RETURNING id""",
+        discipline_id, code, category, number, name, description, sort)
+    logger.info("zun_competency_added", competency_id=str(comp_id), code=code)
+    return {"competency_id": str(comp_id), "code": code, "category": category}
+
+
+class SkillLinkIn(BaseModel):
+    skill_name: str
+    ksa_type: str = "skills"
+
+
+_CS_KSA_TYPES = ("knowledge", "abilities", "skills", "flat")
+
+
+@router.post("/teacher/zun/competencies/{competency_id}/skills", status_code=201)
+@limiter.limit("30/minute")
+async def zun_link_skill(request: Request, competency_id: str, body: SkillLinkIn):
+    """Attach a market/admin tool to a competency in DB (explicit link).
+
+    The skill row uses source='rpd_skills' so the teacher runner counts it on
+    the RPD side (its query excludes source='market'). match_type='exact':
+    an admin asserts identity, no fuzzy guessing.
+    """
+    _validate_uuid(competency_id, "competency_id")
+    if body.ksa_type not in _CS_KSA_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid ksa_type")
+    name = (body.skill_name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="skill_name must not be empty")
+    if len(name) > 200:
+        raise HTTPException(status_code=400, detail="skill_name too long (max 200)")
+
+    pool = get_pool()
+    comp = await pool.fetchrow("SELECT id FROM competencies WHERE id = $1", competency_id)
+    if not comp:
+        raise HTTPException(status_code=404, detail="Competency not found")
+
+    skill = await pool.fetchrow(
+        """SELECT id, source FROM skills WHERE LOWER(name) = LOWER($1)
+           ORDER BY (source = 'rpd_skills') DESC, created_at LIMIT 1""",
+        name,
+    )
+    if skill and skill["source"] == "rpd_skills":
+        skill_id = skill["id"]
+    else:
+        skill_id = await pool.fetchval(
+            """INSERT INTO skills (name, source, description, is_active)
+               VALUES ($1, 'rpd_skills', 'admin-added tool link', TRUE)
+               RETURNING id""",
+            name,
+        )
+    dup = await pool.fetchrow(
+        """SELECT 1 FROM competency_skills cs
+           JOIN skills s ON s.id = cs.skill_id
+           WHERE cs.competency_id = $1 AND cs.ksa_type = $2
+             AND cs.parse_version_id IS NULL AND LOWER(s.name) = LOWER($3)""",
+        competency_id, body.ksa_type, name,
+    )
+    if dup:
+        raise HTTPException(status_code=409, detail="Skill already linked to competency")
+    await pool.execute(
+        """INSERT INTO competency_skills
+             (competency_id, skill_id, ksa_type, source_text, match_type, parse_version_id)
+           VALUES ($1, $2, $3, $4, 'exact', NULL)""",
+        competency_id, skill_id, body.ksa_type, f"admin-link:{name}",
+    )
+    await pool.execute("UPDATE competencies SET updated_at = NOW() WHERE id = $1", competency_id)
+    logger.info("zun_skill_linked", competency_id=competency_id, skill=name)
+    return {"skill_id": str(skill_id), "skill_name": name,
+            "ksa_type": body.ksa_type, "match_type": "exact"}
+
+
 @router.patch("/teacher/zun/entries/{ksa_id}")
 @limiter.limit("30/minute")
 async def zun_patch_entry(request: Request, ksa_id: str, body: ZUNPatch):
@@ -934,12 +1136,13 @@ async def zun_patch_entry(request: Request, ksa_id: str, body: ZUNPatch):
         raise HTTPException(status_code=400, detail="text too long (max 2000)")
     pool = get_pool()
     row = await pool.fetchrow(
-        """UPDATE ksa_entries SET original_text = $1, cleaned_text = $1
-           WHERE id = $2 RETURNING id, ksa_type""",
+        """UPDATE ksa_entries SET original_text = $1, cleaned_text = $1, updated_at = NOW()
+           WHERE id = $2 RETURNING id, ksa_type, competency_id""",
         text, ksa_id,
     )
     if not row:
         raise HTTPException(status_code=404, detail="KSA entry not found")
+    await pool.execute("UPDATE competencies SET updated_at = NOW() WHERE id = $1", row["competency_id"])
     logger.info("zun_entry_updated", ksa_id=ksa_id)
     return {"ksa_id": ksa_id, "ksa_type": row["ksa_type"], "text": text}
 
@@ -950,9 +1153,10 @@ async def zun_delete_entry(request: Request, ksa_id: str):
     """Удалить KSA-запись."""
     _validate_uuid(ksa_id, "ksa_id")
     pool = get_pool()
-    res = await pool.execute("DELETE FROM ksa_entries WHERE id = $1", ksa_id)
-    if res == "DELETE 0":
+    row = await pool.fetchrow("DELETE FROM ksa_entries WHERE id = $1 RETURNING competency_id", ksa_id)
+    if not row:
         raise HTTPException(status_code=404, detail="KSA entry not found")
+    await pool.execute("UPDATE competencies SET updated_at = NOW() WHERE id = $1", row["competency_id"])
     logger.info("zun_entry_deleted", ksa_id=ksa_id)
     return {"status": "deleted"}
 

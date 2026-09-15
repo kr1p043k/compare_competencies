@@ -8,13 +8,14 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.routers.auth import require_any_role
 from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
@@ -192,7 +193,9 @@ async def krm_directions(request: Request):
 @limiter.limit("30/minute")
 async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
     """Дисциплины направления."""
+    from src.teacher_scope import effective_in_scope, load_scope_overrides, scope_source
     pool = get_pool()
+    over = await load_scope_overrides(pool, dir_code)
     rows = await pool.fetch("""
         SELECT disc.name,
                COUNT(DISTINCT c.id) AS competencies_count,
@@ -217,6 +220,8 @@ async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
             "abilities_count": r["abilities_count"],
             "semester": r["semester"],
             "course": (r["semester"] + 1) // 2 if r["semester"] else None,
+            "in_scope": effective_in_scope(r["name"], over),
+            "scope_source": scope_source(r["name"], over),
         }
         for r in rows
     ]
@@ -240,11 +245,14 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
         raise HTTPException(404, f"Discipline '{discipline_name}' not found")
 
     comps = await pool.fetch("""
-        SELECT c.code,
-               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.cleaned_text IS NOT NULL) AS skills,
-               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.ksa_type::text = 'knowledge' AND k.cleaned_text IS NOT NULL) AS knowledge,
-               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.ksa_type::text = 'abilities' AND k.cleaned_text IS NOT NULL) AS abilities,
-               ARRAY_AGG(k.cleaned_text) FILTER (WHERE k.ksa_type::text = 'skills' AND k.cleaned_text IS NOT NULL) AS prof_skills
+        SELECT c.id, c.code,
+               ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.cleaned_text IS NOT NULL) AS skills,
+               ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'knowledge' AND k.cleaned_text IS NOT NULL) AS knowledge,
+               ARRAY_AGG(k.id ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'knowledge' AND k.cleaned_text IS NOT NULL) AS knowledge_ids,
+               ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'abilities' AND k.cleaned_text IS NOT NULL) AS abilities,
+               ARRAY_AGG(k.id ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'abilities' AND k.cleaned_text IS NOT NULL) AS abilities_ids,
+               ARRAY_AGG(k.cleaned_text ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'skills' AND k.cleaned_text IS NOT NULL) AS prof_skills,
+               ARRAY_AGG(k.id ORDER BY k.sort_order) FILTER (WHERE k.ksa_type::text = 'skills' AND k.cleaned_text IS NOT NULL) AS prof_skills_ids
         FROM competencies c
         LEFT JOIN ksa_entries k ON k.competency_id = c.id
         WHERE c.discipline_id = $1 AND c.parent_id IS NULL
@@ -257,12 +265,13 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
         "dir_code": dir_code,
         "competencies": [
             {
+                "id": str(c["id"]),
                 "code": c["code"],
                 "skills": c["skills"] or [],
                 "ksa": {
-                    "knowledge": c["knowledge"] or [],
-                    "abilities": c["abilities"] or [],
-                    "skills": c["prof_skills"] or [],
+                    "knowledge": [{"id": str(i), "text": t} for i, t in zip(c["knowledge_ids"] or [], c["knowledge"] or [])],
+                    "abilities": [{"id": str(i), "text": t} for i, t in zip(c["abilities_ids"] or [], c["abilities"] or [])],
+                    "skills": [{"id": str(i), "text": t} for i, t in zip(c["prof_skills_ids"] or [], c["prof_skills"] or [])],
                 },
             }
             for c in comps
@@ -280,7 +289,7 @@ async def krm_get_recommendations(request: Request):
     return []
 
 
-@router.post("/teacher/krm/recommendations")
+@router.post("/teacher/krm/recommendations", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def krm_add_recommendation(request: Request):
     """Добавить рекомендацию KRM."""
     raw = await request.json()
@@ -293,7 +302,7 @@ async def krm_add_recommendation(request: Request):
     return {"status": "ok", "id": len(recs) - 1}
 
 
-@router.delete("/teacher/krm/recommendations/{index}")
+@router.delete("/teacher/krm/recommendations/{index}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def krm_delete_recommendation(request: Request, index: int):
     """Удалить рекомендацию KRM."""
     recs = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
@@ -302,6 +311,55 @@ async def krm_delete_recommendation(request: Request, index: int):
     recs.pop(index)
     _save_json(config.TEACHER_RECOMMENDATIONS_PATH, recs)
     return {"status": "ok"}
+
+
+@router.post("/teacher/krm/recommendations/seed/auto", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("10/minute")
+async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03.02",
+                                        per_discipline: int = 3):
+    """Seed curated store with top auto-generated recommendations (idempotent)."""
+    import re
+    if not re.match(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$", dir_code):
+        raise HTTPException(status_code=400, detail="Invalid direction code format")
+    per_discipline = max(1, min(int(per_discipline), 10))
+    base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher"
+    resolved = (base / dir_code).resolve()
+    if base.resolve() not in resolved.parents:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if not resolved.is_dir():
+        raise HTTPException(404, f"Analysis not found for {dir_code}")
+    prio = {"high": 0, "medium": 1, "low": 2}
+    type_rank = {"major_revision": -1, "add_new_content": 0, "cross_reference": 1,
+                 "review_content": 2, "foundational": 3}
+    seeded: list = []
+    for sub in sorted(resolved.iterdir()):
+        if not sub.is_dir() or sub.name.startswith("_"):
+            continue
+        files = list(sub.glob("*.json"))
+        if not files:
+            continue
+        try:
+            disc = json.loads(files[0].read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        recs = [r for r in (disc.get("recommendations") or [])
+                if (r.get("message") or "").strip()]
+        recs.sort(key=lambda r: (prio.get(r.get("priority"), 9),
+                                 type_rank.get(r.get("type"), 9),
+                                 -(r.get("skill") and len(r.get("skill")) or 0)))
+        dname = disc.get("discipline", sub.name)
+        for r in recs[:per_discipline]:
+            seeded.append({"discipline_id": dname, "competency_id": None,
+                           "suggestion": r["message"], "suggestion_type": "auto"})
+    store = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
+    if not isinstance(store, list):
+        store = []
+    kept = [r for r in store if r.get("suggestion_type") != "auto"]
+    removed = len(store) - len(kept)
+    kept.extend(seeded)
+    _save_json(config.TEACHER_RECOMMENDATIONS_PATH, kept)
+    return {"status": "ok", "seeded": len(seeded),
+            "removed_auto": removed, "total": len(kept)}
 
 
 # ---------- DB-backed coverage analysis ----------
@@ -442,13 +500,13 @@ async def krm_search_run_detail(run_id: str):
     }
 
 
-@router.post("/teacher/krm/run-analysis")
+@router.post("/teacher/krm/run-analysis", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def run_teacher_analysis_endpoint(
     background_tasks: BackgroundTasks,
     dir_code: str = "09.03.02",
 ):
     """Запустить teacher analysis (с run_id, прогрессом и ошибками)."""
-    from src.api_pkg.routers.rpd import _run_cli, _update_run
+    from src.api_pkg.routers.rpd import _run_cli, _update_run, short_cli_error
     from src.pipeline.db_writer import complete_pipeline_run, create_pipeline_run
 
     _validate_dir_code(dir_code)
@@ -463,7 +521,7 @@ async def run_teacher_analysis_endpoint(
                 timeout=1800, run_id=run_id,
             )
             if code != 0:
-                raise RuntimeError(f"teacher-analysis failed: {out[-500:]}")
+                raise RuntimeError(f"teacher-analysis failed: {short_cli_error(out)}")
             await complete_pipeline_run(
                 run_id, status="completed",
                 stats={"stage": "done", "status": "completed", "dir_code": dir_code},
@@ -483,47 +541,44 @@ async def run_teacher_analysis_endpoint(
 
 @router.get("/teacher/export/vacancies")
 @limiter.limit("3/minute")
-async def export_vacancies_excel(request: Request):
-    """Export vacancies to Excel (accessible by teachers)."""
+async def export_vacancies_excel(request: Request, search: str | None = None,
+                                       experience: str | None = None,
+                                       region: str | None = None,
+                                       months: int | None = Query(None, ge=1, le=24)):
+    """Export vacancies to Excel with list filters (v45). No filters = full dump."""
     import json
     import pandas as pd
 
-    detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
-    basic_file = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
-    raw_file = detailed_file if detailed_file.exists() else basic_file
-    if not raw_file.exists():
-        raise HTTPException(status_code=404, detail="No vacancy data found")
-
-    import asyncio
-    vacancies = await asyncio.to_thread(lambda: json.loads(raw_file.read_bytes()))
+    from src.api_pkg.routers.vacancies import _classify_experience, build_vacancy_where
+    pool = get_pool()
+    where, params = build_vacancy_where(search=search, experience=experience,
+                                        region=region, months=months)
+    recs = await pool.fetch(
+        """SELECT hh_id, name, employer_name, area_name, salary_from, salary_to,
+                  experience, alternate_url, parsed_skills, key_skills
+           FROM vacancies v WHERE %s ORDER BY v.published_at DESC NULLS LAST""" % where,
+        *params)
+    vacancies = [dict(r) for r in recs]
 
     rows = []
     for vac in vacancies:
-        name = vac.get("name", "")
-        employer = vac.get("employer", {})
-        employer_name = employer.get("name", "") if isinstance(employer, dict) else ""
-        area = vac.get("area", {})
-        area_name = area.get("name", "") if isinstance(area, dict) else ""
-        salary = vac.get("salary") or {}
-        salary_from = salary.get("from") if isinstance(salary, dict) else None
-        salary_to = salary.get("to") if isinstance(salary, dict) else None
-        skills = vac.get("extracted_skills", []) or vac.get("key_skills", [])
-        if isinstance(skills, list):
-            skill_names = [s.get("name", str(s)) if isinstance(s, dict) else str(s) for s in skills if s]
-            skills_str = ", ".join(skill_names[:15])
-        else:
-            skills_str = ""
-        exp = vac.get("experience") or {}
-        exp_text = exp.get("name", "") if isinstance(exp, dict) else str(exp)
-        vid = str(vac.get("id", ""))
-        is_spam_flag = vac.get("is_spam", False)
-        spam_reason = vac.get("spam_reason", "") or ""
-        is_spam = "Да" if is_spam_flag else "Нет"
-        rows.append({"ID": vid, "Название": name, "Работодатель": employer_name, "Город": area_name,
-                     "Зарплата от": salary_from, "Зарплата до": salary_to, "Опыт": exp_text,
-                     "Спам": is_spam, "Причина спама": spam_reason,
-                     "Навыки": skills_str, "Ссылка": vac.get("alternate_url", "")})
-
+        skills = vac.get("parsed_skills") or vac.get("key_skills") or []
+        if isinstance(skills, str):
+            try:
+                skills = json.loads(skills)
+            except Exception:
+                skills = []
+        skill_names = [s.get("name", str(s)) if isinstance(s, dict) else str(s)
+                       for s in (skills or []) if s]
+        skills_str = ", ".join(skill_names[:15])
+        exp_text = _classify_experience(vac.get("experience"), vac.get("name") or "")
+        rows.append({"ID": str(vac.get("hh_id") or ""), "Название": vac.get("name") or "",
+                     "Работодатель": vac.get("employer_name") or "", "Город": vac.get("area_name") or "",
+                     "Зарплата от": vac.get("salary_from"), "Зарплата до": vac.get("salary_to"),
+                     "Опыт": exp_text, "Навыки": skills_str,
+                     "Ссылка": vac.get("alternate_url") or ""})
+    if not rows:
+        raise HTTPException(status_code=404, detail="No vacancies match filters")
     df = pd.DataFrame(rows)
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     excel_path = config.REPORTS_DIR / "vacancies_export.xlsx"
@@ -613,6 +668,55 @@ async def get_analysis(dir_code: str = "09.03.02"):
         raise HTTPException(404, f"Analysis not found for {dir_code}")
     return json.loads(resolved.read_text(encoding="utf-8"))
 
+
+
+
+def _report_meta_path(dir_code: str) -> Path:
+    """Resolve _report_meta.json with the same traversal guard as get_analysis."""
+    _validate_dir_code(dir_code)
+    base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher"
+    resolved = (base / dir_code / "_report_meta.json").resolve()
+    if base.resolve() not in resolved.parents:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    return resolved
+
+
+def report_staleness(meta: dict, current_vac_hash: str | None,
+                     code_version: int) -> tuple[bool, str]:
+    """Pure: is the stored read-model stale vs current code/data? (unit-tested)."""
+    if not meta:
+        return True, "no-report"
+    if meta.get("report_schema") != 1:
+        return True, "schema-mismatch"
+    if meta.get("code_version") != code_version:
+        return True, f"code-changed:{meta.get('code_version')}->{code_version}"
+    if current_vac_hash is None:
+        return False, "db-unavailable-assumed-fresh"
+    if meta.get("vac_hash") != current_vac_hash:
+        return True, "vacancies-changed"
+    return False, "fresh"
+
+
+@router.get("/teacher/analysis/meta")
+async def get_analysis_meta(dir_code: str = "09.03.02"):
+    """CQRS read-model lineage: which code/data produced the stored report + staleness."""
+    from src.pipeline.teacher_analysis_runner import CODE_VERSION
+    path = _report_meta_path(dir_code)
+    if not path.exists():
+        raise HTTPException(404, f"No report meta for {dir_code}")
+    meta = json.loads(path.read_text(encoding="utf-8"))
+    current_hash = None
+    try:
+        pool = get_pool()
+        current_hash = await pool.fetchval(
+            "SELECT MD5(COALESCE(MAX(created_at)::text, '0')) FROM vacancies "
+            "WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0"
+        )
+    except Exception:
+        current_hash = None
+    stale, reason = report_staleness(meta, current_hash, CODE_VERSION)
+    return {"meta": meta, "stale": stale, "stale_reason": reason,
+            "current_vac_hash": current_hash}
 
 @router.get("/teacher/analysis/{discipline_name:path}")
 async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02"):

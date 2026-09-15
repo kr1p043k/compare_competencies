@@ -34,7 +34,7 @@ class TrendAnalyzer:
     # ------------------------------------------------------------------
     # Работа со снимками
     # ------------------------------------------------------------------
-    def save_snapshot(self, frequencies: dict[str, float], label: str = None, apply_whitelist: bool = True,
+    def save_snapshot(self, frequencies: dict[str, float], label: str = None, apply_whitelist: bool = True, as_of=None,
                       source_type: str = "full_market", profession: str | None = None) -> Result[Path, DomainError]:
         """Сохраняет снимок с _meta и возвращает путь к файлу.
         source_type: 'full_market' (ит-рынок) или 'targeted_query' (по профессии/запросу).
@@ -51,9 +51,9 @@ class TrendAnalyzer:
                 frequencies = filtered
                 logger.info("snapshot_filtered", skills_count=len(frequencies))
 
-            now = datetime.now()
-            month = now.strftime("%Y-%m")
-            day = now.strftime("%Y-%m-%d")
+            ref = as_of or datetime.now()
+            month = ref.strftime("%Y-%m")
+            day = ref.strftime("%Y-%m-%d")
 
             meta = {
                 "_meta": {

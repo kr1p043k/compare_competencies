@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from src import config
-from src.api_pkg.routers.auth import _hash_token, _make_token, get_current_user
+from src.api_pkg.routers.auth import _hash_token, _make_token, get_current_user, require_any_role
 from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
@@ -343,7 +343,7 @@ async def academic_get_competencies(
         raise
 
 
-@router.post("/academic/analyze-gap")
+@router.post("/academic/analyze-gap", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def academic_analyze_gap(
     body: GapRequest,
     request: Request,
@@ -365,7 +365,7 @@ async def academic_analyze_gap(
     )
 
 
-@router.post("/academic/analyze-gap-local")
+@router.post("/academic/analyze-gap-local", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def academic_analyze_gap_local(
     body: CompetenciesRequest,
     request: Request,

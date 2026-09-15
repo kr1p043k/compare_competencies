@@ -449,18 +449,21 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             sim = c.get("similarity", 0)
             cluster_id = c["id"]
 
+            ranked: list[str] = []
             cluster_all_skills: set[str] = set()
             if self.profile_evaluator.clusterer:
                 try:
-                    cluster_all_skills = set(
+                    ranked = [
                         s.lower()
                         for s in self.profile_evaluator.clusterer.get_top_skills_in_cluster(cluster_id, top_n=50)
-                    )
+                    ]
+                    cluster_all_skills = set(ranked)
                 except Exception as e:
                     logger.warning("cluster_skills_fetch_failed", cluster=cluster_id, error=str(e))
                     cluster_all_skills = set(cluster_skills_map.keys())
             else:
                 cluster_all_skills = set(cluster_skills_map.keys())
+            core_skills = [s for s in ranked[:15] if s in cluster_all_skills] or sorted(cluster_all_skills)[:15]
 
             covered = len(student_set & cluster_all_skills)
             total = len(cluster_all_skills)
@@ -481,7 +484,8 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                         f"({round(covered / total * 100, 1) if total > 0 else 0}%). "
                         f"Рекомендации ниже помогут закрыть пробелы."
                     ),
-                    "cluster_skills": list(cluster_all_skills)[:50] if cluster_all_skills else [],
+                    "cluster_skills": sorted(cluster_all_skills)[:50] if cluster_all_skills else [],
+                    "cluster_core_skills": core_skills,
                 }
             )
         return roles
@@ -508,8 +512,9 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         coverage = top_role["coverage_percent"]
         total_skills = int(top_role["skills_covered"].split("/")[1]) if "/" in top_role["skills_covered"] else 50
 
-        cluster_skills = top_role.get("cluster_skills", [])
-        skill_is_relevant = skill.lower() in (s.lower() for s in cluster_skills)
+        core_skills = top_role.get("cluster_core_skills") or []
+        core_pool = core_skills if core_skills else top_role.get("cluster_skills", [])
+        skill_is_relevant = skill.lower() in (s.lower() for s in core_pool)
 
         if skill_is_relevant and total_skills > 0:
             new_coverage = round((coverage * total_skills / 100 + 1) / total_skills * 100, 1)

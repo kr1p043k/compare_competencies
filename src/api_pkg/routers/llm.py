@@ -1,9 +1,10 @@
 import structlog
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src.api_pkg.routers.auth import require_any_role
 from src.services.llm_client import LLMClient
 
 logger = structlog.get_logger("api")
@@ -22,7 +23,7 @@ class ChatResponse(BaseModel):
     model: str
 
 
-@router.post("/llm/chat", response_model=ChatResponse)
+@router.post("/llm/chat", response_model=ChatResponse, dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("10/minute")
 async def llm_chat(request: Request, req: ChatRequest):
     """Чат с LLM (лимит 10/мин, до 4000 символов)."""

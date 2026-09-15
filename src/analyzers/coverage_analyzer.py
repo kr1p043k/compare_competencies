@@ -14,9 +14,20 @@ from src import config
 from src.result import Ok, Err, Result
 from src.errors import CoverageError
 from src.models.teacher_analysis import CompetencyCoverage, CrossReference, DisciplineCoverage, SkillMatch
-from src.analyzers.skill_matcher import SkillMatcher, coverage_level, normalize as normalize_skill
+from src.analyzers.skill_matcher import (
+    MARKET_MIN_FREQ,
+    SkillMatcher,
+    coverage_level,
+    normalize as normalize_skill,
+)
 
 logger = structlog.get_logger(__name__)
+
+
+MIN_MATCH_FREQ = MARKET_MIN_FREQ
+# A match counts as coverage only if the market skill has real demand (v29).
+# Fringe skills (1-4 vacancies, e.g. one-off listings) must not inflate coverage.
+# Single source of truth lives in skill_matcher (v36).
 
 
 class CoverageAnalyzer:
@@ -67,6 +78,12 @@ class CoverageAnalyzer:
         except Exception as exc:
             logger.warning("skill_emb_disk_cache_save_failed", error=str(exc))
 
+    def _is_fringe_match(self, market_skill: str | None) -> bool:
+        """Market evidence too thin to count as coverage (v29)."""
+        if not market_skill:
+            return True
+        return self.matcher.market_skills.get(market_skill, 0) < MIN_MATCH_FREQ
+
     def _get_skill_embeddings(self, skills: list[str]) -> dict[str, np.ndarray]:
         """Batched embedding of skills not yet cached; thread-safe.
 
@@ -102,6 +119,7 @@ class CoverageAnalyzer:
         competencies: dict[str, list[str]],
         direction_rpd_norm: set[str] | None = None,
         discipline_skill_map: dict[str, set[str]] | None = None,
+        ksa_types: dict[str, str] | None = None,
     ) -> Result[DisciplineCoverage, CoverageError]:
         if not discipline_id:
             logger.error("missing_discipline_id")
@@ -114,22 +132,28 @@ class CoverageAnalyzer:
             ))
 
         all_rpd: list[str] = []
+        strong_total = 0
         comp_results: list[CompetencyCoverage] = []
 
         for ccode, skills in competencies.items():
             comp_matched = 0
             comp_weighted = 0.0
             comp_gaps = []
+            comp_matched_names = []
             for s in skills:
                 all_rpd.append(s)
                 match_result = self.matcher.match(s)
                 if match_result.is_err():
                     logger.warning("skill_match_failed", skill=s)
                     continue
-                m, _, conf = match_result.unwrap()
-                if m:
+                m, mtype, conf = match_result.unwrap()
+                if m and not self._is_fringe_match(m):
                     comp_matched += 1
                     comp_weighted += conf
+                    if len(comp_matched_names) < 20:
+                        comp_matched_names.append(s)
+                    if mtype in ("exact", "fuzzy", "mapped", "lemma"):
+                        strong_total += 1
                 else:
                     comp_gaps.append(s)
             n = len(skills)
@@ -137,6 +161,7 @@ class CoverageAnalyzer:
                 code=ccode,
                 total_skills=n,
                 matched_skills=comp_matched,
+                matched_names=list(comp_matched_names),
                 coverage=round(comp_matched / n, 4) if n else 0,
                 weighted_coverage=round(comp_weighted / n, 4) if n else 0,
                 gap_skills=comp_gaps[:10],
@@ -160,6 +185,7 @@ class CoverageAnalyzer:
                         code=cc.code,
                         total_skills=total,
                         matched_skills=matched,
+                        matched_names=[n for c in children for n in c.matched_names][:20],
                         coverage=round(matched / total, 4) if total else 0,
                         weighted_coverage=round(weighted, 4) if total else 0,
                         gap_skills=cc.gap_skills,
@@ -178,7 +204,7 @@ class CoverageAnalyzer:
             if match_result.is_err():
                 continue
             m, mtype, conf = match_result.unwrap()
-            if m:
+            if m and not self._is_fringe_match(m):
                 matched_list.append(SkillMatch(
                     skill_name=s, market_match=m,
                     frequency=self.matcher.market_skills.get(m, 0),
@@ -187,8 +213,10 @@ class CoverageAnalyzer:
             else:
                 gaps_list.append(s)
 
-        # Per-discipline emerging (not in THIS discipline)
-        emerging_result = self.matcher.get_emerging(rpd_norm, top_n=10)
+        # Per-discipline emerging (not in THIS discipline; giants capped, v39)
+        from src.analyzers.skill_matcher import EMERGING_MAX_FREQ
+        emerging_result = self.matcher.get_emerging(
+            rpd_norm, top_n=10, max_freq=EMERGING_MAX_FREQ)
         emerging_skills: list[SkillMatch] = []
         if emerging_result.is_ok():
             emerging_raw = emerging_result.unwrap()
@@ -218,49 +246,44 @@ class CoverageAnalyzer:
                         sk_emb = sk_embs.get(em.skill_name)
                         if sk_emb is None:
                             continue
-                        found = False
-                        for dn in discipline_skill_map:
+                        # Evidence-first attribution: a cross-reference is emitted ONLY
+                        # for disciplines with a textual trace in their RPD (exact
+                        # normalized phrase or whole-word hit, market token >= 4 chars).
+                        # Embeddings only choose AMONG evidenced disciplines, never
+                        # invent attribution. Proven: "1c"/"bash" occur in 0 RPDs of
+                        # 09.03.02 yet were attributed to random disciplines.
+                        em_norm = normalize_skill(em.skill_name)
+                        evidenced: list[str] = []
+                        for dn, dskills in discipline_skill_map.items():
                             if dn == discipline_name:
                                 continue
-                            disc_emb = self._discipline_scorer.get_discipline_embedding(dn)
-                            if disc_emb is not None:
-                                sim = float(np.dot(sk_emb, disc_emb))
-                                if sim > 0.55:
-                                    cross_refs.append(CrossReference(
-                                        skill_name=em.skill_name,
-                                        frequency=em.frequency,
-                                        discipline=dn,
-                                    ))
-                                    found = True
-                                    break
-                        if not found:
-                            for dn, dskills in discipline_skill_map.items():
-                                if dn == discipline_name:
-                                    continue
-                                if em.skill_name in dskills:
-                                    cross_refs.append(CrossReference(
-                                        skill_name=em.skill_name,
-                                        frequency=em.frequency,
-                                        discipline=dn,
-                                    ))
-                                    found = True
-                                    break
-                        if not found:
-                            for dn, dskills in discipline_skill_map.items():
-                                if dn == discipline_name:
-                                    continue
-                                for rn in dskills:
-                                    if (self.matcher._word_match(em.skill_name, rn)
+                            if em_norm in dskills:
+                                evidenced.append(dn)
+                                continue
+                            # No length guard: the evidence requirement itself is the
+                            # guard. Short tokens ("sql") with a real whole-word trace
+                            # are true positives; without any trace nothing fires.
+                            for rn in dskills:
+                                if (self.matcher._word_match(em.skill_name, rn)
                                         or self.matcher._word_match(rn, em.skill_name)):
-                                        cross_refs.append(CrossReference(
-                                            skill_name=em.skill_name,
-                                            frequency=em.frequency,
-                                            discipline=dn,
-                                        ))
-                                        found = True
-                                        break
-                                if found:
+                                    evidenced.append(dn)
                                     break
+                        if evidenced:
+                            best_dn = evidenced[0]
+                            if len(evidenced) > 1:
+                                scored: list[tuple[float, str]] = []
+                                for dn in evidenced:
+                                    disc_emb = self._discipline_scorer.get_discipline_embedding(dn)
+                                    if disc_emb is not None:
+                                        scored.append((float(np.dot(sk_emb, disc_emb)), dn))
+                                if scored:
+                                    scored.sort(key=lambda t: -t[0])
+                                    best_dn = scored[0][1]
+                            cross_refs.append(CrossReference(
+                                skill_name=em.skill_name,
+                                frequency=em.frequency,
+                                discipline=best_dn,
+                            ))
                 truly_raw = self.matcher.get_emerging(
                     direction_rpd_norm, top_n=10,
                 )
@@ -308,9 +331,12 @@ class CoverageAnalyzer:
             market_matched=len(matched_list),
             gaps=len(gaps_list),
             coverage_ratio=ratio,
+            strong_matched=strong_total,
+            strong_coverage=round(strong_total / total, 4) if total else 0,
             weighted_coverage=weighted,
             coverage_level=coverage_level(ratio),
             top_matched=deduped_top,
+            ksa_types=dict(ksa_types or {}),
             gaps_list=deduped_gaps[:20],
             emerging=emerging_skills,
             truly_missing=truly_missing,

@@ -137,12 +137,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [showAllMarketInfo, setShowAllMarketInfo] = useState(false);
   const [allMarketVacancyCount, setAllMarketVacancyCount] = useState(0);
   const [monthsFilter, setMonthsFilter] = useState<number | null>(null);
+  const [applied, setApplied] = useState<{ search: string; experience: string; city: string; months: number | null }>({ search: "", experience: "all", city: "all", months: null });
   const handledCompleteRef = useRef(false);
   const itemsPerPage = 12;
 
   useEffect(() => {
     loadVacancies();
-  }, [currentPage, experienceFilter, monthsFilter]);
+  }, [currentPage, applied]);
 
   useEffect(() => {
     if (!pipelineStep) { handledCompleteRef.current = false; return; }
@@ -173,20 +174,20 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         offset: offset.toString(),
       });
 
-      if (experienceFilter && experienceFilter !== "all") {
-        params.append("experience", experienceFilter);
+      if (applied.experience && applied.experience !== "all") {
+        params.append("experience", applied.experience);
       }
 
-      if (cityFilter && cityFilter !== "all") {
-        params.append("region", cityFilter);
+      if (applied.city && applied.city !== "all") {
+        params.append("region", applied.city);
       }
 
-      if (searchQuery.trim()) {
-        params.append("search", searchQuery.trim());
+      if (applied.search.trim()) {
+        params.append("search", applied.search.trim());
       }
 
-      if (monthsFilter) {
-        params.append("months", monthsFilter.toString());
+      if (applied.months) {
+        params.append("months", applied.months.toString());
       }
 
       const response = await fetch(`/api/vacancies?${params}`);
@@ -216,9 +217,10 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     try {
       const offset = (currentPage - 1) * itemsPerPage;
       const params = new URLSearchParams({ limit: itemsPerPage.toString(), offset: offset.toString() });
-      if (experienceFilter && experienceFilter !== "all") params.append("experience", experienceFilter);
-      if (searchQuery.trim()) params.append("search", searchQuery.trim());
-      if (monthsFilter) params.append("months", monthsFilter.toString());
+      if (applied.experience && applied.experience !== "all") params.append("experience", applied.experience);
+      if (applied.city && applied.city !== "all") params.append("region", applied.city);
+      if (applied.search.trim()) params.append("search", applied.search.trim());
+      if (applied.months) params.append("months", applied.months.toString());
       const response = await fetch(`/api/vacancies?${params}`);
       if (response.ok) {
         const data: VacanciesResponse = await response.json();
@@ -232,9 +234,28 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     } catch {}
   };
 
-  const handleSearch = () => {
+  const applyFilters = (over: Partial<{ search: string; experience: string; city: string; months: number | null }> = {}) => {
+    setApplied({
+      search: searchQuery,
+      experience: experienceFilter,
+      city: cityFilter,
+      months: monthsFilter,
+      ...over,
+    });
     setCurrentPage(1);
-    loadVacancies();
+  };
+
+  const handleSearch = () => {
+    applyFilters();
+  };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setExperienceFilter("all");
+    setCityFilter("all");
+    setMonthsFilter(null);
+    setApplied({ search: "", experience: "all", city: "all", months: null });
+    setCurrentPage(1);
   };
 
   const handleSearchKeyPress = (e: React.KeyboardEvent) => {
@@ -625,7 +646,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Уровень опыта
                 </label>
-                <Select value={experienceFilter} onValueChange={(v) => { setExperienceFilter(v); setCurrentPage(1); }}>
+                <Select value={experienceFilter} onValueChange={(v) => { setExperienceFilter(v); }}>
                   <SelectTrigger className="h-11 border-2">
                     <SelectValue />
                   </SelectTrigger>
@@ -643,7 +664,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Город
                 </label>
-                <Select value={cityFilter} onValueChange={(v) => { setCityFilter(v); setCurrentPage(1); }}>
+                <Select value={cityFilter} onValueChange={(v) => { setCityFilter(v); }}>
                   <SelectTrigger className="h-11 border-2">
                     <SelectValue />
                   </SelectTrigger>
@@ -663,7 +684,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Период
                 </label>
-                <Select value={String(monthsFilter ?? "all")} onValueChange={(v) => { setMonthsFilter(v === "all" ? null : Number(v)); setCurrentPage(1); }}>
+                <Select value={String(monthsFilter ?? "all")} onValueChange={(v) => { setMonthsFilter(v === "all" ? null : Number(v)); }}>
                   <SelectTrigger className="h-11 border-2">
                     <SelectValue />
                   </SelectTrigger>
@@ -677,10 +698,33 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   </SelectContent>
                 </Select>
               </div>
+              <div className="md:col-span-3 flex items-end justify-end gap-3">
+                <Button
+                  onClick={() => applyFilters()}
+                  disabled={loading}
+                  className="h-11 px-6 bg-blue-700 hover:bg-blue-800 text-white transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none gap-2"
+                >
+                  {loading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Search className="size-4" />
+                  )}
+                  Применить фильтры
+                </Button>
+                <Button
+                  onClick={clearFilters}
+                  disabled={loading}
+                  variant="outline"
+                  className="h-11 px-6 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none gap-2"
+                >
+                  <X className="size-4" />
+                  Очистить
+                </Button>
+              </div>
             </div>
 
             {/* Active filters */}
-            {(experienceFilter !== "all" || cityFilter !== "all" || searchQuery) && (
+            {(applied.experience !== "all" || applied.city !== "all" || applied.search) && (
               <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
                 <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
                   Активные фильтры:
@@ -689,18 +733,18 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   <Badge
                     variant="secondary"
                     className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
-                    onClick={() => setExperienceFilter("all")}
+                    onClick={() => { setExperienceFilter("all"); applyFilters({ experience: "all" }); }}
                   >
-                    {experienceFilter} ✕
+                    {applied.experience} ✕
                   </Badge>
                 )}
                 {cityFilter !== "all" && (
                   <Badge
                     variant="secondary"
                     className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
-                    onClick={() => { setCityFilter("all"); setCurrentPage(1); }}
+                    onClick={() => { setCityFilter("all"); applyFilters({ city: "all" }); }}
                   >
-                    {cityFilter} ✕
+                    {applied.city} ✕
                   </Badge>
                 )}
                 {searchQuery && (
@@ -709,10 +753,10 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
                     onClick={() => {
                       setSearchQuery("");
-                      handleSearch();
+                      applyFilters({ search: "" });
                     }}
                   >
-                    "{searchQuery}" ✕
+                    "{applied.search}" ✕
                   </Badge>
                 )}
               </div>
@@ -836,7 +880,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               size="sm"
               onClick={async () => {
                 try {
-                  const r = await fetch("/api/teacher/export/vacancies");
+                  const eq = new URLSearchParams();
+                  if (applied.search.trim()) eq.append("search", applied.search.trim());
+                  if (applied.experience !== "all") eq.append("experience", applied.experience);
+                  if (applied.city !== "all") eq.append("region", applied.city);
+                  if (applied.months) eq.append("months", String(applied.months));
+                  const qs = eq.toString();
+                  const r = await fetch(`/api/teacher/export/vacancies${qs ? `?${qs}` : ""}`);
                   if (r.ok) {
                     const blob = await r.blob();
                     const url = URL.createObjectURL(blob);

@@ -11,6 +11,8 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
+from src.circuit_breaker import CircuitBreaker
+
 _INTERVAL_HOURS = 6
 _BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -22,9 +24,21 @@ async def start_background_collector():
 async def _collect_loop():
     await asyncio.sleep(30)
     logger.info("background_collector_started", interval_hours=_INTERVAL_HOURS)
+    # Breaker guards "collector itself keeps crashing" (e.g. hh.ru down hard).
+    # Serving is unaffected: reads come from DB + market cache (the fallback).
+    _breaker = CircuitBreaker(fail_threshold=3, cooldown_s=_INTERVAL_HOURS * 3600)
     while True:
         try:
-            await _try_collect()
+            if not _breaker.allow():
+                logger.warning("collect_skipped_breaker_open", state=_breaker.state,
+                               failures=_breaker.consecutive_failures)
+            else:
+                try:
+                    await _try_collect()
+                except Exception:
+                    _breaker.record_failure()
+                    raise
+                _breaker.record_success()
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -32,8 +46,12 @@ async def _collect_loop():
         await asyncio.sleep(_INTERVAL_HOURS * 3600)
 
 
-async def _try_collect():
-    """Direct HH API collection, saves JSON + DB."""
+async def _try_collect(force_period_days: int | None = None, force: bool = False):
+    """Direct HH API collection, saves JSON + DB.
+
+    Defaults preserve background behavior (skip if recent, incremental period).
+    force_period_days=30 + force=True performs a full monthly sweep.
+    """
     import asyncpg
     from src import config, Ok, Result
     from src.parsing.api.hh_api import HeadHunterAPI
@@ -53,7 +71,7 @@ async def _try_collect():
         logger.warning("collect_db_unavailable")
         return
 
-    if last_run:
+    if last_run and not force:
         elapsed = (datetime.now(timezone.utc) - last_run.replace(tzinfo=timezone.utc)).total_seconds()
         if elapsed < _INTERVAL_HOURS * 3600:
             logger.debug("collect_skipped_recent", last_run=str(last_run)[:16])
@@ -62,7 +80,10 @@ async def _try_collect():
     max_pages = 5
     period = 30
 
-    if last_run:
+    if force_period_days is not None:
+        period = max(1, min(int(force_period_days), 30))
+        logger.info("collect_forced_period", days=period)
+    elif last_run:
         delta = (datetime.now(timezone.utc) - last_run.replace(tzinfo=timezone.utc)).days
         if 1 <= delta <= 30:
             period = delta
@@ -199,6 +220,9 @@ async def _try_collect():
                 match parser.skill_parser.parse_vacancy(vac_obj):
                     case Ok(extracted):
                         texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                        # Write-back for the later INSERT (it reads extracted_skills;
+                        # the UPDATE below only matches already-stored rows).
+                        v["extracted_skills"] = texts
                         if texts:
                             hh_id = int(vid)
                             await conn.execute(

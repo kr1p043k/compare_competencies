@@ -14,12 +14,13 @@ import re
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.routers.auth import require_any_role
 from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
@@ -208,7 +209,7 @@ async def krm_teacher_discipline_detail(request: Request, dir_code: str, discipl
     }
 
 
-@router.post("/krm/teacher/directions/{dir_code}/gap")
+@router.post("/krm/teacher/directions/{dir_code}/gap", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("20/minute")
 async def krm_teacher_gap(request: Request, dir_code: str, payload: GapRequest = Body(...)):
     """Анализ разрыва компетенций по теме для направления преподавателя.

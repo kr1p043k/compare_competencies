@@ -57,6 +57,8 @@ type DirectionAnalysis = {
 type Discipline = {
   id: string;
   name: string;
+  in_scope?: boolean;
+  scope_source?: string;
   competencies_count: number;
   skills_count: number;
   knowledge_count?: number;
@@ -65,15 +67,20 @@ type Discipline = {
   course?: number | null;
 };
 
+interface KsaItem {
+  id: string;
+  text: string;
+}
+
 type Competency = {
   id: string;
   code: string;
   name: string;
   skills: string[];
   ksa?: {
-    knowledge: string[];
-    abilities: string[];
-    skills: string[];
+    knowledge: KsaItem[];
+    abilities: KsaItem[];
+    skills: KsaItem[];
   };
 };
 
@@ -100,6 +107,45 @@ type Stats = {
 export function TeacherDashboard() {
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [selected, setSelected] = useState<DisciplineDetail | null>(null);
+  const [scopeSaving, setScopeSaving] = useState<string | null>(null);
+  const [metaStale, setMetaStale] = useState(false);
+  const [scopeMsg, setScopeMsg] = useState("");
+
+  async function saveScopeBulk(included: boolean) {
+    setScopeSaving("__all__"); setScopeMsg("");
+    try {
+      const names = disciplines.map((d) => d.name);
+      await api(`/teacher/zun/scope`, {
+        method: "PUT",
+        body: JSON.stringify({ dir_code: selectedDir, changes: names.map((n) => ({ discipline_name: n, included })) }),
+      });
+      setDisciplines((prev) => prev.map((d) => ({ ...d, in_scope: included, scope_source: "custom" })));
+      setScopeMsg("Scope обновлён для всех. Перезапустите teacher-анализ, чтобы средние пересчитались.");
+    } catch (e: any) {
+      setScopeMsg("Ошибка scope: " + (e.message || "неизвестная ошибка"));
+    } finally {
+      setScopeSaving(null);
+    }
+  }
+
+  async function saveScope(name: string, included: boolean) {
+    setScopeSaving(name); setScopeMsg("");
+    try {
+      await api(`/teacher/zun/scope`, {
+        method: "PUT",
+        body: JSON.stringify({ dir_code: selectedDir, changes: [{ discipline_name: name, included }] }),
+      });
+      setDisciplines((prev) => prev.map((d) =>
+        d.name === name ? { ...d, in_scope: included, scope_source: "custom" } : d));
+      setScopeMsg("Scope обновлён. Перезапустите teacher-анализ, чтобы средние пересчитались.");
+    } catch (e: any) {
+      let msg = e.message || "неизвестная ошибка";
+      try { const j = JSON.parse(msg); msg = j.detail || msg; } catch {}
+      setScopeMsg("Ошибка scope: " + msg);
+    } finally {
+      setScopeSaving(null);
+    }
+  }
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [recs, setRecs] = useState<Recommendation[]>([]);
@@ -113,6 +159,44 @@ export function TeacherDashboard() {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends">("coverage");
   const [showAddForm, setShowAddForm] = useState(false);
+  const [seedMsg, setSeedMsg] = useState("");
+  const [seedLoading, setSeedLoading] = useState(false);
+  const [zunForm, setZunForm] = useState<{ compId: string; ksaType: string; text: string } | null>(null);
+  const [compForm, setCompForm] = useState(false);
+  const [compCode, setCompCode] = useState("");
+  const [compName, setCompName] = useState("");
+  const [compErr, setCompErr] = useState<{ code?: string; name?: string; msg?: string }>({});
+  const [compSaving, setCompSaving] = useState(false);
+
+  const COMP_CODE_RE = /^(УК|ОПК|ПК|ППК|ИП|ВПК)[- ]\d+(\.\d+)*$/i;
+
+  async function saveCompetency() {
+    const code = compCode.trim().toUpperCase();
+    const errs: { code?: string; name?: string } = {};
+    if (!COMP_CODE_RE.test(code)) errs.code = "Формат: УК-1, ОПК-2, ПК-2.1…";
+    if (compName.trim().length > 500) errs.name = "Слишком длинное (макс. 500)";
+    setCompErr(errs);
+    if (errs.code || errs.name || !selected) return;
+    setCompSaving(true);
+    try {
+      await api(`/teacher/zun/disciplines/${selected.id}/competencies`, {
+        method: "POST",
+        body: JSON.stringify({ code, name: compName.trim() }),
+      });
+      setCompForm(false); setCompCode(""); setCompName(""); setCompErr({});
+      await loadDiscipline(selected.name);
+    } catch (e: any) {
+      let msg = e.message || "неизвестная ошибка";
+      try { const j = JSON.parse(msg); msg = j.detail || msg; } catch {}
+      if (/code|формат/i.test(msg)) setCompErr({ code: msg });
+      else setCompErr({ msg });
+    } finally {
+      setCompSaving(false);
+    }
+  }
+  const [zunMsg, setZunMsg] = useState("");
+  const [zunSaving, setZunSaving] = useState(false);
+  const [ksaEditing, setKsaEditing] = useState<{ id: string; text: string } | null>(null);
   const [selectedCompetency, setSelectedCompetency] = useState("");
   const [runLoading, setRunLoading] = useState(false);
   const [runMsg, setRunMsg] = useState("");
@@ -165,6 +249,9 @@ export function TeacherDashboard() {
     api(`/teacher/analysis?dir_code=${selectedDir}`)
       .then(setAnalysis)
       .catch(() => setAnalysis(null));
+    api(`/teacher/analysis/meta?dir_code=${selectedDir}`)
+      .then((m: any) => setMetaStale(!!m?.stale))
+      .catch(() => setMetaStale(false));
   }, [selectedDir]);
 
   useEffect(() => {
@@ -306,6 +393,75 @@ export function TeacherDashboard() {
     }
   }
 
+  async function addZunEntry() {
+    if (!selected || !zunForm || !zunForm.text.trim() || zunSaving) return;
+    setZunSaving(true);
+    setZunMsg("");
+    try {
+      await api(`/teacher/zun/competencies/${zunForm.compId}/entries`, {
+        method: "POST",
+        body: JSON.stringify({ ksa_type: zunForm.ksaType, text: zunForm.text.trim() }),
+      });
+      setZunForm(null);
+      setZunMsg("ЗУН добавлен. Учтётся при следующем пересчёте анализа.");
+      await loadDiscipline(selected.name);
+    } catch (e: any) {
+      setZunMsg("Ошибка: " + (e.message || "не удалось сохранить"));
+    } finally {
+      setZunSaving(false);
+    }
+  }
+
+  async function saveKsaEdit() {
+    if (!selected || !ksaEditing || !ksaEditing.text.trim() || zunSaving) return;
+    setZunSaving(true);
+    setZunMsg("");
+    try {
+      await api(`/teacher/zun/entries/${ksaEditing.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ text: ksaEditing.text.trim() }),
+      });
+      setKsaEditing(null);
+      setZunMsg("Пункт обновлён. Учтётся при следующем пересчёте анализа.");
+      await loadDiscipline(selected.name);
+    } catch (e: any) {
+      setZunMsg("Ошибка: " + (e.message || "не удалось сохранить"));
+    } finally {
+      setZunSaving(false);
+    }
+  }
+
+  async function delKsa(id: string) {
+    if (!selected || zunSaving) return;
+    if (!window.confirm("Удалить пункт?")) return;
+    setZunSaving(true);
+    setZunMsg("");
+    try {
+      await api(`/teacher/zun/entries/${id}`, { method: "DELETE" });
+      setZunMsg("Пункт удалён. Учтётся при следующем пересчёте анализа.");
+      await loadDiscipline(selected.name);
+    } catch (e: any) {
+      setZunMsg("Ошибка: " + (e.message || "не удалось удалить"));
+    } finally {
+      setZunSaving(false);
+    }
+  }
+
+  async function seedAutoRecs() {
+    setSeedLoading(true);
+    setSeedMsg("");
+    try {
+      const r = await api(`/teacher/krm/recommendations/seed/auto?dir_code=${selectedDir}`, { method: "POST" });
+      const data = await api("/teacher/krm/recommendations");
+      setRecs(data);
+      setSeedMsg(`Добавлено ${r.seeded} авторекомендаций (ручные не тронуты).`);
+    } catch (e: any) {
+      setSeedMsg("Ошибка: " + (e.message || "не удалось заполнить"));
+    } finally {
+      setSeedLoading(false);
+    }
+  }
+
   async function loadDiscipline(name: string) {
     try {
       const data = await api(`/teacher/krm/disciplines/${encodeURIComponent(name)}?dir_code=${selectedDir}`);
@@ -351,7 +507,7 @@ export function TeacherDashboard() {
   if (loading) {
     return (
       <div style={{ padding: "40px", fontFamily: "system-ui, sans-serif" }}>
-        Loading...
+        Загрузка...
       </div>
     );
   }
@@ -406,9 +562,9 @@ export function TeacherDashboard() {
               </h1>
               {stats && (
                   <div style={{ fontSize: 11, color: "#6b7280", textAlign: "right" }}>
-                    <div>{(stats as any).total_disciplines ?? (stats as any).total_reports ?? 0} disc</div>
-                    <div>{(stats as any).total_competencies ?? Object.keys((stats as any).by_profession || {}).length} comp</div>
-                    <div>{((stats as any).total_skills ?? 0).toLocaleString()} skills</div>
+                    <div>{(() => { const n = (stats as any).total_disciplines ?? (stats as any).total_reports ?? 0; return `${n} ${plural(n, "дисциплина", "дисциплины", "дисциплин")}`; })()}</div>
+                    <div>{(() => { const n = (stats as any).total_competencies ?? Object.keys((stats as any).by_profession || {}).length; return `${n} ${plural(n, "компетенция", "компетенции", "компетенций")}`; })()}</div>
+                    <div>{(() => { const n = (stats as any).total_skills ?? 0; return `${n.toLocaleString()} ${plural(n, "навык", "навыка", "навыков")}`; })()}</div>
                   </div>
                 )}
           </div>
@@ -664,6 +820,7 @@ export function TeacherDashboard() {
 
           <input
             placeholder="Поиск дисциплин..."
+            aria-label="Поиск дисциплины"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
@@ -681,22 +838,55 @@ export function TeacherDashboard() {
           />
         </div>
         <div style={{ flex: 1, overflow: "auto" }}>
+          <div style={{ padding: "6px 16px", fontSize: 11, color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
+            В учёте: {disciplines.filter((x) => x.in_scope ?? true).length} из {disciplines.length}
+            {scopeMsg && (<div style={{ color: "#92400e", marginTop: 2 }}>{scopeMsg}</div>)}
+            <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
+              <button onClick={() => saveScopeBulk(true)} disabled={scopeSaving !== null}
+                style={{ fontSize: 11, padding: "3px 10px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer" }}>
+                Выбрать все
+              </button>
+              <button onClick={() => saveScopeBulk(false)} disabled={scopeSaving !== null}
+                style={{ fontSize: 11, padding: "3px 10px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer" }}>
+                Снять все
+              </button>
+              {metaStale && (<span style={{ fontSize: 11, color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "2px 7px" }}>данные устарели — обновите анализ</span>)}
+            </div>
+          </div>
           {filtered.map((d) => {
             const discAnalysis = analysis?.disciplines.find((a) => a.name === d.name);
             return (
               <div
                 key={d.name}
                 onClick={() => loadDiscipline(d.name)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter") loadDiscipline(d.name); }}
                 style={{
-                  padding: "10px 16px",
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "flex-start",
+                  padding: "10px 12px 10px 8px",
                   cursor: "pointer",
                   borderBottom: "1px solid #e5e7eb",
                   background:
                     selected?.name === d.name ? "#eef2ff" : "transparent",
+                  opacity: (d.in_scope ?? true) ? 1 : 0.55,
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#7c3aed" }}>
+                <input
+                  type="checkbox"
+                  checked={d.in_scope ?? true}
+                  aria-label="Учитывать в анализе"
+                  disabled={scopeSaving === d.name}
+                  title={(d.scope_source === "methodology" ? "Исключена методологией (можно вернуть). " : "") + "Учитывать в анализе"}
+                  onChange={(e) => saveScope(d.name, e.target.checked)}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ width: 15, height: 15, accentColor: "#7c3aed", cursor: "pointer", flexShrink: 0, marginTop: 2 }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#7c3aed", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                     {d.name}
                   </div>
                   {discAnalysis && (
@@ -710,11 +900,18 @@ export function TeacherDashboard() {
                   )}
                 </div>
                 <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                    {d.scope_source === "methodology" && (
+                      <span style={{ marginRight: 6, fontSize: 10, color: "#9333ea", background: "#f3e8ff", borderRadius: 4, padding: "1px 5px" }}>методология</span>
+                    )}
+                    {d.scope_source === "custom" && (
+                      <span style={{ marginRight: 6, fontSize: 10, color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "1px 5px" }}>вручную</span>
+                    )}
                   {d.course != null && `${d.course} курс · `}
                   {d.competencies_count} {plural(d.competencies_count, "комп.", "комп.", "комп.")} · {d.skills_count} {plural(d.skills_count, "навык", "навыка", "навыков")}
                   {d.abilities_count != null && ` · ${d.abilities_count} ${plural(d.abilities_count, "умение", "умения", "умений")}`}
                   {d.knowledge_count != null && ` · ${d.knowledge_count} ${plural(d.knowledge_count, "знание", "знания", "знаний")}`}
                   {discAnalysis && ` / ${discAnalysis.gaps} ${plural(discAnalysis.gaps, "пробел", "пробела", "пробелов")}`}
+                </div>
                 </div>
               </div>
             );
@@ -744,7 +941,7 @@ export function TeacherDashboard() {
               color: analysisMode === "coverage" ? "#fff" : "#7c3aed",
             }}
           >
-            Coverage
+            Покрытие
           </button>
           <button
             onClick={() => setAnalysisMode("trends")}
@@ -759,7 +956,7 @@ export function TeacherDashboard() {
               color: analysisMode === "trends" ? "#fff" : "#7c3aed",
             }}
           >
-            Competency Trends
+            Тренды компетенций
           </button>
         </div>
 
@@ -815,7 +1012,7 @@ export function TeacherDashboard() {
                     Рекомендации
                   </div>
                   {(analysis.recommendations || []).map((r, i) => (
-                    <div key={i} style={{ padding: "8px 10px", marginBottom: 6, background: "#f9fafb", borderRadius: 6, borderLeft: `3px solid ${r.priority === "high" ? "#dc2626" : r.priority === "medium" ? "#d97706" : "#2563eb"}`, fontSize: 12 }}>
+                    <div key={i} style={{ padding: "8px 10px", marginBottom: 6, borderRadius: 6, fontSize: 12, background: r.priority === "high" ? "#fef2f2" : r.priority === "medium" ? "#fffbeb" : "#eff6ff", border: `1px solid ${r.priority === "high" ? "#fecaca" : r.priority === "medium" ? "#fde68a" : "#bfdbfe"}` }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
                         <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: r.priority === "high" ? "#fee2e2" : r.priority === "medium" ? "#fef3c7" : "#dbeafe", color: r.priority === "high" ? "#dc2626" : r.priority === "medium" ? "#92400e" : "#1d4ed8", fontWeight: 600 }}>{r.priority === "high" ? "высокий" : r.priority === "medium" ? "средний" : "низкий"}</span>
                         <span style={{ fontSize: 11, color: "#6b7280" }}>{r.type}</span>
@@ -841,7 +1038,7 @@ export function TeacherDashboard() {
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                   {((analysis.top_emerging_across_all || []) as any[]).map((s: any, i: number) => (
                     <span key={i} style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: "#e0e7ff", color: "#4338ca", margin: 2 }}>
-                      {s.skill} <span style={{ opacity: 0.5 }}>×{s.frequency}</span>
+                      {s.skill}
                     </span>
                   ))}
                 </div>
@@ -874,21 +1071,60 @@ export function TeacherDashboard() {
 
               <div style={card}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Разбивка по дисциплинам</div>
-                {analysis.disciplines.map((d, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #e5e7eb", fontSize: 12, cursor: "pointer" }}
-                    onClick={() => { const found = disciplines.find((dd) => dd.name === d.name); if (found) loadDiscipline(found.name); }}
-                  >
-                    <span style={{ color: "#374151", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
-                    <div style={{ display: "flex", gap: 12 }}>
-                      <span style={{ color: covColor(d.coverage_ratio), fontWeight: 600 }}>{(d.coverage_ratio * 100).toFixed(1)}%</span>
-                      {d.weighted_coverage != null && (
-                        <span style={{ color: covColor(d.weighted_coverage), fontSize: 11 }} title="Quality-weighted coverage">Q:{(d.weighted_coverage * 100).toFixed(0)}%</span>
-                      )}
-                      <span style={{ color: "#dc2626" }}>{d.gaps}g</span>
-                      <span style={{ color: "#2563eb" }}>{d.emerging}e</span>
+                {(() => {
+                  const aMap = new Map(analysis.disciplines.map((x) => [x.name, x]));
+                  const rows = disciplines.map((k) => ({
+                    name: k.name,
+                    a: aMap.get(k.name),
+                    inScope: k.in_scope ?? true,
+                    src: k.scope_source ?? "default",
+                  }));
+                  const inN = rows.filter((r) => r.inScope).length;
+                  return (<>
+                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>
+                      В учёте: {inN} из {rows.length}
+                      {scopeMsg && (<span style={{ marginLeft: 8, color: "#92400e" }}>{scopeMsg}</span>)}
                     </div>
-                  </div>
-                ))}
+                    {rows.map((r, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid #e5e7eb", fontSize: 12, opacity: r.inScope ? 1 : 0.55 }}>
+                      <input
+                        type="checkbox"
+                        checked={r.inScope}
+                          aria-label="Учитывать в анализе"
+                        disabled={scopeSaving === r.name}
+                        title={r.src === "methodology" ? "Исключена методологией (можно вернуть)" : "Учитывать в анализе"}
+                        onChange={(e) => saveScope(r.name, e.target.checked)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: 15, height: 15, accentColor: "#7c3aed", cursor: "pointer", flexShrink: 0 }}
+                      />
+                      <span
+                        style={{ color: "#374151", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: r.a ? "pointer" : "default", flex: 1 }}
+                        onClick={() => { if (r.a) { const found = disciplines.find((dd) => dd.name === r.name); if (found) loadDiscipline(found.name); } }}
+                      >
+                        {r.name}
+                        {r.src === "methodology" && (
+                          <span style={{ marginLeft: 6, fontSize: 10, color: "#9333ea", background: "#f3e8ff", borderRadius: 4, padding: "1px 5px" }}>методология</span>
+                        )}
+                        {r.src === "custom" && (
+                          <span style={{ marginLeft: 6, fontSize: 10, color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "1px 5px" }}>вручную</span>
+                        )}
+                      </span>
+                      {r.a ? (
+                        <div style={{ display: "flex", gap: 12 }}>
+                          <span style={{ color: covColor(r.a.coverage_ratio), fontWeight: 600 }}>{(r.a.coverage_ratio * 100).toFixed(1)}%</span>
+                          {r.a.weighted_coverage != null && (
+                            <span style={{ color: covColor(r.a.weighted_coverage), fontSize: 11 }} title="Взвешенное покрытие (качество)">Кач.:{(r.a.weighted_coverage * 100).toFixed(0)}%</span>
+                          )}
+                          <span style={{ color: "#dc2626" }} title="Пробелов">{r.a.gaps} пр.</span>
+                          <span style={{ color: "#2563eb" }} title="Новые навыки рынка">{r.a.emerging} нов.</span>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 11, color: "#9ca3af" }}>вне учёта</span>
+                      )}
+                    </div>
+                    ))}
+                  </>);
+                })()}
               </div>
               </>)}
             </>)}
@@ -910,6 +1146,44 @@ export function TeacherDashboard() {
             {/* Analysis panel for this discipline */}
             <AnalysisPanel disciplineName={selected.name} dirCode={selectedDir} />
 
+            <div className="mb-3">
+              {!compForm ? (
+                <button onClick={() => { setCompForm(true); setCompErr({}); }}
+                  className="text-xs text-white bg-emerald-600 hover:bg-emerald-700 transition-colors px-3 py-1.5 rounded-lg cursor-pointer border-0">
+                  + Компетенция
+                </button>
+              ) : (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div>
+                      <input value={compCode} onChange={(e) => setCompCode(e.target.value)}
+                        placeholder="Код: ПК-2.1"
+                        aria-label="Код компетенции"
+                        className={`h-9 w-full px-2 rounded border bg-white text-xs ${compErr.code ? "border-red-400" : "border-gray-300"}`} />
+                      {compErr.code && <div className="text-[11px] text-red-600 mt-1">{compErr.code}</div>}
+                    </div>
+                    <div>
+                      <input value={compName} onChange={(e) => setCompName(e.target.value)}
+                        placeholder="Название (необязательно)"
+                        aria-label="Название компетенции"
+                        className={`h-9 w-full px-2 rounded border bg-white text-xs ${compErr.name ? "border-red-400" : "border-gray-300"}`} />
+                      {compErr.name && <div className="text-[11px] text-red-600 mt-1">{compErr.name}</div>}
+                    </div>
+                  </div>
+                  {compErr.msg && <div className="text-xs text-red-600">{compErr.msg}</div>}
+                  <div className="flex items-center gap-2">
+                    <button onClick={saveCompetency} disabled={compSaving}
+                      className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer border-0 disabled:opacity-50">
+                      {compSaving ? "..." : "Создать"}
+                    </button>
+                    <button onClick={() => setCompForm(false)}
+                      className="text-xs text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
+                  </div>
+                  <div className="text-[11px] text-gray-400">ЗУН и инструменты дописываются после создания: +ЗУН у компетенции, инструменты — через Администрирование → Навыки.</div>
+                </div>
+              )}
+            </div>
+
             {selected.competencies.map((comp) => {
               const ksa = comp.ksa;
               const hasGroups = !!ksa && (
@@ -929,25 +1203,90 @@ export function TeacherDashboard() {
                 className="mb-2 border border-gray-200 rounded-lg overflow-hidden"
               >
                 <div className="px-4 py-2.5 bg-gray-50 flex items-center gap-2">
-                  <span className="font-semibold text-sm text-purple-600">
+                  <span className="font-semibold text-sm text-violet-600">
                     {comp.code}
                   </span>
+                  <button
+                    onClick={() => { setZunForm({ compId: comp.id, ksaType: "skills", text: "" }); setZunMsg(""); }}
+                    className="ml-auto text-xs text-violet-600 hover:text-violet-800 border-0 bg-transparent cursor-pointer"
+                    title="Добавить пункт (знание / умение / навык) в эту компетенцию"
+                  >
+                    + ЗУН
+                  </button>
                   <span className="text-xs text-gray-400">
                     {total} {plural(total, "навык", "навыка", "навыков")}
                   </span>
                 </div>
                 <div className="px-4 py-2">
+                {zunForm && zunForm.compId === comp.id && (
+                  <div className="mb-2 rounded-lg border border-violet-200 bg-violet-50 p-2">
+                    <div className="flex gap-2 mb-2">
+                      <select
+                        value={zunForm.ksaType}
+                        onChange={(e) => setZunForm({ ...zunForm, ksaType: e.target.value })}
+                        className="text-xs border border-gray-300 rounded-md px-2 py-1 bg-white"
+                      >
+                        <option value="knowledge">Знания</option>
+                        <option value="abilities">Умения</option>
+                        <option value="skills">Навыки</option>
+                      </select>
+                      <button
+                        onClick={() => setZunForm(null)}
+                        className="text-xs text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer"
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                    <textarea
+                      value={zunForm.text}
+                      onChange={(e) => setZunForm({ ...zunForm, text: e.target.value })}
+                      rows={3}
+                      maxLength={2000}
+                      placeholder="Текст пункта: знание, умение или навык…"
+                      className="w-full text-xs border border-gray-300 rounded-md px-2 py-1 mb-2"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={addZunEntry}
+                        disabled={zunSaving || !zunForm.text.trim()}
+                        className="text-xs bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 transition-colors cursor-pointer border-0 disabled:opacity-50"
+                      >
+                        {zunSaving ? "Сохранение…" : "Добавить"}
+                      </button>
+                      {zunMsg && <span className="text-xs text-gray-600">{zunMsg}</span>}
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-1">Пункт попадёт в анализ при следующем пересчёте.</div>
+                  </div>
+                )}
                   {total === 0 ? (
                     <div className="text-xs text-gray-400">Навыки не извлечены</div>
                   ) : hasGroups ? (
                     groups.map((g) => g.items.length > 0 && (
                       <div key={g.title} className="mb-2 last:mb-0">
-                        <div className="text-[11px] font-semibold text-purple-500 uppercase tracking-wide mt-1.5 mb-1">
+                        <div className="text-[11px] font-semibold text-violet-500 uppercase tracking-wide mt-1.5 mb-1">
                           {g.title} ({g.items.length})
                         </div>
-                        {g.items.map((sk, i) => (
-                          <div key={i} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 last:border-0">
-                            {sk}
+                        {g.items.map((sk) => (
+                          <div key={sk.id} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 last:border-0">
+                            {ksaEditing && ksaEditing.id === sk.id ? (
+                              <div className="flex gap-2 items-start">
+                                <textarea
+                                  value={ksaEditing.text}
+                                  onChange={(e) => setKsaEditing({ ...ksaEditing, text: e.target.value })}
+                                  rows={2}
+                                  maxLength={2000}
+                                  className="flex-1 text-xs border border-gray-300 rounded-md px-2 py-1"
+                                />
+                                <button onClick={saveKsaEdit} disabled={zunSaving} className="text-xs bg-violet-600 text-white px-2 py-1 rounded-md hover:bg-violet-700 cursor-pointer border-0 disabled:opacity-50">OK</button>
+                                <button onClick={() => setKsaEditing(null)} className="text-xs text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
+                              </div>
+                            ) : (
+                              <div className="flex gap-1 items-start group">
+                                <span className="flex-1">{sk.text}</span>
+                                <button onClick={() => { setKsaEditing({ id: sk.id, text: sk.text }); setZunMsg(""); }} title="Редактировать" className="text-gray-300 hover:text-violet-600 border-0 bg-transparent cursor-pointer text-xs">Изменить</button>
+                                <button onClick={() => delKsa(sk.id)} title="Удалить" className="text-gray-300 hover:text-red-600 border-0 bg-transparent cursor-pointer text-xs">Удалить</button>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -966,16 +1305,25 @@ export function TeacherDashboard() {
 
             <div className="mt-6">
               <div className="flex items-center gap-3 mb-3">
-                <div className="flex items-center justify-center w-8 h-8 bg-purple-600 rounded-lg">
+                <div className="flex items-center justify-center w-8 h-8 bg-violet-600 rounded-lg">
                   <span className="text-white text-sm font-bold">!</span>
                 </div>
-                <h3 className="text-sm font-semibold text-gray-900">Recommendations</h3>
+                <h3 className="text-sm font-semibold text-gray-900">Рекомендации</h3>
                 <span className="text-xs text-gray-400">({recs.filter((r) => r.discipline_id === selected?.name).length})</span>
+                {seedMsg && <span className="text-xs text-gray-500">{seedMsg}</span>}
                 <button
                   onClick={() => setShowAddForm(!showAddForm)}
-                  className="ml-auto text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors cursor-pointer border-0"
+                  className="ml-auto text-xs bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 transition-colors cursor-pointer border-0"
                 >
-                  {showAddForm ? "Cancel" : "Add Recommendation"}
+                  {showAddForm ? "Отмена" : "Добавить рекомендацию"}
+                </button>
+                <button
+                  onClick={seedAutoRecs}
+                  disabled={seedLoading}
+                  title="Заполнить панель топ-рекомендациями из автоанализа (ручные сохранятся)"
+                  className="text-xs bg-white text-violet-700 border border-purple-300 px-3 py-1.5 rounded-lg hover:bg-violet-50 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {seedLoading ? "Заполнение…" : "Заполнить из анализа"}
                 </button>
               </div>
               {showAddForm && (
@@ -1012,7 +1360,7 @@ export function TeacherDashboard() {
                     </select>
                     <button
                       onClick={() => { addRec(); setShowAddForm(false); setSelectedCompetency(""); }}
-                      className="h-9 px-4 text-sm bg-purple-600 text-white border-0 rounded-lg cursor-pointer hover:bg-purple-700 transition-colors"
+                      className="h-9 px-4 text-sm bg-violet-600 text-white border-0 rounded-lg cursor-pointer hover:bg-violet-700 transition-colors"
                     >
                       Send
                     </button>
@@ -1029,9 +1377,9 @@ export function TeacherDashboard() {
                   .map((r, i) => (
                     <div
                       key={i}
-                      className="border border-gray-100 rounded-lg p-3 mb-2 text-sm"
+                      className="rounded-lg p-3 mb-2 text-sm"
                       style={{
-                        borderLeft: "3px solid #7c3aed",
+                        border: "1px solid #ddd6fe", background: "#faf9ff",
                       }}
                     >
                       <div className="text-gray-400 mb-1 text-xs">
@@ -1039,10 +1387,10 @@ export function TeacherDashboard() {
                       </div>
                       <div className="text-gray-900">{r.suggestion}</div>
                       <button
-                        onClick={() => deleteRec(r.id)}
+                        onClick={() => { if (window.confirm("Удалить рекомендацию безвозвратно?")) deleteRec(r.id); }}
                         className="mt-2 text-xs text-red-500 border border-red-500 rounded px-2 py-0.5 hover:bg-red-50 transition-colors bg-transparent cursor-pointer"
                       >
-                        Delete
+                        Удалить
                       </button>
                     </div>
                   ))

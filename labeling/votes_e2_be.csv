@@ -1,0 +1,126 @@
+id;role;skill;vote
+125;Backend-разработчик;data science python;0
+126;Backend-разработчик;flink;1
+127;Backend-разработчик;t-sne;0
+128;Backend-разработчик;feature importance;0
+129;Backend-разработчик;streamlit;0
+130;Backend-разработчик;контейнеризация python;1
+131;Backend-разработчик;kibana;1
+132;Backend-разработчик;grafana;1
+133;Backend-разработчик;cmake;0
+134;Backend-разработчик;apache;1
+135;Backend-разработчик;angular;0
+136;Backend-разработчик;figma;0
+137;Backend-разработчик;webgl;0
+138;Backend-разработчик;storybook;0
+139;Backend-разработчик;framer motion;0
+140;Backend-разработчик;эффективные промпты;0
+141;Backend-разработчик;llm-as-a-judge;0
+142;Backend-разработчик;визуально-языковые модели;0
+143;Backend-разработчик;agents;1
+144;Backend-разработчик;question answering;0
+145;Backend-разработчик;рефлексивная практика;1
+146;Backend-разработчик;работа в команде;1
+147;Backend-разработчик;коллаборация;1
+148;Backend-разработчик;кросс-функциональное взаимодействие;1
+149;Backend-разработчик;метарефлексия;0
+150;Backend-разработчик;ms sql server;1
+151;Backend-разработчик;timescaledb;1
+152;Backend-разработчик;amazon redshift;1
+153;Backend-разработчик;big data;1
+154;Backend-разработчик;presto;1
+155;Backend-разработчик;c;1
+156;Backend-разработчик;информационная безопасность;1
+157;Backend-разработчик;программные средства;1
+158;Backend-разработчик;программная документация;1
+159;Backend-разработчик;оценка трудоемкости;1
+160;Backend-разработчик;справедливый алгоритм;0
+161;Backend-разработчик;ai safety;0
+162;Backend-разработчик;валидация модели;0
+163;Backend-разработчик;explainable ai;0
+164;Backend-разработчик;trustworthy ai;0
+165;Backend-разработчик;esp32;0
+166;Backend-разработчик;c++ embedded;0
+167;Backend-разработчик;c++;1
+168;Backend-разработчик;разработка драйверов;0
+169;Backend-разработчик;rust;1
+170;Backend-разработчик;qgis;0
+171;Backend-разработчик;postgis;0
+172;Backend-разработчик;arcgis;0
+173;Backend-разработчик;гис;0
+174;Backend-разработчик;дзз;0
+175;Backend-разработчик;ms project;0
+176;Backend-разработчик;1c бухгалтерия;0
+177;Backend-разработчик;sap (модули);0
+178;Backend-разработчик;uml;1
+179;Backend-разработчик;администрирование 1с;0
+180;Backend-разработчик;теорема байеса;0
+181;Backend-разработчик;непараметрические тесты;0
+182;Backend-разработчик;bayesian regression;0
+183;Backend-разработчик;условная вероятность;0
+184;Backend-разработчик;сетевой анализ;0
+185;Backend-разработчик;спецификации (openapi);2
+186;Backend-разработчик;микросервисы python;2
+187;Backend-разработчик;проектирование restful api;2
+188;Backend-разработчик;domain-driven design;2
+189;Backend-разработчик;микросервисная архитектура;2
+190;Backend-разработчик;разработка мобильных приложений;0
+191;Backend-разработчик;ios;0
+192;Backend-разработчик;swiftui;0
+193;Backend-разработчик;core data;0
+194;Backend-разработчик;objective-c;0
+195;Backend-разработчик;azure;1
+196;Backend-разработчик;firebase;1
+197;Backend-разработчик;supabase;1
+198;Backend-разработчик;netlify;0
+199;Backend-разработчик;gnn;0
+200;Backend-разработчик;мультиагентные системы;0
+201;Backend-разработчик;adversarial training;0
+202;Backend-разработчик;model selection;0
+203;Backend-разработчик;graph neural networks;0
+204;Backend-разработчик;разработка игр;0
+205;Backend-разработчик;opengl;0
+206;Backend-разработчик;unreal engine;0
+207;Backend-разработчик;unity;0
+208;Backend-разработчик;appium;0
+209;Backend-разработчик;юзабилити-тестирование;0
+210;Backend-разработчик;тестирование безопасности;1
+211;Backend-разработчик;jest;0
+212;Backend-разработчик;mocha;0
+213;Backend-разработчик;определение метрик успеха;1
+214;Backend-разработчик;управление знаниями;1
+215;Backend-разработчик;проектирование ии-решений;0
+216;Backend-разработчик;jira;1
+217;Backend-разработчик;управление ит-проектами;1
+218;Backend-разработчик;orm (prisma, sequelize);2
+219;Backend-разработчик;xgboost;0
+220;Backend-разработчик;windows forms;0
+221;Backend-разработчик;flux;1
+222;Backend-разработчик;lightgbm;0
+223;Backend-разработчик;swift;0
+224;Backend-разработчик;современный c++;1
+225;Backend-разработчик;системное программирование;1
+226;Backend-разработчик;c++ разработка;1
+227;Backend-разработчик;язык запросов graphql;2
+228;Backend-разработчик;неструктурированные данные;1
+229;Backend-разработчик;стохастическая оптимизация;0
+230;Backend-разработчик;identity server;2
+231;Backend-разработчик;gan;0
+232;Backend-разработчик;риск-менеджмент;0
+233;Backend-разработчик;парсинг данных;1
+234;Backend-разработчик;графическое представление данных;0
+235;Backend-разработчик;управление рисками ии;0
+236;Backend-разработчик;teamcity;1
+237;Backend-разработчик;openapi;2
+238;Backend-разработчик;постановка задач разработчикам;1
+239;Backend-разработчик;когнитивные искажения;0
+240;Backend-разработчик;adversarial defense;0
+241;Backend-разработчик;eslint;0
+242;Backend-разработчик;material-ui;0
+243;Backend-разработчик;blazor;1
+244;Backend-разработчик;вариационный вывод;0
+245;Backend-разработчик;кластеры данных;0
+246;Backend-разработчик;jpa;2
+247;Backend-разработчик;коллективный интеллект;0
+248;Backend-разработчик;дискриминация данных;0
+499;Backend-разработчик;1c erp;0

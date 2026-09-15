@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -36,7 +37,72 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 7
+CODE_VERSION = 44  # verb-strip + lemma-fuzzy (flag-gated)
+
+# Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
+# IT-coverage picture. Data stays in DB (nothing deleted); they are only
+# excluded from teacher-analysis averages and per-discipline outputs.
+SCOPE_EXCLUDED: frozenset = frozenset({
+    "Дисциплины по ФКиС",
+    "Физическая культура и спорт",
+    "Эмоциональный интеллект и критическое мышление инженера",
+    "Экономико-правовое обеспечение инженерной деятельности_очная",
+    "Стрессоустойчивость и личная эффективность",
+    "История России",
+    "Философия",
+    "Воображение, изображение, реальность",
+})
+# English: keep only C1 (highest requirement) + business English.
+# Russian is kept (not an English variant; flagged as next-cut candidate).
+SCOPE_ENGLISH_KEEP_LEVEL = "уровень с1"
+
+
+def discipline_in_scope(name: str) -> bool:
+    # Pure scope predicate (unit-tested).
+    if not name:
+        return False
+    if name in SCOPE_EXCLUDED:
+        return False
+    nl = name.lower()
+    if "иностранный язык" in nl and "делов" not in nl and "русский" not in nl:
+        return SCOPE_ENGLISH_KEEP_LEVEL in nl
+    return True
+
+
+def _git_sha_short() -> str:
+    """Short HEAD sha for report lineage; never raises."""
+    try:
+        import subprocess
+        repo = Path(__file__).resolve().parent.parent.parent
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=repo,
+                             capture_output=True, text=True, timeout=10)
+        return (out.stdout or "").strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _assemble_disciplines(drows) -> dict[str, dict]:
+    """Group DB rows into disciplines, preserving row order (v26: total ORDER BY)."""
+    disciplines: dict[str, dict] = {}
+    for r in drows:
+        dn = r["disc_name"]
+        if dn not in disciplines:
+            disciplines[dn] = {"id": str(r["disc_id"]), "competencies": {}}
+        cc = r["comp_code"]
+        if cc not in disciplines[dn]["competencies"]:
+            disciplines[dn]["competencies"][cc] = {}
+        if r["skill_name"]:
+            disciplines[dn]["competencies"][cc][r["skill_name"]] = None
+        if r["ksa_text"]:
+            _kt = _strip_rpd_tail(_strip_bullet(r["ksa_text"]))
+            if _kt and _is_skill_like_ksa(_kt):
+                disciplines[dn]["competencies"][cc][_kt] = None
+                if r.get("ksa_type"):
+                    disciplines[dn].setdefault("ksa_types", {})[_kt] = r["ksa_type"]
+    for dn in disciplines:
+        for cc in disciplines[dn]["competencies"]:
+            disciplines[dn]["competencies"][cc] = list(disciplines[dn]["competencies"][cc].keys())
+    return disciplines
 
 
 def _safe_filename(name: str) -> str:
@@ -58,6 +124,38 @@ _KSA_JUNK_MARKERS = (
 )
 
 
+_BULLET_LEAD = ("-", "\u2013", "\u2014", "*", "\u2022")
+
+
+def _strip_bullet(text: str) -> str:
+    """Drop RPD list-bullet prefix ('- ...'); content stays for honest matching (v37)."""
+    t = (text or "").strip()
+    for b in _BULLET_LEAD:
+        if t.startswith(b + " ") or t.startswith(b + "\u00a0"):
+            return t[len(b):].strip()
+    return t
+
+
+_DIRCODE_TOK = re.compile(r"\b\d{2}\.\d{2}\.\d{2}\b")
+_WS = re.compile(r"\s+")
+
+
+def _strip_rpd_tail(text: str) -> str:
+    """Drop RPD metadata tails (v38, pollution audit 13.09.2026, 18 texts):
+    'Код направления подготовки, специальности ...' template tails and
+    direction codes ('09.03.02'). Content skills stay ('администрирование
+    СУБД PostgreSQL 09.03.02' -> 'администрирование СУБД PostgreSQL').
+    """
+    t = (text or "").strip()
+    low = t.lower()
+    cut = low.find("код направления")
+    if cut > 0:
+        t = t[:cut].strip()
+    t = _DIRCODE_TOK.sub("", t)
+    t = _WS.sub(" ", t).strip(" .,;:-\u2014")
+    return t
+
+
 def _is_skill_like_ksa(text: str) -> bool:
     """True если KSA-фрагмент похож на навык, а не методический обрывок.
 
@@ -66,12 +164,15 @@ def _is_skill_like_ksa(text: str) -> bool:
     """
     if not text:
         return False
-    t = text.strip().lower()
+    t = _strip_bullet(text).lower()
     if len(t) < 3 or len(t) > 200:
         return False
     if len(t) <= 60 and t[-1] in ". ,;:-\u2014":
         return False
     if any(m in t for m in _KSA_JUNK_MARKERS):
+        return False
+    # Leading conditionals are parser shreds, not skills (v37, BJD audit).
+    if t.startswith(("при наличии", "в случае", "при условии", "если ", "при отсутствии")):
         return False
     # Обрывки слов/символы, не похожие на навык
     if len(t) <= 60 and len(t.split()) == 1 and any(ch.isdigit() for ch in t):
@@ -94,6 +195,7 @@ def _enhance_disciplines_with_gap_analysis(
     logger.info("gap_enhance_start", disciplines=len(disciplines), market_skills=len(market_skill_names))
     if not market_skill_names:
         logger.warning("gap_enhance_skipped_no_market_skills")
+        print("TEACHER-ANALYSIS STAGE-SKIP: gap_enhance (no market skills)", file=sys.stderr, flush=True)
         return dir_summary
 
     # — 1. Build EmbeddingComparator with market skills —
@@ -107,6 +209,7 @@ def _enhance_disciplines_with_gap_analysis(
         logger.info("market_embedding_index_built", skills=len(market_skill_names))
     except Exception as exc:
         logger.warning("gap_enhance_skip_embedding", error=str(exc))
+        print(f"TEACHER-ANALYSIS STAGE-SKIP: gap_enhance build failed: {exc}", file=sys.stderr, flush=True)
         return dir_summary
 
     # — 2. Load LTR model for SHAP —
@@ -133,7 +236,7 @@ def _enhance_disciplines_with_gap_analysis(
         disc_skills: list[str] = []
         for skills_list in disc_data["competencies"].values():
             disc_skills.extend(skills_list)
-        disc_skills = list(set(s.lower().strip() for s in disc_skills if s and len(s.strip()) >= 2))
+        disc_skills = sorted({s.lower().strip() for s in disc_skills if s and len(s.strip()) >= 2})
         if not disc_skills:
             continue
 
@@ -277,7 +380,7 @@ async def run_teacher_analysis(
         "SELECT MD5(COALESCE(MAX(created_at)::text, '0')) FROM vacancies "
         "WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0"
     )
-    _cache_key = "teacher_market_skills_v2"
+    _cache_key = "teacher_market_skills_v3"
     match _cache_mgr.load(_cache_key):
         case Ok(cached):
             if isinstance(cached, dict) and cached.get("hash") == _vac_hash:
@@ -293,7 +396,7 @@ async def run_teacher_analysis(
                    WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0
                      AND NULLIF(TRIM(value), '') IS NOT NULL
                    GROUP BY LOWER(TRIM(value))
-                   ORDER BY frequency DESC"""
+                   ORDER BY frequency DESC, skill ASC"""
             )
             for r in vrows:
                 market_skills[r["skill"]] = r["frequency"]
@@ -313,9 +416,55 @@ async def run_teacher_analysis(
 
         _cache_mgr.save(_cache_key, {"hash": _vac_hash, "skills": market_skills, "count": vac_count})
 
+    _dirty = [k for k in market_skills if not (k or "").strip()]
+    for k in _dirty:
+        market_skills.pop(k, None)
+    if _dirty:
+        logger.info("market_skills_sanitized", dropped=len(_dirty))
+        print(f"TEACHER-ANALYSIS SANITIZED market skills: dropped {len(_dirty)} empty keys", file=sys.stderr, flush=True)
+    # Track B (v32, flag-gated): fold version-split aliases into canonical keys.
+    from src.feature_flags import market_synonyms_enabled as _syn_on
+    if _syn_on() and market_skills:
+        from src.analyzers.skill_matcher import fold_market_synonyms as _fold_syn
+        _before = len(market_skills)
+        market_skills = _fold_syn(market_skills)
+        logger.info("market_synonyms_folded", before=_before, after=len(market_skills))
     if not market_skills:
         logger.warning("no_market_skills_found")
     logger.info("market_skills_loaded", count=len(market_skills), from_vacancies=vac_count)
+
+    # Skill co-occurrence for polysemy filter: P(ref | skill) over vacancies (v10).
+    from src.analyzers.skill_cooccurrence import SkillCooccurrence
+    _cooc: SkillCooccurrence | None = None
+    _cooc_key = "teacher_cooc_v3"
+    match _cache_mgr.load(_cooc_key):
+        case Ok(cached):
+            if isinstance(cached, dict) and cached.get("hash") == _vac_hash and cached.get("cooc"):
+                try:
+                    _cooc = SkillCooccurrence.from_cache(cached["cooc"])
+                    logger.info("cooc_loaded_from_cache", skills=len(_cooc.freq))
+                except Exception as exc:
+                    logger.warning("cooc_cache_corrupt", error=str(exc))
+    if _cooc is None:
+        try:
+            _vrows = await pool.fetch("SELECT parsed_skills FROM vacancies WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0 ORDER BY id")
+            import json as _json
+            _vocab = {s for s, _ in sorted(market_skills.items(), key=lambda x: (-x[1], x[0]))[:500]}
+            _sets = []
+            for _vr in _vrows:
+                _ps = _vr["parsed_skills"]
+                if isinstance(_ps, str):
+                    try:
+                        _ps = _json.loads(_ps)
+                    except Exception:
+                        continue
+                _sets.append(_ps)
+            _cooc = SkillCooccurrence().build(_sets, vocab=_vocab, top_n=40)
+            _cache_mgr.save(_cooc_key, {"hash": _vac_hash, "cooc": _cooc.to_cache()})
+            logger.info("cooc_built", skills=len(_cooc.freq))
+        except Exception as exc:
+            logger.warning("cooc_build_failed", error=str(exc))
+            _cooc = None
 
     # — load disciplines —
     dir_filter = ""
@@ -341,7 +490,8 @@ async def run_teacher_analysis(
                  LEFT JOIN skills s ON s.id = cs.skill_id AND s.source != 'market'
                 LEFT JOIN ksa_entries k ON k.competency_id = c.id
                 WHERE 1=1{dir_filter}{disc_filter}
-                ORDER BY d2.name, c.code, k.sort_order""",
+                ORDER BY d2.name, c.code, k.sort_order NULLS LAST,
+                         s.name NULLS LAST, k.original_text""",
             *params,
         )
     except Exception as exc:
@@ -350,22 +500,7 @@ async def run_teacher_analysis(
         await close_pool()
         return Err(AnalysisRunnerError(stage="disciplines", message=str(exc)))
 
-    disciplines: dict[str, dict] = {}
-    for r in drows:
-        dn = r["disc_name"]
-        if dn not in disciplines:
-            disciplines[dn] = {"id": str(r["disc_id"]), "competencies": {}}
-        cc = r["comp_code"]
-        if cc not in disciplines[dn]["competencies"]:
-            disciplines[dn]["competencies"][cc] = set()
-        if r["skill_name"]:
-            disciplines[dn]["competencies"][cc].add(r["skill_name"])
-        if r["ksa_text"] and _is_skill_like_ksa(r["ksa_text"]):
-            disciplines[dn]["competencies"][cc].add(r["ksa_text"])
-    # Convert sets to lists for downstream
-    for dn in disciplines:
-        for cc in disciplines[dn]["competencies"]:
-            disciplines[dn]["competencies"][cc] = list(disciplines[dn]["competencies"][cc])
+    disciplines = _assemble_disciplines(drows)
 
     if not disciplines:
         logger.error("no_disciplines_loaded", direction=direction_code)
@@ -480,6 +615,19 @@ async def run_teacher_analysis(
         pass
 
     dir_code = direction["code"]
+    # v34 scope (+v41 UI overrides): drop out-of-scope before any analysis/averaging.
+    from src.teacher_scope import effective_in_scope, load_scope_overrides
+    _scope_over = await load_scope_overrides(pool, dir_code)
+    _excluded = sorted(d for d in disciplines if not effective_in_scope(d, _scope_over))
+    if _excluded:
+        for _d in _excluded:
+            del disciplines[_d]
+        logger.info("scope_excluded", count=len(_excluded), excluded=_excluded)
+    if not disciplines:
+        logger.error("no_disciplines_in_scope", direction=dir_code)
+        await _fail_pipeline_run(run_id, f"disciplines: all excluded by scope for {dir_code}")
+        await close_pool()
+        return Err(AnalysisRunnerError(stage="disciplines", message="All disciplines excluded by scope"))
     out_dir = OUTPUT / dir_code
     os.makedirs(out_dir, exist_ok=True)
 
@@ -507,8 +655,15 @@ async def run_teacher_analysis(
                        UNION ALL SELECT k.created_at FROM ksa_entries k
                          JOIN competencies c ON k.competency_id = c.id
                          JOIN disciplines disc ON c.discipline_id = disc.id WHERE disc.direction_id = $1
+                       UNION ALL SELECT k.updated_at FROM ksa_entries k
+                         JOIN competencies c ON k.competency_id = c.id
+                         JOIN disciplines disc ON c.discipline_id = disc.id WHERE disc.direction_id = $1
+                       UNION ALL SELECT c.updated_at FROM competencies c
+                         JOIN disciplines disc ON c.discipline_id = disc.id WHERE disc.direction_id = $1
+                       UNION ALL SELECT s.updated_at FROM discipline_scope s
+                         WHERE s.direction_code = $2
                    ) t""",
-                direction["id"],
+                direction["id"], dir_code,
             )
             krm_unchanged = not krm_max or summary_mtime > krm_max.timestamp()
 
@@ -565,6 +720,7 @@ async def run_teacher_analysis(
             disc_data["id"], dname, disc_data["competencies"],
             direction_rpd_norm=direction_rpd_norm,
             discipline_skill_map=discipline_skill_map,
+            ksa_types=disc_data.get("ksa_types"),
         )
         if cov_result.is_err():
             logger.error("discipline_analysis_failed", discipline=dname, error=str(cov_result.err()))
@@ -574,15 +730,19 @@ async def run_teacher_analysis(
         # — KSA context analysis: check which market skills are mentioned in raw KSA —
         # Optimized: only check top 500 market skills (by frequency) for speed
         ksa_context: dict[str, dict] = {}  # {comp_code: {mentioned: [...], missing: [...]}}
-        top_market_skills = {s for s, _ in sorted(market_skills.items(), key=lambda x: -x[1])[:500]}
-        top_market_list = sorted(top_market_skills, key=lambda s: -market_skills.get(s, 0))
+        top_market_skills = {s for s, _ in sorted(market_skills.items(), key=lambda x: (-x[1], x[0]))[:500]}
+        top_market_list = sorted(top_market_skills, key=lambda s: (-market_skills.get(s, 0), s))
 
+        _mention_pats = {sk: re.compile(r"(?<!\w)" + re.escape(sk) + r"(?!\w)")
+                           for sk in top_market_skills}
         for comp_code, ksa_texts in disc_data.get("ksa", {}).items():
             mentioned = set()
             for text in ksa_texts:
                 tl = text.lower()
                 for sk in top_market_skills:
-                    if sk in tl:
+                    # substring ("sql" in "postgresql") is a false anchor;
+                    # whole-word only.
+                    if _mention_pats[sk].search(tl):
                         mentioned.add(sk)
             ksa_only = mentioned - set(market_skills.keys())
             # Top market skills NOT mentioned in KSA (simple list, no nested loop)
@@ -594,7 +754,7 @@ async def run_teacher_analysis(
                 "total_ksa_items": len(ksa_texts),
             }
 
-        recs_result = rec_engine.generate(coverage)
+        recs_result = rec_engine.generate(coverage, cooc=_cooc)
         recs = recs_result.unwrap_or([])
 
         # Filter recommendations by discipline relevance (batched encode)
@@ -612,7 +772,12 @@ async def run_teacher_analysis(
             mentioned_all.update(m.lower() for m in _ctx.get("mentioned_in_ksa", []))
         for r in recs:
             skill = r.skill_name or r.type
-            unrelated = scorer_ok and rel_map.get(skill, 0.0) < 0.15
+            strict_profile = (
+                _discipline_scorer is not None
+                and not _discipline_scorer.has_full_profile(dname)
+            )
+            drop_thr = 0.30 if strict_profile else 0.15
+            unrelated = scorer_ok and rel_map.get(skill, 0.0) < drop_thr
             if unrelated and r.type in ("add_new_content", "cross_reference"):
                 # Семантически чужой навык (напр. linux для БЖД) — не предлагаем вовсе.
                 logger.info("rec_dropped_unrelated", discipline=dname, skill=skill, type=r.type)
@@ -627,6 +792,14 @@ async def run_teacher_analysis(
                 r.priority = "low"
                 r.message += " (низкая релевантность дисциплине)"
             filtered.append(r)
+        # add_new приходит глобальным списком (один на все дисциплины):
+        # сортируем по релевантности ЭТОЙ дисциплине и режем до 5.
+        adds = [r for r in filtered if r.type == "add_new_content"]
+        if len(adds) > 5:
+            adds_sorted = sorted(adds, key=lambda r: (-rel_map.get(r.skill_name or "", 0.0), r.skill_name or ""))
+            keep_ids = {id(r) for r in adds_sorted[:5]}
+            filtered = [r for r in filtered
+                        if r.type != "add_new_content" or id(r) in keep_ids]
         recs = filtered
 
         # — KSA-based recommendations: skills in KSA but not on market —
@@ -654,6 +827,8 @@ async def run_teacher_analysis(
             "metrics": {
                 "total_rpd_skills": coverage.total_skills,
                 "market_matched": coverage.market_matched,
+                "strong_matched": coverage.strong_matched,
+                "strong_coverage": coverage.strong_coverage,
                 "gaps": coverage.gaps,
                 "coverage_ratio": coverage.coverage_ratio,
                 "weighted_coverage": coverage.weighted_coverage,
@@ -679,11 +854,13 @@ async def run_teacher_analysis(
             "competencies": [
                 {"code": cc.code, "total_skills": cc.total_skills,
                  "matched_skills": cc.matched_skills, "coverage": cc.coverage,
+                 "matched": list(cc.matched_names or [])[:20],
+                 "gaps": list(cc.gap_skills or [])[:20],
                  "ksa_context": ksa_context.get(cc.code, {})}
                 for cc in coverage.competencies
             ],
             "recommendations": [
-                {"type": r.type, "priority": r.priority, "message": r.message}
+                {"type": r.type, "priority": r.priority, "message": r.message, "skill": r.skill_name}
                 for r in recs
             ],
         }
@@ -731,6 +908,7 @@ async def run_teacher_analysis(
                     discipline_reports.append(res)
             except Exception as e:
                 logger.error("discipline_parallel_failed", discipline=dname, error=str(e))
+                print(f"TEACHER-ANALYSIS DISCIPLINE-FAILED (stale file kept): {dname}: {e}", file=sys.stderr, flush=True)
 
     # — enhanced gap analysis (embedding + LTR/SHAP) —
     try:
@@ -748,7 +926,10 @@ async def run_teacher_analysis(
         )
     except Exception as exc:
         logger.warning("enhanced_gap_analysis_skipped", error=str(exc))
+        print(f"TEACHER-ANALYSIS STAGE-SKIP: enhanced gap analysis: {exc}", file=sys.stderr, flush=True)
 
+    # Completion order varies across runs: sort for deterministic summary (v18).
+    discipline_reports.sort(key=lambda item: item[0])
     if not discipline_reports:
         logger.error("no_disciplines_analyzed")
         await _fail_pipeline_run(run_id, "analysis: no disciplines were successfully analyzed")
@@ -764,9 +945,15 @@ async def run_teacher_analysis(
     avg_quality = round(
         sum(r.discipline.weighted_coverage for _, r in discipline_reports) / len(discipline_reports), 4
     ) if discipline_reports else 0
+    # v25: honest average over strong (exact+fuzzy) matches only
+    avg_strong = round(
+        sum(r.discipline.strong_coverage for _, r in discipline_reports) / len(discipline_reports), 4
+    ) if discipline_reports else 0
 
-    # Direction-level emerging: skills not found in ANY discipline
-    direction_emerging_result = matcher.get_emerging(direction_rpd_norm, top_n=15)
+    # Direction-level emerging: skills not found in ANY discipline (giants capped, v42)
+    from src.analyzers.skill_matcher import EMERGING_MAX_FREQ
+    direction_emerging_result = matcher.get_emerging(
+        direction_rpd_norm, top_n=15, max_freq=EMERGING_MAX_FREQ)
     direction_emerging: list[dict] = []
     if direction_emerging_result.is_ok():
         direction_emerging = [
@@ -788,6 +975,7 @@ async def run_teacher_analysis(
         disciplines=[
             {"name": dn, "coverage_ratio": r.discipline.coverage_ratio,
              "weighted_coverage": r.discipline.weighted_coverage,
+             "strong_coverage": r.discipline.strong_coverage,
              "coverage_level": r.discipline.coverage_level,
              "gaps": r.discipline.gaps, "emerging": len(r.discipline.emerging)}
             for dn, r in discipline_reports
@@ -818,12 +1006,13 @@ async def run_teacher_analysis(
         "total_disciplines": summary.total_disciplines,
         "average_coverage": summary.average_coverage,
         "average_quality_coverage": avg_quality,
+        "average_strong_coverage": avg_strong,
         "coverage_level": "high" if avg_cov >= 0.5 else "medium" if avg_cov >= 0.2 else "low",
         "total_gaps_across_all": summary.total_gaps,
         "top_cross_discipline_gaps": summary.top_cross_discipline_gaps,
         "top_emerging_across_all": summary.top_emerging,
         "recommendations": [
-            {"type": r.type, "priority": r.priority, "message": r.message}
+            {"type": r.type, "priority": r.priority, "message": r.message, "skill": r.skill_name}
             for r in summary_recs + optimizer_recs
         ],
         "trends": {
@@ -871,6 +1060,28 @@ async def run_teacher_analysis(
         logger.error("summary_write_failed", error=str(exc))
         await _fail_pipeline_run(run_id, f"write_summary: {exc}")
         return Err(AnalysisRunnerError(stage="write_summary", message=str(exc)))
+
+    # CQRS read-model lineage (v32, additive): never breaks the summary write above.
+    try:
+        from src.feature_flags import active_flags as _active_flags
+        _meta = {
+            "report_schema": 1,
+            "direction": dir_code,
+            "code_version": CODE_VERSION,
+            "market_cache_key": _cache_key,
+            "vac_hash": _vac_hash,
+            "vac_count": vac_count,
+            "market_size": len(market_skills),
+            "scope_excluded": sorted(_excluded),
+            "scope_custom": {k: _scope_over[k] for k in sorted(_scope_over)},
+            "flags": _active_flags(),
+            "git_sha": _git_sha_short(),
+            "generated_at": datetime.now().isoformat(),
+        }
+        (out_dir / "_report_meta.json").write_text(
+            json.dumps(_meta, ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception as exc:
+        logger.warning("report_meta_write_failed", error=str(exc))
 
     # — charts —
     try:

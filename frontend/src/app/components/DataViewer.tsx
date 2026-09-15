@@ -1,5 +1,4 @@
-import { Database, ChevronDown, ChevronRight, FileJson } from "lucide-react";
-import { useState } from "react";
+import { Database } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -118,7 +117,6 @@ function ObjectViewer({
 }
 
 export function DataViewer({ data }: { data: unknown }) {
-  const [showRaw, setShowRaw] = useState(false);
 
   if (!data) return null;
 
@@ -132,30 +130,6 @@ export function DataViewer({ data }: { data: unknown }) {
         </div>
         <ValueDisplay value={data} />
       </div>
-
-      {/* Raw JSON toggle */}
-      <details className="border border-gray-200 rounded-lg">
-        <summary
-          className="px-4 py-2 text-sm font-medium text-gray-500 cursor-pointer hover:bg-gray-50 rounded-lg select-none flex items-center gap-2"
-          onClick={(e) => {
-            e.preventDefault();
-            setShowRaw(!showRaw);
-          }}
-        >
-          {showRaw ? (
-            <ChevronDown className="size-3.5" />
-          ) : (
-            <ChevronRight className="size-3.5" />
-          )}
-          <FileJson className="size-3.5" />
-          JSON
-        </summary>
-        {showRaw && (
-          <pre className="p-4 text-xs text-gray-600 overflow-auto max-h-96 whitespace-pre-wrap font-mono bg-gray-50 rounded-b-lg border-t">
-            {JSON.stringify(data, null, 2)}
-          </pre>
-        )}
-      </details>
     </div>
   );
 }

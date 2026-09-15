@@ -18,7 +18,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get(
-    "/api/clusters/summary",
+    "/clusters/summary",
     response_model=ClusterSummaryResponse,
     response_model_exclude_none=True,
 )
