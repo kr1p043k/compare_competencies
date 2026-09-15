@@ -3,7 +3,9 @@
 import asyncio
 import hashlib
 import json
+import re
 import structlog
+from pathlib import Path
 
 from src import Err, Ok, config
 from src.cache_manager import CacheManager
@@ -40,6 +42,58 @@ def _available_ram_bytes() -> int | None:
 
 
 _PROPHET_MIN_AVAILABLE_RAM = 1.5 * 1024**3
+
+
+_CUSTOM_PROFILE_RE = re.compile(r"^[a-z0-9_]{2,32}$")
+
+
+def register_custom_student_profiles(students_dir, already, map_codes):
+    """Scan data/students/*_competency.json and register customs (v45).
+
+    Custom profiles otherwise die with the process (deploy restart -> 404).
+    Returns restored names. Never raises: corrupt files are skipped w/ warning.
+    """
+    restored: list[str] = []
+    try:
+        sdir = Path(students_dir)
+        if not sdir.is_dir():
+            return restored
+        for fpath in sorted(sdir.glob("*_competency.json")):
+            stem = fpath.stem
+            name = stem[:-len("_competency")] if stem.endswith("_competency") else stem
+            name = name.strip().lower()
+            if not name or name in already or not _CUSTOM_PROFILE_RE.match(name):
+                continue
+            try:
+                data = json.loads(fpath.read_text(encoding="utf-8"))
+            except Exception as exc:
+                logger.warning("custom_profile_unreadable", profile=name, error=str(exc))
+                continue
+            if not isinstance(data, dict):
+                continue
+            codes = [str(c).strip() for c in (data.get("компетенции") or data.get("competencies") or data.get("codes") or [])
+                     if c and str(c).strip()][:200]
+            skills = [str(s).strip() for s in (data.get("навыки") or data.get("skills") or [])
+                      if s and str(s).strip()][:500]
+            if not skills and codes:
+                try:
+                    skills = list(map_codes(codes))
+                except Exception:
+                    skills = []
+            try:
+                level = ExperienceLevel(str(data.get("target_level", "middle")).strip().lower())
+            except ValueError:
+                level = ExperienceLevel.MIDDLE
+            if not codes and not skills:
+                continue
+            already[name] = StudentProfile(
+                profile_name=name, competencies=codes, skills=skills, target_level=level)
+            restored.append(name)
+            logger.info("custom_profile_restored", profile=name)
+    except Exception as exc:
+        logger.warning("custom_profiles_scan_failed", error=str(exc))
+    return restored
+
 
 
 def _notify_warmup_failure(component: str, error: str) -> None:
@@ -560,6 +614,11 @@ async def _warmup_background(basic_vacancies, raw_file):
             deps.student_profiles[pname] = StudentProfile(
                 profile_name=pname, competencies=codes, skills=skills, target_level=target,
             )
+        restored = register_custom_student_profiles(
+            Path(config.DATA_DIR) / "students", deps.student_profiles,
+            map_codes)
+        if restored:
+            logger.info("custom_profiles_restored_total", count=len(restored))
         logger.info("фоновая инициализация: студенческие профили готовы")
         await _resolve_warmup_failure("студенческие профили")
     except Exception as e:
