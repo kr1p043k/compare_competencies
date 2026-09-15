@@ -46,8 +46,11 @@ class HhDataSource(DataSourceProtocol):
         if raw_file is None:
             detailed = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
             basic = config.DATA_RAW_DIR / "hh_vacancies_basic.json"
-            return Err(DataSourceError(
-                message=f"\u274c \u0424\u0430\u0439\u043b\u044b \u0432\u0430\u043a\u0430\u043d\u0441\u0438\u0439 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u044b: {detailed} | {basic}"))
+            return Err(DataSourceError(message=(
+                "\u274c \u0424\u0430\u0439\u043b\u044b "
+                "\u0432\u0430\u043a\u0430\u043d\u0441\u0438\u0439 \u043d\u0435 "
+                f"\u043d\u0430\u0439\u0434\u0435\u043d\u044b: {detailed} | {basic}"
+                )))
         data = safe_read_json(raw_file)
         if not data:
             # v45: detailed unreadable -> fall back to basic instead of dying
@@ -60,8 +63,12 @@ class HhDataSource(DataSourceProtocol):
                 if data:
                     raw_file = basic
         if not data:
-            return Err(DataSourceError(
-                message=f"\u274c \u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043f\u0440\u043e\u0447\u0438\u0442\u0430\u0442\u044c \u0444\u0430\u0439\u043b \u0432\u0430\u043a\u0430\u043d\u0441\u0438\u0439: {raw_file}"))
+            return Err(DataSourceError(message=(
+                "\u274c \u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c "
+                "\u043f\u0440\u043e\u0447\u0438\u0442\u0430\u0442\u044c "
+                "\u0444\u0430\u0439\u043b \u0432\u0430\u043a\u0430\u043d\u0441\u0438\u0439: "
+                f"{raw_file}"
+                )))
         parser = VacancyParser()
         from src.models.vacancy import Vacancy
         vacancies = []
@@ -75,8 +82,12 @@ class HhDataSource(DataSourceProtocol):
         if skipped:
             logger.warning("cache_records_skipped_total", skipped=skipped, total=len(data))
         if not vacancies:
-            return Err(DataSourceError(
-                message="\u274c \u0412 \u0444\u0430\u0439\u043b\u0435 \u0432\u0430\u043a\u0430\u043d\u0441\u0438\u0439 \u043d\u0435\u0442 \u043f\u0440\u0438\u0433\u043e\u0434\u043d\u044b\u0445 \u0437\u0430\u043f\u0438\u0441\u0435\u0439."))
+            return Err(DataSourceError(message=(
+                "\u274c \u0412 \u0444\u0430\u0439\u043b\u0435 "
+                "\u0432\u0430\u043a\u0430\u043d\u0441\u0438\u0439 \u043d\u0435\u0442 "
+                "\u043f\u0440\u0438\u0433\u043e\u0434\u043d\u044b\u0445 "
+                "\u0437\u0430\u043f\u0438\u0441\u0435\u0439."
+                )))
         logger.info("cache_loaded", file=str(raw_file), vacancies=len(vacancies), skipped=skipped)
         return Ok((vacancies, parser))
 
