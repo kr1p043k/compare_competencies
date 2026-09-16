@@ -353,6 +353,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
                 interactive=False, max_vacancies_per_query=2000, it_sector=False,
                 use_async=True, async_workers=3, async_threshold=10000,
             )
+            gap_args.profiles_override = kwargs.get("profiles_override")
             gap_args.cancel_event = cancel_event
             main_task = asyncio.ensure_future(
                 loop.run_in_executor(None, lambda: cancel_aware(pr.run_full_pipeline, gap_args))
@@ -525,6 +526,9 @@ async def run_pipeline_action_sync(
         )
 
     elif action == PipelineAction.GAP_ANALYSIS:
+        from src.pipeline.background_collector import is_scheduler_busy
+        if is_scheduler_busy():
+            raise HTTPException(status_code=409, detail="Идёт плановый прогон планировщика — дождитесь его завершения")
         req_id = getattr(request.state, "request_id", "unknown")
         task_id = f"{action.value}_{int(time.time())}"
         started_at = time.time()
@@ -543,6 +547,9 @@ async def run_pipeline_action_sync(
         )
 
     elif action == PipelineAction.FULL_CYCLE:
+        from src.pipeline.background_collector import is_scheduler_busy
+        if is_scheduler_busy():
+            raise HTTPException(status_code=409, detail="Идёт плановый прогон планировщика — дождитесь его завершения")
         req_id = getattr(request.state, "request_id", "unknown")
         task_id = f"{action.value}_{int(time.time())}"
         started_at = time.time()

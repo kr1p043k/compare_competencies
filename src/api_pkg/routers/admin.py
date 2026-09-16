@@ -791,3 +791,53 @@ async def admin_logs_ws(websocket: WebSocket, token: str = ""):
             await tail_task
         except asyncio.CancelledError:
             pass
+
+
+# ---------- Scheduler (background collector + nightly gap, admin-only) ----------
+
+
+class SchedulerSettingsPatch(BaseModel):
+    collector_enabled: bool | None = None
+    collect_interval_hours: int | None = None
+    daily_gap_enabled: bool | None = None
+
+
+@router.get("/admin/scheduler/status", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def scheduler_status(request: Request):
+    """Состояние планировщика фоновых задач."""
+    from src.pipeline.background_collector import scheduler_status as _status
+    return _status()
+
+
+@router.put("/admin/scheduler/settings", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("10/minute")
+async def scheduler_settings_update(request: Request, body: SchedulerSettingsPatch):
+    """Тумблеры планировщика (persist в data/settings/scheduler.json)."""
+    from src.pipeline.background_collector import save_scheduler_settings, scheduler_status as _status
+    patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    save_scheduler_settings(patch)
+    logger.info("scheduler_settings_updated", patch=patch)
+    return _status()
+
+
+@router.post("/admin/scheduler/collect/now", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("5/minute")
+async def scheduler_collect_now(request: Request):
+    """Внеплановый сбор (force; 409 если планировщик занят)."""
+    from src.pipeline.background_collector import _run_collect_once, is_scheduler_busy
+    if is_scheduler_busy():
+        raise HTTPException(status_code=409, detail="Планировщик уже выполняет задачу")
+    asyncio.create_task(_run_collect_once(force=True))
+    return {"status": "started", "job": "collect"}
+
+
+@router.post("/admin/scheduler/gap/now", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("5/minute")
+async def scheduler_gap_now(request: Request):
+    """Внеплановый gap по всем профилям (409 если планировщик занят)."""
+    from src.pipeline.background_collector import _run_scheduled_gap, is_scheduler_busy
+    if is_scheduler_busy():
+        raise HTTPException(status_code=409, detail="Планировщик уже выполняет задачу")
+    asyncio.create_task(_run_scheduled_gap())
+    return {"status": "started", "job": "gap"}

@@ -257,9 +257,10 @@ async def run_startup(app):
     asyncio.create_task(_warmup_background(basic_vacancies, raw_file))
 
     # 6. фоновый сбор вакансий (инкрементально, каждые 6 часов)
-    if config.settings.BACKGROUND_COLLECTOR_ENABLED:
-        from src.pipeline.background_collector import start_background_collector
-        await start_background_collector()
+    # планировщик фоновых задач: сбор каждые N часов + ночной gap цепочкой.
+    # Сам решает по data/settings/scheduler.json (админка); env — только seed.
+    from src.pipeline.background_collector import start_background_collector
+    await start_background_collector()
 
 
 async def _warmup_background(basic_vacancies, raw_file):

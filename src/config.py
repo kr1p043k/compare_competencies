@@ -163,8 +163,12 @@ class Settings(BaseSettings):
     TQDM_DISABLE: bool = False
     PYDANTIC_VALIDATION_ENABLED: bool = True
 
-    # фоновый сбор вакансий каждые 6 часов (вызывается при старте API)
+    # фоновый сбор вакансий (legacy seed; интервал и вкл/выкл — SCHEDULER_* и админка)
     BACKGROUND_COLLECTOR_ENABLED: bool = False
+    # планировщик фоновых задач: seed для data/settings/scheduler.json;
+    # рантайм-управление (вкл/выкл, интервал) — через админку, не через env
+    SCHEDULER_COLLECT_INTERVAL_HOURS: int = 12
+    SCHEDULER_DAILY_GAP_ENABLED: bool = False
 
     # ---------- academic-api (ЮФУ: компетенции/разрывы по научным темам) ----------
     ACADEMIC_API_BASE: str = "https://academic-api.lib.sfedu.ru"

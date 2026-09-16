@@ -291,6 +291,19 @@ def clean_progress_files():
             fp.unlink()
 
 
+def _resolve_profiles(args, all_codes, competency_mapping):
+    """Student profiles for gap-analysis: explicit override (scheduler,
+    includes custom profiles) or file-based base/dc/top_dc. Never raises."""
+    try:
+        override = getattr(args, "profiles_override", None)
+        if override:
+            logger.info("profiles_override_used", count=len(override))
+            return dict(override)
+    except Exception as exc:
+        logger.warning("profiles_override_failed", error=str(exc))
+    return build_profiles(all_codes, competency_mapping)
+
+
 def run_full_pipeline(args) -> Result[None, str]:
     console_header("ПОЛНЫЙ ПАЙПЛАЙН: СБОР ВАКАНСИЙ + GAP-АНАЛИЗ + РЕКОМЕНДАЦИИ")
     logger.info("pipeline_started", mode="full_pipeline")
@@ -372,7 +385,7 @@ def run_full_pipeline(args) -> Result[None, str]:
                 _write_pipeline_progress(63, f"Загружен профиль {name}")
             else:
                 console_info(f"⚠️  Профиль {name} не загружен")
-        profiles = build_profiles(all_codes, competency_mapping)
+        profiles = _resolve_profiles(args, all_codes, competency_mapping)
         _write_pipeline_progress(68, f"Построено {len(profiles)} профилей")
 
     evaluations = None

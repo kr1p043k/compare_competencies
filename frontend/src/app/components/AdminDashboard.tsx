@@ -7,7 +7,7 @@ import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import {
   AlertCircle, RefreshCw, Users, FileText, Database,
-  Upload, Brain, BookOpen, Download,
+  Upload, Brain, BookOpen, Download, Clock,
 } from "lucide-react";
 import { apiFetch, logAction } from "../../lib/auth";
 import { TeacherDashboard } from "./TeacherDashboard";
@@ -32,6 +32,63 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState("users");
+  const [sched, setSched] = useState<any>(null);
+  const [schedLoading, setSchedLoading] = useState(false);
+  const [schedMsg, setSchedMsg] = useState("");
+  const [schedInterval, setSchedInterval] = useState("12");
+  const [schedBusy, setSchedBusy] = useState(false);
+  const loadSched = async () => {
+    setSchedLoading(true);
+    try {
+      const r = await apiFetch("/api/admin/scheduler/status");
+      const d = await r.json();
+      setSched(d);
+      if (d && d.collect_interval_hours != null) setSchedInterval(String(d.collect_interval_hours));
+    } catch (e: any) {
+      setSchedMsg(e?.message || "Ошибка загрузки");
+    } finally {
+      setSchedLoading(false);
+    }
+  };
+  const saveSched = async (patch: any) => {
+    setSchedBusy(true);
+    setSchedMsg("");
+    try {
+      const r = await apiFetch("/api/admin/scheduler/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      setSched(d);
+      if (d && d.collect_interval_hours != null) setSchedInterval(String(d.collect_interval_hours));
+      setSchedMsg("Сохранено");
+    } catch (e: any) {
+      setSchedMsg(e?.message || "Ошибка сохранения");
+    } finally {
+      setSchedBusy(false);
+    }
+  };
+  const runSchedJob = async (job: string, label: string) => {
+    if (!window.confirm(`Запустить "${label}" вне расписания?`)) return;
+    setSchedBusy(true);
+    setSchedMsg("");
+    try {
+      const r = await apiFetch(`/api/admin/scheduler/${job}/now`, { method: "POST" });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 409) throw new Error(d.detail || "Планировщик занят");
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      setSchedMsg("Запущено");
+      setTimeout(loadSched, 2000);
+    } catch (e: any) {
+      setSchedMsg(e?.message || "Ошибка запуска");
+    } finally {
+      setSchedBusy(false);
+    }
+  };
+  useEffect(() => { if (tab === "sched") loadSched(); }, [tab]);
+  const fmtTs = (ts: any) => {
+    if (ts == null) return "—";
+    const d = new Date(Number(ts) * 1000);
+    return isNaN(d.getTime()) ? "—" : d.toLocaleString("ru-RU");
+  };
   const [logFilter, setLogFilter] = useState("all");
   const [seedLoading, setSeedLoading] = useState(false);
   const [embLoading, setEmbLoading] = useState(false);
@@ -426,6 +483,7 @@ export function AdminDashboard() {
           <TabsTrigger value="db"><Database className="size-4 mr-2" />БД</TabsTrigger>
           <TabsTrigger value="import"><Upload className="size-4 mr-2" />Импорт</TabsTrigger>
           <TabsTrigger value="skills"><Brain className="size-4 mr-2" />Навыки</TabsTrigger>
+          <TabsTrigger value="sched"><Clock className="size-4 mr-2" />Фоновые задачи</TabsTrigger>
         </TabsList>
 
         {/* ── Users tab ── */}
@@ -876,6 +934,61 @@ export function AdminDashboard() {
                   </div>
                 </>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="sched" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-lg"><Clock className="size-4 inline mr-2" />Планировщик</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3 flex-wrap">
+                <Button
+                  onClick={() => saveSched({ collector_enabled: !(sched && sched.collector_enabled) })}
+                  disabled={schedBusy}
+                  variant={sched && sched.collector_enabled ? "default" : "outline"}
+                >
+                  {sched && sched.collector_enabled ? "Сбор: включён" : "Сбор: выключен"}
+                </Button>
+                <Button
+                  onClick={() => saveSched({ daily_gap_enabled: !(sched && sched.daily_gap_enabled) })}
+                  disabled={schedBusy}
+                  variant={sched && sched.daily_gap_enabled ? "default" : "outline"}
+                >
+                  {sched && sched.daily_gap_enabled ? "Ночной gap: включён" : "Ночной gap: выключен"}
+                </Button>
+                <span className="text-xs text-gray-500">gap бежит цепочкой после ночного сбора</span>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm text-gray-600">Интервал сбора, ч:</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={72}
+                  value={schedInterval}
+                  onChange={(e) => setSchedInterval(e.target.value)}
+                  className="h-9 w-24"
+                />
+                <Button variant="outline" size="sm" onClick={() => saveSched({ collect_interval_hours: Number(schedInterval) })} disabled={schedBusy}>Сохранить</Button>
+                <Button variant="outline" size="sm" onClick={loadSched} disabled={schedLoading}>Обновить статус</Button>
+              </div>
+              {sched && (
+                <div className="text-sm text-gray-600 space-y-1">
+                  <div>Последний сбор: {fmtTs(sched.last_collect_ts)} · Последний gap: {sched.last_gap_date || "—"}</div>
+                  <div>Следующий сбор: {fmtTs(sched.next_collect_ts)} · Занят: {sched.busy || "нет"} · Конвейер активен: {sched.pipeline_running ? "да" : "нет"}</div>
+                </div>
+              )}
+              {schedMsg && <span className="text-sm text-gray-600">{schedMsg}</span>}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-lg">Запуск вне расписания</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <Button onClick={() => runSchedJob("collect", "сбор вакансий")} disabled={schedBusy}>Собрать сейчас</Button>
+                <Button variant="outline" onClick={() => runSchedJob("gap", "gap-анализ")} disabled={schedBusy}>Gap сейчас</Button>
+              </div>
+              <p className="text-xs text-gray-500">Ручные запуски конвейера блокируются кодом 409, пока планировщик занят.</p>
             </CardContent>
           </Card>
         </TabsContent>
