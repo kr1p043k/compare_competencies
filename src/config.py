@@ -117,7 +117,6 @@ class Settings(BaseSettings):
     # ---------- эмбеддинги ----------
     EMBEDDING_MODEL: str = "paraphrase-multilingual-mpnet-base-v2"
     HF_TOKEN: SecretStr | None = None
-    SIMILARITY_THRESHOLD: float = 0.80
 
     # ---------- BM25 ----------
     BM25_MAX_CORPUS_DOCS: int = 200
@@ -319,7 +318,6 @@ QWEN_MAX_TOKENS = settings.QWEN_MAX_TOKENS
 
 EMBEDDING_MODEL = settings.EMBEDDING_MODEL
 HF_TOKEN = settings.HF_TOKEN
-SIMILARITY_THRESHOLD = settings.SIMILARITY_THRESHOLD
 
 BM25_MAX_CORPUS_DOCS = settings.BM25_MAX_CORPUS_DOCS
 BM25_MIN_SCORE = settings.BM25_MIN_SCORE

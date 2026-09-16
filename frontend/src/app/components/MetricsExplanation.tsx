@@ -9,9 +9,9 @@ export function MetricsExplanation() {
       icon: Target,
       color: "blue",
       description: "Средневзвешенная оценка по трём базовым метрикам",
-      explanation: "Усредняет Market Coverage, Skill Coverage и Readiness с весами 0.4/0.3/0.3. Не является независимой метрикой.",
+      explanation: "Усредняет Market Coverage, Skill Coverage и Readiness равными долями. Не является независимой метрикой.",
       trustReason: "Зависит от качества трёх нижележащих метрик. Погрешность определяется качеством данных из вакансий.",
-      formula: "Match Score = (Market Coverage × 0.4) + (Skill Coverage × 0.3) + (Readiness × 0.3)"
+      formula: "Match Score = (Market Coverage + Skill Coverage + Readiness) / 3"
     },
     {
       name: "Market Coverage Score (Покрытие рынка)",

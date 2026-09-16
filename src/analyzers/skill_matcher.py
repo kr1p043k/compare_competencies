@@ -16,7 +16,6 @@ NORMALIZE_RE = re.compile(r"[^\w\s\-/]")
 # Single-char market tokens are почти всегда мусор парсинга (напр. 'я').
 # Allowlist: языки с однобуквенным именем. Остальное режется везде (v28).
 _MARKET_SINGLE_ALLOW = frozenset({"r", "c"})
-SEMANTIC_THRESHOLD = 0.78
 # A market token with fewer vacancies is fringe: it must neither count as
 # coverage (see CoverageAnalyzer) nor shadow stronger stages (v36: e.g. the
 # fringe token 'документация'/1 hijacked 'отчетная документация' via fuzzy

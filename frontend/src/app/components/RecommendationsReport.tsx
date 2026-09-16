@@ -278,7 +278,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2">
               <Target className="size-4" />
-                <span title="Средневзвешенная оценка по трём метрикам. Match Score = (Market Coverage × 0.4) + (Skill Coverage × 0.3) + (Readiness × 0.3)">Соответствие рынку</span>
+                <span title="Средневзвешенная оценка по трём метрикам. Match Score = (Market Coverage + Skill Coverage + Readiness) / 3">Соответствие рынку</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
