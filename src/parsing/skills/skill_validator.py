@@ -154,6 +154,16 @@ class SkillValidator:
             skill = skill.strip()
             skill_lower = skill.lower()
 
+            # Явный whitelist точнее эвристик: точное совпадение бьет
+            # blacklist-подстроки ('автоматизация' в 'автоматизация тестирования')
+            # и generic-ярлыки. Структурные проверки (длина/слова/цифры) действуют.
+            skill_nospace = skill_lower.replace(" ", "").replace("-", "").replace("_", "")
+            wl_norm = {
+                w.lower().replace(" ", "").replace("-", "").replace("_", "")
+                for w in (self.whitelist or set())
+            }
+            whitelisted_exact = bool(skill_nospace) and skill_nospace in wl_norm
+
             if confidence < self.min_confidence:
                 reasons.append(ValidationReason.LOW_CONFIDENCE)
 
@@ -173,13 +183,21 @@ class SkillValidator:
             if self.SPECIAL_PATTERN.match(skill):
                 reasons.append(ValidationReason.ONLY_SPECIAL)
 
-            if skill_lower in self.generic_words:
+            if not whitelisted_exact and skill_lower in self.generic_words:
                 reasons.append(ValidationReason.GENERIC_WORD)
 
-            for bad in self.blacklist:
-                if bad in skill_lower:
-                    reasons.append(ValidationReason.IN_BLACKLIST)
-                    break
+            if not whitelisted_exact:
+                for bad in self.blacklist:
+                    bad_low = str(bad).lower()
+                    if bad_low.startswith("="):
+                        # Точное совпадение (=nat режет только "nat",
+                        # но щадит react native / hibernate)
+                        if skill_lower == bad_low[1:]:
+                            reasons.append(ValidationReason.IN_BLACKLIST)
+                            break
+                    elif bad_low in skill_lower:
+                        reasons.append(ValidationReason.IN_BLACKLIST)
+                        break
 
             if all(word in self.filler_words for word in words):
                 reasons.append(ValidationReason.IN_BLACKLIST)

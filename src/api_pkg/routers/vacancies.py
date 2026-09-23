@@ -56,6 +56,30 @@ async def _get_db_pool():
     return get_pool()
 
 
+def _clean_skill_list(items) -> list:
+    """Выкинуть пустые/пробельные навыки и дубли (артефакты парсера в stored data).
+
+    Принимает строки или dict'и {name, ...}, возвращает тот же тип со
+    стрипнутыми именами. Пустая строка иначе рисуется пустым бейджем.
+    """
+    seen: set[str] = set()
+    out: list = []
+    for s in items or []:
+        if isinstance(s, dict):
+            name = (s.get("name", "") or "").strip()
+            if not name or name.lower() in seen:
+                continue
+            seen.add(name.lower())
+            out.append({**s, "name": name} if s.get("name", "") != name else s)
+            continue
+        name = (s or "").strip() if isinstance(s, str) else ""
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        out.append(name)
+    return out
+
+
 def build_vacancy_where(search=None, experience=None, region=None, months=None):
     """Shared WHERE builder for list + export (v45). Returns (clause, params), $N from 1."""
     conditions: list[str] = []
@@ -117,7 +141,7 @@ async def get_vacancies(
         parsed = r["parsed_skills"]
         if isinstance(parsed, str):
             parsed = json.loads(parsed) if parsed else []
-        skills = (parsed[:10] if isinstance(parsed, list) else [])
+        skills = _clean_skill_list(parsed)[:10]
 
         exp = _classify_experience(r["experience"], r["name"] or "")
 
@@ -233,10 +257,10 @@ async def get_vacancy_detail(
         return list(val) if isinstance(val, list) else []
 
     parsed = _load_jsonb(row["parsed_skills"])
-    skills = parsed[:20]
+    skills = _clean_skill_list(parsed)[:20]
 
     ks = _load_jsonb(row["key_skills"])
-    key_skills = ks
+    key_skills = _clean_skill_list(ks)
 
     snippet = {}
     if row["snippet_requirement"] or row["snippet_responsibility"]:

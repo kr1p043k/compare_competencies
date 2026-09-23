@@ -50,6 +50,65 @@ def _save_json(path, data) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2, default=str)
 
 
+def _foundational_path() -> Path:
+    return Path(__file__).resolve().parent.parent.parent.parent / "data" / "manual_foundational_skills.json"
+
+
+def _norm_skill(skill: str) -> str:
+    """Каноническое имя навыка для ручных флагов: lower + trim + схлоп пробелов."""
+    return " ".join((skill or "").lower().split())
+
+
+def _load_foundational() -> list[str]:
+    try:
+        data = _load_json(_foundational_path())
+    except Exception:
+        return []
+    if isinstance(data, dict):
+        items = data.get("skills", [])
+    elif isinstance(data, list):
+        items = data
+    else:
+        return []
+    seen: list[str] = []
+    for s in items:
+        n = _norm_skill(str(s))
+        if n and n not in seen:
+            seen.append(n)
+    return seen
+
+
+def _save_foundational(skills: list[str]) -> None:
+    _save_json(_foundational_path(), {"skills": skills})
+
+
+def _apply_foundational_filter(
+    recs: list[dict], flags: list[str] | set[str]
+) -> tuple[list[dict], list[dict]]:
+    """Убрать фундаментальное из выдачи (pure, тестируется).
+
+    Скрывается: помеченное вручную (любой тип) + авто-foundational.
+    Подписей "foundational" на странице нет — всё лежит в скрытом списке.
+    Возвращает (visible, hidden); hidden-элементы — копии с флагом manual.
+    Реки без skill не трогаем.
+    """
+    flag_set = set(flags or [])
+    visible: list[dict] = []
+    hidden: list[dict] = []
+    for r in recs or []:
+        if not isinstance(r, dict):
+            visible.append(r)
+            continue
+        name = _norm_skill(r.get("skill", ""))
+        manual = bool(name) and name in flag_set
+        auto = r.get("type") == "foundational"
+        if manual or auto:
+            hidden.append({**r, "manual": manual})
+        else:
+            visible.append(r)
+    return visible, hidden
+
+
 _DIR_CODE_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$")
 
 
@@ -311,6 +370,45 @@ async def krm_delete_recommendation(request: Request, index: int):
     recs.pop(index)
     _save_json(config.TEACHER_RECOMMENDATIONS_PATH, recs)
     return {"status": "ok"}
+
+
+class FoundationalIn(BaseModel):
+    skill: str
+
+
+@router.get("/teacher/krm/foundational")
+@limiter.limit("30/minute")
+async def krm_list_foundational(request: Request):
+    """Ручные пометки 'фундаментальный навык'."""
+    return {"skills": _load_foundational()}
+
+
+@router.post("/teacher/krm/foundational", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+async def krm_add_foundational(request: Request):
+    """Пометить навык фундаментальным вручную (идемпотентно)."""
+    raw = await request.json()
+    name = _norm_skill((raw or {}).get("skill", "") if isinstance(raw, dict) else "")
+    if not name:
+        raise HTTPException(status_code=400, detail="Empty skill name")
+    skills = _load_foundational()
+    if name not in skills:
+        skills.append(name)
+        _save_foundational(skills)
+    return {"status": "ok", "skills": skills}
+
+
+@router.delete("/teacher/krm/foundational/{skill:path}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+async def krm_delete_foundational(request: Request, skill: str):
+    """Снять ручную пометку."""
+    from urllib.parse import unquote
+
+    name = _norm_skill(unquote(skill))
+    skills = _load_foundational()
+    if name not in skills:
+        raise HTTPException(404, "Skill not flagged")
+    skills = [s for s in skills if s != name]
+    _save_foundational(skills)
+    return {"status": "ok", "skills": skills}
 
 
 @router.post("/teacher/krm/recommendations/seed/auto", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
@@ -734,4 +832,19 @@ async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.0
             if discipline_name.lower() in f.stem.lower(): files.append(f)
     if not files:
         raise HTTPException(404, f"'{discipline_name}' not found")
-    return json.loads(files[0].read_text(encoding="utf-8"))
+    data = json.loads(files[0].read_text(encoding="utf-8"))
+    # Ручные пометки foundational применяются на выдаче: помеченное исчезает
+    # со страницы сразу, без рерана пайплайна.
+    try:
+        flags = _load_foundational()
+    except Exception:
+        flags = []
+    if isinstance(data, dict) and isinstance(data.get("recommendations"), list):
+        visible, hidden = _apply_foundational_filter(data["recommendations"], flags)
+        data["recommendations"] = visible
+        data["hidden_foundational"] = [
+            {"skill": (r.get("skill", "") if isinstance(r, dict) else ""),
+             "type": r.get("type", ""), "manual": bool(r.get("manual", False))}
+            for r in hidden if isinstance(r, dict)
+        ]
+    return data

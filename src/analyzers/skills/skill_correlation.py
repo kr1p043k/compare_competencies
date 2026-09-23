@@ -20,6 +20,9 @@ class SkillCorrelationAnalyzer:
     Анализирует, какие навыки часто встречаются вместе в вакансиях.
     """
 
+    MAX_SKILLS_PER_VACANCY = 80
+    MAX_MATRIX_SKILLS = 200
+
     def __init__(self):
         self._cooccurrence: dict[tuple[str, str], int] = defaultdict(int)
         self._skill_freq: dict[str, int] = defaultdict(int)
@@ -48,8 +51,10 @@ class SkillCorrelationAnalyzer:
             for skill in normalized:
                 self._skill_freq[skill] += 1
 
-            # Считаем совместную встречаемость
+            # Считаем совместную встречаемость (кап на вакансию от O(k^2))
             skill_list = sorted(normalized)
+            if len(skill_list) > self.MAX_SKILLS_PER_VACANCY:
+                skill_list = skill_list[: self.MAX_SKILLS_PER_VACANCY]
             for i in range(len(skill_list)):
                 for j in range(i + 1, len(skill_list)):
                     pair = (skill_list[i], skill_list[j])
@@ -81,6 +86,13 @@ class SkillCorrelationAnalyzer:
             skills = top_result.ok()
 
         n = len(skills)
+        if n > self.MAX_MATRIX_SKILLS:
+            return Err(
+                DomainError(
+                    f"Too many skills for correlation matrix: {n} > {self.MAX_MATRIX_SKILLS}. "
+                    "Pass top_n subset."
+                )
+            )
         matrix = np.zeros((n, n))
 
         for i in range(n):

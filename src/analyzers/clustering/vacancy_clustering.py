@@ -168,7 +168,7 @@ class VacancyClusterer:
                 continue
             kmeans = KMeans(
                 n_clusters=k,
-                random_state=config.GLOBAL_RANDOM_SEED if hasattr(config, "GLOBAL_RANDOM_SEED") else 42,
+                random_state=self.random_state,
                 n_init="auto",
                 max_iter=300,
             )
@@ -177,7 +177,7 @@ class VacancyClusterer:
                 continue
             try:
                 if n_samples > 500:
-                    rng = np.random.RandomState(42)
+                    rng = np.random.RandomState(self.random_state)
                     idx = rng.choice(n_samples, 500, replace=False)
                     score = silhouette_score(x[idx], labels[idx], metric="cosine")
                 else:
@@ -205,10 +205,13 @@ class VacancyClusterer:
         if best_score < 0.2 and self.use_hdbscan_fallback and n_samples >= self.min_cluster_size * 2:
             logger.info("trying_hdbscan_fallback", silhouette=round(best_score, 3))
             try:
-                # euclidean на L2-нормализованных векторах эквивалентен cosine
+                # euclidean на L2-нормализованных векторах эквивалентен cosine.
+                # HDBSCAN детерминирован при фиксированных данных (без random_state
+                # в API); фиксируем seed через numpy для воспроизводимости сэмплов.
                 clusterer = hdbscan.HDBSCAN(
                     min_cluster_size=self.min_cluster_size, metric="euclidean", core_dist_n_jobs=-1
                 )
+                logger.info("hdbscan_fallback_seed", random_state=self.random_state)
                 labels = clusterer.fit_predict(x)
                 n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
                 if n_clusters >= 2:

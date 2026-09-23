@@ -27,6 +27,7 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
   const [selectedProf, setSelectedProf] = useState("");
   const [profSkills, setProfSkills] = useState<{ skill: string; frequency: number }[]>([]);
   const [profLoading, setProfLoading] = useState(false);
+  const [profError, setProfError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/trends/professions")
@@ -39,14 +40,17 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
     setSelectedProf(prof);
     if (!prof) return;
     setProfLoading(true);
+    setProfError(null);
     try {
       const r = await fetch(`/api/trends/by-profession?profession=${encodeURIComponent(prof)}&limit=30`);
-      if (r.ok) {
-        const d = await r.json();
-        setProfSkills(d.skills || []);
+      if (!r.ok) {
+        const d = await r.json().catch(() => null);
+        throw new Error((d && d.detail) || "Не удалось загрузить тренды профессии. Попробуйте позже.");
       }
-    } catch (e) {
-      console.error("Failed to load profession trends:", e);
+      const d = await r.json();
+      setProfSkills(d.skills || []);
+    } catch (e: any) {
+      setProfError(e?.message || "Не удалось загрузить тренды профессии. Попробуйте позже.");
     } finally {
       setProfLoading(false);
     }
@@ -62,7 +66,7 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
       >
         <div className="inline-flex items-center justify-center gap-3 mb-2">
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl blur-xl opacity-50 animate-pulse" />
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-50 dark:from-blue-950/30 to-purple-600 rounded-2xl blur-xl opacity-50 animate-pulse" />
             <div className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 p-3 rounded-2xl shadow-2xl">
               <Target className="size-8 text-white" />
             </div>
@@ -130,7 +134,11 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
 
             {profLoading && <div className="text-center text-slate-500 py-4">Загрузка...</div>}
 
-            {!profLoading && profSkills.length > 0 && (
+            {!profLoading && profError && (
+              <div className="text-center text-red-600 dark:text-red-400 py-4 text-sm">{profError}</div>
+            )}
+
+            {!profLoading && !profError && profSkills.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {profSkills.map((s) => (
                   <Badge key={s.skill} variant="secondary" className="px-3 py-1.5 text-sm">
@@ -141,15 +149,15 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
               </div>
             )}
 
-            {!profLoading && selectedProf && profSkills.length === 0 && (
+            {!profLoading && !profError && selectedProf && profSkills.length === 0 && (
               <div className="text-center text-slate-400 py-4">Нет данных для этой профессии</div>
             )}
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* Результаты переехали: метрики и рекомендации — во вкладке «Данные»,
-          формулы и оценка качества — в «Помощь» → «Анализ компетенций». */}
+      {/* Результаты переехали: метрики и рекомендации – во вкладке «Данные»,
+          формулы и оценка качества – в «Помощь» → «Анализ компетенций». */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -157,8 +165,8 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
       >
         <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
           <CardContent className="pt-6 pb-6 text-sm text-slate-700 dark:text-slate-300">
-            Подгрузка результатов, скачивание Excel и отчёта — во вкладке
-            «Данные». Как считаются метрики и насколько им можно доверять — во вкладке
+            Подгрузка результатов, скачивание Excel и отчёта – во вкладке
+            «Данные». Как считаются метрики и насколько им можно доверять – во вкладке
             «Помощь», раздел «Анализ компетенций».
           </CardContent>
         </Card>

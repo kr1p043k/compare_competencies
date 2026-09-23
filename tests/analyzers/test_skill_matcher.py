@@ -133,3 +133,42 @@ class TestSkillMatcher:
         assert skill == "sql"
         assert mtype == "fuzzy"
         assert conf == 0.5
+
+
+class TestEmergingCrossScript:
+    """Навык, сматченный через другой скрипт, не должен всплывать в emerging."""
+
+    def test_folded_excluded(self):
+        m = SkillMatcher({"c++": 425, "python": 200, "docker": 100})
+        rpd = {normalize("отлаживать программы на языке С/С++")}
+        res = m.get_emerging(rpd, top_n=10)
+        assert res.is_ok()
+        names = [s for s, _, _ in res.unwrap()]
+        assert "c++" not in names
+        assert "python" in names
+
+    def test_also_exclude_matched(self):
+        m = SkillMatcher({"c++": 425, "python": 200})
+        res = m.get_emerging({"другой навык"}, top_n=10, also_exclude={"c++"})
+        assert res.is_ok()
+        names = [s for s, _, _ in res.unwrap()]
+        assert "c++" not in names
+        assert "python" in names
+
+    def test_also_exclude_is_identity_not_substring(self):
+        # 'c++' покрыт, но 'arduino c++' — другой навык и честный гэп: не давим.
+        m = SkillMatcher({"c++": 425, "arduino c++": 100, "python": 200})
+        res = m.get_emerging({"другой навык"}, top_n=10, also_exclude={"c++"})
+        assert res.is_ok()
+        names = [s for s, _, _ in res.unwrap()]
+        assert "c++" not in names
+        assert "arduino c++" in names
+        assert "python" in names
+
+    def test_also_exclude_folded_identity(self):
+        # Тот же навык в другом скрипте/кейсе ('C++' vs 'c++') — тождество, давим.
+        m = SkillMatcher({"c++": 425, "python": 200})
+        res = m.get_emerging({"другой навык"}, top_n=10, also_exclude={"C++"})
+        assert res.is_ok()
+        names = [s for s, _, _ in res.unwrap()]
+        assert "c++" not in names

@@ -83,6 +83,8 @@ class RetryPolicy:
         for attempt in range(self.max_retries + 1):
             try:
                 result = fn(*args, **kwargs)
+                if asyncio.iscoroutine(result):
+                    result = await result
                 match result:
                     case Ok(_):
                         return result

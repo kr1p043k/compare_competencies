@@ -19,7 +19,7 @@ from src.models.api_responses import (
     ProfilesCompareResponse,
     ProfileShort,
 )
-from src.api_pkg.routers.auth import require_any_role
+from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.models.student import StudentProfile
 from src.models.enums import ExperienceLevel
 from src import config
@@ -209,7 +209,11 @@ async def get_profile_profession_evaluation(request: Request, profile: str):
                 "domain_coverage_score": result.get("domain_coverage_score", 0),
             }
         case Err(err):
-            raise HTTPException(status_code=500, detail=str(err))
+            logger.warning("profile_compare_failed", profile=profile, error=str(err))
+            raise HTTPException(
+                status_code=500,
+                detail=await user_error_detail(request, str(err), "Не удалось сравнить профиль. Попробуйте позже."),
+            )
 
 
 @router.get("/recommendations/{profile}", response_model=dict)
@@ -229,12 +233,19 @@ async def get_recommendations(
             case Ok(full_rec):
                 return _json_safe(full_rec.model_dump())
             case Err(err):
-                raise HTTPException(status_code=500, detail=str(err))
+                logger.warning("profile_recommendations_failed", profile=profile, error=str(err))
+                raise HTTPException(
+                    status_code=500,
+                    detail=await user_error_detail(request, str(err), "Не удалось построить рекомендации. Попробуйте позже."),
+                )
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("recommendations_endpoint_failed", profile=profile, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Ошибка генерации рекомендаций: {e}") from None
+        raise HTTPException(
+            status_code=500,
+            detail=await user_error_detail(request, str(e), "Не удалось построить рекомендации. Попробуйте позже."),
+        ) from None
 
 
 @router.get("/skills/missing", response_model=MissingSkillsResponse)

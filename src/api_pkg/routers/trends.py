@@ -20,6 +20,7 @@ from src.models.krm_models import Competency, CompetencySkill, Skill, TrendSnaps
 from src.utils import load_competency_mapping, load_inverted_skill_index, skill_words
 
 from src.api_pkg import deps
+from src.api_pkg.routers.auth import user_error_detail
 
 logger = structlog.get_logger("api")
 
@@ -42,7 +43,11 @@ async def get_trends(
         case Ok(trends):
             return {"trends": trends}
         case Err(err):
-            raise HTTPException(status_code=500, detail=str(err))
+            logger.warning("trends_failed", error=str(err))
+            raise HTTPException(
+                status_code=500,
+                detail=await user_error_detail(request, str(err), "Не удалось построить тренды. Попробуйте позже."),
+            )
 
 
 def _classify(change_pct: float) -> str:

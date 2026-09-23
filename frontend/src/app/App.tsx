@@ -36,6 +36,7 @@ import { TeacherDashboard } from "./components/TeacherDashboard";
 import { StudentDashboard } from "./components/StudentDashboard";
 import { FaqPage } from "./components/FaqPage";
 import { authHeaders, useAuth, apiFetch } from "../lib/auth";
+import { useTheme } from "../lib/theme";
 import { initApiLogger } from "../lib/logger";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -54,6 +55,8 @@ import {
   Info,
   AlertCircle,
   LogOut,
+  Moon,
+  Sun,
   Shield,
   GraduationCap,
   UserCheck,
@@ -186,11 +189,12 @@ export default function App() {
   useEffect(() => { profileRef.current = profile; }, [profile]);
 
   const { isAuth, login, logout, role, name } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const roleRef = useRef(role);
   useEffect(() => { roleRef.current = role; }, [role]);
 
-  // Дата подгрузки переживает перезагрузку (localStorage), а сами результаты — нет.
-  // Если штамп есть, а результата в памяти нет — подтягиваем автоматически.
+  // Дата подгрузки переживает перезагрузку (localStorage), а сами результаты – нет.
+  // Если штамп есть, а результата в памяти нет – подтягиваем автоматически.
   const autoLoadedRef = useRef<Record<string, boolean>>({});
   useEffect(() => {
     if (!isAuth) return;
@@ -207,18 +211,22 @@ export default function App() {
   }, [isAuth, profile]);
 
   // Показываем экран техработ, если backend недоступен (пересборка/рестарт).
+  // Один упавший poll – ещё не даун: тяжёлый запрос (прогнозы) может на
+  // секунды занять event loop. Maintenance только после 3 фейлов подряд.
   useEffect(() => {
     let cancelled = false;
+    let fails = 0;
     const check = async () => {
       try {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 5000);
         const res = await fetch("/api/health", { signal: ctrl.signal });
         clearTimeout(t);
-        if (!cancelled) setBackendDown(!res.ok);
+        fails = res.ok ? 0 : fails + 1;
       } catch {
-        if (!cancelled) setBackendDown(true);
+        fails += 1;
       }
+      if (!cancelled) setBackendDown(fails >= 3);
     };
     check();
     const id = setInterval(check, 8000);
@@ -622,9 +630,9 @@ export default function App() {
   const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "rop" ? "Руководитель ОП" : "Студент";
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white text-gray-900 dark:bg-slate-950 dark:text-slate-100">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white">
+      <header className="border-b border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-950">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -632,22 +640,31 @@ export default function App() {
                 <TrendingUp className="size-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                   Competency Gap Analyzer
                 </h1>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-slate-400">
                   AI-powered competency analysis platform
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
                 {roleIcon}
                 <span>{name || roleLabel}</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100">{roleLabel}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 dark:text-slate-200">{roleLabel}</span>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => { fetch("/api/auth/logout", { method: "POST", headers: authHeaders() }).catch(() => {}); logout(); }} className="text-gray-500 hover:text-red-600">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleTheme}
+                title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+                className="text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100"
+              >
+                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { fetch("/api/auth/logout", { method: "POST", headers: authHeaders() }).catch(() => {}); logout(); }} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
                 <LogOut className="size-4" />
               </Button>
             </div>
@@ -669,10 +686,10 @@ export default function App() {
               <div
                 className={`px-4 py-3 rounded-lg border ${
                   status.type === "success"
-                    ? "bg-green-50 border-green-200 text-green-800"
+                    ? "bg-green-50 border-green-200 text-green-800 dark:bg-green-950/40 dark:border-green-800 dark:text-green-200"
                     : status.type === "error"
-                      ? "bg-red-50 border-red-200 text-red-800"
-                      : "bg-blue-50 border-blue-200 text-blue-800"
+                      ? "bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-200"
+                      : "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-200"
                 }`}
               >
                 {status.message}
@@ -683,17 +700,17 @@ export default function App() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="inline-flex h-12 items-center justify-center rounded-lg bg-gray-100 p-1">
+          <TabsList className="inline-flex h-12 items-center justify-center rounded-lg bg-gray-100 p-1 dark:bg-slate-900">
             <TabsTrigger
               value="vacancies"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
             >
               <Briefcase className="size-4" />
               Вакансии
             </TabsTrigger>
             <TabsTrigger
               value="data"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
             >
               <Database className="size-4" />
               Данные
@@ -701,7 +718,7 @@ export default function App() {
             {role !== "teacher" && (
               <TabsTrigger
                 value="visualization"
-                className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
+                className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
               >
                 <BarChart3 className="size-4" />
                 Визуализация
@@ -709,58 +726,58 @@ export default function App() {
             )}
             <TabsTrigger
               value="predictions"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
             >
               <TrendingUp className="size-4" />
               Прогнозы
             </TabsTrigger>
             <TabsTrigger
               value="articles"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
             >
               <BarChart3 className="size-4" />
               Аналитика рынка
             </TabsTrigger>
             <TabsTrigger
               value="scientific-trends"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
             >
               <TrendingUp className="size-4" />
               Научные тренды
             </TabsTrigger>
             <TabsTrigger
               value="help"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
+              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
             >
               <HelpCircle className="size-4" />
               Помощь
             </TabsTrigger>
             {role === "admin" && (
-              <TabsTrigger value="monitoring" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
+              <TabsTrigger value="monitoring" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
                 <Activity className="size-4" />
                 Мониторинг
               </TabsTrigger>
             )}
             {role === "admin" && (
-              <TabsTrigger value="logs" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
+              <TabsTrigger value="logs" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
                 <FileText className="size-4" />
                 Логи
               </TabsTrigger>
             )}
             {role === "admin" && (
-              <TabsTrigger value="admin" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
+              <TabsTrigger value="admin" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
                 <Shield className="size-4" />
                 Админ
               </TabsTrigger>
             )}
             {(role === "teacher" || role === "rop") && (
-              <TabsTrigger value="teacher" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
+              <TabsTrigger value="teacher" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
                 <BarChart3 className="size-4" />
                 Статистика
               </TabsTrigger>
             )}
             {role === "student" && (
-              <TabsTrigger value="student" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
+              <TabsTrigger value="student" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
                 <History className="size-4" />
                 Мои запросы
               </TabsTrigger>
@@ -788,17 +805,17 @@ export default function App() {
 
           {/* Data Tab */}
           <TabsContent value="data">
-            <Card className="border border-gray-200 shadow-sm">
-              <CardHeader className="border-b border-gray-200 bg-gray-50">
+            <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
+              <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center justify-center w-10 h-10 bg-emerald-600 rounded-lg">
                     <Database className="size-5 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl font-semibold text-gray-900">
+                    <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
                       Данные и результаты
                     </CardTitle>
-                    <CardDescription className="text-sm text-gray-600">
+                    <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
                       Просмотр профилей, рекомендаций и статистики
                     </CardDescription>
                   </div>
@@ -806,18 +823,18 @@ export default function App() {
               </CardHeader>
               <CardContent className="p-6 space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-900">
+                  <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
                     Профиль компетенций
                   </Label>
                   <Select value={profile} onValueChange={handleProfileChange}>
-                    <SelectTrigger className="h-11 bg-white border-gray-300">
+                    <SelectTrigger className="h-11 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {profilesList.map((p) => (
                         <SelectItem key={p} value={p}>
                           <div className="flex items-center gap-2">
-                            <Award className={`size-4 ${p === profile ? "text-emerald-600" : "text-gray-400"}`} />
+                            <Award className={`size-4 ${p === profile ? "text-emerald-600" : "text-gray-400 dark:text-slate-500"}`} />
                             <span>{p === "base" ? "BASE (junior)" : p === "dc" ? "DATA SCIENTIST (middle)" : p === "top_dc" ? "TOP DATA SCIENTIST (senior)" : p}</span>
                           </div>
                         </SelectItem>
@@ -855,7 +872,7 @@ export default function App() {
                     onClick={loadMarket}
                     disabled={loading}
                     variant="outline"
-                    className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
                     <BarChart3 className="mr-2 size-4" />
                     Рынок
@@ -864,7 +881,7 @@ export default function App() {
                     onClick={loadSummary}
                     disabled={loading}
                     variant="outline"
-                    className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
                     <FileText className="mr-2 size-4" />
                     Сводка
@@ -873,7 +890,7 @@ export default function App() {
                     onClick={loadHealth}
                     disabled={loading}
                     variant="outline"
-                    className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
                     <Activity className="mr-2 size-4" />
                     Состояние
@@ -888,9 +905,9 @@ export default function App() {
                   </Button>
                 </div>
                 {gapRunning && (
-                  <p className="text-sm text-amber-700">{gapMsg || "Выполняется..."}</p>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">{gapMsg || "Выполняется..."}</p>
                 )}
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-slate-400">
                   Последняя подгрузка результатов [{profile}]: {(() => {
                     const iso = resultLoadedAt[profile];
                     if (!iso) return "ещё не подгружались";
@@ -904,7 +921,7 @@ export default function App() {
                   const age = Date.now() - new Date(g).getTime();
                   if (isNaN(age) || age < 7 * 864e5) return null;
                   const days = Math.floor(age / 864e5);
-                  return <span className="ml-2 px-2 py-0.5 rounded bg-amber-100 text-amber-800">данные устарели ({days} дн.)</span>;
+                  return <span className="ml-2 px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200">данные устарели ({days} дн.)</span>;
                 })()}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -968,10 +985,10 @@ export default function App() {
                   const msg = d.message as string | undefined;
                   if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {
                     return (
-                      <Card className="border-2 border-amber-200 bg-amber-50/50">
+                      <Card className="border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
                         <CardContent className="pt-6 text-center py-12">
                           <AlertCircle className="size-12 text-amber-400 mx-auto mb-4" />
-                          <h3 className="text-lg font-semibold text-amber-800 mb-2">{msg}</h3>
+                          <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-2">{msg}</h3>
                           <p className="text-sm text-amber-600 mb-4">Запустите gap-анализ для расчёта покрытия</p>
                           <Button
                             onClick={runGapAnalysis}
@@ -982,7 +999,7 @@ export default function App() {
                             Запустить gap-анализ
                           </Button>
                           {gapRunning && (
-                            <p className="text-sm text-amber-700 mt-3">{gapMsg || "Выполняется..."}</p>
+                            <p className="text-sm text-amber-700 dark:text-amber-300 mt-3">{gapMsg || "Выполняется..."}</p>
                           )}
                         </CardContent>
                       </Card>

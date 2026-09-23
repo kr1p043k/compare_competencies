@@ -286,7 +286,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       >
         <div className="inline-flex items-center justify-center gap-3 mb-2">
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl blur-xl opacity-50 animate-pulse" />
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-50 dark:from-blue-950/30 to-purple-600 rounded-2xl blur-xl opacity-50 animate-pulse" />
             <div className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 p-3 rounded-2xl shadow-2xl">
               <Briefcase className="size-8 text-white" />
             </div>
@@ -322,7 +322,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-lg shadow-md">
+                  <div className="p-2 bg-gradient-to-br from-sky-50 dark:from-sky-950/30 to-indigo-600 rounded-lg shadow-md">
                     <Rocket className="size-5 text-white" />
                   </div>
                   <div>
@@ -348,7 +348,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   disabled={!cityMode}
                   className="h-10"
                 />
-                <p className="text-xs text-slate-400">{!cityMode ? "Весь рынок — поиск по всем IT-профессиям" : "Оставьте пустым для поиска по всем профессиям"}</p>
+                <p className="text-xs text-slate-400">{!cityMode ? "Весь рынок – поиск по всем IT-профессиям" : "Оставьте пустым для поиска по всем профессиям"}</p>
               </div>
 
               {/* Search params */}
@@ -445,7 +445,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                                 : [...prev, city]
                             );
                           }}
-                          className="rounded border-slate-300"
+                          className="rounded border-slate-300 dark:border-slate-600"
                         />
                         <span className="truncate">{city}</span>
                       </label>
@@ -490,7 +490,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                       </div>
                       {vacancyInfo?.date_range && (
                         <p className="text-xs text-blue-500">
-                          Данные за период: {vacancyInfo.date_range.from} — {vacancyInfo.date_range.to}
+                          Данные за период: {vacancyInfo.date_range.from} – {vacancyInfo.date_range.to}
                         </p>
                       )}
                     </motion.div>
@@ -538,7 +538,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <CardContent className="p-4">
               <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
                 <div className="flex items-center gap-3 flex-1">
-                  <div className="p-2 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-lg shrink-0">
+                  <div className="p-2 bg-gradient-to-br from-sky-50 dark:from-sky-950/30 to-indigo-600 rounded-lg shrink-0">
                     <Rocket className="size-5 text-white" />
                   </div>
                   <div className="flex-1">
@@ -579,7 +579,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-md">
+                <div className="p-2 bg-gradient-to-br from-blue-50 dark:from-blue-950/30 to-purple-600 rounded-lg shadow-md">
                   <Filter className="size-5 text-white" />
                 </div>
                 <div>
@@ -715,7 +715,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   onClick={clearFilters}
                   disabled={loading}
                   variant="outline"
-                  className="h-11 px-6 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none gap-2"
+                  className="h-11 px-6 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none gap-2"
                 >
                   <X className="size-4" />
                   Очистить
@@ -792,35 +792,35 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               <p className="text-red-700 dark:text-red-300">{error}</p>
 
               {vacancyInfo?.load_error?.startsWith("corrupted:") ? (
-                <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg text-left max-w-lg mx-auto">
-                  <p className="text-sm text-orange-800">
+                <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg text-left max-w-lg mx-auto">
+                  <p className="text-sm text-orange-800 dark:text-orange-200">
                     <AlertCircle className="size-4 inline mr-1" />
-                    <strong>Файл вакансий повреждён.</strong> Файл существует (<code className="text-xs bg-orange-100 px-1 rounded">{vacancyInfo.file_modified ?? "неизвестно"}</code>), но не может быть прочитан.
+                    <strong>Файл вакансий повреждён.</strong> Файл существует (<code className="text-xs bg-orange-100 dark:bg-orange-950/30 px-1 rounded">{vacancyInfo.file_modified ?? "неизвестно"}</code>), но не может быть прочитан.
                   </p>
-                  <p className="text-xs text-orange-700 mt-2">
-                    Попробуйте запустить повторный сбор вакансий — файлы будут перезаписаны.
+                  <p className="text-xs text-orange-700 dark:text-orange-300 mt-2">
+                    Попробуйте запустить повторный сбор вакансий – файлы будут перезаписаны.
                   </p>
                 </div>
               ) : !vacancyInfo?.file_modified ? (
-                <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-left max-w-lg mx-auto">
-                  <p className="text-sm text-amber-800">
+                <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-left max-w-lg mx-auto">
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
                     <Database className="size-4 inline mr-1" />
                     <strong>Вакансии не собраны.</strong> Нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
                   </p>
-                  <p className="text-xs text-amber-700 mt-2">
-                    После сбора вакансий данные кэшируются. Если вы уже запускали сбор — проверьте, что бэкенд запущен.
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                    После сбора вакансий данные кэшируются. Если вы уже запускали сбор – проверьте, что бэкенд запущен.
                   </p>
                 </div>
               ) : (
-                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-left max-w-lg mx-auto">
-                  <p className="text-sm text-red-800">
+                <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg text-left max-w-lg mx-auto">
+                  <p className="text-sm text-red-800 dark:text-red-200">
                     <AlertCircle className="size-4 inline mr-1" />
                     <strong>Не удалось загрузить данные из файла.</strong> Файл существует, но возникла ошибка при обработке.
                   </p>
                   {vacancyInfo?.load_error && (
                     <p className="text-xs text-red-600 mt-1 font-mono">{vacancyInfo.load_error}</p>
                   )}
-                  <p className="text-xs text-red-700 mt-2">
+                  <p className="text-xs text-red-700 dark:text-red-300 mt-2">
                     Попробуйте перезапустить сервер или запустить повторный сбор.
                   </p>
                 </div>
@@ -850,12 +850,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               <p className="text-slate-600 dark:text-slate-400 mb-4">
                 По вашему запросу ничего не найдено
               </p>
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-left max-w-lg mx-auto">
-                <p className="text-sm text-blue-800">
+              <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-left max-w-lg mx-auto">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
                   <Database className="size-4 inline mr-1" />
-                  <strong>Если вакансии ещё не собраны</strong> — нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
+                  <strong>Если вакансии ещё не собраны</strong> – нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
                 </p>
-                <ul className="mt-2 text-xs text-blue-700 space-y-1 list-disc list-inside">
+                <ul className="mt-2 text-xs text-blue-700 dark:text-blue-300 space-y-1 list-disc list-inside">
                   <li>После нажатия запустится полный цикл сбора (10-15 минут)</li>
                   <li>Прогресс будет отображаться на этой же странице</li>
                   <li>После завершения данные обновятся автоматически</li>

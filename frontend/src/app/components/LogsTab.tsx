@@ -143,16 +143,16 @@ export function LogsTab() {
   const levelColor = (line: string) => {
     if (line.includes("level=error") || line.startsWith("ERROR ")) return "text-red-600";
     if (line.includes("level=warning") || line.startsWith("WARNING ") || line.startsWith("WARN ")) return "text-amber-600";
-    if (line.includes("level=debug")) return "text-gray-400";
-    return "text-gray-700";
+    if (line.includes("level=debug")) return "text-gray-400 dark:text-slate-500";
+    return "text-gray-700 dark:text-slate-300";
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Логи</h2>
-          <p className="text-sm text-gray-500">Системный лог бэкенда (logs/backend.log)</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Логи</h2>
+          <p className="text-sm text-gray-500 dark:text-slate-400">Системный лог бэкенда (logs/backend.log)</p>
         </div>
         <div className="flex items-center gap-3">
           <Badge variant={live ? "default" : "secondary"} className="gap-1">
@@ -167,7 +167,7 @@ export function LogsTab() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg">
+        <div className="flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">
           <AlertCircle className="size-5" />
           <span>{error}</span>
         </div>
@@ -183,7 +183,7 @@ export function LogsTab() {
             </CardTitle>
             <div className="flex items-center gap-2">
               <div className="relative">
-                <Search className="size-4 absolute left-2.5 top-2.5 text-gray-400" />
+                <Search className="size-4 absolute left-2.5 top-2.5 text-gray-400 dark:text-slate-500" />
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -194,7 +194,7 @@ export function LogsTab() {
               <select
                 value={level}
                 onChange={(e) => setLevel(e.target.value)}
-                className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm"
+                className="h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm"
               >
                 <option value="all">Все уровни</option>
                 <option value="error">Ошибки</option>
@@ -205,14 +205,14 @@ export function LogsTab() {
             </div>
           </div>
           <CardDescription>
-            Последние записи системного журнала бэкенда — обновляются в реальном времени
+            Последние записи системного журнала бэкенда – обновляются в реальном времени
             {fallback ? " (WebSocket недоступен, автообновление раз в 10 секунд)" : ""}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading && <p className="text-sm text-gray-500">Загрузка...</p>}
+          {loading && <p className="text-sm text-gray-500 dark:text-slate-400">Загрузка...</p>}
           {!loading && filtered.length === 0 && (
-            <p className="text-sm text-gray-400 py-8 text-center">Записей не найдено</p>
+            <p className="text-sm text-gray-400 dark:text-slate-500 py-8 text-center">Записей не найдено</p>
           )}
           <pre
             ref={scrollRef}

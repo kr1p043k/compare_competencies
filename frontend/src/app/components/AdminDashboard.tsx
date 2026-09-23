@@ -85,9 +85,9 @@ export function AdminDashboard() {
   };
   useEffect(() => { if (tab === "sched") loadSched(); }, [tab]);
   const fmtTs = (ts: any) => {
-    if (ts == null) return "—";
+    if (ts == null) return "–";
     const d = new Date(Number(ts) * 1000);
-    return isNaN(d.getTime()) ? "—" : d.toLocaleString("ru-RU");
+    return isNaN(d.getTime()) ? "–" : d.toLocaleString("ru-RU");
   };
   const [logFilter, setLogFilter] = useState("all");
   const [seedLoading, setSeedLoading] = useState(false);
@@ -180,7 +180,7 @@ export function AdminDashboard() {
         apiFetch("/api/admin/logs?limit=200"),
         apiFetch("/api/admin/directions"),
       ]);
-      if (!uRes.ok || !lRes.ok || !dRes.ok) throw new Error("Failed to load admin data");
+      if (!uRes.ok || !lRes.ok || !dRes.ok) throw new Error("Не удалось загрузить данные панели. Попробуйте позже.");
       const uData = await uRes.json();
       const lData = await lRes.json();
       const dData = await dRes.json();
@@ -230,7 +230,7 @@ export function AdminDashboard() {
         .then((s) => {
           if (cancelled) return;
           if (!s) {
-            // Разовый сбой сети/рестарт сервера — не умираем молча, ждём.
+            // Разовый сбой сети/рестарт сервера – не умираем молча, ждём.
             misses += 1;
             if (misses < 10) {
               setRpdMsg(`Сервер перезапускается, жду статус... (${misses})`);
@@ -278,7 +278,7 @@ export function AdminDashboard() {
     fd.append("dir_code", rpdDir);
     try {
       const r = await apiFetch("/api/teacher/rpd/upload", { method: "POST", body: fd });
-      if (r.status === 429) throw new Error("Слишком частые запросы — подождите минуту и повторите");
+      if (r.status === 429) throw new Error("Слишком частые запросы – подождите минуту и повторите");
       const d = await r.json().catch(() => ({} as any));
       if (!r.ok) throw new Error(d.detail || r.statusText);
       if (!d.run_id) throw new Error("Сервер не вернул ID задачи");
@@ -319,7 +319,7 @@ export function AdminDashboard() {
       });
       if (r.status === 429) {
         setCollectCooldown(30);
-        throw new Error("Слишком частые запросы — кнопка заблокирована на 30 секунд");
+        throw new Error("Слишком частые запросы – кнопка заблокирована на 30 секунд");
       }
       const d = await r.json().catch(() => ({} as any));
       if (!r.ok) throw new Error(d.detail || r.statusText);
@@ -459,8 +459,8 @@ export function AdminDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Администрирование</h2>
-          <p className="text-sm text-gray-500">Управление системой</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Администрирование</h2>
+          <p className="text-sm text-gray-500 dark:text-slate-400">Управление системой</p>
         </div>
         <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
           <RefreshCw className={`size-4 mr-2 ${loading ? "animate-spin" : ""}`} />
@@ -469,7 +469,7 @@ export function AdminDashboard() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg">
+        <div className="flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">
           <AlertCircle className="size-5" />
           <span>{error}</span>
         </div>
@@ -494,7 +494,7 @@ export function AdminDashboard() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-left text-gray-500">
+                    <tr className="border-b text-left text-gray-500 dark:text-slate-400">
                       <th className="pb-2 font-medium">Имя</th>
                       <th className="pb-2 font-medium">Логин</th>
                       <th className="pb-2 font-medium">Роль</th>
@@ -504,15 +504,15 @@ export function AdminDashboard() {
                   </thead>
                   <tbody>
                     {users.map((u) => (
-                      <tr key={u.username} className="border-b border-gray-100">
-                        <td className="py-2 font-medium text-gray-900">{u.name}</td>
-                        <td className="py-2 text-gray-600">{u.username}</td>
+                      <tr key={u.username} className="border-b border-gray-100 dark:border-slate-800">
+                        <td className="py-2 font-medium text-gray-900 dark:text-slate-100">{u.name}</td>
+                        <td className="py-2 text-gray-600 dark:text-slate-400">{u.username}</td>
                         <td className="py-2">
                           <Badge variant="outline" className={
-                            u.role === "admin" ? "bg-red-50 text-red-700 border-red-200" :
-                            u.role === "teacher" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                            u.role === "rop" ? "bg-violet-50 text-violet-700 border-violet-200" :
-                            "bg-green-50 text-green-700 border-green-200"
+                            u.role === "admin" ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800" :
+                            u.role === "teacher" ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800" :
+                            u.role === "rop" ? "bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800" :
+                            "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800"
                           }>
                             {u.role === "admin" ? "Админ" : u.role === "teacher" ? "Преподаватель" : u.role === "rop" ? "РОП" : "Студент"}
                           </Badge>
@@ -521,10 +521,10 @@ export function AdminDashboard() {
                           {u.role === "rop" ? (
                             <span className="inline-flex items-center gap-1 flex-wrap">
                               {(u.directions || []).slice(0, 3).map((d: string) => (
-                                <span key={d} className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 font-mono">{d}</span>
+                                <span key={d} className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 font-mono">{d}</span>
                               ))}
                               {(u.directions || []).length > 3 && (
-                                <span className="text-xs text-gray-400">+{(u.directions || []).length - 3}</span>
+                                <span className="text-xs text-gray-400 dark:text-slate-500">+{(u.directions || []).length - 3}</span>
                               )}
                               <button
                                 onClick={() => startEdit(u)}
@@ -534,10 +534,10 @@ export function AdminDashboard() {
                               </button>
                             </span>
                           ) : (
-                            <span className="text-gray-400">—</span>
+                            <span className="text-gray-400 dark:text-slate-500">–</span>
                           )}
                         </td>
-                        <td className="py-2 text-right text-gray-600">{u.total_requests}</td>
+                        <td className="py-2 text-right text-gray-600 dark:text-slate-400">{u.total_requests}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -553,14 +553,14 @@ export function AdminDashboard() {
               <Input placeholder="Password" type="password" value={newUserPass} onChange={(e) => setNewUserPass(e.target.value)} />
               <Input placeholder="Full name" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
               <select value={newUserRole} onChange={(e) => { setNewUserRole(e.target.value); setNewUserDirs([]); }}
-                className="w-full h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm">
+                className="w-full h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm">
                 <option value="teacher">Преподаватель</option>
                 <option value="admin">Администратор</option>
                 <option value="rop">Руководитель ОП</option>
               </select>
               {newUserRole === "rop" && (
-                <div className="border border-gray-200 rounded-lg p-3 max-h-40 overflow-y-auto space-y-1">
-                  <div className="text-xs text-gray-500 font-medium">Направления</div>
+                <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 max-h-40 overflow-y-auto space-y-1">
+                  <div className="text-xs text-gray-500 dark:text-slate-400 font-medium">Направления</div>
                   {directions.map((d) => (
                     <label key={d.dir_code} className="flex items-center gap-2 text-sm cursor-pointer">
                       <input
@@ -569,11 +569,11 @@ export function AdminDashboard() {
                         onChange={(e) => setNewUserDirs((prev) => e.target.checked ? [...prev, d.dir_code] : prev.filter((x) => x !== d.dir_code))}
                         className="accent-violet-600"
                       />
-                      <span className="font-mono text-xs text-gray-600">{d.dir_code}</span>
-                      <span className="text-xs text-gray-500 truncate">{d.name}</span>
+                      <span className="font-mono text-xs text-gray-600 dark:text-slate-400">{d.dir_code}</span>
+                      <span className="text-xs text-gray-500 dark:text-slate-400 truncate">{d.name}</span>
                     </label>
                   ))}
-                  {directions.length === 0 && <div className="text-xs text-gray-400">Направления не загружены</div>}
+                  {directions.length === 0 && <div className="text-xs text-gray-400 dark:text-slate-500">Направления не загружены</div>}
                 </div>
               )}
               <Button onClick={createUser}>Создать</Button>
@@ -589,7 +589,7 @@ export function AdminDashboard() {
                 setEditUser(e.target.value);
                 setEditUserDirs(u?.directions || []);
                 setDirMsg("");
-              }} className="w-full h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm">
+              }} className="w-full h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm">
                 <option value="">-- Выберите пользователя --</option>
                 {users.filter((u) => u.role === "rop").map((u) => (
                   <option key={u.id} value={u.id}>{u.name} ({u.username})</option>
@@ -597,7 +597,7 @@ export function AdminDashboard() {
               </select>
               {editUser && (
                 <>
-                  <div className="border border-gray-200 rounded-lg p-3 max-h-40 overflow-y-auto space-y-1">
+                  <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 max-h-40 overflow-y-auto space-y-1">
                     {directions.map((d) => (
                       <label key={d.dir_code} className="flex items-center gap-2 text-sm cursor-pointer">
                         <input
@@ -606,8 +606,8 @@ export function AdminDashboard() {
                           onChange={(e) => setEditUserDirs((prev) => e.target.checked ? [...prev, d.dir_code] : prev.filter((x) => x !== d.dir_code))}
                           className="accent-violet-600"
                         />
-                        <span className="font-mono text-xs text-gray-600">{d.dir_code}</span>
-                        <span className="text-xs text-gray-500 truncate">{d.name}</span>
+                        <span className="font-mono text-xs text-gray-600 dark:text-slate-400">{d.dir_code}</span>
+                        <span className="text-xs text-gray-500 dark:text-slate-400 truncate">{d.name}</span>
                       </label>
                     ))}
                   </div>
@@ -631,7 +631,7 @@ export function AdminDashboard() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">История запросов</CardTitle>
                 <select value={logFilter} onChange={(e) => setLogFilter(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm">
+                  className="h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm">
                   <option value="all">Все пользователи</option>
                   {users.map((u) => <option key={u.username} value={u.username}>{u.name}</option>)}
                 </select>
@@ -641,7 +641,7 @@ export function AdminDashboard() {
               <div className="overflow-x-auto max-h-96 overflow-y-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-left text-gray-500 sticky top-0 bg-white">
+                    <tr className="border-b text-left text-gray-500 dark:text-slate-400 sticky top-0 bg-white dark:bg-slate-950">
                       <th className="pb-2 font-medium">Время</th>
                       <th className="pb-2 font-medium">Пользователь</th>
                       <th className="pb-2 font-medium">Метод</th>
@@ -652,23 +652,23 @@ export function AdminDashboard() {
                   </thead>
                   <tbody>
                     {filteredLogs.toReversed().slice(0, 200).map((l, i) => (
-                      <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-1.5 text-xs text-gray-500 whitespace-nowrap">{new Date(l.timestamp).toLocaleTimeString()}</td>
-                        <td className="py-1.5 text-gray-700">{l.user}</td>
+                      <tr key={i} className="border-b border-gray-100 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800">
+                        <td className="py-1.5 text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">{new Date(l.timestamp).toLocaleTimeString()}</td>
+                        <td className="py-1.5 text-gray-700 dark:text-slate-300">{l.user}</td>
                         <td className="py-1.5">
                           <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
                             l.method === "GET" ? "bg-green-100 text-green-700" :
                             l.method === "POST" ? "bg-blue-100 text-blue-700" :
-                            "bg-gray-100 text-gray-700"
+                            "bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300"
                           }`}>{l.method}</span>
                         </td>
-                        <td className="py-1.5 text-xs text-gray-600 max-w-xs truncate">{l.path}</td>
+                        <td className="py-1.5 text-xs text-gray-600 dark:text-slate-400 max-w-xs truncate">{l.path}</td>
                         <td className="py-1.5 text-right">
                           <span className={`text-xs font-mono ${
                             l.status < 300 ? "text-green-600" : l.status < 400 ? "text-yellow-600" : "text-red-600"
                           }`}>{l.status}</span>
                         </td>
-                        <td className="py-1.5 text-right text-xs text-gray-500">{l.duration_ms.toFixed(0)}</td>
+                        <td className="py-1.5 text-right text-xs text-gray-500 dark:text-slate-400">{l.duration_ms.toFixed(0)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -690,7 +690,7 @@ export function AdminDashboard() {
                 <Button variant="outline" onClick={() => callAction("/api/admin/db/seed", { drop: true }, setSeedMsg, setSeedLoading)} disabled={seedLoading}>
                   Drop + Seed
                 </Button>
-                {seedMsg && <span className="text-sm text-gray-600">{seedMsg}</span>}
+                {seedMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{seedMsg}</span>}
               </div>
               <div className="flex items-center gap-4">
                 <Button onClick={() => callAction("/api/admin/embeddings/generate", { force: false }, setEmbMsg, setEmbLoading)} disabled={embLoading}>
@@ -699,19 +699,19 @@ export function AdminDashboard() {
                 <Button variant="outline" onClick={() => callAction("/api/admin/embeddings/generate", { force: true }, setEmbMsg, setEmbLoading)} disabled={embLoading}>
                   Force regenerate
                 </Button>
-                {embMsg && <span className="text-sm text-gray-600">{embMsg}</span>}
+                {embMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{embMsg}</span>}
               </div>
               <div className="flex items-center gap-4">
                 <Button onClick={callExport} disabled={exportLoading}>
                   <FileText className="size-4 mr-2" />{exportLoading ? "..." : "Экспорт БД в JSON"}
                 </Button>
-                {exportMsg && <span className="text-sm text-gray-600">{exportMsg}</span>}
+                {exportMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{exportMsg}</span>}
               </div>
               <div className="flex items-center gap-4">
                 <Button onClick={() => callAction("/api/admin/db/backup", {}, setBackupMsg, setBackupLoading)} disabled={backupLoading}>
                   {backupLoading ? "..." : "Бэкап БД (pg_dump)"}
                 </Button>
-                {backupMsg && <span className="text-sm text-gray-600">{backupMsg}</span>}
+                {backupMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{backupMsg}</span>}
               </div>
             </CardContent>
           </Card>
@@ -723,7 +723,7 @@ export function AdminDashboard() {
                 <select
                   value={rpdDir}
                   onChange={(e) => setRpdDir(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm font-mono"
+                  className="h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm font-mono"
                 >
                   {directions.map((d: any) => (
                     <option key={d.dir_code} value={d.dir_code}>{d.dir_code}</option>
@@ -759,7 +759,7 @@ export function AdminDashboard() {
                   value={rpdYandexUrl}
                   onChange={(e) => setRpdYandexUrl(e.target.value)}
                   placeholder="Ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...)"
-                  className="h-9 flex-1 px-3 rounded-lg border border-gray-300 text-sm"
+                  className="h-9 flex-1 px-3 rounded-lg border border-gray-300 dark:border-slate-600 text-sm"
                 />
                 <Button onClick={collectRpd} disabled={rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim()} className="bg-teal-600 hover:bg-teal-700">
                   <Download className="size-4 mr-2" />{rpdCollecting ? "Сбор..." : "Загрузить по ссылке"}
@@ -767,18 +767,18 @@ export function AdminDashboard() {
               </div>
               {rpdStatus && (rpdStatus.status === "running" || rpdStatus.status === "started") && (
                 <div>
-                  <div className="h-2 w-full rounded bg-amber-100 overflow-hidden">
+                  <div className="h-2 w-full rounded bg-amber-100 dark:bg-amber-950/30 overflow-hidden">
                     <div
                       className="h-full rounded bg-teal-600 transition-all"
                       style={{ width: `${rpdStatus.stats?.progress ?? 10}%` }}
                     />
                   </div>
-                  <p className="mt-1 text-sm text-amber-700">
+                  <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
                     Этап: {rpdStageLabel(rpdStatus.stats?.stage)} · {rpdStatus.stats?.progress ?? 10}%
                   </p>
                 </div>
               )}
-              {rpdMsg && <p className="text-sm text-gray-600">{rpdMsg}</p>}
+              {rpdMsg && <p className="text-sm text-gray-600 dark:text-slate-400">{rpdMsg}</p>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -788,12 +788,12 @@ export function AdminDashboard() {
           <Card>
             <CardHeader><CardTitle className="text-lg"><Upload className="size-4 inline mr-2" />Импорт студентов</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-gray-500">JSON-массив студентов:</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">JSON-массив студентов:</p>
               <textarea
                 value={importJson}
                 onChange={(e) => setImportJson(e.target.value)}
                 rows={8}
-                className="w-full p-3 rounded-lg border border-gray-300 text-sm font-mono"
+                className="w-full p-3 rounded-lg border border-gray-300 dark:border-slate-600 text-sm font-mono"
                 placeholder={`[
   {"full_name":"Иванов Иван","group_name":"ИСИТ-31","skills":"python,sql"}
 ]`}
@@ -809,7 +809,7 @@ export function AdminDashboard() {
           <Card>
             <CardHeader><CardTitle className="text-lg"><Brain className="size-4 inline mr-2" />Расширение таксономии</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-gray-500">Анализ вакансий и добавление новых навыков в it_skills.json</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Анализ вакансий и добавление новых навыков в it_skills.json</p>
               <Button onClick={() => callAction("/api/admin/skills/extend", { yes: true }, setExtMsg, setExtLoading)} disabled={extLoading}>
                 {extLoading ? "..." : "Анализировать и добавить"}
               </Button>
@@ -828,10 +828,10 @@ export function AdminDashboard() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-slate-400">
                 Навыки из it_skills, не имеющие категории в таксономии. Предложена категория по эмбеддинг-сходству.
               </p>
-              {uncatLoading && <p className="text-sm text-gray-500">Загрузка...</p>}
+              {uncatLoading && <p className="text-sm text-gray-500 dark:text-slate-400">Загрузка...</p>}
               {!uncatLoading && uncategorized.length === 0 && (
                 <p className="text-sm text-green-600">Все навыки категоризованы.</p>
               )}
@@ -840,7 +840,7 @@ export function AdminDashboard() {
                   <div className="overflow-x-auto max-h-80 overflow-y-auto border rounded-lg">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b text-left text-gray-500 sticky top-0 bg-white">
+                        <tr className="border-b text-left text-gray-500 dark:text-slate-400 sticky top-0 bg-white dark:bg-slate-950">
                           <th className="px-3 py-2 font-medium">Навык</th>
                           <th className="px-3 py-2 font-medium">Категория</th>
                           <th className="px-3 py-2 font-medium text-right">Score</th>
@@ -849,8 +849,8 @@ export function AdminDashboard() {
                       </thead>
                       <tbody>
                         {uncategorized.map((it) => (
-                          <tr key={it.skill} className="border-b border-gray-100">
-                            <td className="px-3 py-1.5 font-mono text-xs text-gray-700">
+                          <tr key={it.skill} className="border-b border-gray-100 dark:border-slate-800">
+                            <td className="px-3 py-1.5 font-mono text-xs text-gray-700 dark:text-slate-300">
                               {it.skill}
                               {it.manual && <Badge variant="outline" className="ml-2 text-[10px]">manual</Badge>}
                             </td>
@@ -858,14 +858,14 @@ export function AdminDashboard() {
                               <select
                                 value={uncatSelections[it.skill] || it.category}
                                 onChange={(e) => setUncatSelections((prev) => ({ ...prev, [it.skill]: e.target.value }))}
-                                className="h-8 px-2 rounded border border-gray-300 bg-white text-xs"
+                                className="h-8 px-2 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-xs"
                               >
                                 {["programming_languages","frameworks","databases","devops","cloud","data_science","ml_advanced","frontend","mobile","testing_qa","security","llm_ai","enterprise","gis","embedded","game_dev","management","soft_skills","mathematics","methodologies_concepts","business_tools","methodologies","abstract_concepts"].map((c) => (
                                   <option key={c} value={c}>{c}</option>
                                 ))}
                               </select>
                             </td>
-                            <td className="px-3 py-1.5 text-right text-xs text-gray-500">{it.score.toFixed(3)}</td>
+                            <td className="px-3 py-1.5 text-right text-xs text-gray-500 dark:text-slate-400">{it.score.toFixed(3)}</td>
                             <td className="px-3 py-1.5 text-right">
                               <Button
                                 variant="outline"
@@ -882,39 +882,39 @@ export function AdminDashboard() {
                     </table>
                   </div>
                   {linkSkill && (
-                    <div className="border border-emerald-200 bg-emerald-50/60 rounded-lg p-3 space-y-2">
-                      <div className="text-sm font-medium text-gray-900">
-                        Привязать <span className="font-mono text-emerald-700">{linkSkill}</span> к компетенции (запись в БД, match=exact)
+                    <div className="border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3 space-y-2">
+                      <div className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                        Привязать <span className="font-mono text-emerald-700 dark:text-emerald-300">{linkSkill}</span> к компетенции (запись в БД, match=exact)
                       </div>
                       <div className="flex flex-col md:flex-row gap-2">
                         <Input
                           value={compQuery}
                           onChange={(e) => searchCompetencies(e.target.value)}
                           placeholder="Поиск компетенции: код или дисциплина..."
-                          className="h-9 bg-white focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                          className="h-9 bg-white dark:bg-slate-950 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
                         />
                         <select
                           value={linkKsa}
                           onChange={(e) => setLinkKsa(e.target.value)}
-                          className="h-9 px-2 rounded border border-gray-300 bg-white text-xs"
+                          className="h-9 px-2 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-xs"
                         >
                           {["knowledge", "abilities", "skills", "flat"].map((k) => (
                             <option key={k} value={k}>{k}</option>
                           ))}
                         </select>
                       </div>
-                      {compLoading && <p className="text-xs text-gray-500">Поиск...</p>}
+                      {compLoading && <p className="text-xs text-gray-500 dark:text-slate-400">Поиск...</p>}
                       {compResults.length > 0 && (
-                        <div className="max-h-40 overflow-y-auto border rounded bg-white text-sm">
+                        <div className="max-h-40 overflow-y-auto border rounded bg-white dark:bg-slate-950 text-sm">
                           {compResults.map((c: any) => (
                             <button
                               key={c.id}
                               type="button"
                               onClick={() => setLinkCompId(c.id)}
-                              className={`w-full text-left px-3 py-1.5 hover:bg-emerald-50 cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none ${linkCompId === c.id ? "bg-emerald-100 font-medium" : ""}`}
+                              className={`w-full text-left px-3 py-1.5 hover:bg-emerald-50 cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none ${linkCompId === c.id ? "bg-emerald-100 dark:bg-emerald-950/30 font-medium" : ""}`}
                             >
-                              <span className="font-mono text-xs text-emerald-700">{c.code}</span>
-                              <span className="ml-2 text-gray-600">{c.discipline_name}</span>
+                              <span className="font-mono text-xs text-emerald-700 dark:text-emerald-300">{c.code}</span>
+                              <span className="ml-2 text-gray-600 dark:text-slate-400">{c.discipline_name}</span>
                             </button>
                           ))}
                         </div>
@@ -924,7 +924,7 @@ export function AdminDashboard() {
                           {linkSaving ? "..." : "Сохранить в БД"}
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setLinkSkill(null)}>Отмена</Button>
-                        {linkMsg && <span className="text-xs text-gray-600">{linkMsg}</span>}
+                        {linkMsg && <span className="text-xs text-gray-600 dark:text-slate-400">{linkMsg}</span>}
                       </div>
                     </div>
                   )}
@@ -956,10 +956,10 @@ export function AdminDashboard() {
                 >
                   {sched && sched.daily_gap_enabled ? "Ночной gap: включён" : "Ночной gap: выключен"}
                 </Button>
-                <span className="text-xs text-gray-500">gap бежит цепочкой после ночного сбора</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400">gap бежит цепочкой после ночного сбора</span>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm text-gray-600">Интервал сбора, ч:</span>
+                <span className="text-sm text-gray-600 dark:text-slate-400">Интервал сбора, ч:</span>
                 <Input
                   type="number"
                   min={1}
@@ -972,12 +972,12 @@ export function AdminDashboard() {
                 <Button variant="outline" size="sm" onClick={loadSched} disabled={schedLoading}>Обновить статус</Button>
               </div>
               {sched && (
-                <div className="text-sm text-gray-600 space-y-1">
-                  <div>Последний сбор: {fmtTs(sched.last_collect_ts)} · Последний gap: {sched.last_gap_date || "—"}</div>
+                <div className="text-sm text-gray-600 dark:text-slate-400 space-y-1">
+                  <div>Последний сбор: {fmtTs(sched.last_collect_ts)} · Последний gap: {sched.last_gap_date || "–"}</div>
                   <div>Следующий сбор: {fmtTs(sched.next_collect_ts)} · Занят: {sched.busy || "нет"} · Конвейер активен: {sched.pipeline_running ? "да" : "нет"}</div>
                 </div>
               )}
-              {schedMsg && <span className="text-sm text-gray-600">{schedMsg}</span>}
+              {schedMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{schedMsg}</span>}
             </CardContent>
           </Card>
 
@@ -988,7 +988,7 @@ export function AdminDashboard() {
                 <Button onClick={() => runSchedJob("collect", "сбор вакансий")} disabled={schedBusy}>Собрать сейчас</Button>
                 <Button variant="outline" onClick={() => runSchedJob("gap", "gap-анализ")} disabled={schedBusy}>Gap сейчас</Button>
               </div>
-              <p className="text-xs text-gray-500">Ручные запуски конвейера блокируются кодом 409, пока планировщик занят.</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Ручные запуски конвейера блокируются кодом 409, пока планировщик занят.</p>
             </CardContent>
           </Card>
         </TabsContent>

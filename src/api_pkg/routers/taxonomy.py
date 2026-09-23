@@ -15,6 +15,7 @@ from src.models.api_responses import (
 )
 
 from src.api_pkg import deps
+from src.api_pkg.routers.auth import user_error_detail
 
 logger = structlog.get_logger("api")
 
@@ -35,14 +36,22 @@ async def taxonomy_coverage(
         case Ok(categories):
             cat_ids = categories
         case Err(err):
-            raise HTTPException(status_code=500, detail=str(err))
+            logger.warning("taxonomy_categories_failed", error=str(err))
+            raise HTTPException(
+                status_code=500,
+                detail=await user_error_detail(request, str(err), "Не удалось загрузить категории таксономии. Попробуйте позже."),
+            )
     coverage = {}
     for cat_id in cat_ids:
         match taxonomy_instance.get_skills_in_category(cat_id):
             case Ok(skills):
                 cat_skills = set(s.lower() for s in skills)
             case Err(err):
-                raise HTTPException(status_code=500, detail=str(err))
+                logger.warning("taxonomy_category_skills_failed", category=cat_id, error=str(err))
+                raise HTTPException(
+                    status_code=500,
+                    detail=await user_error_detail(request, str(err), "Не удалось загрузить навыки категории. Попробуйте позже."),
+                )
         covered = cat_skills & deps.current_skills_set
         coverage[cat_id] = {
             "label": taxonomy_instance.get_category_label_by_id(cat_id),
@@ -79,7 +88,10 @@ async def get_professions(request: Request):
         return {"professions": professions, "total": len(professions)}
     except Exception as e:
         logger.error("get_professions_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=await user_error_detail(request, str(e), "Не удалось загрузить список профессий. Попробуйте позже."),
+        )
 
 
 @router.get(
@@ -120,7 +132,10 @@ async def get_profession_detail(request: Request, profession_name: str):
         raise
     except Exception as e:
         logger.error("get_profession_detail_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=await user_error_detail(request, str(e), "Не удалось загрузить профессию. Попробуйте позже."),
+        )
 
 
 @router.get(
@@ -143,7 +158,7 @@ async def get_profession_krm_coverage(
         coverage = taxonomy.compute_krm_coverage(profession_name, user_skills)
         if not coverage:
             raise HTTPException(
-                status_code=404, detail=f"No KRM data for '{profession_name}'"
+                status_code=404, detail=f"Нет KRM-данных для '{profession_name}'"
             )
 
         return {
@@ -161,4 +176,7 @@ async def get_profession_krm_coverage(
         raise
     except Exception as e:
         logger.error("get_krm_coverage_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=await user_error_detail(request, str(e), "Не удалось загрузить KRM-покрытие. Попробуйте позже."),
+        )

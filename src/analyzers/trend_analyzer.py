@@ -65,12 +65,15 @@ class SnapshotTrendAnalyzer:
         for skill, freq in latest.items():
             prev_freq = previous.get(skill, 0)
             if prev_freq >= 10:
-                change = (freq - prev_freq) / prev_freq * 100
-                if change > 200:
-                    change = 200
-                elif change < -200:
-                    change = -200
-                changes.append({"skill": skill, "change_pct": round(change, 1), "frequency": freq})
+                raw_change = (freq - prev_freq) / prev_freq * 100
+                capped = max(min(raw_change, 200), -200)
+                changes.append({
+                    "skill": skill,
+                    "change_pct": round(capped, 1),
+                    "change_pct_raw": round(raw_change, 1),
+                    "capped": abs(raw_change) > 200,
+                    "frequency": freq,
+                })
         result = sorted(changes, key=lambda x: -x["change_pct"])[:top_n]
         logger.info("rising_skills_found", count=len(result))
         return Ok(result)
@@ -106,12 +109,15 @@ class SnapshotTrendAnalyzer:
         for skill, freq in latest.items():
             prev_freq = previous.get(skill, 0)
             if prev_freq >= 10:
-                change = (freq - prev_freq) / prev_freq * 100
-                if change > 200:
-                    change = 200
-                elif change < -200:
-                    change = -200
-                changes.append({"skill": skill, "change_pct": round(change, 1), "frequency": freq})
+                raw_change = (freq - prev_freq) / prev_freq * 100
+                capped = max(min(raw_change, 200), -200)
+                changes.append({
+                    "skill": skill,
+                    "change_pct": round(capped, 1),
+                    "change_pct_raw": round(raw_change, 1),
+                    "capped": abs(raw_change) > 200,
+                    "frequency": freq,
+                })
         # Include skills that disappeared (in previous, not in latest)
         for skill, prev_freq in previous.items():
             if skill not in latest and prev_freq >= 10:

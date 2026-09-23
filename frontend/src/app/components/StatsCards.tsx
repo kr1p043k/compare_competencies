@@ -54,30 +54,30 @@ export function StatsCards({ stats }: StatsCardsProps) {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <StatCard
         title="Вакансий собрано"
-        value={stats?.totalVacancies ?? "—"}
+        value={stats?.totalVacancies ?? "–"}
         icon={TrendingUp}
-        gradient="from-blue-500 to-cyan-500"
+        gradient="from-blue-50 dark:from-blue-950/30 to-cyan-50 dark:to-cyan-950/30"
         delay={0}
       />
       <StatCard
         title="Покрытие рынка"
-        value={stats?.coverage ? `${stats.coverage}%` : "—"}
+        value={stats?.coverage ? `${stats.coverage}%` : "–"}
         icon={Target}
-        gradient="from-purple-500 to-pink-500"
+        gradient="from-purple-50 dark:from-purple-950/30 to-pink-50 dark:to-pink-950/30"
         delay={0.1}
       />
       <StatCard
         title="Рекомендаций"
-        value={stats?.recommendations ?? "—"}
+        value={stats?.recommendations ?? "–"}
         icon={Award}
-        gradient="from-emerald-500 to-teal-500"
+        gradient="from-emerald-50 dark:from-emerald-950/30 to-teal-50 dark:to-teal-950/30"
         delay={0.2}
       />
       <StatCard
         title="Точность ML"
-        value={stats?.accuracy ? `${stats.accuracy}%` : "—"}
+        value={stats?.accuracy ? `${stats.accuracy}%` : "–"}
         icon={Zap}
-        gradient="from-orange-500 to-red-500"
+        gradient="from-orange-50 dark:from-orange-950/30 to-red-50 dark:to-red-950/30"
         delay={0.3}
       />
     </div>

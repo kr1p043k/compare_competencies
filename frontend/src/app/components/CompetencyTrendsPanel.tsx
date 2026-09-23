@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../api";
+import { useTheme } from "../../lib/theme";
 
 type SkillTrend = {
   name: string;
@@ -42,6 +43,8 @@ function trendColor(pct: number): string {
 }
 
 export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Props) {
+  const { theme } = useTheme();
+  const dk = theme === "dark";
   const [data, setData] = useState<TrendsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,9 +63,9 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
   }, [dirCode, filter]);
 
   const card: React.CSSProperties = {
-    background: "#fff",
+    background: dk ? "#0f172a" : "#fff",
     borderRadius: 8,
-    border: "1px solid #e5e7eb",
+    border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
     padding: "12px 18px",
     marginBottom: 10,
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
@@ -122,31 +125,31 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
         }}
       >
           <div style={card}>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>Компетенций</div>
+          <div style={{ fontSize: 12, color: dk ? "#94a3b8" : "#6b7280" }}>Компетенций</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: "#7c3aed" }}>
             {displayed.length}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>Растут</div>
+          <div style={{ fontSize: 12, color: dk ? "#94a3b8" : "#6b7280" }}>Растут</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: "#059669" }}>
             {rising}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>Стабильно</div>
+          <div style={{ fontSize: 12, color: dk ? "#94a3b8" : "#6b7280" }}>Стабильно</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: "#d97706" }}>
             {stable}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>Падают</div>
+          <div style={{ fontSize: 12, color: dk ? "#94a3b8" : "#6b7280" }}>Падают</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: "#dc2626" }}>
             {falling}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>Средний тренд</div>
+          <div style={{ fontSize: 12, color: dk ? "#94a3b8" : "#6b7280" }}>Средний тренд</div>
           <div
             style={{
               fontSize: 20,
@@ -185,7 +188,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
               cursor: "pointer",
               fontSize: 12,
               fontWeight: filter === f.key ? 700 : 400,
-              background: filter === f.key ? "#7c3aed" : "#f9fafb",
+              background: filter === f.key ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
               color: filter === f.key ? "#fff" : "#7c3aed",
             }}
           >
@@ -208,7 +211,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
             key={comp.code}
             style={{
               marginBottom: 8,
-              border: "1px solid #e5e7eb",
+              border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
               borderRadius: 8,
               overflow: "hidden",
             }}
@@ -217,7 +220,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
               onClick={() => setExpanded(isOpen ? null : comp.code)}
               style={{
                 padding: "10px 16px",
-                background: "#f9fafb",
+                background: dk ? "#1e293b" : "#f9fafb",
                 cursor: "pointer",
                 display: "flex",
                 justifyContent: "space-between",
@@ -240,7 +243,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                 >
                   {comp.code}
                 </span>
-                <span style={{ fontSize: 12, color: "#6b7280" }}>
+                <span style={{ fontSize: 12, color: dk ? "#94a3b8" : "#6b7280" }}>
                   {comp.skill_count} навык{comp.skill_count !== 1 ? "а" : ""}
                   {comp.active_skills_count !== undefined &&
                     comp.active_skills_count !== comp.skill_count && (
@@ -282,10 +285,10 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                     fontSize: 12,
                     background:
                       comp.direction === "rising"
-                        ? "#d1fae5"
+                        ? dk ? "#0e2e25" : "#d1fae5"
                         : comp.direction === "falling"
-                          ? "#fee2e2"
-                          : "#fef3c7",
+                          ? dk ? "#3b1d1d" : "#fee2e2"
+                          : dk ? "#453a17" : "#fef3c7",
                     color: clsColor,
                     fontWeight: 600,
                   }}
@@ -315,10 +318,10 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                         alignItems: "center",
                         padding: "6px 0",
                         fontSize: 13,
-                        borderBottom: "1px solid #e5e7eb",
+                        borderBottom: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
                       }}
                     >
-                      <span style={{ color: "#374151", fontWeight: 500 }}>{sk.name}</span>
+                      <span style={{ color: dk ? "#cbd5e1" : "#374151", fontWeight: 500 }}>{sk.name}</span>
                       <span
                         style={{
                           color: trendColor(sk.change_pct),
@@ -347,7 +350,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                         style={{
                           padding: "12px 0 16px",
                           fontSize: 11,
-                          color: "#6b7280",
+                          color: dk ? "#94a3b8" : "#6b7280",
                         }}
                       >
                         <div
@@ -381,7 +384,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                                   style={{
                                     fontSize: 10,
                                     fontWeight: 600,
-                                    color: "#4b5563",
+                                    color: dk ? "#94a3b8" : "#4b5563",
                                     marginBottom: 2,
                                   }}
                                 >
@@ -401,7 +404,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                                 <span
                                   style={{
                                     fontSize: 10,
-                                    color: "#6b7280",
+                                    color: dk ? "#94a3b8" : "#6b7280",
                                     marginTop: 2,
                                   }}
                                 >

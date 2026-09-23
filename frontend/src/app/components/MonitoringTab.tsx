@@ -66,7 +66,7 @@ export function MonitoringTab() {
   const loadMetrics = useCallback(async () => {
     try {
       const r = await apiFetch("/api/admin/monitoring");
-      if (!r.ok) throw new Error(`Failed to load metrics: ${r.status}`);
+      if (!r.ok) throw new Error(`Не удалось загрузить метрики (HTTP ${r.status}). Попробуйте позже.`);
       const data = await r.json();
       setMetrics(data);
       setError(null);
@@ -213,11 +213,11 @@ export function MonitoringTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Мониторинг</h2>
-          <p className="text-sm text-gray-500">Метрики системы, подписки на источники и уведомления</p>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Мониторинг</h2>
+          <p className="text-sm text-gray-500 dark:text-slate-400">Метрики системы, подписки на источники и уведомления</p>
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-gray-600">
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} className="rounded" />
             Автообновление
           </label>
@@ -229,7 +229,7 @@ export function MonitoringTab() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg">
+        <div className="flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">
           <AlertCircle className="size-5" />
           <span>{error}</span>
         </div>
@@ -279,11 +279,11 @@ export function MonitoringTab() {
                   const total = sumSamples.reduce((s, m) => s + m.value, 0);
                   const avg = count > 0 ? total / count : 0;
                   return (
-                    <div key={stage} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                      <span className="text-sm font-medium text-gray-700 capitalize">{stage.replace(/_/g, " ")}</span>
+                    <div key={stage} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-slate-800 last:border-0">
+                      <span className="text-sm font-medium text-gray-700 dark:text-slate-300 capitalize">{stage.replace(/_/g, " ")}</span>
                       <div className="flex items-center gap-4 text-sm">
-                        <span className="text-gray-500">{count}x</span>
-                        <span className="font-mono text-gray-700">{avg.toFixed(1)}s avg</span>
+                        <span className="text-gray-500 dark:text-slate-400">{count}x</span>
+                        <span className="font-mono text-gray-700 dark:text-slate-300">{avg.toFixed(1)}s avg</span>
                       </div>
                     </div>
                   );
@@ -301,9 +301,9 @@ export function MonitoringTab() {
               <CardContent>
                 <div className="grid grid-cols-3 gap-4">
                   {ltrMetrics.map((m) => (
-                    <div key={m.labels.metric} className="text-center p-4 bg-gray-50 rounded-lg">
-                      <div className="text-xs text-gray-500 uppercase">{m.labels.metric}</div>
-                      <div className="text-xl font-bold text-gray-900">{m.value.toFixed(4)}</div>
+                    <div key={m.labels.metric} className="text-center p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                      <div className="text-xs text-gray-500 dark:text-slate-400 uppercase">{m.labels.metric}</div>
+                      <div className="text-xl font-bold text-gray-900 dark:text-slate-100">{m.value.toFixed(4)}</div>
                     </div>
                   ))}
                 </div>
@@ -314,13 +314,13 @@ export function MonitoringTab() {
           {pipelineErrors.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg text-red-700"><AlertCircle className="size-5" />Pipeline errors by stage</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg text-red-700 dark:text-red-300"><AlertCircle className="size-5" />Pipeline errors by stage</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   {pipelineErrors.map((m, i) => (
                     <div key={i} className="flex items-center justify-between py-1">
-                      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">{m.labels.stage}</Badge>
+                      <Badge variant="outline" className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800">{m.labels.stage}</Badge>
                       <span className="font-mono text-red-600">{m.value}</span>
                     </div>
                   ))}
@@ -329,9 +329,9 @@ export function MonitoringTab() {
             </Card>
           )}
 
-          <details className="text-sm text-gray-500">
+          <details className="text-sm text-gray-500 dark:text-slate-400">
             <summary className="cursor-pointer hover:text-gray-700">Сырые метрики</summary>
-            <pre className="mt-2 p-4 bg-gray-50 rounded-lg overflow-x-auto text-xs">
+            <pre className="mt-2 p-4 bg-gray-50 dark:bg-slate-900 rounded-lg overflow-x-auto text-xs">
               {JSON.stringify(metrics, null, 2)}
             </pre>
           </details>
@@ -339,7 +339,7 @@ export function MonitoringTab() {
       )}
 
       {loading && !metrics && (
-        <div className="text-center py-12 text-gray-500">Загрузка метрик...</div>
+        <div className="text-center py-12 text-gray-500 dark:text-slate-400">Загрузка метрик...</div>
       )}
 
       {/* ─── Subscriptions ───────────────────────────────── */}
@@ -354,11 +354,11 @@ export function MonitoringTab() {
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Тема поиска</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Тема поиска</label>
               <Input value={newTopic} onChange={(e) => setNewTopic(e.target.value)} placeholder="Например: machine learning" />
             </div>
             <div className="w-40">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Источник</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Источник</label>
               <Select value={newSource} onValueChange={setNewSource}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -369,7 +369,7 @@ export function MonitoringTab() {
               </Select>
             </div>
             <div className="flex-1 min-w-[180px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Telegram Chat ID (опционально)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Telegram Chat ID (опционально)</label>
               <Input value={newTelegramChatId} onChange={(e) => setNewTelegramChatId(e.target.value)} placeholder="Например: 123456789" />
             </div>
             <Button onClick={createSubscription} disabled={creating || !newTopic.trim()}>
@@ -379,33 +379,33 @@ export function MonitoringTab() {
           </div>
 
           {createError && (
-            <div className="flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded-lg text-sm">
+            <div className="flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-950/30 p-2 rounded-lg text-sm">
               <AlertCircle className="size-4 shrink-0" />
               <span>{createError}</span>
             </div>
           )}
 
           {subError && (
-            <div className="flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded-lg text-sm">
+            <div className="flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-950/30 p-2 rounded-lg text-sm">
               <AlertCircle className="size-4 shrink-0" />
               <span>{subError}</span>
             </div>
           )}
 
           <div className="space-y-2">
-            {subsLoading && <p className="text-sm text-gray-500">Загрузка подписок...</p>}
+            {subsLoading && <p className="text-sm text-gray-500 dark:text-slate-400">Загрузка подписок...</p>}
             {!subsLoading && subscriptions.length === 0 && (
-              <p className="text-sm text-gray-400 py-4 text-center">Нет активных подписок. Добавьте тему для отслеживания.</p>
+              <p className="text-sm text-gray-400 dark:text-slate-500 py-4 text-center">Нет активных подписок. Добавьте тему для отслеживания.</p>
             )}
             {subscriptions.map((sub) => (
-              <div key={sub.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+              <div key={sub.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-slate-900 rounded-lg">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900">{sub.topic}</span>
+                    <span className="font-medium text-gray-900 dark:text-slate-100">{sub.topic}</span>
                     <Badge variant="outline" className="text-xs">{sub.source}</Badge>
                     {sub.telegram_chat_id && <Badge variant="secondary" className="text-xs"><Mail className="size-3 mr-1" />Telegram</Badge>}
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
                     Создана: {new Date(sub.created_at).toLocaleDateString("ru-RU")}
                     {sub.last_checked_at && ` · Проверена: ${new Date(sub.last_checked_at).toLocaleString("ru-RU")}`}
                   </p>
@@ -447,32 +447,32 @@ export function MonitoringTab() {
         </CardHeader>
         <CardContent>
           {notifError && (
-            <div className="flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded-lg text-sm mb-3">
+            <div className="flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-950/30 p-2 rounded-lg text-sm mb-3">
               <AlertCircle className="size-4 shrink-0" />
               <span>{notifError}</span>
             </div>
           )}
-          {notifsLoading && <p className="text-sm text-gray-500">Загрузка...</p>}
+          {notifsLoading && <p className="text-sm text-gray-500 dark:text-slate-400">Загрузка...</p>}
           {!notifsLoading && !notifError && notifications.length === 0 && (
-            <p className="text-sm text-gray-400 py-4 text-center">Уведомлений пока нет. Создайте подписку, чтобы начать отслеживание.</p>
+            <p className="text-sm text-gray-400 dark:text-slate-500 py-4 text-center">Уведомлений пока нет. Создайте подписку, чтобы начать отслеживание.</p>
           )}
           <div className="space-y-2">
             {notifications.map((n) => (
-              <div key={n.id} className={`p-3 rounded-lg border ${n.is_read ? "bg-white border-gray-200" : "bg-blue-50 border-blue-200"}`}>
+              <div key={n.id} className={`p-3 rounded-lg border ${n.is_read ? "bg-white dark:bg-slate-950 border-gray-200 dark:border-slate-700" : "bg-blue-50 border-blue-200"}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-gray-900 truncate">{n.title}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">{n.title}</span>
                       {n.severity === "error" && (
                         <Badge className="bg-red-600 shrink-0"><AlertCircle className="size-3 mr-1" />ошибка</Badge>
                       )}
                       {n.severity === "warning" && (
-                        <Badge className="bg-amber-500 shrink-0">предупреждение</Badge>
+                        <Badge className="bg-amber-50 dark:bg-amber-950/30 shrink-0">предупреждение</Badge>
                       )}
                       {n.article_source && <Badge variant="outline" className="text-xs shrink-0">{n.article_source}</Badge>}
                     </div>
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{n.body}</p>
-                    <p className="text-xs text-gray-400 mt-1">{new Date(n.created_at).toLocaleString("ru-RU")}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 line-clamp-2">{n.body}</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">{new Date(n.created_at).toLocaleString("ru-RU")}</p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {n.article_url && (
@@ -506,12 +506,12 @@ export function MonitoringTab() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center gap-4 py-10 text-center">
-            <div className="flex size-12 items-center justify-center rounded-full bg-gray-100">
-              <BarChart3 className="size-6 text-gray-600" />
+            <div className="flex size-12 items-center justify-center rounded-full bg-gray-100 dark:bg-slate-800">
+              <BarChart3 className="size-6 text-gray-600 dark:text-slate-400" />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-900">Мониторинг в Grafana</p>
-              <p className="text-xs text-gray-500">Дашборд откроется в новой вкладке</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-slate-100">Мониторинг в Grafana</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Дашборд откроется в новой вкладке</p>
             </div>
             <a href="/grafana/d/competency-gap-analyzer/competency-gap-analyzer?orgId=1&kiosk" target="_blank" rel="noopener noreferrer">
               <Button variant="outline">

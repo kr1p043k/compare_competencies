@@ -11,13 +11,13 @@ import { Badge } from "./ui/badge";
 
 function ValueDisplay({ value }: { value: unknown }) {
   if (value === null || value === undefined) {
-    return <span className="text-gray-400 italic">—</span>;
+    return <span className="text-gray-400 dark:text-slate-500 italic">–</span>;
   }
   if (typeof value === "boolean") {
     return <Badge variant={value ? "default" : "secondary"}>{String(value)}</Badge>;
   }
   if (typeof value === "number") {
-    return <span className="font-mono text-blue-700">{value}</span>;
+    return <span className="font-mono text-blue-700 dark:text-blue-300">{value}</span>;
   }
   if (typeof value === "string") {
     if (value.length > 120) return <span className="text-xs">{value.slice(0, 120)}…</span>;
@@ -33,7 +33,7 @@ function ValueDisplay({ value }: { value: unknown }) {
 }
 
 function ArrayViewer({ data }: { data: unknown[] }) {
-  if (data.length === 0) return <span className="text-gray-400 italic">пусто</span>;
+  if (data.length === 0) return <span className="text-gray-400 dark:text-slate-500 italic">пусто</span>;
   const allPrimitives = data.every((v) => typeof v !== "object" || v === null);
   if (allPrimitives) {
     return (
@@ -67,7 +67,7 @@ function ArrayViewer({ data }: { data: unknown[] }) {
           <TableBody>
             {data.slice(0, 50).map((obj, i) => (
               <TableRow key={i}>
-                <TableCell className="text-xs text-gray-500">{i + 1}</TableCell>
+                <TableCell className="text-xs text-gray-500 dark:text-slate-400">{i + 1}</TableCell>
                 {keyArr.map((k) => (
                   <TableCell key={k} className="text-xs max-w-[200px] truncate">
                     <ValueDisplay value={(obj as Record<string, unknown>)[k]} />
@@ -78,14 +78,14 @@ function ArrayViewer({ data }: { data: unknown[] }) {
           </TableBody>
         </Table>
         {data.length > 50 && (
-          <div className="px-3 py-2 text-xs text-gray-500 border-t bg-gray-50">
+          <div className="px-3 py-2 text-xs text-gray-500 dark:text-slate-400 border-t bg-gray-50 dark:bg-slate-900">
             и ещё {data.length - 50} записей
           </div>
         )}
       </div>
     );
   }
-  return <span className="text-xs text-gray-500">[{data.length} элементов]</span>;
+  return <span className="text-xs text-gray-500 dark:text-slate-400">[{data.length} элементов]</span>;
 }
 
 function ObjectViewer({
@@ -98,15 +98,15 @@ function ObjectViewer({
   const entries = Object.entries(data).filter(
     ([, v]) => v !== null && v !== undefined
   );
-  if (entries.length === 0) return <span className="text-gray-400 italic">пусто</span>;
+  if (entries.length === 0) return <span className="text-gray-400 dark:text-slate-500 italic">пусто</span>;
   if (depth > 2) {
-    return <span className="text-xs text-gray-500">{entries.length} полей</span>;
+    return <span className="text-xs text-gray-500 dark:text-slate-400">{entries.length} полей</span>;
   }
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
       {entries.map(([k, v]) => (
-        <div key={k} className="border rounded-md p-3 bg-white">
-          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+        <div key={k} className="border rounded-md p-3 bg-white dark:bg-slate-950">
+          <div className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">
             {k.replace(/_/g, " ")}
           </div>
           <ValueDisplay value={v} />
@@ -123,10 +123,10 @@ export function DataViewer({ data }: { data: unknown }) {
   return (
     <div className="space-y-4">
       {/* Structured view */}
-      <div className="border border-gray-200 rounded-lg p-4 bg-white">
+      <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-950">
         <div className="flex items-center gap-2 mb-3">
           <Database className="size-4 text-emerald-600" />
-          <span className="text-sm font-medium text-gray-900">Структурированные данные</span>
+          <span className="text-sm font-medium text-gray-900 dark:text-slate-100">Структурированные данные</span>
         </div>
         <ValueDisplay value={data} />
       </div>

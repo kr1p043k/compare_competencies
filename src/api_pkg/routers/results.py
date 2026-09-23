@@ -11,6 +11,7 @@ from slowapi.util import get_remote_address
 
 from src import config
 from src.api_pkg import deps
+from src.api_pkg.routers.auth import user_error_detail
 from src.api_pkg.summary_builder import build_summary_payload, load_recommendations_from_disk
 from src.models.student import StudentProfile
 
@@ -43,7 +44,11 @@ async def get_results_summary(
                 with open(summary_path, encoding="utf-8") as f:
                     return json.load(f)
             except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
+                logger.warning("results_summary_read_failed", path=str(summary_path), error=str(e))
+                raise HTTPException(
+                    status_code=500,
+                    detail=await user_error_detail(request, str(e), "Не удалось прочитать результаты анализа. Попробуйте позже."),
+                )
 
     return {
         "message": "Результаты анализа не найдены. Запустите gap-анализ.",
@@ -76,7 +81,11 @@ async def get_recommendations_result(
                 pass
             return payload
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.warning("results_recommendations_read_failed", path=str(result_path), error=str(e))
+            raise HTTPException(
+                status_code=500,
+                detail=await user_error_detail(request, str(e), "Не удалось прочитать рекомендации. Попробуйте позже."),
+            )
 
     return {
         "profile": profile,

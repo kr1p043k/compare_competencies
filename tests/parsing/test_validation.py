@@ -157,6 +157,17 @@ class TestSkillValidatorExtended:
         assert not result.is_valid
         assert ValidationReason.IN_BLACKLIST in result.reasons
 
+    def test_blacklist_exact_prefix_only_exact(self):
+        # записи "=xxx" режут только точное совпадение, щадят react native / ipsec
+        # (явный whitelist точнее blacklist, но тут nat/ips из whitelist убраны)
+        validator = SkillValidator(blacklist={"=nat", "=ips"}, whitelist={"react native", "ipsec", "traversal"})
+        assert not validator.validate("nat").ok().is_valid
+        assert not validator.validate("NAT").ok().is_valid
+        assert not validator.validate("ips").ok().is_valid
+        assert validator.validate("react native").ok().is_valid
+        assert validator.validate("ipsec").ok().is_valid
+        assert validator.validate("NAT traversal").ok().is_valid
+
     def test_filler_words_all_rejected(self):
         validator = SkillValidator()
         result = validator.validate("как быть").ok()

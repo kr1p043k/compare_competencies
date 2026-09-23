@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     REQUEST_DELAY: float = 0.1
     MAX_RETRIES: int = 3
     RETRY_DELAY: float = 2.0
+    PIPELINE_RETRIES: int = 2
 
     HH_CLIENT_ID: SecretStr | None = None
     HH_CLIENT_SECRET: SecretStr | None = None
@@ -296,6 +297,7 @@ HH_USER_AGENT = settings.HH_USER_AGENT
 REQUEST_DELAY = settings.REQUEST_DELAY
 MAX_RETRIES = settings.MAX_RETRIES
 RETRY_DELAY = settings.RETRY_DELAY
+PIPELINE_RETRIES = settings.PIPELINE_RETRIES
 HH_CLIENT_ID = settings.HH_CLIENT_ID
 HH_CLIENT_SECRET = settings.HH_CLIENT_SECRET
 

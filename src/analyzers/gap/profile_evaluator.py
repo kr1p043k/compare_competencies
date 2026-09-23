@@ -153,6 +153,8 @@ class ProfileEvaluator:
                 return Err(err)
             case Ok(val):
                 domain_coverages = val
+            case _:
+                return Err(DomainError("Некорректный результат покрытия доменов"))
 
         if domain_coverages:
             dominant_domain = max(domain_coverages.items(), key=lambda x: x[1].coverage)

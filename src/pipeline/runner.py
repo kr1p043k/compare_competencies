@@ -48,6 +48,29 @@ from src.visualization.orchestration import run_notebook, save_all_charts, show_
 logger = structlog.get_logger(__name__)
 
 
+def _run_async_safely(coro_factory, *, context: str):
+    """Запуск async-кода из sync-пайплайна без падения при вложенном loop.
+
+    run_full_pipeline вызывается из executor-потока API (своего loop там нет),
+    но может быть вызван и из кода с активным loop. Вместо голого
+    asyncio.run() — явный новый loop, при конфликте пропускаем
+    необязательный DB/refresh сайд-эффект с варнингом.
+    """
+    try:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(coro_factory())
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(coro_factory())
+        finally:
+            loop.close()
+    except Exception as e:
+        logger.warning("async_side_effect_skipped", context=context, error=str(e))
+        return None
+
+
 def convert_float32(obj):
     import numpy as np
     if isinstance(obj, np.float32):
@@ -311,11 +334,15 @@ def run_full_pipeline(args) -> Result[None, str]:
     try:
         from src.db import get_pool
         pool = get_pool()
-        if pool is not None:
-            row = asyncio.run(pool.fetchrow(
+
+        async def _fetch_last():
+            return await pool.fetchrow(
                 "SELECT MAX(completed_at) AS d FROM pipeline_runs "
                 "WHERE action = 'full-cycle' AND status = 'completed'"
-            ))
+            )
+
+        if pool is not None:
+            row = _run_async_safely(_fetch_last, context="pipeline_last_run")
             args._date_from = row["d"].strftime("%Y-%m-%d") if row and row["d"] else None
         else:
             args._date_from = None
@@ -340,7 +367,7 @@ def run_full_pipeline(args) -> Result[None, str]:
     cancel_event = getattr(args, "cancel_event", None)
     orchestrator = PipelineOrchestrator(
         stages,
-        num_retries=1,
+        num_retries=config.PIPELINE_RETRIES,
         should_cancel=(cancel_event.is_set if cancel_event is not None else None),
     )
     pipeline_result = orchestrator.run(name="full_pipeline")
@@ -432,7 +459,6 @@ def run_full_pipeline(args) -> Result[None, str]:
 
         # Write results to PostgreSQL
         try:
-            import asyncio
             from src.pipeline.db_writer import create_pipeline_run, complete_pipeline_run
 
             async def _write_db():
@@ -440,8 +466,9 @@ def run_full_pipeline(args) -> Result[None, str]:
                 await complete_pipeline_run(rid, status="completed")
                 return rid
 
-            rid = asyncio.run(_write_db())
-            logger.info("db_write_ok", run_id=rid)
+            rid = _run_async_safely(_write_db, context="gap_analysis_db_write")
+            if rid is not None:
+                logger.info("db_write_ok", run_id=rid)
         except Exception as db_err:
             logger.warning("db_write_failed", error=str(db_err))
 
@@ -453,7 +480,7 @@ def run_full_pipeline(args) -> Result[None, str]:
                 count = await export_history_trends_to_db()
                 return count
 
-            trend_count = asyncio.run(_write_trends())
+            trend_count = _run_async_safely(_write_trends, context="trend_snapshots_write")
             console_info(f"✓ Trend snapshots written to DB: {trend_count}")
             logger.info("trend_snapshots_written", count=trend_count)
         except Exception as db_err:
@@ -481,17 +508,23 @@ def run_full_pipeline(args) -> Result[None, str]:
                     },
                 )
                 return rid, total, new_vacs
-            rid, total, new_vacs = asyncio.run(_save_pipeline_run())
-            logger.info("pipeline_run_saved", run_id=rid, stats={"vacancy_count": total, "new_vacancies": new_vacs})
+            saved = _run_async_safely(_save_pipeline_run, context="pipeline_run_save")
+            if saved is not None:
+                rid, total, new_vacs = saved
+                logger.info("pipeline_run_saved", run_id=rid, stats={"vacancy_count": total, "new_vacancies": new_vacs})
         except Exception as db_err:
             logger.warning("pipeline_run_save_failed", error=str(db_err))
 
-        # Auto-reload API engines
+        # Auto-reload API engines (роутер уже делает run_startup после FULL_CYCLE;
+        # здесь best-effort без падения при вложенном loop)
         try:
-            import asyncio as _asyncio
             from src.api_pkg.startup import run_startup
-            _asyncio.run(run_startup(None))
-            logger.info("api_reloaded_after_pipeline")
+
+            async def _reload():
+                await run_startup(None)
+
+            if _run_async_safely(_reload, context="api_reload_after_pipeline") is not None:
+                logger.info("api_reloaded_after_pipeline")
         except Exception as reload_err:
             logger.warning("api_reload_failed", error=str(reload_err))
 

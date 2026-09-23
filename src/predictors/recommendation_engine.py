@@ -325,17 +325,20 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 match self.reranker.rerank(query, documents, top_k=len(documents)):
                     case Ok(rr):
                         raw = {s: float(sc) for s, sc in rr.top_k(len(documents))}
-                        vals = list(raw.values())
-                        vmin, vmax = min(vals), max(vals)
-                        reranked_norm: dict[str, float] = {}
-                        if vmax > vmin:
-                            reranked_norm = {s: (v - vmin) / (vmax - vmin) for s, v in raw.items()}
+                        if not raw:
+                            logger.warning("reranker_empty_result", profile=profile_name)
                         else:
-                            reranked_norm = {s: 0.5 for s in raw}
-                        for skill in combined_scores:
-                            rerank_bonus = reranked_norm.get(skill, 0.0)
-                            combined_scores[skill] = 0.7 * combined_scores[skill] + 0.3 * rerank_bonus
-                        logger.info("reranker_applied", profile=profile_name, skills=len(reranked_norm))
+                            vals = list(raw.values())
+                            vmin, vmax = min(vals), max(vals)
+                            reranked_norm: dict[str, float] = {}
+                            if vmax > vmin:
+                                reranked_norm = {s: (v - vmin) / (vmax - vmin) for s, v in raw.items()}
+                            else:
+                                reranked_norm = {s: 0.5 for s in raw}
+                            for skill in combined_scores:
+                                rerank_bonus = reranked_norm.get(skill, 0.0)
+                                combined_scores[skill] = 0.7 * combined_scores[skill] + 0.3 * rerank_bonus
+                            logger.info("reranker_applied", profile=profile_name, skills=len(reranked_norm))
                     case Err(e):
                         logger.warning("reranker_skipped", error=str(e))
 

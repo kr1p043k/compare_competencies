@@ -950,10 +950,22 @@ async def run_teacher_analysis(
         sum(r.discipline.strong_coverage for _, r in discipline_reports) / len(discipline_reports), 4
     ) if discipline_reports else 0
 
-    # Direction-level emerging: skills not found in ANY discipline (giants capped, v42)
+    # Direction-level emerging: skills not found in ANY discipline (giants capped, v42).
+    # Исключаем и реально сматченное (also_exclude): textual-проверки не видят
+    # семантические матчи и межскриптовые пары, которые матчер уже покрыл.
     from src.analyzers.skill_matcher import EMERGING_MAX_FREQ
+    matched_market_all: set[str] = set()
+    for _, rep in discipline_reports:
+        dc = rep.discipline
+        if dc is None:
+            continue
+        matched_market_all.update(getattr(dc, "matched_market", []) or [])
+        for m in (dc.top_matched or []):
+            if m.market_match:
+                matched_market_all.add(m.market_match)
     direction_emerging_result = matcher.get_emerging(
-        direction_rpd_norm, top_n=15, max_freq=EMERGING_MAX_FREQ)
+        direction_rpd_norm, top_n=15, max_freq=EMERGING_MAX_FREQ,
+        also_exclude=matched_market_all)
     direction_emerging: list[dict] = []
     if direction_emerging_result.is_ok():
         direction_emerging = [

@@ -45,7 +45,7 @@ class DomainAnalyzer:
             )
 
         if not result:
-            return {"domains": {}, "top_domain": None, "avg_coverage": 0.0}
+            return Err(DomainError("Пустая карта доменов: нет покрытия для расчета"))
         top_domain = max(result.items(), key=lambda x: x[1].coverage)
         avg_coverage = sum(d.coverage for d in result.values()) / len(result)
 

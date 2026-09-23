@@ -48,9 +48,9 @@ interface VacancyCardProps {
 }
 
 const experienceLevels = {
-  junior: { label: "Junior", color: "from-blue-500 to-cyan-500", badge: "secondary" },
-  middle: { label: "Middle", color: "from-purple-500 to-pink-500", badge: "default" },
-  senior: { label: "Senior", color: "from-orange-500 to-red-500", badge: "destructive" },
+  junior: { label: "Junior", color: "from-blue-50 dark:from-blue-950/30 to-cyan-50 dark:to-cyan-950/30", badge: "secondary" },
+  middle: { label: "Middle", color: "from-purple-50 dark:from-purple-950/30 to-pink-50 dark:to-pink-950/30", badge: "default" },
+  senior: { label: "Senior", color: "from-orange-50 dark:from-orange-950/30 to-red-50 dark:to-red-950/30", badge: "destructive" },
 };
 
 const TECH_KEYWORDS = new Set([
@@ -309,14 +309,16 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
           )}
 
           {/* Skills */}
-          {vacancy.skills && vacancy.skills.length > 0 && (
+          {(() => {
+            const shownSkills = (vacancy.skills || []).filter((s) => (s || "").trim());
+            return shownSkills.length > 0 ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                 <Star className="size-3" />
                 Ключевые навыки
               </div>
               <div className="flex flex-wrap gap-2">
-                {vacancy.skills.slice(0, 8).map((skill, index) => (
+                {shownSkills.slice(0, 8).map((skill, index) => (
                   <motion.div
                     key={skill}
                     initial={{ opacity: 0, scale: 0.8 }}
@@ -331,14 +333,15 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
                     </Badge>
                   </motion.div>
                 ))}
-                {vacancy.skills.length > 8 && (
+                {shownSkills.length > 8 && (
                   <Badge variant="secondary" className="bg-slate-200 dark:bg-slate-700">
-                    +{vacancy.skills.length - 8}
+                    +{shownSkills.length - 8}
                   </Badge>
                 )}
               </div>
             </div>
-          )}
+            ) : null;
+          })()}
         </CardContent>
 
         {/* Expanded details */}
@@ -380,7 +383,9 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
                           Ключевые навыки (HH)
                         </div>
                         <div className="flex flex-wrap gap-1.5">
-                          {(detail.key_skills as any[]).map((ks: any) => (
+                          {(detail.key_skills as any[])
+                            .filter((ks: any) => ((typeof ks === 'string' ? ks : ks?.name) || "").trim())
+                            .map((ks: any) => (
                             <Badge
                               key={typeof ks === 'string' ? ks : ks.name}
                               variant="secondary"
@@ -395,7 +400,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
 
                     {/* Skills from description (parsed fallback) */}
                     {(() => {
-                      const extracted = detail?.skills ?? [];
+                      const extracted = (detail?.skills ?? []).filter((s: string) => (s || "").trim());
                       const parsed = detail?.description ? parseSkillsFromHtml(detail.description) : [];
                       const displaySkills = extracted.length > 0 ? extracted : parsed;
                       if (displaySkills.length === 0) return null;

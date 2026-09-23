@@ -102,16 +102,16 @@ function ruPriority(p: string): string {
 }
 
 const GAP_STATUS_RU: Record<string, { label: string; cls: string }> = {
-  missing: { label: "нет", cls: "bg-red-100 text-red-800 border-red-300" },
-  weak: { label: "слабый", cls: "bg-amber-100 text-amber-800 border-amber-300" },
-  strong: { label: "сильный", cls: "bg-green-100 text-green-800 border-green-300" },
+  missing: { label: "нет", cls: "bg-red-100 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-300 dark:border-red-700" },
+  weak: { label: "слабый", cls: "bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700" },
+  strong: { label: "сильный", cls: "bg-green-100 dark:bg-green-950/30 text-green-800 dark:text-green-200 border-green-300 dark:border-green-700" },
 };
 
 function GapStatusBadge({ category }: { category: string }) {
   const key = (category || "").toLowerCase();
   const meta = GAP_STATUS_RU[key] || {
-    label: category || "—",
-    cls: "bg-slate-100 text-slate-600 border-slate-300",
+    label: category || "–",
+    cls: "bg-slate-100 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600",
   };
   return <Badge className={`${meta.cls} border text-xs`}>{meta.label}</Badge>;
 }
@@ -123,15 +123,15 @@ function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
   const remaining = skills.length - INITIAL_SKILLS;
 
   return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden">
+    <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-slate-50 to-white">
         <div className="flex items-center gap-3">
-          <Layers className="size-5 text-slate-600" />
-          <h4 className="font-bold text-slate-900">{entry.domain || name}</h4>
+          <Layers className="size-5 text-slate-600 dark:text-slate-400" />
+          <h4 className="font-bold text-slate-900 dark:text-slate-100">{entry.domain || name}</h4>
         </div>
         <div className="flex items-center gap-4 text-sm">
-          <span className="text-slate-600">
-            <span className="text-slate-600">ваши <span className={`font-semibold ${entry.user_has > 0 ? "text-green-600" : "text-red-500"}`}>{entry.user_has}</span></span>
+          <span className="text-slate-600 dark:text-slate-400">
+            <span className="text-slate-600 dark:text-slate-400">ваши <span className={`font-semibold ${entry.user_has > 0 ? "text-green-600" : "text-red-500"}`}>{entry.user_has}</span></span>
             <span className="text-slate-400"> из {entry.total_required}</span>
           </span>
           <span className={`font-semibold ${entry.coverage >= 0.3 ? "text-green-600" : entry.coverage >= 0.1 ? "text-orange-500" : "text-red-500"}`}>
@@ -142,7 +142,7 @@ function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
       <div className="px-5 pb-4">
         <div className="flex flex-wrap gap-1.5">
           {show.map((sk) => (
-            <Badge key={sk} variant="outline" className="text-xs bg-white">{sk}</Badge>
+            <Badge key={sk} variant="outline" className="text-xs bg-white dark:bg-slate-950">{sk}</Badge>
           ))}
         </div>
         {remaining > 0 && (
@@ -168,10 +168,10 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
   const gapColor = gapAvg > 0.7 ? "text-red-600" : gapAvg > 0.4 ? "text-orange-500" : "text-yellow-600";
 
   return (
-    <div className="border border-slate-200 rounded-lg px-4 py-3">
+    <div className="border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <span className="font-medium text-slate-900">{entry.skill || skill}</span>
+          <span className="font-medium text-slate-900 dark:text-slate-100">{entry.skill || skill}</span>
             <GapStatusBadge category={entry.category} />
         </div>
         <div className="flex items-center gap-3 text-xs">
@@ -182,10 +182,10 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
       {expanded && (
         <div className="mt-3 space-y-2">
           <p className="text-xs text-slate-500 italic">
-              разрыв — насколько навыка не хватает до требуемого (0% = нет разрыва),
-              спрос — востребованность навыка на рынке. Ниже — детали по уровням.
+              разрыв – насколько навыка не хватает до требуемого (0% = нет разрыва),
+              спрос – востребованность навыка на рынке. Ниже – детали по уровням.
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600 dark:text-slate-400">
             <div title="Разрыв на уровне Junior">gap_j: {(entry.gap_j * 100).toFixed(0)}%</div>
             <div title="Разрыв на уровне Middle">gap_m: {(entry.gap_m * 100).toFixed(0)}%</div>
             <div title="Разрыв на уровне Senior">gap_s: {(entry.gap_s * 100).toFixed(0)}%</div>
@@ -211,21 +211,21 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
   const [gapFilter, setGapFilter] = useState<string>("all");
   if (!data || !data.summary) {
     return (
-      <div className="py-8 text-center text-gray-500 text-sm">
-        <p>No recommendations yet — run the analysis first.</p>
+      <div className="py-8 text-center text-gray-500 dark:text-slate-400 text-sm">
+        <p>No recommendations yet – run the analysis first.</p>
       </div>
     );
   }
   const getPriorityColor = (priority: string) => {
     switch (priority.toUpperCase()) {
       case "HIGH":
-        return "bg-red-100 text-red-800 dark:bg-red-950/20 dark:text-red-300 border-red-300";
+        return "bg-red-100 text-red-800 dark:bg-red-950/20 dark:text-red-300 border-red-300 dark:border-red-700";
       case "MEDIUM":
-        return "bg-orange-100 text-orange-800 dark:bg-orange-950/20 dark:text-orange-300 border-orange-300";
+        return "bg-orange-100 text-orange-800 dark:bg-orange-950/20 dark:text-orange-300 border-orange-300 dark:border-orange-700";
       case "LOW":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-300 border-blue-300";
+        return "bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-300 border-blue-300 dark:border-blue-700";
       default:
-        return "bg-slate-100 text-slate-800 dark:bg-slate-950/20 dark:text-slate-300 border-slate-300";
+        return "bg-slate-100 text-slate-800 dark:bg-slate-950/20 dark:text-slate-300 border-slate-300 dark:border-slate-600";
     }
   };
 
@@ -331,13 +331,13 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
       <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
         <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
           <CardTitle className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+            <div className="p-2 bg-gradient-to-br from-blue-50 dark:from-blue-950/30 to-purple-600 rounded-lg">
               <Target className="size-5 text-white" />
             </div>
             Ближайшие роли
           </CardTitle>
           <CardDescription>
-            Роли, которые лучше всего соответствуют вашему профилю. Сходство — похожесть навыков на требования вакансий; полного соответствия не гарантирует.
+            Роли, которые лучше всего соответствуют вашему профилю. Сходство – похожесть навыков на требования вакансий; полного соответствия не гарантирует.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
@@ -353,10 +353,10 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <h4 className="font-bold text-slate-900 dark:text-white flex-1">{stripRoleTag(role.role)}</h4>
                   <div className="flex gap-2 flex-shrink-0">
-                    <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-300 border border-blue-300">
+                    <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
                       {role.semantic_similarity.toFixed(1)}% сходство
                     </Badge>
-                    <Badge className="bg-green-100 text-green-800 dark:bg-green-950/20 dark:text-green-300 border border-green-300">
+                    <Badge className="bg-green-100 text-green-800 dark:bg-green-950/20 dark:text-green-300 border border-green-300 dark:border-green-700">
                       {formatCovered(role.skills_covered)}
                     </Badge>
                   </div>
@@ -374,7 +374,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
       <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
         <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
           <CardTitle className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg">
+            <div className="p-2 bg-gradient-to-br from-green-50 dark:from-green-950/30 to-emerald-600 rounded-lg">
               <BookOpen className="size-5 text-white" />
             </div>
             Рекомендации по навыкам
@@ -412,7 +412,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                           </span>
                         </Badge>
                         {rec.is_soft_skill && (
-                          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950/20 dark:text-purple-300 border border-purple-300">
+                          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950/20 dark:text-purple-300 border border-purple-300 dark:border-purple-700">
                             Софт-скилл
                           </Badge>
                         )}
@@ -466,7 +466,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
         <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
           <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
             <CardTitle className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg">
+              <div className="p-2 bg-gradient-to-br from-indigo-50 dark:from-indigo-950/30 to-blue-600 rounded-lg">
                 <Layers className="size-5 text-white" />
               </div>
               Покрытие доменов
@@ -509,7 +509,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                 <button
                   key={v}
                   onClick={() => setGapFilter(v)}
-                  className={`px-3 py-1 text-xs rounded-full border font-medium cursor-pointer ${gapFilter === v ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-600 border-slate-300 hover:border-blue-400"}`}
+                  className={`px-3 py-1 text-xs rounded-full border font-medium cursor-pointer ${gapFilter === v ? "bg-blue-600 text-white border-blue-600" : "bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600 hover:border-blue-400"}`}
                 >
                   {label}
                 </button>

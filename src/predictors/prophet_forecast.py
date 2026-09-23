@@ -15,7 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src import Err, Ok, Result
 from src.errors import DomainError
 from src.predictors.base import BasePredictor
-from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
+from src.predictors.skill_forecast import (
+    ForecastResult,
+    SkillForecastEngine,
+    drop_broken_snapshots,
+)
+
+# Статус фонового фита Prophet (для countdown в UI): обновляется по ходу
+# ThreadPool-фита; читается endpoint'ом /forecast/engine без блокировок.
+FIT_STATUS: dict = {"state": "idle", "done": 0, "total": 0, "started_at": None}
 
 try:
     from prophet import Prophet
@@ -58,11 +66,124 @@ class Snapshot:
     frequencies: dict[str, float]
 
 
+def anchor_monthly_counts(
+    monthly: dict[date, Counter],
+    totals: dict[date, int],
+) -> dict[date, dict[str, float]]:
+    """Привести помесячные counts к единицам последнего месяца.
+
+    Объём коллекции растёт (3 957 → 15 046 разобранных вакансий за 5 мес.),
+    и абсолютные counts путают рост коллекции с ростом спроса. Делим каждый
+    месяц на его объём и умножаем на объём последнего месяца: уровни остаются
+    абсолютными (пороги MIN_FREQ работают), а форма ряда = динамика долей.
+    Последний месяц не меняется (k=1), так что current_frequency честен.
+    """
+    months = sorted(m for m in monthly if (totals.get(m) or 0) > 0)
+    if not months:
+        return {}
+    v_last = totals[months[-1]]
+    out: dict[date, dict[str, float]] = {}
+    for m in months:
+        k = v_last / totals[m]
+        out[m] = {s: round(c * k, 1) for s, c in monthly[m].items()}
+    return out
+
+
+def _has_mixed_token(skill: str) -> bool:
+    """Внутритокеновый микс скриптов ('cиcтeмнoe') — артефакт раскладки.
+
+    Легитимный микс ('a/b тестирование', 'c++', '1c предприятие') идёт по
+    разным токенам и не задевается. Однобуквенные токены игнорим.
+    """
+    import re
+    import unicodedata
+
+    for tok in re.findall(r"[A-Za-zА-Яа-яЁё0-9]+", skill or ""):
+        if len(tok) <= 1:
+            continue
+        scripts = set()
+        for ch in tok:
+            if ch.isalpha():
+                try:
+                    scripts.add(unicodedata.name(ch).split()[0])
+                except Exception:
+                    pass
+        if len(scripts) > 1:
+            return True
+    return False
+
+
+def _is_blocked(name: str, blocked) -> bool:
+    """Blacklist-семантика как в валидаторе: =xxx — точное, иначе подстрока."""
+    low = (name or "").lower()
+    for bad in blocked or ():
+        b = str(bad).lower()
+        if b.startswith("="):
+            if low == b[1:]:
+                return True
+        elif b and b in low:
+            return True
+    return False
+
+
+def merge_supplement_rows(
+    rows: list[tuple[date, str, int]],
+    file_skills: set[str],
+    blocked=None,
+) -> dict[date, Counter]:
+    """Схлопнуть сырые DB-навыки для supplement: чистка + fold-merge.
+
+    - пустоты отбрасываются;
+    - уже покрытое файлами (по fold-ключу) пропускается — без двойного счёта;
+    - гомоглиф-дубли ('aнaлиз дaнныx' + 'анализ данных') сливаются, дисплей —
+      самое частое ЧИСТОЕ написание;
+    - fold-группы без чистого написания (остаточный мусор) дропаются целиком;
+    - blocked (blacklist справочника): вендоры и мусор, вычищенные из файлов,
+      не втаскиваются обратно через DB.
+    Возвращает {month: Counter[display_name]}.
+    """
+    from src.analyzers.skill_matcher import fold_script
+
+    file_folds = {fold_script(k.lower()) for k in file_skills}
+    per_month: dict[date, Counter] = {}
+    votes: dict[str, Counter] = {}
+    for m, raw, freq in rows:
+        s = (raw or "").strip()
+        if not s:
+            continue
+        fk = fold_script(s.lower())
+        if not fk.strip() or fk in file_folds:
+            continue
+        if _is_blocked(s, blocked):
+            continue
+        per_month.setdefault(m, Counter())[fk] += int(freq)
+        votes.setdefault(fk, Counter())[s] += int(freq)
+    out: dict[date, Counter] = {}
+    dropped_groups = 0
+    dropped_freq = 0
+    for m, counter in per_month.items():
+        for fk, c in counter.items():
+            clean = [sp for sp in votes[fk] if not _has_mixed_token(sp)]
+            if not clean:
+                dropped_groups += 1
+                dropped_freq += c
+                logger.debug("supplement_junk_dropped", fold_key=fk, freq=c)
+                continue
+            display = max(clean, key=lambda sp: (votes[fk][sp], -len(sp), sp))
+            out.setdefault(m, Counter())[display] += c
+    if dropped_groups:
+        logger.info("supplement_junk_summary", groups=dropped_groups, freq=dropped_freq)
+    return out
+
+
 async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], DomainError]:
     """Build monthly skill-frequency snapshots from freq_market_*.json files,
     supplemented by parsed_skills from DB for skills not in those files.
 
     Each snapshot = per-month frequency (absolute count, not running total).
+    DB-добавка нормализована к объёму последнего месяца (см. anchor_monthly_counts):
+    иначе рост коллекции выдаётся за рост спроса. У файловых снимков объёмы
+    неизвестны (vacancy_count=None), их правим только при наличии метаданных.
     """
     import json
     from pathlib import Path
@@ -93,6 +214,13 @@ async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], Doma
 
     if not file_snapshots:
         logger.warning("no_freq_market_files_found_falling_back_to_db")
+    else:
+        file_snapshots = drop_broken_snapshots(file_snapshots)
+        # Союз пересчитываем по уцелевшим: иначе навыки из битых снимков
+        # блокируют DB-добавку (считаются "покрытыми файлами").
+        all_skills_in_files = set()
+        for _, data in file_snapshots:
+            all_skills_in_files.update(data.keys())
 
     # 2. Supplement with parsed_skills from DB for NEW skills not in freq_market
     try:
@@ -106,18 +234,48 @@ async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], Doma
             WHERE v.parsed_skills IS NOT NULL
               AND v.parsed_skills::text != '[]'
               AND v.published_at IS NOT NULL
+              AND NULLIF(TRIM(BOTH FROM ps::text), '') IS NOT NULL
             GROUP BY month, ps::text
             ORDER BY month
         """))
-        db_monthly: dict[date, Counter] = {}
+        db_rows: list[tuple[date, str, int]] = []
         for row in rows:
             m = row.month if isinstance(row.month, date) else row.month.date()
-            if row.skill not in all_skills_in_files:
-                db_monthly.setdefault(m, Counter())[row.skill] += row.freq
+            db_rows.append((m, row.skill, int(row.freq)))
+        blocked: list = []
+        try:
+            from src import config as _cfg
 
-        # Convert DB data into snapshot format
-        for m in sorted(db_monthly):
-            file_snapshots.append((m, dict(db_monthly[m])))
+            bl_path = _cfg.SKILL_BLACKLIST_PATH
+            if bl_path.exists():
+                import json as _json
+
+                loaded = _json.loads(bl_path.read_text(encoding="utf-8"))
+                blocked = loaded if isinstance(loaded, list) else list(loaded.keys())
+        except Exception:
+            logger.debug("supplement_blacklist_unavailable")
+        db_monthly = merge_supplement_rows(db_rows, all_skills_in_files, blocked=blocked)
+
+        totals_rows = await session.execute(text("""
+            SELECT
+                date_trunc('month', published_at::timestamp)::date AS month,
+                COUNT(*) AS total
+            FROM vacancies
+            WHERE parsed_skills IS NOT NULL
+              AND parsed_skills::text != '[]'
+              AND published_at IS NOT NULL
+            GROUP BY month
+            ORDER BY month
+        """))
+        totals: dict[date, int] = {}
+        for row in totals_rows:
+            m = row.month if isinstance(row.month, date) else row.month.date()
+            totals[m] = int(row.total or 0)
+
+        # Convert DB data into snapshot format (объём-нормализованные,
+        # см. anchor_monthly_counts — иначе рост коллекции = "рост спроса")
+        for m, data in anchor_monthly_counts(db_monthly, totals).items():
+            file_snapshots.append((m, data))
     except Exception:
         logger.warning("db_supplement_failed")
 
@@ -184,6 +342,7 @@ class ProphetForecastEngine(BasePredictor):
         self._last_actual_freq: dict[str, float] = {}
         self._skill_mape: dict[str, float] = {}
         self._skill_npoints: dict[str, int] = {}
+        self._observed: dict[str, list[tuple[date, float]]] = {}
         self._is_fitted = False
         self._n_snapshots = 0
 
@@ -197,11 +356,19 @@ class ProphetForecastEngine(BasePredictor):
 
     def _gather_history(self, snapshots: list[Snapshot]):
         history: dict[str, list[tuple[date, float]]] = {}
+        canon: dict[str, str] = {}  # lower -> kept original spelling
         for snap in snapshots:
             for skill, freq in snap.frequencies.items():
-                history.setdefault(skill, []).append((snap.date, freq))
-        for skill in history:
-            history[skill].sort(key=lambda x: x[0])
+                name = (skill or "").strip()
+                if not name:
+                    continue  # мусор парсинга (пустые parsed_skills из БД)
+                key = canon.setdefault(name.lower(), name)
+                history.setdefault(key, []).append((snap.date, freq))
+        for skill, pts in history.items():
+            by_date: dict[date, float] = {}
+            for d, f in pts:
+                by_date[d] = by_date.get(d, 0.0) + float(f)
+            history[skill] = sorted(by_date.items())
         return history
 
     def _fit_prophet_for_skill(self, skill: str, points: list[tuple[date, float]]):
@@ -235,10 +402,14 @@ class ProphetForecastEngine(BasePredictor):
         logging.getLogger("prophet").setLevel(logging.WARNING)
 
         if not snapshots:
+            FIT_STATUS.update(state="failed")
             return Err(DomainError("No snapshots provided to Prophet engine"))
 
         self._n_snapshots = len(snapshots)
         history = self._gather_history(snapshots)
+        # Полные наблюдаемые истории — для вкладки измеренных падений
+        # (/forecast/observed): факты по снимкам, без экстраполяции.
+        self._observed = {s: list(pts) for s, pts in history.items()}
 
         # Separate skills by data depth: Prophet (≥3 pts) vs trend (fallback)
         prophet_candidates: list[tuple[str, list[tuple[date, float]]]] = []
@@ -255,6 +426,10 @@ class ProphetForecastEngine(BasePredictor):
 
         # Parallel Prophet fitting
         if prophet_candidates:
+            import time as _time
+
+            FIT_STATUS.update(state="fitting", done=0, total=len(prophet_candidates),
+                              started_at=_time.monotonic())
             with ThreadPoolExecutor(max_workers=4) as pool:
                 futures = {pool.submit(self._fit_prophet_for_skill, s, p): s for s, p in prophet_candidates}
                 for future in as_completed(futures):
@@ -263,6 +438,7 @@ class ProphetForecastEngine(BasePredictor):
                         self._models[skill] = future.result()
                     except Exception as e:
                         logger.warning("prophet_skill_fit_failed", skill=skill, error=str(e))
+                    FIT_STATUS["done"] = FIT_STATUS.get("done", 0) + 1
 
         prophet_skills = len(self._models)
         fallback_skills = len(self._skill_history)
@@ -282,9 +458,11 @@ class ProphetForecastEngine(BasePredictor):
                     logger.warning("prophet_fallback_engine_fit_failed", error=str(e))
 
         if not self._models and not self._fallback_engine:
+            FIT_STATUS.update(state="failed")
             return Err(DomainError("No skills could be fitted by Prophet or fallback"))
 
         self._is_fitted = True
+        FIT_STATUS.update(state="ready")
         return Ok(self)
 
     def predict(self, skill: str, months: int = 12) -> Result[ForecastResult, DomainError]:
@@ -298,6 +476,10 @@ class ProphetForecastEngine(BasePredictor):
             # 3 pts -> 3m, 6 pts -> 6m, 12+ pts -> 12m (was n_pts//2 — too conservative).
             max_months = max(1, min(n_pts, 12))
             if months > max_months:
+                logger.warning(
+                    "forecast_horizon_truncated",
+                    skill=skill, requested=months, effective=max_months,
+                )
                 months = max_months
             future = model.make_future_dataframe(periods=months, freq="ME")
             forecast = model.predict(future)
@@ -344,7 +526,7 @@ class ProphetForecastEngine(BasePredictor):
                         next_year_frequency=fr.current_frequency,
                         engine_used="insufficient_data",
                         data_points=n_pts,
-                        mape=0.0,
+                        mape=None,
                         forecast_months=0,
                     ))
                 return Ok(ForecastResult(
@@ -377,8 +559,35 @@ class ProphetForecastEngine(BasePredictor):
             match self._fallback_engine.forecast_all(min(months, self.max_forecast_months())):
                 case Ok(fb):
                     for r in fb:
-                        if not any(ex.skill == r.skill for ex in results):
-                            results.append(r)
+                        if any(ex.skill == r.skill for ex in results):
+                            continue
+                        # Единый контракт: fallback-результат оборачиваем как в predict(),
+                        # а не отдаем сырым (иначе insufficient_data выглядит валидным трендом).
+                        n_pts = self._skill_npoints.get(r.skill, r.data_points)
+                        if n_pts < 3:
+                            results.append(ForecastResult(
+                                skill=r.skill,
+                                current_frequency=r.current_frequency,
+                                predicted_growth=0.0,
+                                confidence=0.0,
+                                next_year_frequency=r.current_frequency,
+                                engine_used="insufficient_data",
+                                data_points=n_pts,
+                                mape=None,
+                                forecast_months=0,
+                            ))
+                        else:
+                            results.append(ForecastResult(
+                                skill=r.skill,
+                                current_frequency=r.current_frequency,
+                                predicted_growth=r.predicted_growth,
+                                confidence=r.confidence,
+                                next_year_frequency=r.next_year_frequency,
+                                engine_used="trend",
+                                data_points=n_pts,
+                                mape=round(self._skill_mape.get(r.skill, 0.0), 4),
+                                forecast_months=min(months, self.max_forecast_months()),
+                            ))
                 case _:
                     pass
         return Ok(results)
@@ -391,9 +600,11 @@ class ProphetForecastEngine(BasePredictor):
                 results = [r for r in results if not (r.predicted_growth > 2.0 and r.confidence < 0.3)]
                 if not results:
                     return Ok([])
-                max_freq = max(r.current_frequency for r in results) or 1
-                max_growth = max(r.predicted_growth for r in results) or 1
-                results.sort(key=lambda x: 0.3 * (x.predicted_growth / max_growth) + 0.7 * (x.current_frequency / max_freq), reverse=True)
+                # Строго по росту: вкладка называется "Растущие", частота уже
+                # отгейчена порогами (MIN_FREQ / TOP_DISPLAY_MIN_FREQ / min_freq).
+                # Композит 0.3*рост + 0.7*частота ставил jira +0.6% выше c++ +38%
+                # и врал про смысл вкладки (как и trend-движок: только рост).
+                results.sort(key=lambda x: x.predicted_growth, reverse=True)
                 return Ok(results[:n])
             case Err(e):
                 return Err(e)

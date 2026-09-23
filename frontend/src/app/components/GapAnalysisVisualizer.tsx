@@ -54,21 +54,21 @@ const IMAGE_CONFIGS: ImageData[] = [
     title: "Радарная диаграмма",
     description: "Сравнение компетенций по категориям",
     icon: Radar,
-    gradient: "from-blue-500 to-cyan-500",
+    gradient: "from-blue-50 dark:from-blue-950/30 to-cyan-50 dark:to-cyan-950/30",
   },
   {
     type: "ml_importance",
     title: "Важность признаков ML",
     description: "Приоритизация компетенций по модели",
     icon: Activity,
-    gradient: "from-purple-500 to-pink-500",
+    gradient: "from-purple-50 dark:from-purple-950/30 to-pink-50 dark:to-pink-950/30",
   },
   {
     type: "cluster_insights",
     title: "Кластерные инсайты",
     description: "Группировка схожих навыков",
     icon: Network,
-    gradient: "from-emerald-500 to-teal-500",
+    gradient: "from-emerald-50 dark:from-emerald-950/30 to-teal-50 dark:to-teal-950/30",
   },
 ];
 
@@ -286,21 +286,21 @@ export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisV
           description="Сопоставление всех профилей"
           imageUrl={coverageUrl}
           icon={BarChart3}
-          gradient="from-blue-500 to-cyan-500"
+          gradient="from-blue-50 dark:from-blue-950/30 to-cyan-50 dark:to-cyan-950/30"
         />
         <GlobalVisualizationCard
           title="Тепловая карта навыков"
           description="Распределение компетенций"
           imageUrl={heatmapUrl}
           icon={Flame}
-          gradient="from-orange-500 to-red-500"
+          gradient="from-orange-50 dark:from-orange-950/30 to-red-50 dark:to-red-950/30"
         />
         <GlobalVisualizationCard
           title="Корреляция навыков"
           description="Взаимосвязь компетенций"
           imageUrl={correlationUrl}
           icon={Network}
-          gradient="from-purple-500 to-pink-500"
+          gradient="from-purple-50 dark:from-purple-950/30 to-pink-50 dark:to-pink-950/30"
         />
       </div>
     </div>
