@@ -124,7 +124,7 @@ function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
 
   return (
     <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-slate-50 to-white">
+      <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900">
         <div className="flex items-center gap-3">
           <Layers className="size-5 text-slate-600 dark:text-slate-400" />
           <h4 className="font-bold text-slate-900 dark:text-slate-100">{entry.domain || name}</h4>
