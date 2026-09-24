@@ -59,9 +59,10 @@ class ProfilesCompareResponse(BaseModel):
 
 
 class SkillItem(BaseModel):
-    """Навык с весом."""
+    """Навык из топа."""
     skill: str
     weight: float
+    frequency: int = 0
 
 
 class TopSkillsResponse(BaseModel):

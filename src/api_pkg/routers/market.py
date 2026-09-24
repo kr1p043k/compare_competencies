@@ -26,10 +26,12 @@ async def get_top_skills(
     request: Request,
     limit: int = Query(15, ge=1, le=50),
     weights: dict[str, float] = Depends(deps.get_skill_weights),
+    freq: dict[str, int] = Depends(deps.get_skill_freq),
 ):
-    """Топ навыков рынка по частоте."""
+    """Топ навыков рынка. Вес — нормализованная метрика, frequency — сырое
+    число упоминаний в вакансиях (понятнее для UI)."""
     top = sorted(weights.items(), key=lambda x: x[1], reverse=True)[:limit]
-    return {"skills": [{"skill": s, "weight": round(w, 4)} for s, w in top]}
+    return {"skills": [{"skill": s, "weight": round(w, 4), "frequency": int(freq.get(s, 0))} for s, w in top]}
 
 
 @router.get("/market/skill/{skill}", response_model=SkillInfoResponse)

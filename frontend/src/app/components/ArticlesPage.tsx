@@ -38,7 +38,7 @@ type VacancyStats = {
   salary: { average: number; min: number; max: number; count: number };
 };
 
-type TopSkill = { skill: string; weight: number };
+type TopSkill = { skill: string; weight: number; frequency?: number };
 
 type TaxonomyCoverage = {
   coverage: Record<string, { label: string; icon: string; total: number; covered: number; percent: number }>;
@@ -293,7 +293,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
     stats?.by_experience.senior ?? 0,
   );
 
-  const skillsMax = topSkills.length ? Math.max(...topSkills.map((s) => s.weight)) : 0;
+    const skillsMax = topSkills.length ? Math.max(...topSkills.map((s) => s.frequency ?? s.weight)) : 0;
 
   const salaryMax = analytics
     ? Math.max(
@@ -594,7 +594,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
         <BlockCard
           icon={TrendingUp}
           title="Топ востребованных навыков"
-          description="Навыки с наибольшим весом на рынке (частота упоминаний в вакансиях)"
+          description="Число упоминаний навыка в вакансиях (вес — нормализованная метрика)"
           loading={skillsLoading}
           error={skillsError}
           onRetry={loadTopSkills}
@@ -605,10 +605,10 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
               <BarRow
                 key={s.skill}
                 label={s.skill}
-                value={s.weight}
+                value={s.frequency ?? s.weight}
                 max={skillsMax}
                 color="#8b5cf6"
-                valueText={s.weight.toFixed(3)}
+                valueText={s.frequency != null ? fmt.format(s.frequency) : s.weight.toFixed(3)}
               />
             ))}
           </div>

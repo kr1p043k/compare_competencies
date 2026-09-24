@@ -16,6 +16,7 @@ import {
   Cell,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Radar as RadarIcon, X, Loader2 } from "lucide-react";
 import { api } from "../api";
 import { useTheme } from "../../lib/theme";
@@ -198,40 +199,46 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
 
       <section>
         <div className="flex flex-wrap items-center gap-2 mb-3">
-          {LEVELS.map((l) => (
-            <button
-              key={l.key}
-              onClick={() => setLevel(l.key)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer ${
-                level === l.key
-                  ? "bg-violet-600 text-white border-violet-600"
-                  : "bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600 hover:border-violet-400"
-              }`}
-            >
-              {l.label}
-            </button>
-          ))}
-          <span className="mx-1 text-gray-300 dark:text-slate-700">|</span>
-          {[12, 15, 20].map((n) => (
-            <button
-              key={n}
-              onClick={() => setAxesCount(n as 12 | 15 | 20)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer ${
-                axesCount === n
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600 hover:border-blue-400"
-              }`}
-            >
-              {n} навыков
-            </button>
-          ))}
+          <Select value={level} onValueChange={(v) => setLevel(v as LevelKey)}>
+            <SelectTrigger className="w-52 h-9 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LEVELS.map((l) => (
+                <SelectItem key={l.key} value={l.key}>
+                  {l.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={String(axesCount)} onValueChange={(v) => setAxesCount(Number(v) as 12 | 15 | 20)}>
+            <SelectTrigger className="w-36 h-9 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[12, 15, 20].map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n} навыков
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base">Радар: профиль vs рынок (топ-{axesCount} навыков)</CardTitle>
-            <CardDescription>
-              Синяя зона там, где профиль пересекается с рыночными весами. Уровень: {LEVELS.find((l) => l.key === level)?.label}
-            </CardDescription>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <CardTitle className="text-base">Радар: профиль vs рынок (топ-{axesCount} навыков)</CardTitle>
+              <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-slate-400">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-2.5 rounded-full" style={{ background: "#8b5cf6" }} />
+                  Рынок
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-2.5 rounded-full" style={{ background: "#2563eb" }} />
+                  Профиль
+                </span>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="h-[480px]">
