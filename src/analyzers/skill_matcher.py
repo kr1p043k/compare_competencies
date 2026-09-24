@@ -13,6 +13,10 @@ from src.errors import MatchingError
 logger = structlog.get_logger(__name__)
 
 NORMALIZE_RE = re.compile(r"[^\w\s\-/]")
+# Market-навыки, чей смысл убит NORMALIZE_RE при нормализации РПД
+# (c++ -> c, c# -> c, .net -> net). Для emerging-проверки ищем stripped-ядро
+# как целое слово. Только allowlist: широкое правило ложно сматчит короткие ядра.
+_STRIPPED_CORE_SKILLS = {"c++": "c", "c#": "c", "f#": "f", ".net": "net"}
 # Single-char market tokens are почти всегда мусор парсинга (напр. 'я').
 # Allowlist: языки с однобуквенным именем. Остальное режется везде (v28).
 _MARKET_SINGLE_ALLOW = frozenset({"r", "c"})
@@ -590,6 +594,15 @@ class SkillMatcher:
                     skip = True
                 elif any(qp.search(rf) for qp in mn_fold_pats for rf in rpd_folded):
                     skip = True
+            if not skip:
+                # Навыки, чей смысл убит NORMALIZE_RE (c++ -> c, c# -> c, .net -> net):
+                # в нормах РПД ищем stripped-ядро как целое слово. Строгий allowlist,
+                # широкое правило дало бы ложные срабатывания на коротких ядрах.
+                core = _STRIPPED_CORE_SKILLS.get(mn.lower())
+                if core:
+                    cpat = _word_pattern(core)
+                    if any(cpat.search(rn) for rn in rpd_normalized):
+                        skip = True
             if not skip:
                 result.append((mn, mf, "emerging"))
                 if len(result) >= top_n:

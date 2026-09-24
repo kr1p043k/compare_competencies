@@ -481,8 +481,7 @@ class TestPipelineDataFixes:
         for must in ("chatbot", "crm", "n8n", "api", "webhook", "dashboard"):
             assert must in freqs, f"lost skill: {must} in {sorted(freqs)}"
 
-    def test_latinized_cyrillic_restores(self):
-        # Латинизация из parse_vacancy-дедупа не должна убивать кириллические навыки.
+    def test_latinized_cyrillic_restores(self):        # Латинизация из parse_vacancy-дедупа не должна убивать кириллические навыки.
         from src.parsing.skills.skill_normalizer import SkillNormalizer
 
         assert SkillNormalizer.normalize("чaт-бoтoв").ok() == "chatbot"
@@ -508,3 +507,37 @@ class TestPipelineDataFixes:
                 if re.search(r'^router\s*=\s*APIRouter\(.*prefix\s*=\s*["\']\/api', line):
                     bad.append(f"{p.name}:{i}: router-level /api prefix: {line.strip()[:100]}")
         assert not bad, "double /api prefix (unreachable routes):\n" + "\n".join(bad)
+
+
+class TestEmergingStrippedCore:
+    """Регрессия: c++/c#/.net в emerging, хотя РПД их преподаёт
+    (NORMALIZE_RE съедает ++/#/. при нормализации норм РПД)."""
+
+    def test_cpp_not_emerging_when_rpd_teaches_it(self):
+        from src.analyzers.skill_matcher import SkillMatcher, normalize
+
+        m = SkillMatcher.__new__(SkillMatcher)
+        m.market_skills = {"c++": 1039, "python": 2000, "cobol": 50}
+        rpd = {
+            normalize(s)
+            for s in [
+                "Develop efficient multithreaded solutions in C++.",
+                "разрабатывать программы на C++, использующие GPU",
+                "основ синтаксиса языка C/C++",
+            ]
+        }
+        res = m.get_emerging(rpd, top_n=10)
+        assert res.is_ok()
+        skills = [s for s, _, _ in res.ok()]
+        assert "c++" not in skills, f"c++ leaked to emerging: {skills}"
+        assert "cobol" in skills
+
+    def test_dotnet_core_fallback(self):
+        from src.analyzers.skill_matcher import SkillMatcher, normalize
+
+        m = SkillMatcher.__new__(SkillMatcher)
+        m.market_skills = {".net": 500, "cobol": 50}
+        rpd = {normalize("разработка приложений на платформе .NET")}
+        res = m.get_emerging(rpd, top_n=10)
+        assert res.is_ok()
+        assert ".net" not in [s for s, _, _ in res.ok()]
