@@ -154,9 +154,11 @@ async def create_custom_profile(request: Request, body: CustomProfileIn):
 async def get_profile(
     request: Request,
     profile: str,
+    full: bool = Query(False),
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
-    """Профиль студента по имени."""
+    """Профиль студента по имени. По умолчанию первые 50 навыков (для UI),
+    ?full=true — полный список (для графиков покрытия)."""
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
     student = profiles[profile]
@@ -164,7 +166,7 @@ async def get_profile(
         "profile_name": student.profile_name,
         "target_level": student.target_level,
         "skills_count": len(student.skills),
-        "skills": student.skills[:50],
+        "skills": student.skills if full else student.skills[:50],
         "competencies_count": len(student.competencies),
         "competencies": student.competencies[:50],
     }

@@ -56,7 +56,7 @@ export function AnalyticsCharts() {
       try {
         const [top, ...prof] = await Promise.all([
           api("/market/top-skills?limit=50"),
-          ...LEVELS.map((l) => api(`/profiles/${l.key}`).catch(() => null)),
+          ...LEVELS.map((l) => api(`/profiles/${l.key}?full=true`).catch(() => null)),
         ]);
         if (!alive) return;
         const sets = {} as Record<LevelKey, Set<string>>;

@@ -336,7 +336,7 @@ export function FaqPage() {
                 </Badge>
                 <span className="text-xs text-gray-400 dark:text-slate-500">{items.length}</span>
               </div>
-              <Accordion type="single" collapsible className="border border-gray-200 dark:border-slate-700 rounded-lg divide-y divide-gray-200 dark:divide-slate-700">
+              <Accordion type="single" collapsible className="border border-gray-200 dark:border-slate-700 rounded-lg divide-y divide-gray-200 dark:divide-slate-700 overflow-hidden">
                 {items.map((item, idx) => (
                   <AccordionItem key={idx} value={`${category}-${idx}`} className="border-none">
                     <AccordionTrigger className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100 hover:no-underline hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
