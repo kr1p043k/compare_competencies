@@ -368,7 +368,11 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                     if skill.lower() in self._always_hot:
                         explanation += " 📈 Стабильно востребован."
                     elif skill.lower() in trend_bonuses:
-                        explanation += f" 📈 Топ роста (+{trend_bonuses[skill.lower()] * 100:.0f}%)."
+                        _tb = trend_bonuses[skill.lower()]
+                        # Бонус зарезан капом 0.3 — честно показываем «и более», иначе
+                        # все быстрорастущие навыки выглядят с одинаковым +30%.
+                        _tb_txt = "+30% и более" if _tb >= 0.3 else f"+{_tb * 100:.0f}%"
+                        explanation += f" 📈 Топ роста ({_tb_txt})."
                     if skill.lower() in domain_skills:
                         explanation += f" 🔗 Ключевой навык для домена «{dominant_domain}»."
                     is_soft = not self._is_hard_skill(skill)

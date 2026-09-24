@@ -165,6 +165,10 @@ function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
 function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
   const [expanded, setExpanded] = useState(false);
   const gapAvg = (entry.gap_j + entry.gap_m + entry.gap_s) / 3;
+  const demandAvg = (entry.demand_j + entry.demand_m + entry.demand_s) / 3;
+  // Для незнакомых навыков спрос == разрыву по построению (demand = вес рынка,
+  // gap = вес − 0) — не показываем дубль, чтобы не вводить в заблуждение.
+  const showDemand = Math.abs(gapAvg - demandAvg) > 0.005;
   const gapColor = gapAvg > 0.7 ? "text-red-600" : gapAvg > 0.4 ? "text-orange-500" : "text-yellow-600";
 
   return (
@@ -176,7 +180,9 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
         </div>
         <div className="flex items-center gap-3 text-xs">
           <span className="text-slate-500">разрыв: <span className={`font-semibold ${gapColor}`}>{(gapAvg * 100).toFixed(0)}%</span></span>
-          <span className="text-slate-500">спрос: <span className="font-semibold text-blue-600">{((entry.demand_j + entry.demand_m + entry.demand_s) / 3 * 100).toFixed(0)}%</span></span>
+          {showDemand && (
+            <span className="text-slate-500">спрос: <span className="font-semibold text-blue-600">{(demandAvg * 100).toFixed(0)}%</span></span>
+          )}
         </div>
       </div>
       {expanded && (
@@ -420,9 +426,9 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                     </div>
 
                     <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1" title="Композитный скор важности (gap + спрос + релевантность), а не доля вакансий">
                         <TrendingUp className="size-4" />
-                        {rec.market_frequency_percent.toFixed(1)}% спрос
+                        {rec.market_frequency_percent.toFixed(1)}% важность
                       </span>
                       <span className="flex items-center gap-1">
                         <Clock className="size-4" />

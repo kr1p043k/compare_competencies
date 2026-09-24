@@ -201,6 +201,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         market_emb = np.mean(list(self.skill_embeddings.values()), axis=0) if self.skill_embeddings else None
 
         domain_profiles = _get_domain_profiles()
+        n_profiles = len(domain_profiles)
         for skill in all_skills:
             base_target = self.skill_metadata[skill]["hybrid_weight_normalized"]
 
@@ -258,7 +259,6 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             )
 
         # Compute category_avg_weight from training data only (prevent data leakage)
-        n_profiles = len(domain_profiles)
         train_indices_set = set(X_train.index)
         train_cat_buckets: dict[str, list[float]] = {}
         for skill_idx, skill in enumerate(all_skills):

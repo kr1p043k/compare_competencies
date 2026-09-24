@@ -84,6 +84,16 @@ class BM25Ranker:
         else:
             if hasattr(vac, "description") and vac.description:
                 parts.append(re.sub(r"<[^>]+>", " ", vac.description))
+            # Кэш-файлы без description: добираем текст из сниппета (как в dict-ветке),
+            # иначе корпус пуст и hybrid_weights всегда {}.
+            sn = getattr(vac, "snippet", None)
+            if sn is not None:
+                req = getattr(sn, "requirement", None) or (sn.get("requirement") if isinstance(sn, dict) else None) or ""
+                resp = getattr(sn, "responsibility", None) or (sn.get("responsibility") if isinstance(sn, dict) else None) or ""
+                if req:
+                    parts.append(re.sub(r"<[^>]+>", " ", req))
+                if resp:
+                    parts.append(re.sub(r"<[^>]+>", " ", resp))
             key_skills = " ".join(s.name for s in (vac.key_skills if hasattr(vac, "key_skills") else []))
             if key_skills:
                 parts.append(key_skills)

@@ -426,3 +426,36 @@ class TestUserErrorDetail:
             new=AsyncMock(return_value={"u": "a@x", "r": "admin"}),
         ):
             assert asyncio.run(user_error_detail(object(), "", "safe")) == "safe"
+
+
+class TestPipelineDataFixes:
+    """Регрессия: gap-analysis падал с пустыми hybrid/level на кэш-файлах без description."""
+
+    def test_vacancy_has_extracted_skills_field(self):
+        from src.models.vacancy import Vacancy
+
+        assert "extracted_skills" in Vacancy.__dataclass_fields__
+        assert Vacancy.__dataclass_fields__["extracted_skills"].default_factory() == []
+
+    def test_bm25_text_from_snippet_on_object(self):
+        from src.models.vacancy import Vacancy
+        from src.parsing.skills.bm25_ranker import BM25Ranker
+
+        vac = Vacancy.from_api({
+            "id": "1",
+            "name": "t",
+            "area": {"id": "1", "name": "a"},
+            "employer": {"id": "1", "name": "e"},
+            "snippet": {"requirement": "python sql", "responsibility": "data"},
+        })
+        assert vac.description in (None, "")
+        text = BM25Ranker.__new__(BM25Ranker)._extract_vacancy_text(vac)
+        assert "python" in text and "data" in text
+
+    def test_trend_cap_label(self):
+        # Кап 0.3 должен подаваться как «+30% и более», а не ровные +30%.
+        import re
+
+        src = open("src/predictors/recommendation_engine.py", encoding="utf-8").read()
+        assert "+30% и более" in src
+        assert re.search(r"Топ роста \(\+[^)]*%\)", src) is None or "+30% и более" in src

@@ -157,6 +157,9 @@ class SkillExtractionStage(PipelineStage):
                                 case Err(_):
                                     texts = []
                             v.raw_data["extracted_skills"] = texts
+                            # LevelBuilder читает атрибут vac.extracted_skills — дублируем туда же,
+                            # иначе level_data/vacancies_skills всегда пустые на кэш-файлах без key_skills.
+                            v.extracted_skills = texts
                         elif isinstance(v, dict):
                             vac_obj = Vacancy.from_api(v)
                             match parser.skill_parser.parse_vacancy(vac_obj):

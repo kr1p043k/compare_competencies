@@ -49,6 +49,12 @@ class SkillExtractor:
                         pass
 
             if cached_result:
+                # Протухший кэш (частоты есть, hybrid пуст) — игнорируем, считаем заново,
+                # иначе WeightCleaning получит пустой вход и gap-analysis упадёт.
+                if not cached_result.get("hybrid_weights"):
+                    logger.warning("parse_cache_stale_hybrid_empty_recompute")
+                    cached_result = None
+            if cached_result:
                 skill_freq = cached_result["frequencies"]
                 hybrid_weights_raw = cached_result.get("hybrid_weights", {})
             else:
