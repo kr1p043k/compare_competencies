@@ -120,6 +120,18 @@ function BarRow({
   );
 }
 
+function ShowMore({ total, shown, expanded, onToggle }: { total: number; shown: number; expanded: boolean; onToggle: () => void }) {
+  if (total <= shown) return null;
+  return (
+    <button
+      onClick={onToggle}
+      className="w-full py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-blue-400 transition-colors cursor-pointer"
+    >
+      {expanded ? "Свернуть" : `Показать ещё ${total - shown} из ${total}`}
+    </button>
+  );
+}
+
 function BlockCard({
   icon: Icon,
   title,
@@ -206,6 +218,10 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
   const [profTrendsLoading, setProfTrendsLoading] = useState(false);
 
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [showAllRegions, setShowAllRegions] = useState(false);
+  const [showAllRising, setShowAllRising] = useState(false);
+  const [showAllFalling, setShowAllFalling] = useState(false);
+  const [showAllTopSkills, setShowAllTopSkills] = useState(false);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
@@ -461,7 +477,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
         >
           {analytics && (
             <div className="space-y-2.5">
-              {analytics.top_regions.map((r) => (
+              {(showAllRegions ? analytics.top_regions : analytics.top_regions.slice(0, 5)).map((r) => (
                 <BarRow
                   key={r.name}
                   label={r.name}
@@ -470,6 +486,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
                   color="#3b82f6"
                 />
               ))}
+              <ShowMore total={analytics.top_regions.length} shown={5} expanded={showAllRegions} onToggle={() => setShowAllRegions((v) => !v)} />
             </div>
           )}
         </BlockCard>
@@ -521,7 +538,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
                     </span>
                   </div>
                   <div className="space-y-2">
-                    {trends.rising.map((t) => (
+                    {(showAllRising ? trends.rising : trends.rising.slice(0, 5)).map((t) => (
                       <BarRow
                         key={t.skill}
                         label={t.skill}
@@ -531,6 +548,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
                         valueText={`+${t.change_pct.toFixed(1)}%`}
                       />
                     ))}
+                    <ShowMore total={trends.rising.length} shown={5} expanded={showAllRising} onToggle={() => setShowAllRising((v) => !v)} />
                   </div>
                 </div>
               )}
@@ -543,7 +561,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
                     </span>
                   </div>
                   <div className="space-y-2">
-                    {trends.falling.map((t) => (
+                    {(showAllFalling ? trends.falling : trends.falling.slice(0, 5)).map((t) => (
                       <BarRow
                         key={t.skill}
                         label={t.skill}
@@ -553,6 +571,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
                         valueText={`${t.change_pct.toFixed(1)}%`}
                       />
                     ))}
+                    <ShowMore total={trends.falling.length} shown={5} expanded={showAllFalling} onToggle={() => setShowAllFalling((v) => !v)} />
                   </div>
                 </div>
               )}
@@ -601,7 +620,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
           empty={topSkills.length === 0}
         >
           <div className="space-y-2.5">
-            {topSkills.map((s) => (
+            {(showAllTopSkills ? topSkills : topSkills.slice(0, 5)).map((s) => (
               <BarRow
                 key={s.skill}
                 label={s.skill}
@@ -611,6 +630,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
                 valueText={s.frequency != null ? fmt.format(s.frequency) : s.weight.toFixed(3)}
               />
             ))}
+            <ShowMore total={topSkills.length} shown={5} expanded={showAllTopSkills} onToggle={() => setShowAllTopSkills((v) => !v)} />
           </div>
         </BlockCard>
       </div>

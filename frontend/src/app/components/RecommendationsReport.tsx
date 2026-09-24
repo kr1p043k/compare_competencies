@@ -213,8 +213,22 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
   );
 }
 
+function ShowMore({ total, shown, expanded, onToggle }: { total: number; shown: number; expanded: boolean; onToggle: () => void }) {
+  if (total <= shown) return null;
+  return (
+    <button
+      onClick={onToggle}
+      className="mt-2 w-full py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-blue-400 transition-colors cursor-pointer"
+    >
+      {expanded ? "Свернуть" : `Показать ещё ${total - shown} из ${total}`}
+    </button>
+  );
+}
+
 export function RecommendationsReport({ data }: RecommendationsReportProps) {
   const [gapFilter, setGapFilter] = useState<string>("all");
+  const [showAllRecs, setShowAllRecs] = useState(false);
+  const [showAllGaps, setShowAllGaps] = useState(false);
   if (!data || !data.summary) {
     return (
       <div className="py-8 text-center text-gray-500 dark:text-slate-400 text-sm">
@@ -391,7 +405,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
         </CardHeader>
         <CardContent className="pt-6">
           <div className="space-y-4">
-            {data.recommendations.slice(0, 10).map((rec, index) => (
+            {data.recommendations.slice(0, showAllRecs ? 10 : 3).map((rec, index) => (
               <motion.div
                 key={rec.rank}
                 initial={{ opacity: 0, y: 20 }}
@@ -463,6 +477,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                 </div>
               </motion.div>
             ))}
+            <ShowMore total={Math.min(10, data.recommendations.length)} shown={3} expanded={showAllRecs} onToggle={() => setShowAllRecs((v) => !v)} />
           </div>
         </CardContent>
       </Card>
@@ -521,19 +536,27 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                 </button>
               ))}
             </div>
-            {Object.entries(data.gaps)
-              .map(([skill, entry]) => ({ skill, entry, avg: (entry.gap_j + entry.gap_m + entry.gap_s) / 3 }))
-              .filter((g) => gapFilter === "all" || (g.entry.category || "").toLowerCase() === gapFilter)
-              .sort((a, b) => b.avg - a.avg)
-              .map(({ skill, entry }) => (
-              <motion.div
-                key={skill}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                <GapsCard skill={skill} entry={entry} />
-              </motion.div>
-            ))}
+            {(() => {
+              const items = Object.entries(data.gaps)
+                .map(([skill, entry]) => ({ skill, entry, avg: (entry.gap_j + entry.gap_m + entry.gap_s) / 3 }))
+                .filter((g) => gapFilter === "all" || (g.entry.category || "").toLowerCase() === gapFilter)
+                .sort((a, b) => b.avg - a.avg);
+              const shown = showAllGaps ? items : items.slice(0, 8);
+              return (
+                <>
+                  {shown.map(({ skill, entry }) => (
+                    <motion.div
+                      key={skill}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <GapsCard skill={skill} entry={entry} />
+                    </motion.div>
+                  ))}
+                  <ShowMore total={items.length} shown={8} expanded={showAllGaps} onToggle={() => setShowAllGaps((v) => !v)} />
+                </>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
