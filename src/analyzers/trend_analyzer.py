@@ -36,15 +36,17 @@ class SnapshotTrendAnalyzer:
         return freq
 
     def _pair_for_compare(self) -> tuple[dict, dict] | None:
-        """Пара снимков для честного сравнения: только один source (рынок),
-        иначе сравниваем полный рынок с одной профессией — мусор как -100% по всем."""
+        """Пара снимков для честного сравнения: два СВЕЖАЙШИХ одного source
+        (обычно hh_vacancies). Смежность в общем списке не требуется: между
+        рыночными лежат снимки профессий — иначе свежие данные игнорируются
+        в пользу древней смежной пары, а сравнение идёт поперёк разрядов."""
         if len(self.snapshots) < 2:
             return None
-        # Предпочитаем два последних с одинаковым source.
-        for i in range(len(self.snapshots) - 1, 0, -1):
-            cur, prev = self.snapshots[i], self.snapshots[i - 1]
-            if cur.get("source", "hh_vacancies") == prev.get("source", "hh_vacancies"):
-                return prev, cur
+        newest_source = (self.snapshots[-1].get("source") or "hh_vacancies")
+        same = [s for s in self.snapshots
+                if (s.get("source") or "hh_vacancies") == newest_source]
+        if len(same) >= 2:
+            return same[-2], same[-1]
         # Fallback: два последних любых (старое поведение).
         return self.snapshots[-2], self.snapshots[-1]
 
