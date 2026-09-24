@@ -161,6 +161,13 @@ export function TeacherDashboard() {
   const [analysis, setAnalysis] = useState<DirectionAnalysis | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends">("coverage");
+  const [teacherSection, setTeacherSection] = useState("t-overview");
+  const scrollTeacherTo = (id: string) => {
+    setTeacherSection(id);
+    try {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch {}
+  };
   const [showAddForm, setShowAddForm] = useState(false);
   const [seedMsg, setSeedMsg] = useState("");
   const [seedLoading, setSeedLoading] = useState(false);
@@ -967,7 +974,29 @@ export function TeacherDashboard() {
         </div>
 
         {analysisMode === "coverage" && analysis && (<>
-          <div style={{ fontSize: 11, color: dk ? "#94a3b8" : "#6b7280", marginBottom: 8 }}>
+          {/* Суб-навигация по разделам — как группы в верхнем баре */}
+          <div className="inline-flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-slate-900 p-1 mb-4 sticky top-0 z-10">
+            {[
+              ["t-overview", "Обзор"],
+              ["t-recs", "Рекомендации"],
+              ["t-gaps", "Разрывы"],
+              ["t-trends", "Тренды"],
+              ["t-discs", "Дисциплины"],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => scrollTeacherTo(id)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                  teacherSection === id
+                    ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
+                    : "text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div id="t-overview" style={{ fontSize: 11, color: dk ? "#94a3b8" : "#6b7280", marginBottom: 8, scrollMarginTop: 8 }}>
             {selected
               ? `Дисциплина: ${selected.name} (направление ${selectedDir})`
               : `Направление ${selectedDir} – сводка по всем ${analysis.total_disciplines} дисциплинам, ни одна дисциплина не выбрана`}
@@ -1013,7 +1042,7 @@ export function TeacherDashboard() {
               {!selected && (<>
               {/* Direction-level recommendations */}
               {(analysis.recommendations || []).length > 0 && (
-                <div style={card}>
+                <div id="t-recs" style={{ ...card, scrollMarginTop: 8 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>
                     Рекомендации
                   </div>
@@ -1029,7 +1058,7 @@ export function TeacherDashboard() {
                 </div>
               )}
 
-                 <div style={card}>
+                 <div id="t-gaps" style={{ ...card, scrollMarginTop: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Междисциплинарные разрывы</div>
                 {((analysis.top_cross_discipline_gaps || []) as any[]).map((g: any, i: number) => (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid " + (dk ? "#334155" : "#e5e7eb"), fontSize: 12 }}>
@@ -1051,7 +1080,7 @@ export function TeacherDashboard() {
               </div>
 
               {analysis.trends && (
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <div id="t-trends" style={{ display: "flex", gap: 12, flexWrap: "wrap", scrollMarginTop: 8 }}>
                   {analysis.trends.rising?.length > 0 && (
                     <div style={{ ...card, flex: 1, minWidth: 200 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: "#059669", marginBottom: 8 }}>Растущие навыки</div>
@@ -1075,7 +1104,7 @@ export function TeacherDashboard() {
                 </div>
               )}
 
-              <div style={card}>
+              <div id="t-discs" style={{ ...card, scrollMarginTop: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Разбивка по дисциплинам</div>
                 {(() => {
                   const aMap = new Map(analysis.disciplines.map((x) => [x.name, x]));
