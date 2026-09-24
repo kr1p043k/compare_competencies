@@ -17,7 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
+import { Tabs, TabsContent, TabsList } from "./components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./components/ui/dropdown-menu";
 import { GapAnalysisVisualizer } from "./components/GapAnalysisVisualizer";
 import { Footer } from "./components/Footer";
 import { VacanciesList } from "./components/VacanciesList";
@@ -63,9 +69,58 @@ import {
   History,
   Activity,
   HelpCircle,
+  ChevronDown,
+  FolderOpen,
+  LineChart,
 } from "lucide-react";
 
 const API = "/api";
+
+type NavItem = { value: string; label: string; Icon: any };
+
+function NavGroup({
+  title,
+  items,
+  activeTab,
+  onSelect,
+}: {
+  title: string;
+  items: NavItem[];
+  activeTab: string;
+  onSelect: (v: string) => void;
+}) {
+  if (items.length === 0) return null;
+  const active = items.find((i) => i.value === activeTab);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
+            active
+              ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
+              : "text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
+          }`}
+        >
+          {active ? <active.Icon className="size-4" /> : null}
+          {active ? active.label : title}
+          <ChevronDown className="size-3.5 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-52">
+        {items.map(({ value, label, Icon }) => (
+          <DropdownMenuItem
+            key={value}
+            onSelect={() => onSelect(value)}
+            className={`gap-2 cursor-pointer ${value === activeTab ? "font-semibold text-blue-700 dark:text-blue-300" : ""}`}
+          >
+            <Icon className="size-4" />
+            {label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 interface PipelineStep {
   step: number;
@@ -709,88 +764,50 @@ export default function App() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="inline-flex h-12 items-center justify-center rounded-lg bg-gray-100 p-1 dark:bg-slate-900">
-            <TabsTrigger
-              value="vacancies"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
-            >
-              <Briefcase className="size-4" />
-              Вакансии
-            </TabsTrigger>
-            <TabsTrigger
-              value="data"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
-            >
-              <Database className="size-4" />
-              Данные
-            </TabsTrigger>
-            {role !== "teacher" && (
-              <TabsTrigger
-                value="visualization"
-                className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
-              >
-                <BarChart3 className="size-4" />
-                Визуализация
-              </TabsTrigger>
-            )}
-            <TabsTrigger
-              value="predictions"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
-            >
-              <TrendingUp className="size-4" />
-              Прогнозы
-            </TabsTrigger>
-            <TabsTrigger
-              value="articles"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
-            >
-              <BarChart3 className="size-4" />
-              Аналитика рынка
-            </TabsTrigger>
-            <TabsTrigger
-              value="scientific-trends"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
-            >
-              <TrendingUp className="size-4" />
-              Научные тренды
-            </TabsTrigger>
-            <TabsTrigger
-              value="help"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
-            >
-              <HelpCircle className="size-4" />
-              Помощь
-            </TabsTrigger>
-            {role === "admin" && (
-              <TabsTrigger value="monitoring" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
-                <Activity className="size-4" />
-                Мониторинг
-              </TabsTrigger>
-            )}
-            {role === "admin" && (
-              <TabsTrigger value="logs" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
-                <FileText className="size-4" />
-                Логи
-              </TabsTrigger>
-            )}
-            {role === "admin" && (
-              <TabsTrigger value="admin" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
-                <Shield className="size-4" />
-                Админ
-              </TabsTrigger>
-            )}
-            {(role === "teacher" || role === "rop") && (
-              <TabsTrigger value="teacher" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
-                <BarChart3 className="size-4" />
-                Статистика
-              </TabsTrigger>
-            )}
-            {role === "student" && (
-              <TabsTrigger value="student" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
-                <History className="size-4" />
-                Мои запросы
-              </TabsTrigger>
-            )}
+          <TabsList className="inline-flex h-12 items-center justify-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-slate-900">
+            <NavGroup
+              title="Работа"
+              activeTab={activeTab}
+              onSelect={setActiveTab}
+              items={[
+                { value: "vacancies", label: "Вакансии", Icon: Briefcase },
+                { value: "data", label: "Данные", Icon: Database },
+                ...(role !== "teacher"
+                  ? [{ value: "visualization", label: "Визуализация", Icon: BarChart3 }]
+                  : []),
+              ]}
+            />
+            <NavGroup
+              title="Анализ"
+              activeTab={activeTab}
+              onSelect={setActiveTab}
+              items={[
+                { value: "predictions", label: "Прогнозы", Icon: TrendingUp },
+                { value: "articles", label: "Аналитика рынка", Icon: LineChart },
+                { value: "scientific-trends", label: "Научные тренды", Icon: FolderOpen },
+              ]}
+            />
+            <NavGroup
+              title="Система"
+              activeTab={activeTab}
+              onSelect={setActiveTab}
+              items={[
+                ...(role === "admin"
+                  ? [
+                      { value: "monitoring", label: "Мониторинг", Icon: Activity },
+                      { value: "logs", label: "Логи", Icon: FileText },
+                      { value: "admin", label: "Админ", Icon: Shield },
+                    ]
+                  : []),
+                ...(role === "teacher" || role === "rop"
+                  ? [{ value: "teacher", label: "Статистика", Icon: BarChart3 }]
+                  : []),
+                ...(role === "student"
+                  ? [{ value: "student", label: "Мои запросы", Icon: History }]
+                  : []),
+                { value: "help", label: "Помощь", Icon: HelpCircle },
+              ]}
+            />
           </TabsList>
 
           {/* Pipeline progress */}
