@@ -52,6 +52,11 @@ async def taxonomy_coverage(
                     status_code=500,
                     detail=await user_error_detail(request, str(err), "Не удалось загрузить навыки категории. Попробуйте позже."),
                 )
+        if not cat_skills:
+            # Категории-пустышки (только aliases, без skills: methodologies,
+            # business_tools, abstract_concepts) — не навыки, в покрытие не идут,
+            # иначе рисуют фантомные «0.0%».
+            continue
         covered = cat_skills & deps.current_skills_set
         coverage[cat_id] = {
             "label": taxonomy_instance.get_category_label_by_id(cat_id),

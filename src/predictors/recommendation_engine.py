@@ -540,7 +540,9 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         return priority + leftover
 
     def _get_role_outcome(self, skill: str, closest_roles: list[dict], skill_relevant: bool = False) -> str:
-        if not closest_roles or not skill_relevant:
+        # Ожидаемый результат считаем для ВСЕХ рекомендаций с ролью-контекстом,
+        # а не только для skill_relevant — иначе блок «Ожидаемый результат» пропадает.
+        if not closest_roles:
             return ""
         top_role = closest_roles[0]
         role_name = top_role["role"]
@@ -558,7 +560,8 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         return (
             f"После освоения '{skill}' ваше покрытие навыков для роли "
             f"«{role_name}» вырастет с {coverage}% до {new_coverage}% (+{improvement}%). "
-            f"Семантическая близость к роли сейчас {similarity}% — навык усилит ваши позиции "
+            f"Семантическая близость к роли сейчас {similarity}%. "
+            f"Навык усилит ваши позиции "
             f"и откроет доступ к смежным вакансиям."
         )
 
