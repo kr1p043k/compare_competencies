@@ -186,7 +186,7 @@ function BlockCard({
   );
 }
 
-export function ArticlesPage() {
+export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () => void }) {
   const [stats, setStats] = useState<VacancyStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
@@ -616,7 +616,7 @@ export function ArticlesPage() {
       </div>
 
       {/* Интерактивные графики */}
-      <AnalyticsCharts />
+      <AnalyticsCharts onStartGapAnalysis={onStartGapAnalysis} />
 
       {/* Taxonomy coverage */}
       <BlockCard

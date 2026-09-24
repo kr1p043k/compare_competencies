@@ -35,7 +35,7 @@ type Drill = {
   has: Record<string, boolean>;
 } | null;
 
-export function AnalyticsCharts() {
+export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: () => void }) {
   const { theme } = useTheme();
   const dk = theme === "dark";
   const [level, setLevel] = useState<LevelKey>("base");
@@ -154,9 +154,19 @@ export function AnalyticsCharts() {
   }
   if (error || topSkills.length === 0) {
     return (
-      <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-10">
-        {error || "Нет данных для графиков. Запустите gap-анализ."}
-      </p>
+      <div className="text-center py-10">
+        <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+          {error || "Нет данных для графиков. Запустите gap-анализ."}
+        </p>
+        {onStartGapAnalysis && (
+          <button
+            onClick={onStartGapAnalysis}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors cursor-pointer"
+          >
+            Запустить gap-анализ
+          </button>
+        )}
+      </div>
     );
   }
 

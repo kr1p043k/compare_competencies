@@ -1093,7 +1093,7 @@ export default function App() {
             <PredictionsTab />
           </TabsContent>
           <TabsContent value="articles">
-            <ArticlesPage />
+            <ArticlesPage onStartGapAnalysis={() => { runGapAnalysis(); setActiveTab("data"); }} />
           </TabsContent>
           <TabsContent value="scientific-trends">
             <ScientificTrendsTab />
