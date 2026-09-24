@@ -926,6 +926,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ delay: index * 0.05 }}
+                  className="h-full"
                 >
                   <VacancyCard vacancy={vacancy} />
                 </motion.div>

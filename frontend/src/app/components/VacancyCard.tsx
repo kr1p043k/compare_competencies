@@ -53,6 +53,17 @@ const experienceLevels = {
   senior: { label: "Senior", color: "from-orange-50 dark:from-orange-950/30 to-red-50 dark:to-red-950/30", badge: "destructive" },
 };
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  "RUR": "₽", "RUB": "₽", "USD": "$", "EUR": "€", "GBP": "£",
+  "KZT": "₸", "BYN": "Br", "AZN": "₼", "UZS": "сум", "GEL": "₾",
+  "KGS": "сом", "TJS": "смн", "UAH": "₴", "CNY": "¥",
+};
+
+function currencySymbol(code?: string): string {
+  // Неизвестную валюту показываем кодом как есть, а не молча считаем рублями.
+  return CURRENCY_SYMBOLS[code || ""] || code || "₽";
+}
+
 const TECH_KEYWORDS = new Set([
   "Python","PyTorch","TensorFlow","Keras","JAX","NumPy","Pandas","Scikit-learn",
   "OpenCV","Pillow","scikit-image","Docker","Kubernetes","MLFlow","ClearML",
@@ -167,8 +178,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
       return new Intl.NumberFormat("ru-RU").format(num);
     };
 
-    const currencyMap: Record<string, string> = {"RUR": "₽", "RUB": "₽", "USD": "$", "EUR": "€"};
-    const currency = currencyMap[vacancy.salary_currency || ""] || "₽";
+    const currency = currencySymbol(vacancy.salary_currency);
 
     if (vacancy.salary_from && vacancy.salary_to) {
       return `${format(vacancy.salary_from)} - ${format(vacancy.salary_to)} ${currency}`;
@@ -192,6 +202,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
   };
 
   const salary = formatSalary();
+  const salarySymbol = currencySymbol(vacancy.salary_currency);
 
   return (
     <motion.div
@@ -199,9 +210,9 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
-      className="group"
+      className="group h-full"
     >
-      <Card className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl overflow-hidden relative">
+      <Card className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl overflow-hidden relative h-full">
         {/* Accent bar */}
         <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${expLevel.color}`} />
 
@@ -240,7 +251,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
                     className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-lg"
                     whileHover={{ scale: 1.05 }}
                   >
-                    <span className="text-lg font-bold leading-none" style={{ fontFamily: "'Segoe UI', Tahoma, sans-serif" }}>₽</span>
+                    <span className="text-lg font-bold leading-none" style={{ fontFamily: "'Segoe UI', Tahoma, sans-serif" }}>{salarySymbol}</span>
                     {salary}
                   </motion.div>
                 )}
@@ -431,7 +442,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
           )}
         </AnimatePresence>
 
-        <CardFooter className="pt-4 border-t border-slate-200/50 dark:border-slate-700/50 relative">
+        <CardFooter className="pt-4 border-t border-slate-200/50 dark:border-slate-700/50 relative mt-auto">
           <div className="flex gap-2 w-full">
             <motion.div
               className="flex-1"
