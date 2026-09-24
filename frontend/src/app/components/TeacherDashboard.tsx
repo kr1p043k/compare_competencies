@@ -168,6 +168,25 @@ export function TeacherDashboard() {
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch {}
   };
+  // Подсветка активного раздела при скролле (иначе залипает на кликнутом).
+  useEffect(() => {
+    const root = document.getElementById("teacher-main");
+    if (!root) return;
+    const ids = ["t-overview", "t-recs", "t-gaps", "t-trends", "t-discs"];
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) setTeacherSection(e.target.id);
+        }
+      },
+      { root, rootMargin: "-20% 0px -70% 0px", threshold: 0 }
+    );
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) obs.observe(el);
+    });
+    return () => obs.disconnect();
+  }, [analysis, analysisMode]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [seedMsg, setSeedMsg] = useState("");
   const [seedLoading, setSeedLoading] = useState(false);
@@ -932,7 +951,7 @@ export function TeacherDashboard() {
         </div>
       </div>
 
-      <div style={mainStyle}>
+      <div style={mainStyle} id="teacher-main">
         {!selected && !showAnalysis && (
           <div style={{ textAlign: "center", marginTop: 80, color: "#9ca3af", fontSize: 14 }}>
             Выберите дисциплину или откройте анализ
