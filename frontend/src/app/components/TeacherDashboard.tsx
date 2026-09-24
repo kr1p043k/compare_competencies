@@ -1057,7 +1057,7 @@ export function TeacherDashboard() {
                       <div style={{ fontSize: 12, fontWeight: 600, color: "#059669", marginBottom: 8 }}>Растущие навыки</div>
                       {analysis.trends.rising.map((t, i) => (
                         <div key={i} style={{ fontSize: 11, padding: "2px 0", color: dk ? "#94a3b8" : "#4b5563" }}>
-                          {t.skill} <span style={{ color: "#059669" }}>+{t.change_pct}%</span>
+                          {t.skill} <span style={{ color: "#059669" }}>{t.change_pct > 0 ? "+" : ""}{t.change_pct}%</span>
                         </div>
                       ))}
                     </div>

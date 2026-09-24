@@ -786,7 +786,7 @@ export default function App() {
                 { value: "articles", label: "Аналитика рынка", Icon: LineChart },
                 { value: "scientific-trends", label: "Научные тренды", Icon: FolderOpen },
                 ...(role === "teacher" || role === "rop"
-                  ? [{ value: "teacher", label: "Статистика", Icon: BarChart3 }]
+                  ? [{ value: "teacher", label: "Преподавательский анализ", Icon: BarChart3 }]
                   : []),
               ]}
             />
