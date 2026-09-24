@@ -490,3 +490,21 @@ class TestPipelineDataFixes:
         # Честная латиница не страдает.
         assert SkillNormalizer.normalize("api").ok() == "api"
         assert SkillNormalizer.normalize("crm").ok() == "crm"
+
+    def test_no_double_api_prefix_in_routers(self):
+        # Роутеры монтируются с prefix="/api" — пути вида "/api/..." дают /api/api/*.
+        # Исключение: health_router монтируется без префикса.
+        import pathlib
+        import re
+
+        root = pathlib.Path(__file__).parent.parent / "src" / "api_pkg" / "routers"
+        bad = []
+        for p in sorted(root.glob("*.py")):
+            if p.name == "health.py":
+                continue
+            for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+                if re.search(r'@router\.(get|post|put|delete|patch)\(\s*["\']\/api\/', line):
+                    bad.append(f"{p.name}:{i}: {line.strip()[:100]}")
+                if re.search(r'^router\s*=\s*APIRouter\(.*prefix\s*=\s*["\']\/api', line):
+                    bad.append(f"{p.name}:{i}: router-level /api prefix: {line.strip()[:100]}")
+        assert not bad, "double /api prefix (unreachable routes):\n" + "\n".join(bad)

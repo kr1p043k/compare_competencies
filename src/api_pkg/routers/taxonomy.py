@@ -95,7 +95,7 @@ async def get_professions(request: Request):
 
 
 @router.get(
-    "/api/taxonomy/profession/{profession_name}",
+    "/taxonomy/profession/{profession_name}",
     response_model=ProfessionDetailResponse,
 )
 @limiter.limit("60/minute")
@@ -139,7 +139,7 @@ async def get_profession_detail(request: Request, profession_name: str):
 
 
 @router.get(
-    "/api/taxonomy/profession/{profession_name}/krm-coverage",
+    "/taxonomy/profession/{profession_name}/krm-coverage",
     response_model=KRMCoverageResponse,
 )
 @limiter.limit("30/minute")
