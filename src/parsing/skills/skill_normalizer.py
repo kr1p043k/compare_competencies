@@ -128,6 +128,12 @@ class SkillNormalizer:
         "lora": ["qlora"],
         "prompt engineering": ["prompting", "prompt engineering"],
         "openai api": ["openai api"],
+        # AI-автоматизация / интеграции (whitelist: it_skills.json)
+        "n8n": ["n8n"],
+        "webhook": ["webhook", "webhooks", "вебхук", "вебхуки", "вебхуков", "вебхука"],
+        "chatbot": ["chatbot", "chatbots", "chat-bot", "чат-бот", "чат-боты", "чат-ботов", "чатбот", "чатботы", "чатботов"],
+        "dashboard": ["dashboard", "dashboards", "дашборд", "дашборды", "дашбордов", "дашборда"],
+        "api": ["api"],
         # Misc aliases from usage tracking
         "msoffice": ["ms office", "microsoft office"],
         "tcp/ip": ["tcpip", "tcp ip", "tcp-ip"],
@@ -254,6 +260,12 @@ class SkillNormalizer:
     FUZZY_THRESHOLD = 88
     MAX_FUZZY_CANDIDATES = 3
 
+    # Обратная карта lookalikes CYR->LAT (полная, как _LAT_TO_CYR в skill_parser):
+    # восстанавливает кириллицу после латинизации в parse_vacancy.
+    _LAT_TO_CYR_LOOKALIKES = str.maketrans(
+        "aeopcyxkmnbAEOPCYXKMNB", "аеорсухкмнаАЕОРСУХКМНВ"
+    )
+
     _whitelist: set[str] | None = None
 
     @classmethod
@@ -347,11 +359,24 @@ class SkillNormalizer:
             original = skill.strip()
             text = original.lower()
 
+            # Латинизированная кириллица (parse_vacancy переводит lookalikes в латиницу
+            # при дедупе: 'чат-ботов' -> 'чaт-бoтoв'). Восстанавливаем ДО всех проверок,
+            # иначе mixed-script guard убьёт такие токены. Применяем только при попадании
+            # в карту синонимов — честные латинские токены (api, crm) не пострадают.
+            _restored = text.translate(SkillNormalizer._LAT_TO_CYR_LOOKALIKES)
+            _restored_ok = (
+                _restored != text
+                and SkillNormalizer._apply_synonym_map(_restored) != _restored
+            )
+            if _restored_ok:
+                text = SkillNormalizer._apply_synonym_map(_restored)
+
             # Early rejection of junk text
             if len(original) > 40:
                 return Ok("")
             # Mixed Cyrillic+Latin in same word = evasion technique
-            if re.search(r'[a-z][а-яё]|[а-яё][a-z]', original):
+            # (пропускаем если restore уже вытащил канонический навык из латинизации).
+            if not _restored_ok and re.search(r'[a-z][а-яё]|[а-яё][a-z]', original):
                 return Ok("")
             # Compound tech stack: 4+ space-separated short alnum words
             words = text.split()
@@ -359,7 +384,7 @@ class SkillNormalizer:
                 return Ok("")
 
             # Protect known digit-prefixed skills (1c, 3d) from version stripping
-            _digit_skills = {"1c", "1с", "3d", "4k"}
+            _digit_skills = {"1c", "1с", "3d", "4k", "n8n"}
             if original.lower().strip() not in _digit_skills:
                 for pattern in SkillNormalizer.VERSION_PATTERNS:
                     text = re.sub(pattern, "", text)

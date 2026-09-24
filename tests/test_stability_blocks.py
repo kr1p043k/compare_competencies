@@ -459,3 +459,34 @@ class TestPipelineDataFixes:
         src = open("src/predictors/recommendation_engine.py", encoding="utf-8").read()
         assert "+30% и более" in src
         assert re.search(r"Топ роста \(\+[^)]*%\)", src) is None or "+30% и более" in src
+
+    def test_automation_vocab_end_to_end(self):
+        # Вакансия «Финансовый Навигатор»: automation-лексика обязана извлекаться.
+        from src.models.vacancy import Vacancy
+        from src.parsing.skills.vacancy_parser import VacancyParser
+
+        text = (
+            "опыт работы с AI-инструментами; умение создавать и настраивать чат-ботов; "
+            "понимание CRM; работа с Make, n8n; понимание API и Webhooks; "
+            "создание дашбордов"
+        )
+        vac = Vacancy.from_api({
+            "id": "t-nav", "name": "IT-специалист",
+            "area": {"id": "1", "name": "Астана"},
+            "employer": {"id": "1", "name": "Финансовый Навигатор"},
+            "description": text,
+        })
+        res = VacancyParser().extract_skills_from_vacancies([vac])
+        freqs = res.ok().get("frequencies", {}) if res.is_ok() else {}
+        for must in ("chatbot", "crm", "n8n", "api", "webhook", "dashboard"):
+            assert must in freqs, f"lost skill: {must} in {sorted(freqs)}"
+
+    def test_latinized_cyrillic_restores(self):
+        # Латинизация из parse_vacancy-дедупа не должна убивать кириллические навыки.
+        from src.parsing.skills.skill_normalizer import SkillNormalizer
+
+        assert SkillNormalizer.normalize("чaт-бoтoв").ok() == "chatbot"
+        assert SkillNormalizer.normalize("дaшбopдoв").ok() == "dashboard"
+        # Честная латиница не страдает.
+        assert SkillNormalizer.normalize("api").ok() == "api"
+        assert SkillNormalizer.normalize("crm").ok() == "crm"
