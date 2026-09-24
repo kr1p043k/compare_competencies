@@ -174,9 +174,17 @@ class TrendAnalyzer:
         """
         Сравнивает текущий снимок с предыдущим (переданным или историческим).
         min_frequency — минимальная частота навыка в предыдущем снимке (фильтр шума).
+
+        Честность сравнения: память (self.current) и файлы snapshots могут быть
+        посчитаны разными прогонами/методиками (сырые counts против нормализованных
+        весов) — прямое сравнение давало фантомные «-96% по всем». Поэтому при
+        наличии 2+ файлов сравниваем ПОСЛЕДНИЕ ДВА ФАЙЛА между собой и только
+        в ДОЛЯХ (share от итога файла) — объёмы выборок по месяцам различаются.
         """
         if previous_snapshot is not None:
             prev_data = previous_snapshot
+            cur_data = dict(self.current)
+            prev_label = prev_label
         else:
             snapshots_result = self.load_all_snapshots()
             if snapshots_result.is_err():
@@ -186,15 +194,31 @@ class TrendAnalyzer:
                 logger.warning("not_enough_snapshots_for_trends")
                 return Ok({TrendType.RISING: [], TrendType.FALLING: []})
             prev_dt, _, prev_data = snapshots[-2]
+            _cur_dt, _, cur_data = snapshots[-1]
             prev_label = prev_dt.strftime("%Y-%m-%d")
+            logger.info(
+                "trends_file_vs_file",
+                prev=prev_dt.strftime("%Y-%m-%d"),
+                cur=_cur_dt.strftime("%Y-%m-%d"),
+            )
+
+        prev_total = sum(v for v in prev_data.values() if isinstance(v, (int, float))) or 1.0
+        cur_total = sum(v for v in cur_data.values() if isinstance(v, (int, float))) or 1.0
 
         rising, falling = [], []
 
-        for skill, current_freq in self.current.items():
+        for skill, current_freq in cur_data.items():
+            if skill.startswith("_"):
+                continue
             prev_freq = prev_data.get(skill, 0)
             if prev_freq < min_frequency:
                 continue
-            change_pct = ((current_freq - prev_freq) / prev_freq) * 100
+            # Доли, а не сырые counts: выборки месяцев разного объёма.
+            cur_share = current_freq / cur_total
+            prev_share = prev_freq / prev_total
+            if prev_share <= 0:
+                continue
+            change_pct = ((cur_share - prev_share) / prev_share) * 100
             entry = {
                 "skill": skill,
                 "current_freq": current_freq,

@@ -142,8 +142,20 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
     }));
   }, [topSkills, profiles]);
 
-  const tick = dk ? "#94a3b8" : "#64748b";
+  const tick = dk ? "#94a3b8" : "#475569";
   const grid = dk ? "#1e293b" : "#e2e8f0";
+  const tipStyle = {
+    background: dk ? "#0f172a" : "#ffffff",
+    border: `1px solid ${grid}`,
+    borderRadius: 8,
+    fontSize: 12,
+    color: dk ? "#e2e8f0" : "#0f172a",
+  };
+  const LEVEL_COLORS: Record<LevelKey, string> = {
+    base: "#0ea5e9",
+    dc: "#6366f1",
+    top_dc: "#7c3aed",
+  };
 
   if (loading) {
     return (
@@ -206,18 +218,14 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
+            <div className="h-[480px]">
               <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={radarData} outerRadius="72%">
+                <RadarChart data={radarData} outerRadius="80%">
                   <PolarGrid stroke={grid} />
                   <PolarAngleAxis dataKey="skill" tick={{ fill: tick, fontSize: 11 }} />
                   <ReTooltip
-                    contentStyle={{
-                      background: dk ? "#0f172a" : "#fff",
-                      border: `1px solid ${grid}`,
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
+                    contentStyle={tipStyle}
+                    cursor={{ fill: "transparent" }}
                     formatter={(_value: any, name: any, props: any) => {
                       const p = props?.payload;
                       if (!p) return [_value, name];
@@ -267,12 +275,8 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                   <XAxis type="number" domain={[0, 100]} tick={{ fill: tick, fontSize: 11 }} unit="%" />
                   <YAxis type="category" dataKey="level" tick={{ fill: tick, fontSize: 12 }} width={170} />
                   <ReTooltip
-                    contentStyle={{
-                      background: dk ? "#0f172a" : "#fff",
-                      border: `1px solid ${grid}`,
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
+                    contentStyle={tipStyle}
+                    cursor={{ fill: dk ? "rgba(148, 163, 184, 0.12)" : "rgba(100, 116, 139, 0.12)" }}
                     formatter={(value: any) => [`${value}%`, "Покрытие"]}
                   />
                   <Bar
@@ -291,7 +295,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                     }
                   >
                     {coverageData.map((c) => (
-                      <Cell key={c.key} fill={c.key === level ? "#7c3aed" : "#a78bfa"} />
+                      <Cell key={c.key} fill={LEVEL_COLORS[c.key]} />
                     ))}
                   </Bar>
                 </BarChart>
