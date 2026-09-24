@@ -642,7 +642,7 @@ export default function App() {
     <div className="min-h-screen bg-white text-gray-900 dark:bg-slate-950 dark:text-slate-100">
       {/* Header */}
       <header className="border-b border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center justify-center w-12 h-12 bg-blue-600 rounded-xl">
@@ -682,7 +682,7 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Status */}
         <AnimatePresence>
           {status.type && (

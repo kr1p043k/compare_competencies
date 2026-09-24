@@ -525,6 +525,9 @@ export function TeacherDashboard() {
     fontFamily: "system-ui, -apple-system, sans-serif",
     color: dk ? "#f1f5f9" : "#111827",
     background: dk ? "#0f172a" : "#fff",
+    borderRadius: 16,
+    border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
+    overflow: "hidden",
   };
 
   const sidebarStyle: React.CSSProperties = {

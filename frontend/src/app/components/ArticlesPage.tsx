@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { AnalyticsCharts } from "./AnalyticsCharts";
+import { ShowMore } from "./ui/show-more";
 
 const fmt = new Intl.NumberFormat("ru-RU");
 
@@ -117,18 +118,6 @@ function BarRow({
         {valueText ?? `${fmt.format(value)}${suffix}`}
       </div>
     </div>
-  );
-}
-
-function ShowMore({ total, shown, expanded, onToggle }: { total: number; shown: number; expanded: boolean; onToggle: () => void }) {
-  if (total <= shown) return null;
-  return (
-    <button
-      onClick={onToggle}
-      className="w-full py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-blue-400 transition-colors cursor-pointer"
-    >
-      {expanded ? "Свернуть" : `Показать ещё ${total - shown} из ${total}`}
-    </button>
   );
 }
 

@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { ShowMore } from "./ui/show-more";
 import { Badge } from "./ui/badge";
 import {
   TrendingUp,
@@ -210,18 +211,6 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
         {expanded ? <><ChevronUp className="size-3" />свернуть</> : <><ChevronDown className="size-3" />подробнее</>}
       </button>
     </div>
-  );
-}
-
-function ShowMore({ total, shown, expanded, onToggle }: { total: number; shown: number; expanded: boolean; onToggle: () => void }) {
-  if (total <= shown) return null;
-  return (
-    <button
-      onClick={onToggle}
-      className="mt-2 w-full py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-blue-400 transition-colors cursor-pointer"
-    >
-      {expanded ? "Свернуть" : `Показать ещё ${total - shown} из ${total}`}
-    </button>
   );
 }
 
