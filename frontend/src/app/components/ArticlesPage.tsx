@@ -400,7 +400,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
               ) : (
                 <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
                   {analytics
-                    ? `${fmt.format(analytics.skills.with_skills)} · ${analytics.skills.percent.toFixed(1)}%`
+                    ? fmt.format(analytics.skills.with_skills)
                     : "–"}
                 </p>
               )}
