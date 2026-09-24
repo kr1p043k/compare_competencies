@@ -168,6 +168,8 @@ export default function App() {
   });
   const [analysisData, setAnalysisData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("vacancies");
+  const [professionsList, setProfessionsList] = useState<string[]>([]);
+  const [targetProfession, setTargetProfession] = useState("");
 
   const handleProfileChange = (newProfile: string) => {
     setProfile(newProfile);
@@ -598,24 +600,31 @@ export default function App() {
     apiCall("/market-competencies");
   }
 
-  function loadSummary() {
-    apiCall("/results/summary");
+  // Список профессий таксономии — для выбора цели сравнения на вкладке «Данные».
+  useEffect(() => {
+    if (activeTab !== "data" || !isAuth || professionsList.length > 0) return;
+    fetch(`${API}/taxonomy/professions`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const names = ((d?.professions || []) as any[])
+          .map((p) => p?.name)
+          .filter(Boolean);
+        if (names.length > 0) {
+          setProfessionsList(names);
+          setTargetProfession((prev) => prev || names[0]);
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isAuth]);
+
+  function compareWithProfession() {
+    if (!targetProfession) return;
+    apiCall(`/profiles/${profile}/profession-evaluation?profession=${encodeURIComponent(targetProfession)}`);
   }
 
-  async function loadHealth() {
-    try {
-      setLoading(true);
-      showStatus("info", "Выполнение...");
-      const res = await fetch("/health");
-      const data = await res.json();
-      setLastResult(data);
-      showStatus(res.ok ? "success" : "error", res.ok ? "✓ Готово" : `✗ ${data.detail || "Ошибка"}`);
-      return data;
-    } catch (e: any) {
-      showStatus("error", `✗ ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
+  function loadSummary() {
+    apiCall("/results/summary");
   }
 
   if (backendDown) {
@@ -887,15 +896,6 @@ export default function App() {
                     Сводка
                   </Button>
                   <Button
-                    onClick={loadHealth}
-                    disabled={loading}
-                    variant="outline"
-                    className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  >
-                    <Activity className="mr-2 size-4" />
-                    Состояние
-                  </Button>
-                  <Button
                     onClick={runGapAnalysis}
                     disabled={loading || gapRunning}
                     className="h-11 bg-amber-600 hover:bg-amber-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
@@ -907,6 +907,33 @@ export default function App() {
                 {gapRunning && (
                   <p className="text-sm text-amber-700 dark:text-amber-300">{gapMsg || "Выполняется..."}</p>
                 )}
+                <div className="space-y-2 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                  <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                    Целевая профессия для сравнения
+                  </Label>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Select value={targetProfession} onValueChange={setTargetProfession}>
+                      <SelectTrigger className="h-11 flex-1 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600">
+                        <SelectValue placeholder="Выберите профессию..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {professionsList.map((p) => (
+                          <SelectItem key={p} value={p}>
+                            {p}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      onClick={compareWithProfession}
+                      disabled={loading || !targetProfession}
+                      className="h-11 bg-violet-600 hover:bg-violet-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:outline-none sm:w-auto w-full"
+                    >
+                      <Briefcase className="mr-2 size-4" />
+                      Сравнить с профессией
+                    </Button>
+                  </div>
+                </div>
                 <p className="text-xs text-gray-500 dark:text-slate-400">
                   Последняя подгрузка результатов [{profile}]: {(() => {
                     const iso = resultLoadedAt[profile];

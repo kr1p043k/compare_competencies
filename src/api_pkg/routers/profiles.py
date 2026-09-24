@@ -174,8 +174,9 @@ async def get_profile(
     response_model=ProfessionEvalResponse,
 )
 @limiter.limit("30/minute")
-async def get_profile_profession_evaluation(request: Request, profile: str):
-    """Оценка профиля под профессию."""
+async def get_profile_profession_evaluation(request: Request, profile: str, profession: str | None = Query(None)):
+    """Оценка профиля под профессию. Без ?profession= — фиксированная цель профиля,
+    с ?profession=<имя> — выбранная пользователем профессия из таксономии."""
     if profile not in deps.student_profiles:
         raise HTTPException(status_code=404, detail=f"Profile '{profile}' not found")
     if deps.evaluator is None:
@@ -184,7 +185,16 @@ async def get_profile_profession_evaluation(request: Request, profile: str):
     from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 
     taxonomy = ProfessionTaxonomy()
-    profile_config = taxonomy.get_profile_target(profile)
+    if profession:
+        info = taxonomy.get_profession_info(profession)
+        if not info:
+            raise HTTPException(status_code=404, detail=f"Profession '{profession}' not found")
+        profile_config = {
+            "target_profession": profession,
+            "target_domains": info.get("domains", []),
+        }
+    else:
+        profile_config = taxonomy.get_profile_target(profile)
     if not profile_config:
         raise HTTPException(
             status_code=404, detail=f"No profession target for '{profile}'"
