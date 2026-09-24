@@ -771,7 +771,7 @@ export default function App() {
               onSelect={setActiveTab}
               items={[
                 { value: "vacancies", label: "Вакансии", Icon: Briefcase },
-                { value: "data", label: "Данные", Icon: Database },
+                { value: "data", label: "Результаты", Icon: Database },
                 ...(role !== "teacher"
                   ? [{ value: "visualization", label: "Визуализация", Icon: BarChart3 }]
                   : []),
@@ -785,6 +785,9 @@ export default function App() {
                 { value: "predictions", label: "Прогнозы", Icon: TrendingUp },
                 { value: "articles", label: "Аналитика рынка", Icon: LineChart },
                 { value: "scientific-trends", label: "Научные тренды", Icon: FolderOpen },
+                ...(role === "teacher" || role === "rop"
+                  ? [{ value: "teacher", label: "Статистика", Icon: BarChart3 }]
+                  : []),
               ]}
             />
             <NavGroup
@@ -798,9 +801,6 @@ export default function App() {
                       { value: "logs", label: "Логи", Icon: FileText },
                       { value: "admin", label: "Админ", Icon: Shield },
                     ]
-                  : []),
-                ...(role === "teacher" || role === "rop"
-                  ? [{ value: "teacher", label: "Статистика", Icon: BarChart3 }]
                   : []),
                 ...(role === "student"
                   ? [{ value: "student", label: "Мои запросы", Icon: History }]
@@ -839,7 +839,7 @@ export default function App() {
                   </div>
                   <div>
                     <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
-                      Данные и результаты
+                      Результаты
                     </CardTitle>
                     <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
                       Просмотр профилей, рекомендаций и статистики
