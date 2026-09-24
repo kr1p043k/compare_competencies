@@ -1004,7 +1004,51 @@ export default function App() {
                 {lastResult && (() => {
                   const d = lastResult as Record<string, unknown>;
                   if (d.recommendations || d.closest_roles) {
-                    return <RecommendationsReport data={lastResult as any} />;
+                    return (
+                      <>
+                        {(d as any).focus_mode && (d as any).target_profession && (
+                          <Card className="border-2 border-violet-200 dark:border-violet-800 bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 mb-4">
+                            <CardContent className="pt-5">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="p-2 bg-violet-600 rounded-lg">
+                                  <Briefcase className="size-5 text-white" />
+                                </div>
+                                <div>
+                                  <div className="font-bold text-gray-900 dark:text-slate-100">
+                                    Фокус: {(d as any).target_profession} · профиль {String((d as any).profile || "")}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">
+                                    {((d as any).target_domains || []).join(", ")}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                                <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
+                                  <div className="text-2xl font-bold text-violet-700 dark:text-violet-300">{Number((d as any).profession_coverage || 0).toFixed(1)}%</div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">покрытие профессии</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
+                                  <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{Number((d as any).skill_coverage || 0).toFixed(1)}%</div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">навыки: {(d as any).skill_strict_has ?? "–"} из {(d as any).skill_strict_total ?? "–"}</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
+                                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{Number((d as any).readiness_score || 0).toFixed(1)}%</div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">готовность</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
+                                  <div className="text-2xl font-bold text-slate-700 dark:text-slate-200">{Number((d as any).domain_coverage_score || 0).toFixed(1)}%</div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">покрытие доменов</div>
+                                </div>
+                              </div>
+                              {(d as any).krm_note && (
+                                <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">{String((d as any).krm_note)}</p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        )}
+                        <RecommendationsReport data={lastResult as any} />
+                      </>
+                    );
                   }
                   if (d.evaluations && Array.isArray(d.profiles)) {
                     return <SummaryReport data={lastResult as any} />;

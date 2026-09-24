@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import asyncio
 import numpy as np
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -171,12 +172,18 @@ async def get_profile(
 
 @router.get(
     "/profiles/{profile}/profession-evaluation",
-    response_model=ProfessionEvalResponse,
+    response_model=dict,
 )
 @limiter.limit("30/minute")
-async def get_profile_profession_evaluation(request: Request, profile: str, profession: str | None = Query(None)):
-    """Оценка профиля под профессию. Без ?profession= — фиксированная цель профиля,
-    с ?profession=<имя> — выбранная пользователем профессия из таксономии."""
+async def get_profile_profession_evaluation(
+    request: Request,
+    profile: str,
+    profession: str | None = Query(None),
+    engine: Any = Depends(deps.get_recommendation_engine),
+):
+    """Оценка профиля под профессию. Без ?profession= — фиксированная цель профиля
+    (краткий ответ). С ?profession=<имя> — полный фокус-режим: строгие метрики,
+    KRM по выбранной профессии и Топ-10, пересчитанный движком под её домены."""
     if profile not in deps.student_profiles:
         raise HTTPException(status_code=404, detail=f"Profile '{profile}' not found")
     if deps.evaluator is None:
@@ -208,7 +215,7 @@ async def get_profile_profession_evaluation(request: Request, profile: str, prof
         taxonomy=taxonomy,
     ):
         case Ok(result):
-            return {
+            base = {
                 "profile": profile,
                 "target_profession": profile_config.get("target_profession", ""),
                 "target_domains": profile_config.get("target_domains", []),
@@ -218,12 +225,109 @@ async def get_profile_profession_evaluation(request: Request, profile: str, prof
                 "skill_coverage": result.get("skill_coverage", 0),
                 "domain_coverage_score": result.get("domain_coverage_score", 0),
             }
+            if not profession:
+                return base
+            return await _build_focused_profession_view(
+                request, profile, student, taxonomy, profile_config, result, engine, base
+            )
         case Err(err):
             logger.warning("profile_compare_failed", profile=profile, error=str(err))
             raise HTTPException(
                 status_code=500,
                 detail=await user_error_detail(request, str(err), "Не удалось сравнить профиль. Попробуйте позже."),
             )
+
+
+async def _build_focused_profession_view(
+    request: Request,
+    profile: str,
+    student: Any,
+    taxonomy: Any,
+    profile_config: dict,
+    eval_result: dict,
+    engine: Any,
+    base: dict,
+) -> dict:
+    """Полный фокус-режим под выбранную профессию: строгие метрики, KRM по ней
+    и Топ-10, пересчитанный движком. Тяжёлая часть — в thread pool, не блокируем loop."""
+    profession = profile_config.get("target_profession", "")
+    domains = profile_config.get("target_domains", [])
+
+    # 1. Строгое покрытие: пересечение навыков профиля с навыками профессии.
+    # Штатный skill_coverage считает взвешенно по demand и засчитывает
+    # нулевые веса как «покрыто» (отсюда 91.57 при profession 0) — здесь честно.
+    prof_skills = {s.lower().strip() for s in taxonomy.get_profession_skills(profession)}
+    user_set = {s.lower().strip() for s in (student.skills or [])}
+    strict_has = sorted(prof_skills & user_set)
+    strict_total = len(prof_skills)
+    strict_cov = round(len(strict_has) / strict_total * 100, 2) if strict_total else 0.0
+
+    # 2. KRM по ВЫБРАННОЙ профессии (evaluator считает по своей цели профиля).
+    # KRM-маппинг в таксономии есть не для всех профессий — тогда честно говорим.
+    krm_cov: dict = {}
+    try:
+        krm_cov = taxonomy.compute_krm_coverage(profession, student.skills or []) or {}
+    except Exception as e:
+        logger.warning("focused_krm_failed", profession=profession, error=str(e))
+    krm_available = bool(krm_cov)
+    krm_note = (
+        ""
+        if krm_available
+        else f"KRM-маппинг в таксономии есть только для части профессий — для «{profession}» данных нет"
+    )
+
+    # 3. Полный пересчёт Топ-10 движком под домены профессии.
+    try:
+        gen = await asyncio.to_thread(
+            engine.generate_recommendations,
+            student,
+            "student",
+            eval_result,
+            domains,
+            taxonomy,
+        )
+    except Exception as e:
+        logger.warning("focused_recommend_failed", profession=profession, error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=await user_error_detail(request, str(e), "Не удалось пересчитать рекомендации. Попробуйте позже."),
+        )
+    match gen:
+        case Ok(rec_result):
+            pass
+        case Err(err):
+            logger.warning("focused_recommend_err", profession=profession, error=str(err))
+            raise HTTPException(
+                status_code=500,
+                detail=await user_error_detail(request, str(err), "Не удалось пересчитать рекомендации. Попробуйте позже."),
+            )
+        case _:
+            raise HTTPException(status_code=500, detail="Не удалось пересчитать рекомендации. Попробуйте позже.")
+    payload = rec_result.model_dump()
+
+    # Подменяем сводку фокусными цифрами, старые оставляем для прозрачности.
+    summary = payload.get("summary", {}) or {}
+    summary["skill_coverage"] = strict_cov
+    summary["skill_coverage_market"] = base.get("skill_coverage", 0)
+    payload["summary"] = summary
+
+    return {
+        **base,
+        "focus_mode": True,
+        "skill_coverage": strict_cov,
+        "skill_coverage_market": base.get("skill_coverage", 0),
+        "skill_strict_has": len(strict_has),
+        "skill_strict_total": strict_total,
+        "skill_strict_missing": sorted(prof_skills - user_set)[:50],
+        "krm_coverage": krm_cov,
+        "krm_available": krm_available,
+        "krm_note": krm_note,
+        "recommendations": payload.get("recommendations", []),
+        "closest_roles": payload.get("closest_roles", []),
+        "gaps": payload.get("gaps", {}),
+        "domain_coverage": payload.get("domain_coverage", {}),
+        "summary": summary,
+    }
 
 
 @router.get("/recommendations/{profile}", response_model=dict)
