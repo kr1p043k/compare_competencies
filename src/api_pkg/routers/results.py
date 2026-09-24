@@ -94,6 +94,10 @@ async def get_recommendations_result(
     }
 
 
+# FROZEN v1: PNG-графики (радар/heatmap/coverage). Зафиксированы как v1 API:
+# доступны и под /api/..., и под /api/v1/... (общий _mount). Интерактивные
+# графики фронта ходят по данным (/market, /taxonomy, /profiles) и эти
+# эндпоинты не используют. НЕ удалять и НЕ менять контракт без новой версии.
 @router.get("/results/images/{profile}/{image_type}")
 @limiter.limit("60/minute")
 async def get_profile_image(

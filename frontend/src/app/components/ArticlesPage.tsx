@@ -13,7 +13,6 @@ import {
   Briefcase,
   Wallet,
   TrendingUp,
-  Radar as RadarIcon,
   Layers,
   BookOpen,
   AlertCircle,
@@ -24,6 +23,7 @@ import {
   Building2,
 } from "lucide-react";
 import { api } from "../api";
+import { AnalyticsCharts } from "./AnalyticsCharts";
 
 const fmt = new Intl.NumberFormat("ru-RU");
 
@@ -53,12 +53,6 @@ type ProfessionTrends = {
   source?: string;
   snapshot_date?: string;
   skills: { skill: string; frequency: number }[];
-};
-
-type ImageEntry = {
-  src: string;
-  title: string;
-  description: string;
 };
 
 type Analytics = {
@@ -192,24 +186,6 @@ function BlockCard({
   );
 }
 
-const IMAGES: ImageEntry[] = [
-  {
-    src: "/api/results/images/base/radar",
-    title: "Радар эталонных профилей",
-    description: "Сравнение профилей уровней Junior / Middle / Senior по ключевым навыкам",
-  },
-  {
-    src: "/api/results/images/coverage-comparison",
-    title: "Покрытие рынка по уровням",
-    description: "Доля навыков, покрываемых эталонными профилями каждого уровня",
-  },
-  {
-    src: "/api/results/images/skills-heatmap",
-    title: "Тепловая карта навыков",
-    description: "Распределение навыков по категориям таксономии и уровням",
-  },
-];
-
 export function ArticlesPage() {
   const [stats, setStats] = useState<VacancyStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -228,8 +204,6 @@ export function ArticlesPage() {
   const [selectedProf, setSelectedProf] = useState("");
   const [profTrends, setProfTrends] = useState<ProfessionTrends | null>(null);
   const [profTrendsLoading, setProfTrendsLoading] = useState(false);
-
-  const [images, setImages] = useState(IMAGES.map((i) => ({ ...i, broken: false })));
 
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
@@ -641,45 +615,8 @@ export function ArticlesPage() {
         </BlockCard>
       </div>
 
-      {/* Embedded images */}
-      <div>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex items-center justify-center w-9 h-9 bg-blue-600 rounded-lg">
-            <RadarIcon className="size-5 text-white" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Аналитические графики</h3>
-            <p className="text-sm text-gray-600 dark:text-slate-400">Визуализация профилей компетенций по результатам анализа</p>
-          </div>
-        </div>
-        <div className="grid gap-6 lg:grid-cols-3">
-          {images.map((img) => (
-            <Card key={img.src} className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
-              {img.broken ? (
-                <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                  <AlertCircle className="size-8 mb-3 text-amber-500" />
-                  <p className="text-sm text-gray-500 dark:text-slate-400">График ещё не сгенерирован.</p>
-                </CardContent>
-              ) : (
-                <>
-                  <div className="bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 flex items-center justify-center h-52">
-                    <img
-                      src={img.src}
-                      alt={img.title}
-                      className="max-h-full max-w-full object-contain"
-                      onError={() => setImages((prev) => prev.map((p) => (p.src === img.src ? { ...p, broken: true } : p)))}
-                    />
-                  </div>
-                  <CardHeader>
-                    <CardTitle className="text-base font-semibold text-gray-900 dark:text-slate-100">{img.title}</CardTitle>
-                    <CardDescription className="text-sm text-gray-600 dark:text-slate-400">{img.description}</CardDescription>
-                  </CardHeader>
-                </>
-              )}
-            </Card>
-          ))}
-        </div>
-      </div>
+      {/* Интерактивные графики */}
+      <AnalyticsCharts />
 
       {/* Taxonomy coverage */}
       <BlockCard
