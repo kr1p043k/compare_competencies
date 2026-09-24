@@ -40,6 +40,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
   const { theme } = useTheme();
   const dk = theme === "dark";
   const [level, setLevel] = useState<LevelKey>("base");
+  const [axesCount, setAxesCount] = useState<12 | 15 | 20>(12);
   const [topSkills, setTopSkills] = useState<{ skill: string; weight: number }[]>([]);
   const [profiles, setProfiles] = useState<Record<LevelKey, Set<string>>>({
     base: new Set(),
@@ -102,7 +103,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
   };
 
   const radarData = useMemo(() => {
-    const axes = topSkills.slice(0, 12);
+    const axes = topSkills.slice(0, axesCount);
     const maxW = axes[0]?.weight || 1;
     const mine = profiles[level];
     return axes.map((t) => ({
@@ -112,7 +113,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
       has: mine.has(t.skill.toLowerCase()),
       weight: t.weight,
     }));
-  }, [topSkills, profiles, level]);
+  }, [topSkills, profiles, level, axesCount]);
 
   const coverageData = useMemo(() => {
     const top50 = topSkills.slice(0, 50).map((t) => t.skill.toLowerCase());
@@ -210,10 +211,24 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
               {l.label}
             </button>
           ))}
+          <span className="mx-1 text-gray-300 dark:text-slate-700">|</span>
+          {[12, 15, 20].map((n) => (
+            <button
+              key={n}
+              onClick={() => setAxesCount(n as 12 | 15 | 20)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer ${
+                axesCount === n
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600 hover:border-blue-400"
+              }`}
+            >
+              {n} навыков
+            </button>
+          ))}
         </div>
         <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base">Радар: профиль vs рынок (топ-12 навыков)</CardTitle>
+            <CardTitle className="text-base">Радар: профиль vs рынок (топ-{axesCount} навыков)</CardTitle>
             <CardDescription>
               Синяя зона там, где профиль пересекается с рыночными весами. Уровень: {LEVELS.find((l) => l.key === level)?.label}
             </CardDescription>
@@ -221,13 +236,14 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
           <CardContent>
             <div className="h-[480px]">
               <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={radarData} outerRadius="80%">
+                  <RadarChart data={radarData} outerRadius="80%" style={{ outline: "none" }}>
                   <PolarGrid stroke={grid} />
                   <PolarAngleAxis dataKey="skill" tick={{ fill: tick, fontSize: 11 }} />
-                  <PolarRadiusAxis domain={[0, 1]} tickCount={5} tick={{ fill: tick, fontSize: 10 }} axisLine={false} />
+                  {/* Шкала 0..1 фиксирована; цифры скрыты, чтобы не липнуть к подписям осей */}
+                  <PolarRadiusAxis domain={[0, 1]} tick={false} axisLine={false} />
                   <ReTooltip
                     contentStyle={tipStyle}
-                    cursor={{ fill: "transparent" }}
+                    cursor={{ stroke: tick, strokeWidth: 1, fill: "transparent" }}
                     formatter={(_value: any, name: any, props: any) => {
                       const p = props?.payload;
                       if (!p) return [_value, name];
@@ -250,7 +266,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                     activeDot={{
                       r: 5,
                       fill: "#2563eb",
-                      stroke: dk ? "#fff" : "#1e3a8a",
+                      stroke: dk ? "#38bdf8" : "#1e3a8a",
                       strokeWidth: 2,
                       cursor: "pointer",
                       onClick: (_e: any, payload: any) => payload?.payload?.skill && openDrill(payload.payload.skill),
