@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -25,6 +26,9 @@ async def list_professions():
     seen: set[str] = set()
     result: list[dict] = []
     for f in files:
+        # Мусорные файлы без профессии (freq_profession_2026-09.json) пропускаем.
+        if not re.match(r"^freq_profession_.+_\d{4}-\d{2}\.json$", f.name):
+            continue
         try:
             raw = json.loads(f.read_text(encoding="utf-8"))
             meta = raw.get("_meta", {})

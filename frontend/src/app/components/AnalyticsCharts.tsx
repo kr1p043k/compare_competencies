@@ -4,6 +4,7 @@ import {
   RadarChart,
   PolarGrid,
   PolarAngleAxis,
+  PolarRadiusAxis,
   Radar,
   Tooltip as ReTooltip,
   ResponsiveContainer,
@@ -223,6 +224,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                 <RadarChart data={radarData} outerRadius="80%">
                   <PolarGrid stroke={grid} />
                   <PolarAngleAxis dataKey="skill" tick={{ fill: tick, fontSize: 11 }} />
+                  <PolarRadiusAxis domain={[0, 1]} tickCount={5} tick={{ fill: tick, fontSize: 10 }} axisLine={false} />
                   <ReTooltip
                     contentStyle={tipStyle}
                     cursor={{ fill: "transparent" }}

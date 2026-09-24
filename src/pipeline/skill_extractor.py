@@ -76,8 +76,18 @@ class SkillExtractor:
             whitelist = load_it_skills()
             skill_freq_filtered = filter_skills_by_whitelist(skill_freq, whitelist) if whitelist else skill_freq
             trend_analyzer = TrendAnalyzer(skill_freq_filtered)
-            source_type = "full_market" if getattr(self.args, 'it_sector', False) else "targeted_query"
-            trend_analyzer.save_snapshot(skill_freq_filtered, apply_whitelist=False, source_type=source_type)
+            # targeted_query без профессии даёт мусорный файл freq_profession_2026-09.json.
+            # Маркируем targeted только при явном запросе/профессии, иначе full_market.
+            _q = (getattr(self.args, "query", "") or "").strip()
+            _prof = (getattr(self.args, "profession", "") or "").strip()
+            if getattr(self.args, "it_sector", False) or (not _q and not _prof):
+                source_type = "full_market"
+            else:
+                source_type = "targeted_query"
+            trend_analyzer.save_snapshot(
+                skill_freq_filtered, apply_whitelist=False,
+                source_type=source_type, profession=_prof or None,
+            )
 
             match parser.save_processed_frequencies(skill_freq, apply_filter=not self.args.no_filter):
                 case Ok(_): pass

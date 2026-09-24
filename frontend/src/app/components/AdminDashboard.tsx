@@ -7,7 +7,7 @@ import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import {
   AlertCircle, RefreshCw, Users, FileText, Database,
-  Upload, Brain, BookOpen, Download, Clock,
+  Upload, Brain, BookOpen, Download, Clock, Activity,
 } from "lucide-react";
 import { apiFetch, logAction } from "../../lib/auth";
 import { TeacherDashboard } from "./TeacherDashboard";
@@ -37,6 +37,23 @@ export function AdminDashboard() {
   const [schedMsg, setSchedMsg] = useState("");
   const [schedInterval, setSchedInterval] = useState("12");
   const [schedBusy, setSchedBusy] = useState(false);
+  const [health, setHealth] = useState<any>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthMsg, setHealthMsg] = useState("");
+  const loadHealth = async () => {
+    setHealthLoading(true);
+    setHealthMsg("");
+    try {
+      const r = await apiFetch("/health");
+      const d = await r.json();
+      setHealth(d);
+      setHealthMsg(r.ok ? "Сервис отвечает" : `Ошибка: ${d.detail || r.statusText}`);
+    } catch (e: any) {
+      setHealthMsg(e?.message || "Ошибка проверки");
+    } finally {
+      setHealthLoading(false);
+    }
+  };
   const loadSched = async () => {
     setSchedLoading(true);
     try {
@@ -484,6 +501,7 @@ export function AdminDashboard() {
           <TabsTrigger value="import"><Upload className="size-4 mr-2" />Импорт</TabsTrigger>
           <TabsTrigger value="skills"><Brain className="size-4 mr-2" />Навыки</TabsTrigger>
           <TabsTrigger value="sched"><Clock className="size-4 mr-2" />Фоновые задачи</TabsTrigger>
+          <TabsTrigger value="health"><Activity className="size-4 mr-2" />Проверка</TabsTrigger>
         </TabsList>
 
         {/* ── Users tab ── */}
@@ -989,6 +1007,24 @@ export function AdminDashboard() {
                 <Button variant="outline" onClick={() => runSchedJob("gap", "gap-анализ")} disabled={schedBusy}>Gap сейчас</Button>
               </div>
               <p className="text-xs text-gray-500 dark:text-slate-400">Ручные запуски конвейера блокируются кодом 409, пока планировщик занят.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Проверка состояния (только админ; с вкладки «Данные» убрана) ── */}
+        <TabsContent value="health" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-lg"><Activity className="size-4 inline mr-2" />Состояние сервиса</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <Button variant="outline" onClick={loadHealth} disabled={healthLoading}>
+                {healthLoading ? "Проверяю..." : "Проверить состояние"}
+              </Button>
+              {healthMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{healthMsg}</span>}
+              {health && (
+                <pre className="p-4 bg-gray-50 dark:bg-slate-900 rounded-lg overflow-x-auto text-xs border border-gray-200 dark:border-slate-700">
+                  {JSON.stringify(health, null, 2)}
+                </pre>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -71,6 +71,11 @@ class TrendAnalyzer:
                 out[k] = v
 
             prefix = "freq_market" if source_type == "full_market" else "freq_profession"
+            if prefix == "freq_profession" and not profession:
+                # Защита от мусорных freq_profession_2026-09.json: targeted без
+                # профессии — это фактически весь рынок, пишем как full_market.
+                logger.warning("snapshot_profession_missing_fallback_market")
+                prefix = "freq_market"
             suffix = f"_{profession}" if profession else ""
             filename = f"{prefix}{suffix}_{month}.json"
             path = self.history_dir / filename
