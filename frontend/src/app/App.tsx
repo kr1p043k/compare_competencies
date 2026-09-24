@@ -814,7 +814,7 @@ export default function App() {
 
           {/* Data Tab */}
           <TabsContent value="data">
-            <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
+            <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
               <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center justify-center w-10 h-10 bg-emerald-600 rounded-lg">
