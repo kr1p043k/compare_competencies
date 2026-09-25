@@ -672,15 +672,22 @@ async def run_teacher_analysis_endpoint(
 async def export_vacancies_excel(request: Request, search: str | None = None,
                                        experience: str | None = None,
                                        region: str | None = None,
-                                       months: int | None = Query(None, ge=1, le=24)):
+                                       months: int | None = Query(None, ge=1, le=24),
+                                       date_from: str | None = None,
+                                       date_to: str | None = None):
     """Export vacancies to Excel with list filters (v45). No filters = full dump."""
     import json
     import pandas as pd
 
-    from src.api_pkg.routers.vacancies import _classify_experience, build_vacancy_where
+    from src.api_pkg.routers.vacancies import _classify_experience, _parse_day, build_vacancy_where
     pool = get_pool()
+    for label, val in (("date_from", date_from), ("date_to", date_to)):
+        if val and _parse_day(val) is None:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail=f"{label} must be YYYY-MM-DD")
     where, params = build_vacancy_where(search=search, experience=experience,
-                                        region=region, months=months)
+                                        region=region, months=months,
+                                        date_from=date_from, date_to=date_to)
     recs = await pool.fetch(
         """SELECT hh_id, name, employer_name, area_name, salary_from, salary_to,
                   experience, alternate_url, parsed_skills, key_skills

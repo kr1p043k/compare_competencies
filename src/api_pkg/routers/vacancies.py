@@ -80,7 +80,18 @@ def _clean_skill_list(items) -> list:
     return out
 
 
-def build_vacancy_where(search=None, experience=None, region=None, months=None):
+def _parse_day(value: str | None) -> datetime | None:
+    """Строгий разбор YYYY-MM-DD в aware datetime (UTC). Мусор → None."""
+    if not value or not str(value).strip():
+        return None
+    try:
+        return datetime.strptime(str(value).strip(), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def build_vacancy_where(search=None, experience=None, region=None, months=None,
+                        date_from=None, date_to=None):
     """Shared WHERE builder for list + export (v45). Returns (clause, params), $N from 1."""
     conditions: list[str] = []
     params: list = []
@@ -97,6 +108,14 @@ def build_vacancy_where(search=None, experience=None, region=None, months=None):
         cutoff = datetime.now(timezone.utc) - timedelta(days=int(months) * 30)
         conditions.append(f"v.published_at >= ${len(params) + 1}")
         params.append(cutoff)
+    df = _parse_day(date_from) if isinstance(date_from, str) else date_from
+    dt = _parse_day(date_to) if isinstance(date_to, str) else date_to
+    if df:
+        conditions.append(f"v.published_at >= ${len(params) + 1}")
+        params.append(df)
+    if dt:
+        conditions.append(f"v.published_at < ${len(params) + 1}")
+        params.append(dt + timedelta(days=1))
     return (" AND ".join(conditions) if conditions else "TRUE"), params
 
 
@@ -112,14 +131,20 @@ async def get_vacancies(
     search: str | None = Query(None, description="Поиск по названию"),
     months: int | None = Query(None, ge=1, le=24, description="Период в месяцах"),
     region: str | None = Query(None, description="Город (точное название)"),
+    date_from: str | None = Query(None, description="Дата публикации от (YYYY-MM-DD)"),
+    date_to: str | None = Query(None, description="Дата публикации до (YYYY-MM-DD)"),
 ):
     """Список вакансий (фильтры, пагинация)."""
     pool = await _get_db_pool()
     if not pool:
         raise HTTPException(status_code=503, detail="Database unavailable")
+    for label, val in (("date_from", date_from), ("date_to", date_to)):
+        if val and _parse_day(val) is None:
+            raise HTTPException(status_code=400, detail=f"{label} must be YYYY-MM-DD")
 
     where_clause, params = build_vacancy_where(
-        search=search, experience=experience, region=region, months=months)
+        search=search, experience=experience, region=region, months=months,
+        date_from=date_from, date_to=date_to)
 
     count_sql = f"SELECT COUNT(*) FROM vacancies v WHERE {where_clause}"
     total = await pool.fetchval(count_sql, *params)

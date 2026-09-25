@@ -142,12 +142,15 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [showAllMarketInfo, setShowAllMarketInfo] = useState(false);
   const [allMarketVacancyCount, setAllMarketVacancyCount] = useState(0);
   const [monthsFilter, setMonthsFilter] = useState<number | null>(null);
-  const [applied, setApplied] = useState<{ search: string; experience: string; city: string; months: number | null }>({ search: "", experience: "all", city: "all", months: null });
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [applied, setApplied] = useState<{ search: string; experience: string; city: string; months: number | null; date_from: string; date_to: string }>({ search: "", experience: "all", city: "all", months: null, date_from: "", date_to: "" });
   const activeFilterCount = [
     experienceFilter !== "all",
     cityFilter !== "all",
     searchQuery.trim() !== "",
     monthsFilter !== null,
+    dateFrom !== "" || dateTo !== "",
   ].filter(Boolean).length;
   const handledCompleteRef = useRef(false);
   const itemsPerPage = 12;
@@ -201,6 +204,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         params.append("months", applied.months.toString());
       }
 
+      if (applied.date_from) {
+        params.append("date_from", applied.date_from);
+      }
+      if (applied.date_to) {
+        params.append("date_to", applied.date_to);
+      }
+
       const response = await fetch(`/api/vacancies?${params}`);
       if (!response.ok) {
         throw new Error("Ошибка загрузки вакансий");
@@ -232,6 +242,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       if (applied.city && applied.city !== "all") params.append("region", applied.city);
       if (applied.search.trim()) params.append("search", applied.search.trim());
       if (applied.months) params.append("months", applied.months.toString());
+      if (applied.date_from) params.append("date_from", applied.date_from);
+      if (applied.date_to) params.append("date_to", applied.date_to);
       const response = await fetch(`/api/vacancies?${params}`);
       if (response.ok) {
         const data: VacanciesResponse = await response.json();
@@ -245,12 +257,14 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     } catch {}
   };
 
-  const applyFilters = (over: Partial<{ search: string; experience: string; city: string; months: number | null }> = {}) => {
+  const applyFilters = (over: Partial<{ search: string; experience: string; city: string; months: number | null; date_from: string; date_to: string }> = {}) => {
     setApplied({
       search: searchQuery,
       experience: experienceFilter,
       city: cityFilter,
       months: monthsFilter,
+      date_from: dateFrom,
+      date_to: dateTo,
       ...over,
     });
     setCurrentPage(1);
@@ -265,7 +279,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     setExperienceFilter("all");
     setCityFilter("all");
     setMonthsFilter(null);
-    setApplied({ search: "", experience: "all", city: "all", months: null });
+    setDateFrom("");
+    setDateTo("");
+    setApplied({ search: "", experience: "all", city: "all", months: null, date_from: "", date_to: "" });
     setCurrentPage(1);
   };
 
@@ -794,7 +810,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Период
                 </label>
-                <Select value={String(monthsFilter ?? "all")} onValueChange={(v) => { setMonthsFilter(v === "all" ? null : Number(v)); }}>
+                <Select value={String(monthsFilter ?? "all")} onValueChange={(v) => { setMonthsFilter(v === "all" ? null : Number(v)); if (v !== "all") { setDateFrom(""); setDateTo(""); } }}>
                   <SelectTrigger className="h-11 border-2">
                     <SelectValue />
                   </SelectTrigger>
@@ -807,6 +823,34 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     <SelectItem value="24">24 месяца</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Date range filter */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Даты публикации
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    min={vacancyInfo?.date_range?.from?.slice(0, 10)}
+                    max={dateTo || vacancyInfo?.date_range?.to?.slice(0, 10)}
+                    onChange={(e) => { setDateFrom(e.target.value); if (e.target.value) setMonthsFilter(null); }}
+                    className="h-11 border-2"
+                    aria-label="Дата от"
+                  />
+                  <span className="text-slate-400">—</span>
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    min={dateFrom || vacancyInfo?.date_range?.from?.slice(0, 10)}
+                    max={vacancyInfo?.date_range?.to?.slice(0, 10)}
+                    onChange={(e) => { setDateTo(e.target.value); if (e.target.value) setMonthsFilter(null); }}
+                    className="h-11 border-2"
+                    aria-label="Дата до"
+                  />
+                </div>
               </div>
               <div className="flex items-end justify-end gap-3 flex-wrap">
                 <Button
@@ -834,7 +878,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             </div>
 
             {/* Active filters */}
-            {(applied.experience !== "all" || applied.city !== "all" || applied.search) && (
+            {(applied.experience !== "all" || applied.city !== "all" || applied.search || applied.months !== null || applied.date_from || applied.date_to) && (
               <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
                 <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
                   Активные фильтры:
@@ -867,6 +911,24 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     }}
                   >
                     "{applied.search}" ✕
+                  </Badge>
+                )}
+                {applied.months !== null && (
+                  <Badge
+                    variant="secondary"
+                    className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
+                    onClick={() => { setMonthsFilter(null); applyFilters({ months: null }); }}
+                  >
+                    {applied.months} мес ✕
+                  </Badge>
+                )}
+                {(applied.date_from || applied.date_to) && (
+                  <Badge
+                    variant="secondary"
+                    className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
+                    onClick={() => { setDateFrom(""); setDateTo(""); applyFilters({ date_from: "", date_to: "" }); }}
+                  >
+                    {applied.date_from || "…"} — {applied.date_to || "…"} ✕
                   </Badge>
                 )}
               </div>
@@ -999,6 +1061,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   if (applied.experience !== "all") eq.append("experience", applied.experience);
                   if (applied.city !== "all") eq.append("region", applied.city);
                   if (applied.months) eq.append("months", String(applied.months));
+                  if (applied.date_from) eq.append("date_from", applied.date_from);
+                  if (applied.date_to) eq.append("date_to", applied.date_to);
                   const qs = eq.toString();
                   const r = await fetch(`/api/teacher/export/vacancies${qs ? `?${qs}` : ""}`);
                   if (r.ok) {
