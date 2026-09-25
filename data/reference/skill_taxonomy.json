@@ -1725,7 +1725,11 @@
     "business_tools": {
       "label": "Бизнес-инструменты",
       "icon": "📊",
-      "skills": [],
+      "skills": [
+        "bitrix24",
+        "ms office",
+        "microsoft exchange"
+      ],
       "aliases": {
         "bitrix 24": "Bitrix24",
         "bitrix": "Bitrix24",
@@ -1738,7 +1742,14 @@
     "methodologies": {
       "label": "Методологии",
       "icon": "📋",
-      "skills": [],
+      "skills": [
+        "agile",
+        "scrum",
+        "waterfall",
+        "user story",
+        "kanban",
+        "devsecops"
+      ],
       "aliases": {
         "user stories": "User Story",
         "dev sec ops": "DevSecOps",
@@ -1749,7 +1760,13 @@
     "abstract_concepts": {
       "label": "Абстрактные понятия РПД",
       "icon": "📚",
-      "skills": [],
+      "skills": [
+        "операционные системы",
+        "многопоточность",
+        "встроенные системы",
+        "язык c/c++",
+        "c/c++"
+      ],
       "aliases": {
         "ос различных классов": "linux",
         "ос различных классов и архитектур": "linux",
