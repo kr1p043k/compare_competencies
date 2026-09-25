@@ -79,7 +79,7 @@ const TECH_KEYWORDS = new Set([
   "Airflow","dbt","Kuberhealthy","Prometheus","Grafana","ELK","Elasticsearch",
   "Prolog","SAS","MATLAB","Tableau","Power BI","Excel","Word","PowerPoint",
   "Photoshop","Figma","Sketch","Illustrator","InDesign",
-  "1С","1С:Предприятие","1С:Розница","1С:Бухгалтерия","1С:ЗУП","БСП","СКД",
+  "1С","1C","1С:Предприятие","1С:Розница","1С:Бухгалтерия","1С:ЗУП","БСП","СКД",
   "ЕГАИС","МДЛП","ФГИС","Честный ЗНАК","ККМ","ТСД","ЭЦП",
   "SiebelCRM","ActiveMQ","WebSocket","WebSockets","Helm","gRPC",
   "Spring Boot","Spring Cloud","Spring Security","Spring Data","Spring Framework",
@@ -119,7 +119,12 @@ function parseSkillsFromHtml(html: string): string[] {
   const found = new Set<string>();
 
   for (const kw of TECH_KEYWORDS) {
-    const re = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    // Юникод-границы: JS \b без u-флага считает кириллицу не-буквой,
+    // поэтому `\b1С\b` никогда не матчится. Используем \p{L}\p{N}.
+    const re = new RegExp(
+      `(?<![\\p{L}\\p{N}_])${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}_])`,
+      "iu"
+    );
     if (re.test(text) && isValidSkill(kw)) found.add(kw);
   }
 
