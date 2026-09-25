@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
@@ -17,9 +16,6 @@ import {
   Star,
   AlertTriangle,
   ChevronDown,
-  Loader2,
-  FileText,
-  Tags,
 } from "lucide-react";
 
 interface Vacancy {
@@ -45,8 +41,7 @@ interface Vacancy {
 
 interface VacancyCardProps {
   vacancy: Vacancy;
-  expanded?: boolean;
-  onToggle?: () => void;
+  onOpen?: (vacancy: Vacancy) => void;
 }
 
 const experienceLevels = {
@@ -95,7 +90,7 @@ const TECH_KEYWORDS = new Set([
 
 const RUSSIAN_STOPWORDS = /\b(и|в|на|по|с|для|от|за|из|у|о|об|про|без|до|при|не|или|а|но|да|же|ли|бы|если|чтобы|так|как|это|что|котор|таких|такой|такие|всех|все|всё|может|можно|навыки|опыт|знание|понимание|умение|работа|разработка|настройка|внедрение|поддержка|сопровождение|управление|взаимодействие|наличие|готовность|способность|участие|проведение|создание|использование|обеспечение|выполнение|формирование|организация|обучение|контроль|оценка|анализ|расчет|подготовка|применение|интеграция|автоматизация|оптимизация|проектирование|администрирование|конфигурирование|программирование|тестирование|отладка|документирование|коммуникабельность|системное|аналитическое|критическое|техническое|проактивность|ответственность|самостоятельность|ориентированность|стрессоустойчивость|исполнительность|дисциплинированность|пунктуальность|работоспособность|обучаемость|грамотность|аккуратность|внимательность|терпеливость|честность|порядочность|креативность|инициативность|целеустремленность|нацеленность|мотивация|интерес|желание|готов|уверенный|уверенное|хорошее|базовое|высшее|среднее|полное|неполное|специальное|профессиональное|образование|зарплата|доход|график|офис|удаленно|гибрид|командировки|оформление|тк|рф|сетью|точками|узлов|области|данными|системами|средой|платформой|архитектурой|пользователями|задачами|проектами|командами|процессами|требованиями|решениями|результатами|целями|сроками|стандартами|регламентами|инструментами|технологиями|методами|подходами|принципами|механизмами|алгоритмами|протоколами|форматами|типами)+/iu;
 
-function sanitizeHtml(html: string): string {
+export function sanitizeHtml(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/?[^>]+(>|$)/g, "")
@@ -117,7 +112,7 @@ function isValidSkill(s: string): boolean {
   return true;
 }
 
-function parseSkillsFromHtml(html: string): string[] {
+export function parseSkillsFromHtml(html: string): string[] {
   const text = html.replace(/<[^>]+>/g, " ").replace(/&[^;]+;/g, " ").replace(/\s+/g, " ").trim();
   const found = new Set<string>();
 
@@ -145,45 +140,8 @@ function parseSkillsFromHtml(html: string): string[] {
   return Array.from(found).sort();
 }
 
-interface VacancyDetail {
-  id: string;
-  name?: string;
-  description?: string;
-  experience?: any;
-  salary?: any;
-  employer?: any;
-  area?: any;
-  published_at?: string;
-  alternate_url?: string;
-  skills?: string[];
-  schedule?: any;
-  employment?: any;
-  key_skills?: any[];
-  snippet?: any;
-}
-
-export function VacancyCard({ vacancy, expanded: controlled, onToggle }: VacancyCardProps) {
-  const [innerExpanded, setInnerExpanded] = useState(false);
-  // Управляемый режим (из списка: открытая карточка забирает весь ряд).
-  const expanded = controlled ?? innerExpanded;
-  const toggle = () => {
-    if (onToggle) onToggle();
-    else setInnerExpanded((p) => !p);
-  };
-  const [detail, setDetail] = useState<VacancyDetail | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
+export function VacancyCard({ vacancy, onOpen }: VacancyCardProps) {
   const expLevel = experienceLevels[vacancy.experience as keyof typeof experienceLevels] || experienceLevels.middle;
-
-  useEffect(() => {
-    if (!expanded) return;
-    if (detail) return;
-    setLoadingDetail(true);
-    fetch(`/api/vacancies/${vacancy.id}`)
-      .then((r) => r.json())
-      .then((d) => setDetail(d))
-      .catch(() => {})
-      .finally(() => setLoadingDetail(false));
-  }, [expanded]);
 
   const formatSalary = () => {
     if (!vacancy.salary_from && !vacancy.salary_to) return null;
@@ -372,93 +330,6 @@ export function VacancyCard({ vacancy, expanded: controlled, onToggle }: Vacancy
           })()}
         </CardContent>
 
-        {/* Expanded details */}
-        <AnimatePresence>
-          {expanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden border-t border-slate-200/50 dark:border-slate-700/50"
-            >
-              <div className="p-4 space-y-4">
-                {loadingDetail ? (
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="size-5 animate-spin text-slate-400" />
-                  </div>
-                ) : (
-                  <>
-                    {/* Description */}
-                    {detail?.description && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          <FileText className="size-3" />
-                          Описание вакансии
-                        </div>
-                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                          <div className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
-                            {sanitizeHtml(detail.description)}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* HH key_skills */}
-                    {detail?.key_skills && detail.key_skills.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          <Star className="size-3" />
-                          Ключевые навыки (HH)
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(detail.key_skills as any[])
-                            .filter((ks: any) => ((typeof ks === 'string' ? ks : ks?.name) || "").trim())
-                            .map((ks: any) => (
-                            <Badge
-                              key={typeof ks === 'string' ? ks : ks.name}
-                              variant="secondary"
-                              className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800"
-                            >
-                              {typeof ks === 'string' ? ks : ks.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Skills from description (parsed fallback) */}
-                    {(() => {
-                      const extracted = (detail?.skills ?? []).filter((s: string) => (s || "").trim());
-                      const parsed = detail?.description ? parseSkillsFromHtml(detail.description) : [];
-                      const displaySkills = extracted.length > 0 ? extracted : parsed;
-                      if (displaySkills.length === 0) return null;
-                      return (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            <Tags className="size-3" />
-                            {extracted.length > 0 ? "Найденные навыки" : "Технологии из описания"}
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {displaySkills.map((skill: string) => (
-                              <Badge
-                                key={skill}
-                                variant="outline"
-                                className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
-                              >
-                                {skill}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         <CardFooter className="pt-4 border-t border-slate-200/50 dark:border-slate-700/50 relative mt-auto">
           <div className="flex gap-2 w-full">
             <motion.div
@@ -469,10 +340,10 @@ export function VacancyCard({ vacancy, expanded: controlled, onToggle }: Vacancy
               <Button
                 variant="outline"
                 className="w-full border-2 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-all group/btn"
-                onClick={() => toggle()}
+                onClick={() => onOpen?.(vacancy)}
               >
-                <ChevronDown className={`mr-2 size-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
-                {expanded ? "Свернуть" : "Подробнее"}
+                <ChevronDown className="mr-2 size-4 -rotate-90" />
+                Подробнее
               </Button>
             </motion.div>
             <motion.div

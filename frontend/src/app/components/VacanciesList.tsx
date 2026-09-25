@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { VacancyCard } from "./VacancyCard";
+import { VacancyDrawer } from "./VacancyDrawer";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -126,7 +127,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [drawerVacancy, setDrawerVacancy] = useState<Vacancy | null>(null);
   const [vacancyInfo, setVacancyInfo] = useState<{ count: number; with_skills?: number; file_modified: string | null; date_range: { from: string; to: string } | null; load_error: string | null } | null>(null);
   const [showPipelineSetup, setShowPipelineSetup] = useState(false);
   const [pipelineRegion, setPipelineRegion] = useState("0");
@@ -971,10 +972,10 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           </motion.div>
 
           <motion.div
-            className={`gap-6 ${
+            className={`grid gap-6 ${
               viewMode === "grid"
-                ? "columns-1 lg:columns-2 [&>*]:mb-6"
-                : "columns-1"
+                ? "grid-cols-1 lg:grid-cols-2"
+                : "grid-cols-1"
             }`}
           >
             <AnimatePresence mode="popLayout">
@@ -985,17 +986,15 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ delay: index * 0.05 }}
-                  className="h-full break-inside-avoid"
+                  className="h-full"
                 >
-                  <VacancyCard
-                    vacancy={vacancy}
-                    expanded={expandedId === vacancy.id}
-                    onToggle={() => setExpandedId((prev) => (prev === vacancy.id ? null : vacancy.id))}
-                  />
+                  <VacancyCard vacancy={vacancy} onOpen={(v) => setDrawerVacancy(v)} />
                 </motion.div>
               ))}
             </AnimatePresence>
           </motion.div>
+
+          <VacancyDrawer vacancy={drawerVacancy} onClose={() => setDrawerVacancy(null)} />
 
           {/* Pagination */}
           {totalPages > 1 && (
