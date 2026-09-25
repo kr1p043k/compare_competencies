@@ -134,6 +134,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [cityQuery, setCityQuery] = useState("");
   const [openLetters, setOpenLetters] = useState<Record<string, boolean>>({});
+  const [filterOpen, setFilterOpen] = useState(false);
+  const activeFilterCount = [
+    experienceFilter !== "all",
+    cityFilter !== "all",
+    searchQuery.trim() !== "",
+    monthsFilter !== null,
+  ].filter(Boolean).length;
   const [cityMode, setCityMode] = useState(false);
   const [pipelineProfession, setPipelineProfession] = useState("");
   const [pipelineMaxPagesLocal, setPipelineMaxPagesLocal] = useState(20);
@@ -550,11 +557,6 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                           <p className="mt-1 text-xs text-blue-500">Выбрано для сбора: {selectedCities.length}</p>
                         )}
                       </div>
-                      {vacancyInfo?.date_range && (
-                        <p className="text-xs text-blue-500">
-                          Данные за период: {vacancyInfo.date_range.from} – {vacancyInfo.date_range.to}
-                        </p>
-                      )}
                     </motion.div>
                   )}
                 </>
@@ -651,6 +653,20 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               </div>
               <div className="flex items-center gap-2">
                 <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFilterOpen(true)}
+                  className="gap-2"
+                >
+                  <Filter className="size-4" />
+                  Фильтры
+                  {activeFilterCount > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-[11px] font-semibold">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </Button>
+                <Button
                   variant={viewMode === "grid" ? "default" : "outline"}
                   size="icon"
                   onClick={() => setViewMode("grid")}
@@ -669,10 +685,42 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               </div>
             </div>
           </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        </Card>
+      </motion.div>
+
+      {/* Фильтры выезжают справа */}
+      <AnimatePresence>
+        {filterOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-slate-950/50"
+              onClick={() => setFilterOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "tween", duration: 0.22, ease: "easeOut" }}
+              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-md bg-white dark:bg-slate-950 border-l border-gray-200 dark:border-slate-700 shadow-2xl flex flex-col"
+            >
+              <div className="flex items-center justify-between gap-3 p-5 border-b border-gray-200 dark:border-slate-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-br from-blue-500 dark:from-blue-950/30 to-purple-600 rounded-lg shadow-md">
+                    <Filter className="size-5 text-white" />
+                  </div>
+                  <div className="text-lg font-semibold text-gray-900 dark:text-slate-100">Фильтры и поиск</div>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setFilterOpen(false)} title="Закрыть">
+                  <X className="size-4" />
+                </Button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5">
+            <div className="grid grid-cols-1 gap-4">
               {/* Search */}
-              <div className="md:col-span-2 space-y-2">
+                <div className="md:col-span-2 space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Поиск по названию
                 </label>
@@ -760,9 +808,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   </SelectContent>
                 </Select>
               </div>
-              <div className="md:col-span-3 flex items-end justify-end gap-3">
+              <div className="flex items-end justify-end gap-3">
                 <Button
-                  onClick={() => applyFilters()}
+                  onClick={() => { applyFilters(); setFilterOpen(false); }}
                   disabled={loading}
                   className="h-11 px-6 bg-blue-700 hover:bg-blue-800 text-white transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none gap-2"
                 >
@@ -823,9 +871,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
-      </motion.div>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Vacancies Grid */}
       {loading ? (
