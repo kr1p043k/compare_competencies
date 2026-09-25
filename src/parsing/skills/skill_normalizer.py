@@ -137,6 +137,7 @@ class SkillNormalizer:
         # Misc aliases from usage tracking
         "msoffice": ["ms office", "microsoft office"],
         "tcp/ip": ["tcpip", "tcp ip", "tcp-ip"],
+        "vlan": ["vlan", "виртуальные локальные сети", "vlan сети"],
         # Cloud
         "aws": ["amazon web services", "amazon aws"],
         "azure": ["microsoft azure"],
