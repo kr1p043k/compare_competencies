@@ -186,6 +186,9 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
     const currency = currencySymbol(vacancy.salary_currency);
 
     if (vacancy.salary_from && vacancy.salary_to) {
+      if (vacancy.salary_from === vacancy.salary_to) {
+        return `${format(vacancy.salary_from)} ${currency}`;
+      }
       return `${format(vacancy.salary_from)} - ${format(vacancy.salary_to)} ${currency}`;
     } else if (vacancy.salary_from) {
       return `от ${format(vacancy.salary_from)} ${currency}`;
