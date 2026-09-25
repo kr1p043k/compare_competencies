@@ -135,12 +135,6 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [cityQuery, setCityQuery] = useState("");
   const [openLetters, setOpenLetters] = useState<Record<string, boolean>>({});
   const [filterOpen, setFilterOpen] = useState(false);
-  const activeFilterCount = [
-    experienceFilter !== "all",
-    cityFilter !== "all",
-    searchQuery.trim() !== "",
-    monthsFilter !== null,
-  ].filter(Boolean).length;
   const [cityMode, setCityMode] = useState(false);
   const [pipelineProfession, setPipelineProfession] = useState("");
   const [pipelineMaxPagesLocal, setPipelineMaxPagesLocal] = useState(20);
@@ -149,6 +143,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [allMarketVacancyCount, setAllMarketVacancyCount] = useState(0);
   const [monthsFilter, setMonthsFilter] = useState<number | null>(null);
   const [applied, setApplied] = useState<{ search: string; experience: string; city: string; months: number | null }>({ search: "", experience: "all", city: "all", months: null });
+  const activeFilterCount = [
+    experienceFilter !== "all",
+    cityFilter !== "all",
+    searchQuery.trim() !== "",
+    monthsFilter !== null,
+  ].filter(Boolean).length;
   const handledCompleteRef = useRef(false);
   const itemsPerPage = 12;
 
