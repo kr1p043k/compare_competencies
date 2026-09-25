@@ -277,7 +277,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
               </motion.div>
             ) : (
               <motion.div
-                className={`size-16 rounded-xl bg-gradient-to-br ${expLevel.color} flex items-center justify-center shadow-lg flex-shrink-0`}
+                className="size-16 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg flex-shrink-0"
                 whileHover={{ scale: 1.05, rotate: -2 }}
               >
                 <Building2 className="size-8 text-white" />
