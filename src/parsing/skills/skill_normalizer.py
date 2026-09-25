@@ -162,6 +162,19 @@ class SkillNormalizer:
         "apollo": ["apollo"],
         # 1С продукты
         "1c": ["1с", "1С", "1C", "1c erp", "1c предприятие", "1c бухгалтерия"],
+        "скд": ["скд"],
+        "уриб": ["уриб"],
+        "риб": ["риб"],
+        "ккт": ["ккт"],
+        "еспд": ["еспд"],
+        "тсд": ["тсд"],
+        "ms-sql": ["ms-sql", "ms sql"],
+        "конвертация данных": ["конвертация данных", "конвертацию данных", "конвертация данных 2.0", "конвертация данных 3.0",
+                                   "кoнвepтaцию дaнныx"],
+        "управляемые формы": ["управляемые формы", "управляемая форма", "управляемых форм"],
+        "http-сервисы": ["http-сервисы", "http-сервис", "http сервисы", "http-сервисами",
+                         "http-cepвиcaми"],
+        "веб-сервисы": ["веб-сервисы", "веб-сервис", "веб-сервисами"],
         # Разное
         "figma": ["figma"],
         "storybook": ["storybook"],
@@ -259,6 +272,17 @@ class SkillNormalizer:
 
     FUZZY_THRESHOLD = 88
     MAX_FUZZY_CANDIDATES = 3
+
+    # Прецедент 1С: продукты линейки опознаём по префиксу 1с/1c + fuzzy хвоста.
+    # Иначе stripping кромсает значимые формы (1С:УТ -> сут, 1С:Розница -> срозница).
+    ONEC_PRODUCTS = [
+        "ут", "розница", "предприятие", "бухгалтерия", "зуп", "erp",
+        "документооборот", "зарплата и управление персоналом",
+        "управление производственным предприятием", "комплексная автоматизация",
+        "программирование",
+    ]
+    ONEC_RE = re.compile(r"^1[сc]\s*[:\-]?\s*(.*?)\s*$")
+    ONEC_FUZZY_THRESHOLD = 90
 
     # Обратная карта lookalikes CYR->LAT (полная, как _LAT_TO_CYR в skill_parser):
     # восстанавливает кириллицу после латинизации в parse_vacancy.
@@ -359,17 +383,49 @@ class SkillNormalizer:
             original = skill.strip()
             text = original.lower()
 
+            # Прецедент 1С: токен с префиксом 1с/1c разбираем отдельно —
+            # хвост fuzzy-матчим к известным продуктам (порог 90), иначе
+            # stripping убивает форму. Каноника: "1c" / "1c <продукт>".
+            _onec = SkillNormalizer.ONEC_RE.match(text)
+            if _onec:
+                _tail = re.sub(r"\s+", " ", _onec.group(1)).strip(" :-")
+                if not _tail or re.fullmatch(r"[vв]?\d+(\.\d+)*", _tail):
+                    return Ok("1c")
+                # Хвост может быть латинизирован дедупом (yт вместо ут) —
+                # возвращаем кириллицу перед fuzzy. Но чистую латиницу (erp)
+                # рестор портит (erp -> ерр), поэтому сначала пробуем оригинал.
+                _m = process.extractOne(
+                    _tail, SkillNormalizer.ONEC_PRODUCTS, scorer=fuzz.WRatio)
+                if not (_m and _m[1] >= SkillNormalizer.ONEC_FUZZY_THRESHOLD):
+                    _tail_cyr = _tail.translate(SkillNormalizer._LAT_TO_CYR_LOOKALIKES)
+                    if _tail_cyr != _tail:
+                        _m = process.extractOne(
+                            _tail_cyr, SkillNormalizer.ONEC_PRODUCTS, scorer=fuzz.WRatio)
+                if _m and _m[1] >= SkillNormalizer.ONEC_FUZZY_THRESHOLD:
+                    return Ok(f"1c {_m[0]}")
+                return Ok("1c")
+
+            # Раннее точное попадание в карту синонимов — ДО version/prefix stripping,
+            # который кромсает значимые символы (1С:УТ -> сут, C# -> c).
+            # Проверка через membership: self-mapped ключи возвращают то же значение.
+            _canon = SkillNormalizer._get_canonical_map()
+            if text in _canon:
+                return Ok(_canon[text].lower())
+            # Та же проверка без версии в хвосте (2.0/8.3): дедуп сохраняет хвост.
+            _noversion = re.sub(r"\s*v?\d+(\.\d+)*", "", text).strip()
+            if _noversion and _noversion in _canon:
+                return Ok(_canon[_noversion].lower())
+
             # Латинизированная кириллица (parse_vacancy переводит lookalikes в латиницу
             # при дедупе: 'чат-ботов' -> 'чaт-бoтoв'). Восстанавливаем ДО всех проверок,
             # иначе mixed-script guard убьёт такие токены. Применяем только при попадании
-            # в карту синонимов — честные латинские токены (api, crm) не пострадают.
+            # восстановленной формы в карту (membership, а не != : восстановленная форма
+            # может совпадать с каноникой). Честные латинские токены не пострадают.
             _restored = text.translate(SkillNormalizer._LAT_TO_CYR_LOOKALIKES)
-            _restored_ok = (
-                _restored != text
-                and SkillNormalizer._apply_synonym_map(_restored) != _restored
-            )
+            _restored_ok = _restored != text and _restored in _canon
             if _restored_ok:
-                text = SkillNormalizer._apply_synonym_map(_restored)
+                # Каноника уже чистая — дальше stripping её только покромсает.
+                return Ok(_canon[_restored].lower())
 
             # Early rejection of junk text
             if len(original) > 40:

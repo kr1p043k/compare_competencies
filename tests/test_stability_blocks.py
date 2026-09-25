@@ -171,20 +171,21 @@ class TestTrendCap:
         from src.analyzers.trend_analyzer import SnapshotTrendAnalyzer
 
         a = SnapshotTrendAnalyzer([
-            {"skill_freq": {"python": 10}},
-            {"skill_freq": {"python": 100}},
+            {"skill_freq": {"python": 10, "sql": 90}},
+            {"skill_freq": {"python": 100, "sql": 90}},
         ])
         row = a.get_rising(10).ok()[0]
+        assert row["skill"] == "python"
         assert row["change_pct"] == 200
-        assert row["change_pct_raw"] == 900.0
+        assert row["change_pct_raw"] == 426.3
         assert row["capped"] is True
 
     def test_small_change_not_capped(self):
         from src.analyzers.trend_analyzer import SnapshotTrendAnalyzer
 
         a = SnapshotTrendAnalyzer([
-            {"skill_freq": {"sql": 100}},
-            {"skill_freq": {"sql": 110}},
+            {"skill_freq": {"sql": 100, "other": 900}},
+            {"skill_freq": {"sql": 110, "other": 900}},
         ])
         row = a.get_rising(10).ok()[0]
         assert row["capped"] is False
@@ -541,3 +542,45 @@ class TestEmergingStrippedCore:
         res = m.get_emerging(rpd, top_n=10)
         assert res.is_ok()
         assert ".net" not in [s for s, _, _ in res.ok()]
+
+
+class TestOneCPrecedent:
+    """Прецедент 1С: формы 1С:УТ/1С:Розница/... нормализуются в 1c <продукт>,
+    латинизированные слайсы дедупа восстанавливаются."""
+
+    def test_variants(self):
+        from src.parsing.skills.skill_normalizer import SkillNormalizer as S
+
+        cases = {
+            "1С:УТ": "1c ут", "1C:УТ": "1c ут", "1с ут": "1c ут",
+            "1С:Розница": "1c розница", "1С:Предприятие 8.3": "1c предприятие",
+            "1С:ЗУП": "1c зуп", "1с erp": "1c erp",
+            "1С:Бухгалтерия": "1c бухгалтерия",
+            "1С:Документооборот": "1c документооборот",
+        }
+        for raw, want in cases.items():
+            got = S.normalize(raw).ok()
+            assert got == want, f"{raw!r} -> {got!r}, want {want!r}"
+
+    def test_latinized_slices_restore(self):
+        from src.parsing.skills.skill_normalizer import SkillNormalizer as S
+
+        assert S.normalize("1c:yт").ok() == "1c ут"
+        assert S.normalize("чaт-бoтoв").ok() == "chatbot"
+        assert S.normalize("дaшбopдoв").ok() == "dashboard"
+
+    def test_1c_vacancy_end_to_end(self):
+        from src.models.vacancy import Vacancy
+        from src.parsing.skills.vacancy_parser import VacancyParser
+
+        text = ("Знание 1С:Розница, 1С:УТ. Опыт с УРИБ, СКД. "
+                "Настройка РИБ. Веб-сервисы.")
+        vac = Vacancy.from_api({
+            "id": "t1c", "name": "Программист 1С",
+            "area": {"id": "1", "name": "Нск"},
+            "employer": {"id": "1", "name": "X"},
+            "description": text})
+        r = VacancyParser().extract_skills_from_vacancies([vac])
+        freqs = r.ok().get("frequencies", {}) if r.is_ok() else {}
+        for must in ("1c розница", "1c ут", "уриб", "скд", "риб", "веб-сервисы"):
+            assert must in freqs, f"lost: {must} in {sorted(freqs)}"
