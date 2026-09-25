@@ -376,7 +376,8 @@ class TestProfileEvaluatorFull:
             use_clustering=True,
         )
         # Модель не загружена для 'middle' (нет файла)
-        evaluator.cluster_models_loaded = {"junior": False, "middle": False, "senior": False}
+        evaluator.cluster_models_loaded = {"junior": False, "middle": False, "senior": False, "all": False}
+        evaluator.clusterers = {}
         context = evaluator._get_cluster_context(student, "middle")
         assert context.is_err()
 
@@ -951,7 +952,8 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             use_clustering=True,
         )
-        evaluator.cluster_models_loaded = {"junior": False, "middle": False, "senior": False}
+        evaluator.cluster_models_loaded = {"junior": False, "middle": False, "senior": False, "all": False}
+        evaluator.clusterers = {}
         result = evaluator._get_cluster_context(student, "middle")
         assert result.is_err()
 
@@ -964,7 +966,7 @@ class TestProfileEvaluatorFull:
             use_clustering=True,
         )
         evaluator.cluster_models_loaded = {"middle": True}
-        with patch.object(evaluator.clusterer, "get_cluster_context", side_effect=Exception("Boom")):
+        with patch.object(evaluator.get_clusterer("middle"), "get_cluster_context", side_effect=Exception("Boom")):
             with pytest.raises(Exception, match="Boom"):
                 evaluator._get_cluster_context(student, "middle")
 
@@ -1245,7 +1247,60 @@ class TestCoverageStrictWeightedPair:
                              vacancies_skills_dict=[{"skills": s} for s in vs],
                              skill_weights_by_level=sw, use_clustering=False)
         r = e.evaluate_profile(st).unwrap()
-        assert r["coverage_strict"] == r["market_skill_coverage"]  # честное = бинарное
-        assert r["coverage_weighted"] == r["skill_coverage"]  # взвешенное как было
+        assert r["coverage_strict"] == r["market_skill_coverage"]
+        assert r["coverage_weighted"] == r["skill_coverage"]
         assert 0.0 <= r["coverage_strict"] <= 100.0
         assert 0.0 <= r["coverage_weighted"] <= 100.0
+
+
+class TestLevelClusterRouting:
+    """L1: каждый уровень — свой объект кластерера, last-wins запрещён."""
+
+    def _eval(self):
+        from datetime import datetime
+        from src.models.student import StudentProfile  # noqa
+        sw = {"middle": {"python": 0.9}}
+        vs = [["python", "sql"]]
+        return ProfileEvaluator(
+            skill_weights={"python": 0.9}, vacancies_skills=vs,
+            vacancies_skills_dict=[{"skills": s} for s in vs],
+            skill_weights_by_level=sw, use_clustering=False)
+
+    def test_distinct_objects_per_level(self):
+        e = self._eval()
+        objs = {id(e.get_clusterer(lvl)) for lvl in ("junior", "middle", "senior")}
+        assert len(objs) == 3  # один объект на всех = баг last-wins
+
+    def test_fallback_all_when_level_missing(self):
+        e = self._eval()
+        e.cluster_models_loaded = {"junior": False, "middle": False,
+                                   "senior": False, "all": True}
+        assert e.get_clusterer("middle") is e.clusterers["all"]
+
+    def test_none_when_nothing_loaded(self):
+        e = self._eval()
+        e.cluster_models_loaded = {"junior": False, "middle": False,
+                                   "senior": False, "all": False}
+        e.clusterers = {}
+        assert e.get_clusterer("middle") is None
+
+    def test_context_carries_cluster_level(self):
+        from datetime import datetime
+        from unittest.mock import patch
+        import numpy as np
+        from src import Ok
+        from src.models.student import StudentProfile
+        sw = {"middle": {"python": 0.9, "docker": 0.7, "sql": 0.5}}
+        vs = [["python", "sql"], ["python", "docker"]]
+        st = StudentProfile(profile_name="t", competencies=[],
+                            skills=["python", "sql"],
+                            target_level="middle", created_at=datetime.now())
+        e = ProfileEvaluator(
+            skill_weights={"python": 0.9}, vacancies_skills=vs,
+            vacancies_skills_dict=[{"skills": s} for s in vs],
+            skill_weights_by_level=sw, use_clustering=True)
+        dim = len(e.get_clusterer("middle").cluster_centers[0])
+        with patch.object(e, "_get_or_compute_student_embedding",
+                          return_value=Ok(np.ones(dim))):
+            ctx = e._get_cluster_context(st, "middle").unwrap()
+        assert ctx["cluster_level"] == "middle"

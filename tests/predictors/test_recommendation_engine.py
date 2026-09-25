@@ -651,6 +651,8 @@ class TestRoleCoreGate:
         mock_profile_evaluator.clusterer = MagicMock()
         mock_profile_evaluator.clusterer.get_top_skills_in_cluster.return_value = [
             f"s{i:02d}" for i in range(50)]
+        # L1: движок идёт через get_clusterer(level) — мок отдаёт тот же кластерер.
+        mock_profile_evaluator.get_clusterer.return_value = mock_profile_evaluator.clusterer
         roles = engine._build_closest_roles(
             [{"id": 0, "name": "R", "similarity": 0.9}], {}, set())
         assert roles[0]["cluster_core_skills"] == [f"s{i:02d}" for i in range(15)]

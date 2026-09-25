@@ -51,21 +51,29 @@ class ProfileEvaluator:
         else:
             self.gap_analyzer_new = None
 
-        self.cluster_models_loaded = {
-            ExperienceLevel.JUNIOR: self.clusterer.load_model(ExperienceLevel.JUNIOR),
-            ExperienceLevel.MIDDLE: self.clusterer.load_model(ExperienceLevel.MIDDLE),
-            ExperienceLevel.SENIOR: self.clusterer.load_model(ExperienceLevel.SENIOR),
-        }
-        # Fallback to "all" if no per-level model loaded
-        if not any(self.cluster_models_loaded.values()):
-            all_loaded = self.clusterer.load_model("all")
-            for level in self.cluster_models_loaded:
-                self.cluster_models_loaded[level] = all_loaded
+        self.clusterers: dict[Any, VacancyClusterer] = {}
+        self.cluster_models_loaded = {}
+        for lvl in ExperienceLevel:
+            cl = VacancyClusterer()
+            loaded = cl.load_model(lvl)
+            self.clusterers[lvl] = cl
+            self.cluster_models_loaded[lvl] = loaded
+        # Сквозной фолбэк "all": грузится отдельно, ни за какой уровень не выдаётся.
+        all_cl = VacancyClusterer()
+        all_loaded = all_cl.load_model("all")
+        self.clusterers["all"] = all_cl
+        self.cluster_models_loaded["all"] = all_loaded
+        # Legacy-алиас: указывает на "all" (если есть), иначе на первую загруженную.
+        # Новые вызовы обязаны идти через get_clusterer(level).
+        self.clusterer = all_cl if all_loaded else next(
+            (c for lv, c in self.clusterers.items()
+             if lv != "all" and self.cluster_models_loaded.get(lv)), all_cl)
         logger.info(
             "cluster_models_loaded",
-            junior=self.cluster_models_loaded["junior"],
-            middle=self.cluster_models_loaded["middle"],
-            senior=self.cluster_models_loaded["senior"],
+            junior=self.cluster_models_loaded[ExperienceLevel.JUNIOR],
+            middle=self.cluster_models_loaded[ExperienceLevel.MIDDLE],
+            senior=self.cluster_models_loaded[ExperienceLevel.SENIOR],
+            fallback_all=all_loaded,
         )
 
         self._cache = {}
@@ -346,10 +354,25 @@ class ProfileEvaluator:
         result = eval_result.model_dump()
         return Ok(result)
 
+    def get_clusterer(self, level: Any) -> VacancyClusterer | None:
+        """Кластерер строго своего уровня; фолбэк — "all", затем любой загруженный."""
+        lv = level.value if isinstance(level, ExperienceLevel) else str(level).lower()
+        for key in (level, lv, "all"):
+            for k, cl in self.clusterers.items():
+                kk = k.value if isinstance(k, ExperienceLevel) else str(k)
+                if (k == key or kk == key) and self.cluster_models_loaded.get(k):
+                    return cl
+        for k, cl in self.clusterers.items():
+            if self.cluster_models_loaded.get(k):
+                return cl
+        return None
+
     def _get_cluster_context(self, student: StudentProfile, target_level: str) -> Result[dict, DomainError]:
         if not self.use_clustering:
             return Err(DomainError(message="Clustering disabled"))
-        if target_level not in self.cluster_models_loaded or not self.cluster_models_loaded[target_level]:
+        clusterer = self.get_clusterer(target_level)
+        if clusterer is None:
+            return Err(DomainError(message=f"Clusterer not trained for level {target_level}"))
             return Err(DomainError(message=f"Clusterer not trained for level {target_level}"))
 
         match self._get_or_compute_student_embedding(student):
@@ -358,7 +381,7 @@ class ProfileEvaluator:
             case Err(e):
                 return Err(e)
 
-        match self.clusterer.get_cluster_context(
+        match clusterer.get_cluster_context(
             profile_embedding=student_emb, level=target_level, top_k_clusters=5, top_k_skills_per_cluster=25
         ):
             case Ok(cluster_context):
@@ -368,6 +391,8 @@ class ProfileEvaluator:
                     total_skills=cluster_context["total_skills_in_context"],
                     clusters_count=len(cluster_context.get("closest_clusters", [])),
                 )
+                cluster_context["cluster_level"] = (
+                    target_level.value if isinstance(target_level, ExperienceLevel) else str(target_level))
                 return Ok(cluster_context)
             case Err(err):
                 return Err(DomainError(message="Cluster context failed", detail=str(err)))

@@ -224,9 +224,15 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             cluster_context = eval_result.get("cluster_context") or {}
             closest_clusters = cluster_context.get("closest_clusters", [])
             cluster_skills_map = cluster_context.get("skills", {})
+            # ID кластеров валидны только в модели своего уровня (L1).
+            cluster_level = cluster_context.get("cluster_level") or getattr(
+                student, "target_level", "middle")
+            if hasattr(cluster_level, "value"):
+                cluster_level = cluster_level.value
             student_set = set(s.lower() for s in student.skills)
 
-            closest_roles = self._build_closest_roles(closest_clusters, cluster_skills_map, student_set)
+            closest_roles = self._build_closest_roles(
+                closest_clusters, cluster_skills_map, student_set, cluster_level)
 
             top_recs: list[tuple[str, float]] = eval_result.get("top_recommendations", [])
             evaluator_scores: dict[str, float] = {skill: score for skill, score in top_recs}
@@ -305,12 +311,18 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 top_cluster = closest_clusters[0]
                 role_similarity = top_cluster.get("similarity", 0)
                 cid = top_cluster.get("id")
-                if cid is not None and self.profile_evaluator.clusterer:
-                    try:
-                        role_skills = set(
-                            s.lower() for s in self.profile_evaluator.clusterer.get_top_skills_in_cluster(cid, top_n=50)
-                        )
-                    except Exception:
+                if cid is not None:
+                    level_clusterer = self.profile_evaluator.get_clusterer(cluster_level) \
+                        if hasattr(self.profile_evaluator, "get_clusterer") \
+                        else self.profile_evaluator.clusterer
+                    if level_clusterer:
+                        try:
+                            role_skills = set(
+                                s.lower() for s in level_clusterer.get_top_skills_in_cluster(cid, top_n=50)
+                            )
+                        except Exception:
+                            role_skills = set(cluster_skills_map.keys())
+                    else:
                         role_skills = set(cluster_skills_map.keys())
 
             for skill in list(combined_scores.keys()):
@@ -492,6 +504,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         closest_clusters: list[dict],
         cluster_skills_map: dict,
         student_set: set[str],
+        cluster_level: str = "middle",
     ) -> list[dict]:
         roles = []
         for c in closest_clusters[:3]:
@@ -501,11 +514,14 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
 
             ranked: list[str] = []
             cluster_all_skills: set[str] = set()
-            if self.profile_evaluator.clusterer:
+            level_clusterer = self.profile_evaluator.get_clusterer(cluster_level) \
+                if hasattr(self.profile_evaluator, "get_clusterer") \
+                else self.profile_evaluator.clusterer
+            if level_clusterer:
                 try:
                     ranked = [
                         s.lower()
-                        for s in self.profile_evaluator.clusterer.get_top_skills_in_cluster(cluster_id, top_n=50)
+                        for s in level_clusterer.get_top_skills_in_cluster(cluster_id, top_n=50)
                     ]
                     cluster_all_skills = set(ranked)
                 except Exception as e:

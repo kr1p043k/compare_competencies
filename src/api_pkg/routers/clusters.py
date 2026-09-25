@@ -25,25 +25,27 @@ limiter = Limiter(key_func=get_remote_address)
 @limiter.limit("20/minute")
 async def clusters_summary(
     request: Request,
-    clusterer_instance: VacancyClusterer = Depends(deps.get_clusterer),
 ):
     """Сводка кластеров вакансий."""
     result = {}
     for lvl in ExperienceLevel:
-        clusterer_instance.load_model(lvl)
-        if clusterer_instance.is_fitted:
+        # Локальный объект: глобальный кластерер не мутирует (нет гонок),
+        # каждый уровень читается своей моделью (нет last-wins).
+        local = VacancyClusterer()
+        local.load_model(lvl)
+        if local.is_fitted:
             result[lvl] = {
-                "clusters": clusterer_instance.n_clusters_,
-                "type": clusterer_instance.clusterer_type,
+                "clusters": local.n_clusters_,
+                "type": local.clusterer_type,
                 "top_clusters": [
                     {
                         "id": cid,
-                        "name": clusterer_instance._generate_cluster_name(cid),
-                        "top_skills": clusterer_instance.get_top_skills_in_cluster(
+                        "name": local._generate_cluster_name(cid),
+                        "top_skills": local.get_top_skills_in_cluster(
                             cid, top_n=5
                         ),
                     }
-                    for cid in range(clusterer_instance.n_clusters_)
+                    for cid in range(local.n_clusters_)
                 ],
             }
         else:
@@ -56,20 +58,21 @@ async def clusters_summary(
 async def get_clusters(
     request: Request,
     level: ExperienceLevel = ExperienceLevel.MIDDLE,
-    clusterer_instance: VacancyClusterer = Depends(deps.get_clusterer),
 ):
     """Кластеры вакансий заданного уровня."""
-    if not clusterer_instance.is_fitted:
-        clusterer_instance.load_model(level)
-    if not clusterer_instance.is_fitted:
+    # Грузим запрошенный уровень явно: глобал после boot = senior (last-wins),
+    # читать из него под видом `level` — stale-read. Локальный объект дешевле гонки.
+    local = VacancyClusterer()
+    local.load_model(level)
+    if not local.is_fitted:
         raise HTTPException(status_code=503, detail="Модели кластеров не загружены")
     clusters = []
-    for cid in range(clusterer_instance.n_clusters_):
+    for cid in range(local.n_clusters_):
         clusters.append(
             {
                 "id": cid,
-                "name": clusterer_instance._generate_cluster_name(cid),
-                "top_skills": clusterer_instance.get_top_skills_in_cluster(
+                "name": local._generate_cluster_name(cid),
+                "top_skills": local.get_top_skills_in_cluster(
                     cid, top_n=5
                 ),
             }
