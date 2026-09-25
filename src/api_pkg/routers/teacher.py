@@ -411,6 +411,36 @@ async def krm_delete_foundational(request: Request, skill: str):
     return {"status": "ok", "skills": skills}
 
 
+@router.post("/teacher/skills/suggest", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("10/minute")
+async def suggest_skill(request: Request):
+    """Предложить навык в таксономию (на модерацию админу)."""
+    from src.api_pkg.routers.auth import get_current_user
+    from src.api_pkg.skill_suggestions import add as suggest_add
+
+    raw = await request.json()
+    skill = ((raw or {}).get("skill", "") if isinstance(raw, dict) else "")
+    hint = ((raw or {}).get("category_hint", "") if isinstance(raw, dict) else "")
+    me = await get_current_user(request) or {}
+    try:
+        entry = suggest_add(skill, hint, me.get("u", ""))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"status": "ok", "suggestion": entry}
+
+
+@router.get("/teacher/skills/suggestions")
+@limiter.limit("30/minute")
+async def list_own_suggestions(request: Request):
+    """Мои предложения (по токену)."""
+    from src.api_pkg.routers.auth import get_current_user
+    from src.api_pkg.skill_suggestions import load_all
+
+    me = await get_current_user(request) or {}
+    mine = [s for s in load_all() if not me.get("u") or s.get("created_by") == me.get("u")]
+    return {"suggestions": mine}
+
+
 @router.post("/teacher/krm/recommendations/seed/auto", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("10/minute")
 async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03.02",

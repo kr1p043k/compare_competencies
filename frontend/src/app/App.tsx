@@ -1125,7 +1125,7 @@ export default function App() {
           </TabsContent>
           {(role === "teacher" || role === "rop" || role === "admin") && (
             <TabsContent value="taxonomy">
-              <TaxonomyBrowser />
+              <TaxonomyBrowser showSuggest={role !== "student"} />
             </TabsContent>
           )}
           {role === "admin" && (

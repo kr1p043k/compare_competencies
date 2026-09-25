@@ -636,6 +636,68 @@ async def admin_skills_categorize(request: Request, body: CategorizeSkillsReques
     return {"status": "ok", "added": added, "invalid": invalid}
 
 
+@router.get("/admin/skills/suggestions", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def admin_skills_suggestions(request: Request, status: str = "pending"):
+    """Очередь предложений навыков от преподавателей."""
+    from src.api_pkg.skill_suggestions import load_all
+
+    items = load_all()
+    if status in ("pending", "approved", "rejected"):
+        items = [s for s in items if s.get("status") == status]
+    return {"suggestions": items}
+
+
+@router.post("/admin/skills/suggestions/{suggestion_id}/approve", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def admin_skills_approve(suggestion_id: str, request: Request):
+    """Одобрить: в it_skills.json + категория таксономии."""
+    from src.api_pkg.skill_suggestions import decide, load_all
+    from src.cli.taxonomy_audit import load_taxonomy, TAXONOMY_PATH
+
+    raw = await request.json()
+    category = ((raw or {}).get("category", "") if isinstance(raw, dict) else "").strip()
+    pending = [s for s in load_all() if s.get("id") == suggestion_id and s.get("status") == "pending"]
+    if not pending:
+        raise HTTPException(status_code=404, detail="Suggestion not found or decided")
+    skill = pending[0]["skill"]
+
+    taxonomy = load_taxonomy()
+    cats = taxonomy.get("categories", {})
+    if category and category not in cats:
+        raise HTTPException(status_code=400, detail=f"Unknown category '{category}'")
+
+    if category:
+        lst = cats[category].setdefault("skills", [])
+        if skill not in {s.strip().lower() for s in lst}:
+            lst.append(skill)
+        with open(TAXONOMY_PATH, "w", encoding="utf-8") as f:
+            json.dump(taxonomy, f, ensure_ascii=False, indent=2)
+
+    import json as _json
+
+    current = _json.loads(IT_SKILLS_PATH.read_text(encoding="utf-8"))
+    if skill not in {str(s).lower() for s in current}:
+        current.append(skill)
+        current = sorted(set(current), key=lambda x: str(x).lower())
+        IT_SKILLS_PATH.write_text(_json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    entry = decide(suggestion_id, True)
+    return {"status": "ok", "suggestion": entry, "category": category or None}
+
+
+@router.post("/admin/skills/suggestions/{suggestion_id}/reject", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def admin_skills_reject(request: Request, suggestion_id: str):
+    """Отклонить предложение."""
+    from src.api_pkg.skill_suggestions import decide
+
+    entry = decide(suggestion_id, False)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Suggestion not found or decided")
+    return {"status": "ok", "suggestion": entry}
+
+
 @router.get("/admin/export/db")
 @limiter.limit("2/minute")
 async def admin_export_db(request: Request, background_tasks: BackgroundTasks):

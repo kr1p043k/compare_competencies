@@ -1219,7 +1219,7 @@ export function TeacherDashboard() {
 
           {analysisMode === "taxonomy" && (
             <div className="mt-4">
-              <TaxonomyBrowser />
+              <TaxonomyBrowser showSuggest />
             </div>
           )}
 

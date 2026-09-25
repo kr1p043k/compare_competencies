@@ -90,6 +90,9 @@ async def taxonomy_categories(
     for cat_id in cat_ids:
         match taxonomy_instance.get_skills_in_category(cat_id):
             case Ok(skills):
+                if not skills:
+                    # Пустышки-алиасы (methodologies/business_tools/abstract_concepts)
+                    continue
                 out.append({
                     "id": cat_id,
                     "label": taxonomy_instance.get_category_label_by_id(cat_id),

@@ -101,6 +101,46 @@ export function AdminDashboard() {
     }
   };
   useEffect(() => { if (tab === "sched") loadSched(); }, [tab]);
+  const [sugList, setSugList] = useState<any[]>([]);
+  const [sugLoading, setSugLoading] = useState(false);
+  const [sugMsg, setSugMsg] = useState("");
+  const [sugCats, setSugCats] = useState<Record<string, string>>({});
+  const [taxCats, setTaxCats] = useState<{ id: string; label: string }[]>([]);
+  const loadSug = async () => {
+    setSugLoading(true);
+    setSugMsg("");
+    try {
+      const r = await apiFetch("/api/admin/skills/suggestions?status=pending");
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      setSugList(d.suggestions || []);
+      if (taxCats.length === 0) {
+        const t = await apiFetch("/api/taxonomy/categories").then((x) => x.json()).catch(() => null);
+        if (t?.categories) setTaxCats(t.categories.map((c: any) => ({ id: c.id, label: c.label })));
+      }
+    } catch (e: any) {
+      setSugMsg(e?.message || "Ошибка загрузки");
+    } finally {
+      setSugLoading(false);
+    }
+  };
+  useEffect(() => { if (tab === "skills") loadSug(); }, [tab]);
+  const decideSug = async (id: string, approve: boolean) => {
+    const cat = sugCats[id] || "";
+    if (approve && !cat) { setSugMsg("Выберите категорию для одобрения"); return; }
+    try {
+      const r = await apiFetch(
+        `/api/admin/skills/suggestions/${id}/${approve ? "approve" : "reject"}`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category: cat }) }
+      );
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      setSugList((prev) => prev.filter((s) => s.id !== id));
+      setSugMsg(approve ? `Принят в таксономию (${cat})` : "Отклонён");
+    } catch (e: any) {
+      setSugMsg("Ошибка: " + (e?.message || e));
+    }
+  };
   const fmtTs = (ts: any) => {
     if (ts == null) return "–";
     const d = new Date(Number(ts) * 1000);
@@ -824,6 +864,52 @@ export function AdminDashboard() {
 
         {/* ── Skills tab ── */}
         <TabsContent value="skills" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Предложения от преподавателей</CardTitle>
+                <Button variant="outline" size="sm" onClick={loadSug} disabled={sugLoading}>
+                  <RefreshCw className={`size-4 mr-2 ${sugLoading ? "animate-spin" : ""}`} />
+                  Обновить
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {sugMsg && <p className="text-sm text-gray-600 dark:text-slate-400">{sugMsg}</p>}
+              {!sugLoading && sugList.length === 0 && (
+                <p className="text-sm text-green-600">Очередь пуста.</p>
+              )}
+              {sugList.map((s) => (
+                <div key={s.id} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border border-gray-200 dark:border-slate-700 p-3">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-sm text-gray-900 dark:text-slate-100">{s.skill}</span>
+                    <span className="ml-2 text-xs text-gray-400 dark:text-slate-500">
+                      от {s.created_by || "?"} · {s.created_at || ""}
+                      {s.category_hint ? ` · подсказка: ${s.category_hint}` : ""}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={sugCats[s.id] || ""}
+                      onChange={(e) => setSugCats((p) => ({ ...p, [s.id]: e.target.value }))}
+                      className="h-9 px-2 text-sm bg-white dark:bg-slate-950 border border-gray-300 dark:border-slate-600 rounded-lg outline-none"
+                    >
+                      <option value="">Категория...</option>
+                      {taxCats.map((c) => (
+                        <option key={c.id} value={c.id}>{c.label}</option>
+                      ))}
+                    </select>
+                    <Button size="sm" onClick={() => decideSug(s.id, true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                      Принять
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => decideSug(s.id, false)}>
+                      Отклонить
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader><CardTitle className="text-lg"><Brain className="size-4 inline mr-2" />Расширение таксономии</CardTitle></CardHeader>
             <CardContent className="space-y-3">
