@@ -287,10 +287,12 @@ class ProfileEvaluator:
         skill_w = rw.get("skill", config.READINESS_SKILL_WEIGHT)
         gap_penalty = rw.get("gap_penalty", config.READINESS_GAP_PENALTY_WEIGHT)
         market_div = total_market if total_market > 0 else 1
+        # Шкала 0–100 во всех слагаемых: доли strong/weak — в процентах.
+        # (До v2 здесь были сырые доли 0..1 — вклад ±0.3 балла, потолок 45.3.)
         readiness = (
             market_w * market_coverage_score
-            + skill_w * (strong_count / market_div)
-            + gap_penalty * (weak_count / market_div)
+            + skill_w * (strong_count / market_div * 100)
+            + gap_penalty * (weak_count / market_div * 100)
         )
 
         total_gap = sum((m.gap_j + m.gap_m + m.gap_s) / 3 for m in metrics.values())

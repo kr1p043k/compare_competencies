@@ -1186,3 +1186,45 @@ class TestProfileEvaluatorKrm:
         ).unwrap()
 
         assert result["krm_coverage"] == {}
+
+
+class TestReadinessFormulaV2:
+    """Якорь формулы readiness v2: 0.45×market + 0.30×strong% − 0.25×weak%.
+
+    Любое изменение формулы обязано громко уронить этот тест + обновить
+    docs/methodology.md и FAQ (вопрос «Что такое Readiness Score?»).
+    """
+
+    @pytest.fixture
+    def weights(self):
+        return {
+            "junior": {"python": 0.8, "sql": 0.6, "git": 0.5, "html": 0.4},
+            "middle": {"python": 0.9, "docker": 0.7, "sql": 0.5, "fastapi": 0.4},
+            "senior": {"python": 0.9, "docker": 0.9, "k8s": 0.8, "sql": 0.3},
+        }
+
+    def _eval(self, skills, weights):
+        vs = [["python", "sql", "git"], ["python", "docker", "fastapi"],
+              ["python", "docker", "k8s"]]
+        st = StudentProfile(profile_name="t", competencies=[], skills=skills,
+                            target_level="middle", created_at=datetime.now())
+        e = ProfileEvaluator(skill_weights={"python": 0.9, "sql": 0.7},
+                             vacancies_skills=vs,
+                             vacancies_skills_dict=[{"skills": s} for s in vs],
+                             skill_weights_by_level=weights, use_clustering=False)
+        return e.evaluate_profile(st).unwrap()
+
+    def test_golden_value(self, weights):
+        r = self._eval(["python", "sql", "git", "fastapi", "docker"], weights)
+        assert r["readiness_score"] == pytest.approx(18.09, abs=0.05)
+        # Хвост формулы живой: вклад долей на порядок больше мёртвых ±0.3 v1
+        assert abs(r["readiness_score"] - 0.45 * r["market_coverage_score"]) > 0.5
+
+    def test_fewer_skills_lower_readiness(self, weights):
+        full = self._eval(["python", "sql", "git", "fastapi", "docker"], weights)
+        thin = self._eval(["python"], weights)
+        assert thin["readiness_score"] < full["readiness_score"]
+
+    def test_bounds(self, weights):
+        r = self._eval(["python", "sql", "git", "fastapi", "docker"], weights)
+        assert 0.0 <= r["readiness_score"] <= 100.0
