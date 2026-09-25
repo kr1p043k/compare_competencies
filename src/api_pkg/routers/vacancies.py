@@ -193,11 +193,13 @@ async def get_vacancies_info():
 
     if pool:
         try:
-            total = await pool.fetchval(
+            total = await pool.fetchval("SELECT COUNT(*) FROM vacancies")
+            with_skills = await pool.fetchval(
                 "SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL AND parsed_skills::text != '[]'"
             )
             info["total_vacancies"] = total or 0
             info["count"] = total or 0
+            info["with_skills"] = with_skills or 0
 
             row = await pool.fetchrow(
                 "SELECT MAX(published_at) AS max_p, MIN(published_at) AS min_p FROM vacancies WHERE published_at IS NOT NULL"

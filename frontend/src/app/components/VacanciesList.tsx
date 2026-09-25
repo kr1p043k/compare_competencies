@@ -18,7 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from "./ui/card";
-import { Search, X, Filter, Briefcase, TrendingUp, Loader2, AlertCircle, ChevronLeft, ChevronRight, LayoutGrid, List, Database, Sparkles, Rocket, CheckCircle2, Globe, MapPin, ChevronDown, Download } from "lucide-react";
+import { Search, X, Filter, Briefcase, TrendingUp, Loader2, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, LayoutGrid, List, Database, Sparkles, Rocket, CheckCircle2, Globe, MapPin, ChevronDown, Download } from "lucide-react";
 
 const HH_REGIONS = [
   "Москва", "Санкт-Петербург", "Екатеринбург", "Новосибирск",
@@ -127,10 +127,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [total, setTotal] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [vacancyInfo, setVacancyInfo] = useState<{ count: number; file_modified: string | null; date_range: { from: string; to: string } | null; load_error: string | null } | null>(null);
+  const [vacancyInfo, setVacancyInfo] = useState<{ count: number; with_skills?: number; file_modified: string | null; date_range: { from: string; to: string } | null; load_error: string | null } | null>(null);
   const [showPipelineSetup, setShowPipelineSetup] = useState(false);
   const [pipelineRegion, setPipelineRegion] = useState("0");
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [cityQuery, setCityQuery] = useState("");
+  const [openLetters, setOpenLetters] = useState<Record<string, boolean>>({});
   const [cityMode, setCityMode] = useState(false);
   const [pipelineProfession, setPipelineProfession] = useState("");
   const [pipelineMaxPagesLocal, setPipelineMaxPagesLocal] = useState(20);
@@ -331,8 +333,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     <CardDescription>Выберите профессию и города для поиска</CardDescription>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setShowPipelineSetup(false)}>
-                  <X className="size-4" />
+                <Button variant="ghost" size="icon" onClick={() => setShowPipelineSetup(false)} title="Свернуть настройки">
+                  <ChevronUp className="size-4" />
                 </Button>
               </div>
             </CardHeader>
@@ -477,17 +479,75 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                         Поиск по всему рынку
                       </div>
                       <p className="text-xs text-blue-700 dark:text-blue-300">
-                        Будут собраны вакансии {vacancyInfo?.count ? `(текущая база: ${vacancyInfo.count} шт.)` : ""} по всем IT-направлениям: Data Scientist, ML Engineer, Python/Java/Fullstack/Frontend/Backend Developer, DevOps, QA, Security, SRE, Mobile Dev, Analyst, Architect, Team Lead, UX/UI Designer, Game Dev и другим
+                        Будут собраны вакансии {vacancyInfo?.count ? `(в базе: ${vacancyInfo.count} шт.${vacancyInfo.with_skills ? `, с навыками: ${vacancyInfo.with_skills} шт.` : ""})` : ""} по всем IT-направлениям: Data Scientist, ML Engineer, Python/Java/Fullstack/Frontend/Backend Developer, DevOps, QA, Security, SRE, Mobile Dev, Analyst, Architect, Team Lead, UX/UI Designer, Game Dev и другим
                       </p>
                       <div className="text-xs text-blue-600 dark:text-blue-400">
                         <span className="font-medium">Города ({HH_REGIONS.length}):</span>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {HH_REGIONS.map(c => (
-                            <span key={c} className="inline-block px-2 py-0.5 bg-white/70 dark:bg-slate-800/70 rounded-full">
-                              {c}
-                            </span>
-                          ))}
+                        <input
+                          value={cityQuery}
+                          onChange={(e) => setCityQuery(e.target.value)}
+                          placeholder="Найти город..."
+                          className="mt-2 w-full h-8 px-3 text-xs rounded-lg border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100 outline-none"
+                        />
+                        <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-blue-200/60 dark:border-blue-800/60 divide-y divide-blue-100 dark:divide-blue-900/40">
+                          {(() => {
+                            const q = cityQuery.trim().toLowerCase();
+                            const filtered = HH_REGIONS.filter((c) => !q || c.toLowerCase().includes(q));
+                            const groups = new Map<string, string[]>();
+                            for (const c of filtered) {
+                              const letter = (c[0] || "#").toUpperCase();
+                              if (!groups.has(letter)) groups.set(letter, []);
+                              groups.get(letter)!.push(c);
+                            }
+                            if (filtered.length === 0) {
+                              return <p className="p-3 text-xs text-blue-500">Ничего не найдено</p>;
+                            }
+                            return [...groups.entries()]
+                              .sort(([a], [b]) => a.localeCompare(b, "ru"))
+                              .map(([letter, cities]) => {
+                                const sel = cities.filter((c) => selectedCities.includes(c)).length;
+                                const open = openLetters[letter] ?? q.length > 0 ?? sel > 0;
+                                return (
+                                  <div key={letter}>
+                                    <button
+                                      onClick={() => setOpenLetters((p) => ({ ...p, [letter]: !(p[letter] ?? q.length > 0 ?? sel > 0) }))}
+                                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-blue-800 dark:text-blue-200 hover:bg-white/60 dark:hover:bg-slate-800/60 cursor-pointer"
+                                    >
+                                      <ChevronDown className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+                                      {letter}
+                                      <span className="ml-auto font-normal text-blue-500">
+                                        {sel > 0 ? `${sel}/${cities.length}` : cities.length}
+                                      </span>
+                                    </button>
+                                    {open && (
+                                      <div className="px-3 pb-2 flex flex-wrap gap-1">
+                                        {cities.map((c) => {
+                                          const on = selectedCities.includes(c);
+                                          return (
+                                            <button
+                                              key={c}
+                                              onClick={() => setSelectedCities((prev) => (on ? prev.filter((x) => x !== c) : [...prev, c]))}
+                                              title={on ? "Убрать из выборки" : "Добавить к выборке"}
+                                              className={`px-2 py-0.5 text-xs rounded-full border transition-colors cursor-pointer ${
+                                                on
+                                                  ? "bg-blue-600 text-white border-blue-600"
+                                                  : "bg-white/70 dark:bg-slate-800/70 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:border-blue-500"
+                                              }`}
+                                            >
+                                              {c}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              });
+                          })()}
                         </div>
+                        {selectedCities.length > 0 && (
+                          <p className="mt-1 text-xs text-blue-500">Выбрано для сбора: {selectedCities.length}</p>
+                        )}
                       </div>
                       {vacancyInfo?.date_range && (
                         <p className="text-xs text-blue-500">
