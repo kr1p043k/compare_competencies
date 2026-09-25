@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { VacancyCard } from "./VacancyCard";
-import { VacancyDrawer } from "./VacancyDrawer";
+import { VacancyDetailPanel } from "./VacancyDetailPanel";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -392,7 +392,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   variant={!cityMode ? "default" : "outline"}
                   onClick={() => { setCityMode(false); setSelectedCities([]); setPipelineRegion("0"); setPipelineProfession(""); }}
-                  className="flex-1 h-10 gap-2"
+                  className={`flex-1 h-10 gap-2 ${!cityMode ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <Globe className="size-4" />
                   Весь рынок
@@ -400,7 +400,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   variant={cityMode ? "default" : "outline"}
                   onClick={() => { setCityMode(true); if (selectedCities.length === 0) setSelectedCities([...HH_REGIONS]); }}
-                  className="flex-1 h-10 gap-2"
+                  className={`flex-1 h-10 gap-2 ${cityMode ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <MapPin className="size-4" />
                   Выбрать города
@@ -654,7 +654,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   variant={viewMode === "grid" ? "default" : "outline"}
                   size="icon"
                   onClick={() => setViewMode("grid")}
-                  className="size-9"
+                  className={`size-9 ${viewMode === "grid" ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <LayoutGrid className="size-4" />
                 </Button>
@@ -662,7 +662,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   variant={viewMode === "list" ? "default" : "outline"}
                   size="icon"
                   onClick={() => setViewMode("list")}
-                  className="size-9"
+                  className={`size-9 ${viewMode === "list" ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <List className="size-4" />
                 </Button>
@@ -928,6 +928,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         </motion.div>
       ) : (
         <>
+          <VacancyDetailPanel vacancy={drawerVacancy} onClose={() => setDrawerVacancy(null)} />
+
           {/* Count + Export */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -972,10 +974,10 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           </motion.div>
 
           <motion.div
-            className={`grid gap-6 ${
+            className={`gap-6 ${
               viewMode === "grid"
-                ? "grid-cols-1 lg:grid-cols-2"
-                : "grid-cols-1"
+                ? "columns-1 lg:columns-2 [&>*]:mb-6"
+                : "columns-1"
             }`}
           >
             <AnimatePresence mode="popLayout">
@@ -986,15 +988,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ delay: index * 0.05 }}
-                  className="h-full"
+                  className="h-full break-inside-avoid"
                 >
                   <VacancyCard vacancy={vacancy} onOpen={(v) => setDrawerVacancy(v)} />
                 </motion.div>
               ))}
             </AnimatePresence>
           </motion.div>
-
-          <VacancyDrawer vacancy={drawerVacancy} onClose={() => setDrawerVacancy(null)} />
 
           {/* Pagination */}
           {totalPages > 1 && (
