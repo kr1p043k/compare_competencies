@@ -687,6 +687,58 @@ class TestTemplateConsistency:
 # ---------------------------------------------------------------------------
 # Metrics honesty gates (R5/M4): blacklist vs whitelist, trend-key normalization
 # ---------------------------------------------------------------------------
+class TestRoleRankingL2:
+    """L2: бленд sim+цель и дедап категорий в топ-3 ролей."""
+
+    def _engine(self, mock_profile_evaluator, tops):
+        from unittest.mock import MagicMock
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        cl = MagicMock()
+        cl.get_top_skills_in_cluster.side_effect = lambda cid, top_n=50: tops[cid][:top_n]
+        mock_profile_evaluator.get_clusterer.return_value = cl
+        return engine
+
+    def test_ds_rises_past_sim_order(self, mock_profile_evaluator):
+        ds_prof = {"python", "pandas", "numpy", "sklearn", "sql",
+                   "matplotlib", "seaborn", "scipy", "statsmodels", "plotly"}
+        tops = {
+            1: ["kotlin", "swift", "android", "ios", "flutter"] * 10,
+            2: ["docker", "kubernetes", "linux", "bash", "terraform"] * 10,
+            3: ["docker", "git", "jenkins", "ansible", "nginx"] * 10,
+            4: sorted(ds_prof) * 5,
+        }
+        engine = self._engine(mock_profile_evaluator, tops)
+        clusters = [
+            {"id": 1, "name": "M", "similarity": 0.94},
+            {"id": 2, "name": "D1", "similarity": 0.88},
+            {"id": 3, "name": "D2", "similarity": 0.82},
+            {"id": 4, "name": "DS", "similarity": 0.81},
+        ]
+        roles = engine._build_closest_roles(clusters, {}, set(),
+                                            prof_skills=set(ds_prof),
+                                            target_profession="Data Scientist")
+        names = [r["role"] for r in roles]
+        assert "DS" in names  # 4-я по sim, но в топ-3 по бленду
+        assert len(roles) == 3
+        cats = [r["dominant_category"] for r in roles]
+        assert len(set(cats)) == len(cats)  # без дублей категорий
+        scores = [r["rank_score"] for r in roles]
+        assert scores == sorted(scores, reverse=True)
+        assert all(r["target_profession"] == "Data Scientist" for r in roles)
+
+    def test_no_prof_no_boost_pure_sim(self, mock_profile_evaluator):
+        tops = {1: ["a"] * 50, 2: ["b"] * 50, 3: ["c"] * 50}
+        engine = self._engine(mock_profile_evaluator, tops)
+        clusters = [
+            {"id": 1, "name": "A", "similarity": 0.9},
+            {"id": 2, "name": "B", "similarity": 0.8},
+            {"id": 3, "name": "C", "similarity": 0.7},
+        ]
+        roles = engine._build_closest_roles(clusters, {}, set())
+        assert [r["role"] for r in roles] == ["A", "B", "C"]
+        assert all(r["target_overlap"] == 0.0 for r in roles)
+
+
 class TestMetricsHonestyGates:
     def test_no_hard_skill_in_blacklist(self):
         """R5: жёсткий навык не может одновременно быть в whitelist и blacklist."""

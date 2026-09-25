@@ -49,6 +49,11 @@ class ClosestRole(BaseModel):
     coverage_explanation: str = ""
     cluster_skills: list[str] = []
     cluster_core_skills: list[str] = []
+    # L2: прозрачность ранжирования ролей.
+    rank_score: float = 0.0
+    target_overlap: float = 0.0
+    target_profession: str = ""
+    dominant_category: str = ""
 
 
 class RecommendationResult(BaseModel):

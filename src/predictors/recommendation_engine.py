@@ -231,8 +231,20 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 cluster_level = cluster_level.value
             student_set = set(s.lower() for s in student.skills)
 
+            # L2: целевая профессия подмешивается в ранг ролей (мягкий буст).
+            target_profession = (eval_result.get("target_profession") or "").strip()
+            prof_skills: set[str] = set()
+            if target_profession and taxonomy is not None and hasattr(taxonomy, "get_profession_skills"):
+                try:
+                    prof_skills = {s.lower().strip()
+                                   for s in taxonomy.get_profession_skills(target_profession)}
+                except Exception as e:
+                    logger.warning("profession_skills_fetch_failed",
+                                   profession=target_profession, error=str(e))
+
             closest_roles = self._build_closest_roles(
-                closest_clusters, cluster_skills_map, student_set, cluster_level)
+                closest_clusters, cluster_skills_map, student_set, cluster_level,
+                prof_skills=prof_skills, target_profession=target_profession)
 
             top_recs: list[tuple[str, float]] = eval_result.get("top_recommendations", [])
             evaluator_scores: dict[str, float] = {skill: score for skill, score in top_recs}
@@ -499,15 +511,23 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
     # ПРИВАТНЫЕ МЕТОДЫ
     # ------------------------------------------------------------------
 
+    # Веса бленда ранга ролей: геометрия доминирует, цель корректирует.
+    # Обоснование — замер A/B на base/dc/top_dc (см. отчёт стадии 2).
+    ROLE_SIM_WEIGHT = 0.6
+    ROLE_TARGET_WEIGHT = 0.4
+
     def _build_closest_roles(
         self,
         closest_clusters: list[dict],
         cluster_skills_map: dict,
         student_set: set[str],
         cluster_level: str = "middle",
+        prof_skills: set[str] | None = None,
+        target_profession: str = "",
     ) -> list[dict]:
-        roles = []
-        for c in closest_clusters[:3]:
+        prof_skills = prof_skills or set()
+        candidates = []
+        for c in closest_clusters:
             name = c.get("name", f"Кластер {c['id']}")
             sim = c.get("similarity", 0)
             cluster_id = c["id"]
@@ -531,18 +551,35 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 cluster_all_skills = set(cluster_skills_map.keys())
             core_skills = [s for s in ranked[:15] if s in cluster_all_skills] or sorted(cluster_all_skills)[:15]
 
+            # L2: пересечение с навыками целевой профессии (0..1).
+            overlap = (len(prof_skills & cluster_all_skills) / 50.0) if prof_skills else 0.0
+            rank_score = round(self.ROLE_SIM_WEIGHT * sim + self.ROLE_TARGET_WEIGHT * overlap, 4)
+            try:
+                dom_cat = self._taxonomy.get_dominant_category(ranked[:15]) if ranked else "other"
+            except Exception:
+                dom_cat = "other"
+
             covered = len(student_set & cluster_all_skills)
             total = len(cluster_all_skills)
 
-            roles.append(
+            expl = (
+                f"Ваш профиль семантически близок к этой роли на {sim * 100:.0f}%. "
+                f"Это означает, что ваш набор навыков похож на требования вакансий "
+                f"в этом кластере, но не гарантирует полного соответствия."
+            )
+            if prof_skills and target_profession:
+                expl += (f" Ранжирование учитывает целевую профессию «{target_profession}»: "
+                         f"пересечение {len(prof_skills & cluster_all_skills)} из 50 навыков.")
+
+            candidates.append(
                 {
                     "role": name,
                     "semantic_similarity": round(sim * 100, 1),
-                    "similarity_explanation": (
-                        f"Ваш профиль семантически близок к этой роли на {sim * 100:.0f}%. "
-                        f"Это означает, что ваш набор навыков похож на требования вакансий "
-                        f"в этом кластере, но не гарантирует полного соответствия."
-                    ),
+                    "rank_score": rank_score,
+                    "target_overlap": round(overlap, 4),
+                    "target_profession": target_profession,
+                    "dominant_category": dom_cat,
+                    "similarity_explanation": expl,
                     "skills_covered": f"{covered}/{total}",
                     "coverage_percent": round(covered / total * 100, 1) if total > 0 else 0,
                     "coverage_explanation": (
@@ -554,7 +591,24 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                     "cluster_core_skills": core_skills,
                 }
             )
-        return roles
+        # Сорт по бленду + дедап доминантной категории, берём 3.
+        candidates.sort(key=lambda r: r["rank_score"], reverse=True)
+        roles, seen_cats = [], set()
+        for cand in candidates:
+            if cand["dominant_category"] not in seen_cats:
+                seen_cats.add(cand["dominant_category"])
+                roles.append(cand)
+            if len(roles) == 3:
+                break
+        # Если дедап съел всё кроме дублей — добираем по скору без дедапа.
+        if len(roles) < 3:
+            taken = {id(r) for r in roles}
+            for cand in candidates:
+                if id(cand) not in taken:
+                    roles.append(cand)
+                if len(roles) == 3:
+                    break
+        return roles[:3]
 
     def _diversify_recommendations(self, recs: list[dict], max_per_category: int = 3) -> list[dict]:
         seen: dict[str, int] = {}
