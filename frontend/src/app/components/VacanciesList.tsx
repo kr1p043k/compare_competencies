@@ -704,7 +704,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "tween", duration: 0.22, ease: "easeOut" }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-md bg-white dark:bg-slate-950 border-l border-gray-200 dark:border-slate-700 shadow-2xl flex flex-col"
+              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-lg bg-white dark:bg-slate-950 border-l border-gray-200 dark:border-slate-700 shadow-2xl flex flex-col"
             >
               <div className="flex items-center justify-between gap-3 p-5 border-b border-gray-200 dark:border-slate-700">
                 <div className="flex items-center gap-3">
@@ -717,7 +717,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   <X className="size-4" />
                 </Button>
               </div>
-              <div className="flex-1 overflow-y-auto p-5">
+              <div className="flex-1 overflow-y-auto p-6">
             <div className="grid grid-cols-1 gap-4">
               {/* Search */}
                 <div className="md:col-span-2 space-y-2">
@@ -808,11 +808,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-end justify-end gap-3">
+              <div className="flex items-end justify-end gap-3 flex-wrap">
                 <Button
                   onClick={() => { applyFilters(); setFilterOpen(false); }}
                   disabled={loading}
-                  className="h-11 px-6 bg-blue-700 hover:bg-blue-800 text-white transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none gap-2"
+                  className="h-11 px-6 bg-blue-700 hover:bg-blue-800 text-white transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none gap-2 whitespace-nowrap"
                 >
                   {loading ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -825,7 +825,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   onClick={clearFilters}
                   disabled={loading}
                   variant="outline"
-                  className="h-11 px-6 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none gap-2"
+                  className="h-11 px-6 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none gap-2 whitespace-nowrap"
                 >
                   <X className="size-4" />
                   Очистить
