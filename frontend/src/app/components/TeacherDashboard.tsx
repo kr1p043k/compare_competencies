@@ -3,6 +3,7 @@ import { api } from "../api";
 import { authHeaders } from "../../lib/auth";
 import { useTheme } from "../../lib/theme";
 import { AnalysisPanel } from "./AnalysisPanel";
+import { TaxonomyBrowser } from "./TaxonomyBrowser";
 import CompetencyTrendsPanel from "./CompetencyTrendsPanel";
 
 const API = "/api/teacher";
@@ -160,7 +161,7 @@ export function TeacherDashboard() {
   const [selectedDir, setSelectedDir] = useState("09.03.02");
   const [analysis, setAnalysis] = useState<DirectionAnalysis | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
-  const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends">("coverage");
+  const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends" | "taxonomy">("coverage");
   const [teacherSection, setTeacherSection] = useState("t-overview");
   const [collapsedComps, setCollapsedComps] = useState<Record<string, boolean>>({});
   const scrollTeacherTo = (id: string) => {
@@ -977,21 +978,36 @@ export function TeacherDashboard() {
           >
             Покрытие
           </button>
-          <button
-            onClick={() => setAnalysisMode("trends")}
-            style={{
-              padding: "6px 14px",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontSize: 12,
-              fontWeight: analysisMode === "trends" ? 700 : 400,
-              background: analysisMode === "trends" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
-              color: analysisMode === "trends" ? "#fff" : "#7c3aed",
-            }}
-          >
-            Тренды компетенций
-          </button>
+            <button
+              onClick={() => setAnalysisMode("trends")}
+              style={{
+                padding: "6px 14px",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: analysisMode === "trends" ? 700 : 400,
+                background: analysisMode === "trends" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
+                color: analysisMode === "trends" ? "#fff" : "#7c3aed",
+              }}
+            >
+              Тренды компетенций
+            </button>
+            <button
+              onClick={() => setAnalysisMode("taxonomy")}
+              style={{
+                padding: "6px 14px",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: analysisMode === "taxonomy" ? 700 : 400,
+                background: analysisMode === "taxonomy" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
+                color: analysisMode === "taxonomy" ? "#fff" : "#7c3aed",
+              }}
+            >
+              Таксономия
+            </button>
         </div>
 
         {analysisMode === "coverage" && analysis && (<>
@@ -1199,6 +1215,12 @@ export function TeacherDashboard() {
               dirCode={selectedDir}
               competencyCodes={selected ? selected.competencies.map((c) => c.code) : undefined}
             />
+          )}
+
+          {analysisMode === "taxonomy" && (
+            <div className="mt-4">
+              <TaxonomyBrowser />
+            </div>
           )}
 
         {/* Discipline detail */}

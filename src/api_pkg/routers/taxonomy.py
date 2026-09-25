@@ -25,8 +25,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 @router.get("/taxonomy/coverage", response_model=TaxonomyCoverageResponse)
 @limiter.limit("20/minute")
-async def taxonomy_coverage(
-    request: Request,
+async def taxonomy_coverage(    request: Request,
     taxonomy_instance: SkillTaxonomy | None = Depends(deps.get_taxonomy),
 ):
     """Покрытие таксономии."""
@@ -68,6 +67,39 @@ async def taxonomy_coverage(
             else 0,
         }
     return {"coverage": coverage}
+
+
+@router.get("/taxonomy/categories", response_model=dict)
+@limiter.limit("60/minute")
+async def taxonomy_categories(
+    request: Request,
+    taxonomy_instance: SkillTaxonomy | None = Depends(deps.get_taxonomy),
+):
+    """Полная таксономия для просмотра (преподаватель): категории и навыки."""
+    if not taxonomy_instance:
+        raise HTTPException(status_code=503, detail="Таксономия не загружена")
+    match taxonomy_instance.get_all_categories():
+        case Ok(categories):
+            cat_ids = categories
+        case Err(err):
+            raise HTTPException(
+                status_code=500,
+                detail=await user_error_detail(request, str(err), "Не удалось загрузить категории. Попробуйте позже."),
+            )
+    out = []
+    for cat_id in cat_ids:
+        match taxonomy_instance.get_skills_in_category(cat_id):
+            case Ok(skills):
+                out.append({
+                    "id": cat_id,
+                    "label": taxonomy_instance.get_category_label_by_id(cat_id),
+                    "icon": taxonomy_instance.get_category_icon_by_id(cat_id),
+                    "total": len(skills),
+                    "skills": sorted(skills),
+                })
+            case Err(_):
+                continue
+    return {"categories": out, "total": len(out)}
 
 
 @router.get("/taxonomy/professions", response_model=ProfessionsResponse)

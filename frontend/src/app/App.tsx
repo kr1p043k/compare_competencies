@@ -41,6 +41,7 @@ import { AdminDashboard } from "./components/AdminDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
 import { StudentDashboard } from "./components/StudentDashboard";
 import { FaqPage } from "./components/FaqPage";
+import { TaxonomyBrowser } from "./components/TaxonomyBrowser";
 import { authHeaders, useAuth, apiFetch } from "../lib/auth";
 import { useTheme } from "../lib/theme";
 import { initApiLogger } from "../lib/logger";
@@ -72,6 +73,7 @@ import {
   ChevronDown,
   FolderOpen,
   LineChart,
+  BookOpen,
 } from "lucide-react";
 
 const API = "/api";
@@ -805,6 +807,9 @@ export default function App() {
                 ...(role === "student"
                   ? [{ value: "student", label: "Мои запросы", Icon: History }]
                   : []),
+                ...((role === "teacher" || role === "rop" || role === "admin")
+                  ? [{ value: "taxonomy", label: "Таксономия", Icon: BookOpen }]
+                  : []),
                 { value: "help", label: "Помощь", Icon: HelpCircle },
               ]}
             />
@@ -1118,6 +1123,11 @@ export default function App() {
           <TabsContent value="help">
             <FaqPage />
           </TabsContent>
+          {(role === "teacher" || role === "rop" || role === "admin") && (
+            <TabsContent value="taxonomy">
+              <TaxonomyBrowser />
+            </TabsContent>
+          )}
           {role === "admin" && (
             <TabsContent value="monitoring">
               <MonitoringTab />
