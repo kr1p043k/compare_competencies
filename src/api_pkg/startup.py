@@ -527,7 +527,8 @@ async def _warmup_background(basic_vacancies, raw_file):
             skill_weights_by_level=skill_weights_by_level,
         )
         deps.recommendation_engine = RecommendationEngine(
-            use_ltr=True, use_llm=False, profile_evaluator=deps.evaluator
+            use_ltr=True, use_llm=False, use_reranker=True,
+            profile_evaluator=deps.evaluator
         )
         deps.recommendation_engine.comparator = CompetencyComparator(
             ngram_range=(1, 2), min_df=1, max_df=0.95,
@@ -568,6 +569,14 @@ async def _warmup_background(basic_vacancies, raw_file):
         )
         deps.trend_analyzer = TrendAnalyzer(skill_freq_filtered)
         logger.info("фоновая инициализация: trend_analyzer готов")
+        # Движок рекомендаций без trend_analyzer считает без тренд-бонусов
+        # (расхождение API vs pipeline). Привязываем постфактум.
+        try:
+            if deps.recommendation_engine is not None:
+                deps.recommendation_engine.trend_analyzer = deps.trend_analyzer
+                logger.info("recommendation_engine trend attached")
+        except Exception as e:
+            logger.warning("recommendation_engine trend attach failed", error=str(e))
         await _resolve_warmup_failure("trend_analyzer")
     except Exception as e:
         logger.warning("фоновая инициализация: trend_analyzer не загружен", error=str(e))

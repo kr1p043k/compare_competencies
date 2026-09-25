@@ -680,3 +680,52 @@ class TestTemplateConsistency:
         out = engine._get_role_outcome("flask", self._roles(), False)
         assert "Ключевой навык для роли" not in expl
         assert out == ""
+
+
+# ---------------------------------------------------------------------------
+# Metrics honesty gates (R5/M4): blacklist vs whitelist, trend-key normalization
+# ---------------------------------------------------------------------------
+class TestMetricsHonestyGates:
+    def test_no_hard_skill_in_blacklist(self):
+        """R5: жёсткий навык не может одновременно быть в whitelist и blacklist."""
+        repo = Path(__file__).resolve().parents[2]
+        wl = {s.lower().strip() for s in json.loads(
+            (repo / "data/reference/it_skills.json").read_text(encoding="utf-8"))}
+        bl = json.loads(
+            (repo / "data/reference/skill_blacklist.json").read_text(encoding="utf-8"))
+        overlap = {b for b in bl if b.lower().strip() in wl}
+        assert overlap == set(), f"blacklist поглощает whitelist: {sorted(overlap)}"
+
+    def test_hot_skills_resolve_to_whitelist(self):
+        """M4: каждый hot-ключ обязан резолвиться через нормалайзер в whitelist."""
+        from src.parsing.skills.skill_normalizer import SkillNormalizer
+        repo = Path(__file__).resolve().parents[2]
+        wl = {s.lower().strip() for s in json.loads(
+            (repo / "data/reference/it_skills.json").read_text(encoding="utf-8"))}
+        hot = json.loads(
+            (repo / "data/reference/trend_hot_skills.json").read_text(encoding="utf-8"))
+        bad = []
+        for h in hot:
+            r = SkillNormalizer.normalize(h)
+            canon = (r.ok().lower() if r.is_ok() and r.ok() else str(h).lower()).strip()
+            if canon not in wl:
+                bad.append(h)
+        assert bad == [], f"hot-ключи мимо whitelist: {bad}"
+
+    def test_trend_bonuses_normalized(self, mock_profile_evaluator, sample_student_profile):
+        """M4: сырой ключ k8s обязан превратиться в kubernetes в бонусах."""
+        from src.models.enums import TrendType
+        mock_trends = MagicMock()
+        mock_trends.get_trending_skills.return_value = Ok({
+            TrendType.RISING: [{"skill": "k8s", "change_pct": 20.0}]
+        })
+        mock_trends.save_trends.return_value = None
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator,
+                                      trend_analyzer=mock_trends, use_ltr=False)
+        engine._always_hot = set()
+        match engine.generate_recommendations(sample_student_profile):
+            case Ok(_):
+                assert "k8s" not in engine._cached_trend_bonuses
+                assert engine._cached_trend_bonuses.get("kubernetes") == pytest.approx(0.2)
+            case _:
+                raise AssertionError("expected Ok")

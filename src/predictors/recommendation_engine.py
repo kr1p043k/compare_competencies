@@ -17,6 +17,7 @@ from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.models.enums import PriorityLevel, SkillCategory, TrendType
 from src.models.student import StudentProfile
+from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.predictors.base import RecommenderPredictor
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 from src.predictors.reranker import BaseReranker, CrossEncoderReranker, RerankerBuilder
@@ -271,7 +272,15 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                         for hot in self._always_hot:
                             if hot not in tb:
                                 tb[hot] = config.TREND_ALWAYS_HOT_BONUS
-                        self._cached_trend_bonuses = tb
+                        # Ключи трендов — сырые имена снапшотов (k8s), проверка ниже —
+                        # по нормализованным. Нормализуем здесь, дубли склеиваем по max.
+                        normed: dict[str, float] = {}
+                        for _k, _v in tb.items():
+                            _r = SkillNormalizer.normalize(_k)
+                            _nk = _r.ok().lower() if _r.is_ok() and _r.ok() else str(_k).lower()
+                            if _nk and (_nk not in normed or _v > normed[_nk]):
+                                normed[_nk] = _v
+                        self._cached_trend_bonuses = normed
                         self._trend_bonuses_cached_at = now
                     case _:
                         pass
