@@ -874,7 +874,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 </div>
                 {vacancyInfo?.date_range && (
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    В базе: {fmtDateRU(vacancyInfo.date_range.from)} — {fmtDateRU(vacancyInfo.date_range.to)}
+                    Записи с {fmtDateRU(vacancyInfo.date_range.from)}
                   </p>
                 )}
               </div>

@@ -80,12 +80,15 @@ def _clean_skill_list(items) -> list:
     return out
 
 
+MSK = timezone(timedelta(hours=3))  # Europe/Moscow без DST: всегда +03
+
+
 def _parse_day(value: str | None) -> datetime | None:
-    """Строгий разбор YYYY-MM-DD в aware datetime (UTC). Мусор → None."""
+    """Строгий разбор YYYY-MM-DD как полночь МСК (даты вакансий — московские)."""
     if not value or not str(value).strip():
         return None
     try:
-        return datetime.strptime(str(value).strip(), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        return datetime.strptime(str(value).strip(), "%Y-%m-%d").replace(tzinfo=MSK)
     except ValueError:
         return None
 
