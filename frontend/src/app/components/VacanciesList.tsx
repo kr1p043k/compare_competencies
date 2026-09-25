@@ -286,7 +286,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       >
         <div className="inline-flex items-center justify-center gap-3 mb-2">
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-50 dark:from-blue-950/30 to-purple-600 rounded-2xl blur-xl opacity-50 animate-pulse" />
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500 dark:from-blue-950/30 to-purple-600 rounded-2xl blur-xl opacity-30 dark:opacity-50 animate-pulse" />
             <div className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 p-3 rounded-2xl shadow-2xl">
               <Briefcase className="size-8 text-white" />
             </div>
@@ -322,7 +322,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gradient-to-br from-sky-50 dark:from-sky-950/30 to-indigo-600 rounded-lg shadow-md">
+                  <div className="p-2 bg-gradient-to-br from-sky-500 dark:from-sky-950/30 to-indigo-600 rounded-lg shadow-md">
                     <Rocket className="size-5 text-white" />
                   </div>
                   <div>
@@ -538,7 +538,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <CardContent className="p-4">
               <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
                 <div className="flex items-center gap-3 flex-1">
-                  <div className="p-2 bg-gradient-to-br from-sky-50 dark:from-sky-950/30 to-indigo-600 rounded-lg shrink-0">
+                  <div className="p-2 bg-gradient-to-br from-sky-500 dark:from-sky-950/30 to-indigo-600 rounded-lg shrink-0">
                     <Rocket className="size-5 text-white" />
                   </div>
                   <div className="flex-1">
@@ -579,7 +579,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-blue-50 dark:from-blue-950/30 to-purple-600 rounded-lg shadow-md">
+                <div className="p-2 bg-gradient-to-br from-blue-500 dark:from-blue-950/30 to-purple-600 rounded-lg shadow-md">
                   <Filter className="size-5 text-white" />
                 </div>
                 <div>

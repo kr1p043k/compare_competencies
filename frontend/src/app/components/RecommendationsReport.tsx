@@ -340,7 +340,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
       <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
         <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
           <CardTitle className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-50 dark:from-blue-950/30 to-purple-600 rounded-lg">
+            <div className="p-2 bg-gradient-to-br from-blue-500 dark:from-blue-950/30 to-purple-600 rounded-lg">
               <Target className="size-5 text-white" />
             </div>
             Ближайшие роли
@@ -383,7 +383,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
       <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
         <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
           <CardTitle className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-green-50 dark:from-green-950/30 to-emerald-600 rounded-lg">
+            <div className="p-2 bg-gradient-to-br from-green-500 dark:from-green-950/30 to-emerald-600 rounded-lg">
               <BookOpen className="size-5 text-white" />
             </div>
             Рекомендации по навыкам
@@ -476,7 +476,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
         <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
           <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
             <CardTitle className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-indigo-50 dark:from-indigo-950/30 to-blue-600 rounded-lg">
+              <div className="p-2 bg-gradient-to-br from-indigo-500 dark:from-indigo-950/30 to-blue-600 rounded-lg">
                 <Layers className="size-5 text-white" />
               </div>
               Покрытие доменов

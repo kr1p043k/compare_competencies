@@ -236,7 +236,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
               <div className="flex items-center gap-3 flex-wrap">
                 <Badge
                   variant={expLevel.badge as any}
-                  className={`bg-gradient-to-r ${expLevel.color} text-white border-0 shadow-md`}
+                  className={`bg-gradient-to-r ${expLevel.color} text-slate-800 dark:text-white border-0 shadow-md`}
                 >
                   <Briefcase className="size-3 mr-1" />
                   {expLevel.label}
