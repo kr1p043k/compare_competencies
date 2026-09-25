@@ -154,6 +154,17 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   ].filter(Boolean).length;
   const handledCompleteRef = useRef(false);
   const itemsPerPage = 12;
+  const fmtDateRU = (iso: string) => {
+    const p = (iso || "").slice(0, 10).split("-");
+    return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
+  };
+  const PERIOD_PRESETS: { value: number | null; label: string }[] = [
+    { value: null, label: "Всё время" },
+    { value: 1, label: "Месяц" },
+    { value: 3, label: "3 месяца" },
+    { value: 6, label: "Полгода" },
+    { value: 12, label: "Год" },
+  ];
 
   useEffect(() => {
     loadVacancies();
@@ -659,7 +670,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-blue-500 dark:from-blue-950/30 to-purple-600 rounded-lg shadow-md">
+                <div className="p-2 bg-blue-700 rounded-lg">
                   <Filter className="size-5 text-white" />
                 </div>
                 <div>
@@ -724,19 +735,24 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             >
               <div className="flex items-center justify-between gap-3 p-5 border-b border-gray-200 dark:border-slate-700">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gradient-to-br from-blue-500 dark:from-blue-950/30 to-purple-600 rounded-lg shadow-md">
+                  <div className="p-2 bg-blue-700 rounded-lg">
                     <Filter className="size-5 text-white" />
                   </div>
-                  <div className="text-lg font-semibold text-gray-900 dark:text-slate-100">Фильтры и поиск</div>
+                  <div>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-slate-100">Фильтры и поиск</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {activeFilterCount > 0 ? `Активно: ${activeFilterCount}` : "Показаны все вакансии"}
+                    </div>
+                  </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setFilterOpen(false)} title="Закрыть">
                   <X className="size-4" />
                 </Button>
               </div>
               <div className="flex-1 overflow-y-auto p-6">
-            <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-6">
               {/* Search */}
-                <div className="md:col-span-2 space-y-2">
+              <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Поиск по названию
                 </label>
@@ -747,33 +763,35 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyPress={handleSearchKeyPress}
-                      placeholder="Введите должность или компанию..."
-                      className="pl-10 h-11 border-2"
+                      placeholder="Должность или компания"
+                      className="pl-10 h-10 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-500"
                     />
                   </div>
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                      onClick={handleSearch}
-                      disabled={loading}
-                      className="h-11 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                    >
-                      {loading ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Search className="size-4" />
-                      )}
-                    </Button>
-                  </motion.div>
+                  <Button
+                    onClick={handleSearch}
+                    disabled={loading}
+                    aria-label="Найти"
+                    className="h-10 w-11 bg-blue-700 hover:bg-blue-800 text-white rounded-lg"
+                  >
+                    {loading ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Search className="size-4" />
+                    )}
+                  </Button>
                 </div>
               </div>
 
-              {/* Experience filter */}
+              <div className="border-t border-slate-200 dark:border-slate-800" />
+
+              {/* Experience + city */}
+              <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  Уровень опыта
+                  Опыт
                 </label>
                 <Select value={experienceFilter} onValueChange={(v) => { setExperienceFilter(v); }}>
-                  <SelectTrigger className="h-11 border-2">
+                  <SelectTrigger className="h-10 rounded-lg">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -791,7 +809,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   Город
                 </label>
                 <Select value={cityFilter} onValueChange={(v) => { setCityFilter(v); }}>
-                  <SelectTrigger className="h-11 border-2">
+                  <SelectTrigger className="h-10 rounded-lg">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="max-h-80">
@@ -804,32 +822,35 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   </SelectContent>
                 </Select>
               </div>
+              </div>
 
-              {/* Months filter */}
-              <div className="space-y-2">
+              <div className="border-t border-slate-200 dark:border-slate-800" />
+
+              {/* Period presets */}
+              <div className="space-y-3">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Период
                 </label>
-                <Select value={String(monthsFilter ?? "all")} onValueChange={(v) => { setMonthsFilter(v === "all" ? null : Number(v)); if (v !== "all") { setDateFrom(""); setDateTo(""); } }}>
-                  <SelectTrigger className="h-11 border-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Весь период</SelectItem>
-                    <SelectItem value="1">1 месяц</SelectItem>
-                    <SelectItem value="3">3 месяца</SelectItem>
-                    <SelectItem value="6">6 месяцев</SelectItem>
-                    <SelectItem value="12">12 месяцев</SelectItem>
-                    <SelectItem value="24">24 месяца</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Date range filter */}
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  Даты публикации
-                </label>
+                <div className="flex flex-wrap gap-2">
+                  {PERIOD_PRESETS.map(p => {
+                    const isActive = monthsFilter === p.value && !dateFrom && !dateTo;
+                    const dimmed = (dateFrom !== "" || dateTo !== "") && p.value !== null;
+                    return (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => { setMonthsFilter(p.value); if (p.value !== null) { setDateFrom(""); setDateTo(""); } }}
+                        className={`h-9 px-4 rounded-full border text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none ${
+                          isActive
+                            ? "bg-blue-700 border-blue-700 text-white"
+                            : "border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-blue-500 hover:text-blue-700 dark:hover:text-blue-400"
+                        } ${dimmed ? "opacity-40" : ""}`}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="flex items-center gap-2">
                   <Input
                     type="date"
@@ -837,52 +858,32 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     min={vacancyInfo?.date_range?.from?.slice(0, 10)}
                     max={dateTo || vacancyInfo?.date_range?.to?.slice(0, 10)}
                     onChange={(e) => { setDateFrom(e.target.value); if (e.target.value) setMonthsFilter(null); }}
-                    className="h-11 border-2"
+                    className="h-10 rounded-lg dark:[color-scheme:dark]"
                     aria-label="Дата от"
                   />
-                  <span className="text-slate-400">—</span>
+                  <span className="text-sm text-slate-400">—</span>
                   <Input
                     type="date"
                     value={dateTo}
                     min={dateFrom || vacancyInfo?.date_range?.from?.slice(0, 10)}
                     max={vacancyInfo?.date_range?.to?.slice(0, 10)}
                     onChange={(e) => { setDateTo(e.target.value); if (e.target.value) setMonthsFilter(null); }}
-                    className="h-11 border-2"
+                    className="h-10 rounded-lg dark:[color-scheme:dark]"
                     aria-label="Дата до"
                   />
                 </div>
+                {vacancyInfo?.date_range && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    В базе: {fmtDateRU(vacancyInfo.date_range.from)} — {fmtDateRU(vacancyInfo.date_range.to)}
+                  </p>
+                )}
               </div>
-              <div className="flex items-end justify-end gap-3 flex-wrap">
-                <Button
-                  onClick={() => { applyFilters(); setFilterOpen(false); }}
-                  disabled={loading}
-                  className="h-11 px-6 bg-blue-700 hover:bg-blue-800 text-white transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none gap-2 whitespace-nowrap"
-                >
-                  {loading ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Search className="size-4" />
-                  )}
-                  Применить фильтры
-                </Button>
-                <Button
-                  onClick={clearFilters}
-                  disabled={loading}
-                  variant="outline"
-                  className="h-11 px-6 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none gap-2 whitespace-nowrap"
-                >
-                  <X className="size-4" />
-                  Очистить
-                </Button>
-              </div>
+            </div>
             </div>
 
             {/* Active filters */}
             {(applied.experience !== "all" || applied.city !== "all" || applied.search || applied.months !== null || applied.date_from || applied.date_to) && (
-              <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Активные фильтры:
-                </span>
+              <div className="flex flex-wrap items-center gap-2 px-6 pt-4 border-t border-slate-200 dark:border-slate-800">
                 {experienceFilter !== "all" && (
                   <Badge
                     variant="secondary"
@@ -928,11 +929,33 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
                     onClick={() => { setDateFrom(""); setDateTo(""); applyFilters({ date_from: "", date_to: "" }); }}
                   >
-                    {applied.date_from || "…"} — {applied.date_to || "…"} ✕
+                    {applied.date_from ? fmtDateRU(applied.date_from) : "…"} — {applied.date_to ? fmtDateRU(applied.date_to) : "…"} ✕
                   </Badge>
                 )}
               </div>
             )}
+              <div className="flex items-center gap-3 p-5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+                <Button
+                  onClick={() => { applyFilters(); setFilterOpen(false); }}
+                  disabled={loading}
+                  className="h-10 flex-1 bg-blue-700 hover:bg-blue-800 text-white rounded-lg gap-2 whitespace-nowrap"
+                >
+                  {loading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Search className="size-4" />
+                  )}
+                  Показать вакансии{total > 0 ? ` (${total})` : ""}
+                </Button>
+                <Button
+                  onClick={clearFilters}
+                  disabled={loading || activeFilterCount === 0}
+                  variant="outline"
+                  className="h-10 rounded-lg text-slate-600 dark:text-slate-300 gap-2 whitespace-nowrap"
+                >
+                  <X className="size-4" />
+                  Сбросить
+                </Button>
               </div>
             </motion.aside>
           </>
