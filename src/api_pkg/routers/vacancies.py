@@ -128,7 +128,8 @@ async def get_vacancies(
         SELECT v.hh_id, v.name, v.experience, v.salary_from, v.salary_to,
                v.salary_currency, v.employer_name, v.area_name,
                v.snippet_requirement, v.snippet_responsibility,
-               v.published_at, v.alternate_url, v.parsed_skills, v.key_skills
+               v.published_at, v.alternate_url, v.parsed_skills, v.key_skills,
+               v.employer_logo
         FROM vacancies v
         WHERE {where_clause}
         ORDER BY v.published_at DESC NULLS LAST
@@ -163,6 +164,7 @@ async def get_vacancies(
             "area": r["area_name"] or "Не указано",
             "published_at": r["published_at"].isoformat() if r["published_at"] else None,
             "alternate_url": r["alternate_url"],
+            "employer_logo": r["employer_logo"],
             "skills": skills,
             "snippet": snippet,
         })
@@ -244,7 +246,8 @@ async def get_vacancy_detail(
         """SELECT hh_id, name, description, experience, salary_from, salary_to,
                   salary_currency, employer_name, employer_id, area_name,
                   snippet_requirement, snippet_responsibility,
-                  published_at, alternate_url, parsed_skills, key_skills
+                  published_at, alternate_url, parsed_skills, key_skills,
+                  employer_logo
            FROM vacancies WHERE hh_id = $1""",
         hh_id,
     )
@@ -286,6 +289,7 @@ async def get_vacancy_detail(
         "area": {"id": None, "name": row["area_name"]} if row["area_name"] else None,
         "published_at": row["published_at"].isoformat() if row["published_at"] else None,
         "alternate_url": row["alternate_url"],
+        "employer_logo": row["employer_logo"],
         "skills": skills,
         "schedule": None,
         "employment": None,

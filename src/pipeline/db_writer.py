@@ -166,6 +166,8 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
         snippet = v.get("snippet") or {}
         skills = [s.get("name", "") for s in v.get("key_skills", []) if s.get("name")]
         parsed = v.get("extracted_skills") or v.get("raw_data", {}).get("extracted_skills")
+        logos = (employer.get("logo_urls") or {}) if isinstance(employer, dict) else {}
+        employer_logo = logos.get("240") or logos.get("90") or logos.get("original")
         pub = v.get("published_at")
         if isinstance(pub, str):
             try:
@@ -185,23 +187,25 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
             json.dumps(parsed, default=str) if parsed else None,
             pub, v.get("alternate_url"), run_id,
             json.dumps(v, ensure_ascii=False, default=str),
+            employer_logo,
         ))
     if not rows:
         return 0
     await pool.executemany(
-        """INSERT INTO vacancies
+           """INSERT INTO vacancies
            (hh_id, name, experience, salary_from, salary_to, salary_currency,
             employer_name, employer_id, area_name,
             snippet_requirement, snippet_responsibility,
             description, key_skills, parsed_skills, published_at, alternate_url,
-            pipeline_run_id, raw)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17,$18::jsonb)
+            pipeline_run_id, raw, employer_logo)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17,$18::jsonb,$19)
            ON CONFLICT (hh_id) DO UPDATE SET
                name=EXCLUDED.name,
                description=COALESCE(EXCLUDED.description, vacancies.description),
                salary_from=EXCLUDED.salary_from,
                salary_to=EXCLUDED.salary_to,
                key_skills=EXCLUDED.key_skills,
+               employer_logo=COALESCE(EXCLUDED.employer_logo, vacancies.employer_logo),
                parsed_skills=COALESCE(EXCLUDED.parsed_skills, vacancies.parsed_skills),
                pipeline_run_id=COALESCE(EXCLUDED.pipeline_run_id, vacancies.pipeline_run_id)""",
         rows,

@@ -295,6 +295,7 @@ class VacancyDetailResponse(BaseModel):
     area: Any = None
     published_at: str | None = None
     alternate_url: str | None = None
+    employer_logo: str | None = None
     skills: list[str] = Field(default_factory=list)
     schedule: Any = None
     employment: Any = None
