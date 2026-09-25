@@ -162,6 +162,7 @@ export function TeacherDashboard() {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends">("coverage");
   const [teacherSection, setTeacherSection] = useState("t-overview");
+  const [collapsedComps, setCollapsedComps] = useState<Record<string, boolean>>({});
   const scrollTeacherTo = (id: string) => {
     setTeacherSection(id);
     try {
@@ -172,7 +173,8 @@ export function TeacherDashboard() {
   useEffect(() => {
     const root = document.getElementById("teacher-main");
     if (!root) return;
-    const ids = ["t-overview", "t-recs", "t-gaps", "t-trends", "t-discs"];
+    const ids = ["t-overview", "t-recs", "t-gaps", "t-trends", "t-discs",
+      "d-cover", "d-recs", "d-top", "d-gaps", "d-comps"];
     const obs = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
@@ -993,15 +995,24 @@ export function TeacherDashboard() {
         </div>
 
         {analysisMode === "coverage" && analysis && (<>
-          {/* Суб-навигация по разделам — как группы в верхнем баре */}
-          <div className="inline-flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-slate-900 p-1 mb-4 sticky top-0 z-10">
-            {[
-              ["t-overview", "Обзор"],
-              ["t-recs", "Рекомендации"],
-              ["t-gaps", "Разрывы"],
-              ["t-trends", "Тренды"],
-              ["t-discs", "Дисциплины"],
-            ].map(([id, label]) => (
+          {/* Суб-навигация: при выбранной дисциплине — по её разделам, иначе по сводке */}
+          <div className="inline-flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-slate-900 p-1 mb-4 sticky top-0 z-10 flex-wrap">
+            {(selected
+              ? [
+                  ["d-cover", "Покрытие"],
+                  ["d-recs", "Рекомендации"],
+                  ["d-top", "Совпадения"],
+                  ["d-gaps", "Пробелы"],
+                  ["d-comps", "Компетенции"],
+                ]
+              : [
+                  ["t-overview", "Обзор"],
+                  ["t-recs", "Рекомендации"],
+                  ["t-gaps", "Разрывы"],
+                  ["t-trends", "Тренды"],
+                  ["t-discs", "Дисциплины"],
+                ]
+            ).map(([id, label]) => (
               <button
                 key={id}
                 onClick={() => scrollTeacherTo(id)}
@@ -1270,7 +1281,15 @@ export function TeacherDashboard() {
                   <span className="text-xs text-gray-400 dark:text-slate-500">
                     {total} {plural(total, "навык", "навыка", "навыков")}
                   </span>
+                  <button
+                    onClick={() => setCollapsedComps((p) => ({ ...p, [comp.id]: !(p[comp.id] ?? total === 0) }))}
+                    className="text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 border-0 bg-transparent cursor-pointer text-xs px-1"
+                    title={(collapsedComps[comp.id] ?? total === 0) ? "Развернуть" : "Свернуть"}
+                  >
+                    {(collapsedComps[comp.id] ?? total === 0) ? "▸" : "▾"}
+                  </button>
                 </div>
+                {!(collapsedComps[comp.id] ?? total === 0) && (
                 <div className="px-4 py-2">
                 {zunForm && zunForm.compId === comp.id && (
                   <div className="mb-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 p-2">
@@ -1353,6 +1372,7 @@ export function TeacherDashboard() {
                     ))
                   )}
                 </div>
+                )}
               </div>
               );
             })}

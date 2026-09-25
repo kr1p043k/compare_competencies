@@ -105,8 +105,8 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
   const scov = metrics.strong_coverage;
 
   return (
-    <div className="space-y-4 mt-6">
-      <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
+    <div className="space-y-4 mt-6" id="d-panel">
+      <Card id="d-cover" className="border border-gray-200 dark:border-slate-700 shadow-sm" style={{ scrollMarginTop: 8 }}>
         <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 py-3">
           <div className="flex items-center gap-2">
             <Target className="size-4 text-blue-600" />
@@ -152,7 +152,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
           </div>
 
           {recommendations.length > 0 && (
-            <div className="space-y-2 mb-4">
+            <div className="space-y-2 mb-4" id="d-recs" style={{ scrollMarginTop: 8 }}>
               <div className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Рекомендации</div>
               {recommendations.map((r, i) => (
                 <div key={i} className="p-3 rounded-lg border text-sm">
@@ -214,7 +214,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
           )}
 
           {metrics.top_market_matched_skills.length > 0 && (
-            <div className="mb-4">
+            <div className="mb-4" id="d-top" style={{ scrollMarginTop: 8 }}>
               <div className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider mb-2">Топ совпадений с рынком</div>
               <div className="flex flex-wrap gap-1.5">
                 {metrics.top_market_matched_skills.map((s, i) => {
@@ -235,24 +235,8 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
             </div>
           )}
 
-          {metrics.emerging_market_skills_not_in_rpd.length > 0 && (
-            <div className="mb-4">
-              <div className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-                <TrendingUp className="inline size-3 mr-1 text-blue-600" />
-                Новые навыки рынка
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {metrics.emerging_market_skills_not_in_rpd.map((s, i) => (
-                  <Badge key={i} variant="secondary" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-950/30 border-blue-200 dark:border-blue-800">
-                    {s.skill}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
           {metrics.gaps_in_curriculum.length > 0 && (
-            <div className="mb-4">
+            <div className="mb-4" id="d-gaps" style={{ scrollMarginTop: 8 }}>
               <div className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider mb-2">
                 <TrendingDown className="inline size-3 mr-1 text-red-600" />
                 Навыки РПД без спроса на рынке
@@ -264,14 +248,14 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                   </Badge>
                 ))}
                 {metrics.gaps_in_curriculum.length > 10 && (
-                  <Badge variant="outline" className="text-gray-400 dark:text-slate-500">+{metrics.gaps_in_curriculum.length - 10} more</Badge>
+                  <Badge variant="outline" className="text-gray-400 dark:text-slate-500">+{metrics.gaps_in_curriculum.length - 10} ещё</Badge>
                 )}
               </div>
             </div>
           )}
 
           {competencies.length > 0 && (
-            <div>
+            <div id="d-comps" style={{ scrollMarginTop: 8 }}>
               <div className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider mb-2">Покрытие по компетенциям</div>
               <CompetencyTree competencies={competencies} />
             </div>
