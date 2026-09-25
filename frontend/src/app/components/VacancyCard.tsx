@@ -45,6 +45,8 @@ interface Vacancy {
 
 interface VacancyCardProps {
   vacancy: Vacancy;
+  expanded?: boolean;
+  onToggle?: () => void;
 }
 
 const experienceLevels = {
@@ -159,8 +161,14 @@ interface VacancyDetail {
   snippet?: any;
 }
 
-export function VacancyCard({ vacancy }: VacancyCardProps) {
-  const [expanded, setExpanded] = useState(false);
+export function VacancyCard({ vacancy, expanded: controlled, onToggle }: VacancyCardProps) {
+  const [innerExpanded, setInnerExpanded] = useState(false);
+  // Управляемый режим (из списка: открытая карточка забирает весь ряд).
+  const expanded = controlled ?? innerExpanded;
+  const toggle = () => {
+    if (onToggle) onToggle();
+    else setInnerExpanded((p) => !p);
+  };
   const [detail, setDetail] = useState<VacancyDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const expLevel = experienceLevels[vacancy.experience as keyof typeof experienceLevels] || experienceLevels.middle;
@@ -460,7 +468,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
               <Button
                 variant="outline"
                 className="w-full border-2 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-all group/btn"
-                onClick={() => setExpanded((p) => !p)}
+                onClick={() => toggle()}
               >
                 <ChevronDown className={`mr-2 size-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
                 {expanded ? "Свернуть" : "Подробнее"}

@@ -126,6 +126,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [vacancyInfo, setVacancyInfo] = useState<{ count: number; file_modified: string | null; date_range: { from: string; to: string } | null; load_error: string | null } | null>(null);
   const [showPipelineSetup, setShowPipelineSetup] = useState(false);
   const [pipelineRegion, setPipelineRegion] = useState("0");
@@ -926,9 +927,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ delay: index * 0.05 }}
-                  className="h-full"
+                  className={`h-full ${expandedId === vacancy.id ? "lg:col-span-2" : ""}`}
                 >
-                  <VacancyCard vacancy={vacancy} />
+                  <VacancyCard
+                    vacancy={vacancy}
+                    expanded={expandedId === vacancy.id}
+                    onToggle={() => setExpandedId((prev) => (prev === vacancy.id ? null : vacancy.id))}
+                  />
                 </motion.div>
               ))}
             </AnimatePresence>
