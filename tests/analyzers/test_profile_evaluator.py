@@ -1228,3 +1228,24 @@ class TestReadinessFormulaV2:
     def test_bounds(self, weights):
         r = self._eval(["python", "sql", "git", "fastapi", "docker"], weights)
         assert 0.0 <= r["readiness_score"] <= 100.0
+
+
+class TestCoverageStrictWeightedPair:
+    """R2: строгое и взвешенное покрытия — явной парой, без затирания."""
+
+    def test_trio_present_and_consistent(self):
+        from datetime import datetime
+        from src.models.student import StudentProfile
+        sw = {"middle": {"python": 0.9, "docker": 0.7, "sql": 0.5}}
+        vs = [["python", "sql"], ["python", "docker"]]
+        st = StudentProfile(profile_name="t", competencies=[], skills=["python", "sql"],
+                            target_level="middle", created_at=datetime.now())
+        e = ProfileEvaluator(skill_weights={"python": 0.9},
+                             vacancies_skills=vs,
+                             vacancies_skills_dict=[{"skills": s} for s in vs],
+                             skill_weights_by_level=sw, use_clustering=False)
+        r = e.evaluate_profile(st).unwrap()
+        assert r["coverage_strict"] == r["market_skill_coverage"]  # честное = бинарное
+        assert r["coverage_weighted"] == r["skill_coverage"]  # взвешенное как было
+        assert 0.0 <= r["coverage_strict"] <= 100.0
+        assert 0.0 <= r["coverage_weighted"] <= 100.0

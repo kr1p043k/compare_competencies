@@ -1050,7 +1050,7 @@ export default function App() {
                                   <div className="text-xs text-gray-500 dark:text-slate-400">покрытие профессии</div>
                                 </div>
                                 <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                                  <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{Number((d as any).skill_coverage || 0).toFixed(1)}%</div>
+                                  <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{Number((d as any).coverage_strict ?? (d as any).skill_coverage ?? 0).toFixed(1)}%</div>
                                   <div className="text-xs text-gray-500 dark:text-slate-400">навыки: {(d as any).skill_strict_has ?? "–"} из {(d as any).skill_strict_total ?? "–"}</div>
                                 </div>
                                 <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">

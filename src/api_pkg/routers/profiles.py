@@ -308,9 +308,13 @@ async def _build_focused_profession_view(
     payload = rec_result.model_dump()
 
     # Подменяем сводку фокусными цифрами, старые оставляем для прозрачности.
+    # R2: строгое — в coverage_strict (scope profession), взвешенное не затираем.
     summary = payload.get("summary", {}) or {}
     summary["skill_coverage"] = strict_cov
     summary["skill_coverage_market"] = base.get("skill_coverage", 0)
+    summary["coverage_strict"] = strict_cov
+    summary["coverage_weighted"] = base.get("skill_coverage", 0)
+    summary["coverage_strict_scope"] = "profession"
     payload["summary"] = summary
 
     return {
@@ -318,6 +322,9 @@ async def _build_focused_profession_view(
         "focus_mode": True,
         "skill_coverage": strict_cov,
         "skill_coverage_market": base.get("skill_coverage", 0),
+        "coverage_strict": strict_cov,
+        "coverage_weighted": base.get("skill_coverage", 0),
+        "coverage_strict_scope": "profession",
         "skill_strict_has": len(strict_has),
         "skill_strict_total": strict_total,
         "skill_strict_missing": sorted(prof_skills - user_set)[:50],

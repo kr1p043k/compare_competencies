@@ -56,6 +56,9 @@ interface RecommendationData {
       total_market_skills: number;
     };
     market_skill_coverage: number;
+    coverage_strict?: number;
+    coverage_weighted?: number;
+    coverage_strict_scope?: string;
   };
   closest_roles: Array<{
     role: string;
@@ -270,7 +273,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2">
               <CheckCircle2 className="size-4" />
-                <span title="Оценка с учётом критичности навыков. Readiness = (Critical Skills × 0.5) + (Role Match × 0.3) + (Balance × 0.2)">Готовность</span>
+                <span title="Композитный индекс 0–100. Readiness = 0.45 × market + 0.30 × strong% − 0.25 × weak%: покрытие рынка, доля сильных и слабых навыков">Готовность</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -321,15 +324,15 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2">
               <Award className="size-4" />
-                <span title="Сравнение с эталонным набором навыков уровня. Skill Coverage = (|навыки студента ∩ эталон|) / |эталон| × 100">Навыки профиля</span>
+                <span title="Строгое: доля навыков студента среди рыночных (бинарно, без весов). Взвешенное ниже — с учётом спроса, может быть выше строгого">Навыки профиля (строго)</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className={`text-3xl font-bold ${getScoreColor(data.summary.skill_coverage)}`}>
-              {data.summary.skill_coverage.toFixed(1)}%
+            <div className={`text-3xl font-bold ${getScoreColor(data.summary.coverage_strict ?? data.summary.skill_coverage)}`}>
+              {(data.summary.coverage_strict ?? data.summary.skill_coverage).toFixed(1)}%
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-              Покрытие профиля
+              Взвешенное по спросу: {(data.summary.coverage_weighted ?? data.summary.skill_coverage).toFixed(1)}%
             </p>
           </CardContent>
         </Card>

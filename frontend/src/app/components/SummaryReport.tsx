@@ -19,11 +19,11 @@ interface MetricDef {
 
 const METRICS: MetricDef[] = [
   { key: "market_coverage_score", label: "Покрытие рынка", hint: "Доля востребованных на рынке навыков" },
-  { key: "skill_coverage", label: "Покрытие навыков", hint: "Навыки профиля против требований" },
-  { key: "readiness_score", label: "Готовность к рынку", hint: "Совокупная готовность" },
+  { key: "skill_coverage", label: "Покрытие навыков (взвеш.)", hint: "Взвешено по спросу; может льстить" },
+  { key: "readiness_score", label: "Готовность к рынку", hint: "0.45×рынок + 0.30×сильные% − 0.25×слабые%" },
   { key: "domain_coverage_score", label: "Покрытие доменов", hint: "Охват профессиональных доменов" },
   { key: "profession_coverage", label: "Покрытие профессии", hint: "Совпадение с целевой профессией" },
-  { key: "market_skill_coverage", label: "Востребованность навыков", hint: "Рыночная востребованность" },
+  { key: "market_skill_coverage", label: "Покрытие (строгое)", hint: "Бинарное пересечение со спросом" },
   { key: "avg_gap", label: "Средний разрыв", hint: "Разрыв между текущим и требуемым уровнем" },
 ];
 

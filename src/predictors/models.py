@@ -34,6 +34,10 @@ class RecommendationSummary(BaseModel):
     coverage: float = 0.0
     coverage_details: dict[str, int] = {}
     market_skill_coverage: float = 0.0
+    # R2: явная пара покрытий + область строгого ("market" | "profession").
+    coverage_strict: float = 0.0
+    coverage_weighted: float = 0.0
+    coverage_strict_scope: str = "market"
 
 
 class ClosestRole(BaseModel):

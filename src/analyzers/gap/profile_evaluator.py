@@ -335,6 +335,8 @@ class ProfileEvaluator:
             level_weights_used=level_weights,
             student_skills=user_skills_list,
             market_skill_coverage=market_skill_coverage_pct,
+            coverage_strict=market_skill_coverage_pct,
+            coverage_weighted=round(skill_coverage, 2),
             skill_categories=skill_categories,
         )
         eval_result.profession_coverage = round(profession_coverage, 2)

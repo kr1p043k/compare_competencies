@@ -100,6 +100,9 @@ class ProfileEvaluationResult(BaseModel):
     level_weights_used: dict[str, float] | None = None
     student_skills: list[str] = Field(default_factory=list)
     market_skill_coverage: float = 0.0
+    # R2: явная пара вместо двусмысленного skill_coverage.
+    coverage_strict: float = 0.0  # бинарное пересечение со спросом (честное)
+    coverage_weighted: float = 0.0  # взвешенное по demand (может льстить)
     skill_categories: dict[str, int] = Field(default_factory=dict)
     profession_coverage: float = 0.0
     profession_coverage_detail: dict[str, float] = Field(default_factory=dict)
