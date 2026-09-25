@@ -911,10 +911,10 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           </motion.div>
 
           <motion.div
-            className={`grid gap-6 ${
+            className={`gap-6 ${
               viewMode === "grid"
-                ? "grid-cols-1 lg:grid-cols-2"
-                : "grid-cols-1"
+                ? "columns-1 lg:columns-2 [&>*]:mb-6"
+                : "columns-1"
             }`}
             layout
           >
@@ -927,7 +927,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`h-full ${expandedId === vacancy.id ? "lg:col-span-2" : ""}`}
+                  className="h-full break-inside-avoid"
                 >
                   <VacancyCard
                     vacancy={vacancy}
