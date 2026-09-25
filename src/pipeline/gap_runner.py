@@ -255,6 +255,7 @@ class GapRunner:
                     student,
                     user_type="student",
                     precomputed_eval=v2_result,
+                    taxonomy=self.taxonomy,
                 ):
                     case Ok(full_rec):
                         full_rec.summary.market_coverage_score = v2_result["market_coverage_score"]

@@ -241,6 +241,9 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 except Exception as e:
                     logger.warning("profession_skills_fetch_failed",
                                    profession=target_profession, error=str(e))
+            elif target_profession:
+                logger.warning("role_boost_skipped_no_taxonomy",
+                               profession=target_profession, profile=profile_name)
 
             closest_roles = self._build_closest_roles(
                 closest_clusters, cluster_skills_map, student_set, cluster_level,

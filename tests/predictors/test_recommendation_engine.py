@@ -738,6 +738,31 @@ class TestRoleRankingL2:
         assert [r["role"] for r in roles] == ["A", "B", "C"]
         assert all(r["target_overlap"] == 0.0 for r in roles)
 
+    def test_generate_wires_taxonomy_boost(self, mock_profile_evaluator,
+                                           sample_student_profile):
+        """Регрессия обрыва L2: generate без taxonomy = буста нет даже при цели."""
+        from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
+        eval_d = mock_profile_evaluator.evaluate_profile.return_value.unwrap()
+        eval_d["target_profession"] = "Data Scientist"
+        eval_d["cluster_context"] = {
+            "cluster_level": "middle",
+            "closest_clusters": [{"id": 0, "name": "R", "similarity": 0.8}],
+            "skills": {"python": 0.9, "pandas": 0.8, "docker": 0.5},
+        }
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator,
+                                      use_ltr=False)
+        engine._always_hot = set()
+        mock_profile_evaluator.get_clusterer.return_value = None
+        match engine.generate_recommendations(sample_student_profile,
+                                              precomputed_eval=eval_d,
+                                              taxonomy=ProfessionTaxonomy()):
+            case Ok(result):
+                assert result.closest_roles, "роли обязаны построиться"
+                assert result.closest_roles[0].target_overlap > 0.0
+                assert result.closest_roles[0].target_profession == "Data Scientist"
+            case _:
+                raise AssertionError("expected Ok")
+
 
 class TestMetricsHonestyGates:
     def test_no_hard_skill_in_blacklist(self):
