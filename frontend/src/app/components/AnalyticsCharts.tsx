@@ -49,6 +49,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
     dc: new Set(),
     top_dc: new Set(),
   });
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [drill, setDrill] = useState<Drill>(null);
@@ -64,10 +65,15 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
         ]);
         if (!alive) return;
         const sets = {} as Record<LevelKey, Set<string>>;
+        const failed: string[] = [];
         LEVELS.forEach((l, i) => {
           const skills: string[] = prof[i]?.skills || [];
+          if (!prof[i] || skills.length === 0) failed.push(l.key);
           sets[l.key] = new Set(skills.map((s) => s.toLowerCase()));
         });
+        if (failed.length > 0) {
+          setProfileError(`Профили без навыков: ${failed.join(", ")}. Перезапустите бэкенд и обновите страницу (Ctrl+F5).`);
+        }
         setProfiles(sets);
         setTopSkills(top?.skills || []);
       } catch (e: any) {
@@ -295,6 +301,9 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
           <CardHeader>
             <CardTitle className="text-base">Покрытие топ-50 навыков рынка по уровням</CardTitle>
             <CardDescription>Доля топовых рыночных навыков в эталонном профиле. Клик по столбцу покажет списки</CardDescription>
+          {profileError && (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{profileError}</p>
+          )}
           </CardHeader>
           <CardContent>
             <div className="h-64">
