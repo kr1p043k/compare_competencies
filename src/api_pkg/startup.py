@@ -15,7 +15,7 @@ from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.analyzers.skills.trends import TrendAnalyzer
-from src.models.enums import ComparisonLevel, ExperienceLevel
+from src.models.enums import ExperienceLevel
 from src.models.student import StudentProfile, merge_skills_hierarchically
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.parsing.skills.vacancy_parser import VacancyParser
@@ -532,7 +532,7 @@ async def _warmup_background(basic_vacancies, raw_file):
         )
         deps.recommendation_engine.comparator = CompetencyComparator(
             ngram_range=(1, 2), min_df=1, max_df=0.95,
-            use_embeddings=True, level=ComparisonLevel.MIDDLE, similarity_threshold=0.80,
+            use_embeddings=True, level="all", similarity_threshold=0.80,
         )
         match await asyncio.to_thread(
             deps.recommendation_engine.fit, vacancies_skills, skill_weights=hybrid_weights

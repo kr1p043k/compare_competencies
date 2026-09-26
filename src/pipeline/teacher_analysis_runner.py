@@ -205,7 +205,7 @@ def _enhance_disciplines_with_gap_analysis(
         from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
 
         comp = EmbeddingComparator(similarity_threshold=0.5)
-        comp.build_market_index(market_skill_names, level="middle")
+        comp.build_market_index(market_skill_names, level="all")
         logger.info("market_embedding_index_built", skills=len(market_skill_names))
     except Exception as exc:
         logger.warning("gap_enhance_skip_embedding", error=str(exc))

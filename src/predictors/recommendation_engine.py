@@ -67,7 +67,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         profile_evaluator=None,
         trend_analyzer=None,
     ):
-        self.comparator = CompetencyComparator(use_embeddings=True, level="middle")
+        self.comparator = CompetencyComparator(use_embeddings=True, level="all")
         self.skill_filter = SkillFilter()
         self.is_fitted = False
         self.profile_evaluator = profile_evaluator

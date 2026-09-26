@@ -18,7 +18,7 @@ class CompetencyComparator:
         min_df: int = 1,
         max_df: float = 0.95,
         use_embeddings: bool = False,
-        level: str = "middle",
+        level: str = "all",
         similarity_threshold: float = 0.5,
     ):
         self.use_embeddings = use_embeddings

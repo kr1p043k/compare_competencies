@@ -141,7 +141,7 @@ def fold_market_synonyms(market: dict[str, int]) -> dict[str, int]:
             canon = MARKET_SYNONYMS[alias]
             out[canon] = out.get(canon, 0) + out.pop(alias)
     return out
-MARKET_EMB_CACHE_NAME = "market_embeddings_middle.joblib"
+MARKET_EMB_CACHE_NAME = "market_embeddings_all.joblib"
 MARKET_CACHE_MIN_SKILLS = 300
 
 

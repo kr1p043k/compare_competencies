@@ -6,7 +6,6 @@ from tqdm import tqdm
 from src import Err, Ok, RecommendationError, Result
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.models.data_contracts import PipelineContext
-from src.models.enums import ComparisonLevel
 from src.predictors.recommendation_engine import RecommendationEngine
 from src.predictors.models import RecommendationResult
 
@@ -36,7 +35,7 @@ class RecommendationRunner:
                 min_df=1,
                 max_df=0.95,
                 use_embeddings=True,
-                level=ComparisonLevel.MIDDLE,
+                level="all",
                 similarity_threshold=0.80,
             )
             match self.engine.fit(self.ctx.vacancies_skills, skill_weights=hybrid_weights):

@@ -13,7 +13,7 @@ from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 from src.models.data_contracts import PipelineContext
-from src.models.enums import ComparisonLevel, ExperienceLevel
+from src.models.enums import ExperienceLevel
 from src.predictors.recommendation_engine import RecommendationEngine
 from src.predictors.models import RecommendationResult
 
@@ -101,7 +101,7 @@ class GapRunner:
                 min_df=1,
                 max_df=0.95,
                 use_embeddings=True,
-                level=ComparisonLevel.MIDDLE,
+                level="all",
                 similarity_threshold=0.80,
             )
             pct = self._update_progress()

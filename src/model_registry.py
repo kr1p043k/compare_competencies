@@ -101,7 +101,7 @@ class ModelRegistry:
         path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
         return self.register("ltr", path, metrics=metrics)
 
-    def register_embeddings(self, level: str = "middle") -> Result[str, DomainError]:
+    def register_embeddings(self, level: str = "all") -> Result[str, DomainError]:
         from src import config
 
         path = config.EMBEDDINGS_CACHE_DIR / f"market_embeddings_{level}.joblib"
