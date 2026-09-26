@@ -807,8 +807,10 @@ export default function App() {
               onSelect={setActiveTab}
               items={[
                 { value: "vacancies", label: "Вакансии", Icon: Briefcase },
-                { value: "data", label: "Результаты", Icon: Database },
-                ...(effectiveRole !== "teacher" && effectiveRole !== "student"
+                ...(effectiveRole === "student"
+                  ? []
+                  : [{ value: "data", label: "Результаты", Icon: Database }]),
+                ...(effectiveRole === "admin"
                   ? [{ value: "visualization", label: "Визуализация", Icon: BarChart3 }]
                   : []),
               ]}
@@ -821,6 +823,9 @@ export default function App() {
                 { value: "predictions", label: "Прогнозы", Icon: TrendingUp },
                 { value: "articles", label: "Аналитика рынка", Icon: LineChart },
                 { value: "scientific-trends", label: "Научные тренды", Icon: FolderOpen },
+                ...(effectiveRole === "student"
+                  ? [{ value: "data", label: "Результаты", Icon: Database }]
+                  : []),
                 ...(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin"
                   ? [{ value: "teacher", label: "Преподавательский анализ", Icon: BarChart3 }]
                   : []),
@@ -1108,7 +1113,7 @@ export default function App() {
           </TabsContent>
 
           {/* Visualization Tab */}
-          {effectiveRole !== "teacher" && effectiveRole !== "student" && (
+          {effectiveRole === "admin" && (
             <TabsContent value="visualization">
               <GapAnalysisVisualizer profile={profile} onProfileChange={handleProfileChange} />
             </TabsContent>
