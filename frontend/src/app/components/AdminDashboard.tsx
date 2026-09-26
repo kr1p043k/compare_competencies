@@ -704,6 +704,7 @@ export function AdminDashboard() {
                       <th className="pb-2 font-medium">Пользователь</th>
                       <th className="pb-2 font-medium">Метод</th>
                       <th className="pb-2 font-medium">Путь</th>
+                      <th className="pb-2 font-medium">Действие/Детали</th>
                       <th className="pb-2 font-medium text-right">Статус</th>
                       <th className="pb-2 font-medium text-right">мс</th>
                     </tr>
@@ -717,10 +718,12 @@ export function AdminDashboard() {
                           <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
                             l.method === "GET" ? "bg-green-100 text-green-700" :
                             l.method === "POST" ? "bg-blue-100 text-blue-700" :
+                             l.method === "AUDIT" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" :
                             "bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300"
                           }`}>{l.method}</span>
                         </td>
                         <td className="py-1.5 text-xs text-gray-600 dark:text-slate-400 max-w-xs truncate">{l.path}</td>
+                        <td className="py-1.5 text-xs text-gray-600 dark:text-slate-400 max-w-md truncate" title={l.detail || `${l.method} ${l.path}`}>{l.detail || `${l.method} ${l.path}`}</td>
                         <td className="py-1.5 text-right">
                           <span className={`text-xs font-mono ${
                             l.status < 300 ? "text-green-600" : l.status < 400 ? "text-yellow-600" : "text-red-600"
