@@ -108,7 +108,7 @@ async def delete_subscription(sub_id: str, request: Request, user: dict = Depend
         sub = await session.get(Subscription, sub_id)
         if not sub:
             raise HTTPException(status_code=404, detail="Subscription not found")
-        if sub.user_id != uid:
+        if sub.user_id != uid and user.get("r") != "admin":
             raise HTTPException(status_code=403, detail="Forbidden")
         await session.delete(sub)
         await session.commit()
@@ -166,7 +166,7 @@ async def mark_read(notif_id: str, request: Request, user: dict = Depends(requir
         notif = await session.get(Notification, notif_id)
         if not notif:
             raise HTTPException(status_code=404, detail="Notification not found")
-        if notif.user_id != uid:
+        if notif.user_id != uid and user.get("r") != "admin":
             raise HTTPException(status_code=403, detail="Forbidden")
         notif.is_read = True
         await session.commit()

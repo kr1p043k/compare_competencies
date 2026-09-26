@@ -767,7 +767,7 @@ export default function App() {
                 { value: "predictions", label: "Прогнозы", Icon: TrendingUp },
                 { value: "articles", label: "Аналитика рынка", Icon: LineChart },
                 { value: "scientific-trends", label: "Научные тренды", Icon: FolderOpen },
-                ...(role === "teacher" || role === "rop"
+                ...(role === "teacher" || role === "rop" || role === "admin"
                   ? [{ value: "teacher", label: "Преподавательский анализ", Icon: BarChart3 }]
                   : []),
               ]}
@@ -784,7 +784,7 @@ export default function App() {
                       { value: "admin", label: "Админ", Icon: Shield },
                     ]
                   : []),
-                ...(role === "student"
+                ...(role === "student" || role === "admin"
                   ? [{ value: "student", label: "Мои запросы", Icon: History }]
                   : []),
                 ...((role === "teacher" || role === "rop" || role === "admin")
@@ -1089,12 +1089,12 @@ export default function App() {
               <AdminDashboard />
             </TabsContent>
           )}
-          {(role === "teacher" || role === "rop") && (
+          {(role === "teacher" || role === "rop" || role === "admin") && (
             <TabsContent value="teacher">
               <TeacherDashboard />
             </TabsContent>
           )}
-          {role === "student" && (
+          {(role === "student" || role === "admin") && (
             <TabsContent value="student">
               <StudentDashboard />
             </TabsContent>
