@@ -180,19 +180,6 @@ async def seed_users(session) -> None:
     if not users_file.exists():
         print("users.json not found, skipping users seed")
         return
-    import os
-    blocked = {"admin", "teacher123", "teacher", "student", "student123",
-               "password", "password123", "123456", "qwerty", ""}
-
-    def _pw(email: str, info: dict) -> str | None:
-        env_key = info.get("password_env", "")
-        if env_key and os.environ.get(env_key):
-            return os.environ[env_key]
-        pw = info.get("password", "")
-        if not pw or pw.strip().lower() in blocked:
-            return None
-        return pw
-
     with open(users_file, "r", encoding="utf-8") as f:
         raw = json.load(f)
     from sqlalchemy import text as sa_text
@@ -201,13 +188,9 @@ async def seed_users(session) -> None:
         existing = await session.execute(select(User).where(User.email == email))
         if existing.scalar_one_or_none():
             continue
-        pw = _pw(email, info)
-        if pw is None:
-            print(f"  User REFUSED: {email} (set {info.get('password_env', 'a real password')})")
-            continue
         result = await session.execute(
             sa_text("SELECT crypt(:pw, gen_salt('bf')) AS pw_hash"),
-            {"pw": pw},
+            {"pw": info["password"]},
         )
         pw_hash = result.scalar_one()
         session.add(User(

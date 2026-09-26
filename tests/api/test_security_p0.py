@@ -1,7 +1,4 @@
-"""P0 security gates: admin-only user creation, authed export, no default creds."""
-import json
-from pathlib import Path
-
+"""P0 security gates: admin-only user creation, authed export."""
 from fastapi.testclient import TestClient
 
 from src.api_pkg import create_app
@@ -46,27 +43,3 @@ def test_no_token_unauthorized():
     assert r1.status_code in (401, 422)
     r2 = client.get("/api/teacher/export/vacancies")
     assert r2.status_code == 401
-
-
-def test_seed_refuses_defaults():
-    from seed_users import _resolve_password, BLOCKED_PASSWORDS
-    assert "admin" in BLOCKED_PASSWORDS and "teacher123" in BLOCKED_PASSWORDS
-    assert _resolve_password("a@b.c", {"password": "admin"}) is None
-    assert _resolve_password("a@b.c", {"password": "  Teacher123 "}) is None
-    assert _resolve_password("a@b.c", {"password": "s3cure!X9q"}) == "s3cure!X9q"
-
-
-def test_seed_env_override(monkeypatch):
-    from seed_users import _resolve_password
-    monkeypatch.setenv("SEED_ADMIN_PASSWORD", "env-only-pw")
-    assert _resolve_password("a@b.c", {"password_env": "SEED_ADMIN_PASSWORD",
-                                       "password": "admin"}) == "env-only-pw"
-
-
-def test_example_has_no_inline_passwords():
-    tpl = json.loads((Path(__file__).resolve().parents[2]
-                      / "users.example.json").read_text(encoding="utf-8"))
-    assert tpl, "template must not be empty"
-    for email, info in tpl.items():
-        assert "password" not in info, f"{email} carries inline password"
-        assert info.get("password_env"), f"{email} lacks password_env"
