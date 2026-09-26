@@ -784,6 +784,33 @@ class TestRoleRankingL2:
         middle_cl.get_top_skills_in_cluster.assert_called_with(3, top_n=50)
 
 
+class TestImportanceSplit:
+    """R3: importance раскладывается на base + bonus без остатка."""
+
+    def test_base_plus_bonus_equals_final(self, mock_profile_evaluator,
+                                          sample_student_profile):
+        from src.models.enums import TrendType
+        mock_trends = MagicMock()
+        mock_trends.get_trending_skills.return_value = Ok({
+            TrendType.RISING: [{"skill": "docker", "change_pct": 20.0}]
+        })
+        mock_trends.save_trends.return_value = None
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator,
+                                      trend_analyzer=mock_trends, use_ltr=False)
+        engine._always_hot = set()
+        match engine.generate_recommendations(sample_student_profile):
+            case Ok(result):
+                assert result.recommendations, "жду рекомендаций"
+                for rec in result.recommendations:
+                    assert rec.importance_base + rec.importance_bonus == pytest.approx(
+                        rec.importance_score, abs=1e-3)
+                dock = next((r for r in result.recommendations if r.skill == "docker"), None)
+                if dock is not None:
+                    assert dock.importance_bonus > 0.0  # тренд-бонус виден отдельно
+            case _:
+                raise AssertionError("expected Ok")
+
+
 class TestMetricsHonestyGates:
     def test_no_hard_skill_in_blacklist(self):
         """R5: жёсткий навык не может одновременно быть в whitelist и blacklist."""

@@ -22,6 +22,10 @@ from src.utils import extract_date_from_filename, validate_safe_path
 
 logger = structlog.get_logger(__name__)
 
+# Версия методологии снимков: v2 = readiness v2 + честная _meta
+# (vacancy_count/synthetic пишутся с этого релиза; старые файлы без них).
+SNAPSHOT_METHODOLOGY_VERSION = "v2"
+
 
 class TrendAnalyzer:
     """Анализатор трендов с поддержкой множественных исторических снимков."""
@@ -35,9 +39,12 @@ class TrendAnalyzer:
     # Работа со снимками
     # ------------------------------------------------------------------
     def save_snapshot(self, frequencies: dict[str, float], label: str = None, apply_whitelist: bool = True, as_of=None,
-                      source_type: str = "full_market", profession: str | None = None) -> Result[Path, DomainError]:
+                      source_type: str = "full_market", profession: str | None = None,
+                      vacancy_count: int | None = None, synthetic: bool = False) -> Result[Path, DomainError]:
         """Сохраняет снимок с _meta и возвращает путь к файлу.
         source_type: 'full_market' (ит-рынок) или 'targeted_query' (по профессии/запросу).
+        vacancy_count: объём выборки (None = неизвестен, как раньше).
+        synthetic: True = досинтезированный/восполненный снимок (бейдж в API).
         """
         try:
             if apply_whitelist:
@@ -59,7 +66,9 @@ class TrendAnalyzer:
                 "_meta": {
                     "type": source_type,
                     "snapshot_date": day,
-                    "vacancy_count": None,
+                    "vacancy_count": vacancy_count,
+                    "synthetic": bool(synthetic),
+                    "methodology_version": SNAPSHOT_METHODOLOGY_VERSION,
                     "source": "it_sector" if source_type == "full_market" else "profession_query",
                 }
             }

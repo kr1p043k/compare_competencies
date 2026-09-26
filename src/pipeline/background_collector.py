@@ -609,7 +609,9 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
                     freq[n.unwrap()] += 1
         if freq:
             analyzer = TrendAnalyzer(dict(freq))
-            res = analyzer.save_snapshot(dict(freq), apply_whitelist=True, source_type="full_market")
+            res = analyzer.save_snapshot(dict(freq), apply_whitelist=True,
+                                           source_type="full_market",
+                                           vacancy_count=len(all_vacancies))
             if res.is_ok():
                 logger.info("collect_snapshot_saved", path=str(res.unwrap()), skills=len(freq))
             else:

@@ -87,6 +87,7 @@ class SkillExtractor:
             trend_analyzer.save_snapshot(
                 skill_freq_filtered, apply_whitelist=False,
                 source_type=source_type, profession=_prof or None,
+                vacancy_count=len(vacancies),
             )
 
             match parser.save_processed_frequencies(skill_freq, apply_filter=not self.args.no_filter):

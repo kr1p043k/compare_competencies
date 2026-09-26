@@ -66,6 +66,9 @@ async def get_profession_trends(
         "profession": profession,
         "source": "snapshot",
         "snapshot_date": meta.get("snapshot_date", ""),
+        "vacancy_count": meta.get("vacancy_count"),
+        "synthetic": bool(meta.get("synthetic", False)),
+        "methodology_version": meta.get("methodology_version", ""),
         "skills": [{"skill": s, "frequency": f} for s, f in skills],
     }
 

@@ -815,3 +815,26 @@ class TestTrendAnalyzerEdgeCases:
         trends = analyzer.get_trending_skills(top_n=10, min_change_percent=10.0, previous_snapshot=prev)
         assert len(trends.ok()["rising"]) >= 1
         assert len(trends.ok()["falling"]) >= 1
+
+
+class TestSnapshotMetaR4:
+    """R4: _meta несёт объём выборки, synthetic-флаг и версию методологии."""
+
+    def test_save_snapshot_meta(self, tmp_path):
+        import json
+        analyzer = TrendAnalyzer({"python": 10}, historical_dir=tmp_path)
+        path = analyzer.save_snapshot(
+            {"python": 10}, apply_whitelist=False,
+            vacancy_count=413, synthetic=True).unwrap()
+        meta = json.loads(path.read_text(encoding="utf-8"))["_meta"]
+        assert meta["vacancy_count"] == 413
+        assert meta["synthetic"] is True
+        assert meta["methodology_version"] == "v2"
+
+    def test_save_snapshot_meta_defaults(self, tmp_path):
+        import json
+        analyzer = TrendAnalyzer({"python": 10}, historical_dir=tmp_path)
+        path = analyzer.save_snapshot({"python": 10}, apply_whitelist=False).unwrap()
+        meta = json.loads(path.read_text(encoding="utf-8"))["_meta"]
+        assert meta["vacancy_count"] is None
+        assert meta["synthetic"] is False

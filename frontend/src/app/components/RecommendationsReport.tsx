@@ -73,6 +73,8 @@ interface RecommendationData {
     rank: number;
     skill: string;
     importance_score: number;
+    importance_base?: number;
+    importance_bonus?: number;
     priority: string;
     category: string;
     why_important: string;
@@ -438,9 +440,14 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                     </div>
 
                     <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
-                      <span className="flex items-center gap-1" title="Композитный скор важности (gap + спрос + релевантность), а не доля вакансий">
+                      <span className="flex items-center gap-1" title={`База ${(rec.importance_base ?? rec.importance_score).toFixed(3)} + бонусы ${(rec.importance_bonus ?? 0).toFixed(3)} (тренд, домен, роль). Композит, а не доля вакансий`}>
                         <TrendingUp className="size-4" />
-                        {rec.market_frequency_percent.toFixed(1)}% важность
+                        {(rec.importance_score * 100).toFixed(1)}% важность
+                        {(rec.importance_bonus ?? 0) > 0.001 && (
+                          <span className="text-xs text-slate-400">
+                            (база {((rec.importance_base ?? 0) * 100).toFixed(0)} + бонус {((rec.importance_bonus ?? 0) * 100).toFixed(0)})
+                          </span>
+                        )}
                       </span>
                       <span className="flex items-center gap-1">
                         <Clock className="size-4" />

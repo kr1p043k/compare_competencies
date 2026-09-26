@@ -12,6 +12,9 @@ class Recommendation(BaseModel):
     rank: int = 0
     skill: str
     importance_score: float = Field(ge=0.0)
+    # R3: разложение итога — база (blend ev/LTR + reranker) и дельта бонусов.
+    importance_base: float = 0.0
+    importance_bonus: float = 0.0
     priority: str = "medium"
     category: str = "missing"
     why_important: str = ""

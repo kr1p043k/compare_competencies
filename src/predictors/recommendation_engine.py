@@ -341,6 +341,8 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                     else:
                         role_skills = set(cluster_skills_map.keys())
 
+            # R3: снимок базы ДО мультипликативных бонусов.
+            base_track = dict(combined_scores)
             for skill in list(combined_scores.keys()):
                 bonus = 1.0
                 skill_lower = skill.lower()
@@ -375,6 +377,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                             for skill in combined_scores:
                                 rerank_bonus = reranked_norm.get(skill, 0.0)
                                 combined_scores[skill] = 0.7 * combined_scores[skill] + 0.3 * rerank_bonus
+                                base_track[skill] = 0.7 * base_track.get(skill, 0.0) + 0.3 * rerank_bonus
                             logger.info("reranker_applied", profile=profile_name, skills=len(reranked_norm))
                     case Err(e):
                         logger.warning("reranker_skipped", error=str(e))
@@ -421,6 +424,8 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 rec_objects.append(Recommendation(
                     skill=skill,
                     importance_score=score,
+                    importance_base=round(base_track.get(skill, score), 4),
+                    importance_bonus=round(score - base_track.get(skill, score), 4),
                     priority=(
                         PriorityLevel.HIGH
                         if score > config.PRIORITY_HIGH_THRESHOLD
