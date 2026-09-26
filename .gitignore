@@ -1,6 +1,8 @@
 logs
 env
 areas
+# Seeded credentials are local-only (see users.example.json).
+users.json
 __pycache__
 venv
 .venv

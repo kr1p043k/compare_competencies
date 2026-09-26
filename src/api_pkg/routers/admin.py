@@ -498,7 +498,7 @@ class CreateUserRequest(BaseModel):
     directions: list[str] = []
 
 
-@router.post("/admin/users/create")
+@router.post("/admin/users/create", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("10/minute")
 async def admin_create_user(request: Request, body: CreateUserRequest):
     """Create a new user with bcrypt-hashed password (optionally bind directions)."""

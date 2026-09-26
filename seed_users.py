@@ -1,9 +1,30 @@
-"""Seed users from users.json into PostgreSQL via asyncpg."""
+"""Seed users from users.json into PostgreSQL via asyncpg.
+
+Пароли — ТОЛЬКО из env (SEED_*_PASSWORD через поле password_env) или из
+users.json (untracked, локальный). Известные дефолты (admin/teacher123/
+student/...) отклоняются fail-closed. См. users.example.json.
+"""
 import asyncio
 import json
+import os
 from pathlib import Path
 
 import asyncpg
+
+BLOCKED_PASSWORDS = {
+    "admin", "teacher123", "teacher", "student", "student123",
+    "password", "password123", "123456", "qwerty", "",
+}
+
+
+def _resolve_password(email: str, info: dict) -> str | None:
+    env_key = info.get("password_env", "")
+    if env_key and os.environ.get(env_key):
+        return os.environ[env_key]
+    pw = info.get("password", "")
+    if not pw or pw.strip().lower() in BLOCKED_PASSWORDS:
+        return None
+    return pw
 
 
 async def main():
@@ -20,7 +41,12 @@ async def main():
             if row:
                 print(f"  SKIP {email} — already exists")
                 continue
-            pw_hash = await conn.fetchval("SELECT crypt($1, gen_salt('bf'))", info["password"])
+            pw = _resolve_password(email, info)
+            if pw is None:
+                print(f"  REFUSED {email} — set {info.get('password_env', 'a real password')} "
+                      f"(defaults blocked)")
+                continue
+            pw_hash = await conn.fetchval("SELECT crypt($1, gen_salt('bf'))", pw)
             await conn.execute(
                 "INSERT INTO users (email, password_hash, full_name, role, is_active) VALUES ($1, $2, $3, $4, true)",
                 email, pw_hash, info.get("name", email.split("@")[0]), info["role"],

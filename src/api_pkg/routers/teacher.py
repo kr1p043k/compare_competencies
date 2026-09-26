@@ -667,7 +667,7 @@ async def run_teacher_analysis_endpoint(
     return {"status": "started", "direction": dir_code, "run_id": run_id}
 
 
-@router.get("/teacher/export/vacancies")
+@router.get("/teacher/export/vacancies", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("3/minute")
 async def export_vacancies_excel(request: Request, search: str | None = None,
                                        experience: str | None = None,
