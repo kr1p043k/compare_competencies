@@ -38,7 +38,7 @@ const PROFILES = [
   { id: "top_dc", label: "Top (senior)" },
 ];
 
-type ImageType = "radar" | "ml_importance" | "cluster_insights";
+type ImageType = "ml_importance" | "cluster_insights";
 
 interface ImageData {
   type: ImageType;
@@ -49,13 +49,6 @@ interface ImageData {
 }
 
 const IMAGE_CONFIGS: ImageData[] = [
-  {
-    type: "radar",
-    title: "Радарная диаграмма",
-    description: "Сравнение компетенций по категориям",
-    icon: Radar,
-    gradient: "from-blue-50 dark:from-blue-950/30 to-cyan-50 dark:to-cyan-950/30",
-  },
   {
     type: "ml_importance",
     title: "Важность признаков ML",
@@ -74,7 +67,7 @@ const IMAGE_CONFIGS: ImageData[] = [
 
 export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisVisualizerProps) {
   const [viewProfile, setViewProfile] = useState(profile);
-  const [selectedImage, setSelectedImage] = useState<ImageType>("radar");
+  const [selectedImage, setSelectedImage] = useState<ImageType>("ml_importance");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
