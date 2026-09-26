@@ -191,6 +191,8 @@ def create_app() -> FastAPI:
     _mount(zun_router)
     from src.api_pkg.routers.krm_teacher import router as krm_teacher_router
     _mount(krm_teacher_router)
+    from src.api_pkg.routers.krm_student import router as krm_student_router
+    _mount(krm_student_router)
     from src.api_pkg.routers.student import router as student_router
     _mount(student_router)
     from src.api_pkg.routers.llm import router as llm_router

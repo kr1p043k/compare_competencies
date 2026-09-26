@@ -4,6 +4,7 @@ import { Badge } from "./ui/badge";
 import { History, RefreshCw, AlertCircle, MapPin, Briefcase, FileText } from "lucide-react";
 import { Button } from "./ui/button";
 import { apiFetch } from "../../lib/auth";
+import { StudentKrm } from "./StudentKrm";
 
 export function StudentDashboard() {
   const [history, setHistory] = useState<any[]>([]);
@@ -28,6 +29,7 @@ export function StudentDashboard() {
 
   return (
     <div className="space-y-6">
+      <StudentKrm />
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Мои запросы</h2>
