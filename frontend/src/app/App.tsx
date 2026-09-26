@@ -96,6 +96,23 @@ function NavGroup({
 }) {
   if (items.length === 0) return null;
   const active = items.find((i) => i.value === activeTab);
+  if (items.length === 1) {
+    const only = items[0];
+    const isActive = only.value === activeTab;
+    return (
+      <button
+        onClick={() => onSelect(only.value)}
+        className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
+          isActive
+            ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
+            : "text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
+        }`}
+      >
+        <only.Icon className="size-4" />
+        {only.label}
+      </button>
+    );
+  }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
