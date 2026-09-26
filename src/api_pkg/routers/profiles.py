@@ -480,6 +480,7 @@ async def get_self_profile(request: Request):
     _sync_self_to_memory(name, data)
     return {"profile": name, "target_level": data.get("target_level", "middle"),
             "skills": data.get("skills", []), "user_added": data.get("user_added", []),
+            "competencies": data.get("competencies", []),
             "skills_count": len(data.get("skills", []))}
 
 

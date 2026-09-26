@@ -47,6 +47,13 @@ export function MonitoringTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [health, setHealth] = useState<{
+    latency_p95_by_endpoint?: Record<string, number | null>;
+    errors_1h?: { "4xx"?: number; "5xx"?: number };
+    sessions_active?: number | null;
+    recent_runs?: Array<{ action?: string; status?: string; started_at?: string; completed_at?: string; error_message?: string | null }>;
+    freshness?: { vacancies?: number; date_from?: string | null; date_to?: string | null };
+  } | null>(null);
 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [subsLoading, setSubsLoading] = useState(false);
@@ -75,6 +82,10 @@ export function MonitoringTab() {
     } finally {
       setLoading(false);
     }
+    try {
+      const r = await apiFetch("/api/admin/monitoring/summary");
+      if (r.ok) setHealth(await r.json());
+    } catch {}
   }, []);
 
   const loadSubscriptions = useCallback(async () => {
@@ -238,6 +249,67 @@ export function MonitoringTab() {
       {/* System metrics */}
       {!loading && metrics && (
         <>
+          {health && (
+            <Card className="border-blue-200 dark:border-blue-800">
+              <CardHeader className="pb-2">
+                <CardDescription className="flex items-center gap-2"><Activity className="size-4" />Здоровье за час</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400">Сессий активно</div>
+                    <div className="text-2xl font-bold">{health.sessions_active ?? "–"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400">Ошибки 4xx / 5xx (час)</div>
+                    <div className="text-2xl font-bold">
+                      <span className="text-orange-500">{health.errors_1h?.["4xx"] ?? 0}</span>
+                      {" / "}
+                      <span className="text-red-600">{health.errors_1h?.["5xx"] ?? 0}</span>
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-xs text-gray-500 dark:text-slate-400">Вакансий (свежесть)</div>
+                    <div className="text-2xl font-bold">
+                      {(health.freshness?.vacancies ?? 0).toLocaleString("ru-RU")}{" "}
+                      <span className="text-xs font-normal text-gray-500 dark:text-slate-400">
+                        {health.freshness?.date_from || "–"} — {health.freshness?.date_to || "–"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                {Object.keys(health.latency_p95_by_endpoint || {}).length > 0 && (
+                  <div className="mb-4">
+                    <div className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">p95 latency, топ эндпоинтов (с)</div>
+                    {Object.entries(health.latency_p95_by_endpoint || {}).map(([ep, v]) => (
+                      <div key={ep} className="flex items-center gap-2 text-xs py-0.5">
+                        <span className="font-mono truncate flex-1 text-gray-700 dark:text-slate-300">{ep}</span>
+                        <span className="font-mono font-semibold">{v === null ? "–" : v.toFixed(3)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(health.recent_runs || []).length > 0 && (
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Последние прогоны</div>
+                    <div className="space-y-1">
+                      {(health.recent_runs || []).slice(0, 5).map((run, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs">
+                          <Badge variant={run.status === "completed" ? "default" : "destructive"} className="text-[10px]">
+                            {run.status}
+                          </Badge>
+                          <span className="font-mono text-gray-700 dark:text-slate-300">{run.action}</span>
+                          <span className="text-gray-400 dark:text-slate-500 ml-auto">
+                            {run.started_at ? new Date(run.started_at).toLocaleString("ru-RU") : "–"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-2">

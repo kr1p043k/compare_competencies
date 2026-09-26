@@ -29,11 +29,21 @@ FLUSH_INTERVAL = 10  # seconds
 FLUSH_BATCH = 100    # entries
 
 
-def _extract_user(request: Request) -> str | None:
+def _extract_token(request: Request) -> str | None:
+    """Bearer → cookie → query (как _request_token, но без deprecation-спама)."""
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
+    if auth.startswith("Bearer "):
+        return auth[7:]
+    cookie_token = request.cookies.get("token", "")
+    if cookie_token:
+        return cookie_token
+    return request.query_params.get("token", "") or None
+
+
+def _extract_user(request: Request) -> str | None:
+    token = _extract_token(request)
+    if not token:
         return None
-    token = auth[7:]
     try:
         parts = token.split(".")
         if len(parts) != 2:

@@ -224,6 +224,9 @@ async def admin_trigger_pipeline(
         run_gap_analysis=body.run_gap_analysis,
         regions=body.regions,
     )
+    from src.api_pkg.request_logger import audit_action
+    await audit_action(request, "pipeline.trigger.manual",
+                       f"action={body.action} task={task_id} regions={body.regions}")
     return {
         "status": "started",
         "task_id": task_id,
@@ -445,6 +448,76 @@ async def admin_monitoring(request: Request):
     return families
 
 
+def _p95_from_buckets(buckets: list[tuple[float, float]]) -> float | None:
+    """p95 по гистограммным бакетам [(upper, cumulative)] (прометеев формат)."""
+    if not buckets:
+        return None
+    total = buckets[-1][1]
+    if total <= 0:
+        return None
+    target = total * 0.95
+    for upper, cum in buckets:
+        if cum >= target and upper != float("inf"):
+            return upper
+    return buckets[-2][0] if len(buckets) > 1 else None
+
+
+@router.get("/admin/monitoring/summary")
+@limiter.limit("30/minute")
+async def admin_monitoring_summary(request: Request):
+    """Сводка для панели здоровья: латентность, ошибки, сессии, прогоны, свежесть."""
+    from prometheus_client.parser import text_string_to_metric_families
+
+    from src.monitoring.metrics import get_metrics
+
+    out: dict = {"latency_p95_by_endpoint": {}, "errors_1h": {"4xx": 0, "5xx": 0},
+                 "sessions_active": None, "recent_runs": [], "freshness": {}}
+    try:
+        raw, _ = get_metrics()
+        buckets: dict[str, list] = {}
+        for f in text_string_to_metric_families(raw.decode()):
+            if f.name == "api_request_duration_seconds_bucket":
+                for s in f.samples:
+                    if s.name.endswith("_bucket"):
+                        key = (s.labels.get("method", ""), s.labels.get("path", ""))
+                        buckets.setdefault(key, []).append((float(s.labels.get("le", "inf").replace("inf", "1e18")), s.value))
+        tops = sorted(buckets.items(), key=lambda kv: kv[1][-1][1] if kv[1] else 0, reverse=True)[:5]
+        for (method, path), b in tops:
+            b_sorted = sorted(b, key=lambda x: x[0])
+            p95 = _p95_from_buckets(b_sorted)
+            out["latency_p95_by_endpoint"][f"{method} {path}"] = p95
+    except Exception as e:
+        logger.warning("monitoring_summary_metrics_failed", error=str(e))
+
+    try:
+        from src.db import get_pool
+        pool = get_pool()
+        if pool is not None:
+            out["sessions_active"] = await pool.fetchval(
+                "SELECT COUNT(*) FROM sessions WHERE logged_out_at IS NULL")
+            rows = await pool.fetch(
+                "SELECT action, status, started_at, completed_at, error_message "
+                "FROM pipeline_runs ORDER BY started_at DESC LIMIT 10")
+            out["recent_runs"] = [dict(r) | {"started_at": str(r["started_at"]),
+                                             "completed_at": str(r["completed_at"])} for r in rows]
+            vac = await pool.fetchrow(
+                "SELECT COUNT(*) AS n, MIN(published_at)::date AS mn, "
+                "MAX(published_at)::date AS mx FROM vacancies WHERE published_at IS NOT NULL")
+            if vac:
+                out["freshness"] = {"vacancies": int(vac["n"] or 0),
+                                    "date_from": str(vac["mn"]) if vac["mn"] else None,
+                                    "date_to": str(vac["mx"]) if vac["mx"] else None}
+            err = await pool.fetch(
+                "SELECT CASE WHEN status BETWEEN 400 AND 499 THEN '4xx' ELSE '5xx' END AS cls, "
+                "COUNT(*) AS n FROM request_logs WHERE created_at > NOW() - INTERVAL '1 hour' "
+                "AND status >= 400 GROUP BY 1")
+            for r in err:
+                out["errors_1h"][r["cls"]] = int(r["n"])
+    except Exception as e:
+        logger.warning("monitoring_summary_db_failed", error=str(e))
+    return out
+
+
 @router.get("/admin/logs")
 @limiter.limit("30/minute")
 async def admin_logs(request: Request, user: str | None = None, limit: int = 100, action: str | None = None):
@@ -457,6 +530,18 @@ async def admin_logs(request: Request, user: str | None = None, limit: int = 100
     from src.api_pkg.request_logger import get_logs_merged
     entries = await get_logs_merged(user=user, limit=limit, action=action)
     return {"logs": entries, "total": len(entries)}
+
+
+@router.get("/admin/student-actions")
+@limiter.limit("30/minute")
+async def admin_student_actions(request: Request, user: str | None = None, limit: int = 100):
+    """Действия студентов (история запросов + правки профилей). Видно админу/преподавателю."""
+    import asyncio
+
+    from src.api_pkg.student_actions import get_actions
+
+    entries = await asyncio.to_thread(get_actions, username=user, limit=limit)
+    return {"actions": entries, "total": len(entries)}
 
 
 @router.get("/admin/logs/file")

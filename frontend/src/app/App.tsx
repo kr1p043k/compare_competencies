@@ -29,6 +29,13 @@ import { Footer } from "./components/Footer";
 import { VacanciesList } from "./components/VacanciesList";
 import { MarketView } from "./components/MarketView";
 import { ProfileView } from "./components/ProfileView";
+import { SelfProfileEditor } from "./components/SelfProfileEditor";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "./components/ui/dialog";
 import { ArticlesPage } from "./components/ArticlesPage";
 import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
 import { PipelineProgress } from "./components/PipelineProgress";
@@ -70,6 +77,7 @@ import {
   Shield,
   GraduationCap,
   UserCheck,
+  User,
   History,
   Activity,
   HelpCircle,
@@ -267,7 +275,7 @@ export default function App() {
   const profileRef = useRef(profile);
   useEffect(() => { profileRef.current = profile; }, [profile]);
 
-  const { isAuth, login, logout, role, name } = useAuth();
+  const { isAuth, login, logout, role, name, username } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const roleRef = useRef(role);
   useEffect(() => { roleRef.current = role; }, [role]);
@@ -280,6 +288,7 @@ export default function App() {
     } catch { return null; }
   });
   const canPreview = role === "admin";
+  const [profileOpen, setProfileOpen] = useState(false);
   const effectiveRole = canPreview && rolePreview ? rolePreview : role;
   const previewActive = canPreview && !!rolePreview && rolePreview !== role;
   const setPreview = (v: string | null) => {
@@ -744,6 +753,15 @@ export default function App() {
                 <span>{name || roleLabel}</span>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 dark:text-slate-200">{roleLabel}</span>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setProfileOpen(true)}
+                title="Мой профиль"
+                className="text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100"
+              >
+                <User className="size-4" />
+              </Button>
               {canPreview && (
                 <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
                   Просмотр как
@@ -776,6 +794,14 @@ export default function App() {
           </div>
         </div>
       </header>
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Мой профиль</DialogTitle>
+          </DialogHeader>
+          <SelfProfileEditor displayName={name} email={username} />
+        </DialogContent>
+      </Dialog>
       {previewActive && (
         <div className="bg-amber-100 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-800">
           <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-3">

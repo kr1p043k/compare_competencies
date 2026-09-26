@@ -18,6 +18,7 @@ interface SelfData {
   target_level: string;
   skills: string[];
   user_added: string[];
+  competencies?: string[];
 }
 
 const LEVELS = [
@@ -26,8 +27,8 @@ const LEVELS = [
   { value: "senior", label: "Senior" },
 ];
 
-/** Свой профиль студента: уровень + свои навыки (удаление — только своих). */
-export function SelfProfileEditor() {
+/** Свой профиль: ФИО, уровень, компетенции с навыками, свои навыки. */
+export function SelfProfileEditor({ displayName, email }: { displayName?: string; email?: string }) {
   const [data, setData] = useState<SelfData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,6 +83,12 @@ export function SelfProfileEditor() {
           <User className="size-5 text-emerald-600" />
           Мой профиль
         </CardTitle>
+        {(displayName || email) && (
+          <p className="text-sm text-gray-600 dark:text-slate-400">
+            {displayName || "–"}
+            {email && displayName !== email ? ` · ${email}` : ""}
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         {loading && (
@@ -110,11 +117,25 @@ export function SelfProfileEditor() {
               </Select>
             </div>
 
+            {(data.competencies || []).length > 0 && (
+              <div>
+                <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                  Текущие компетенции ({(data.competencies || []).length})
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(data.competencies || []).map((c) => (
+                    <Badge key={c} variant="outline" className="text-xs">
+                      {c}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
               <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                 Мои навыки ({data.skills.length})
-              </div>
-              <div className="flex flex-wrap gap-1.5">
+              </div>              <div className="flex flex-wrap gap-1.5">
                 {data.skills.map((s) => {
                   const mine = owned.has(s.toLowerCase());
                   return (
