@@ -41,6 +41,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role
 from src.db import get_pool
 
@@ -956,6 +957,8 @@ async def zun_put_scope(request: Request, body: ScopePut):
             body.dir_code, name, included,
         )
     logger.info("scope_updated", dir_code=body.dir_code, updated=len(cleaned))
+    await audit_action(request, "zun.scope.put",
+                       f"dir={body.dir_code} updated={len(cleaned)}")
     return {"dir_code": body.dir_code, "updated": len(cleaned)}
 
 
@@ -1006,6 +1009,8 @@ async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
         competency_id, body.ksa_type, text, sort,
     )
     logger.info("zun_entry_added", ksa_id=str(ksa_id), competency_id=competency_id, ksa_type=body.ksa_type)
+    await audit_action(request, "zun.entry.add",
+                       f"ksa={ksa_id} comp={competency_id} type={body.ksa_type}")
     return {"ksa_id": str(ksa_id), "ksa_type": body.ksa_type, "text": text}
 
 
@@ -1055,6 +1060,8 @@ async def zun_add_competency(request: Request, discipline_id: str, body: Compete
            RETURNING id""",
         discipline_id, code, category, number, name, description, sort)
     logger.info("zun_competency_added", competency_id=str(comp_id), code=code)
+    await audit_action(request, "zun.competency.add",
+                       f"comp={comp_id} code={code} disc={discipline_id}")
     return {"competency_id": str(comp_id), "code": code, "category": category}
 
 
@@ -1120,6 +1127,8 @@ async def zun_link_skill(request: Request, competency_id: str, body: SkillLinkIn
     )
     await pool.execute("UPDATE competencies SET updated_at = NOW() WHERE id = $1", competency_id)
     logger.info("zun_skill_linked", competency_id=competency_id, skill=name)
+    await audit_action(request, "zun.skill.link",
+                       f"comp={competency_id} skill={name} type={body.ksa_type}")
     return {"skill_id": str(skill_id), "skill_name": name,
             "ksa_type": body.ksa_type, "match_type": "exact"}
 
@@ -1144,6 +1153,7 @@ async def zun_patch_entry(request: Request, ksa_id: str, body: ZUNPatch):
         raise HTTPException(status_code=404, detail="KSA entry not found")
     await pool.execute("UPDATE competencies SET updated_at = NOW() WHERE id = $1", row["competency_id"])
     logger.info("zun_entry_updated", ksa_id=ksa_id)
+    await audit_action(request, "zun.entry.patch", f"ksa={ksa_id}")
     return {"ksa_id": ksa_id, "ksa_type": row["ksa_type"], "text": text}
 
 
@@ -1158,6 +1168,7 @@ async def zun_delete_entry(request: Request, ksa_id: str):
         raise HTTPException(status_code=404, detail="KSA entry not found")
     await pool.execute("UPDATE competencies SET updated_at = NOW() WHERE id = $1", row["competency_id"])
     logger.info("zun_entry_deleted", ksa_id=ksa_id)
+    await audit_action(request, "zun.entry.delete", f"ksa={ksa_id}")
     return {"status": "deleted"}
 
 
@@ -1311,4 +1322,8 @@ async def zun_import(request: Request, dir_code: str, dry_run: bool = False):
     """Импорт KRM направления."""
     _validate_dir_code(dir_code)
     pool = get_pool()
-    return await _import_direction(pool, dir_code, dry_run=dry_run)
+    result = await _import_direction(pool, dir_code, dry_run=dry_run)
+    if not dry_run and isinstance(result, dict) and result.get("inserted"):
+        await audit_action(request, "zun.import",
+                           f"dir={dir_code} inserted={result.get('inserted')}")
+    return result

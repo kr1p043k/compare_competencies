@@ -454,7 +454,8 @@ async def admin_logs(request: Request, user: str | None = None, limit: int = 100
     """
     if user and user == "all":
         user = None
-    entries = get_logs(user=user, limit=limit, action=action)
+    from src.api_pkg.request_logger import get_logs_merged
+    entries = await get_logs_merged(user=user, limit=limit, action=action)
     return {"logs": entries, "total": len(entries)}
 
 

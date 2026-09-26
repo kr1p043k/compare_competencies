@@ -108,6 +108,9 @@ async def _flush_to_db() -> None:
                     session.add(_to_request_log(e, with_detail=False))
                 await session.commit()
     except Exception as exc:
+        # Коммит атомарен: при провале возвращаем записи в буфер (дублей нет).
+        for e in reversed(entries):
+            _log_buffer.appendleft(e)
         logger.warning("log_flush_failed", error=str(exc))
 
 
@@ -128,13 +131,7 @@ def start_log_flusher() -> None:
 
 
 def get_logs(user: str | None = None, limit: int = 100, source: str | None = None, action: str | None = None) -> list[dict[str, Any]]:
-    """Return recent logs from the in-memory buffer.
-
-    NOTE: rows already flushed to PostgreSQL (request_logs) are NOT merged back —
-    the admin view is a rolling window of the last MAX_LOGS entries. Audit (AUDIT)
-    entries carry actor/action/target in ``detail`` so admin can answer
-    "who added/changed recommendation X" within that window.
-    """
+    """Return recent logs from the in-memory buffer (rolling window, see merged variant below)."""
     entries = list(_log_buffer)
     if user:
         entries = [e for e in entries if e.user_email == user]
@@ -144,19 +141,68 @@ def get_logs(user: str | None = None, limit: int = 100, source: str | None = Non
         entries = [e for e in entries if (e.detail or "").startswith(action)]
     entries = entries[-limit:]
 
-    return [
-        {
-            "method": e.method,
-            "path": e.path,
-            "status": e.status,
-            "duration_ms": e.duration_ms,
-            "user": e.user_email,
-            "source": e.source,
-            "detail": e.detail,
-            "timestamp": e.timestamp.isoformat(),
-        }
-        for e in entries
-    ]
+    return [_serialize_entry(e) for e in entries]
+
+
+def _serialize_entry(e: LogEntry) -> dict[str, Any]:
+    return {
+        "method": e.method,
+        "path": e.path,
+        "status": e.status,
+        "duration_ms": e.duration_ms,
+        "user": e.user_email,
+        "source": e.source,
+        "detail": e.detail,
+        "timestamp": e.timestamp.isoformat(),
+    }
+
+
+def _serialize_db_row(r: Any) -> dict[str, Any]:
+    ts = getattr(r, "created_at", None)
+    return {
+        "method": getattr(r, "method", ""),
+        "path": getattr(r, "path", ""),
+        "status": getattr(r, "status", 0),
+        "duration_ms": float(getattr(r, "duration_ms", 0) or 0),
+        "user": getattr(r, "user_email", None) or "anonymous",
+        "source": getattr(r, "source", "backend"),
+        "detail": getattr(r, "detail", None),
+        "timestamp": ts.isoformat() if ts is not None else "",
+    }
+
+
+async def get_logs_merged(user: str | None = None, limit: int = 100,
+                          source: str | None = None,
+                          action: str | None = None) -> list[dict[str, Any]]:
+    """Буфер + flushed-строки из PostgreSQL, сортировка по времени, лимит сверху.
+
+    Закрывает главную дыру аудита: после flush/рестарта история доступна.
+    При недоступной БД молча возвращает только буфер.
+    """
+    merged = get_logs(user=user, limit=MAX_LOGS, source=source, action=action)
+    try:
+        from sqlalchemy import desc, select
+
+        from src.database import async_session_factory
+
+        async with async_session_factory() as session:
+            q = select(RequestLog).order_by(desc(RequestLog.created_at)).limit(max(limit * 2, 50))
+            if user == "anonymous":
+                q = q.where(RequestLog.user_email.is_(None))
+            elif user:
+                q = q.where(RequestLog.user_email == user)
+            if source:
+                q = q.where(RequestLog.source == source)
+            rows = (await session.execute(q)).scalars().all()
+        for r in rows:
+            d = _serialize_db_row(r)
+            if action and not (d["detail"] or "").startswith(action):
+                continue
+            merged.append(d)
+    except Exception as exc:
+        logger.warning("logs_db_read_failed_fallback_buffer", error=str(exc))
+    merged.sort(key=lambda d: d.get("timestamp") or "", reverse=True)
+    return merged[:limit]
 
 
 async def actor_from_request(request: Request) -> tuple[str, str]:
