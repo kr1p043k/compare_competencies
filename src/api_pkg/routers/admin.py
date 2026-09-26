@@ -18,7 +18,7 @@ from slowapi.util import get_remote_address
 
 from src import config
 from src.parsing.utils import load_it_skills
-from src.api_pkg.request_logger import get_logs, get_logs_by_user
+from src.api_pkg.request_logger import actor_from_request, audit_action, get_logs, get_logs_by_user
 from src.api_pkg.routers.auth import require_any_role
 
 from src.api_pkg import deps
@@ -90,6 +90,10 @@ async def whitelist_add(request: Request, body: WhitelistAddRequest):
         }
     _save_whitelist(list(current))
     logger.info("Whitelist extended", added=len(current) - before, total=len(current))
+    await audit_action(
+        request, "skills.whitelist.add",
+        f"added={len(current) - before} skills={sorted(set(body.skills))[:20]}",
+    )
     return {
         "status": "ok",
         "message": f"Added {len(current) - before} skills",
@@ -114,6 +118,10 @@ async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
         }
     _save_whitelist(list(current))
     logger.info("Whitelist trimmed", removed=before - len(current), total=len(current))
+    await audit_action(
+        request, "skills.whitelist.remove",
+        f"removed={before - len(current)} skills={sorted(set(body.skills))[:20]}",
+    )
     return {
         "status": "ok",
         "message": f"Removed {before - len(current)} skills",
@@ -439,11 +447,14 @@ async def admin_monitoring(request: Request):
 
 @router.get("/admin/logs")
 @limiter.limit("30/minute")
-async def admin_logs(request: Request, user: str | None = None, limit: int = 100):
-    """Логи запросов."""
+async def admin_logs(request: Request, user: str | None = None, limit: int = 100, action: str | None = None):
+    """Логи запросов. AUDIT-строки несут detail 'action | target | by email (role)'.
+
+    action — префикс-фильтр по audit-действию, напр. action=krm.recommendation.add.
+    """
     if user and user == "all":
         user = None
-    entries = get_logs(user=user, limit=limit)
+    entries = get_logs(user=user, limit=limit, action=action)
     return {"logs": entries, "total": len(entries)}
 
 
@@ -568,6 +579,7 @@ async def admin_extend_skills(request: Request, background_tasks: BackgroundTask
 
     args = argparse.Namespace(interactive=False, yes=yes, coverage=False, dead=False, min_frequency=2)
     background_tasks.add_task(extend_main, args)
+    await audit_action(request, "skills.extend.start", f"yes={yes}")
     return {"status": "ok", "message": "Skills analysis started in background"}
 
 
@@ -633,6 +645,11 @@ async def admin_skills_categorize(request: Request, body: CategorizeSkillsReques
     if added:
         with open(TAXONOMY_PATH, "w", encoding="utf-8") as f:
             json.dump(taxonomy, f, ensure_ascii=False, indent=2)
+        await audit_action(
+            request, "skills.categorize",
+            f"added={added} invalid={len(invalid)} "
+            f"skills={[a.get('skill') for a in body.assignments][:20]}",
+        )
     return {"status": "ok", "added": added, "invalid": invalid}
 
 
@@ -682,7 +699,12 @@ async def admin_skills_approve(suggestion_id: str, request: Request):
         current = sorted(set(current), key=lambda x: str(x).lower())
         IT_SKILLS_PATH.write_text(_json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    entry = decide(suggestion_id, True)
+    decider, _role = await actor_from_request(request)
+    entry = decide(suggestion_id, True, decided_by=decider)
+    await audit_action(
+        request, "skills.suggestion.approve",
+        f"id={suggestion_id} skill={skill} category={category or '-'}",
+    )
     return {"status": "ok", "suggestion": entry, "category": category or None}
 
 
@@ -692,9 +714,14 @@ async def admin_skills_reject(request: Request, suggestion_id: str):
     """Отклонить предложение."""
     from src.api_pkg.skill_suggestions import decide
 
-    entry = decide(suggestion_id, False)
+    decider, _role = await actor_from_request(request)
+    entry = decide(suggestion_id, False, decided_by=decider)
     if not entry:
         raise HTTPException(status_code=404, detail="Suggestion not found or decided")
+    await audit_action(
+        request, "skills.suggestion.reject",
+        f"id={suggestion_id} skill={entry.get('skill')}",
+    )
     return {"status": "ok", "suggestion": entry}
 
 

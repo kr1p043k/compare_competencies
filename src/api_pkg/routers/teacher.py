@@ -15,6 +15,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role
 from src.db import get_pool
 
@@ -358,6 +359,11 @@ async def krm_add_recommendation(request: Request):
         recs = []
     recs.append(rec.model_dump())
     _save_json(config.TEACHER_RECOMMENDATIONS_PATH, recs)
+    await audit_action(
+        request, "krm.recommendation.add",
+        f"discipline={rec.discipline_id} competency={rec.competency_id} "
+        f"type={rec.suggestion_type} suggestion={rec.suggestion[:120]!r}",
+    )
     return {"status": "ok", "id": len(recs) - 1}
 
 
@@ -367,8 +373,13 @@ async def krm_delete_recommendation(request: Request, index: int):
     recs = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
     if not isinstance(recs, list) or index < 0 or index >= len(recs):
         raise HTTPException(404, "Recommendation not found")
-    recs.pop(index)
+    removed = recs.pop(index)
     _save_json(config.TEACHER_RECOMMENDATIONS_PATH, recs)
+    await audit_action(
+        request, "krm.recommendation.delete",
+        f"index={index} discipline={removed.get('discipline_id')} "
+        f"suggestion={str(removed.get('suggestion', ''))[:120]!r}",
+    )
     return {"status": "ok"}
 
 
@@ -394,6 +405,7 @@ async def krm_add_foundational(request: Request):
     if name not in skills:
         skills.append(name)
         _save_foundational(skills)
+        await audit_action(request, "krm.foundational.add", f"skill={name}")
     return {"status": "ok", "skills": skills}
 
 
@@ -408,6 +420,7 @@ async def krm_delete_foundational(request: Request, skill: str):
         raise HTTPException(404, "Skill not flagged")
     skills = [s for s in skills if s != name]
     _save_foundational(skills)
+    await audit_action(request, "krm.foundational.delete", f"skill={name}")
     return {"status": "ok", "skills": skills}
 
 
@@ -426,6 +439,10 @@ async def suggest_skill(request: Request):
         entry = suggest_add(skill, hint, me.get("u", ""))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    await audit_action(
+        request, "skills.suggest",
+        f"skill={entry.get('skill')} hint={hint[:64]} id={entry.get('id')}",
+    )
     return {"status": "ok", "suggestion": entry}
 
 
@@ -441,6 +458,11 @@ async def list_own_suggestions(request: Request):
     return {"suggestions": mine}
 
 
+def _teacher_result_base() -> Path:
+    """Base dir of teacher analysis read-model (extracted for test isolation)."""
+    return Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher"
+
+
 @router.post("/teacher/krm/recommendations/seed/auto", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("10/minute")
 async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03.02",
@@ -450,7 +472,7 @@ async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03
     if not re.match(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$", dir_code):
         raise HTTPException(status_code=400, detail="Invalid direction code format")
     per_discipline = max(1, min(int(per_discipline), 10))
-    base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher"
+    base = _teacher_result_base()
     resolved = (base / dir_code).resolve()
     if base.resolve() not in resolved.parents:
         raise HTTPException(status_code=400, detail="Invalid path")
@@ -486,6 +508,10 @@ async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03
     removed = len(store) - len(kept)
     kept.extend(seeded)
     _save_json(config.TEACHER_RECOMMENDATIONS_PATH, kept)
+    await audit_action(
+        request, "krm.recommendations.seed_auto",
+        f"dir={dir_code} seeded={len(seeded)} removed_auto={removed} total={len(kept)}",
+    )
     return {"status": "ok", "seeded": len(seeded),
             "removed_auto": removed, "total": len(kept)}
 

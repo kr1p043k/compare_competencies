@@ -425,6 +425,7 @@ class RequestLog(Base):
     duration_ms: Mapped[float] = mapped_column(Float, default=0.0)
     user_email: Mapped[Optional[str]] = mapped_column(String(255))
     source: Mapped[str] = mapped_column(String(20), default="backend")
+    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
 
     __table_args__ = (

@@ -59,12 +59,14 @@ def add(skill: str, category_hint: str, created_by: str) -> dict:
     return entry
 
 
-def decide(suggestion_id: str, approve: bool) -> dict | None:
+def decide(suggestion_id: str, approve: bool, decided_by: str | None = None) -> dict | None:
     items = load_all()
     for it in items:
         if it.get("id") == suggestion_id and it.get("status") == "pending":
             it["status"] = "approved" if approve else "rejected"
             it["decided_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            if decided_by:
+                it["decided_by"] = decided_by
             _save(items)
             return it
     return None

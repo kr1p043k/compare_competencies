@@ -54,19 +54,36 @@ def _extract_user(request: Request) -> str | None:
 
 
 class LogEntry:
-    __slots__ = ("method", "path", "status", "duration_ms", "user_email", "timestamp", "source")
+    __slots__ = ("method", "path", "status", "duration_ms", "user_email", "timestamp", "source", "detail")
 
-    def __init__(self, method: str, path: str, status: int, duration_ms: float, user_email: str | None, source: str = "backend"):
+    def __init__(self, method: str, path: str, status: int, duration_ms: float, user_email: str | None, source: str = "backend", detail: str | None = None):
         self.method = method
         self.path = path
         self.status = status
         self.duration_ms = round(duration_ms, 1)
         self.user_email = user_email or "anonymous"
         self.source = source
+        self.detail = detail
         self.timestamp = datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 _log_buffer: deque[LogEntry] = deque(maxlen=MAX_LOGS)
+
+
+def _to_request_log(e: LogEntry, with_detail: bool = True) -> RequestLog:
+    """Build RequestLog ORM row from a buffered entry."""
+    kwargs: dict[str, Any] = {
+        "method": e.method,
+        "path": e.path,
+        "status": e.status,
+        "duration_ms": e.duration_ms,
+        "user_email": e.user_email if e.user_email != "anonymous" else None,
+        "source": e.source,
+        "created_at": e.timestamp,
+    }
+    if with_detail:
+        kwargs["detail"] = e.detail
+    return RequestLog(**kwargs)
 
 
 async def _flush_to_db() -> None:
@@ -79,18 +96,17 @@ async def _flush_to_db() -> None:
         entries = list(_log_buffer)
         _log_buffer.clear()
 
-        async with async_session_factory() as session:
-            for e in entries:
-                session.add(RequestLog(
-                    method=e.method,
-                    path=e.path,
-                    status=e.status,
-                    duration_ms=e.duration_ms,
-                    user_email=e.user_email if e.user_email != "anonymous" else None,
-                    source=e.source,
-                    created_at=e.timestamp,
-                ))
-            await session.commit()
+        try:
+            async with async_session_factory() as session:
+                for e in entries:
+                    session.add(_to_request_log(e, with_detail=True))
+                await session.commit()
+        except Exception:
+            # Pre-migration DB without request_logs.detail — retry slim so rows survive.
+            async with async_session_factory() as session:
+                for e in entries:
+                    session.add(_to_request_log(e, with_detail=False))
+                await session.commit()
     except Exception as exc:
         logger.warning("log_flush_failed", error=str(exc))
 
@@ -111,13 +127,21 @@ def start_log_flusher() -> None:
         loop.create_task(_periodic_flush())
 
 
-def get_logs(user: str | None = None, limit: int = 100, source: str | None = None) -> list[dict[str, Any]]:
-    """Return recent logs, merging buffer + DB."""
+def get_logs(user: str | None = None, limit: int = 100, source: str | None = None, action: str | None = None) -> list[dict[str, Any]]:
+    """Return recent logs from the in-memory buffer.
+
+    NOTE: rows already flushed to PostgreSQL (request_logs) are NOT merged back —
+    the admin view is a rolling window of the last MAX_LOGS entries. Audit (AUDIT)
+    entries carry actor/action/target in ``detail`` so admin can answer
+    "who added/changed recommendation X" within that window.
+    """
     entries = list(_log_buffer)
     if user:
         entries = [e for e in entries if e.user_email == user]
     if source:
         entries = [e for e in entries if e.source == source]
+    if action:
+        entries = [e for e in entries if (e.detail or "").startswith(action)]
     entries = entries[-limit:]
 
     return [
@@ -128,10 +152,73 @@ def get_logs(user: str | None = None, limit: int = 100, source: str | None = Non
             "duration_ms": e.duration_ms,
             "user": e.user_email,
             "source": e.source,
+            "detail": e.detail,
             "timestamp": e.timestamp.isoformat(),
         }
         for e in entries
     ]
+
+
+async def actor_from_request(request: Request) -> tuple[str, str]:
+    """Resolve (email, role) for audit without failing the request.
+
+    Prefers the session-checked user (same source as require_any_role), falls back
+    to signature-verified JWT decode (no DB hit), then to the middleware-attached
+    user, else anonymous. Never raises.
+    """
+    try:
+        from src.api_pkg.routers.auth import get_current_user
+        user = await get_current_user(request)
+        if isinstance(user, dict) and user.get("u"):
+            return str(user.get("u")), str(user.get("r") or "?")
+    except Exception:
+        pass
+    try:
+        from src.api_pkg.routers.auth import _decode_token
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            data = _decode_token(auth[7:])
+            if isinstance(data, dict) and data.get("u"):
+                return str(data.get("u")), str(data.get("r") or "?")
+    except Exception:
+        pass
+    state_user: Any = getattr(request.state, "user", None)
+    if isinstance(state_user, str) and state_user:
+        return state_user, "?"
+    if isinstance(state_user, dict) and state_user.get("u"):
+        return str(state_user.get("u")), str(state_user.get("r") or "?")
+    scope_user = request.scope.get("user")
+    if isinstance(scope_user, str) and scope_user:
+        return scope_user, "?"
+    return "anonymous", "?"
+
+
+async def audit_action(request: Request, action: str, target: str = "") -> dict[str, Any]:
+    """Append an AUDIT entry: who (email/role) did what (action) to which target.
+
+    Call AFTER a successful mutation only — failed attempts stay visible via the
+    regular middleware row (method/path/status) without an AUDIT row. Never raises.
+    Detail format: "<action> | <target> | by <email> (<role>)".
+    """
+    try:
+        email, role = await actor_from_request(request)
+        target = (target or "").strip()
+        detail = f"{action} | {target} | by {email} ({role})" if target else f"{action} | by {email} ({role})"
+        entry = LogEntry(
+            method="AUDIT",
+            path=request.url.path,
+            status=200,
+            duration_ms=0,
+            user_email=email,
+            source="backend",
+            detail=detail,
+        )
+        _log_buffer.append(entry)
+        logger.info("audit", action=action, target=target[:200], actor=email, role=role)
+        return {"actor_email": email, "actor_role": role, "action": action, "target": target, "detail": detail}
+    except Exception as exc:
+        logger.warning("audit_failed", action=action, error=str(exc))
+        return {"actor_email": "anonymous", "actor_role": "?", "action": action, "target": target, "detail": None}
 
 
 def get_logs_by_user() -> dict[str, int]:
