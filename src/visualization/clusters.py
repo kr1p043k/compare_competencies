@@ -56,7 +56,7 @@ def plot_cluster_insights(results: dict[str, Any], output_dir: Path):
         bars = ax.barh(y, similarities, 0.55, color="#1f77b4", alpha=0.85, label="Близость к профилю")
         ax.axvline(x=coverage, color="#2ca02c", linestyle="--", linewidth=2, label=f"Покрытие навыков: {coverage:.1f}%")
 
-        ax.set_title(f"Ближайшие кластеры вакансий — {profile_name} (топ-{len(closest)})", pad=15, fontsize=14)
+        ax.set_title(f"Ближайшие кластеры вакансий: {profile_name} (топ-{len(closest)})", pad=15, fontsize=14)
         ax.set_yticks(y)
         ax.set_yticklabels(cluster_names, fontsize=10)
         ax.set_xlabel("Сходство (%)", fontsize=12)
