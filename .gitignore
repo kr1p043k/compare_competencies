@@ -63,7 +63,8 @@ cache/
 
 # User-uploaded files (RPD PDFs etc.) — never commit
 uploads/
-\
+
 # Pipeline recompute logs (local runs)
 recompute_*.log
-recompute_*.pid\
+recompute_*.pid
+recompute_*.err.log
