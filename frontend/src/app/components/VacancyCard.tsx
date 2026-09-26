@@ -172,8 +172,9 @@ export function VacancyCard({ vacancy, onOpen }: VacancyCardProps) {
 
     if (diffDays === 1) return "Сегодня";
     if (diffDays === 2) return "Вчера";
-    if (diffDays <= 7) return `${diffDays} дня назад`;
-    return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+    if (diffDays <= 4) return `${diffDays} дня назад`;
+    if (diffDays <= 7) return `${diffDays} дней назад`;
+    return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
   };
 
   const salary = formatSalary();

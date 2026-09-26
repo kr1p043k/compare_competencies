@@ -458,7 +458,7 @@ export function MonitoringTab() {
           )}
           <div className="space-y-2">
             {notifications.map((n) => (
-              <div key={n.id} className={`p-3 rounded-lg border ${n.is_read ? "bg-white dark:bg-slate-950 border-gray-200 dark:border-slate-700" : "bg-blue-50 border-blue-200"}`}>
+              <div key={n.id} className={`p-3 rounded-lg border ${n.is_read ? "bg-white dark:bg-slate-950 border-gray-200 dark:border-slate-700" : "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">

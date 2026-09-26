@@ -94,6 +94,45 @@ async def get_recommendations_result(
     }
 
 
+@router.get("/results/report/{profile}")
+@limiter.limit("10/minute")
+async def get_report_pdf(
+    request: Request,
+    profile: str,
+    profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
+):
+    """PDF-отчёт профиля: метрики, роли, рекомендации + PNG-графики."""
+    import asyncio
+
+    from fastapi.responses import Response
+
+    from src.reports.pdf_report import build_profile_pdf
+
+    if profile not in profiles:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+    result_path = (
+        config.DATA_DIR / "result" / profile / f"full_recommendations_{profile}.json"
+    )
+    if not result_path.exists():
+        raise HTTPException(status_code=404, detail="Рекомендации не найдены. Запустите gap-анализ.")
+    try:
+        with open(result_path, encoding="utf-8") as f:
+            payload = json.load(f)
+        pdf_bytes = await asyncio.to_thread(
+            build_profile_pdf, profile, payload, config.REPORTS_DIR)
+    except Exception as e:
+        logger.warning("results_report_pdf_failed", profile=profile, error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=await user_error_detail(request, str(e), "Не удалось собрать PDF. Попробуйте позже."),
+        )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="report_{profile}.pdf"'},
+    )
+
+
 # FROZEN v1: PNG-графики (радар/heatmap/coverage). Зафиксированы как v1 API:
 # доступны и под /api/..., и под /api/v1/... (общий _mount). Интерактивные
 # графики фронта ходят по данным (/market, /taxonomy, /profiles) и эти

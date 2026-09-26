@@ -141,7 +141,7 @@ function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
             <span className="text-slate-600 dark:text-slate-400">ваши <span className={`font-semibold ${entry.user_has > 0 ? "text-green-600" : "text-red-500"}`}>{entry.user_has}</span></span>
             <span className="text-slate-400"> из {entry.total_required}</span>
           </span>
-          <span className={`font-semibold ${entry.coverage >= 0.3 ? "text-green-600" : entry.coverage >= 0.1 ? "text-orange-500" : "text-red-500"}`}>
+          <span title="Покрытие домена: <20% критическое, 20–40% частичное, ≥40% уверенное" className={`font-semibold ${entry.coverage >= 0.4 ? "text-green-600 dark:text-green-400" : entry.coverage >= 0.2 ? "text-orange-500 dark:text-orange-400" : "text-red-500 dark:text-red-400"}`}>
             {(entry.coverage * 100).toFixed(1)}%
           </span>
         </div>
@@ -227,7 +227,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
   if (!data || !data.summary) {
     return (
       <div className="py-8 text-center text-gray-500 dark:text-slate-400 text-sm">
-        <p>No recommendations yet – run the analysis first.</p>
+        <p>Пока нет рекомендаций — запустите анализ.</p>
       </div>
     );
   }
@@ -258,9 +258,8 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-green-600 dark:text-green-400";
-    if (score >= 60) return "text-blue-600 dark:text-blue-400";
-    if (score >= 40) return "text-orange-600 dark:text-orange-400";
+    if (score >= 60) return "text-green-600 dark:text-green-400";
+    if (score >= 30) return "text-orange-600 dark:text-orange-400";
     return "text-red-600 dark:text-red-400";
   };
 
@@ -331,8 +330,8 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className={`text-3xl font-bold ${getScoreColor(data.summary.coverage_strict ?? data.summary.skill_coverage)}`}>
-              {(data.summary.coverage_strict ?? data.summary.skill_coverage).toFixed(1)}%
+            <div className={`text-3xl font-bold ${data.summary.coverage_strict === undefined ? "text-slate-400" : getScoreColor(data.summary.coverage_strict)}`}>
+              {data.summary.coverage_strict === undefined ? "–" : `${data.summary.coverage_strict.toFixed(1)}%`}
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
               Взвешенное по спросу: {(data.summary.coverage_weighted ?? data.summary.skill_coverage).toFixed(1)}%
@@ -440,9 +439,9 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                     </div>
 
                     <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
-                      <span className="flex items-center gap-1" title={`База ${(rec.importance_base ?? rec.importance_score).toFixed(3)} + бонусы ${(rec.importance_bonus ?? 0).toFixed(3)} (тренд, домен, роль). Композит, а не доля вакансий`}>
+                      <span className="flex items-center gap-1" title={`База ${(rec.importance_base ?? rec.importance_score).toFixed(3)} + бонусы ${(rec.importance_bonus ?? 0).toFixed(3)} (тренд, домен, роль). Композитный балл, а не доля вакансий`}>
                         <TrendingUp className="size-4" />
-                        {(rec.importance_score * 100).toFixed(1)}% важность
+                        {(rec.importance_score * 100).toFixed(1)} балл
                         {(rec.importance_bonus ?? 0) > 0.001 && (
                           <span className="text-xs text-slate-400">
                             (база {((rec.importance_base ?? 0) * 100).toFixed(0)} + бонус {((rec.importance_bonus ?? 0) * 100).toFixed(0)})

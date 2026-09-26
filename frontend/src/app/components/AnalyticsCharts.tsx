@@ -20,11 +20,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Radar as RadarIcon, X, Loader2 } from "lucide-react";
 import { api } from "../api";
 import { useTheme } from "../../lib/theme";
+import { profileLabel } from "../../lib/profiles";
 
 const LEVELS = [
-  { key: "base", label: "BASE (junior)" },
-  { key: "dc", label: "DATA SCIENTIST (middle)" },
-  { key: "top_dc", label: "TOP (senior)" },
+  { key: "base", label: profileLabel("base") },
+  { key: "dc", label: profileLabel("dc") },
+  { key: "top_dc", label: profileLabel("top_dc") },
 ] as const;
 
 type LevelKey = (typeof LEVELS)[number]["key"];
@@ -255,7 +256,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                       const p = props?.payload;
                       if (!p) return [_value, name];
                       return [
-                        `${p.has ? "в профиле" : "нет в профиле"} · вес ${p.weight}`,
+                        `${p.has ? "в профиле" : "нет в профиле"} · ${(p.market * 100).toFixed(0)}% от топ-навыка`,
                         name === "market" ? "Рынок" : "Профиль",
                       ];
                     }}
@@ -269,7 +270,10 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                     fill="#2563eb"
                     fillOpacity={0.35}
                     strokeWidth={2}
-                    dot={{ r: 3, fill: "#2563eb", strokeWidth: 0, cursor: "pointer" }}
+                    dot={(p: any) => (
+                      <circle key={`dot-${p?.payload?.skill ?? p?.index ?? Math.random()}`} cx={p?.cx} cy={p?.cy} r={3} fill="#2563eb" strokeWidth={0} cursor="pointer"
+                        onClick={() => p?.payload?.skill && openDrill(p.payload.skill)} />
+                    )}
                     activeDot={{
                       r: 5,
                       fill: "#2563eb",
@@ -358,7 +362,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                           <td key={l.key} className="p-1">
                             <button
                               onClick={() => openDrill(row.skill)}
-                              title={`${row.skill}: ${has ? "есть" : "нет"} · вес ${row.weight}`}
+                              title={`${row.skill}: ${has ? "есть" : "нет"} · ${(row.intensity * 100).toFixed(0)}% от топ-навыка`}
                               className="w-full rounded-md px-2 py-2 font-mono cursor-pointer transition-transform hover:scale-[1.03]"
                               style={{
                                 background: has

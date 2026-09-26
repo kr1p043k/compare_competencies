@@ -114,9 +114,10 @@ interface VacanciesListProps {
   onStartPipeline?: (regionIds: string, profession: string, maxPages?: number, periodDays?: number) => void;
   pipelineMaxPages?: number;
   pipelinePeriod?: number;
+  canRunPipeline?: boolean;
 }
 
-export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onStartPipeline, pipelineMaxPages, pipelinePeriod }: VacanciesListProps) {
+export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onStartPipeline, pipelineMaxPages, pipelinePeriod, canRunPipeline = true }: VacanciesListProps) {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -339,7 +340,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         {vacancyInfo && (
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400 dark:text-slate-500">
             {vacancyInfo.date_range && (
-              <span>{vacancyInfo.date_range.from} &mdash; {vacancyInfo.date_range.to}</span>
+              <span>Записи с {fmtDateRU(vacancyInfo.date_range.from)}</span>
             )}
             <span>файл: {vacancyInfo.file_modified}</span>
             <span>{vacancyInfo.count} вакансий</span>
@@ -350,7 +351,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       </motion.div>
 
       {/* Pipeline trigger / settings panel */}
-      {showPipelineSetup && (!pipelineStep || pipelineStep.status !== "running") ? (
+      {canRunPipeline && (showPipelineSetup && (!pipelineStep || pipelineStep.status !== "running") ? (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -658,7 +659,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             </CardContent>
           </Card>
         </motion.div>
-      )}
+      ))}
 
       {/* Filters */}
       <motion.div
@@ -884,7 +885,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             {/* Active filters */}
             {(applied.experience !== "all" || applied.city !== "all" || applied.search || applied.months !== null || applied.date_from || applied.date_to) && (
               <div className="flex flex-wrap items-center gap-2 px-6 pt-4 border-t border-slate-200 dark:border-slate-800">
-                {experienceFilter !== "all" && (
+                {applied.experience !== "all" && (
                   <Badge
                     variant="secondary"
                     className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
@@ -893,7 +894,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     {applied.experience} ✕
                   </Badge>
                 )}
-                {cityFilter !== "all" && (
+                {applied.city !== "all" && (
                   <Badge
                     variant="secondary"
                     className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
@@ -902,7 +903,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     {applied.city} ✕
                   </Badge>
                 )}
-                {searchQuery && (
+                {applied.search && (
                   <Badge
                     variant="secondary"
                     className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
@@ -1071,8 +1072,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center justify-between"
           >
-            <p className="text-sm text-slate-500">
-              Найдено <span className="font-semibold text-slate-700 dark:text-slate-300">{vacancies.length}</span> вакансий
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Найдено <span className="font-semibold text-slate-700 dark:text-slate-300">{total}</span> вакансий
+              {vacancies.length < total && (
+                <span> (показано {vacancies.length})</span>
+              )}
             </p>
             <Button
               variant="outline"

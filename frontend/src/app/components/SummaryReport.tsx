@@ -24,8 +24,17 @@ const METRICS: MetricDef[] = [
   { key: "domain_coverage_score", label: "Покрытие доменов", hint: "Охват профессиональных доменов" },
   { key: "profession_coverage", label: "Покрытие профессии", hint: "Совпадение с целевой профессией" },
   { key: "market_skill_coverage", label: "Покрытие (строгое)", hint: "Бинарное пересечение со спросом" },
+  { key: "coverage_weighted", label: "Покрытие (взвешенное, API)", hint: "То же, что «взвеш.» выше — поле API" },
   { key: "avg_gap", label: "Средний разрыв", hint: "Разрыв между текущим и требуемым уровнем" },
 ];
+
+function rowVisible(key: string, evals: Record<string, EvalEntry>, profiles: string[]): boolean {
+  const vals = profiles.map((p) => evals[p]?.[key as keyof EvalEntry]);
+  if (vals.every((v) => v === undefined || v === null)) return false;
+  // profession_coverage без фокуса всегда 0 — строку не показываем.
+  if (key === "profession_coverage" && vals.every((v) => v === 0)) return false;
+  return true;
+}
 
 interface EvalEntry {
   market_coverage_score?: number;
@@ -34,6 +43,9 @@ interface EvalEntry {
   domain_coverage_score?: number;
   profession_coverage?: number;
   market_skill_coverage?: number;
+  coverage_strict?: number;
+  coverage_weighted?: number;
+  coverage_strict_scope?: string;
   avg_gap?: number;
   match_score?: number;
   target_profession?: string;
@@ -48,18 +60,19 @@ interface SummaryReportProps {
 
 function scoreColor(v: number, isGap = false) {
   if (isGap) {
-    if (v < 30) return "text-green-600";
-    if (v < 60) return "text-orange-500";
-    return "text-red-500";
+    if (v < 30) return "text-green-600 dark:text-green-400";
+    if (v < 60) return "text-orange-500 dark:text-orange-400";
+    return "text-red-500 dark:text-red-400";
   }
-  if (v >= 60) return "text-green-600";
-  if (v >= 30) return "text-orange-500";
-  return "text-red-500";
+  if (v >= 60) return "text-green-600 dark:text-green-400";
+  if (v >= 30) return "text-orange-500 dark:text-orange-400";
+  return "text-red-500 dark:text-red-400";
 }
 
 function scoreCell(v: number | undefined, isGap: boolean) {
   if (v === undefined || v === null) return <span className="text-gray-400 dark:text-slate-500">–</span>;
-  const fixed = isGap ? v.toFixed(2) : `${v.toFixed(1)}%`;
+  // avg_gap уже в процентах 0–100 (бэкенд), gap_j в GapRow — доля 0..1.
+  const fixed = `${v.toFixed(1)}%`;
   return <span className={`font-mono font-semibold ${scoreColor(v, isGap)}`}>{fixed}</span>;
 }
 
@@ -74,10 +87,10 @@ function GapRow({ skill, entry }: { skill: string; entry: { gap_j?: number; impo
       </div>
       <div className="flex items-center gap-4 text-sm shrink-0">
         <span className="text-gray-500 dark:text-slate-400 text-xs">
-          важность {(entry.importance ?? 0).toFixed(2)}
+          важность {((entry.importance ?? 0) * 100).toFixed(0)}%
         </span>
-        <span className="font-mono font-semibold text-red-500">
-          +{(entry.gap_j ?? 0).toFixed(2)}
+        <span className="font-mono font-semibold text-red-500 dark:text-red-400">
+          +{((entry.gap_j ?? 0) * 100).toFixed(0)}%
         </span>
       </div>
     </div>
@@ -178,7 +191,7 @@ export function SummaryReport({ data }: SummaryReportProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {METRICS.map((m) => (
+              {METRICS.filter((m) => rowVisible(m.key, evals, profiles)).map((m) => (
                 <TableRow key={m.key}>
                   <TableCell>
                     <div className="text-sm font-medium text-gray-800 dark:text-slate-200">{m.label}</div>

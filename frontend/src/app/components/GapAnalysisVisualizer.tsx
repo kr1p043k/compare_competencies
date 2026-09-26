@@ -33,9 +33,9 @@ interface GapAnalysisVisualizerProps {
 }
 
 const PROFILES = [
-  { id: "base", label: "Base" },
-  { id: "dc", label: "DC" },
-  { id: "top_dc", label: "Top DC" },
+  { id: "base", label: "Base (junior)" },
+  { id: "dc", label: "Data Scientist (middle)" },
+  { id: "top_dc", label: "Top (senior)" },
 ];
 
 type ImageType = "radar" | "ml_importance" | "cluster_insights";
@@ -223,7 +223,7 @@ export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisV
                     )}
                     className="inline-flex items-center gap-2 mt-4 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
                   >
-                    Run analysis to generate charts
+                    Запустить анализ для построения графиков
                   </button>
                 </div>
               </div>

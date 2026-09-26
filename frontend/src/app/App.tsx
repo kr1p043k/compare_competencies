@@ -43,6 +43,7 @@ import { StudentDashboard } from "./components/StudentDashboard";
 import { FaqPage } from "./components/FaqPage";
 import { TaxonomyBrowser } from "./components/TaxonomyBrowser";
 import { authHeaders, useAuth, apiFetch } from "../lib/auth";
+import { profileLabel } from "../lib/profiles";
 import { useTheme } from "../lib/theme";
 import { initApiLogger } from "../lib/logger";
 import { motion, AnimatePresence } from "motion/react";
@@ -653,6 +654,28 @@ export default function App() {
     }
   }
 
+  async function handleDownloadPdf() {
+    try {
+      const response = await fetch(`/api/results/report/${profile}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `report_${profile}_${new Date().toISOString().split("T")[0]}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        const d = await response.json().catch(() => ({}));
+        alert(d.detail || "Ошибка формирования PDF");
+      }
+    } catch (error) {
+      console.error("Failed to download PDF report:", error);
+    }
+  }
+
   function loadMarket() {
     apiCall("/market-competencies");
   }
@@ -828,9 +851,10 @@ export default function App() {
               pipelineStep={pipelineStep}
               pipelineLoading={pipelineLoading}
               restartFlag={restartFlag}
-              onStartPipeline={(regionIds, profession, maxPages, periodDays) => startPipeline(regionIds, profession, maxPages, periodDays)}
+              onStartPipeline={role === "student" ? undefined : (regionIds, profession, maxPages, periodDays) => startPipeline(regionIds, profession, maxPages, periodDays)}
               pipelineMaxPages={pipelineMaxPages}
               pipelinePeriod={pipelinePeriod}
+              canRunPipeline={role !== "student"}
             />
           </TabsContent>
 
@@ -866,7 +890,7 @@ export default function App() {
                         <SelectItem key={p} value={p}>
                           <div className="flex items-center gap-2">
                             <Award className={`size-4 ${p === profile ? "text-emerald-600" : "text-gray-400 dark:text-slate-500"}`} />
-                            <span>{p === "base" ? "BASE (junior)" : p === "dc" ? "DATA SCIENTIST (middle)" : p === "top_dc" ? "TOP DATA SCIENTIST (senior)" : p}</span>
+                            <span>{profileLabel(p)}</span>
                           </div>
                         </SelectItem>
                       ))}
@@ -982,7 +1006,7 @@ export default function App() {
                         </div>
                         <div>
                           <CardTitle className="text-lg">Excel вакансий</CardTitle>
-                          <CardDescription>Скачать список вакансий с навыками</CardDescription>
+                          <CardDescription>Полная выгрузка без фильтров (с фильтрами — из списка вакансий)</CardDescription>
                         </div>
                       </div>
                     </CardHeader>
@@ -1017,7 +1041,15 @@ export default function App() {
                         className="w-full border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50"
                       >
                         <Download className="size-4 mr-2" />
-                        Скачать отчёт
+                        Скачать отчёт (JSON)
+                      </Button>
+                      <Button
+                        onClick={handleDownloadPdf}
+                        variant="outline"
+                        className="w-full mt-2 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                      >
+                        <Download className="size-4 mr-2" />
+                        Скачать отчёт (PDF)
                       </Button>
                     </CardContent>
                   </Card>
