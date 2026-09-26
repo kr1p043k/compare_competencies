@@ -25,9 +25,12 @@ from src.utils import atomic_read_json, atomic_write_json
 
 logger = structlog.get_logger(__name__)
 
-# Cross-level пул ролей: топ-N с каждой уровневой модели; кластеры меньше
-# MIN_SIZE вакансий не кандидаты (топ-15 навыков по <30 объявлениям неустойчив).
-CROSS_LEVEL_TOP_K = 2
+# Cross-level пул ролей: топ-N SIM-кандидатов с каждой уровневой модели
+# (N обязано покрывать зону бленда: DS часто 5-8-я по sim, но 1-2-я по бленду;
+# префильтр top-2 убивал её до ранжирования — баг, исправлен widening до 10).
+# Кластеры меньше MIN_SIZE вакансий не кандидаты (топ-15 навыков по <30
+# объявлениям неустойчив).
+CROSS_LEVEL_TOP_K = 10
 CROSS_LEVEL_MIN_SIZE = 30
 
 

@@ -1326,8 +1326,10 @@ class TestLevelClusterRouting:
                           return_value=Ok(np.ones(dim))):
             ctx = e._get_cluster_context(st, "middle").unwrap()
         lvls = {c.get("level") for c in ctx["closest_clusters"]}
-        assert len(lvls) >= 2  # пул из нескольких моделей, не одной
+        assert len(lvls) >= 2
         assert set(ctx["levels_polled"]) >= {"junior", "middle", "senior"}
+        # Wide net: пул покрывает зону бленда (top-10 с уровня, не top-2).
+        assert len(ctx["closest_clusters"]) > 6
 
 
 class TestStage4ApiParity:
