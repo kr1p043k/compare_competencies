@@ -134,6 +134,14 @@ class VacancyClusterer:
             logger.warning("no_vacancies_for_clustering")
             return self
 
+        # Детерминизм: порядок строк X обязан быть фиксирован, иначе KMeans++
+        # при том же seed даёт другой init (вероятности зависят от порядка).
+        # Источники (БД без ORDER BY, glob) порядок не гарантируют.
+        try:
+            vacancies = sorted(vacancies, key=lambda v: str(v.get("id", "")))
+        except Exception:
+            pass
+
         n_samples = len(vacancies)
         if n_samples < 10:
             logger.warning("too_few_vacancies_for_clustering", samples=n_samples, level=level)

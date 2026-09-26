@@ -533,8 +533,13 @@ def run_full_pipeline(args) -> Result[None, str]:
         console_header("ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ")
         output_viz_dir = config.REPORTS_DIR
         output_viz_dir.mkdir(parents=True, exist_ok=True)
-        save_all_charts(evaluations, output_viz_dir, use_ml=True, vacancies_skills_list=vacancies_skills)
-        _write_pipeline_progress(97, "Графики сохранены")
+        # Графики — после всех данных: их падение не должно ронять прогон.
+        try:
+            save_all_charts(evaluations, output_viz_dir, use_ml=True, vacancies_skills_list=vacancies_skills)
+            _write_pipeline_progress(97, "Графики сохранены")
+        except Exception as e:
+            logger.warning("presentation_charts_failed_nonfatal", error=str(e)[:500])
+            console_info(f"⚠️ Графики не собраны ({type(e).__name__}): данные целы")
 
     if getattr(args, 'run_notebooks', False):
         console_info("Запуск Jupyter ноутбуков...")
