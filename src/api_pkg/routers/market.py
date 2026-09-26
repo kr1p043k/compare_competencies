@@ -59,15 +59,35 @@ async def get_skill_info(
     }
 
 
-@router.get("/market-competencies", response_model=MarketCompetenciesResponse)
+@router.get("/market-competencies", response_model=dict)
 @limiter.limit("60/minute")
 async def get_market_competencies(
     request: Request,
     weights: dict[str, float] = Depends(deps.get_skill_weights),
 ):
-    """Компетенции рынка."""
+    """Компетенции рынка + объём выборки (для витрины рынка)."""
+    from src.db import get_pool
+
     top_skills = sorted(weights.items(), key=lambda x: x[1], reverse=True)[:100]
-    return {
+    payload = {
         "skills": [{"skill": s, "weight": w} for s, w in top_skills],
         "total": len(weights),
+        "vacancy_count": None,
+        "date_from": None,
+        "date_to": None,
     }
+    try:
+        pool = get_pool()
+        if pool is not None:
+            row = await pool.fetchrow(
+                "SELECT COUNT(*) AS n, MIN(published_at)::date AS mn, "
+                "MAX(published_at)::date AS mx FROM vacancies "
+                "WHERE published_at IS NOT NULL"
+            )
+            if row:
+                payload["vacancy_count"] = int(row["n"] or 0)
+                payload["date_from"] = str(row["mn"]) if row["mn"] else None
+                payload["date_to"] = str(row["mx"]) if row["mx"] else None
+    except Exception as e:
+        logger.warning("market_competencies_meta_failed", error=str(e))
+    return payload

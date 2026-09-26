@@ -27,6 +27,7 @@ import {
 import { GapAnalysisVisualizer } from "./components/GapAnalysisVisualizer";
 import { Footer } from "./components/Footer";
 import { VacanciesList } from "./components/VacanciesList";
+import { MarketView } from "./components/MarketView";
 import { ArticlesPage } from "./components/ArticlesPage";
 import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
 import { PipelineProgress } from "./components/PipelineProgress";
@@ -610,50 +611,6 @@ export default function App() {
     }
   }
 
-  async function handleDownloadExcel() {
-    try {
-      const response = await fetch(`/api/teacher/export/vacancies`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `vacancies_${new Date().toISOString().split("T")[0]}.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else if (response.status === 429) {
-        alert("Слишком частые запросы. Подождите 20 секунд.");
-      } else {
-        const d = await response.json().catch(() => ({}));
-        alert(d.detail || "Ошибка выгрузки Excel");
-      }
-    } catch (error) {
-      console.error("Failed to download Excel:", error);
-    }
-  }
-
-  async function handleDownloadReport() {
-    try {
-      const response = await fetch(`/api/results/recommendations/${profile}`);
-      if (response.ok) {
-        const data = await response.json();
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `analysis_report_${profile}_${new Date().toISOString().split("T")[0]}.json`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }
-    } catch (error) {
-      console.error("Failed to download analysis report:", error);
-    }
-  }
-
   async function handleDownloadPdf() {
     try {
       const response = await fetch(`/api/results/report/${profile}`);
@@ -997,62 +954,16 @@ export default function App() {
                   return <span className="ml-2 px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200">данные устарели ({days} дн.)</span>;
                 })()}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card className="border-2 border-green-200 dark:border-green-800 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20">
-                    <CardHeader>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-600 rounded-lg">
-                          <FileSpreadsheet className="size-5 text-white" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">Excel вакансий</CardTitle>
-                          <CardDescription>Полная выгрузка без фильтров (с фильтрами — из списка вакансий)</CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <Button
-                        onClick={handleDownloadExcel}
-                        variant="outline"
-                        className="w-full border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50"
-                      >
-                        <Download className="size-4 mr-2" />
-                        Скачать Excel
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
-                    <CardHeader>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-600 rounded-lg">
-                          <FileText className="size-5 text-white" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">Отчёт по анализу</CardTitle>
-                          <CardDescription>Скачать результаты gap-анализа</CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <Button
-                        onClick={handleDownloadReport}
-                        variant="outline"
-                        className="w-full border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                      >
-                        <Download className="size-4 mr-2" />
-                        Скачать отчёт (JSON)
-                      </Button>
-                      <Button
-                        onClick={handleDownloadPdf}
-                        variant="outline"
-                        className="w-full mt-2 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                      >
-                        <Download className="size-4 mr-2" />
-                        Скачать отчёт (PDF)
-                      </Button>
-                    </CardContent>
-                  </Card>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    onClick={handleDownloadPdf}
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50 gap-1.5"
+                  >
+                    <Download className="size-3.5" />
+                    Отчёт (PDF)
+                  </Button>
                 </div>
 
                 {lastResult && (() => {
@@ -1106,6 +1017,9 @@ export default function App() {
                   }
                   if (d.evaluations && Array.isArray(d.profiles)) {
                     return <SummaryReport data={lastResult as any} />;
+                  }
+                  if (Array.isArray((d as any).skills) && typeof (d as any).total === "number") {
+                    return <MarketView data={lastResult as any} />;
                   }
                   const msg = d.message as string | undefined;
                   if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {
