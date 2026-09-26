@@ -163,29 +163,6 @@ async def create_custom_profile(request: Request, body: CustomProfileIn):
             "competencies_count": len(codes), "skills_count": len(skills)}
 
 
-@router.get("/profiles/{profile}", response_model=ProfileShort)
-@limiter.limit("60/minute")
-async def get_profile(
-    request: Request,
-    profile: str,
-    full: bool = Query(False),
-    profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
-):
-    """Профиль студента по имени. По умолчанию первые 50 навыков (для UI),
-    ?full=true — полный список (для графиков покрытия)."""
-    if profile not in profiles:
-        raise HTTPException(status_code=404, detail="Профиль не найден")
-    student = profiles[profile]
-    return {
-        "profile_name": student.profile_name,
-        "target_level": student.target_level,
-        "skills_count": len(student.skills),
-        "skills": student.skills if full else student.skills[:50],
-        "competencies_count": len(student.competencies),
-        "competencies": student.competencies[:50],
-    }
-
-
 @router.get(
     "/profiles/{profile}/profession-evaluation",
     response_model=dict,
@@ -442,3 +419,161 @@ async def dead_skills(
         s for s in deps.current_skills_set if s.lower() not in extracted_lower
     )
     return {"dead_skills": dead}
+
+
+def _self_profile_name(email: str) -> tuple[str, str]:
+    """Личный профиль пользователя: (имя профиля, путь к файлу)."""
+    import re
+    from pathlib import Path
+
+    safe = re.sub(r"[^a-z0-9_]", "_", (email or "anon").strip().lower())[:40] or "anon"
+    name = f"self_{safe}"
+    return name, str(Path(config.DATA_DIR) / "students" / f"{name}_competency.json")
+
+
+def _load_self_profile(name: str, fpath: str) -> dict:
+    import json
+
+    try:
+        with open(fpath, encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    return {"skills": [], "target_level": "middle", "user_added": [], "competencies": []}
+
+
+def _save_self_profile(name: str, fpath: str, data: dict) -> None:
+    import json
+    from pathlib import Path
+
+    p = Path(fpath)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if p.resolve().parent != Path(config.DATA_DIR).resolve() / "students":
+        raise HTTPException(status_code=400, detail="Invalid path")
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def _sync_self_to_memory(name: str, data: dict) -> None:
+    try:
+        level = ExperienceLevel(str(data.get("target_level", "middle")).strip().lower())
+    except ValueError:
+        level = ExperienceLevel.MIDDLE
+        data["target_level"] = level.value
+    deps.student_profiles[name] = StudentProfile(
+        profile_name=name, competencies=list(data.get("competencies", [])),
+        skills=list(data.get("skills", [])), target_level=level)
+
+
+@router.get("/profiles/self", response_model=dict)
+@limiter.limit("60/minute")
+async def get_self_profile(request: Request):
+    """Личный профиль текущего пользователя (создаётся пустым при первом чтении)."""
+    from src.api_pkg.routers.auth import get_current_user
+
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    name, fpath = _self_profile_name(str(user.get("u") or ""))
+    data = _load_self_profile(name, fpath)
+    _sync_self_to_memory(name, data)
+    return {"profile": name, "target_level": data.get("target_level", "middle"),
+            "skills": data.get("skills", []), "user_added": data.get("user_added", []),
+            "skills_count": len(data.get("skills", []))}
+
+
+class SelfProfilePatch(BaseModel):
+    target_level: str | None = None
+    add_skills: list[str] = []
+    remove_skills: list[str] = []
+
+
+@router.patch("/profiles/self", response_model=dict)
+@limiter.limit("30/minute")
+async def patch_self_profile(request: Request, body: SelfProfilePatch):
+    """Свой профиль: смена уровня + добавление своих навыков; удаление —
+    только собою добавленных. Чужие профили недоступны по построению."""
+    from src.api_pkg.routers.auth import get_current_user
+
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    email = str(user.get("u") or "")
+    name, fpath = _self_profile_name(email)
+    data = _load_self_profile(name, fpath)
+
+    if body.target_level is not None:
+        try:
+            level = ExperienceLevel(body.target_level.strip().lower())
+        except ValueError:
+            raise HTTPException(status_code=400,
+                                detail="target_level must be junior|middle|senior")
+        data["target_level"] = level.value
+
+    skills = list(data.get("skills", []))
+    owned = list(data.get("user_added", []))
+    owned_lower = {s.lower() for s in owned}
+    have_lower = {s.lower() for s in skills}
+    added, removed, refused = [], [], []
+    for s in (body.add_skills or [])[:100]:
+        s = (s or "").strip()[:200]
+        if not s:
+            continue
+        if s.lower() not in have_lower:
+            skills.append(s)
+            have_lower.add(s.lower())
+        if s.lower() not in owned_lower:
+            owned.append(s)
+            owned_lower.add(s.lower())
+        added.append(s)
+    for s in (body.remove_skills or [])[:100]:
+        key = (s or "").strip().lower()
+        if not key:
+            continue
+        if key in owned_lower:
+            skills = [x for x in skills if x.lower() != key]
+            owned = [x for x in owned if x.lower() != key]
+            owned_lower.discard(key)
+            removed.append(s)
+        else:
+            refused.append(s)
+    data["skills"] = skills
+    data["user_added"] = owned
+    _save_self_profile(name, fpath, data)
+    _sync_self_to_memory(name, data)
+
+    try:
+        from src.api_pkg.student_actions import log_action
+        log_action(username=email, action_type="profile_edit", profile=name,
+                   result_ref=f"added={len(added)} removed={len(removed)} refused={len(refused)}")
+    except Exception:
+        pass
+    logger.info("self_profile_patched", profile=name,
+                added=len(added), removed=len(removed), refused=len(refused))
+    return {"profile": name, "target_level": data.get("target_level"),
+            "skills": skills, "user_added": owned,
+            "added": added, "removed": removed, "refused": refused}
+
+
+@router.get("/profiles/{profile}", response_model=ProfileShort)
+@limiter.limit("60/minute")
+async def get_profile(
+    request: Request,
+    profile: str,
+    full: bool = Query(False),
+    profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
+):
+    """Профиль студента по имени. По умолчанию первые 50 навыков (для UI),
+    ?full=true — полный список (для графиков покрытия)."""
+    if profile not in profiles:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+    student = profiles[profile]
+    return {
+        "profile_name": student.profile_name,
+        "target_level": student.target_level,
+        "skills_count": len(student.skills),
+        "skills": student.skills if full else student.skills[:50],
+        "competencies_count": len(student.competencies),
+        "competencies": student.competencies[:50],
+    }

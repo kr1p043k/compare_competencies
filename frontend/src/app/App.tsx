@@ -28,6 +28,7 @@ import { GapAnalysisVisualizer } from "./components/GapAnalysisVisualizer";
 import { Footer } from "./components/Footer";
 import { VacanciesList } from "./components/VacanciesList";
 import { MarketView } from "./components/MarketView";
+import { ProfileView } from "./components/ProfileView";
 import { ArticlesPage } from "./components/ArticlesPage";
 import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
 import { PipelineProgress } from "./components/PipelineProgress";
@@ -807,7 +808,7 @@ export default function App() {
               items={[
                 { value: "vacancies", label: "Вакансии", Icon: Briefcase },
                 { value: "data", label: "Результаты", Icon: Database },
-                ...(effectiveRole !== "teacher"
+                ...(effectiveRole !== "teacher" && effectiveRole !== "student"
                   ? [{ value: "visualization", label: "Визуализация", Icon: BarChart3 }]
                   : []),
               ]}
@@ -1074,6 +1075,9 @@ export default function App() {
                   if (Array.isArray((d as any).skills) && typeof (d as any).total === "number") {
                     return <MarketView data={lastResult as any} />;
                   }
+                  if (Array.isArray((d as any).skills) && typeof (d as any).profile_name === "string") {
+                    return <ProfileView data={lastResult as any} />;
+                  }
                   const msg = d.message as string | undefined;
                   if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {
                     return (
@@ -1104,7 +1108,7 @@ export default function App() {
           </TabsContent>
 
           {/* Visualization Tab */}
-          {effectiveRole !== "teacher" && (
+          {effectiveRole !== "teacher" && effectiveRole !== "student" && (
             <TabsContent value="visualization">
               <GapAnalysisVisualizer profile={profile} onProfileChange={handleProfileChange} />
             </TabsContent>

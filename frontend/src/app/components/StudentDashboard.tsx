@@ -4,6 +4,7 @@ import { Badge } from "./ui/badge";
 import { History, RefreshCw, AlertCircle, MapPin, Briefcase, FileText } from "lucide-react";
 import { Button } from "./ui/button";
 import { apiFetch } from "../../lib/auth";
+import { SelfProfileEditor } from "./SelfProfileEditor";
 import { StudentKrm } from "./StudentKrm";
 
 export function StudentDashboard() {
@@ -103,6 +104,7 @@ export function StudentDashboard() {
           </div>
         </CardContent>
       </Card>
+      <SelfProfileEditor />
     </div>
   );
 }
