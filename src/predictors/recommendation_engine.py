@@ -567,6 +567,17 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             rank_score = round(self.ROLE_SIM_WEIGHT * sim + self.ROLE_TARGET_WEIGHT * overlap, 4)
             try:
                 dom_cat = self._taxonomy.get_dominant_category(ranked[:15]) if ranked else "other"
+                if dom_cat == "other" and ranked:
+                    # То же правило, что в именах кластеров: other не категория,
+                    # берём следующую с count>=2 — иначе дедап пропускает дубли.
+                    match self._taxonomy.get_category_stats(ranked[:15]):
+                        case Ok(stats):
+                            for _cat, _cnt in stats.items():
+                                if _cat != "other" and _cnt >= 2:
+                                    dom_cat = _cat
+                                    break
+                        case _:
+                            pass
             except Exception:
                 dom_cat = "other"
 
@@ -604,22 +615,17 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 }
             )
         # Сорт по бленду + дедап доминантной категории, берём 3.
+        # "other" не дедапится: недоказанная одинаковость — не одинаковость.
         candidates.sort(key=lambda r: r["rank_score"], reverse=True)
         roles, seen_cats = [], set()
         for cand in candidates:
-            if cand["dominant_category"] not in seen_cats:
-                seen_cats.add(cand["dominant_category"])
-                roles.append(cand)
+            _dc = cand["dominant_category"]
+            if _dc != "other" and _dc in seen_cats:
+                continue
+            seen_cats.add(_dc)
+            roles.append(cand)
             if len(roles) == 3:
                 break
-        # Если дедап съел всё кроме дублей — добираем по скору без дедапа.
-        if len(roles) < 3:
-            taken = {id(r) for r in roles}
-            for cand in candidates:
-                if id(cand) not in taken:
-                    roles.append(cand)
-                if len(roles) == 3:
-                    break
         return roles[:3]
 
     def _diversify_recommendations(self, recs: list[dict], max_per_category: int = 3) -> list[dict]:

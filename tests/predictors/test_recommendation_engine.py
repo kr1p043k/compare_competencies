@@ -738,6 +738,22 @@ class TestRoleRankingL2:
         assert [r["role"] for r in roles] == ["A", "B", "C"]
         assert all(r["target_overlap"] == 0.0 for r in roles)
 
+    def test_other_category_falls_back_for_dedup(self, mock_profile_evaluator):
+        """Кластер с доминантой other, но devops-начинкой дедапится с devops."""
+        tops = {
+            1: (["docker", "kubernetes"] + ["zz_unknown_skill"] * 13) * 4,
+            2: ["docker", "kubernetes", "linux", "bash", "terraform"] * 10,
+        }
+        engine = self._engine(mock_profile_evaluator, tops)
+        clusters = [
+            {"id": 1, "name": "Backend", "similarity": 0.9},
+            {"id": 2, "name": "DevOps", "similarity": 0.8},
+        ]
+        roles = engine._build_closest_roles(clusters, {}, set())
+        cats = [r["dominant_category"] for r in roles]
+        assert "other" not in cats  # other не категория для дедапа
+        assert len(roles) == 1  # оба devops-семейства: второй отброшен
+
     def test_generate_wires_taxonomy_boost(self, mock_profile_evaluator,
                                            sample_student_profile):
         """Регрессия обрыва L2: generate без taxonomy = буста нет даже при цели."""
