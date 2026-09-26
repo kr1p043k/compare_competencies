@@ -198,7 +198,6 @@ def build_profile_pdf(profile: str, full_rec: dict, reports_dir: Path | str) -> 
 
     reports = Path(reports_dir)
     charts: list[tuple[str, Path]] = [
-        ("Радар: профиль vs рынок", reports / profile / f"radar_{profile}.png"),
         ("Ближайшие кластеры", reports / profile / f"cluster_insights_{profile}.png"),
         ("Важность навыков (ML)", reports / profile / f"ml_importance_{profile}.png"),
         ("Покрытие навыков", reports / "skills_heatmap.png"),
