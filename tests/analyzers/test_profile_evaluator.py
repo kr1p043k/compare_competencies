@@ -1328,3 +1328,47 @@ class TestLevelClusterRouting:
         lvls = {c.get("level") for c in ctx["closest_clusters"]}
         assert len(lvls) >= 2  # пул из нескольких моделей, не одной
         assert set(ctx["levels_polled"]) >= {"junior", "middle", "senior"}
+
+
+class TestStage4ApiParity:
+    """Stage 4: паритет API/CLI — домены, профессия, KRM, обязательный уровень."""
+
+    def _eval(self, skills, domains, prof):
+        from datetime import datetime
+        from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
+        from src.models.student import StudentProfile
+        sw = {"middle": {"python": 0.9, "docker": 0.7, "sql": 0.5}}
+        vs = [["python", "sql"], ["python", "docker"]]
+        st = StudentProfile(profile_name="t", competencies=[], skills=skills,
+                            target_level="middle", target_profession=prof,
+                            created_at=datetime.now())
+        e = ProfileEvaluator(
+            skill_weights={"python": 0.9}, vacancies_skills=vs,
+            vacancies_skills_dict=[{"skills": s} for s in vs],
+            skill_weights_by_level=sw, use_clustering=False)
+        return e.evaluate_profile(st, target_domains=domains,
+                                  taxonomy=ProfessionTaxonomy()).unwrap()
+
+    def test_domains_filter_profession_coverage(self):
+        r = self._eval(["python", "sql"], ["Data Science"], "Data Scientist")
+        assert r["profession_coverage"] > 0.0
+        assert r["profession_coverage_detail"].get("Data Science", 0) > 0
+
+    def test_no_domains_zero_profession(self):
+        r = self._eval(["python", "sql"], None, "")
+        assert r["profession_coverage"] == 0.0
+
+    def test_target_profession_field_exists(self):
+        from src.models.student import StudentProfile
+        assert StudentProfile.model_fields["target_profession"].default == ""
+
+    def test_custom_profile_level_required(self):
+        from pydantic import ValidationError
+        from src.api_pkg.routers.profiles import CustomProfileIn
+        try:
+            CustomProfileIn(name="x", skills=["python"])
+            raise SystemExit("must not pass without target_level")
+        except ValidationError:
+            pass
+        ok = CustomProfileIn(name="x", skills=["python"], target_level="senior")
+        assert ok.target_level == "senior"

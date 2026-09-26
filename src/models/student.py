@@ -24,6 +24,8 @@ class StudentProfile(BaseModel):
     skill_levels: dict[str, str] = Field(default_factory=dict)
     target_level: ExperienceLevel = ExperienceLevel.MIDDLE
     created_at: datetime = Field(default_factory=datetime.now)
+    # Stage 4: целевая профессия профиля (оживляет krm_coverage вне фокуса).
+    target_profession: str = ""
 
     # Для работы кластерного контекста
     embedding: Any | None = Field(default=None, exclude=True)  # np.ndarray или list[float]

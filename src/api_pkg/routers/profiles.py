@@ -56,9 +56,23 @@ async def compare_profiles(
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
     """Сравнение профилей студентов."""
+    from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
+    prof_taxonomy = ProfessionTaxonomy()
     evaluations = {}
     for pname, student in profiles.items():
-        match eval_instance.evaluate_profile(student):
+        # Stage 4: паритет с CLI — фильтруем по целевым доменам профиля.
+        cfg = prof_taxonomy.get_profile_target(pname) or {}
+        domains = cfg.get("target_domains", [])
+        if domains and not student.target_profession:
+            try:
+                student.target_profession = cfg.get("target_profession", "")
+            except Exception:
+                pass
+        match eval_instance.evaluate_profile(
+            student,
+            target_domains=domains or None,
+            taxonomy=prof_taxonomy if domains else None,
+        ):
             case Ok(eval_result):
                 evaluations[pname] = {
                     "market_coverage_score": eval_result.get("market_coverage_score"),
@@ -82,7 +96,7 @@ async def list_profiles(request: Request):
 
 class CustomProfileIn(BaseModel):
     name: str
-    target_level: str = "middle"
+    target_level: str
     competencies: list[str] = []
     skills: list[str] = []
 
@@ -352,7 +366,30 @@ async def get_recommendations(
         raise HTTPException(status_code=404, detail="Профиль не найден")
     student = profiles[profile]
     try:
-        match engine.generate_recommendations(student):
+        from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
+        prof_taxonomy = ProfessionTaxonomy()
+        cfg = prof_taxonomy.get_profile_target(profile) or {}
+        domains = cfg.get("target_domains", [])
+        precomputed = None
+        if domains:
+            if not student.target_profession:
+                try:
+                    student.target_profession = cfg.get("target_profession", "")
+                except Exception:
+                    pass
+            match deps.get_evaluator().evaluate_profile(
+                student, target_domains=domains, taxonomy=prof_taxonomy,
+            ):
+                case Ok(ev):
+                    precomputed = ev
+                case Err(err):
+                    logger.warning("profile_recommendations_eval_failed",
+                                   profile=profile, error=str(err))
+        match engine.generate_recommendations(
+            student,
+            precomputed_eval=precomputed,
+            taxonomy=prof_taxonomy if domains else None,
+        ):
             case Ok(full_rec):
                 return _json_safe(full_rec.model_dump())
             case Err(err):
