@@ -54,6 +54,7 @@ class ClosestRole(BaseModel):
     target_overlap: float = 0.0
     target_profession: str = ""
     dominant_category: str = ""
+    cluster_level: str = ""
 
 
 class RecommendationResult(BaseModel):

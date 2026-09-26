@@ -65,6 +65,7 @@ interface RecommendationData {
     semantic_similarity: number;
     similarity_explanation: string;
     skills_covered: string;
+    cluster_level?: string;
     coverage_percent: number;
     coverage_explanation: string;
   }>;
@@ -365,6 +366,11 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <h4 className="font-bold text-slate-900 dark:text-white flex-1">{stripRoleTag(role.role)}</h4>
                   <div className="flex gap-2 flex-shrink-0">
+                    {role.cluster_level && (
+                      <Badge className="bg-violet-100 text-violet-800 dark:bg-violet-950/20 dark:text-violet-300 border border-violet-300 dark:border-violet-700">
+                        {role.cluster_level}
+                      </Badge>
+                    )}
                     <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
                       {role.semantic_similarity.toFixed(1)}% сходство
                     </Badge>

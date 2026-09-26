@@ -1304,3 +1304,27 @@ class TestLevelClusterRouting:
                           return_value=Ok(np.ones(dim))):
             ctx = e._get_cluster_context(st, "middle").unwrap()
         assert ctx["cluster_level"] == "middle"
+
+    def test_context_polls_all_levels(self):
+        """Cross-level: кандидаты с тегами уровней из нескольких моделей."""
+        from datetime import datetime
+        from unittest.mock import patch
+        import numpy as np
+        from src import Ok
+        from src.models.student import StudentProfile
+        sw = {"middle": {"python": 0.9}}
+        vs = [["python", "sql"]]
+        st = StudentProfile(profile_name="t", competencies=[],
+                            skills=["python", "sql"],
+                            target_level="middle", created_at=datetime.now())
+        e = ProfileEvaluator(
+            skill_weights={"python": 0.9}, vacancies_skills=vs,
+            vacancies_skills_dict=[{"skills": s} for s in vs],
+            skill_weights_by_level=sw, use_clustering=True)
+        dim = len(e.get_clusterer("middle").cluster_centers[0])
+        with patch.object(e, "_get_or_compute_student_embedding",
+                          return_value=Ok(np.ones(dim))):
+            ctx = e._get_cluster_context(st, "middle").unwrap()
+        lvls = {c.get("level") for c in ctx["closest_clusters"]}
+        assert len(lvls) >= 2  # пул из нескольких моделей, не одной
+        assert set(ctx["levels_polled"]) >= {"junior", "middle", "senior"}

@@ -763,6 +763,26 @@ class TestRoleRankingL2:
             case _:
                 raise AssertionError("expected Ok")
 
+    def test_candidate_level_routes_clusterer(self, mock_profile_evaluator):
+        """Cross-level: ID кластера читается в модели СВОЕГО уровня + тег в роли."""
+        from unittest.mock import MagicMock
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        senior_cl, middle_cl = MagicMock(), MagicMock()
+        senior_cl.get_top_skills_in_cluster.return_value = ["kotlin"] * 50
+        middle_cl.get_top_skills_in_cluster.return_value = ["python"] * 50
+        mock_profile_evaluator.get_clusterer.side_effect = (
+            lambda lvl: {"senior": senior_cl, "middle": middle_cl}.get(lvl))
+        clusters = [
+            {"id": 7, "name": "S", "similarity": 0.9, "level": "senior"},
+            {"id": 3, "name": "M", "similarity": 0.7, "level": "middle"},
+        ]
+        roles = engine._build_closest_roles(clusters, {}, set(), "senior")
+        by_name = {r["role"]: r for r in roles}
+        assert by_name["S"]["cluster_level"] == "senior"
+        assert by_name["M"]["cluster_level"] == "middle"
+        senior_cl.get_top_skills_in_cluster.assert_called_with(7, top_n=50)
+        middle_cl.get_top_skills_in_cluster.assert_called_with(3, top_n=50)
+
 
 class TestMetricsHonestyGates:
     def test_no_hard_skill_in_blacklist(self):

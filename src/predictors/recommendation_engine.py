@@ -327,7 +327,8 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 role_similarity = top_cluster.get("similarity", 0)
                 cid = top_cluster.get("id")
                 if cid is not None:
-                    level_clusterer = self.profile_evaluator.get_clusterer(cluster_level) \
+                    top_level = top_cluster.get("level", cluster_level) or cluster_level
+                    level_clusterer = self.profile_evaluator.get_clusterer(top_level) \
                         if hasattr(self.profile_evaluator, "get_clusterer") \
                         else self.profile_evaluator.clusterer
                     if level_clusterer:
@@ -534,10 +535,12 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             name = c.get("name", f"Кластер {c['id']}")
             sim = c.get("similarity", 0)
             cluster_id = c["id"]
+            # Cross-level: ID валиден только в модели своего уровня.
+            cand_level = c.get("level", cluster_level) or cluster_level
 
             ranked: list[str] = []
             cluster_all_skills: set[str] = set()
-            level_clusterer = self.profile_evaluator.get_clusterer(cluster_level) \
+            level_clusterer = self.profile_evaluator.get_clusterer(cand_level) \
                 if hasattr(self.profile_evaluator, "get_clusterer") \
                 else self.profile_evaluator.clusterer
             if level_clusterer:
@@ -582,6 +585,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                     "target_overlap": round(overlap, 4),
                     "target_profession": target_profession,
                     "dominant_category": dom_cat,
+                    "cluster_level": cand_level,
                     "similarity_explanation": expl,
                     "skills_covered": f"{covered}/{total}",
                     "coverage_percent": round(covered / total * 100, 1) if total > 0 else 0,

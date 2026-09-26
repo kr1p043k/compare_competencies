@@ -25,6 +25,11 @@ from src.utils import atomic_read_json, atomic_write_json
 
 logger = structlog.get_logger(__name__)
 
+# Cross-level пул ролей: топ-N с каждой уровневой модели; кластеры меньше
+# MIN_SIZE вакансий не кандидаты (топ-15 навыков по <30 объявлениям неустойчив).
+CROSS_LEVEL_TOP_K = 2
+CROSS_LEVEL_MIN_SIZE = 30
+
 
 class ProfileEvaluator:
     def __init__(
@@ -373,7 +378,6 @@ class ProfileEvaluator:
         clusterer = self.get_clusterer(target_level)
         if clusterer is None:
             return Err(DomainError(message=f"Clusterer not trained for level {target_level}"))
-            return Err(DomainError(message=f"Clusterer not trained for level {target_level}"))
 
         match self._get_or_compute_student_embedding(student):
             case Ok(student_emb):
@@ -393,6 +397,44 @@ class ProfileEvaluator:
                 )
                 cluster_context["cluster_level"] = (
                     target_level.value if isinstance(target_level, ExperienceLevel) else str(target_level))
+                # Cross-level: опрашиваем ВСЕ уровневые модели (топ-2 с каждой),
+                # кандидаты с тегом уровня, микрокластеры (<MIN) отсекаются.
+                # "all" исключена сознательно (агрегат = двойной учёт).
+                req_lv = cluster_context["cluster_level"]
+                merged: list[dict] = []
+                merged_skills: dict[str, float] = {}
+                levels_polled: list[str] = []
+                for lvl in ExperienceLevel:
+                    if not self.cluster_models_loaded.get(lvl):
+                        continue
+                    lvl_cl = self.get_clusterer(lvl)
+                    if lvl_cl is None:
+                        continue
+                    match lvl_cl.get_cluster_context(
+                        profile_embedding=student_emb, level=lvl.value,
+                        top_k_clusters=CROSS_LEVEL_TOP_K,
+                        top_k_skills_per_cluster=25,
+                    ):
+                        case Ok(lvl_ctx):
+                            levels_polled.append(lvl.value)
+                            sizes = lvl_cl.get_cluster_sizes()
+                            for cc in lvl_ctx.get("closest_clusters", []):
+                                if sizes.get(int(cc["id"]), 0) < CROSS_LEVEL_MIN_SIZE:
+                                    continue
+                                entry = dict(cc)
+                                entry["level"] = lvl.value
+                                merged.append(entry)
+                            for sk, sc in (lvl_ctx.get("skills", {}) or {}).items():
+                                if sc > merged_skills.get(sk, 0.0):
+                                    merged_skills[sk] = sc
+                        case _:
+                            continue
+                if merged:
+                    merged.sort(key=lambda c: c.get("similarity", 0), reverse=True)
+                    cluster_context["closest_clusters"] = merged
+                    cluster_context["skills"] = merged_skills
+                    cluster_context["total_skills_in_context"] = len(merged_skills)
+                    cluster_context["levels_polled"] = levels_polled
                 return Ok(cluster_context)
             case Err(err):
                 return Err(DomainError(message="Cluster context failed", detail=str(err)))

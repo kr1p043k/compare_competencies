@@ -475,6 +475,13 @@ class VacancyClusterer:
 
         return name
 
+    def get_cluster_sizes(self) -> dict[int, int]:
+        """Размер каждого кластера в вакансиях (для фильтра микрокластеров)."""
+        if self.labels_ is None:
+            return {}
+        from collections import Counter
+        return dict(Counter(int(label) for label in self.labels_))
+
     def get_top_skills_in_cluster(self, cluster_id: int, top_n: int = 30) -> list[str]:
         """Возвращает топ-N навыков кластера по частоте."""
         if not self.is_fitted or self.labels_ is None:
