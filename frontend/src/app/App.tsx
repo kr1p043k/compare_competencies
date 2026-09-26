@@ -254,6 +254,31 @@ export default function App() {
   const roleRef = useRef(role);
   useEffect(() => { roleRef.current = role; }, [role]);
 
+  // Предпросмотр чужой роли (только admin, только UI: API-права не меняются).
+  const [rolePreview, setRolePreview] = useState<string | null>(() => {
+    try {
+      const v = localStorage.getItem("rolePreview");
+      return v === "admin" || v === "teacher" || v === "rop" || v === "student" ? v : null;
+    } catch { return null; }
+  });
+  const canPreview = role === "admin";
+  const effectiveRole = canPreview && rolePreview ? rolePreview : role;
+  const previewActive = canPreview && !!rolePreview && rolePreview !== role;
+  const setPreview = (v: string | null) => {
+    setRolePreview(v);
+    try {
+      if (v) localStorage.setItem("rolePreview", v);
+      else localStorage.removeItem("rolePreview");
+    } catch {}
+    setActiveTab("vacancies");
+  };
+  useEffect(() => {
+    if (role !== "admin") {
+      setRolePreview(null);
+      try { localStorage.removeItem("rolePreview"); } catch {}
+    }
+  }, [role]);
+
   // Дата подгрузки переживает перезагрузку (localStorage), а сами результаты – нет.
   // Если штамп есть, а результата в памяти нет – подтягиваем автоматически.
   const autoLoadedRef = useRef<Record<string, boolean>>({});
@@ -701,6 +726,22 @@ export default function App() {
                 <span>{name || roleLabel}</span>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 dark:text-slate-200">{roleLabel}</span>
               </div>
+              {canPreview && (
+                <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
+                  Просмотр как
+                  <select
+                    value={rolePreview ?? ""}
+                    onChange={(e) => setPreview(e.target.value || null)}
+                    className="h-8 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-1.5 text-xs text-gray-700 dark:text-slate-200"
+                  >
+                    <option value="">своя роль</option>
+                    <option value="admin">admin</option>
+                    <option value="teacher">teacher</option>
+                    <option value="rop">rop</option>
+                    <option value="student">student</option>
+                  </select>
+                </label>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -710,13 +751,25 @@ export default function App() {
               >
                 {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => { fetch("/api/auth/logout", { method: "POST", headers: authHeaders() }).catch(() => {}); logout(); }} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
+              <Button variant="ghost" size="sm" onClick={() => { fetch("/api/auth/logout", { method: "POST", headers: authHeaders() }).catch(() => {}); try { localStorage.removeItem("rolePreview"); } catch {} setRolePreview(null); logout(); }} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
                 <LogOut className="size-4" />
               </Button>
             </div>
           </div>
         </div>
       </header>
+      {previewActive && (
+        <div className="bg-amber-100 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-800">
+          <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-3">
+            <p className="text-xs text-amber-800 dark:text-amber-200">
+              Предпросмотр интерфейса роли «{rolePreview}». API-права не меняются — данные чужих ролей могут быть недоступны.
+            </p>
+            <Button variant="ghost" size="sm" onClick={() => setPreview(null)} className="h-7 text-xs text-amber-800 dark:text-amber-200">
+              Сбросить
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -754,7 +807,7 @@ export default function App() {
               items={[
                 { value: "vacancies", label: "Вакансии", Icon: Briefcase },
                 { value: "data", label: "Результаты", Icon: Database },
-                ...(role !== "teacher"
+                ...(effectiveRole !== "teacher"
                   ? [{ value: "visualization", label: "Визуализация", Icon: BarChart3 }]
                   : []),
               ]}
@@ -767,7 +820,7 @@ export default function App() {
                 { value: "predictions", label: "Прогнозы", Icon: TrendingUp },
                 { value: "articles", label: "Аналитика рынка", Icon: LineChart },
                 { value: "scientific-trends", label: "Научные тренды", Icon: FolderOpen },
-                ...(role === "teacher" || role === "rop" || role === "admin"
+                ...(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin"
                   ? [{ value: "teacher", label: "Преподавательский анализ", Icon: BarChart3 }]
                   : []),
               ]}
@@ -777,17 +830,17 @@ export default function App() {
               activeTab={activeTab}
               onSelect={setActiveTab}
               items={[
-                ...(role === "admin"
+                ...(effectiveRole === "admin"
                   ? [
                       { value: "monitoring", label: "Мониторинг", Icon: Activity },
                       { value: "logs", label: "Логи", Icon: FileText },
                       { value: "admin", label: "Админ", Icon: Shield },
                     ]
                   : []),
-                ...(role === "student" || role === "admin"
+                ...(effectiveRole === "student" || effectiveRole === "admin"
                   ? [{ value: "student", label: "Мои запросы", Icon: History }]
                   : []),
-                ...((role === "teacher" || role === "rop" || role === "admin")
+                ...((effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin")
                   ? [{ value: "taxonomy", label: "Таксономия", Icon: BookOpen }]
                   : []),
                 { value: "help", label: "Помощь", Icon: HelpCircle },
@@ -808,10 +861,10 @@ export default function App() {
               pipelineStep={pipelineStep}
               pipelineLoading={pipelineLoading}
               restartFlag={restartFlag}
-              onStartPipeline={role === "student" ? undefined : (regionIds, profession, maxPages, periodDays) => startPipeline(regionIds, profession, maxPages, periodDays)}
+              onStartPipeline={effectiveRole === "student" ? undefined : (regionIds, profession, maxPages, periodDays) => startPipeline(regionIds, profession, maxPages, periodDays)}
               pipelineMaxPages={pipelineMaxPages}
               pipelinePeriod={pipelinePeriod}
-              canRunPipeline={role !== "student"}
+              canRunPipeline={effectiveRole !== "student"}
             />
           </TabsContent>
 
@@ -1051,7 +1104,7 @@ export default function App() {
           </TabsContent>
 
           {/* Visualization Tab */}
-          {role !== "teacher" && (
+          {effectiveRole !== "teacher" && (
             <TabsContent value="visualization">
               <GapAnalysisVisualizer profile={profile} onProfileChange={handleProfileChange} />
             </TabsContent>
@@ -1069,32 +1122,32 @@ export default function App() {
           <TabsContent value="help">
             <FaqPage />
           </TabsContent>
-          {(role === "teacher" || role === "rop" || role === "admin") && (
+          {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="taxonomy">
-              <TaxonomyBrowser showSuggest={role !== "student"} />
+              <TaxonomyBrowser showSuggest={effectiveRole !== "student"} />
             </TabsContent>
           )}
-          {role === "admin" && (
+          {effectiveRole === "admin" && (
             <TabsContent value="monitoring">
               <MonitoringTab />
             </TabsContent>
           )}
-          {role === "admin" && (
+          {effectiveRole === "admin" && (
             <TabsContent value="logs">
               <LogsTab />
             </TabsContent>
           )}
-          {role === "admin" && (
+          {effectiveRole === "admin" && (
             <TabsContent value="admin">
               <AdminDashboard />
             </TabsContent>
           )}
-          {(role === "teacher" || role === "rop" || role === "admin") && (
+          {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="teacher">
               <TeacherDashboard />
             </TabsContent>
           )}
-          {(role === "student" || role === "admin") && (
+          {(effectiveRole === "student" || effectiveRole === "admin") && (
             <TabsContent value="student">
               <StudentDashboard />
             </TabsContent>
