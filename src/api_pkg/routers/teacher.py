@@ -4,6 +4,7 @@ import asyncio
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ from slowapi.util import get_remote_address
 from src import config
 from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role
+from src.api_pkg.routers.profiles import _load_self_profile, _self_profile_name
 from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
@@ -882,6 +884,98 @@ async def get_analysis_meta(dir_code: str = "09.03.02"):
     stale, reason = report_staleness(meta, current_hash, CODE_VERSION)
     return {"meta": meta, "stale": stale, "stale_reason": reason,
             "current_vac_hash": current_hash}
+
+# ---------- Students skills view (teacher/rop/admin) ----------
+# NOTE: placed here, not in admin.py — the admin router guard is
+# admin+teacher only, while these endpoints must also serve rop.
+# Existing /admin/students and /admin/users guards are untouched.
+
+
+@router.get("/admin/students/skills", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("30/minute")
+async def admin_student_skills(request: Request, email: str = ""):
+    """Навыки + компетенции студента из его self-профиля.
+
+    Self file resolved via profiles helpers (no duplication).
+    404 when the user has no self file; never 500 for a missing file.
+    """
+    target = (email or "").strip().lower()
+    if not target:
+        raise HTTPException(status_code=400, detail="email is required")
+    name, fpath = _self_profile_name(target)
+    probe = Path(fpath)
+    if not probe.exists():
+        raise HTTPException(status_code=404, detail=f"No self profile for '{target}'")
+    data = _load_self_profile(name, fpath)
+    try:
+        updated = datetime.fromtimestamp(probe.stat().st_mtime).isoformat()
+    except Exception:
+        updated = None
+    try:
+        row = await get_pool().fetchrow(
+            "SELECT full_name FROM users WHERE email = $1", target)
+        full_name = (row["full_name"] if row else "") or ""
+    except Exception as exc:
+        logger.warning("admin_student_skills_db_failed", error=str(exc))
+        raise HTTPException(status_code=503, detail="User directory unavailable")
+    return {
+        "email": target,
+        "full_name": full_name,
+        "target_level": data.get("target_level", "middle"),
+        "skills": data.get("skills", []),
+        "user_added": data.get("user_added", []),
+        "competencies": data.get("competencies", []),
+        "updated_at": updated,
+    }
+
+
+@router.get("/teacher/students", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("30/minute")
+async def teacher_students(request: Request):
+    """Students (role=student) with self-profile stats for the Students tab."""
+    try:
+        rows = await get_pool().fetch(
+            "SELECT email, full_name FROM users "
+            "WHERE role = 'student' AND is_active = true ORDER BY email")
+    except Exception as exc:
+        logger.warning("teacher_students_db_failed", error=str(exc))
+        raise HTTPException(status_code=503, detail="User directory unavailable")
+    items: list[dict] = []
+    for r in rows:
+        email = str(r["email"] or "")
+        try:
+            name, fpath = _self_profile_name(email)
+            probe = Path(fpath)
+            if probe.exists():
+                data = _load_self_profile(name, fpath)
+                items.append({
+                    "email": email,
+                    "full_name": (r["full_name"] or ""),
+                    "target_level": data.get("target_level", "middle"),
+                    "skills_count": len(data.get("skills", [])),
+                    "competencies_count": len(data.get("competencies", [])),
+                    "has_profile": True,
+                })
+            else:
+                items.append({
+                    "email": email,
+                    "full_name": (r["full_name"] or ""),
+                    "target_level": None,
+                    "skills_count": 0,
+                    "competencies_count": 0,
+                    "has_profile": False,
+                })
+        except Exception:
+            items.append({
+                "email": email,
+                "full_name": (r["full_name"] or ""),
+                "target_level": None,
+                "skills_count": 0,
+                "competencies_count": 0,
+                "has_profile": False,
+            })
+    return {"students": items, "total": len(items)}
+
 
 @router.get("/teacher/analysis/{discipline_name:path}")
 async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02"):

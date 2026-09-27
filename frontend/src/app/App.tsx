@@ -40,6 +40,7 @@ import { MonitoringTab } from "./components/MonitoringTab";
 import { LogsTab } from "./components/LogsTab";
 import { LoginPage } from "./components/LoginPage";
 import { AdminDashboard } from "./components/AdminDashboard";
+import { StudentsTab } from "./components/StudentsTab";
 import { TeacherDashboard } from "./components/TeacherDashboard";
 import { StudentDashboard } from "./components/StudentDashboard";
 import { AdminProfilePage, TeacherProfilePage, StudentProfilePage } from "./components/ProfilePages";
@@ -302,7 +303,7 @@ export default function App() {
     // Роль сменилась (или включён предпросмотр): уводим с вкладки,
     // недоступной текущей роли, на безопасную «vacancies».
     const adminOnly = ["visualization", "monitoring", "logs", "admin"];
-    const teacherOnly = ["taxonomy", "teacher"];
+    const teacherOnly = ["taxonomy", "teacher", "students"];
     const studentOnly = ["student"];
     setActiveTab((cur) => {
       if (adminOnly.includes(cur) && effectiveRole !== "admin") return "vacancies";
@@ -872,6 +873,9 @@ export default function App() {
                 ...(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin"
                   ? [{ value: "teacher", label: "Преподавательский анализ", Icon: BarChart3 }]
                   : []),
+                ...(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin"
+                  ? [{ value: "students", label: "Студенты", Icon: GraduationCap }]
+                  : []),
               ]}
             />
             <NavGroup
@@ -1208,6 +1212,11 @@ export default function App() {
           {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="teacher">
               <TeacherDashboard />
+            </TabsContent>
+          )}
+          {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
+            <TabsContent value="students">
+              <StudentsTab />
             </TabsContent>
           )}
           {(effectiveRole === "student" || effectiveRole === "admin") && (
