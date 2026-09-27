@@ -15,11 +15,11 @@ import {
   X,
   CheckCircle2,
   ChevronDown,
-  GraduationCap,
+  GraduationCap,  Cpu,  Layers,  Search,
   Database,
   AlertCircle,
 } from "lucide-react";
-import { apiFetch, useAuth } from "../../lib/auth";
+import { apiFetch, useAuth } from "../../lib/auth"; import { Label } from "./ui/label"; import { Textarea } from "./ui/textarea"; import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 type AccountProps = { displayName?: string; email?: string };
 
@@ -268,7 +268,42 @@ interface SelfData {
   skills: string[];
   user_added: string[];
   competencies?: string[];
+  technologies?: string[];
 }
+
+interface CustomOptionCompetency {
+  code: string;
+  title?: string;
+  skills_count?: number;
+}
+
+interface CustomOptions {
+  competencies: CustomOptionCompetency[];
+  technologies_suggest: string[];
+}
+
+interface NewCompetencyDraft {
+  code: string;
+  title: string;
+  knowledge: string;
+  abilities: string;
+  skills: string;
+}
+
+interface CreatedCustomProfile {
+  name: string;
+  target_level: string;
+  competencies: number;
+  created_new: number;
+  technologies: number;
+}
+
+  const CUSTOM_NAME_RE = /^[a-z0-9_-]{2,40}$/;
+
+const NO_BASE = "__none__";
+
+const splitLines = (s: string): string[] =>
+  s.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
 
 interface KrmSkill {
   text: string;
@@ -320,6 +355,229 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
   const [newSkill, setNewSkill] = useState("");
   const [saving, setSaving] = useState(false);
   const [opError, setOpError] = useState<string | null>(null);
+
+  // --- My technologies: chips + suggest + optimistic PATCH add_technologies/remove_technologies ---
+  const [techInput, setTechInput] = useState("");
+  const [techSaving, setTechSaving] = useState(false);
+  const [techError, setTechError] = useState<string | null>(null);
+  // --- My profiles: GET custom/options + POST custom (404-safe, inline errors) ---
+  const [customOptions, setCustomOptions] = useState<CustomOptions | null>(null);
+  const [optionsLoading, setOptionsLoading] = useState(true);
+  const [optionsError, setOptionsError] = useState<string | null>(null);
+  const [baseProfiles, setBaseProfiles] = useState<string[]>(["base"]);
+  const [cpName, setCpName] = useState("");
+  const [cpLevel, setCpLevel] = useState("middle");
+  const [cpBase, setCpBase] = useState(NO_BASE);
+  const [compSearch, setCompSearch] = useState("");
+  const [compCodes, setCompCodes] = useState<string[]>([]);
+  const [draftCode, setDraftCode] = useState("");
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftKnowledge, setDraftKnowledge] = useState("");
+  const [draftAbilities, setDraftAbilities] = useState("");
+  const [draftSkills, setDraftSkills] = useState("");
+  const [newComps, setNewComps] = useState<NewCompetencyDraft[]>([]);
+  const [cpTech, setCpTech] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [triedCreate, setTriedCreate] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createdProfiles, setCreatedProfiles] = useState<CreatedCustomProfile[]>([]);
+
+  const techList = useMemo(() => self?.technologies ?? [], [self]);
+
+  const techSuggestions = useMemo(() => {
+    const pool = customOptions?.technologies_suggest ?? [];
+    return pool.filter((t) => !techList.some((x) => norm(x) === norm(t))).slice(0, 10);
+  }, [customOptions, techList]);
+
+  const filteredCustomComps = useMemo(() => {
+    const all = customOptions?.competencies ?? [];
+    const q = norm(compSearch);
+    if (!q) return all.slice(0, 200);
+    return all.filter((c) => norm(c.code).includes(q) || norm(c.title ?? "").includes(q)).slice(0, 200);
+  }, [customOptions, compSearch]);
+
+  const cpNameNorm = cpName.trim().toLowerCase();
+  const cpNameValid = CUSTOM_NAME_RE.test(cpNameNorm);
+  const cpTechList = useMemo(
+    () => cpTech.split(",").map((t) => t.trim()).filter((t) => t.length > 0),
+    [cpTech]
+  );
+  const totalComps = compCodes.length + newComps.length;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await apiFetch("/api/profiles/custom/options");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const d = await r.json();
+        if (cancelled) return;
+        setCustomOptions({
+          competencies: Array.isArray(d.competencies) ? d.competencies : [],
+          technologies_suggest: Array.isArray(d.technologies_suggest) ? d.technologies_suggest : [],
+        });
+      } catch (e: any) {
+        if (!cancelled) setOptionsError("Не удалось загрузить опции своих профилей (" + (e?.message || "Не удалось загрузить опции своих профилейB") + ")");
+      } finally {
+        if (!cancelled) setOptionsLoading(false);
+      }
+      try {
+        const r = await apiFetch("/api/profiles");
+        if (r.ok) {
+          const d = await r.json();
+          if (!cancelled && Array.isArray(d?.profiles) && d.profiles.length > 0) setBaseProfiles(d.profiles);
+        }
+      } catch {
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const patchTechnologies = async (body: { add_technologies?: string[]; remove_technologies?: string[] }): Promise<string[] | null> => {
+    const r = await apiFetch("/api/profiles/self", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error((d as any).detail || "Не удалось сохранить технологии");
+    }
+    const updated = await r.json();
+    return Array.isArray((updated as any).technologies) ? (updated as any).technologies : null;
+  };
+
+  const handleAddTech = async (rawTech?: string) => {
+    const text = (rawTech ?? techInput).trim();
+    if (!text || techSaving || !self) return;
+    if (techList.some((t) => norm(t) === norm(text))) {
+      if (!rawTech) setTechInput("");
+      return;
+    }
+    const backup = techList;
+    setTechSaving(true);
+    setTechError(null);
+    setSelf({ ...self, technologies: [...backup, text] });
+    if (!rawTech) setTechInput("");
+    try {
+      const server = await patchTechnologies({ add_technologies: [text] });
+      if (server !== null) setSelf((prev) => (prev ? { ...prev, technologies: server } : prev));
+    } catch (e: any) {
+      setSelf((prev) => (prev ? { ...prev, technologies: backup } : prev));
+      if (!rawTech) setTechInput(text);
+      setTechError(e?.message || "Не удалось добавить технологию");
+    } finally {
+      setTechSaving(false);
+    }
+  };
+
+  const handleRemoveTech = async (text: string) => {
+    if (techSaving || !self) return;
+    const backup = techList;
+    setTechSaving(true);
+    setTechError(null);
+    setSelf({ ...self, technologies: backup.filter((t) => norm(t) !== norm(text)) });
+    try {
+      const server = await patchTechnologies({ remove_technologies: [text] });
+      if (server !== null) setSelf((prev) => (prev ? { ...prev, technologies: server } : prev));
+    } catch (e: any) {
+      setSelf((prev) => (prev ? { ...prev, technologies: backup } : prev));
+      setTechError(e?.message || "Не удалось убрать технологию");
+    } finally {
+      setTechSaving(false);
+    }
+  };
+
+  const toggleCompCode = (code: string) => {
+    setCompCodes((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
+  };
+
+  const addDraft = () => {
+    const code = draftCode.trim();
+    if (!code) {
+      setCreateError("Укажите код новой компетенции");
+      return;
+    }
+    if (compCodes.includes(code) || newComps.some((d) => d.code === code)) {
+      setCreateError("Компетенция" + code + " уже добавлена");
+      return;
+    }
+    setCreateError(null);
+    setNewComps((prev) => [...prev, { code: code, title: draftTitle.trim(), knowledge: draftKnowledge, abilities: draftAbilities, skills: draftSkills }]);
+    setDraftCode("");
+    setDraftTitle("");
+    setDraftKnowledge("");
+    setDraftAbilities("");
+    setDraftSkills("");
+  };
+
+  const removeDraft = (code: string) => {
+    setNewComps((prev) => prev.filter((d) => d.code !== code));
+  };
+
+  const handleCreateProfile = async () => {
+    setTriedCreate(true);
+    if (!cpNameValid) {
+      setCreateError("Название: латиница, цифры и подчёркивание, 2-32 символа");
+      return;
+    }
+    if (totalComps < 1) {
+      setCreateError("Выберите хотя бы одну компетенцию или добавьте новую");
+      return;
+    }
+    setCreating(true);
+    setCreateError(null);
+    const payload = {
+      name: cpNameNorm,
+      target_level: cpLevel,
+      ...(cpBase !== NO_BASE ? { base: cpBase } : {}),
+      competency_codes: compCodes,
+      new_competencies: newComps.map((d) => ({
+        code: d.code,
+        ...(d.title ? { title: d.title } : {}),
+        knowledge: splitLines(d.knowledge),
+        abilities: splitLines(d.abilities),
+        skills: splitLines(d.skills),
+      })),
+      technologies: cpTechList,
+    };
+    try {
+      const r = await apiFetch("/api/profiles/custom", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error((d as any).detail || "Не удалось создать профиль (HTTP " + r.status + ")");
+      }
+      const d = await r.json();
+      setCreatedProfiles((prev) => [
+        ...prev,
+        {
+          name: (d as any).profile ?? (d as any).name ?? cpNameNorm,
+          target_level: (d as any).target_level ?? cpLevel,
+          competencies: (d as any).competencies_count ?? compCodes.length,
+          created_new: (d as any).new_competencies_count ?? newComps.length,
+          technologies: (d as any).technologies_count ?? cpTechList.length,
+        },
+      ]);
+      setCpName("");
+      setCpLevel("middle");
+      setCpBase(NO_BASE);
+      setCompSearch("");
+      setCompCodes([]);
+      setNewComps([]);
+      setCpTech("");
+      setTriedCreate(false);
+    } catch (e: any) {
+      setCreateError(e?.message || "Не удалось загрузить опции своих профилей0");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const loadKrm = async (profileName: string, dir: string) => {
     setKrmLoading(true);
@@ -624,6 +882,345 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       </Card>
 
       {/* Мои компетенции — drill-down */}
+
+      <Card id="my-technologies" className="bg-white dark:bg-slate-950">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg text-slate-900 dark:text-slate-100">
+            <Cpu className="size-5 text-emerald-600 dark:text-emerald-400" />
+            Мои технологии{self && !selfLoading ? " (" + techList.length + ")" : ""}
+          </CardTitle>
+          <CardDescription className="text-slate-600 dark:text-slate-400">
+            Стек, с которым вы работаете: добавляйте новое и убирайте устаревшее
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {selfLoading && (
+            <div className="flex flex-wrap gap-1.5 animate-pulse" aria-label="Загрузка технологий">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-6 w-20 rounded-md bg-slate-200 dark:bg-slate-700" />
+              ))}
+            </div>
+          )}
+          {self && !selfLoading && (
+            <>
+              {techList.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 px-3 py-4 text-center text-sm text-slate-600 dark:text-slate-400">
+                  Пока пусто — добавьте первую технологию ниже. Подсказки берутся из списка technologies_suggest.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {techList.map((t) => (
+                    <Badge key={t} variant="secondary" className="text-xs gap-1">
+                      {t}
+                      <button
+                        onClick={() => void handleRemoveTech(t)}
+                        disabled={techSaving}
+                        className="ml-1 cursor-pointer rounded p-0.5 transition-colors duration-200 hover:text-red-500 focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:outline-none"
+                        aria-label={"Убрать " + t}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={techInput}
+                  onChange={(e) => setTechInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && techInput.trim()) void handleAddTech();
+                  }}
+                  placeholder="Например: Docker. Enter — добавить"
+                  aria-label="Новая технология"
+                  list="my-tech-suggest"
+                  className="h-10 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                />
+                <datalist id="my-tech-suggest">
+                  {(customOptions?.technologies_suggest ?? []).map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
+                <Button
+                  onClick={() => void handleAddTech()}
+                  disabled={techSaving || !techInput.trim()}
+                  className="h-10 shrink-0 cursor-pointer bg-emerald-700 text-white hover:bg-emerald-800 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                  aria-label="Добавить технологию"
+                >
+                  {techSaving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                </Button>
+              </div>
+              {techSuggestions.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {techSuggestions.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => void handleAddTech(s)}
+                      disabled={techSaving}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 transition-colors duration-200 hover:border-emerald-300 hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-emerald-700 dark:hover:text-emerald-300"
+                      aria-label={"Добавить " + s}
+                    >
+                      <Plus className="size-3" />
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {techError && <p className="text-sm text-red-600 dark:text-red-400">{techError}</p>}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card id="my-profiles" className="bg-white dark:bg-slate-950">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg text-slate-900 dark:text-slate-100">
+            <Layers className="size-5 text-indigo-600 dark:text-indigo-400" />
+            Мои профили{createdProfiles.length > 0 ? " (" + createdProfiles.length + ")" : ""}
+          </CardTitle>
+          <CardDescription className="text-slate-600 dark:text-slate-400">
+            Свои профили компетенций: соберите из готовых или опишите новые
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {optionsLoading && (
+            <div className="space-y-2 animate-pulse" aria-label="Загрузка опций профилей">
+              <div className="h-4 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="h-9 rounded bg-slate-200 dark:bg-slate-700" />
+            </div>
+          )}
+          {optionsError && (
+            <p className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+              <AlertCircle className="size-4 shrink-0" />
+              {optionsError}
+            </p>
+          )}
+          {createdProfiles.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                Создано в этой сессии ({createdProfiles.length})
+              </div>
+              {createdProfiles.map((cp) => (
+                <div
+                  key={cp.name}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 transition-colors duration-200 dark:border-emerald-800 dark:bg-emerald-950/40"
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium text-emerald-900 dark:text-emerald-200">
+                    <CheckCircle2 className="size-4 shrink-0" />
+                    {cp.name}
+                  </span>
+                  <span className="flex flex-wrap gap-1.5">
+                    <Badge variant="secondary" className="text-[11px]">{cp.target_level}</Badge>
+                    <Badge variant="secondary" className="text-[11px]">компетенций: {cp.competencies}</Badge>
+                    {cp.created_new > 0 && (
+                      <Badge variant="secondary" className="text-[11px]">новых: {cp.created_new}</Badge>
+                    )}
+                    {cp.technologies > 0 && (
+                      <Badge variant="secondary" className="text-[11px]">технологий: {cp.technologies}</Badge>
+                    )}
+                  </span>
+                </div>
+              ))}
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Сервер отдаёт только общий список профилей, поэтому здесь показаны профили, созданные в этой сессии.
+              </p>
+            </div>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-name">Название профиля</Label>
+              <Input
+                id="cp-name"
+                value={cpName}
+                onChange={(e) => setCpName(e.target.value)}
+                placeholder="my_backend"
+                aria-label="Название профиля"
+                className="h-10 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+              />
+              <p className="text-xs text-slate-500 dark:text-slate-400">Латиница, цифры и подчёркивание, 2-32 символа</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Целевой уровень</Label>
+              <Select value={cpLevel} onValueChange={setCpLevel}>
+                <SelectTrigger className="h-10" aria-label="Целевой уровень">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="junior">Junior</SelectItem>
+                  <SelectItem value="middle">Middle</SelectItem>
+                  <SelectItem value="senior">Senior</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>База</Label>
+            <Select value={cpBase} onValueChange={setCpBase}>
+              <SelectTrigger className="h-10 w-full sm:w-64" aria-label="Базовый профиль">
+                <SelectValue placeholder="Без базы" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Без базы</SelectItem>
+                {baseProfiles.map((b) => (
+                  <SelectItem key={b} value={b}>
+                    {b}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+            <div className="flex items-center justify-between gap-2">
+              <Label>Компетенции</Label>
+              <Badge variant="secondary" className="text-[11px]">выбрано: {compCodes.length}</Badge>
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={compSearch}
+                onChange={(e) => setCompSearch(e.target.value)}
+                placeholder="Поиск по коду или названию"
+                aria-label="Поиск компетенций"
+                className="h-9 pl-8 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+              />
+            </div>
+            {filteredCustomComps.length === 0 ? (
+              <p className="rounded-md border border-dashed border-slate-300 dark:border-slate-700 px-3 py-3 text-center text-xs text-slate-500 dark:text-slate-400">
+                Нет компетенций для выбора. Проверьте поиск или добавьте новую ниже.
+              </p>
+            ) : (
+              <ul className="max-h-56 space-y-1 overflow-y-auto pr-1">
+                {filteredCustomComps.map((c) => {
+                  const checked = compCodes.includes(c.code);
+                  return (
+                    <li key={c.code}>
+                      <label className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 transition-colors duration-200 hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCompCode(c.code)}
+                          className="mt-1 size-4 shrink-0 cursor-pointer accent-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
+                          aria-label={c.code}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium text-slate-900 dark:text-slate-100">{c.code}</span>
+                          {c.title ? (
+                            <span className="block truncate text-xs text-slate-600 dark:text-slate-400">{c.title}</span>
+                          ) : null}
+                        </span>
+                        {typeof c.skills_count === "number" ? (
+                          <Badge variant="secondary" className="shrink-0 text-[11px]">
+                            {c.skills_count}
+                          </Badge>
+                        ) : null}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+          <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+            <Label>Новая компетенция</Label>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                value={draftCode}
+                onChange={(e) => setDraftCode(e.target.value)}
+                placeholder="Код, например ПК-5"
+                aria-label="Код компетенции"
+                className="h-10 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+              />
+              <Input
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+                placeholder="Название (необязательно)"
+                aria-label="Название компетенции"
+                className="h-10 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+              />
+            </div>
+            <div className="grid gap-2 md:grid-cols-3">
+              <Textarea
+                value={draftKnowledge}
+                onChange={(e) => setDraftKnowledge(e.target.value)}
+                placeholder="Знания — по одному на строку"
+                aria-label="Знания"
+                rows={3}
+                className="focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+              />
+              <Textarea
+                value={draftAbilities}
+                onChange={(e) => setDraftAbilities(e.target.value)}
+                placeholder="Умения — по одному на строку"
+                aria-label="Умения"
+                rows={3}
+                className="focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+              />
+              <Textarea
+                value={draftSkills}
+                onChange={(e) => setDraftSkills(e.target.value)}
+                placeholder="Навыки — по одному на строку"
+                aria-label="Навыки"
+                rows={3}
+                className="focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={addDraft}
+              className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+            >
+              <Plus className="mr-1.5 size-3.5" />
+              Добавить компетенцию
+            </Button>
+            {newComps.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {newComps.map((d) => (
+                  <Badge key={d.code} variant="default" className="text-xs gap-1">
+                    {d.code}
+                    <button
+                      onClick={() => removeDraft(d.code)}
+                      className="ml-1 cursor-pointer rounded p-0.5 transition-colors duration-200 hover:text-red-300 focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:outline-none"
+                      aria-label={"Убрать " + d.code}
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cp-tech">Технологии (через запятую)</Label>
+            <Input
+              id="cp-tech"
+              value={cpTech}
+              onChange={(e) => setCpTech(e.target.value)}
+              placeholder="Python, Docker, PostgreSQL"
+              aria-label="Технологии профиля"
+              className="h-10 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+            />
+          </div>
+          {!cpNameValid && cpName.length > 0 && (
+            <p className="text-sm text-red-600 dark:text-red-400">Название: латиница, цифры и подчёркивание, 2-32 символа</p>
+          )}
+          {triedCreate && totalComps < 1 && (
+            <p className="text-sm text-amber-700 dark:text-amber-300">Выберите хотя бы одну компетенцию или добавьте новую</p>
+          )}
+          {createError && <p className="text-sm text-red-600 dark:text-red-400">{createError}</p>}
+          <Button
+            onClick={() => void handleCreateProfile()}
+            disabled={creating}
+            className="h-10 cursor-pointer bg-indigo-700 text-white hover:bg-indigo-800 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+          >
+            {creating ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
+            Создать профиль
+          </Button>
+        </CardContent>
+      </Card>
       <Card className="bg-white dark:bg-slate-950">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg text-slate-900 dark:text-slate-100">

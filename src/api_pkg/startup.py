@@ -28,7 +28,7 @@ import src.api_pkg.deps as deps
 logger = structlog.get_logger("api")
 
 
-_CUSTOM_PROFILE_RE = re.compile(r"^[a-z0-9_]{2,32}$")
+_CUSTOM_PROFILE_RE = re.compile(r"^[a-z0-9_-]{2,40}$")
 
 
 def register_custom_student_profiles(students_dir, already, map_codes):
@@ -70,8 +70,15 @@ def register_custom_student_profiles(students_dir, already, map_codes):
                 level = ExperienceLevel.MIDDLE
             if not codes and not skills:
                 continue
-            already[name] = StudentProfile(
-                profile_name=name, competencies=codes, skills=skills, target_level=level)
+            techs = [str(t).strip() for t in (data.get("technologies") or [])
+                     if t and str(t).strip()][:200]
+            try:
+                already[name] = StudentProfile(
+                    profile_name=name, competencies=codes, skills=skills, target_level=level,
+                    technologies=techs)
+            except TypeError:
+                already[name] = StudentProfile(
+                    profile_name=name, competencies=codes, skills=skills, target_level=level)
             restored.append(name)
             logger.info("custom_profile_restored", profile=name)
     except Exception as exc:

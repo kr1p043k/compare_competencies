@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import {
+  ArrowRight,
   BookOpen,
   CheckCircle2,
   ChevronDown,
@@ -111,7 +112,7 @@ async function patchSelf(body: Record<string, unknown>): Promise<void> {
   }
 }
 
-export function StudentKrm() {
+export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const [dirs, setDirs] = useState<Array<{ dir_code: string; name: string }>>([]);
   const [profiles, setProfiles] = useState<string[]>(["base", "dc", "top_dc"]);
   const [dir, setDir] = useState("");
@@ -494,6 +495,22 @@ export function StudentKrm() {
           )}
         </AnimatePresence>
 
+        {onNavigate && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4 dark:border-slate-700">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Технологии и свои профили живут в профиле
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onNavigate("profile")}
+              className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+            >
+              Открыть мой профиль
+              <ArrowRight className="ml-1.5 size-3.5" />
+            </Button>
+          </div>
+        )}
         <div className="grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2 dark:border-slate-700">
           <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
             <div className="text-sm font-medium text-slate-800 dark:text-slate-200">

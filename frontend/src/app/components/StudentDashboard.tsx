@@ -7,7 +7,7 @@ import { apiFetch } from "../../lib/auth";
 import { SelfProfileEditor } from "./SelfProfileEditor";
 import { StudentKrm } from "./StudentKrm";
 
-export function StudentDashboard() {
+export function StudentDashboard({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +30,7 @@ export function StudentDashboard() {
 
   return (
     <div className="space-y-6">
-      <StudentKrm />
+      <StudentKrm onNavigate={onNavigate} />
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Мои запросы</h2>

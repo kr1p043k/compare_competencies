@@ -1221,7 +1221,7 @@ export default function App() {
           )}
           {(effectiveRole === "student" || effectiveRole === "admin") && (
             <TabsContent value="student">
-              <StudentDashboard />
+              <StudentDashboard onNavigate={setActiveTab} />
             </TabsContent>
           )}
           <TabsContent value="profile">
