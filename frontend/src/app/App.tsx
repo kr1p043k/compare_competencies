@@ -49,6 +49,7 @@ import { LoginPage } from "./components/LoginPage";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
 import { StudentDashboard } from "./components/StudentDashboard";
+import { AdminProfilePage, TeacherProfilePage, StudentProfilePage } from "./components/ProfilePages";
 import { FaqPage } from "./components/FaqPage";
 import { TaxonomyBrowser } from "./components/TaxonomyBrowser";
 import { authHeaders, useAuth, apiFetch } from "../lib/auth";
@@ -305,6 +306,20 @@ export default function App() {
       try { localStorage.removeItem("rolePreview"); } catch {}
     }
   }, [role]);
+  useEffect(() => {
+    // Роль сменилась (или включён предпросмотр): уводим с вкладки,
+    // недоступной текущей роли, на безопасную «vacancies».
+    const adminOnly = ["visualization", "monitoring", "logs", "admin"];
+    const teacherOnly = ["taxonomy", "teacher"];
+    const studentOnly = ["student"];
+    setActiveTab((cur) => {
+      if (adminOnly.includes(cur) && effectiveRole !== "admin") return "vacancies";
+      if (teacherOnly.includes(cur) && !(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin")) return "vacancies";
+      if (studentOnly.includes(cur) && !(effectiveRole === "student" || effectiveRole === "admin")) return "vacancies";
+      return cur;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveRole]);
 
   // Дата подгрузки переживает перезагрузку (localStorage), а сами результаты – нет.
   // Если штамп есть, а результата в памяти нет – подтягиваем автоматически.
@@ -725,7 +740,8 @@ export default function App() {
   }
 
   const roleIcon = role === "admin" ? <Shield className="size-4" /> : (role === "teacher" || role === "rop") ? <UserCheck className="size-4" /> : <GraduationCap className="size-4" />;
-  const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "rop" ? "Руководитель ОП" : "Студент";
+  const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "rop" ? "Руководитель ОП" : role === "student" ? "Студент" : "—";
+  const isStudent = effectiveRole === "student";
 
   return (
     <div className="min-h-screen bg-white text-gray-900 dark:bg-slate-950 dark:text-slate-100">
@@ -892,6 +908,7 @@ export default function App() {
                 ...((effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin")
                   ? [{ value: "taxonomy", label: "Таксономия", Icon: BookOpen }]
                   : []),
+                { value: "profile", label: "Мой профиль", Icon: User },
                 { value: "help", label: "Помощь", Icon: HelpCircle },
               ]}
             />
@@ -968,7 +985,8 @@ export default function App() {
                   </Button>
                   <Button
                     onClick={loadProfileDetail}
-                    disabled={loading}
+                    disabled={loading || isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
                     className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
                   >
                     <FileText className="mr-2 size-4" />
@@ -976,7 +994,8 @@ export default function App() {
                   </Button>
                   <Button
                     onClick={loadRecommendations}
-                    disabled={loading}
+                    disabled={loading || isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
                     className="h-11 bg-blue-600 hover:bg-blue-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                   >
                     <Sparkles className="mr-2 size-4" />
@@ -984,7 +1003,8 @@ export default function App() {
                   </Button>
                   <Button
                     onClick={loadMarket}
-                    disabled={loading}
+                    disabled={loading || isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
                     variant="outline"
                     className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
@@ -993,7 +1013,8 @@ export default function App() {
                   </Button>
                   <Button
                     onClick={loadSummary}
-                    disabled={loading}
+                    disabled={loading || isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
                     variant="outline"
                     className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
@@ -1002,7 +1023,8 @@ export default function App() {
                   </Button>
                   <Button
                     onClick={runGapAnalysis}
-                    disabled={loading || gapRunning}
+                    disabled={loading || gapRunning || isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
                     className="h-11 bg-amber-600 hover:bg-amber-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
                   >
                     <Zap className="mr-2 size-4" />
@@ -1012,6 +1034,7 @@ export default function App() {
                 {gapRunning && (
                   <p className="text-sm text-amber-700 dark:text-amber-300">{gapMsg || "Выполняется..."}</p>
                 )}
+                {!isStudent && (
                 <div className="space-y-2 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
                   <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
                     Целевая профессия для сравнения
@@ -1039,6 +1062,7 @@ export default function App() {
                     </Button>
                   </div>
                 </div>
+                )}
                 <p className="text-xs text-gray-500 dark:text-slate-400">
                   Последняя подгрузка результатов [{profile}]: {(() => {
                     const iso = resultLoadedAt[profile];
@@ -1059,6 +1083,8 @@ export default function App() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     onClick={handleDownloadPdf}
+                    disabled={isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
                     variant="outline"
                     size="sm"
                     className="border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50 gap-1.5"
@@ -1134,11 +1160,12 @@ export default function App() {
                           <AlertCircle className="size-12 text-amber-400 mx-auto mb-4" />
                           <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-2">{msg}</h3>
                           <p className="text-sm text-amber-600 mb-4">Запустите gap-анализ для расчёта покрытия</p>
-                          <Button
-                            onClick={runGapAnalysis}
-                            disabled={gapRunning}
-                            className="bg-amber-600 hover:bg-amber-700"
-                          >
+                           <Button
+                             onClick={runGapAnalysis}
+                             disabled={gapRunning || isStudent}
+                             title={isStudent ? "Только для преподавателя" : undefined}
+                             className="bg-amber-600 hover:bg-amber-700"
+                           >
                             <Zap className="size-4 mr-2" />
                             Запустить gap-анализ
                           </Button>
@@ -1204,6 +1231,15 @@ export default function App() {
               <StudentDashboard />
             </TabsContent>
           )}
+          <TabsContent value="profile">
+            {effectiveRole === "admin" ? (
+              <AdminProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
+            ) : effectiveRole === "teacher" || effectiveRole === "rop" ? (
+              <TeacherProfilePage displayName={name ?? undefined} email={username ?? undefined} />
+            ) : (
+              <StudentProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
+            )}
+          </TabsContent>
         </Tabs>
 
         <div className="mt-12">

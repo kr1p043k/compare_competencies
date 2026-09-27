@@ -471,7 +471,7 @@ async def admin_monitoring_summary(request: Request):
     from src.monitoring.metrics import get_metrics
 
     out: dict = {"latency_p95_by_endpoint": {}, "errors_1h": {"4xx": 0, "5xx": 0},
-                 "sessions_active": None, "recent_runs": [], "freshness": {}}
+                 "sessions_active": None, "sessions_total_open": None, "recent_runs": [], "freshness": {}}
     try:
         raw, _ = get_metrics()
         buckets: dict[str, list] = {}
@@ -494,6 +494,9 @@ async def admin_monitoring_summary(request: Request):
         pool = get_pool()
         if pool is not None:
             out["sessions_active"] = await pool.fetchval(
+                "SELECT COUNT(*) FROM sessions WHERE logged_out_at IS NULL "
+                "AND last_activity > NOW() - INTERVAL '15 minutes'")
+            out["sessions_total_open"] = await pool.fetchval(
                 "SELECT COUNT(*) FROM sessions WHERE logged_out_at IS NULL")
             rows = await pool.fetch(
                 "SELECT action, status, started_at, completed_at, error_message "

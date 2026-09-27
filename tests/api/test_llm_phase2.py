@@ -176,3 +176,52 @@ class TestFlagsOff:
         assert cfg.LLM_ENHANCE_TEACHER is False
         assert cfg.LLM_EXTRACT is False
         assert float(cfg.LLM_TIMEOUT_S) == 20.0
+
+# ---------------------------------------------------------------------------
+# (e) krm_teacher gap wiring: analyzer-shaped dict passes through
+# ---------------------------------------------------------------------------
+class TestKrmTeacherGapPassthrough:
+    """Gap endpoint returns AcademicGapAnalyzer output (no recs key).
+
+    Mirrors src/api_pkg/routers/krm_teacher.py:krm_teacher_gap wiring:
+    flag-guarded enhance_teacher_recs(discipline=topic,
+    gaps=detailed_analysis, base_recs=result), silent fallback.
+    Real binds, no network.
+    """
+
+    GAP = {
+        "overall_score": 0.42,
+        "detailed_analysis": [
+            {"code": "OK-1", "status": "gap", "coverage_percent": 10},
+        ],
+        "summary": "summary text",
+    }
+
+    def test_gap_client_dead_returns_base_unchanged(self):
+        client = FakeChatClient(exc=RuntimeError("endpoint down"))
+        base = dict(self.GAP)
+        got = enhance_teacher_recs(
+            discipline="some topic",
+            gaps=base.get("detailed_analysis", []),
+            base_recs=base,
+            client=client,
+            use_cache=False,
+        )
+        assert got == self.GAP
+
+    def test_gap_flags_off_router_skips_llm(self, monkeypatch):
+        monkeypatch.setattr(cfg, "LLM_ENABLED", False)
+        monkeypatch.setattr(cfg, "LLM_ENHANCE_TEACHER", False)
+        assert not (cfg.LLM_ENABLED and cfg.LLM_ENHANCE_TEACHER)
+        client = FakeChatClient(exc=RuntimeError("must not be called"))
+        result = dict(self.GAP)
+        if cfg.LLM_ENABLED and cfg.LLM_ENHANCE_TEACHER:
+            result = enhance_teacher_recs(
+                discipline="some topic",
+                gaps=result.get("detailed_analysis", []),
+                base_recs=result,
+                client=client,
+                use_cache=False,
+            )
+        assert result == self.GAP
+        assert client.calls == 0

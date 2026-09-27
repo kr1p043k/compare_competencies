@@ -531,6 +531,8 @@ async def krm_coverage(request: Request):
         # latest analysis date
         latest = await session.execute(select(func.max(CAModel.analysis_date)))
         latest_date = latest.scalar()
+        if latest_date is not None and getattr(latest_date, "tzinfo", None):
+            latest_date = latest_date.replace(tzinfo=None)
 
         result = await session.execute(
             select(CAModel, Discipline.name)
@@ -763,6 +765,8 @@ async def competency_tree(dir_code: str = "09.03.02"):
     async with async_session_factory() as session:
         latest = await session.execute(select(func.max(CoverageAnalysis.analysis_date)))
         latest_date = latest.scalar()
+        if latest_date is not None and getattr(latest_date, "tzinfo", None):
+            latest_date = latest_date.replace(tzinfo=None)
 
         cov_subq = select(
             CoverageAnalysis.discipline_id,

@@ -42,6 +42,7 @@ interface GapEntry {
 }
 
 interface RecommendationData {
+  llm_enhanced?: boolean;
   summary: {
     match_score: number;
     confidence: number;
@@ -83,6 +84,7 @@ interface RecommendationData {
     expected_outcome: string;
     is_soft_skill: boolean;
     market_frequency_percent: number;
+    llm_reason?: string;
   }>;
   domain_coverage?: Record<string, DomainEntry>;
   gaps?: Record<string, GapEntry>;
@@ -401,6 +403,11 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           <CardDescription>
             Топ-10 навыков для изучения, отсортированные по важности
           </CardDescription>
+          {data.llm_enhanced && (
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-300" title="Часть рекомендаций дополнена языковой моделью">
+              Дополнено LLM
+            </p>
+          )}
         </CardHeader>
         <CardContent className="pt-6">
           <div className="space-y-4">
@@ -433,6 +440,14 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                         {rec.is_soft_skill && (
                           <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950/20 dark:text-purple-300 border border-purple-300 dark:border-purple-700">
                             Софт-скилл
+                          </Badge>
+                        )}
+                        {rec.llm_reason && (
+                          <Badge
+                            title="Есть обоснование языковой модели — см. ниже"
+                            className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-700"
+                          >
+                            LLM
                           </Badge>
                         )}
                       </div>
@@ -477,6 +492,17 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                       </p>
                       <p className="text-sm text-purple-800 dark:text-purple-200">{rec.expected_outcome}</p>
                     </div>)}
+
+                    {rec.llm_reason && (
+                      <details className="bg-amber-50 dark:bg-amber-950/20 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
+                        <summary className="text-xs font-semibold text-amber-900 dark:text-amber-100 cursor-pointer hover:text-amber-700 dark:hover:text-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded transition-colors duration-200">
+                          Обоснование LLM
+                        </summary>
+                        <p className="text-sm text-amber-800 dark:text-amber-200 mt-1 whitespace-pre-line">
+                          {rec.llm_reason}
+                        </p>
+                      </details>
+                    )}
                   </div>
                 </div>
               </motion.div>

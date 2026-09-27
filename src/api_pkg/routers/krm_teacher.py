@@ -233,4 +233,16 @@ async def krm_teacher_gap(request: Request, dir_code: str, payload: GapRequest =
             status_code=503,
             detail="Не удалось выполнить анализ разрыва",
         ) from None
+    if config.LLM_ENABLED and config.LLM_ENHANCE_TEACHER:
+        try:
+            from src.services.llm_recommend import enhance_teacher_recs
+            enhanced = enhance_teacher_recs(
+                discipline=payload.topic,
+                gaps=result.get("detailed_analysis", []),
+                base_recs=result,
+            )
+            if isinstance(enhanced, dict):
+                result = enhanced
+        except Exception:
+            logger.warning("llm_teacher_enhance_failed", dir_code=dir_code)
     return {"dir_code": dir_code, **result}

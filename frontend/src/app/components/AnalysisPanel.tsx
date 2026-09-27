@@ -21,6 +21,7 @@ interface Rec {
   priority: string;
   message: string;
   skill?: string;
+  llm_reason?: string;
 }
 
 interface DisciplineAnalysis {
@@ -41,6 +42,7 @@ interface DisciplineAnalysis {
   };
   competencies: CompetencyCov[];
   recommendations: Rec[];
+  llm_enhanced?: boolean;
   hidden_foundational?: { skill: string; type: string; manual?: boolean }[];
 }
 
@@ -154,6 +156,11 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
           {recommendations.length > 0 && (
             <div className="space-y-2 mb-4" id="d-recs" style={{ scrollMarginTop: 8 }}>
               <div className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Рекомендации</div>
+              {data.llm_enhanced && (
+                <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300" title="Часть рекомендаций дополнена языковой моделью">
+                  Дополнено LLM
+                </div>
+              )}
               {recommendations.map((r, i) => (
                 <div key={i} className="p-3 rounded-lg border text-sm">
                   <div className="flex items-center gap-2 mb-1">
@@ -161,6 +168,11 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                       {r.priority}
                     </Badge>
                     <span className="text-xs text-gray-500 dark:text-slate-400">{r.type}</span>
+                    {r.llm_reason && (
+                      <Badge className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-700 text-xs" title="Есть обоснование языковой модели — см. ниже">
+                        LLM
+                      </Badge>
+                    )}
                     {r.skill && r.type === "review_content" && (
                       <button
                         onClick={() => markFoundational(r.skill as string)}
@@ -172,6 +184,14 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                     )}
                   </div>
                   <div className="text-gray-700 dark:text-slate-300">{r.message}</div>
+                  {r.llm_reason && (
+                    <details className="mt-2 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-2.5 py-1.5">
+                      <summary className="text-xs font-medium text-amber-900 dark:text-amber-100 cursor-pointer hover:text-amber-700 dark:hover:text-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded transition-colors duration-200">
+                        Обоснование LLM
+                      </summary>
+                      <div className="text-xs text-amber-800 dark:text-amber-200 mt-1 whitespace-pre-line">{r.llm_reason}</div>
+                    </details>
+                  )}
                 </div>
               ))}
               {(data.hidden_foundational?.length || 0) > 0 && (
