@@ -29,13 +29,6 @@ import { Footer } from "./components/Footer";
 import { VacanciesList } from "./components/VacanciesList";
 import { MarketView } from "./components/MarketView";
 import { ProfileView } from "./components/ProfileView";
-import { SelfProfileEditor } from "./components/SelfProfileEditor";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "./components/ui/dialog";
 import { ArticlesPage } from "./components/ArticlesPage";
 import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
 import { PipelineProgress } from "./components/PipelineProgress";
@@ -289,7 +282,6 @@ export default function App() {
     } catch { return null; }
   });
   const canPreview = role === "admin";
-  const [profileOpen, setProfileOpen] = useState(false);
   const effectiveRole = canPreview && rolePreview ? rolePreview : role;
   const previewActive = canPreview && !!rolePreview && rolePreview !== role;
   const setPreview = (v: string | null) => {
@@ -772,9 +764,9 @@ export default function App() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setProfileOpen(true)}
+                onClick={() => setActiveTab("profile")}
                 title="Мой профиль"
-                className="text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100"
+                className="cursor-pointer transition-colors duration-200 text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
               >
                 <User className="size-4" />
               </Button>
@@ -810,14 +802,6 @@ export default function App() {
           </div>
         </div>
       </header>
-      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Мой профиль</DialogTitle>
-          </DialogHeader>
-          <SelfProfileEditor displayName={name} email={username} />
-        </DialogContent>
-      </Dialog>
       {previewActive && (
         <div className="bg-amber-100 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-800">
           <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-3">
@@ -1235,7 +1219,7 @@ export default function App() {
             {effectiveRole === "admin" ? (
               <AdminProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
             ) : effectiveRole === "teacher" || effectiveRole === "rop" ? (
-              <TeacherProfilePage displayName={name ?? undefined} email={username ?? undefined} />
+              <TeacherProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
             ) : (
               <StudentProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
             )}
