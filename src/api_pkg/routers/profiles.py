@@ -234,7 +234,25 @@ async def custom_profile_options(request: Request):
             top = sorted(weights.items(), key=lambda x: x[1], reverse=True)[:30]
             tech_suggest = [str(k) for k, _ in top]
         else:
+            # runtime fallback: baked weights file, then snapshot names
             tech_suggest = []
+            try:
+                wf = json.loads((Path(config.DATA_DIR) / "processed" / "skill_weights.json")
+                                .read_text(encoding="utf-8"))
+                if isinstance(wf, dict) and wf:
+                    tech_suggest = [str(k) for k, _ in
+                                    sorted(wf.items(), key=lambda x: x[1], reverse=True)[:30]]
+            except Exception:
+                tech_suggest = []
+            if not tech_suggest:
+                try:
+                    snap = json.loads((Path(config.DATA_DIR) / "benchmark" / "article_datasets" /
+                                       "market_snapshot.json").read_text(encoding="utf-8"))
+                    tech_suggest = [str(s.get("name", "")).strip()
+                                    for s in (snap.get("skills") or [])[:30]
+                                    if str(s.get("name", "")).strip()]
+                except Exception:
+                    tech_suggest = []
         return {"competencies": competencies, "technologies_suggest": tech_suggest}
     except HTTPException:
         raise

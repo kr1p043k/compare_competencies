@@ -169,3 +169,15 @@ def test_custom_options_shape(isolated):
     assert codes["UK-1"]["skills_count"] == 2
     assert set(body["technologies_suggest"][:4]) == {"python", "sql", "docker", "git"} or "python" in body["technologies_suggest"]
     assert len(body["technologies_suggest"]) <= 30
+
+
+def test_custom_options_suggest_fallback_nonempty(isolated, monkeypatch):
+    import json as _json
+    from src.api_pkg import deps as _deps
+    monkeypatch.setattr(_deps, "skill_freq", {})
+    monkeypatch.setattr(_deps, "skill_weights", {})
+    (isolated / "processed" / "skill_weights.json").write_text(
+        _json.dumps({"python": 0.9, "sql": 0.8, "docker": 0.7}), encoding="utf-8")
+    c = _client()
+    body = c.get("/api/profiles/custom/options").json()
+    assert body["technologies_suggest"] == ["python", "sql", "docker"]
