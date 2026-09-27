@@ -115,6 +115,13 @@ class Settings(BaseSettings):
     QWEN_TEMPERATURE: float = 0.7
     QWEN_MAX_TOKENS: int = 2000
 
+    # ---------- LLM enhancement (opt-in, fallback-first) ----------
+    LLM_ENABLED: bool = True
+    LLM_ENHANCE_STUDENT: bool = False
+    LLM_ENHANCE_TEACHER: bool = False
+    LLM_EXTRACT: bool = False
+    LLM_TIMEOUT_S: int = 20
+
     # ---------- эмбеддинги ----------
     EMBEDDING_MODEL: str = "paraphrase-multilingual-mpnet-base-v2"
     HF_TOKEN: SecretStr | None = None
@@ -317,6 +324,12 @@ OLLAMA_MODEL = settings.OLLAMA_MODEL
 OLLAMA_EMBEDDING_MODEL = settings.OLLAMA_EMBEDDING_MODEL
 QWEN_TEMPERATURE = settings.QWEN_TEMPERATURE
 QWEN_MAX_TOKENS = settings.QWEN_MAX_TOKENS
+
+LLM_ENABLED = settings.LLM_ENABLED
+LLM_ENHANCE_STUDENT = settings.LLM_ENHANCE_STUDENT
+LLM_ENHANCE_TEACHER = settings.LLM_ENHANCE_TEACHER
+LLM_EXTRACT = settings.LLM_EXTRACT
+LLM_TIMEOUT_S = settings.LLM_TIMEOUT_S
 
 EMBEDDING_MODEL = settings.EMBEDDING_MODEL
 HF_TOKEN = settings.HF_TOKEN

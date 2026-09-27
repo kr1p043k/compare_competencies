@@ -368,7 +368,17 @@ async def get_recommendations(
             taxonomy=prof_taxonomy if domains else None,
         ):
             case Ok(full_rec):
-                return _json_safe(full_rec.model_dump())
+                payload = _json_safe(full_rec.model_dump())
+                if config.LLM_ENABLED and config.LLM_ENHANCE_STUDENT:
+                    try:
+                        from src.services.llm_recommend import enhance_student_recs
+                        payload = enhance_student_recs(
+                            profile_summary=profile,
+                            base_recs=payload,
+                        )
+                    except Exception:
+                        logger.warning("llm_student_enhance_failed", profile=profile)
+                return payload
             case Err(err):
                 logger.warning("profile_recommendations_failed", profile=profile, error=str(err))
                 raise HTTPException(

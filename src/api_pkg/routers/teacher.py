@@ -905,6 +905,18 @@ async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.0
     if isinstance(data, dict) and isinstance(data.get("recommendations"), list):
         visible, hidden = _apply_foundational_filter(data["recommendations"], flags)
         data["recommendations"] = visible
+        if config.LLM_ENABLED and config.LLM_ENHANCE_TEACHER:
+            try:
+                from src.services.llm_recommend import enhance_teacher_recs
+                enhanced = enhance_teacher_recs(
+                    discipline=discipline_name,
+                    gaps=data.get("gaps", []),
+                    base_recs=data,
+                )
+                if isinstance(enhanced, dict):
+                    data = enhanced
+            except Exception:
+                logger.warning("llm_teacher_enhance_failed", discipline=discipline_name)
         data["hidden_foundational"] = [
             {"skill": (r.get("skill", "") if isinstance(r, dict) else ""),
              "type": r.get("type", ""), "manual": bool(r.get("manual", False))}
