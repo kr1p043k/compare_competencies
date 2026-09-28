@@ -68,3 +68,8 @@ uploads/
 recompute_*.log
 recompute_*.pid
 recompute_*.err.log
+
+# build output + observability runtime data (untracked, regenerable)
+frontend/dist/
+grafana/data/
+prometheus/data/
