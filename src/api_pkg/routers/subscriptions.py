@@ -44,6 +44,7 @@ async def list_subscriptions(request: Request, user: dict = Depends(require_auth
     """Подписки пользователя."""
     uid = user["uid"]
     from sqlalchemy import select
+
     from src.database import async_session_factory
     from src.models.krm_models import Subscription
 
@@ -78,8 +79,7 @@ async def create_subscription(request: Request, body: SubscriptionCreate, user: 
     """Создать подписку."""
     uid = user["uid"]
     from src.database import async_session_factory
-    from src.models.krm_models import Subscription
-    from src.models.krm_models import _uuid
+    from src.models.krm_models import Subscription, _uuid
 
     sub = Subscription(
         id=_uuid(),
@@ -120,7 +120,8 @@ async def delete_subscription(sub_id: str, request: Request, user: dict = Depend
 async def list_notifications(request: Request, limit: int = 50, unread_only: bool = False, user: dict = Depends(require_auth)):
     """Уведомления пользователя."""
     uid = user["uid"]
-    from sqlalchemy import select, desc
+    from sqlalchemy import desc, select
+
     from src.database import async_session_factory
     from src.models.krm_models import Notification
 
@@ -178,9 +179,10 @@ async def mark_read(notif_id: str, request: Request, user: dict = Depends(requir
 async def unread_count(request: Request, user: dict = Depends(require_auth)):
     """Число непрочитанных уведомлений."""
     uid = user["uid"]
+    from sqlalchemy import func, select
+
     from src.database import async_session_factory
     from src.models.krm_models import Notification
-    from sqlalchemy import func, select
 
     async with async_session_factory() as session:
         result = await session.execute(

@@ -6,14 +6,13 @@ on historical skill frequency data from trend_snapshots.
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
 from dataclasses import dataclass
-from typing import Any
+from datetime import date, datetime
 
 import numpy as np
 import structlog
 
-from src import config, Ok, Err, Result
+from src import Err, Ok, Result, config
 from src.errors import DomainError
 from src.predictors.base import BasePredictor
 
@@ -136,7 +135,7 @@ class SkillForecastEngine(BasePredictor):
         self,
         skill_frequencies: dict[str, float] | None = None,
         **kwargs,
-    ) -> Result["SkillForecastEngine", Exception]:
+    ) -> Result[SkillForecastEngine, Exception]:
         """Fit linear trends from historical snapshot data.
 
         Reads freq_market_*.json files from data/history/ to build

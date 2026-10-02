@@ -6,13 +6,11 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
+from src.api_pkg import deps
 from src.models.api_responses import (
-    MarketCompetenciesResponse,
     SkillInfoResponse,
     TopSkillsResponse,
 )
-
-from src.api_pkg import deps
 
 logger = structlog.get_logger("api")
 

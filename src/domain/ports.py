@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
+from src.errors import CacheError, DataSourceError, DomainError
 from src.result import Result
-from src.errors import DomainError, CacheError, DataSourceError
 
 
 @runtime_checkable

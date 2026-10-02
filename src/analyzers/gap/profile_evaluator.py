@@ -8,14 +8,13 @@ from typing import Any
 import numpy as np
 import structlog
 
-from src import Result, Ok, Err, config
-from src.errors import DomainError
+from src import Err, Ok, Result, config
 from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
-from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.comparison.domain_analyzer import DomainAnalyzer
 from src.analyzers.gap.gap_analyzer import GapAnalyzer
 from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 from src.artifacts import ArtifactManifest
+from src.errors import DomainError
 from src.models.data_contracts import ProfileEvaluationResult
 from src.models.enums import ExperienceLevel
 from src.models.student import StudentProfile

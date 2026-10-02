@@ -19,8 +19,8 @@ from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.models.api_responses import (
     CacheRefreshResponse,
     GapProgressResponse,
-    PipelineTaskStatus,
     PipelineTaskListResponse,
+    PipelineTaskStatus,
 )
 
 logger = structlog.get_logger("api")
@@ -37,7 +37,7 @@ _idempotency_map: dict[str, str] = {}
 def _read_progress_file(path: Path) -> dict:
     try:
         if path.exists():
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
     except Exception:
         pass
@@ -203,7 +203,7 @@ def _load_tasks():
     try:
         _load_idempotency()
         if TASKS_STORE_FILE.exists():
-            with open(TASKS_STORE_FILE, "r", encoding="utf-8") as f:
+            with open(TASKS_STORE_FILE, encoding="utf-8") as f:
                 data = json.load(f)
             now = time.time()
             for tid, tdata in data.items():
@@ -853,7 +853,7 @@ async def pipeline_ws(websocket: WebSocket, token: str = ""):
                     await websocket.send_text(text)
             await asyncio.sleep(2)
             _ = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
-    except (WebSocketDisconnect, asyncio.TimeoutError, Exception):
+    except (TimeoutError, WebSocketDisconnect, Exception):
         pass
     finally:
         _ws_clients.discard(websocket)

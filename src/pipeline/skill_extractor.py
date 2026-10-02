@@ -5,10 +5,10 @@ from pathlib import Path
 
 import structlog
 
-from src import Err, Ok, Result, SkillExtractionError, config, timed
-from src.cache_manager import CacheManager
+from src import Err, Ok, Result, SkillExtractionError, config
 from src.analyzers.skills.trends import TrendAnalyzer
 from src.artifacts import ArtifactManifest
+from src.cache_manager import CacheManager
 from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import (
     filter_skills_by_whitelist,

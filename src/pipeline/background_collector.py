@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -129,7 +129,7 @@ def scheduler_status() -> dict:
             "pipeline_running": _pipeline_running(),
         "next_collect_ts": nxt,
         "next_collect_in_s": max(0, int(nxt - now)) if nxt else 0,
-            "server_time": datetime.now(timezone.utc).isoformat(),
+            "server_time": datetime.now(UTC).isoformat(),
         }
     except Exception as exc:
         return {"error": str(exc)[:200], "busy": _scheduler_busy}
@@ -145,7 +145,7 @@ def is_collect_due(now_ts: float, last_ts, interval_h: int) -> bool:
 
 
 def _today_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return datetime.now(UTC).strftime("%Y-%m-%d")
 
 
 def is_gap_due(today: str, last_gap_date) -> bool:
@@ -332,7 +332,8 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
     "skipped" | "failed". Only "collected" chains the daily gap.
     """
     import asyncpg
-    from src import Err, Ok, Result, config
+
+    from src import Err, Ok, config
     from src.parsing.api.hh_api import HeadHunterAPI
     from src.parsing.utils import IT_PROFESSIONAL_ROLES
 
@@ -352,8 +353,8 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
         return "failed", 0
 
     if last_run and not force:
-        now_utc = datetime.now(timezone.utc)
-        last_aware = last_run if last_run.tzinfo else last_run.replace(tzinfo=timezone.utc)
+        now_utc = datetime.now(UTC)
+        last_aware = last_run if last_run.tzinfo else last_run.replace(tzinfo=UTC)
         elapsed = (now_utc - last_aware).total_seconds()
         gate_interval_s = load_scheduler_settings()["collect_interval_hours"] * 3600
         if elapsed < gate_interval_s:
@@ -367,8 +368,8 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
         period = max(1, min(int(force_period_days), 30))
         logger.info("collect_forced_period", days=period)
     elif last_run:
-        now_utc = datetime.now(timezone.utc)
-        last_aware = last_run if last_run.tzinfo else last_run.replace(tzinfo=timezone.utc)
+        now_utc = datetime.now(UTC)
+        last_aware = last_run if last_run.tzinfo else last_run.replace(tzinfo=UTC)
         delta = (now_utc - last_aware).days
         if 1 <= delta <= 30:
             period = delta
@@ -499,9 +500,9 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
     skip_count = 0
     empty_ids: set[int] = set()
     try:
-        from src.parsing.skills.vacancy_parser import VacancyParser
+
         from src.models.vacancy import Vacancy as VacModel
-        import re as _re
+        from src.parsing.skills.vacancy_parser import VacancyParser
         # Preload it_skills keywords for fast substring check
         _it_path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
         _it_raw = await asyncio.to_thread(_it_path.read_text, encoding="utf-8")
@@ -590,6 +591,7 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
     # чтобы Prophet всегда имел свежую точку истории (не только при полном pipeline).
     try:
         from collections import Counter
+
         from src.analyzers.skills.trends import TrendAnalyzer
         from src.parsing.skills.skill_normalizer import SkillNormalizer
 

@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import tempfile
 from collections import defaultdict
 from datetime import datetime
@@ -13,7 +12,6 @@ from src import Err, Ok, Result
 from src.config import (
     BASE_DIR,
     COMPETENCY_MAPPING_FILE,
-    LOG_FILE,
 )
 from src.errors import DomainError
 
@@ -26,7 +24,6 @@ def skill_words(name: str) -> set[str]:
 
 def extract_experience(vac: dict | Any) -> str:
     """Извлекает уровень опыта (junior/middle/senior) из данных вакансии."""
-    from src.models.enums import ExperienceLevel
 
     def _from_dict(d):
         exp_obj = d.get("experience", {})
@@ -322,8 +319,8 @@ def _market_freq_lookup(
 
     # Level 3
     try:
-        from rapidfuzz import process as rp_process
         from rapidfuzz import fuzz as rp_fuzz
+        from rapidfuzz import process as rp_process
         matches = rp_process.extract(skill_name, list(freq_map.keys()), scorer=rp_fuzz.WRatio, limit=1)
         if matches and matches[0][1] >= 85:
             return freq_map[matches[0][0]]

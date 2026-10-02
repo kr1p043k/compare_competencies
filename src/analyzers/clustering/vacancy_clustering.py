@@ -14,9 +14,9 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
 
-from src import Result, Ok, Err, config
-from src.errors import DomainError
+from src import Ok, Result, config
 from src.artifacts import ArtifactManifest
+from src.errors import DomainError
 from src.models.enums import ExperienceLevel
 from src.parsing.api.embedding_loader import get_embedding_model
 from src.parsing.skills.skill_normalizer import SkillNormalizer

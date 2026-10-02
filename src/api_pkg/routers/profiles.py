@@ -1,29 +1,27 @@
 """Profile, recommendation, profession evaluation endpoints."""
 
+import asyncio
 from typing import Any
 
-import asyncio
 import numpy as np
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from pydantic import BaseModel
 
-from src import Err, Ok
+from src import Err, Ok, config
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.api_pkg import deps
+from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.models.api_responses import (
     DeadSkillsResponse,
     MissingSkillsResponse,
-    ProfessionEvalResponse,
     ProfilesCompareResponse,
     ProfileShort,
 )
-from src.api_pkg.routers.auth import require_any_role, user_error_detail
-from src.models.student import StudentProfile
 from src.models.enums import ExperienceLevel
-from src import config
+from src.models.student import StudentProfile
 from src.parsing.skills.skill_validator import SkillValidator
 from src.predictors.recommendation_engine import RecommendationEngine
 

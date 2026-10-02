@@ -2,7 +2,6 @@ import asyncio
 import re
 from datetime import date
 from pathlib import Path
-from typing import Any
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -10,12 +9,12 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import text
 
-from src import Ok, Err, Result, config, DomainError
-from src.predictors.prophet_forecast import ProphetForecastEngine
-from src.predictors.skill_forecast import SkillForecastEngine, ForecastResult
-from src.api_pkg.routers.auth import user_error_detail
-from src.utils import safe_read_json
 import src.api_pkg.deps as deps
+from src import DomainError, Err, Ok, Result, config
+from src.api_pkg.routers.auth import user_error_detail
+from src.predictors.prophet_forecast import ProphetForecastEngine
+from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
+from src.utils import safe_read_json
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["forecast"])

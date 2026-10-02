@@ -14,13 +14,12 @@ from sqlalchemy import select
 
 from src import Err, Ok
 from src.analyzers.skills.trends import TrendAnalyzer
+from src.api_pkg import deps
+from src.api_pkg.routers.auth import user_error_detail
 from src.database import async_session_factory
 from src.models.api_responses import TrendsResponse
 from src.models.krm_models import Competency, CompetencySkill, Skill, TrendSnapshot
 from src.utils import load_competency_mapping, load_inverted_skill_index, skill_words
-
-from src.api_pkg import deps
-from src.api_pkg.routers.auth import user_error_detail
 
 logger = structlog.get_logger("api")
 
@@ -84,7 +83,8 @@ def _resolve_canonical_key(
         pass
     if len(skill_name) >= 3:
         try:
-            from rapidfuzz import process as rp_process, fuzz as rp_fuzz
+            from rapidfuzz import fuzz as rp_fuzz
+            from rapidfuzz import process as rp_process
             matches = rp_process.extract(skill_name, list(vocab_keys), scorer=rp_fuzz.WRatio, limit=1)
             if matches and matches[0][1] >= 85:
                 return matches[0][0]

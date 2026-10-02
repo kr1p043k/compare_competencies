@@ -4,12 +4,11 @@
 """
 
 import re
-from functools import cache
 
 import structlog
 from rapidfuzz import fuzz, process
 
-from src import Result, Ok, Err
+from src import Err, Ok, Result
 from src.errors import DomainError
 from src.parsing.utils import load_it_skills
 

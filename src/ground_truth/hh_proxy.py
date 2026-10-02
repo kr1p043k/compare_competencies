@@ -2,16 +2,14 @@
 
 import json
 from pathlib import Path
-from typing import Optional
 
 import structlog
-
 
 logger = structlog.get_logger(__name__)
 
 
 class HHGroundTruth:
-    def __init__(self, history_dir: Optional[Path] = None, top_k: int = 100):
+    def __init__(self, history_dir: Path | None = None, top_k: int = 100):
         from src.config import HISTORY_DIR
         self.history_dir = history_dir or HISTORY_DIR
         self.top_k = top_k

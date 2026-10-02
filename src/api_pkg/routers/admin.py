@@ -17,16 +17,10 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
-from src.parsing.utils import load_it_skills
-from src.api_pkg.request_logger import actor_from_request, audit_action, get_logs, get_logs_by_user
-from src.api_pkg.routers.auth import require_any_role
-
 from src.api_pkg import deps
-from src.monitoring.metrics import (
-    pipeline_duration, pipeline_errors, api_latency, api_requests_total,
-    recommendations_generated, ltr_training_duration, ltr_model_metrics,
-    vacancies_loaded, active_profiles, skill_count,
-)
+from src.api_pkg.request_logger import actor_from_request, audit_action, get_logs_by_user
+from src.api_pkg.routers.auth import require_any_role
+from src.parsing.utils import load_it_skills
 
 logger = structlog.get_logger("api")
 
@@ -254,6 +248,7 @@ def _format_experience(exp: Any) -> str:
 async def export_excel(request: Request):
     """Экспорт вакансий в Excel."""
     import json
+
     import pandas as pd
 
     detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
@@ -347,6 +342,7 @@ async def export_full_report(request: Request):
 async def admin_users(request: Request):
     """Список пользователей."""
     from sqlalchemy import select, text
+
     from src.database import async_session_factory
     from src.models.krm_models import UserDirection
 
@@ -402,6 +398,7 @@ def _validate_uuid(value: str, label: str = "id") -> str:
 async def admin_user_directions(request: Request, user_id: str):
     """Направления пользователя."""
     from sqlalchemy import select
+
     from src.database import async_session_factory
     from src.models.krm_models import UserDirection
 
@@ -417,7 +414,8 @@ async def admin_user_directions(request: Request, user_id: str):
 @limiter.limit("30/minute")
 async def admin_set_user_directions(request: Request, user_id: str, body: UserDirectionsBody):
     """Назначить направления пользователю."""
-    from sqlalchemy import delete, select
+    from sqlalchemy import delete
+
     from src.database import async_session_factory
     from src.models.krm_models import User, UserDirection
 
@@ -437,6 +435,7 @@ async def admin_set_user_directions(request: Request, user_id: str, body: UserDi
 async def admin_monitoring(request: Request):
     """JSON-мониторинг (метрики)."""
     from prometheus_client.parser import text_string_to_metric_families
+
     from src.monitoring.metrics import get_metrics
     raw, _ = get_metrics()
     families = {}
@@ -585,6 +584,7 @@ async def admin_seed_db(request: Request, body: SeedDBRequest, background_tasks:
 
 def _run_seed(drop: bool = False) -> None:
     import asyncio
+
     from src.cli.seed_db import main as seed_main
     asyncio.run(seed_main(drop=drop))
     logger.info("db_seed_completed", drop=drop)
@@ -621,6 +621,7 @@ async def admin_generate_embeddings(request: Request, body: EmbeddingsRequest, b
 
 def _run_embeddings(force: bool = False) -> None:
     import asyncio
+
     from src.cli.embeddings import main as emb_main
     asyncio.run(emb_main(force=force))
     logger.info("embeddings_generated", force=force)
@@ -639,6 +640,7 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
     """Import students from JSON array."""
     import csv
     import io
+
     from src.cli.import_students import main as import_main
 
     # Write to temp CSV, then run import
@@ -649,7 +651,6 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
         w.writerow(item.model_dump())
     tmp.seek(0)
 
-    from pathlib import Path
     tmp_path = Path(config.DATA_DIR) / "cache" / "_import_tmp.csv"
     tmp_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path.write_text(tmp.getvalue(), encoding="utf-8")
@@ -664,6 +665,7 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
 async def admin_extend_skills(request: Request, background_tasks: BackgroundTasks, yes: bool = True):
     """Analyze vacancies and extend it_skills with new skills."""
     import argparse
+
     from src.cli.extend_skills import main as extend_main
 
     args = argparse.Namespace(interactive=False, yes=yes, coverage=False, dead=False, min_frequency=2)
@@ -681,8 +683,12 @@ class CategorizeSkillsRequest(BaseModel):
 async def admin_skills_uncategorized(request: Request):
     """Некатегоризованные навыки it_skills + предложенная категория (эмбеддинг)."""
     from src.cli.taxonomy_audit import (
-        load_it_skills, load_taxonomy, taxonomy_skill_set,
-        build_prototypes, suggest_categories, MANUAL_OVERRIDES,
+        MANUAL_OVERRIDES,
+        build_prototypes,
+        load_it_skills,
+        load_taxonomy,
+        suggest_categories,
+        taxonomy_skill_set,
     )
 
     taxonomy = load_taxonomy()
@@ -713,7 +719,7 @@ async def admin_skills_uncategorized(request: Request):
 @limiter.limit("30/minute")
 async def admin_skills_categorize(request: Request, body: CategorizeSkillsRequest):
     """Записать навыки в указанные категории skill_taxonomy.json."""
-    from src.cli.taxonomy_audit import load_taxonomy, TAXONOMY_PATH
+    from src.cli.taxonomy_audit import TAXONOMY_PATH, load_taxonomy
 
     taxonomy = load_taxonomy()
     cats = taxonomy.get("categories", {})
@@ -759,7 +765,7 @@ async def admin_skills_suggestions(request: Request, status: str = "pending"):
 async def admin_skills_approve(suggestion_id: str, request: Request):
     """Одобрить: в it_skills.json + категория таксономии."""
     from src.api_pkg.skill_suggestions import decide, load_all
-    from src.cli.taxonomy_audit import load_taxonomy, TAXONOMY_PATH
+    from src.cli.taxonomy_audit import TAXONOMY_PATH, load_taxonomy
 
     raw = await request.json()
     category = ((raw or {}).get("category", "") if isinstance(raw, dict) else "").strip()
@@ -824,6 +830,7 @@ async def admin_export_db(request: Request, background_tasks: BackgroundTasks):
 
 def _run_export() -> None:
     import asyncio
+
     from src.cli.export_json import main as export_main
     asyncio.run(export_main())
     logger.info("db_export_completed")
@@ -850,7 +857,7 @@ class FrontendLogRequest(BaseModel):
 @limiter.limit("30/minute")
 async def frontend_log(request: Request, body: FrontendLogRequest):
     """Log frontend actions (button clicks, page views, errors)."""
-    from src.api_pkg.request_logger import _log_buffer, LogEntry
+    from src.api_pkg.request_logger import LogEntry, _log_buffer
     _log_buffer.append(LogEntry(
         method="ACTION",
         path=body.action,
@@ -888,7 +895,7 @@ async def _tail_backend_log(websocket: WebSocket, stop: asyncio.Event) -> None:
             if size < pos:
                 rotated = True
                 pos = 0
-            with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+            with open(LOG_FILE, encoding="utf-8", errors="replace") as f:
                 f.seek(pos)
                 chunk = f.read()
                 pos = f.tell()
@@ -914,11 +921,7 @@ async def admin_logs_ws(websocket: WebSocket, token: str = ""):
     """Стрим системного лога backend.log в реальном времени (роль admin)."""
     # JWT-проверка + роль admin (по образцу pipeline_ws)
     try:
-        import base64
-        import hashlib
-        import hmac
 
-        from src import config
         from src.api_pkg.routers.auth import _decode_token
 
         if not token:
@@ -942,7 +945,7 @@ async def admin_logs_ws(websocket: WebSocket, token: str = ""):
         from src.config import LOG_FILE
 
         if LOG_FILE.exists():
-            with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+            with open(LOG_FILE, encoding="utf-8", errors="replace") as f:
                 all_lines = f.read().splitlines()
             tail = all_lines[-_TAIL_INITIAL_LINES:]
             await websocket.send_json({"type": "init", "lines": tail})
@@ -957,7 +960,7 @@ async def admin_logs_ws(websocket: WebSocket, token: str = ""):
         while True:
             try:
                 await asyncio.wait_for(websocket.receive_text(), timeout=30)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Клиент жив — просто keepalive-пауза
                 continue
             except Exception:
@@ -992,7 +995,8 @@ async def scheduler_status(request: Request):
 @limiter.limit("10/minute")
 async def scheduler_settings_update(request: Request, body: SchedulerSettingsPatch):
     """Тумблеры планировщика (persist в data/settings/scheduler.json)."""
-    from src.pipeline.background_collector import save_scheduler_settings, scheduler_status as _status
+    from src.pipeline.background_collector import save_scheduler_settings
+    from src.pipeline.background_collector import scheduler_status as _status
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
     save_scheduler_settings(patch)
     logger.info("scheduler_settings_updated", patch=patch)

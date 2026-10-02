@@ -31,7 +31,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
 import numpy as np
 import structlog
@@ -899,8 +899,8 @@ async def zun_search_competencies(request: Request, q: str = "", dir_code: str =
 @limiter.limit("60/minute")
 async def zun_get_scope(request: Request, dir_code: str = "09.03.02"):
     """Scope state for UI checkboxes: effective per-discipline + methodology list."""
-    from src.teacher_scope import effective_in_scope, load_scope_overrides, scope_source
     from src.pipeline.teacher_analysis_runner import SCOPE_EXCLUDED
+    from src.teacher_scope import effective_in_scope, load_scope_overrides, scope_source
     _validate_dir_code(dir_code)
     pool = get_pool()
     names = [r["name"] for r in await pool.fetch(
@@ -1192,7 +1192,7 @@ async def zun_analyze(request: Request, background_tasks: BackgroundTasks, dir_c
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=2400)
             logger.info("zun_teacher_analysis_done", returncode=proc.returncode,
                         stderr=stderr.decode("utf-8", errors="ignore")[-500:])
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("zun_teacher_analysis_timeout", dir_code=dir_code)
             if proc and proc.returncode is None:
                 proc.kill()

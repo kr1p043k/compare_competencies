@@ -7,6 +7,7 @@ import seaborn as sns
 import structlog
 
 from src import Err, Ok
+
 from ._config import EMOJI_TO_TEXT
 
 logger = structlog.get_logger(__name__)

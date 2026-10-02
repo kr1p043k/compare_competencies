@@ -7,8 +7,8 @@ from typing import Any
 import numpy as np
 import structlog
 
-from src.result import Ok, Err, Result
 from src.errors import MatchingError
+from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 
@@ -55,7 +55,8 @@ def sig_lemmas(text: str) -> frozenset[str]:
     Без pymorphy деградирует до свернутых сырых токенов (C++/C# ловятся и так).
     """
     try:
-        from src.text.ru_morph import lemma as _lemma, available as _avail
+        from src.text.ru_morph import available as _avail
+        from src.text.ru_morph import lemma as _lemma
         use_morph = _avail()
     except Exception:
         use_morph = False
@@ -108,7 +109,8 @@ def strip_lead_verbs(text: str) -> str:
     """Drop leading competency verbs ("знать python" -> "python"). Deterministic."""
     words = (text or "").split()
     try:
-        from src.text.ru_morph import lemma as _lemma, available as _avail
+        from src.text.ru_morph import available as _avail
+        from src.text.ru_morph import lemma as _lemma
         use_morph = _avail()
     except Exception:
         use_morph = False
@@ -337,7 +339,8 @@ class SkillMatcher:
         # Lemma-space patterns for inflection-insensitive fuzzy (v44).
         self._market_lemma_pats = []
         try:
-            from src.text.ru_morph import available as _avail, lemma_key as _lkey
+            from src.text.ru_morph import available as _avail
+            from src.text.ru_morph import lemma_key as _lkey
             if _avail():
                 self._market_lemma_pats = [
                     (name, _word_pattern(lk))
@@ -581,18 +584,14 @@ class SkillMatcher:
             qpat = _word_pattern(mn)
             skip = False
             if rpd_pats:
-                if any(p.search(mn) for p in rpd_pats):
-                    skip = True
-                elif any(qpat.search(rn) for rn in rpd_normalized):
+                if any(p.search(mn) for p in rpd_pats) or any(qpat.search(rn) for rn in rpd_normalized):
                     skip = True
             mn_folds: set[str] = set()
             mn_fold_pats: list = []
             if not skip and rpd_fold_pats:
                 mn_folds = {fold_script(mn), fold_script(normalize(mn))} - {""}
                 mn_fold_pats = [_word_pattern(mv) for mv in mn_folds]
-                if any(p.search(mf_) for p in rpd_fold_pats for mf_ in mn_folds):
-                    skip = True
-                elif any(qp.search(rf) for qp in mn_fold_pats for rf in rpd_folded):
+                if any(p.search(mf_) for p in rpd_fold_pats for mf_ in mn_folds) or any(qp.search(rf) for qp in mn_fold_pats for rf in rpd_folded):
                     skip = True
             if not skip:
                 # Навыки, чей смысл убит NORMALIZE_RE (c++ -> c, c# -> c, .net -> net):

@@ -138,7 +138,7 @@ async def _run_cli(args: list[str], timeout: int = 1800, run_id: str | None = No
     try:
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             if proc.returncode is None:
                 proc.kill()
             return -1, "TIMEOUT"
@@ -422,7 +422,6 @@ async def rpd_cancel(request: Request, run_id: str):
     proc = _rpd_procs.get(run_id)
     if ev is None and proc is None:
         # Задача уже завершилась или неизвестна — смотрим БД.
-        from sqlalchemy import select
         from src.database import async_session_factory
         from src.models.krm_models import PipelineRun
 
@@ -462,7 +461,6 @@ async def rpd_sources(request: Request):
 @router.get("/teacher/rpd/status/{run_id}")
 async def rpd_status(run_id: str, request: Request):
     """Статус задачи сбора РПД."""
-    from sqlalchemy import select
     from src.database import async_session_factory
     from src.models.krm_models import PipelineRun
 

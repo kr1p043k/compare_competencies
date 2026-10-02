@@ -16,10 +16,20 @@ from sqlalchemy import inspect, select
 
 from src.database import async_session_factory
 from src.models.krm_models import (
-    Competency, CompetencySkill, CoverageAnalysis, Direction,
-    Discipline, KSAEntry, ParseVersion,
-    PDFSource, Recommendation, Skill, Student, StudentGroup,
-    StudentSkill, User,
+    Competency,
+    CompetencySkill,
+    CoverageAnalysis,
+    Direction,
+    Discipline,
+    KSAEntry,
+    ParseVersion,
+    PDFSource,
+    Recommendation,
+    Skill,
+    Student,
+    StudentGroup,
+    StudentSkill,
+    User,
 )
 
 OUT = Path(__file__).parent.parent.parent / "data" / "export"

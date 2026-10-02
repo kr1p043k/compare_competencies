@@ -8,7 +8,7 @@ from collections import defaultdict
 import numpy as np
 import structlog
 
-from src import Result, Ok, Err
+from src import Err, Ok, Result
 from src.errors import DomainError
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 

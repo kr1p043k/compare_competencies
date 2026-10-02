@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -525,9 +523,11 @@ async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03
 @limiter.limit("30/minute")
 async def krm_coverage(request: Request):
     """Coverage per discipline (latest analysis)."""
+    from sqlalchemy import func, select
+
     from src.database import async_session_factory
-    from src.models.krm_models import CoverageAnalysis as CAModel, Discipline
-    from sqlalchemy import select, func
+    from src.models.krm_models import CoverageAnalysis as CAModel
+    from src.models.krm_models import Discipline
 
     async with async_session_factory() as session:
         # latest analysis date
@@ -562,9 +562,11 @@ async def krm_coverage(request: Request):
 @limiter.limit("30/minute")
 async def krm_coverage_history(request: Request, discipline: str | None = None, limit: int = 20):
     """Coverage history across analyses."""
-    from src.database import async_session_factory
-    from src.models.krm_models import CoverageAnalysis as CAModel, Discipline
     from sqlalchemy import select
+
+    from src.database import async_session_factory
+    from src.models.krm_models import CoverageAnalysis as CAModel
+    from src.models.krm_models import Discipline
 
     async with async_session_factory() as session:
         query = select(CAModel, Discipline.name).join(Discipline, CAModel.discipline_id == Discipline.id)
@@ -594,16 +596,17 @@ async def krm_market_skills(request: Request, limit: int = 50):
     path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
     if not path.exists():
         return []
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         skills = json.load(f)
     return [{"skill": s, "frequency": 1} for s in list(skills)[:limit]]
 
 @router.get("/teacher/krm/search-runs")
 async def krm_search_runs(request: Request, limit: int = 20):
     """История запусков поиска."""
+    from sqlalchemy import select
+
     from src.database import async_session_factory
     from src.models.krm_models import PipelineRun
-    from sqlalchemy import select
 
     async with async_session_factory() as session:
         result = await session.execute(
@@ -629,9 +632,10 @@ async def krm_search_runs(request: Request, limit: int = 20):
 @router.get("/teacher/krm/search-runs/{run_id}")
 async def krm_search_run_detail(run_id: str):
     """Детали запуска поиска."""
-    from src.database import async_session_factory
-    from src.models.krm_models import PipelineRun, AnalysisResult
     from sqlalchemy import select
+
+    from src.database import async_session_factory
+    from src.models.krm_models import AnalysisResult, PipelineRun
 
     async with async_session_factory() as session:
         run = await session.get(PipelineRun, run_id)
@@ -707,6 +711,7 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
                                        date_to: str | None = None):
     """Export vacancies to Excel with list filters (v45). No filters = full dump."""
     import json
+
     import pandas as pd
 
     from src.api_pkg.routers.vacancies import _classify_experience, _parse_day, build_vacancy_where
@@ -760,9 +765,11 @@ async def competency_tree(dir_code: str = "09.03.02"):
     import re
     if not re.match(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$", dir_code):
         raise HTTPException(status_code=400, detail="Invalid direction code format")
+    from sqlalchemy import func, select
+
     from src.database import async_session_factory
-    from src.models.krm_models import Competency as CompModel, CoverageAnalysis, Direction, Discipline
-    from sqlalchemy import select, func
+    from src.models.krm_models import Competency as CompModel
+    from src.models.krm_models import CoverageAnalysis, Direction, Discipline
 
     async with async_session_factory() as session:
         latest = await session.execute(select(func.max(CoverageAnalysis.analysis_date)))

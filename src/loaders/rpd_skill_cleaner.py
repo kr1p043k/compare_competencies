@@ -8,7 +8,6 @@ Filters out:
 """
 
 import re
-from typing import Any
 
 import structlog
 
@@ -176,9 +175,8 @@ class RPDSkillCleaner:
 def clean_rpd_skills_file(input_path: str, output_path: str | None = None) -> Result[int, DomainError]:
     try:
         import json
-        from pathlib import Path
 
-        with open(input_path, "r", encoding="utf-8") as f:
+        with open(input_path, encoding="utf-8") as f:
             data = json.load(f)
 
         cleaner = RPDSkillCleaner()

@@ -1,21 +1,24 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from src import Err, Ok, Result, config
 from src.errors import DomainError
-from src.predictors.base import RankingPredictor, RecommenderPredictor
-from src.predictors.models import RecommendationResult, SkillImpact
+from src.predictors.base import RankingPredictor
+
+if TYPE_CHECKING:
+    from src.predictors.recommendation_engine import RecommendationEngine
+    from src.predictors.reranker import CrossEncoderReranker
 
 logger = structlog.get_logger(__name__)
 
 
 def create_reranker(
     model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
-) -> "CrossEncoderReranker":
+) -> CrossEncoderReranker:
     from src.predictors.reranker import CrossEncoderReranker
     return CrossEncoderReranker(model_name=model_name)
 
@@ -52,7 +55,7 @@ def create_recommender(
     profile_evaluator: Any = None,
     trend_analyzer: Any = None,
     ranking_predictor: RankingPredictor | None = None,
-) -> Result["RecommendationEngine", DomainError]:
+) -> Result[RecommendationEngine, DomainError]:
     from src.predictors.recommendation_engine import RecommendationEngine
 
     engine = RecommendationEngine(

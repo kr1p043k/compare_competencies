@@ -12,7 +12,7 @@ import asyncpg
 import structlog
 
 from src import config
-from src.db import DATABASE_URL, DB_POOL_MAX, DB_POOL_MIN, close_pool, create_pool, get_pool
+from src.db import DATABASE_URL, DB_POOL_MAX, DB_POOL_MIN, get_pool
 from src.utils import extract_date_from_filename
 
 logger = structlog.get_logger(__name__)
@@ -80,7 +80,7 @@ async def save_coverage_from_json(json_path: Path | None = None, run_id: str | N
         logger.warning("coverage_json_not_found", path=str(json_path))
         return 0
 
-    with open(json_path, "r", encoding="utf-8") as f:
+    with open(json_path, encoding="utf-8") as f:
         report = json.load(f)
 
     if not report:

@@ -4,17 +4,19 @@ import asyncio
 import hashlib
 import json
 import re
-import structlog
 from pathlib import Path
 
+import structlog
+
+import src.api_pkg.deps as deps
 from src import Err, Ok, config
-from src.cache_manager import CacheManager
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.analyzers.skills.trends import TrendAnalyzer
+from src.cache_manager import CacheManager
 from src.models.enums import ExperienceLevel
 from src.models.student import StudentProfile, merge_skills_hierarchically
 from src.parsing.skills.skill_normalizer import SkillNormalizer
@@ -22,8 +24,6 @@ from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import filter_skills_by_whitelist, load_it_skills
 from src.predictors.recommendation_engine import RecommendationEngine
 from src.utils import load_competency_mapping
-
-import src.api_pkg.deps as deps
 
 logger = structlog.get_logger("api")
 
@@ -591,9 +591,8 @@ async def _warmup_background(basic_vacancies, raw_file):
 
     # Prophet
     try:
-        from cmdstanpy.utils.logging import disable_logging
-        from src.predictors.prophet_forecast import ProphetForecastEngine, load_time_series
         from src.database import async_session_factory
+        from src.predictors.prophet_forecast import ProphetForecastEngine, load_time_series
 
         async with async_session_factory() as session:
             match await load_time_series(session):

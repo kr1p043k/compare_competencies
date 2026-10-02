@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import structlog
 
-from src.result import Ok, Err, Result
 from src.errors import RecommendationError
-from src.models.teacher_analysis import Recommendation, DirectionSummary
+from src.models.teacher_analysis import DirectionSummary, Recommendation
+from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 

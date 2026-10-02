@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import structlog
 
-from src import Result, Ok, Err, config
+from src import Err, Ok, Result, config
 from src.errors import DomainError
 from src.models.enums import TrendType
 from src.utils import extract_date_from_filename, validate_safe_path

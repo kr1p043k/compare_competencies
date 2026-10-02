@@ -5,7 +5,7 @@
 воздух и иерархия вместо рамок везде. Кириллица — DejaVu из matplotlib.
 """
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -51,7 +51,7 @@ def build_profile_pdf(profile: str, full_rec: dict, reports_dir: Path | str) -> 
     pdf.add_font("DejaVu", "B", bold)
 
     summary = full_rec.get("summary", {}) or {}
-    date = datetime.now(timezone.utc).strftime("%d.%m.%Y")
+    date = datetime.now(UTC).strftime("%d.%m.%Y")
     target = full_rec.get("target_profession", "") or profile
 
     # Обложечный блок: акцентная полоса + титул.

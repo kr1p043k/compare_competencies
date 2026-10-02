@@ -7,8 +7,7 @@ from typing import Any
 import pandas as pd
 import structlog
 
-from src import Result, Ok, Err
-from src import config
+from src import Err, Ok, Result, config
 from src.errors import DomainError
 from src.models.data_contracts import SkillExtractionResult
 from src.models.vacancy import Vacancy

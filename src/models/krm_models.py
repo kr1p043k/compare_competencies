@@ -1,13 +1,13 @@
 """SQLAlchemy models for main project database."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import partial
 from typing import Optional
 
+import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, CheckConstraint, Float, ForeignKey, Integer, String, Text, UniqueConstraint
-import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,23 +27,23 @@ class Vacancy(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     hh_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    experience: Mapped[Optional[str]] = mapped_column(String(50))
-    salary_from: Mapped[Optional[int]] = mapped_column(Integer)
-    salary_to: Mapped[Optional[int]] = mapped_column(Integer)
-    salary_currency: Mapped[Optional[str]] = mapped_column(String(10))
-    employer_name: Mapped[Optional[str]] = mapped_column(Text)
-    employer_id: Mapped[Optional[int]] = mapped_column(Integer)
-    area_name: Mapped[Optional[str]] = mapped_column(Text)
-    snippet_requirement: Mapped[Optional[str]] = mapped_column(Text)
-    snippet_responsibility: Mapped[Optional[str]] = mapped_column(Text)
-    description: Mapped[Optional[str]] = mapped_column(Text)
-    key_skills: Mapped[Optional[list[str]]] = mapped_column(sa.JSON())
-    parsed_skills: Mapped[Optional[list[str]]] = mapped_column(sa.JSON())
-    published_at: Mapped[Optional[datetime]]
-    alternate_url: Mapped[Optional[str]] = mapped_column(Text)
-    pipeline_run_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
-    raw: Mapped[Optional[dict]] = mapped_column(sa.JSON())
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    experience: Mapped[str | None] = mapped_column(String(50))
+    salary_from: Mapped[int | None] = mapped_column(Integer)
+    salary_to: Mapped[int | None] = mapped_column(Integer)
+    salary_currency: Mapped[str | None] = mapped_column(String(10))
+    employer_name: Mapped[str | None] = mapped_column(Text)
+    employer_id: Mapped[int | None] = mapped_column(Integer)
+    area_name: Mapped[str | None] = mapped_column(Text)
+    snippet_requirement: Mapped[str | None] = mapped_column(Text)
+    snippet_responsibility: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
+    key_skills: Mapped[list[str] | None] = mapped_column(sa.JSON())
+    parsed_skills: Mapped[list[str] | None] = mapped_column(sa.JSON())
+    published_at: Mapped[datetime | None]
+    alternate_url: Mapped[str | None] = mapped_column(Text)
+    pipeline_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
+    raw: Mapped[dict | None] = mapped_column(sa.JSON())
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     __table_args__ = (
         UniqueConstraint("hh_id", name="uq_vacancies_hh_id"),
@@ -61,11 +61,11 @@ class Direction(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     code: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    profile: Mapped[Optional[str]] = mapped_column(Text)
-    supervisor: Mapped[Optional[str]] = mapped_column(String(255))
-    opop_year: Mapped[Optional[int]] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc), onupdate=partial(datetime.now, timezone.utc))
+    profile: Mapped[str | None] = mapped_column(Text)
+    supervisor: Mapped[str | None] = mapped_column(String(255))
+    opop_year: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC), onupdate=partial(datetime.now, UTC))
 
     disciplines: Mapped[list["Discipline"]] = relationship(back_populates="direction", cascade="all, delete-orphan")
     parse_versions: Mapped[list["ParseVersion"]] = relationship(back_populates="direction", cascade="all, delete-orphan")
@@ -85,17 +85,17 @@ class Discipline(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     direction_id: Mapped[str] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    name_en: Mapped[Optional[str]] = mapped_column(Text)
-    description: Mapped[Optional[str]] = mapped_column(Text)
-    semester: Mapped[Optional[int]] = mapped_column(Integer)
-    hours_total: Mapped[Optional[int]] = mapped_column(Integer)
-    hours_lecture: Mapped[Optional[int]] = mapped_column(Integer)
-    hours_practice: Mapped[Optional[int]] = mapped_column(Integer)
-    hours_lab: Mapped[Optional[int]] = mapped_column(Integer)
-    hours_self: Mapped[Optional[int]] = mapped_column(Integer)
-    control_form: Mapped[Optional[str]] = mapped_column(String(20))
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc), onupdate=partial(datetime.now, timezone.utc))
+    name_en: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
+    semester: Mapped[int | None] = mapped_column(Integer)
+    hours_total: Mapped[int | None] = mapped_column(Integer)
+    hours_lecture: Mapped[int | None] = mapped_column(Integer)
+    hours_practice: Mapped[int | None] = mapped_column(Integer)
+    hours_lab: Mapped[int | None] = mapped_column(Integer)
+    hours_self: Mapped[int | None] = mapped_column(Integer)
+    control_form: Mapped[str | None] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC), onupdate=partial(datetime.now, UTC))
 
     direction: Mapped["Direction"] = relationship(back_populates="disciplines")
     pdf_sources: Mapped[list["PDFSource"]] = relationship(back_populates="discipline", cascade="all, delete-orphan")
@@ -115,9 +115,9 @@ class PDFSource(Base):
     filename: Mapped[str] = mapped_column(Text, nullable=False)
     ocr_used: Mapped[bool] = mapped_column(default=False)
     parse_status: Mapped[str] = mapped_column(String(20), default="pending")
-    error_message: Mapped[Optional[str]] = mapped_column(Text)
-    parsed_at: Mapped[Optional[datetime]]
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    parsed_at: Mapped[datetime | None]
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     discipline: Mapped["Discipline"] = relationship(back_populates="pdf_sources")
 
@@ -135,13 +135,13 @@ class ParseVersion(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     direction_id: Mapped[str] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"), nullable=False, index=True)
     version: Mapped[str] = mapped_column(String(50), nullable=False)
-    opop_year: Mapped[Optional[int]] = mapped_column(Integer)
+    opop_year: Mapped[int | None] = mapped_column(Integer)
     total_disciplines: Mapped[int] = mapped_column(Integer, default=0)
     total_competencies: Mapped[int] = mapped_column(Integer, default=0)
     total_skills: Mapped[int] = mapped_column(Integer, default=0)
     total_ksa_items: Mapped[int] = mapped_column(Integer, default=0)
-    notes: Mapped[Optional[str]] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     direction: Mapped["Direction"] = relationship(back_populates="parse_versions")
     competencies: Mapped[list["Competency"]] = relationship(back_populates="parse_version")
@@ -160,15 +160,15 @@ class Competency(Base):
     code: Mapped[str] = mapped_column(String(20), nullable=False)
     category: Mapped[str] = mapped_column(String(10), nullable=False)
     number: Mapped[str] = mapped_column(String(10), nullable=False)
-    name: Mapped[Optional[str]] = mapped_column(Text)
-    description: Mapped[Optional[str]] = mapped_column(Text)
-    development_level: Mapped[Optional[str]] = mapped_column(String(10))
-    parent_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
+    name: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
+    development_level: Mapped[str | None] = mapped_column(String(10))
+    parent_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    embedding: Mapped[Optional[list[float]]] = mapped_column(Vector(768))
-    parse_version_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("parse_versions.id"))
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc), onupdate=partial(datetime.now, timezone.utc))
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(768))
+    parse_version_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("parse_versions.id"))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC), onupdate=partial(datetime.now, UTC))
 
     discipline: Mapped["Discipline"] = relationship(back_populates="competencies")
     parent: Mapped[Optional["Competency"]] = relationship(
@@ -196,10 +196,10 @@ class KSAEntry(Base):
     competency_id: Mapped[str] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"), nullable=False, index=True)
     ksa_type: Mapped[str] = mapped_column(sa.Enum("knowledge", "abilities", "skills", name="ksa_type"), nullable=False)
     original_text: Mapped[str] = mapped_column(Text, nullable=False)
-    cleaned_text: Mapped[Optional[str]] = mapped_column(Text)
+    cleaned_text: Mapped[str | None] = mapped_column(Text)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    parse_version_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("parse_versions.id"))
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    parse_version_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("parse_versions.id"))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     competency: Mapped["Competency"] = relationship(back_populates="ksa_entries")
     parse_version: Mapped[Optional["ParseVersion"]] = relationship(back_populates="ksa_entries")
@@ -217,14 +217,14 @@ class Skill(Base):
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     name: Mapped[str] = mapped_column(Text, nullable=False, index=True)
-    name_en: Mapped[Optional[str]] = mapped_column(Text)
-    description: Mapped[Optional[str]] = mapped_column(Text)
+    name_en: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String(20), default="it_skills")
-    category: Mapped[Optional[str]] = mapped_column(String(100))
-    embedding: Mapped[Optional[list[float]]] = mapped_column(Vector(768))
+    category: Mapped[str | None] = mapped_column(String(100))
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(768))
     is_active: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc), onupdate=partial(datetime.now, timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC), onupdate=partial(datetime.now, UTC))
 
     competency_skills: Mapped[list["CompetencySkill"]] = relationship(back_populates="skill", cascade="all, delete-orphan")
     student_skills: Mapped[list["StudentSkill"]] = relationship(back_populates="skill", cascade="all, delete-orphan")
@@ -244,11 +244,11 @@ class CompetencySkill(Base):
     competency_id: Mapped[str] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"), nullable=False, index=True)
     skill_id: Mapped[str] = mapped_column(UUID, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True)
     ksa_type: Mapped[str] = mapped_column(String(20), nullable=False)
-    source_text: Mapped[Optional[str]] = mapped_column(Text)
+    source_text: Mapped[str | None] = mapped_column(Text)
     match_type: Mapped[str] = mapped_column(String(20), default="fuzzy")
-    required_level: Mapped[Optional[str]] = mapped_column(String(10))
-    parse_version_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("parse_versions.id"))
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    required_level: Mapped[str | None] = mapped_column(String(10))
+    parse_version_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("parse_versions.id"))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     competency: Mapped["Competency"] = relationship(back_populates="competency_skills")
     skill: Mapped["Skill"] = relationship(back_populates="competency_skills")
@@ -274,8 +274,8 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[str] = mapped_column(String(20), default="teacher")
     is_active: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc), onupdate=partial(datetime.now, timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC), onupdate=partial(datetime.now, UTC))
 
     recommendations: Mapped[list["Recommendation"]] = relationship(back_populates="user")
     sessions: Mapped[list["Session"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -297,7 +297,7 @@ class UserDirection(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     dir_code: Mapped[str] = mapped_column(String(50), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     user: Mapped["User"] = relationship(back_populates="user_directions")
 
@@ -314,15 +314,15 @@ class Recommendation(Base):
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     discipline_id: Mapped[str] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True)
-    competency_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
-    user_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"))
-    direction_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"))
+    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
+    user_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"))
+    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"))
     suggestion: Mapped[str] = mapped_column(Text, nullable=False)
     suggestion_type: Mapped[str] = mapped_column(String(20), nullable=False)
-    source: Mapped[Optional[str]] = mapped_column(String(20))
-    llm_request_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"))
-    confidence: Mapped[Optional[float]] = mapped_column(Float)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    source: Mapped[str | None] = mapped_column(String(20))
+    llm_request_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"))
+    confidence: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     discipline: Mapped["Discipline"] = relationship(back_populates="recommendations")
     user: Mapped[Optional["User"]] = relationship(back_populates="recommendations")
@@ -343,7 +343,7 @@ class StudentGroup(Base):
     direction_id: Mapped[str] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     year: Mapped[int] = mapped_column(Integer, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     direction: Mapped["Direction"] = relationship(back_populates="student_groups")
     students: Mapped[list["Student"]] = relationship(back_populates="group", cascade="all, delete-orphan")
@@ -358,8 +358,8 @@ class Student(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     group_id: Mapped[str] = mapped_column(UUID, ForeignKey("student_groups.id", ondelete="CASCADE"), nullable=False, index=True)
     full_name: Mapped[str] = mapped_column(Text, nullable=False)
-    email: Mapped[Optional[str]] = mapped_column(String(255))
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    email: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     group: Mapped["StudentGroup"] = relationship(back_populates="students")
     skills: Mapped[list["StudentSkill"]] = relationship(back_populates="student", cascade="all, delete-orphan")
@@ -376,11 +376,11 @@ class StudentSkill(Base):
     skill_id: Mapped[str] = mapped_column(UUID, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True)
     source: Mapped[str] = mapped_column(String(30), default="self_assessment")
     proficiency: Mapped[float] = mapped_column(Float, default=0.0)
-    achieved_level: Mapped[Optional[str]] = mapped_column(String(10))
-    direction_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("directions.id", ondelete="SET NULL"))
-    competency_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="SET NULL"))
-    assessed_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc))
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    achieved_level: Mapped[str | None] = mapped_column(String(10))
+    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="SET NULL"))
+    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="SET NULL"))
+    assessed_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, UTC))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     student: Mapped["Student"] = relationship(back_populates="skills")
     skill: Mapped["Skill"] = relationship(back_populates="student_skills")
@@ -402,12 +402,12 @@ class Session(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     token_hash: Mapped[str] = mapped_column(Text, nullable=False)
-    ip_address: Mapped[Optional[str]] = mapped_column(String(45))
-    user_agent: Mapped[Optional[str]] = mapped_column(Text)
-    logged_in_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc))
-    last_activity: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc))
-    logged_out_at: Mapped[Optional[datetime]]
-    sso_token: Mapped[Optional[str]] = mapped_column(Text)
+    ip_address: Mapped[str | None] = mapped_column(String(45))
+    user_agent: Mapped[str | None] = mapped_column(Text)
+    logged_in_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, UTC))
+    last_activity: Mapped[datetime] = mapped_column(default=partial(datetime.now, UTC))
+    logged_out_at: Mapped[datetime | None]
+    sso_token: Mapped[str | None] = mapped_column(Text)
 
     user: Mapped["User"] = relationship(back_populates="sessions")
 
@@ -423,10 +423,10 @@ class RequestLog(Base):
     path: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[int] = mapped_column(Integer, default=0)
     duration_ms: Mapped[float] = mapped_column(Float, default=0.0)
-    user_email: Mapped[Optional[str]] = mapped_column(String(255))
+    user_email: Mapped[str | None] = mapped_column(String(255))
     source: Mapped[str] = mapped_column(String(20), default="backend")
-    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     __table_args__ = (
         CheckConstraint(source.in_(["backend", "frontend"]), name="ck_log_source"),
@@ -442,12 +442,12 @@ class CoverageAnalysis(Base):
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     discipline_id: Mapped[str] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True)
-    direction_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"))
-    competency_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
+    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"))
+    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
     total_skills: Mapped[int] = mapped_column(Integer, default=0)
     market_matched_skills: Mapped[int] = mapped_column(Integer, default=0)
     coverage_ratio: Mapped[float] = mapped_column(Float, default=0.0)
-    analysis_date: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc))
+    analysis_date: Mapped[datetime] = mapped_column(default=partial(datetime.now, UTC))
 
     discipline: Mapped["Discipline"] = relationship(back_populates="coverage_analyses")
 
@@ -461,10 +461,10 @@ class PipelineRun(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="started")
-    started_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, timezone.utc))
-    completed_at: Mapped[Optional[datetime]]
-    error_message: Mapped[Optional[str]] = mapped_column(Text)
-    stats: Mapped[Optional[dict]] = mapped_column(sa.JSON())
+    started_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, UTC))
+    completed_at: Mapped[datetime | None]
+    error_message: Mapped[str | None] = mapped_column(Text)
+    stats: Mapped[dict | None] = mapped_column(sa.JSON())
 
     __table_args__ = (
         CheckConstraint(action.in_(["full-cycle", "rebuild", "train-clusters", "train-model", "gap-analysis", "teacher-analysis", "data-collection"]), name="ck_pr_action"),
@@ -479,13 +479,13 @@ class AnalysisResult(Base):
     __tablename__ = "analysis_results"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    pipeline_run_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
+    pipeline_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
     analysis_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    direction_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"))
-    discipline_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"))
-    competency_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
+    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"))
+    discipline_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"))
+    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
     data: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     __table_args__ = (
         CheckConstraint(analysis_type.in_(["gap", "coverage", "cluster", "trend", "teacher-analysis"]), name="ck_ar_type"),
@@ -499,11 +499,11 @@ class TrendSnapshot(Base):
     __tablename__ = "trend_snapshots"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    pipeline_run_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
+    pipeline_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
     snapshot_date: Mapped[datetime] = mapped_column()
     skill_freq: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
     source: Mapped[str] = mapped_column(String(50), default="hh_vacancies")
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
 
 # ─── LLM Interaction (аудит) ──────────────────────────────────────────────
@@ -513,16 +513,16 @@ class LLMInteraction(Base):
     __tablename__ = "llm_interactions"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    analysis_run_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("pipeline_runs.id"))
-    direction_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("directions.id"))
-    discipline_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("disciplines.id"))
+    analysis_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id"))
+    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id"))
+    discipline_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("disciplines.id"))
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     response_tokens: Mapped[int] = mapped_column(Integer, default=0)
-    prompt_hash: Mapped[Optional[str]] = mapped_column(Text)
-    response_summary: Mapped[Optional[str]] = mapped_column(Text)
+    prompt_hash: Mapped[str | None] = mapped_column(Text)
+    response_summary: Mapped[str | None] = mapped_column(Text)
     model: Mapped[str] = mapped_column(String(50), default="yandexgpt")
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
 
 # ─── LLM Recommendation (кэш запросов) ────────────────────────────────────
@@ -536,7 +536,7 @@ class LLMRecommendation(Base):
     prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
     model_used: Mapped[str] = mapped_column(String(20), nullable=False)
     response_json: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     __table_args__ = (
         CheckConstraint(model_used.in_(["qwen3.6", "gemma4", "qwen_local", "deepseek_local", "gpt-oss"]), name="ck_llm_model"),
@@ -550,13 +550,13 @@ class ProfileEvaluation(Base):
     __tablename__ = "profile_evaluations"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    user_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"))
+    user_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"))
     discipline_id: Mapped[str] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False)
     evaluation_type: Mapped[str] = mapped_column(String(20), nullable=False)
     input_summary: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
     result_summary: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
-    llm_request_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"))
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    llm_request_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     __table_args__ = (
         CheckConstraint(evaluation_type.in_(["gap", "coverage", "full"]), name="ck_pe_type"),
@@ -573,14 +573,14 @@ class Subscription(Base):
     user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     topic: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="openalex+arxiv")
-    telegram_chat_id: Mapped[Optional[str]] = mapped_column(String(255))
-    email: Mapped[Optional[str]] = mapped_column(String(255))
-    last_checked_at: Mapped[Optional[datetime]]
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(255))
+    email: Mapped[str | None] = mapped_column(String(255))
+    last_checked_at: Mapped[datetime | None]
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), 
-        default=partial(datetime.now, timezone.utc),
-        onupdate=partial(datetime.now, timezone.utc),
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
+    updated_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True),
+        default=partial(datetime.now, UTC),
+        onupdate=partial(datetime.now, UTC),
     )
 
     __table_args__ = (
@@ -596,16 +596,16 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    subscription_id: Mapped[Optional[str]] = mapped_column(UUID, ForeignKey("subscriptions.id", ondelete="CASCADE"))
+    subscription_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("subscriptions.id", ondelete="CASCADE"))
     user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
-    article_url: Mapped[Optional[str]] = mapped_column(Text)
-    article_source: Mapped[Optional[str]] = mapped_column(String(50))
+    article_url: Mapped[str | None] = mapped_column(Text)
+    article_source: Mapped[str | None] = mapped_column(String(50))
     severity: Mapped[str] = mapped_column(String(20), nullable=False, default="info")
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
-    delivered_via: Mapped[Optional[str]] = mapped_column(String(50))
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, timezone.utc))
+    delivered_via: Mapped[str | None] = mapped_column(String(50))
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     subscription: Mapped["Subscription"] = relationship(backref="notifications", passive_deletes=True)
 

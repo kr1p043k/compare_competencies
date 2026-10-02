@@ -17,7 +17,7 @@ from src.models.krm_models import Direction, Skill, Student, StudentGroup, Stude
 
 
 async def main(csv_path: str) -> None:
-    with open(csv_path, "r", encoding="utf-8-sig") as f:
+    with open(csv_path, encoding="utf-8-sig") as f:
         rows = list(csv.DictReader(f))
     if not rows:
         print("Empty CSV")

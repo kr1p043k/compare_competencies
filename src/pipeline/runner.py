@@ -2,27 +2,23 @@
 
 import argparse
 import asyncio
-import sys
 from typing import Any
 
-import structlog
 import matplotlib
+import structlog
 
 matplotlib.use("Agg")
 
-from datetime import date, datetime
+from datetime import date
 
 from src import Err, Ok, Result, config, timed_block
 from src.loaders_student.student_loader import generate_profiles_from_csv
-from src.parsing.skills.skill_normalizer import SkillNormalizer
-from src.models.enums import ExperienceLevel
 from src.models.data_contracts import (
-    AnalysisContext,
-    CollectionContext,
-    PipelineContext,
     RecommendationContext,
 )
+from src.models.enums import ExperienceLevel
 from src.models.student import StudentProfile, merge_skills_hierarchically
+from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.pipeline.helpers import console_header, console_info
 from src.pipeline.orchestrator import PipelineOrchestrator
 from src.pipeline.progress import write as _write_pipeline_progress
@@ -374,7 +370,7 @@ def run_full_pipeline(args) -> Result[None, str]:
     if pipeline_result.is_err():
         pipeline_run_counter.labels(status="failed", trigger="cli").inc()
         console_info(f"❌ Пайплайн не завершён: {pipeline_result.err()}")
-        from src.notifications.system import queue_system_error, flush_system_errors_sync
+        from src.notifications.system import flush_system_errors_sync, queue_system_error
         queue_system_error(
             "Пайплайн не завершился",
             str(pipeline_result.err())[:2000],
@@ -459,7 +455,7 @@ def run_full_pipeline(args) -> Result[None, str]:
 
         # Write results to PostgreSQL
         try:
-            from src.pipeline.db_writer import create_pipeline_run, complete_pipeline_run
+            from src.pipeline.db_writer import complete_pipeline_run, create_pipeline_run
 
             async def _write_db():
                 rid = await create_pipeline_run("gap-analysis")

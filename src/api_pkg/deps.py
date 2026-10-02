@@ -3,11 +3,12 @@
 import asyncio
 
 from fastapi import HTTPException
+
 from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.analyzers.skills.trends import TrendAnalyzer
-from src.di import DIContainer, get_container
+from src.di import get_container
 from src.models.student import StudentProfile
 from src.predictors.prophet_forecast import ProphetForecastEngine
 from src.predictors.recommendation_engine import RecommendationEngine

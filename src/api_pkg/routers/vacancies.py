@@ -1,20 +1,19 @@
 """Vacancies: list, detail, stats — DB-backed."""
 
 import json
-import structlog
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+import structlog
+from fastapi import APIRouter, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src.api_pkg import deps
 from src.models.api_responses import (
     VacanciesResponse,
     VacancyDetailResponse,
     VacancyStatsResponse,
 )
-
-from src.api_pkg import deps
 
 logger = structlog.get_logger("api")
 
@@ -108,7 +107,7 @@ def build_vacancy_where(search=None, experience=None, region=None, months=None,
         conditions.append(f"v.area_name ILIKE ${len(params) + 1}")
         params.append(region.strip())
     if months:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=int(months) * 30)
+        cutoff = datetime.now(UTC) - timedelta(days=int(months) * 30)
         conditions.append(f"v.published_at >= ${len(params) + 1}")
         params.append(cutoff)
     df = _parse_day(date_from) if isinstance(date_from, str) else date_from
@@ -209,7 +208,6 @@ async def get_vacancies(
 @router.get("/vacancies/info")
 async def get_vacancies_info():
     """Информация об источнике вакансий."""
-    from src.api_pkg import deps
     pool = await _get_db_pool()
 
     info = {"count": 0, "file_modified": None, "date_range": None, "load_error": deps.vacancy_load_error}

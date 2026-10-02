@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import date, datetime
 
@@ -26,8 +26,8 @@ from src.predictors.skill_forecast import (
 FIT_STATUS: dict = {"state": "idle", "done": 0, "total": 0, "started_at": None}
 
 try:
-    from prophet import Prophet
     from cmdstanpy.utils.logging import disable_logging as _disable_cmdstan
+    from prophet import Prophet
     _disable_cmdstan().__enter__()
 except ImportError:
     Prophet = None  # type: ignore[assignment]
@@ -187,6 +187,7 @@ async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], Doma
     """
     import json
     from pathlib import Path
+
     from src import config
 
     # 1. Load freq_market_*.json files as primary source
@@ -372,8 +373,8 @@ class ProphetForecastEngine(BasePredictor):
         return history
 
     def _fit_prophet_for_skill(self, skill: str, points: list[tuple[date, float]]):
-        from cmdstanpy.utils.logging import disable_logging
         import numpy as np
+        from cmdstanpy.utils.logging import disable_logging
         df = pd.DataFrame({"ds": [p[0] for p in points], "y": [p[1] for p in points]})
         n_points = len(points)
         # Sanity check: detect extreme variance that causes "inf in matrix" errors

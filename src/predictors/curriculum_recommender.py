@@ -7,10 +7,10 @@ from pathlib import Path
 
 import structlog
 
-from src.result import Ok, Err, Result
 from src.errors import RecommendationError
-from src.models.teacher_analysis import Recommendation, DisciplineCoverage
 from src.feature_flags import weak_comp_recs_enabled
+from src.models.teacher_analysis import DisciplineCoverage, Recommendation
+from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 
@@ -22,7 +22,7 @@ def _load_skill_types() -> dict[str, list[str]]:
     if not SKILL_TYPES_PATH.exists():
         logger.warning("skill_types_file_not_found", path=str(SKILL_TYPES_PATH))
         return {"academic": [], "professional": []}
-    with open(SKILL_TYPES_PATH, "r", encoding="utf-8") as f:
+    with open(SKILL_TYPES_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -191,11 +191,7 @@ class CurriculumRecommender:
         for ref, labels in self._taxo_map.items():
             if not ref:
                 continue
-            if ref == sn or ref in words:
-                cats.update(labels)
-            elif len(ref) > 4 and ref in sn:
-                cats.update(labels)
-            elif len(sn) > 4 and sn in ref:
+            if ref == sn or ref in words or len(ref) > 4 and ref in sn or len(sn) > 4 and sn in ref:
                 cats.update(labels)
         return cats
 

@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src import Err, Ok, Result
@@ -16,7 +16,7 @@ class EvalReport:
     metric_value: float
     samples: int = 0
     details: dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 class BaseEvaluator(ABC):
@@ -46,8 +46,8 @@ class CoverageEvaluator(BaseEvaluator):
 
     def evaluate(self, **kwargs) -> Result[EvalReport, DomainError]:
         try:
+
             from src import config
-            from pathlib import Path
 
             student_file = kwargs.get("student_file") or config.STUDENTS_DIR / "base_competency.json"
             if not student_file.exists():

@@ -17,7 +17,6 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 import numpy as np
 import structlog
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import async_session_factory
 from src.models.krm_models import Competency, CompetencySkill, Direction, Discipline, Skill
@@ -68,7 +67,7 @@ def _split_phrases(text: str) -> list[str]:
 
 
 def load_json(path: Path) -> dict | list:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -249,7 +248,7 @@ async def tier_semantic(session, disciplines, disc_map, comp_map):
                 targets.append((str(cid), phrase))
 
     if not targets:
-        print(f"  [tier3] Semantic: 0")
+        print("  [tier3] Semantic: 0")
         return 0
 
     # 2. Батч-кодирование всех фраз (один проход по модели)

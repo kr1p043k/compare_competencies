@@ -26,6 +26,8 @@ from typing import Any
 try:  # DB-backed shared cache (parallel worker): get_cached(task, model, prompt)
     from src.services.llm_cache import (  # type: ignore
         get_cached as _db_get_cached,
+    )
+    from src.services.llm_cache import (
         put_cached as _db_put_cached,
     )
     _DB_CACHE = True

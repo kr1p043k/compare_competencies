@@ -8,18 +8,17 @@ import json
 import re
 import time
 from collections import deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
 from fastapi import Request
-from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from src import config
-from src.monitoring.metrics import api_latency, api_requests_total
 from src.models.krm_models import RequestLog
+from src.monitoring.metrics import api_latency, api_requests_total
 
 logger = structlog.get_logger(__name__)
 
@@ -74,7 +73,7 @@ class LogEntry:
         self.user_email = user_email or "anonymous"
         self.source = source
         self.detail = detail
-        self.timestamp = datetime.now(timezone.utc).replace(tzinfo=None)
+        self.timestamp = datetime.now(UTC).replace(tzinfo=None)
 
 
 _log_buffer: deque[LogEntry] = deque(maxlen=MAX_LOGS)
@@ -297,12 +296,12 @@ def _metric_path(request: Request) -> str:
 
 class RequestLogMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
-        start = datetime.now(timezone.utc)
+        start = datetime.now(UTC)
         user = _extract_user(request)
         request.scope["user"] = user
         request.state.user = user
         response = await call_next(request)
-        elapsed = (datetime.now(timezone.utc) - start).total_seconds() * 1000
+        elapsed = (datetime.now(UTC) - start).total_seconds() * 1000
         if not request.url.path.startswith("/api/"):
             return response
         label_path = _metric_path(request)

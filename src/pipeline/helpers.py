@@ -17,9 +17,8 @@ for _s in (sys.stdout, sys.stderr):
         pass
 del _s
 
-from tqdm import tqdm
-
 import structlog
+from tqdm import tqdm
 
 from src import Err, Ok, Result, config
 from src.errors import DomainError

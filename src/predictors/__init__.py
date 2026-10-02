@@ -1,5 +1,6 @@
 from src.predictors.base import BasePredictor, RankingPredictor, RecommenderPredictor
 from src.predictors.factory import create_ranking_predictor, create_recommender
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 from src.predictors.models import (
     ClosestRole,
     Recommendation,
@@ -8,8 +9,7 @@ from src.predictors.models import (
     SkillImpact,
 )
 from src.predictors.recommendation_engine import RecommendationEngine
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
-from src.predictors.skill_forecast import SkillForecastEngine, ForecastResult
+from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
 
 try:
     from src.predictors.prophet_forecast import ProphetForecastEngine

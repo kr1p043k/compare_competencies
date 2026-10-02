@@ -18,11 +18,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import StratifiedShuffleSplit, train_test_split
 
 from src import (
+    Err,
     ModelError,
     ModelNotFoundError,
     ModelTrainingError,
     Ok,
-    Err,
     Result,
     config,
 )
@@ -42,7 +42,7 @@ def _load_profession_profiles() -> list[list[str]]:
     profiles: list[list[str]] = [[]]  # empty profile (no experience)
     try:
         import json
-        from pathlib import Path
+
         from src import config
         prof_path = config.REFERENCE_DIR / "profession_taxonomy.json"
         krm_path = config.REFERENCE_DIR / "krm_competency_mapping.json"
@@ -444,17 +444,6 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 "hybrid_weight_normalized": hybrid_weights.get(skill, 0.0),
                 "freq_normalized": freq / max_freq,
             }
-        # category_avg_weight — только по train-навыкам (честная оценка):
-        # средние категории из test-распределения не должны попадать в признаки.
-        # NOTE: level_analyzer/корпус/эмбеддинги посчитаны на полном корпусе —
-        # это unsupervised-статистики (не метки); принято как ограничение, см. docs.
-        train_skill_set = {rows[i]["skill"] for i in train_idx}
-        cat_buckets: dict[str, list[float]] = {}
-        for skill in train_skill_set:
-            meta = self.skill_metadata.get(skill, {})
-            cat_buckets.setdefault(meta.get("category", "other"), []).append(meta.get("hybrid_weight", 0.0))
-        self.category_avg_weight = {c: float(np.mean(v)) for c, v in cat_buckets.items() if v}
-
         # --- split: стратификация по оценкам внутри роли ---
         qid_of = {role: i for i, role in enumerate(roles)}
         train_idx: list[int] = []
@@ -474,6 +463,17 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 train_idx.extend(idx[:cut])
                 test_idx.extend(idx[cut:])
         logger.info("ranker_split", train=len(train_idx), test=len(test_idx))
+
+        # category_avg_weight — только по train-навыкам (честная оценка):
+        # средние категории из test-распределения не должны попадать в признаки.
+        # NOTE: level_analyzer/корпус/эмбеддинги посчитаны на полном корпусе —
+        # это unsupervised-статистики (не метки); принято как ограничение, см. docs.
+        train_skill_set = {rows[i]["skill"] for i in train_idx}
+        cat_buckets: dict[str, list[float]] = {}
+        for skill in train_skill_set:
+            meta = self.skill_metadata.get(skill, {})
+            cat_buckets.setdefault(meta.get("category", "other"), []).append(meta.get("hybrid_weight", 0.0))
+        self.category_avg_weight = {c: float(np.mean(v)) for c, v in cat_buckets.items() if v}
 
         # --- профили ролей из train-двоек + LOO на строку ---
         train_core: dict[str, list[str]] = {role: [] for role in roles}

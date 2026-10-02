@@ -13,8 +13,7 @@ from typing import Any
 
 import structlog
 
-from src import Result, Ok, Err
-from src import config
+from src import Err, Ok, Result, config
 from src.errors import DomainError
 from src.parsing.utils import load_it_skills
 

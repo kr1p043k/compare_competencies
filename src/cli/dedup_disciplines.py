@@ -8,6 +8,7 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from sqlalchemy import select
+
 from src.database import async_session_factory
 from src.models.krm_models import Direction, Discipline
 

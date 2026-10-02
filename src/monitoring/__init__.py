@@ -1,7 +1,7 @@
 """initка для мониторинга и метрик"""
 
-from src.monitoring.pipeline_metrics import pipeline_metrics, ConversionTracker
-from src.monitoring.gap_metrics import gap_metrics, GapMetricsTracker
+from src.monitoring.gap_metrics import GapMetricsTracker, gap_metrics
+from src.monitoring.pipeline_metrics import ConversionTracker, pipeline_metrics
 
 __all__ = [
     "pipeline_metrics",

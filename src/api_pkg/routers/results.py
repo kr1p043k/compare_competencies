@@ -1,7 +1,7 @@
 """Results summary, recommendations files, images."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -76,7 +76,7 @@ async def get_recommendations_result(
                 payload = json.load(f)
             try:
                 mtime = result_path.stat().st_mtime
-                payload["generated_at"] = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+                payload["generated_at"] = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
             except Exception:
                 pass
             return payload

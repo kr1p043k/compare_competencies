@@ -5,21 +5,22 @@ import json
 import os
 import tempfile
 import threading
-from collections import Counter
 
 import numpy as np
 import structlog
 
 from src import config
-from src.result import Ok, Err, Result
-from src.errors import CoverageError
-from src.models.teacher_analysis import CompetencyCoverage, CrossReference, DisciplineCoverage, SkillMatch
 from src.analyzers.skill_matcher import (
     MARKET_MIN_FREQ,
     SkillMatcher,
     coverage_level,
+)
+from src.analyzers.skill_matcher import (
     normalize as normalize_skill,
 )
+from src.errors import CoverageError
+from src.models.teacher_analysis import CompetencyCoverage, CrossReference, DisciplineCoverage, SkillMatch
+from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 

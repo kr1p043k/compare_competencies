@@ -1,11 +1,10 @@
 """Trend analyzer: skill demand trends over time."""
 from __future__ import annotations
 
-
 import structlog
 
-from src.result import Ok, Err, Result
 from src.errors import TrendError
+from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 

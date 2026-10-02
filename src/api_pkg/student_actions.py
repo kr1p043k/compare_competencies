@@ -1,6 +1,6 @@
 """Structured student action log (analysis runs, searches, etc.) - persisted in PostgreSQL."""
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 MAX_ACTIONS = 500
@@ -41,7 +41,7 @@ def log_action(username: str, action_type: str, profession: str = "",
         "profession": profession, "region": region,
         "vacancies_found": vacancies_found, "result_ref": result_ref,
         "profile": profile,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
     _action_buffer.append(entry)
     if len(_action_buffer) >= 10:

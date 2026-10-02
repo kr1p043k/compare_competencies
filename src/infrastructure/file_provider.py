@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-
 import structlog
 
-from src import Ok, Err, Result, config
+from src import Err, Ok, Result, config
 from src.errors import DataSourceError, DomainError
-from src.utils import safe_read_json, safe_read_competency_json
+from src.utils import safe_read_competency_json, safe_read_json
 
 logger = structlog.get_logger(__name__)
 

@@ -5,28 +5,27 @@ import time
 from typing import Any
 
 import numpy as np
-import requests
 import structlog
 from sklearn.preprocessing import MinMaxScaler
 
 from src import Err, Ok, RecommendationError, Result, config
-from src.errors import DomainError
-from src.monitoring.metrics import llm_requests_total, llm_request_duration_seconds
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
+from src.errors import DomainError
 from src.models.enums import PriorityLevel, SkillCategory, TrendType
 from src.models.student import StudentProfile
+from src.monitoring.metrics import llm_request_duration_seconds, llm_requests_total
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.predictors.base import RecommenderPredictor
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
-from src.predictors.reranker import BaseReranker, CrossEncoderReranker, RerankerBuilder
 from src.predictors.models import (
     ClosestRole,
     Recommendation,
     RecommendationResult,
     RecommendationSummary,
 )
+from src.predictors.reranker import BaseReranker, RerankerBuilder
 
 logger = structlog.get_logger(__name__)
 

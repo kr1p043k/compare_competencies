@@ -5,8 +5,9 @@ import os
 import re
 
 from rapidfuzz import fuzz
-from src.parsing.utils import load_it_skills
+
 from src.parsing.skills.skill_validator import SkillValidator
+from src.parsing.utils import load_it_skills
 
 it_skills = load_it_skills()
 it_set = {s.strip().lower() for s in it_skills if s.strip()}
@@ -14,7 +15,7 @@ it_set = {s.strip().lower() for s in it_skills if s.strip()}
 rpd_skills_path = os.path.join(os.path.dirname(__file__), "../../data/reference/rpd_skills.json")
 rpd_set = set()
 if os.path.exists(rpd_skills_path):
-    rpd_skills = json.load(open(rpd_skills_path, "r", encoding="utf-8"))
+    rpd_skills = json.load(open(rpd_skills_path, encoding="utf-8"))
     rpd_set = {s.strip().lower() for s in rpd_skills if s.strip()}
     print(f"it_skills: {len(it_set)}, rpd_skills: {len(rpd_set)}")
 
@@ -74,7 +75,7 @@ def clean_competency_skills(data: dict) -> dict:
 if __name__ == "__main__":
     import sys
     krm_path = sys.argv[1] if len(sys.argv) > 1 else "data/reference/krm_disciplines_09.03.02.json"
-    with open(krm_path, "r", encoding="utf-8") as f:
+    with open(krm_path, encoding="utf-8") as f:
         data = json.load(f)
     result = clean_competency_skills(data)
     with open(krm_path, "w", encoding="utf-8") as f:

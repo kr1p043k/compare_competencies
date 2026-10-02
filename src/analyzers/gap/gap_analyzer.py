@@ -4,7 +4,7 @@
 
 import structlog
 
-from src import config, Result, Ok, Err
+from src import Ok, Result, config
 from src.errors import DomainError
 from src.models.enums import ExperienceLevel
 from src.models.market_metrics import SkillMetrics

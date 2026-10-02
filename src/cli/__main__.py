@@ -11,8 +11,8 @@ def main() -> None:
     import asyncio
 
     from src.cli import (
-        backup_db,
         backfill_market_snapshots,
+        backup_db,
         compute_competency_trends,
         compute_competency_vectors,
         create_user,

@@ -9,7 +9,8 @@ import sys
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-from sqlalchemy import select, text as sa_text
+from sqlalchemy import select
+from sqlalchemy import text as sa_text
 
 from src.database import async_session_factory
 from src.models.krm_models import User

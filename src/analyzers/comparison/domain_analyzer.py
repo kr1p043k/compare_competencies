@@ -3,7 +3,7 @@ import json
 
 import structlog
 
-from src import Result, Ok, Err, config
+from src import Err, Ok, Result, config
 from src.errors import DomainError
 from src.models.market_metrics import DomainMetrics
 

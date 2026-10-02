@@ -7,7 +7,6 @@ from src import Err, Ok, RecommendationError, Result
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.models.data_contracts import PipelineContext
 from src.predictors.recommendation_engine import RecommendationEngine
-from src.predictors.models import RecommendationResult
 
 logger = structlog.get_logger("recommendation_runner")
 

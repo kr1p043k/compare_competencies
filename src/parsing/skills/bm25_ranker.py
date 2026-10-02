@@ -8,8 +8,7 @@ import pymorphy3
 import structlog
 from rank_bm25 import BM25Okapi
 
-from src import Result, Ok, Err
-from src import config
+from src import Err, Ok, Result, config
 from src.errors import DomainError
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.parsing.utils import load_it_skills
@@ -50,7 +49,8 @@ class BM25Ranker:
 
     def _compute_corpus_hash(self, vacancies: list) -> str:
         """Хеш ID + длин + содержимого (одни ID протухают при правках)."""
-        import hashlib, json
+        import hashlib
+        import json
         parts = []
         for v in vacancies:
             if not v:

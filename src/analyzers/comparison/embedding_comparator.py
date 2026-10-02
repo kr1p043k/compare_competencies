@@ -16,15 +16,14 @@ import structlog
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src import Err, Ok, Result, config
-from src.errors import DomainError
+from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
 from src.analyzers.comparison.engines import (
     ComparisonResult,
     EnsembleEngine,
-    JaccardEngine,
     SimilarityEngine,
 )
 from src.artifacts import ArtifactManifest
-from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+from src.errors import DomainError
 
 if TYPE_CHECKING:
     from src.analyzers.clustering.vacancy_clustering import VacancyClusterer

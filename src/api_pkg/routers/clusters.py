@@ -1,15 +1,13 @@
 """Clusters summary and detail."""
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
-from src.models.api_responses import ClusterSummaryResponse, ClustersByLevelResponse
+from src.models.api_responses import ClustersByLevelResponse, ClusterSummaryResponse
 from src.models.enums import ExperienceLevel
-
-from src.api_pkg import deps
 
 logger = structlog.get_logger("api")
 
