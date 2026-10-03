@@ -8,7 +8,6 @@ from src.analyzers.skill_matcher import (
     SkillMatcher,
     normalize,
     coverage_level,
-    SEMANTIC_THRESHOLD,
 )
 from src.analyzers.coverage_analyzer import CoverageAnalyzer
 

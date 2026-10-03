@@ -15,12 +15,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import structlog
 
-from src import Result, Ok, Err, config
+from src import Err, Ok, Result, config
 from src.errors import DomainError
 from src.models.enums import TrendType
 from src.utils import extract_date_from_filename, validate_safe_path
 
 logger = structlog.get_logger(__name__)
+
+# Версия методологии снимков: v2 = readiness v2 + честная _meta
+# (vacancy_count/synthetic пишутся с этого релиза; старые файлы без них).
+SNAPSHOT_METHODOLOGY_VERSION = "v2"
 
 
 class TrendAnalyzer:
@@ -35,9 +39,12 @@ class TrendAnalyzer:
     # Работа со снимками
     # ------------------------------------------------------------------
     def save_snapshot(self, frequencies: dict[str, float], label: str = None, apply_whitelist: bool = True, as_of=None,
-                      source_type: str = "full_market", profession: str | None = None) -> Result[Path, DomainError]:
+                      source_type: str = "full_market", profession: str | None = None,
+                      vacancy_count: int | None = None, synthetic: bool = False) -> Result[Path, DomainError]:
         """Сохраняет снимок с _meta и возвращает путь к файлу.
         source_type: 'full_market' (ит-рынок) или 'targeted_query' (по профессии/запросу).
+        vacancy_count: объём выборки (None = неизвестен, как раньше).
+        synthetic: True = досинтезированный/восполненный снимок (бейдж в API).
         """
         try:
             if apply_whitelist:
@@ -59,7 +66,9 @@ class TrendAnalyzer:
                 "_meta": {
                     "type": source_type,
                     "snapshot_date": day,
-                    "vacancy_count": None,
+                    "vacancy_count": vacancy_count,
+                    "synthetic": bool(synthetic),
+                    "methodology_version": SNAPSHOT_METHODOLOGY_VERSION,
                     "source": "it_sector" if source_type == "full_market" else "profession_query",
                 }
             }
@@ -71,6 +80,11 @@ class TrendAnalyzer:
                 out[k] = v
 
             prefix = "freq_market" if source_type == "full_market" else "freq_profession"
+            if prefix == "freq_profession" and not profession:
+                # Защита от мусорных freq_profession_2026-09.json: targeted без
+                # профессии — это фактически весь рынок, пишем как full_market.
+                logger.warning("snapshot_profession_missing_fallback_market")
+                prefix = "freq_market"
             suffix = f"_{profession}" if profession else ""
             filename = f"{prefix}{suffix}_{month}.json"
             path = self.history_dir / filename
@@ -174,9 +188,17 @@ class TrendAnalyzer:
         """
         Сравнивает текущий снимок с предыдущим (переданным или историческим).
         min_frequency — минимальная частота навыка в предыдущем снимке (фильтр шума).
+
+        Честность сравнения: память (self.current) и файлы snapshots могут быть
+        посчитаны разными прогонами/методиками (сырые counts против нормализованных
+        весов) — прямое сравнение давало фантомные «-96% по всем». Поэтому при
+        наличии 2+ файлов сравниваем ПОСЛЕДНИЕ ДВА ФАЙЛА между собой и только
+        в ДОЛЯХ (share от итога файла) — объёмы выборок по месяцам различаются.
         """
         if previous_snapshot is not None:
             prev_data = previous_snapshot
+            cur_data = dict(self.current)
+            prev_label = prev_label
         else:
             snapshots_result = self.load_all_snapshots()
             if snapshots_result.is_err():
@@ -186,15 +208,31 @@ class TrendAnalyzer:
                 logger.warning("not_enough_snapshots_for_trends")
                 return Ok({TrendType.RISING: [], TrendType.FALLING: []})
             prev_dt, _, prev_data = snapshots[-2]
+            _cur_dt, _, cur_data = snapshots[-1]
             prev_label = prev_dt.strftime("%Y-%m-%d")
+            logger.info(
+                "trends_file_vs_file",
+                prev=prev_dt.strftime("%Y-%m-%d"),
+                cur=_cur_dt.strftime("%Y-%m-%d"),
+            )
+
+        prev_total = sum(v for v in prev_data.values() if isinstance(v, (int, float))) or 1.0
+        cur_total = sum(v for v in cur_data.values() if isinstance(v, (int, float))) or 1.0
 
         rising, falling = [], []
 
-        for skill, current_freq in self.current.items():
+        for skill, current_freq in cur_data.items():
+            if skill.startswith("_"):
+                continue
             prev_freq = prev_data.get(skill, 0)
             if prev_freq < min_frequency:
                 continue
-            change_pct = ((current_freq - prev_freq) / prev_freq) * 100
+            # Доли, а не сырые counts: выборки месяцев разного объёма.
+            cur_share = current_freq / cur_total
+            prev_share = prev_freq / prev_total
+            if prev_share <= 0:
+                continue
+            change_pct = ((cur_share - prev_share) / prev_share) * 100
             entry = {
                 "skill": skill,
                 "current_freq": current_freq,

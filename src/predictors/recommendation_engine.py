@@ -5,31 +5,53 @@ import time
 from typing import Any
 
 import numpy as np
-import requests
 import structlog
 from sklearn.preprocessing import MinMaxScaler
 
 from src import Err, Ok, RecommendationError, Result, config
-from src.errors import DomainError
-from src.monitoring.metrics import llm_requests_total, llm_request_duration_seconds
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
+from src.errors import DomainError
 from src.models.enums import PriorityLevel, SkillCategory, TrendType
 from src.models.student import StudentProfile
+from src.monitoring.metrics import llm_request_duration_seconds, llm_requests_total
+from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.predictors.base import RecommenderPredictor
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
-from src.predictors.reranker import BaseReranker, CrossEncoderReranker, RerankerBuilder
 from src.predictors.models import (
     ClosestRole,
     Recommendation,
     RecommendationResult,
     RecommendationSummary,
 )
+from src.predictors.reranker import BaseReranker, RerankerBuilder
 
 logger = structlog.get_logger(__name__)
 
 
+
+
+_TIMEFRAME_BY_CATEGORY = {
+    "programming_languages": "оценка: ~2–4 месяца",
+    "frameworks": "оценка: ~1–3 месяца",
+    "databases": "оценка: ~1–3 месяца",
+    "data_science": "оценка: ~1–3 месяца",
+    "frontend": "оценка: ~1–3 месяца",
+    "mobile": "оценка: ~1–3 месяца",
+    "devops": "оценка: ~1–2 месяца",
+    "cloud": "оценка: ~1–2 месяца",
+    "security": "оценка: ~1–2 месяца",
+    "llm_ai": "оценка: ~1–2 месяца",
+    "embedded": "оценка: ~1–2 месяца",
+    "game_dev": "оценка: ~1–2 месяца",
+    "enterprise": "оценка: ~1–2 месяца",
+    "gis": "оценка: ~1–2 месяца",
+    "mathematics": "оценка: ~1–2 месяца",
+    "ml_advanced": "оценка: ~2–4 месяца",
+    "testing_qa": "оценка: ~1–2 месяца",
+    "methodologies_concepts": "оценка: ~2–4 недели",
+}
 class RecommendationEngine(RecommenderPredictor["RecommendationEngine", RecommendationResult]):
     """
     Движок рекомендаций с профильной оценкой, LTR-ранжированием
@@ -44,7 +66,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         profile_evaluator=None,
         trend_analyzer=None,
     ):
-        self.comparator = CompetencyComparator(use_embeddings=True, level="middle")
+        self.comparator = CompetencyComparator(use_embeddings=True, level="all")
         self.skill_filter = SkillFilter()
         self.is_fitted = False
         self.profile_evaluator = profile_evaluator
@@ -201,9 +223,30 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             cluster_context = eval_result.get("cluster_context") or {}
             closest_clusters = cluster_context.get("closest_clusters", [])
             cluster_skills_map = cluster_context.get("skills", {})
+            # ID кластеров валидны только в модели своего уровня (L1).
+            cluster_level = cluster_context.get("cluster_level") or getattr(
+                student, "target_level", "middle")
+            if hasattr(cluster_level, "value"):
+                cluster_level = cluster_level.value
             student_set = set(s.lower() for s in student.skills)
 
-            closest_roles = self._build_closest_roles(closest_clusters, cluster_skills_map, student_set)
+            # L2: целевая профессия подмешивается в ранг ролей (мягкий буст).
+            target_profession = (eval_result.get("target_profession") or "").strip()
+            prof_skills: set[str] = set()
+            if target_profession and taxonomy is not None and hasattr(taxonomy, "get_profession_skills"):
+                try:
+                    prof_skills = {s.lower().strip()
+                                   for s in taxonomy.get_profession_skills(target_profession)}
+                except Exception as e:
+                    logger.warning("profession_skills_fetch_failed",
+                                   profession=target_profession, error=str(e))
+            elif target_profession:
+                logger.warning("role_boost_skipped_no_taxonomy",
+                               profession=target_profession, profile=profile_name)
+
+            closest_roles = self._build_closest_roles(
+                closest_clusters, cluster_skills_map, student_set, cluster_level,
+                prof_skills=prof_skills, target_profession=target_profession)
 
             top_recs: list[tuple[str, float]] = eval_result.get("top_recommendations", [])
             evaluator_scores: dict[str, float] = {skill: score for skill, score in top_recs}
@@ -249,7 +292,15 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                         for hot in self._always_hot:
                             if hot not in tb:
                                 tb[hot] = config.TREND_ALWAYS_HOT_BONUS
-                        self._cached_trend_bonuses = tb
+                        # Ключи трендов — сырые имена снапшотов (k8s), проверка ниже —
+                        # по нормализованным. Нормализуем здесь, дубли склеиваем по max.
+                        normed: dict[str, float] = {}
+                        for _k, _v in tb.items():
+                            _r = SkillNormalizer.normalize(_k)
+                            _nk = _r.ok().lower() if _r.is_ok() and _r.ok() else str(_k).lower()
+                            if _nk and (_nk not in normed or _v > normed[_nk]):
+                                normed[_nk] = _v
+                        self._cached_trend_bonuses = normed
                         self._trend_bonuses_cached_at = now
                     case _:
                         pass
@@ -274,14 +325,23 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 top_cluster = closest_clusters[0]
                 role_similarity = top_cluster.get("similarity", 0)
                 cid = top_cluster.get("id")
-                if cid is not None and self.profile_evaluator.clusterer:
-                    try:
-                        role_skills = set(
-                            s.lower() for s in self.profile_evaluator.clusterer.get_top_skills_in_cluster(cid, top_n=50)
-                        )
-                    except Exception:
+                if cid is not None:
+                    top_level = top_cluster.get("level", cluster_level) or cluster_level
+                    level_clusterer = self.profile_evaluator.get_clusterer(top_level) \
+                        if hasattr(self.profile_evaluator, "get_clusterer") \
+                        else self.profile_evaluator.clusterer
+                    if level_clusterer:
+                        try:
+                            role_skills = set(
+                                s.lower() for s in level_clusterer.get_top_skills_in_cluster(cid, top_n=50)
+                            )
+                        except Exception:
+                            role_skills = set(cluster_skills_map.keys())
+                    else:
                         role_skills = set(cluster_skills_map.keys())
 
+            # R3: снимок базы ДО мультипликативных бонусов.
+            base_track = dict(combined_scores)
             for skill in list(combined_scores.keys()):
                 bonus = 1.0
                 skill_lower = skill.lower()
@@ -303,17 +363,21 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 match self.reranker.rerank(query, documents, top_k=len(documents)):
                     case Ok(rr):
                         raw = {s: float(sc) for s, sc in rr.top_k(len(documents))}
-                        vals = list(raw.values())
-                        vmin, vmax = min(vals), max(vals)
-                        reranked_norm: dict[str, float] = {}
-                        if vmax > vmin:
-                            reranked_norm = {s: (v - vmin) / (vmax - vmin) for s, v in raw.items()}
+                        if not raw:
+                            logger.warning("reranker_empty_result", profile=profile_name)
                         else:
-                            reranked_norm = {s: 0.5 for s in raw}
-                        for skill in combined_scores:
-                            rerank_bonus = reranked_norm.get(skill, 0.0)
-                            combined_scores[skill] = 0.7 * combined_scores[skill] + 0.3 * rerank_bonus
-                        logger.info("reranker_applied", profile=profile_name, skills=len(reranked_norm))
+                            vals = list(raw.values())
+                            vmin, vmax = min(vals), max(vals)
+                            reranked_norm: dict[str, float] = {}
+                            if vmax > vmin:
+                                reranked_norm = {s: (v - vmin) / (vmax - vmin) for s, v in raw.items()}
+                            else:
+                                reranked_norm = {s: 0.5 for s in raw}
+                            for skill in combined_scores:
+                                rerank_bonus = reranked_norm.get(skill, 0.0)
+                                combined_scores[skill] = 0.7 * combined_scores[skill] + 0.3 * rerank_bonus
+                                base_track[skill] = 0.7 * base_track.get(skill, 0.0) + 0.3 * rerank_bonus
+                            logger.info("reranker_applied", profile=profile_name, skills=len(reranked_norm))
                     case Err(e):
                         logger.warning("reranker_skipped", error=str(e))
 
@@ -331,12 +395,23 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
 
             rec_objects: list[Recommendation] = []
             skill_metrics = eval_result.get("skill_metrics", {})
+            top_role = closest_roles[0] if closest_roles else None
+            top_core_pool = set()
+            if top_role:
+                top_core_pool = {s.lower() for s in (top_role.get("cluster_core_skills") or [])}
             for skill, score in combined_scores.items():
                 metric = skill_metrics.get(skill, {})
                 try:
-                    explanation = self._generate_explanation(skill, score, eval_result)
-                    if skill.lower() in trend_bonuses:
-                        explanation += f" 📈 Растущий тренд (+{trend_bonuses[skill.lower()] * 100:.0f}%)."
+                    skill_relevant = skill.lower() in top_core_pool
+                    explanation = self._generate_explanation(skill, score, eval_result, skill_relevant)
+                    if skill.lower() in self._always_hot:
+                        explanation += " 📈 Стабильно востребован."
+                    elif skill.lower() in trend_bonuses:
+                        _tb = trend_bonuses[skill.lower()]
+                        # Бонус зарезан капом 0.3 — честно показываем «и более», иначе
+                        # все быстрорастущие навыки выглядят с одинаковым +30%.
+                        _tb_txt = "+30% и более" if _tb >= 0.3 else f"+{_tb * 100:.0f}%"
+                        explanation += f" 📈 Топ роста ({_tb_txt})."
                     if skill.lower() in domain_skills:
                         explanation += f" 🔗 Ключевой навык для домена «{dominant_domain}»."
                     is_soft = not self._is_hard_skill(skill)
@@ -348,6 +423,8 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 rec_objects.append(Recommendation(
                     skill=skill,
                     importance_score=score,
+                    importance_base=round(base_track.get(skill, score), 4),
+                    importance_bonus=round(score - base_track.get(skill, score), 4),
                     priority=(
                         PriorityLevel.HIGH
                         if score > config.PRIORITY_HIGH_THRESHOLD
@@ -359,7 +436,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                     why_important=explanation,
                     how_to_learn=self._get_learning_path(skill, is_soft, student),
                     expected_timeframe=self._get_timeframe(skill),
-                    expected_outcome=self._get_role_outcome(skill, closest_roles),
+                    expected_outcome=self._get_role_outcome(skill, closest_roles, skill_relevant),
                     is_soft_skill=is_soft,
                     market_frequency_percent=score * 100,
                 ))
@@ -418,6 +495,11 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                         "total_market_skills": len(eval_result.get("skill_metrics", {})),
                     },
                     market_skill_coverage=eval_result.get("market_skill_coverage", 0.0),
+                    coverage_strict=eval_result.get("coverage_strict",
+                                                    eval_result.get("market_skill_coverage", 0.0)),
+                    coverage_weighted=eval_result.get("coverage_weighted",
+                                                      eval_result.get("skill_coverage", 0.0)),
+                    coverage_strict_scope=eval_result.get("coverage_strict_scope", "market"),
                 ),
                 profession_coverage_detail=eval_result.get("profession_coverage_detail", {}),
                 closest_roles=[ClosestRole(**r) for r in closest_roles],
@@ -437,25 +519,39 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
     # ПРИВАТНЫЕ МЕТОДЫ
     # ------------------------------------------------------------------
 
+    # Веса бленда ранга ролей: геометрия доминирует, цель корректирует.
+    # Обоснование — замер A/B на base/dc/top_dc (см. отчёт стадии 2).
+    ROLE_SIM_WEIGHT = 0.6
+    ROLE_TARGET_WEIGHT = 0.4
+
     def _build_closest_roles(
         self,
         closest_clusters: list[dict],
         cluster_skills_map: dict,
         student_set: set[str],
+        cluster_level: str = "middle",
+        prof_skills: set[str] | None = None,
+        target_profession: str = "",
     ) -> list[dict]:
-        roles = []
-        for c in closest_clusters[:3]:
+        prof_skills = prof_skills or set()
+        candidates = []
+        for c in closest_clusters:
             name = c.get("name", f"Кластер {c['id']}")
             sim = c.get("similarity", 0)
             cluster_id = c["id"]
+            # Cross-level: ID валиден только в модели своего уровня.
+            cand_level = c.get("level", cluster_level) or cluster_level
 
             ranked: list[str] = []
             cluster_all_skills: set[str] = set()
-            if self.profile_evaluator.clusterer:
+            level_clusterer = self.profile_evaluator.get_clusterer(cand_level) \
+                if hasattr(self.profile_evaluator, "get_clusterer") \
+                else self.profile_evaluator.clusterer
+            if level_clusterer:
                 try:
                     ranked = [
                         s.lower()
-                        for s in self.profile_evaluator.clusterer.get_top_skills_in_cluster(cluster_id, top_n=50)
+                        for s in level_clusterer.get_top_skills_in_cluster(cluster_id, top_n=50)
                     ]
                     cluster_all_skills = set(ranked)
                 except Exception as e:
@@ -465,18 +561,47 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 cluster_all_skills = set(cluster_skills_map.keys())
             core_skills = [s for s in ranked[:15] if s in cluster_all_skills] or sorted(cluster_all_skills)[:15]
 
+            # L2: пересечение с навыками целевой профессии (0..1).
+            overlap = (len(prof_skills & cluster_all_skills) / 50.0) if prof_skills else 0.0
+            rank_score = round(self.ROLE_SIM_WEIGHT * sim + self.ROLE_TARGET_WEIGHT * overlap, 4)
+            try:
+                dom_cat = self._taxonomy.get_dominant_category(ranked[:15]) if ranked else "other"
+                if dom_cat == "other" and ranked:
+                    # То же правило, что в именах кластеров: other не категория,
+                    # берём следующую с count>=2 — иначе дедап пропускает дубли.
+                    match self._taxonomy.get_category_stats(ranked[:15]):
+                        case Ok(stats):
+                            for _cat, _cnt in stats.items():
+                                if _cat != "other" and _cnt >= 2:
+                                    dom_cat = _cat
+                                    break
+                        case _:
+                            pass
+            except Exception:
+                dom_cat = "other"
+
             covered = len(student_set & cluster_all_skills)
             total = len(cluster_all_skills)
 
-            roles.append(
+            expl = (
+                f"Ваш профиль семантически близок к этой роли на {sim * 100:.0f}%. "
+                f"Это означает, что ваш набор навыков похож на требования вакансий "
+                f"в этом кластере, но не гарантирует полного соответствия."
+            )
+            if prof_skills and target_profession:
+                expl += (f" Ранжирование учитывает целевую профессию «{target_profession}»: "
+                         f"пересечение {len(prof_skills & cluster_all_skills)} из 50 навыков.")
+
+            candidates.append(
                 {
                     "role": name,
                     "semantic_similarity": round(sim * 100, 1),
-                    "similarity_explanation": (
-                        f"Ваш профиль семантически близок к этой роли на {sim * 100:.0f}%. "
-                        f"Это означает, что ваш набор навыков похож на требования вакансий "
-                        f"в этом кластере, но не гарантирует полного соответствия."
-                    ),
+                    "rank_score": rank_score,
+                    "target_overlap": round(overlap, 4),
+                    "target_profession": target_profession,
+                    "dominant_category": dom_cat,
+                    "cluster_level": cand_level,
+                    "similarity_explanation": expl,
                     "skills_covered": f"{covered}/{total}",
                     "coverage_percent": round(covered / total * 100, 1) if total > 0 else 0,
                     "coverage_explanation": (
@@ -488,7 +613,19 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                     "cluster_core_skills": core_skills,
                 }
             )
-        return roles
+        # Сорт по бленду + дедап доминантной категории, берём 3.
+        # "other" не дедапится: недоказанная одинаковость — не одинаковость.
+        candidates.sort(key=lambda r: r["rank_score"], reverse=True)
+        roles, seen_cats = [], set()
+        for cand in candidates:
+            _dc = cand["dominant_category"]
+            if _dc != "other" and _dc in seen_cats:
+                continue
+            seen_cats.add(_dc)
+            roles.append(cand)
+            if len(roles) == 3:
+                break
+        return roles[:3]
 
     def _diversify_recommendations(self, recs: list[dict], max_per_category: int = 3) -> list[dict]:
         seen: dict[str, int] = {}
@@ -503,61 +640,51 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 leftover.append(rec)
         return priority + leftover
 
-    def _get_role_outcome(self, skill: str, closest_roles: list[dict]) -> str:
+    def _get_role_outcome(self, skill: str, closest_roles: list[dict], skill_relevant: bool = False) -> str:
+        # Ожидаемый результат считаем для ВСЕХ рекомендаций с ролью-контекстом,
+        # а не только для skill_relevant — иначе блок «Ожидаемый результат» пропадает.
         if not closest_roles:
-            return f"Освоение '{skill}' расширит ваш технический кругозор."
+            return ""
         top_role = closest_roles[0]
         role_name = top_role["role"]
         similarity = top_role["semantic_similarity"]
         coverage = top_role["coverage_percent"]
         total_skills = int(top_role["skills_covered"].split("/")[1]) if "/" in top_role["skills_covered"] else 50
 
-        core_skills = top_role.get("cluster_core_skills") or []
-        core_pool = core_skills if core_skills else top_role.get("cluster_skills", [])
-        skill_is_relevant = skill.lower() in (s.lower() for s in core_pool)
 
-        if skill_is_relevant and total_skills > 0:
+        if total_skills > 0:
             new_coverage = round((coverage * total_skills / 100 + 1) / total_skills * 100, 1)
         else:
             new_coverage = coverage
         improvement = round(new_coverage - coverage, 1)
 
-        if not skill_is_relevant:
-            return (
-                f"Освоение '{skill}' расширит ваш технический кругозор. "
-                f"Навык не входит в топ ключевых навыков для роли «{role_name}», "
-                f"но может быть полезен в смежных областях."
-            )
         return (
             f"После освоения '{skill}' ваше покрытие навыков для роли "
             f"«{role_name}» вырастет с {coverage}% до {new_coverage}% (+{improvement}%). "
-            f"Семантическая близость к роли сейчас {similarity}% — навык усилит ваши позиции "
+            f"Семантическая близость к роли сейчас {similarity}%. "
+            f"Навык усилит ваши позиции "
             f"и откроет доступ к смежным вакансиям."
         )
 
-    def _generate_explanation(self, skill: str, score: float, eval_result: dict) -> str:
+    def _generate_explanation(self, skill: str, score: float, eval_result: dict, skill_relevant: bool = False) -> str:
         metric = eval_result.get("skill_metrics", {}).get(skill, {})
-        cluster_rel = metric.get("cluster_relevance", 0)
         category = metric.get("category", "missing")
         cluster_context = eval_result.get("cluster_context") or {}
         closest = cluster_context.get("closest_clusters", [])
         top_cluster = closest[0] if closest else None
         top_cluster_name = top_cluster.get("name") if top_cluster else None
         top_cluster_sim = top_cluster.get("similarity", 0) if top_cluster else 0
-        cluster_skills = cluster_context.get("skills", {})
-        skill_in_top_cluster = skill in cluster_skills
 
         try:
             skill_cat = self._taxonomy.get_category_label(skill)
         except Exception:
             skill_cat = "технический"
 
-        prefix = "🔶 УСИЛИТЬ: " if category == SkillCategory.WEAK else ""
         suffix = " У вас уже есть базовое понимание — углубите его." if category == SkillCategory.WEAK else ""
 
-        if skill_in_top_cluster and top_cluster_name and cluster_rel > 0.5:
+        if skill_relevant and top_cluster_name:
             return (
-                f"{prefix}🎯 Ключевой навык для роли «{top_cluster_name}».\n"
+                f"🎯 Ключевой навык для роли «{top_cluster_name}».\n"
                 f"   Ваш профиль семантически близок к этой роли "
                 f"({top_cluster_sim * 100:.0f}%), но для полного соответствия "
                 f"не хватает '{skill}'.\n"
@@ -566,20 +693,20 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             )
         if score > 0.6:
             return (
-                f"{prefix}🔴 Высокий рыночный спрос.\n"
+                f"🔴 Высокий рыночный спрос.\n"
                 f"   '{skill}' ({skill_cat}) — один из самых востребованных навыков "
                 f"на рынке. Работодатели часто указывают его в требованиях."
                 f"{suffix}"
             )
         if score > 0.35:
             return (
-                f"{prefix}🟡 Умеренный спрос.\n"
+                f"🟡 Умеренный спрос.\n"
                 f"   '{skill}' ({skill_cat}) дополнит ваш профиль и повысит "
                 f"привлекательность для работодателей в смежных областях."
                 f"{suffix}"
             )
         return (
-            f"{prefix}🟢 Дополнительное преимущество.\n"
+            f"🟢 Дополнительное преимущество.\n"
             f"   '{skill}' полезен для расширения кругозора в категории '{skill_cat}'."
             f"{suffix}"
         )
@@ -593,9 +720,11 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         skill_lower = skill.lower()
         level = student_profile.target_level if student_profile else "middle"
         if is_soft:
-            base = self.SOFT_LEARNING_PATHS.get(skill_lower, "Практикуйте навык постоянно.")
+            base = self.SOFT_LEARNING_PATHS.get(skill_lower, "")
         else:
-            base = self.HARD_LEARNING_PATHS.get(skill_lower, f"Изучите документацию '{skill}' и выполните проекты.")
+            base = self.HARD_LEARNING_PATHS.get(skill_lower, "")
+        if not base:
+            return ""
         if level == "junior":
             base = "Сфокусируйтесь на основах: " + base
         elif level == "senior":
@@ -646,7 +775,14 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
             return "1-2 месяца"
         if skill_lower in self._timeframe_hard:
             return "2-6 месяцев"
-        return "1-3 месяца"
+        try:
+            cat = self._taxonomy.get_category(skill_lower)
+        except Exception:
+            cat = None
+        estimate = _TIMEFRAME_BY_CATEGORY.get(cat) if cat else None
+        if estimate:
+            return estimate
+        return "оценка: ~1–2 месяца"
 
     # ------------------------------------------------------------------
     # LLM (YandexGPT) — вспомогательный, необязательный

@@ -528,7 +528,7 @@ class TestVacancyClusteringFull:
                 assert clusterer.is_fitted is True
 
     def test_get_cluster_skills_nonexistent_cluster_id(self):
-        """Строка 352: запрос навыков несуществующего кластера"""
+        """���'�?�?��� 352: �������?�?��� �?��?�'�?�? �?��?�'�?�? �?��?��?�'�?�? ��>���?�'�?��"""
         clusterer = VacancyClusterer(n_clusters=2, min_clusters=2, max_clusters=4, use_hdbscan_fallback=False)
         vacancies = [{"id": f"{i}", "skills": ["python", f"skill_{i}"]} for i in range(20)]
         clusterer.fit(vacancies, level="test_nonex")
@@ -536,3 +536,27 @@ class TestVacancyClusteringFull:
         assert skills == []
         top = clusterer.get_top_skills_in_cluster(9999, top_n=5)
         assert top == []
+
+    def test_fit_order_invariant(self):
+        """Детерминизм: перемешанный вход даёт те же метки (сортировка по id в fit)."""
+        import hashlib
+
+        def fake_emb(self, vacancies):
+            vecs = []
+            for v in vacancies:
+                h = int(hashlib.md5(v["id"].encode()).hexdigest()[:8], 16)
+                rng = np.random.RandomState(h)
+                vec = rng.rand(16)
+                vecs.append(vec / np.linalg.norm(vec))
+            return np.vstack(vecs)
+
+        vacs = [{"id": f"{i}", "skills": ["python"]} for i in range(60)]
+        with patch.object(VacancyClusterer, "_compute_embeddings", fake_emb):
+            c1 = VacancyClusterer(min_clusters=2, max_clusters=6, use_hdbscan_fallback=False)
+            with patch.object(c1, "_save_model"):
+                c1.fit(list(vacs), level="t1")
+            c2 = VacancyClusterer(min_clusters=2, max_clusters=6, use_hdbscan_fallback=False)
+            with patch.object(c2, "_save_model"):
+                c2.fit(list(reversed(vacs)), level="t2")
+        assert (c1.labels_ == c2.labels_).all()
+        assert c1.vacancy_ids == c2.vacancy_ids

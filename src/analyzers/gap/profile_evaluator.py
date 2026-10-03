@@ -8,14 +8,13 @@ from typing import Any
 import numpy as np
 import structlog
 
-from src import Result, Ok, Err, config
-from src.errors import DomainError
+from src import Err, Ok, Result, config
 from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
-from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.comparison.domain_analyzer import DomainAnalyzer
 from src.analyzers.gap.gap_analyzer import GapAnalyzer
 from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 from src.artifacts import ArtifactManifest
+from src.errors import DomainError
 from src.models.data_contracts import ProfileEvaluationResult
 from src.models.enums import ExperienceLevel
 from src.models.student import StudentProfile
@@ -24,6 +23,14 @@ from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.utils import atomic_read_json, atomic_write_json
 
 logger = structlog.get_logger(__name__)
+
+# Cross-level пул ролей: топ-N SIM-кандидатов с каждой уровневой модели
+# (N обязано покрывать зону бленда: DS часто 5-8-я по sim, но 1-2-я по бленду;
+# префильтр top-2 убивал её до ранжирования — баг, исправлен widening до 10).
+# Кластеры меньше MIN_SIZE вакансий не кандидаты (топ-15 навыков по <30
+# объявлениям неустойчив).
+CROSS_LEVEL_TOP_K = 10
+CROSS_LEVEL_MIN_SIZE = 30
 
 
 class ProfileEvaluator:
@@ -51,21 +58,29 @@ class ProfileEvaluator:
         else:
             self.gap_analyzer_new = None
 
-        self.cluster_models_loaded = {
-            ExperienceLevel.JUNIOR: self.clusterer.load_model(ExperienceLevel.JUNIOR),
-            ExperienceLevel.MIDDLE: self.clusterer.load_model(ExperienceLevel.MIDDLE),
-            ExperienceLevel.SENIOR: self.clusterer.load_model(ExperienceLevel.SENIOR),
-        }
-        # Fallback to "all" if no per-level model loaded
-        if not any(self.cluster_models_loaded.values()):
-            all_loaded = self.clusterer.load_model("all")
-            for level in self.cluster_models_loaded:
-                self.cluster_models_loaded[level] = all_loaded
+        self.clusterers: dict[Any, VacancyClusterer] = {}
+        self.cluster_models_loaded = {}
+        for lvl in ExperienceLevel:
+            cl = VacancyClusterer()
+            loaded = cl.load_model(lvl)
+            self.clusterers[lvl] = cl
+            self.cluster_models_loaded[lvl] = loaded
+        # Сквозной фолбэк "all": грузится отдельно, ни за какой уровень не выдаётся.
+        all_cl = VacancyClusterer()
+        all_loaded = all_cl.load_model("all")
+        self.clusterers["all"] = all_cl
+        self.cluster_models_loaded["all"] = all_loaded
+        # Legacy-алиас: указывает на "all" (если есть), иначе на первую загруженную.
+        # Новые вызовы обязаны идти через get_clusterer(level).
+        self.clusterer = all_cl if all_loaded else next(
+            (c for lv, c in self.clusterers.items()
+             if lv != "all" and self.cluster_models_loaded.get(lv)), all_cl)
         logger.info(
             "cluster_models_loaded",
-            junior=self.cluster_models_loaded["junior"],
-            middle=self.cluster_models_loaded["middle"],
-            senior=self.cluster_models_loaded["senior"],
+            junior=self.cluster_models_loaded[ExperienceLevel.JUNIOR],
+            middle=self.cluster_models_loaded[ExperienceLevel.MIDDLE],
+            senior=self.cluster_models_loaded[ExperienceLevel.SENIOR],
+            fallback_all=all_loaded,
         )
 
         self._cache = {}
@@ -153,6 +168,8 @@ class ProfileEvaluator:
                 return Err(err)
             case Ok(val):
                 domain_coverages = val
+            case _:
+                return Err(DomainError("Некорректный результат покрытия доменов"))
 
         if domain_coverages:
             dominant_domain = max(domain_coverages.items(), key=lambda x: x[1].coverage)
@@ -285,10 +302,12 @@ class ProfileEvaluator:
         skill_w = rw.get("skill", config.READINESS_SKILL_WEIGHT)
         gap_penalty = rw.get("gap_penalty", config.READINESS_GAP_PENALTY_WEIGHT)
         market_div = total_market if total_market > 0 else 1
+        # Шкала 0–100 во всех слагаемых: доли strong/weak — в процентах.
+        # (До v2 здесь были сырые доли 0..1 — вклад ±0.3 балла, потолок 45.3.)
         readiness = (
             market_w * market_coverage_score
-            + skill_w * (strong_count / market_div)
-            + gap_penalty * (weak_count / market_div)
+            + skill_w * (strong_count / market_div * 100)
+            + gap_penalty * (weak_count / market_div * 100)
         )
 
         total_gap = sum((m.gap_j + m.gap_m + m.gap_s) / 3 for m in metrics.values())
@@ -331,6 +350,8 @@ class ProfileEvaluator:
             level_weights_used=level_weights,
             student_skills=user_skills_list,
             market_skill_coverage=market_skill_coverage_pct,
+            coverage_strict=market_skill_coverage_pct,
+            coverage_weighted=round(skill_coverage, 2),
             skill_categories=skill_categories,
         )
         eval_result.profession_coverage = round(profession_coverage, 2)
@@ -340,10 +361,24 @@ class ProfileEvaluator:
         result = eval_result.model_dump()
         return Ok(result)
 
+    def get_clusterer(self, level: Any) -> VacancyClusterer | None:
+        """Кластерер строго своего уровня; фолбэк — "all", затем любой загруженный."""
+        lv = level.value if isinstance(level, ExperienceLevel) else str(level).lower()
+        for key in (level, lv, "all"):
+            for k, cl in self.clusterers.items():
+                kk = k.value if isinstance(k, ExperienceLevel) else str(k)
+                if (k == key or kk == key) and self.cluster_models_loaded.get(k):
+                    return cl
+        for k, cl in self.clusterers.items():
+            if self.cluster_models_loaded.get(k):
+                return cl
+        return None
+
     def _get_cluster_context(self, student: StudentProfile, target_level: str) -> Result[dict, DomainError]:
         if not self.use_clustering:
             return Err(DomainError(message="Clustering disabled"))
-        if target_level not in self.cluster_models_loaded or not self.cluster_models_loaded[target_level]:
+        clusterer = self.get_clusterer(target_level)
+        if clusterer is None:
             return Err(DomainError(message=f"Clusterer not trained for level {target_level}"))
 
         match self._get_or_compute_student_embedding(student):
@@ -352,7 +387,7 @@ class ProfileEvaluator:
             case Err(e):
                 return Err(e)
 
-        match self.clusterer.get_cluster_context(
+        match clusterer.get_cluster_context(
             profile_embedding=student_emb, level=target_level, top_k_clusters=5, top_k_skills_per_cluster=25
         ):
             case Ok(cluster_context):
@@ -362,6 +397,46 @@ class ProfileEvaluator:
                     total_skills=cluster_context["total_skills_in_context"],
                     clusters_count=len(cluster_context.get("closest_clusters", [])),
                 )
+                cluster_context["cluster_level"] = (
+                    target_level.value if isinstance(target_level, ExperienceLevel) else str(target_level))
+                # Cross-level: опрашиваем ВСЕ уровневые модели (топ-2 с каждой),
+                # кандидаты с тегом уровня, микрокластеры (<MIN) отсекаются.
+                # "all" исключена сознательно (агрегат = двойной учёт).
+                req_lv = cluster_context["cluster_level"]
+                merged: list[dict] = []
+                merged_skills: dict[str, float] = {}
+                levels_polled: list[str] = []
+                for lvl in ExperienceLevel:
+                    if not self.cluster_models_loaded.get(lvl):
+                        continue
+                    lvl_cl = self.get_clusterer(lvl)
+                    if lvl_cl is None:
+                        continue
+                    match lvl_cl.get_cluster_context(
+                        profile_embedding=student_emb, level=lvl.value,
+                        top_k_clusters=CROSS_LEVEL_TOP_K,
+                        top_k_skills_per_cluster=25,
+                    ):
+                        case Ok(lvl_ctx):
+                            levels_polled.append(lvl.value)
+                            sizes = lvl_cl.get_cluster_sizes()
+                            for cc in lvl_ctx.get("closest_clusters", []):
+                                if sizes.get(int(cc["id"]), 0) < CROSS_LEVEL_MIN_SIZE:
+                                    continue
+                                entry = dict(cc)
+                                entry["level"] = lvl.value
+                                merged.append(entry)
+                            for sk, sc in (lvl_ctx.get("skills", {}) or {}).items():
+                                if sc > merged_skills.get(sk, 0.0):
+                                    merged_skills[sk] = sc
+                        case _:
+                            continue
+                if merged:
+                    merged.sort(key=lambda c: c.get("similarity", 0), reverse=True)
+                    cluster_context["closest_clusters"] = merged
+                    cluster_context["skills"] = merged_skills
+                    cluster_context["total_skills_in_context"] = len(merged_skills)
+                    cluster_context["levels_polled"] = levels_polled
                 return Ok(cluster_context)
             case Err(err):
                 return Err(DomainError(message="Cluster context failed", detail=str(err)))

@@ -17,16 +17,10 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
-from src.parsing.utils import load_it_skills
-from src.api_pkg.request_logger import get_logs, get_logs_by_user
-from src.api_pkg.routers.auth import require_any_role
-
 from src.api_pkg import deps
-from src.monitoring.metrics import (
-    pipeline_duration, pipeline_errors, api_latency, api_requests_total,
-    recommendations_generated, ltr_training_duration, ltr_model_metrics,
-    vacancies_loaded, active_profiles, skill_count,
-)
+from src.api_pkg.request_logger import actor_from_request, audit_action, get_logs_by_user
+from src.api_pkg.routers.auth import require_any_role
+from src.parsing.utils import load_it_skills
 
 logger = structlog.get_logger("api")
 
@@ -90,6 +84,10 @@ async def whitelist_add(request: Request, body: WhitelistAddRequest):
         }
     _save_whitelist(list(current))
     logger.info("Whitelist extended", added=len(current) - before, total=len(current))
+    await audit_action(
+        request, "skills.whitelist.add",
+        f"added={len(current) - before} skills={sorted(set(body.skills))[:20]}",
+    )
     return {
         "status": "ok",
         "message": f"Added {len(current) - before} skills",
@@ -114,6 +112,10 @@ async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
         }
     _save_whitelist(list(current))
     logger.info("Whitelist trimmed", removed=before - len(current), total=len(current))
+    await audit_action(
+        request, "skills.whitelist.remove",
+        f"removed={before - len(current)} skills={sorted(set(body.skills))[:20]}",
+    )
     return {
         "status": "ok",
         "message": f"Removed {before - len(current)} skills",
@@ -216,6 +218,9 @@ async def admin_trigger_pipeline(
         run_gap_analysis=body.run_gap_analysis,
         regions=body.regions,
     )
+    from src.api_pkg.request_logger import audit_action
+    await audit_action(request, "pipeline.trigger.manual",
+                       f"action={body.action} task={task_id} regions={body.regions}")
     return {
         "status": "started",
         "task_id": task_id,
@@ -243,6 +248,7 @@ def _format_experience(exp: Any) -> str:
 async def export_excel(request: Request):
     """Экспорт вакансий в Excel."""
     import json
+
     import pandas as pd
 
     detailed_file = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
@@ -336,6 +342,7 @@ async def export_full_report(request: Request):
 async def admin_users(request: Request):
     """Список пользователей."""
     from sqlalchemy import select, text
+
     from src.database import async_session_factory
     from src.models.krm_models import UserDirection
 
@@ -391,6 +398,7 @@ def _validate_uuid(value: str, label: str = "id") -> str:
 async def admin_user_directions(request: Request, user_id: str):
     """Направления пользователя."""
     from sqlalchemy import select
+
     from src.database import async_session_factory
     from src.models.krm_models import UserDirection
 
@@ -406,7 +414,8 @@ async def admin_user_directions(request: Request, user_id: str):
 @limiter.limit("30/minute")
 async def admin_set_user_directions(request: Request, user_id: str, body: UserDirectionsBody):
     """Назначить направления пользователю."""
-    from sqlalchemy import delete, select
+    from sqlalchemy import delete
+
     from src.database import async_session_factory
     from src.models.krm_models import User, UserDirection
 
@@ -426,6 +435,7 @@ async def admin_set_user_directions(request: Request, user_id: str, body: UserDi
 async def admin_monitoring(request: Request):
     """JSON-мониторинг (метрики)."""
     from prometheus_client.parser import text_string_to_metric_families
+
     from src.monitoring.metrics import get_metrics
     raw, _ = get_metrics()
     families = {}
@@ -437,14 +447,103 @@ async def admin_monitoring(request: Request):
     return families
 
 
+def _p95_from_buckets(buckets: list[tuple[float, float]]) -> float | None:
+    """p95 по гистограммным бакетам [(upper, cumulative)] (прометеев формат)."""
+    if not buckets:
+        return None
+    total = buckets[-1][1]
+    if total <= 0:
+        return None
+    target = total * 0.95
+    for upper, cum in buckets:
+        if cum >= target and upper != float("inf"):
+            return upper
+    return buckets[-2][0] if len(buckets) > 1 else None
+
+
+@router.get("/admin/monitoring/summary")
+@limiter.limit("30/minute")
+async def admin_monitoring_summary(request: Request):
+    """Сводка для панели здоровья: латентность, ошибки, сессии, прогоны, свежесть."""
+    from prometheus_client.parser import text_string_to_metric_families
+
+    from src.monitoring.metrics import get_metrics
+
+    out: dict = {"latency_p95_by_endpoint": {}, "errors_1h": {"4xx": 0, "5xx": 0},
+                 "sessions_active": None, "sessions_total_open": None, "recent_runs": [], "freshness": {}}
+    try:
+        raw, _ = get_metrics()
+        buckets: dict[str, list] = {}
+        for f in text_string_to_metric_families(raw.decode()):
+            if f.name == "api_request_duration_seconds_bucket":
+                for s in f.samples:
+                    if s.name.endswith("_bucket"):
+                        key = (s.labels.get("method", ""), s.labels.get("path", ""))
+                        buckets.setdefault(key, []).append((float(s.labels.get("le", "inf").replace("inf", "1e18")), s.value))
+        tops = sorted(buckets.items(), key=lambda kv: kv[1][-1][1] if kv[1] else 0, reverse=True)[:5]
+        for (method, path), b in tops:
+            b_sorted = sorted(b, key=lambda x: x[0])
+            p95 = _p95_from_buckets(b_sorted)
+            out["latency_p95_by_endpoint"][f"{method} {path}"] = p95
+    except Exception as e:
+        logger.warning("monitoring_summary_metrics_failed", error=str(e))
+
+    try:
+        from src.db import get_pool
+        pool = get_pool()
+        if pool is not None:
+            out["sessions_active"] = await pool.fetchval(
+                "SELECT COUNT(*) FROM sessions WHERE logged_out_at IS NULL "
+                "AND last_activity > NOW() - INTERVAL '15 minutes'")
+            out["sessions_total_open"] = await pool.fetchval(
+                "SELECT COUNT(*) FROM sessions WHERE logged_out_at IS NULL")
+            rows = await pool.fetch(
+                "SELECT action, status, started_at, completed_at, error_message "
+                "FROM pipeline_runs ORDER BY started_at DESC LIMIT 10")
+            out["recent_runs"] = [dict(r) | {"started_at": str(r["started_at"]),
+                                             "completed_at": str(r["completed_at"])} for r in rows]
+            vac = await pool.fetchrow(
+                "SELECT COUNT(*) AS n, MIN(published_at)::date AS mn, "
+                "MAX(published_at)::date AS mx FROM vacancies WHERE published_at IS NOT NULL")
+            if vac:
+                out["freshness"] = {"vacancies": int(vac["n"] or 0),
+                                    "date_from": str(vac["mn"]) if vac["mn"] else None,
+                                    "date_to": str(vac["mx"]) if vac["mx"] else None}
+            err = await pool.fetch(
+                "SELECT CASE WHEN status BETWEEN 400 AND 499 THEN '4xx' ELSE '5xx' END AS cls, "
+                "COUNT(*) AS n FROM request_logs WHERE created_at > NOW() - INTERVAL '1 hour' "
+                "AND status >= 400 GROUP BY 1")
+            for r in err:
+                out["errors_1h"][r["cls"]] = int(r["n"])
+    except Exception as e:
+        logger.warning("monitoring_summary_db_failed", error=str(e))
+    return out
+
+
 @router.get("/admin/logs")
 @limiter.limit("30/minute")
-async def admin_logs(request: Request, user: str | None = None, limit: int = 100):
-    """Логи запросов."""
+async def admin_logs(request: Request, user: str | None = None, limit: int = 100, action: str | None = None):
+    """Логи запросов. AUDIT-строки несут detail 'action | target | by email (role)'.
+
+    action — префикс-фильтр по audit-действию, напр. action=krm.recommendation.add.
+    """
     if user and user == "all":
         user = None
-    entries = get_logs(user=user, limit=limit)
+    from src.api_pkg.request_logger import get_logs_merged
+    entries = await get_logs_merged(user=user, limit=limit, action=action)
     return {"logs": entries, "total": len(entries)}
+
+
+@router.get("/admin/student-actions")
+@limiter.limit("30/minute")
+async def admin_student_actions(request: Request, user: str | None = None, limit: int = 100):
+    """Действия студентов (история запросов + правки профилей). Видно админу/преподавателю."""
+    import asyncio
+
+    from src.api_pkg.student_actions import get_actions
+
+    entries = await asyncio.to_thread(get_actions, username=user, limit=limit)
+    return {"actions": entries, "total": len(entries)}
 
 
 @router.get("/admin/logs/file")
@@ -485,6 +584,7 @@ async def admin_seed_db(request: Request, body: SeedDBRequest, background_tasks:
 
 def _run_seed(drop: bool = False) -> None:
     import asyncio
+
     from src.cli.seed_db import main as seed_main
     asyncio.run(seed_main(drop=drop))
     logger.info("db_seed_completed", drop=drop)
@@ -498,7 +598,7 @@ class CreateUserRequest(BaseModel):
     directions: list[str] = []
 
 
-@router.post("/admin/users/create")
+@router.post("/admin/users/create", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("10/minute")
 async def admin_create_user(request: Request, body: CreateUserRequest):
     """Create a new user with bcrypt-hashed password (optionally bind directions)."""
@@ -521,6 +621,7 @@ async def admin_generate_embeddings(request: Request, body: EmbeddingsRequest, b
 
 def _run_embeddings(force: bool = False) -> None:
     import asyncio
+
     from src.cli.embeddings import main as emb_main
     asyncio.run(emb_main(force=force))
     logger.info("embeddings_generated", force=force)
@@ -539,6 +640,7 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
     """Import students from JSON array."""
     import csv
     import io
+
     from src.cli.import_students import main as import_main
 
     # Write to temp CSV, then run import
@@ -549,7 +651,6 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
         w.writerow(item.model_dump())
     tmp.seek(0)
 
-    from pathlib import Path
     tmp_path = Path(config.DATA_DIR) / "cache" / "_import_tmp.csv"
     tmp_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path.write_text(tmp.getvalue(), encoding="utf-8")
@@ -564,10 +665,12 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
 async def admin_extend_skills(request: Request, background_tasks: BackgroundTasks, yes: bool = True):
     """Analyze vacancies and extend it_skills with new skills."""
     import argparse
+
     from src.cli.extend_skills import main as extend_main
 
     args = argparse.Namespace(interactive=False, yes=yes, coverage=False, dead=False, min_frequency=2)
     background_tasks.add_task(extend_main, args)
+    await audit_action(request, "skills.extend.start", f"yes={yes}")
     return {"status": "ok", "message": "Skills analysis started in background"}
 
 
@@ -580,8 +683,12 @@ class CategorizeSkillsRequest(BaseModel):
 async def admin_skills_uncategorized(request: Request):
     """Некатегоризованные навыки it_skills + предложенная категория (эмбеддинг)."""
     from src.cli.taxonomy_audit import (
-        load_it_skills, load_taxonomy, taxonomy_skill_set,
-        build_prototypes, suggest_categories, MANUAL_OVERRIDES,
+        MANUAL_OVERRIDES,
+        build_prototypes,
+        load_it_skills,
+        load_taxonomy,
+        suggest_categories,
+        taxonomy_skill_set,
     )
 
     taxonomy = load_taxonomy()
@@ -612,7 +719,7 @@ async def admin_skills_uncategorized(request: Request):
 @limiter.limit("30/minute")
 async def admin_skills_categorize(request: Request, body: CategorizeSkillsRequest):
     """Записать навыки в указанные категории skill_taxonomy.json."""
-    from src.cli.taxonomy_audit import load_taxonomy, TAXONOMY_PATH
+    from src.cli.taxonomy_audit import TAXONOMY_PATH, load_taxonomy
 
     taxonomy = load_taxonomy()
     cats = taxonomy.get("categories", {})
@@ -633,7 +740,84 @@ async def admin_skills_categorize(request: Request, body: CategorizeSkillsReques
     if added:
         with open(TAXONOMY_PATH, "w", encoding="utf-8") as f:
             json.dump(taxonomy, f, ensure_ascii=False, indent=2)
+        await audit_action(
+            request, "skills.categorize",
+            f"added={added} invalid={len(invalid)} "
+            f"skills={[a.get('skill') for a in body.assignments][:20]}",
+        )
     return {"status": "ok", "added": added, "invalid": invalid}
+
+
+@router.get("/admin/skills/suggestions", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def admin_skills_suggestions(request: Request, status: str = "pending"):
+    """Очередь предложений навыков от преподавателей."""
+    from src.api_pkg.skill_suggestions import load_all
+
+    items = load_all()
+    if status in ("pending", "approved", "rejected"):
+        items = [s for s in items if s.get("status") == status]
+    return {"suggestions": items}
+
+
+@router.post("/admin/skills/suggestions/{suggestion_id}/approve", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def admin_skills_approve(suggestion_id: str, request: Request):
+    """Одобрить: в it_skills.json + категория таксономии."""
+    from src.api_pkg.skill_suggestions import decide, load_all
+    from src.cli.taxonomy_audit import TAXONOMY_PATH, load_taxonomy
+
+    raw = await request.json()
+    category = ((raw or {}).get("category", "") if isinstance(raw, dict) else "").strip()
+    pending = [s for s in load_all() if s.get("id") == suggestion_id and s.get("status") == "pending"]
+    if not pending:
+        raise HTTPException(status_code=404, detail="Suggestion not found or decided")
+    skill = pending[0]["skill"]
+
+    taxonomy = load_taxonomy()
+    cats = taxonomy.get("categories", {})
+    if category and category not in cats:
+        raise HTTPException(status_code=400, detail=f"Unknown category '{category}'")
+
+    if category:
+        lst = cats[category].setdefault("skills", [])
+        if skill not in {s.strip().lower() for s in lst}:
+            lst.append(skill)
+        with open(TAXONOMY_PATH, "w", encoding="utf-8") as f:
+            json.dump(taxonomy, f, ensure_ascii=False, indent=2)
+
+    import json as _json
+
+    current = _json.loads(IT_SKILLS_PATH.read_text(encoding="utf-8"))
+    if skill not in {str(s).lower() for s in current}:
+        current.append(skill)
+        current = sorted(set(current), key=lambda x: str(x).lower())
+        IT_SKILLS_PATH.write_text(_json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    decider, _role = await actor_from_request(request)
+    entry = decide(suggestion_id, True, decided_by=decider)
+    await audit_action(
+        request, "skills.suggestion.approve",
+        f"id={suggestion_id} skill={skill} category={category or '-'}",
+    )
+    return {"status": "ok", "suggestion": entry, "category": category or None}
+
+
+@router.post("/admin/skills/suggestions/{suggestion_id}/reject", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def admin_skills_reject(request: Request, suggestion_id: str):
+    """Отклонить предложение."""
+    from src.api_pkg.skill_suggestions import decide
+
+    decider, _role = await actor_from_request(request)
+    entry = decide(suggestion_id, False, decided_by=decider)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Suggestion not found or decided")
+    await audit_action(
+        request, "skills.suggestion.reject",
+        f"id={suggestion_id} skill={entry.get('skill')}",
+    )
+    return {"status": "ok", "suggestion": entry}
 
 
 @router.get("/admin/export/db")
@@ -646,6 +830,7 @@ async def admin_export_db(request: Request, background_tasks: BackgroundTasks):
 
 def _run_export() -> None:
     import asyncio
+
     from src.cli.export_json import main as export_main
     asyncio.run(export_main())
     logger.info("db_export_completed")
@@ -672,7 +857,7 @@ class FrontendLogRequest(BaseModel):
 @limiter.limit("30/minute")
 async def frontend_log(request: Request, body: FrontendLogRequest):
     """Log frontend actions (button clicks, page views, errors)."""
-    from src.api_pkg.request_logger import _log_buffer, LogEntry
+    from src.api_pkg.request_logger import LogEntry, _log_buffer
     _log_buffer.append(LogEntry(
         method="ACTION",
         path=body.action,
@@ -710,7 +895,7 @@ async def _tail_backend_log(websocket: WebSocket, stop: asyncio.Event) -> None:
             if size < pos:
                 rotated = True
                 pos = 0
-            with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+            with open(LOG_FILE, encoding="utf-8", errors="replace") as f:
                 f.seek(pos)
                 chunk = f.read()
                 pos = f.tell()
@@ -736,11 +921,7 @@ async def admin_logs_ws(websocket: WebSocket, token: str = ""):
     """Стрим системного лога backend.log в реальном времени (роль admin)."""
     # JWT-проверка + роль admin (по образцу pipeline_ws)
     try:
-        import base64
-        import hashlib
-        import hmac
 
-        from src import config
         from src.api_pkg.routers.auth import _decode_token
 
         if not token:
@@ -764,7 +945,7 @@ async def admin_logs_ws(websocket: WebSocket, token: str = ""):
         from src.config import LOG_FILE
 
         if LOG_FILE.exists():
-            with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+            with open(LOG_FILE, encoding="utf-8", errors="replace") as f:
                 all_lines = f.read().splitlines()
             tail = all_lines[-_TAIL_INITIAL_LINES:]
             await websocket.send_json({"type": "init", "lines": tail})
@@ -779,7 +960,7 @@ async def admin_logs_ws(websocket: WebSocket, token: str = ""):
         while True:
             try:
                 await asyncio.wait_for(websocket.receive_text(), timeout=30)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Клиент жив — просто keepalive-пауза
                 continue
             except Exception:
@@ -791,3 +972,54 @@ async def admin_logs_ws(websocket: WebSocket, token: str = ""):
             await tail_task
         except asyncio.CancelledError:
             pass
+
+
+# ---------- Scheduler (background collector + nightly gap, admin-only) ----------
+
+
+class SchedulerSettingsPatch(BaseModel):
+    collector_enabled: bool | None = None
+    collect_interval_hours: int | None = None
+    daily_gap_enabled: bool | None = None
+
+
+@router.get("/admin/scheduler/status", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def scheduler_status(request: Request):
+    """Состояние планировщика фоновых задач."""
+    from src.pipeline.background_collector import scheduler_status as _status
+    return _status()
+
+
+@router.put("/admin/scheduler/settings", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("10/minute")
+async def scheduler_settings_update(request: Request, body: SchedulerSettingsPatch):
+    """Тумблеры планировщика (persist в data/settings/scheduler.json)."""
+    from src.pipeline.background_collector import save_scheduler_settings
+    from src.pipeline.background_collector import scheduler_status as _status
+    patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    save_scheduler_settings(patch)
+    logger.info("scheduler_settings_updated", patch=patch)
+    return _status()
+
+
+@router.post("/admin/scheduler/collect/now", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("5/minute")
+async def scheduler_collect_now(request: Request):
+    """Внеплановый сбор (force; 409 если планировщик занят)."""
+    from src.pipeline.background_collector import _run_collect_once, is_scheduler_busy
+    if is_scheduler_busy():
+        raise HTTPException(status_code=409, detail="Планировщик уже выполняет задачу")
+    asyncio.create_task(_run_collect_once(force=True))
+    return {"status": "started", "job": "collect"}
+
+
+@router.post("/admin/scheduler/gap/now", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("5/minute")
+async def scheduler_gap_now(request: Request):
+    """Внеплановый gap по всем профилям (409 если планировщик занят)."""
+    from src.pipeline.background_collector import _run_scheduled_gap, is_scheduler_busy
+    if is_scheduler_busy():
+        raise HTTPException(status_code=409, detail="Планировщик уже выполняет задачу")
+    asyncio.create_task(_run_scheduled_gap())
+    return {"status": "started", "job": "gap"}

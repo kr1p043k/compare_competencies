@@ -59,9 +59,10 @@ class ProfilesCompareResponse(BaseModel):
 
 
 class SkillItem(BaseModel):
-    """Навык с весом."""
+    """Навык из топа."""
     skill: str
     weight: float
+    frequency: int = 0
 
 
 class TopSkillsResponse(BaseModel):
@@ -294,6 +295,7 @@ class VacancyDetailResponse(BaseModel):
     area: Any = None
     published_at: str | None = None
     alternate_url: str | None = None
+    employer_logo: str | None = None
     skills: list[str] = Field(default_factory=list)
     schedule: Any = None
     employment: Any = None

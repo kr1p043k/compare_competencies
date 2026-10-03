@@ -6,11 +6,12 @@ from typing import Any
 
 import structlog
 
-from src.pipeline.progress import write as write_progress
-from src.pipeline.stage import PipelineStage
 from src import Err, Ok, Result
 from src.errors import PipelineError
 from src.pipeline.event_bus import EventBus, PipelineEvent
+from src.pipeline.progress import write as write_progress
+from src.pipeline.stage import PipelineStage
+
 logger = structlog.get_logger(__name__)
 
 

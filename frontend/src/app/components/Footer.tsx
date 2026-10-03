@@ -14,7 +14,7 @@ export function Footer() {
           {/* About */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+              <div className="p-2 bg-gradient-to-br from-blue-500 dark:from-blue-950/30 to-purple-600 rounded-lg">
                 <Sparkles className="size-5 text-white" />
               </div>
               <h3 className="text-lg font-bold text-slate-800 dark:text-white">
@@ -96,7 +96,7 @@ export function Footer() {
               </motion.div>
 
             </div>
-            <p className="text-sm text-slate-500 dark:text-slate-500">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               © 2026 Competency Gap Analyzer. Все права защищены.
             </p>
           </div>

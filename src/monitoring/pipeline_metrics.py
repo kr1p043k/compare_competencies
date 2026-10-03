@@ -1,8 +1,9 @@
 """Метрики конверсии и времени выполнения pipeline."""
 
 import time
-from typing import Dict, Optional, Any
-from prometheus_client import Counter, Histogram, Gauge
+from typing import Any
+
+from prometheus_client import Counter, Gauge, Histogram
 
 # Счётчики конверсии между шагами
 step_conversion_counter = Counter(
@@ -56,17 +57,17 @@ pipeline_total_duration = Histogram(
 
 class ConversionTracker:
     """Трекер конверсии и времени для pipeline."""
-    
+
     def __init__(self):
-        self.start_time: Optional[float] = None
-        self.pipeline_id: Optional[str] = None
-        self.step_times: Dict[str, float] = {}
-        self.step_status: Dict[str, str] = {}
-        self.step_items: Dict[str, int] = {}
-        self.conversion_counts: Dict[str, int] = {}
+        self.start_time: float | None = None
+        self.pipeline_id: str | None = None
+        self.step_times: dict[str, float] = {}
+        self.step_status: dict[str, str] = {}
+        self.step_items: dict[str, int] = {}
+        self.conversion_counts: dict[str, int] = {}
         self.step_order = [
             "vacancy_fetch",
-            "spam_filter", 
+            "spam_filter",
             "skill_parse",
             "weight_normalize",
             "level_assign",
@@ -74,7 +75,7 @@ class ConversionTracker:
             "ltr_train",
             "gap_compute"
         ]
-    
+
     def start_pipeline(self, pipeline_id: str) -> None:
         """Начать выполнение пайплайна."""
         self.pipeline_id = pipeline_id
@@ -84,30 +85,30 @@ class ConversionTracker:
         self.step_items = {}
         self.conversion_counts = {}
         pipeline_progress.labels(pipeline_id=pipeline_id).set(0)
-    
+
     def record_step_start(self, step: str) -> None:
         """Записать начало выполнения шага."""
         self.step_times[step] = time.time()
         self.step_status[step] = "running"
-    
+
     def record_step_end(self, step: str, status: str = "success", items_count: int = 0) -> None:
         """Записать окончание выполнения шага."""
         if step in self.step_times:
             duration = time.time() - self.step_times[step]
             step_duration_histogram.labels(step=step).observe(duration)
-        
+
         self.step_status[step] = status
-        
+
         if items_count > 0:
             step_items_processed.labels(step=step, item_type="items").inc(items_count)
             self.step_items[step] = items_count
-        
+
         # Обновляем успешность шага (скользящее среднее)
         current_value = step_success_rate.labels(step=step)._value.get()
         current_rate = current_value if current_value is not None else 1.0
         new_rate = current_rate * 0.95 + (1.0 if status == "success" else 0.0) * 0.05
         step_success_rate.labels(step=step).set(new_rate)
-    
+
     def record_conversion(self, from_step: str, to_step: str) -> None:
         """Запись перехода между шагами."""
         status = "success" if self.step_status.get(from_step) == "success" else "failed"
@@ -116,17 +117,17 @@ class ConversionTracker:
             to_step=to_step,
             status=status
         ).inc()
-        
+
         key = f"{from_step}->{to_step}"
         self.conversion_counts[key] = self.conversion_counts.get(key, 0) + 1
-    
-    def end_pipeline(self, pipeline_id: str = None) -> Dict[str, Any]:
+
+    def end_pipeline(self, pipeline_id: str = None) -> dict[str, Any]:
         """Завершить выполнение пайплайна."""
         pid = pipeline_id or self.pipeline_id
         if self.start_time:
             total_duration = time.time() - self.start_time
             pipeline_total_duration.observe(total_duration)
-            
+
             # Общая успешность
             total_steps = len(self.step_status)
             if total_steps > 0:
@@ -135,10 +136,10 @@ class ConversionTracker:
                 pipeline_success_rate.set(success_rate)
             else:
                 success_rate = 0
-            
+
             if pid:
                 pipeline_progress.labels(pipeline_id=pid).set(100)
-            
+
             result = {
                 "pipeline_id": pid,
                 "total_duration": total_duration,
@@ -148,10 +149,10 @@ class ConversionTracker:
                 "conversions": self.conversion_counts.copy()
             }
             return result
-        
+
         return {}
-    
-    def get_conversion_funnel(self) -> Dict[str, Dict[str, float]]:
+
+    def get_conversion_funnel(self) -> dict[str, dict[str, float]]:
         """Получить воронку конверсии."""
         funnel = {}
         for step in self.step_order:
@@ -161,8 +162,8 @@ class ConversionTracker:
                 "status": self.step_status.get(step, "unknown")
             }
         return funnel
-    
-    def get_step_duration_stats(self) -> Dict[str, Dict[str, float]]:
+
+    def get_step_duration_stats(self) -> dict[str, dict[str, float]]:
         """Получить статистику по времени шагов."""
         stats = {}
         for step in self.step_order:
@@ -176,7 +177,7 @@ class ConversionTracker:
             else:
                 stats[step] = {"avg_duration": 0, "count": 0}
         return stats
-    
+
     def reset(self) -> None:
         """Сбросить текущий трекер."""
         self.start_time = None
@@ -186,7 +187,7 @@ class ConversionTracker:
         self.step_items = {}
         self.conversion_counts = {}
 
-    def get_latest(self) -> Optional[Dict[str, Any]]:
+    def get_latest(self) -> dict[str, Any] | None:
         """Получить latest pipeline metrics without mutating state."""
         if not self.start_time:
             return None

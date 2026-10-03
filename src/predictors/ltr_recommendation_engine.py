@@ -18,11 +18,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import StratifiedShuffleSplit, train_test_split
 
 from src import (
+    Err,
     ModelError,
     ModelNotFoundError,
     ModelTrainingError,
     Ok,
-    Err,
     Result,
     config,
 )
@@ -42,7 +42,7 @@ def _load_profession_profiles() -> list[list[str]]:
     profiles: list[list[str]] = [[]]  # empty profile (no experience)
     try:
         import json
-        from pathlib import Path
+
         from src import config
         prof_path = config.REFERENCE_DIR / "profession_taxonomy.json"
         krm_path = config.REFERENCE_DIR / "krm_competency_mapping.json"
@@ -201,6 +201,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         market_emb = np.mean(list(self.skill_embeddings.values()), axis=0) if self.skill_embeddings else None
 
         domain_profiles = _get_domain_profiles()
+        n_profiles = len(domain_profiles)
         for skill in all_skills:
             base_target = self.skill_metadata[skill]["hybrid_weight_normalized"]
 
@@ -232,8 +233,32 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             X_tmp, y_tmp, test_size=0.5, random_state=config.GLOBAL_RANDOM_SEED
         )
 
+        # Честная нормализация: max считаются по train-навыкам, тест масштабируется
+        # train-максимумами (иначе распределение теста просачивается в признаки train).
+        train_skills = {
+            all_skills[i // n_profiles]
+            for i in X_train.index
+            if 0 <= i // n_profiles < len(all_skills)
+        }
+        if train_skills:
+            train_max_freq = max(
+                (frequencies.get(s, 0.0) for s in train_skills), default=max_freq,
+            ) or 1.0
+            train_max_hybrid = max(
+                (hybrid_weights.get(s, 0.0) for s in train_skills), default=max_hybrid,
+            ) or 1.0
+            for df in (X_train, X_val, X_test):
+                if "freq_normalized" in df.columns:
+                    df["freq_normalized"] = df["freq_normalized"] * (max_freq / train_max_freq)
+                if "hybrid_weight_normalized" in df.columns:
+                    df["hybrid_weight_normalized"] = df["hybrid_weight_normalized"] * (max_hybrid / train_max_hybrid)
+            logger.info(
+                "ltr_renorm_train_only",
+                train_max_freq=round(train_max_freq, 2),
+                full_max_freq=round(max_freq, 2),
+            )
+
         # Compute category_avg_weight from training data only (prevent data leakage)
-        n_profiles = len(domain_profiles)
         train_indices_set = set(X_train.index)
         train_cat_buckets: dict[str, list[float]] = {}
         for skill_idx, skill in enumerate(all_skills):
@@ -419,12 +444,6 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 "hybrid_weight_normalized": hybrid_weights.get(skill, 0.0),
                 "freq_normalized": freq / max_freq,
             }
-        # category_avg_weight — только рыночные веса, без меток: утечки нет.
-        cat_buckets: dict[str, list[float]] = {}
-        for skill, meta in self.skill_metadata.items():
-            cat_buckets.setdefault(meta.get("category", "other"), []).append(meta.get("hybrid_weight", 0.0))
-        self.category_avg_weight = {c: float(np.mean(v)) for c, v in cat_buckets.items() if v}
-
         # --- split: стратификация по оценкам внутри роли ---
         qid_of = {role: i for i, role in enumerate(roles)}
         train_idx: list[int] = []
@@ -444,6 +463,17 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 train_idx.extend(idx[:cut])
                 test_idx.extend(idx[cut:])
         logger.info("ranker_split", train=len(train_idx), test=len(test_idx))
+
+        # category_avg_weight — только по train-навыкам (честная оценка):
+        # средние категории из test-распределения не должны попадать в признаки.
+        # NOTE: level_analyzer/корпус/эмбеддинги посчитаны на полном корпусе —
+        # это unsupervised-статистики (не метки); принято как ограничение, см. docs.
+        train_skill_set = {rows[i]["skill"] for i in train_idx}
+        cat_buckets: dict[str, list[float]] = {}
+        for skill in train_skill_set:
+            meta = self.skill_metadata.get(skill, {})
+            cat_buckets.setdefault(meta.get("category", "other"), []).append(meta.get("hybrid_weight", 0.0))
+        self.category_avg_weight = {c: float(np.mean(v)) for c, v in cat_buckets.items() if v}
 
         # --- профили ролей из train-двоек + LOO на строку ---
         train_core: dict[str, list[str]] = {role: [] for role in roles}

@@ -7,7 +7,7 @@ from collections import defaultdict
 
 import structlog
 
-from src import Result, Ok, Err
+from src import Err, Ok, Result
 from src.errors import DomainError
 
 logger = structlog.get_logger(__name__)

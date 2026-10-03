@@ -214,10 +214,14 @@ class SkillParser:
             self.stats.total_extracted += len(skills)
 
             # Normalize cyrillic homoglyphs and deduplicate (case-insensitive)
-            # _HOMOGLYPH_MAP now module-level (F6 fix)
+            # _HOMOGLYPH_MAP now module-level (F6 fix).
+            # Пустые имена отбрасываем здесь, чтобы "" не оседали в parsed_skills
+            # и не рисовались пустыми бейджами в карточках.
             deduped = []
             seen: set[str] = set()
             for s in skills:
+                if not (s.text or "").strip():
+                    continue
                 norm = s.text.lower().translate(_HOMOGLYPH_MAP)
                 if norm not in seen:
                     seen.add(norm)

@@ -6,18 +6,92 @@ on historical skill frequency data from trend_snapshots.
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
 from dataclasses import dataclass
-from typing import Any
+from datetime import date, datetime
 
 import numpy as np
 import structlog
 
-from src import config, Ok, Err, Result
+from src import Err, Ok, Result, config
 from src.errors import DomainError
 from src.predictors.base import BasePredictor
 
 logger = structlog.get_logger(__name__)
+
+
+def drop_broken_snapshots(
+    snapshots: list[tuple[date, dict[str, float]]],
+) -> list[tuple[date, dict[str, float]]]:
+    """Карантин битых коллекций: снимок, в котором навыков меньше половины
+    медианы, — это оборванный сбор, а не обвал спроса. Такие точки рисуют
+    ложную V (крах + восстановление) и отравляют все тренды.
+
+    Последний снимок удерживаем всегда: он задаёт current_frequency.
+    """
+    if len(snapshots) < 3:
+        return snapshots
+    counts = sorted(len(d) for _, d in snapshots)
+    floor = max(1, counts[len(counts) // 2] // 2)
+    kept = [(dt, d) for dt, d in snapshots if len(d) >= floor]
+    if not kept:
+        logger.warning("snapshot_quarantine_all_broken")
+        return snapshots
+    dropped = len(snapshots) - len(kept)
+    if dropped:
+        logger.warning(
+            "snapshot_quarantine_dropped",
+            dropped=dropped,
+            floor=floor,
+            kept=[str(dt) for dt, _ in kept],
+        )
+    if kept[-1][0] != snapshots[-1][0]:
+        logger.error("snapshot_quarantine_latest_dropped_kept_anyway")
+        kept.append(snapshots[-1])
+        kept.sort(key=lambda x: x[0])
+    return kept
+
+
+# Наблюдаемое падение: сколько точек истории нужно на окно (месяцев).
+# Точек меньше — честное "нет данных", а не экстраполяция.
+OBSERVED_REQUIRED = {1: 2, 3: 3, 6: 6, 12: 12}
+OBSERVED_MONTHS = (1, 3, 6, 12)
+
+
+def compute_observed_drops(
+    observed: dict[str, list[tuple[date, float]]],
+    months: int,
+    min_freq: float = 0,
+) -> list[dict]:
+    """Измеренное падение спроса за окно — факт по снимкам, не прогноз.
+
+    Берутся последние REQUIRED[months] точек; изменение =
+    (last - first) / first. Точек меньше — навык пропускается
+    (UI пишет "нет данных", см. max_points в мете).
+    """
+    need = OBSERVED_REQUIRED.get(months)
+    if need is None:
+        raise ValueError(f"months must be one of {OBSERVED_MONTHS}, got {months}")
+    out = []
+    for skill, pts in (observed or {}).items():
+        pts = sorted(pts, key=lambda p: p[0])
+        if len(pts) < need:
+            continue
+        window = pts[-need:]
+        first = float(window[0][1])
+        last = float(window[-1][1])
+        if first <= 0:
+            continue
+        if min_freq and last < min_freq:
+            continue
+        out.append({
+            "skill": skill,
+            "observed_change_pct": round((last - first) / first * 100, 2),
+            "first_frequency": round(first, 1),
+            "last_frequency": round(last, 1),
+            "points": len(pts),
+        })
+    out.sort(key=lambda r: r["observed_change_pct"])
+    return out
 
 
 @dataclass
@@ -29,7 +103,7 @@ class ForecastResult:
     next_year_frequency: float
     engine_used: str = "trend"
     data_points: int = 0
-    mape: float = 0.0
+    mape: float | None = None
     forecast_months: int = 0
 
 
@@ -47,6 +121,7 @@ class SkillForecastEngine(BasePredictor):
     def __init__(self):
         self._models: dict[str, dict] = {}
         self._is_fitted = False
+        self._observed: dict[str, list[tuple[date, float]]] = {}
 
     @property
     def name(self) -> str:
@@ -60,7 +135,7 @@ class SkillForecastEngine(BasePredictor):
         self,
         skill_frequencies: dict[str, float] | None = None,
         **kwargs,
-    ) -> Result["SkillForecastEngine", Exception]:
+    ) -> Result[SkillForecastEngine, Exception]:
         """Fit linear trends from historical snapshot data.
 
         Reads freq_market_*.json files from data/history/ to build
@@ -90,9 +165,11 @@ class SkillForecastEngine(BasePredictor):
             logger.warning("trend_fallback_insufficient_data", snapshots=len(snapshots))
             if skill_frequencies:
                 for skill, freq in skill_frequencies.items():
-                    self._models[skill] = {"slope": 0.0, "intercept": freq, "n": 1, "rmse": 0.0, "mape": 0.0, "last_freq": freq}
+                    self._models[skill] = {"slope": 0.0, "intercept": freq, "n": 1, "rmse": None, "mape": None, "last_freq": freq}
             self._is_fitted = True
             return Ok(self)
+
+        snapshots = drop_broken_snapshots(snapshots)
 
         # Build per-skill time series
         skill_dates: dict[str, list[date]] = {}
@@ -101,6 +178,11 @@ class SkillForecastEngine(BasePredictor):
             for skill, freq in data.items():
                 skill_dates.setdefault(skill, []).append(dt)
                 skill_freqs.setdefault(skill, []).append(freq)
+        # Полные наблюдаемые истории для /forecast/observed.
+        self._observed = {
+            skill: sorted(zip(skill_dates[skill], skill_freqs[skill]), key=lambda p: p[0])
+            for skill in skill_dates
+        }
 
         # Fit linear trend per skill
         for skill in skill_dates:
@@ -127,7 +209,7 @@ class SkillForecastEngine(BasePredictor):
         if skill_frequencies:
             for skill, freq in skill_frequencies.items():
                 if skill not in self._models:
-                    self._models[skill] = {"slope": 0.0, "intercept": freq, "n": 1, "rmse": 0.0, "mape": 0.0, "last_freq": freq}
+                    self._models[skill] = {"slope": 0.0, "intercept": freq, "n": 1, "rmse": None, "mape": None, "last_freq": freq}
 
         self._is_fitted = True
         logger.info("trend_forecast_fitted", models=len(self._models), snapshots=len(snapshots))
@@ -153,7 +235,7 @@ class SkillForecastEngine(BasePredictor):
                 next_year_frequency=round(last_freq, 4),
                 engine_used="trend_flat",
                 data_points=n,
-                mape=round(model.get("mape", 0.0), 4),
+                mape=None,
                 forecast_months=0,
             ))
 
@@ -166,7 +248,8 @@ class SkillForecastEngine(BasePredictor):
         growth = (predicted - last_freq) / max(last_freq, 1.0)
         growth = max(min(growth, self.MAX_GROWTH_CAP), -self.MAX_GROWTH_CAP)
 
-        confidence = max(0.0, min(0.9, 1.0 - min(model["mape"] * 2.0, 0.8)))
+        _mape = model.get("mape")
+        confidence = max(0.0, min(0.9, 1.0 - min((_mape if _mape is not None else 1.0) * 2.0, 0.8)))
         confidence *= min(1.0, n / 4.0)
 
         return Ok(ForecastResult(
@@ -177,7 +260,7 @@ class SkillForecastEngine(BasePredictor):
             next_year_frequency=round(max(predicted, 0.0), 4),
             engine_used="trend",
             data_points=n,
-            mape=round(model.get("mape", 0.0), 4),
+            mape=round(_mape, 4) if _mape is not None else None,
             forecast_months=min(months, max(1, n // 2)),
         ))
 
@@ -198,8 +281,16 @@ class SkillForecastEngine(BasePredictor):
     def top_growing(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
+                # Flats остаются в выдаче (контракт тестов), но маркированы:
+                # mape=None + forecast_months=0 + data_points<2. Сортировка —
+                # сначала валидные тренды, затем flats.
                 results = [r for r in results if r.current_frequency >= self.MIN_FREQ]
-                results.sort(key=lambda x: x.predicted_growth, reverse=True)
+                results.sort(
+                    key=lambda x: (
+                        x.engine_used.startswith("trend_flat"),
+                        -x.predicted_growth,
+                    )
+                )
                 return Ok(results[:n])
             case Err(e):
                 return Err(e)

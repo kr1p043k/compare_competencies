@@ -376,7 +376,8 @@ class TestProfileEvaluatorFull:
             use_clustering=True,
         )
         # Модель не загружена для 'middle' (нет файла)
-        evaluator.cluster_models_loaded = {"junior": False, "middle": False, "senior": False}
+        evaluator.cluster_models_loaded = {"junior": False, "middle": False, "senior": False, "all": False}
+        evaluator.clusterers = {}
         context = evaluator._get_cluster_context(student, "middle")
         assert context.is_err()
 
@@ -951,7 +952,8 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             use_clustering=True,
         )
-        evaluator.cluster_models_loaded = {"junior": False, "middle": False, "senior": False}
+        evaluator.cluster_models_loaded = {"junior": False, "middle": False, "senior": False, "all": False}
+        evaluator.clusterers = {}
         result = evaluator._get_cluster_context(student, "middle")
         assert result.is_err()
 
@@ -964,7 +966,7 @@ class TestProfileEvaluatorFull:
             use_clustering=True,
         )
         evaluator.cluster_models_loaded = {"middle": True}
-        with patch.object(evaluator.clusterer, "get_cluster_context", side_effect=Exception("Boom")):
+        with patch.object(evaluator.get_clusterer("middle"), "get_cluster_context", side_effect=Exception("Boom")):
             with pytest.raises(Exception, match="Boom"):
                 evaluator._get_cluster_context(student, "middle")
 
@@ -1186,3 +1188,189 @@ class TestProfileEvaluatorKrm:
         ).unwrap()
 
         assert result["krm_coverage"] == {}
+
+
+class TestReadinessFormulaV2:
+    """Якорь формулы readiness v2: 0.45×market + 0.30×strong% − 0.25×weak%.
+
+    Любое изменение формулы обязано громко уронить этот тест + обновить
+    docs/methodology.md и FAQ (вопрос «Что такое Readiness Score?»).
+    """
+
+    @pytest.fixture
+    def weights(self):
+        return {
+            "junior": {"python": 0.8, "sql": 0.6, "git": 0.5, "html": 0.4},
+            "middle": {"python": 0.9, "docker": 0.7, "sql": 0.5, "fastapi": 0.4},
+            "senior": {"python": 0.9, "docker": 0.9, "k8s": 0.8, "sql": 0.3},
+        }
+
+    def _eval(self, skills, weights):
+        vs = [["python", "sql", "git"], ["python", "docker", "fastapi"],
+              ["python", "docker", "k8s"]]
+        st = StudentProfile(profile_name="t", competencies=[], skills=skills,
+                            target_level="middle", created_at=datetime.now())
+        e = ProfileEvaluator(skill_weights={"python": 0.9, "sql": 0.7},
+                             vacancies_skills=vs,
+                             vacancies_skills_dict=[{"skills": s} for s in vs],
+                             skill_weights_by_level=weights, use_clustering=False)
+        return e.evaluate_profile(st).unwrap()
+
+    def test_golden_value(self, weights):
+        r = self._eval(["python", "sql", "git", "fastapi", "docker"], weights)
+        assert r["readiness_score"] == pytest.approx(18.09, abs=0.05)
+        # Хвост формулы живой: вклад долей на порядок больше мёртвых ±0.3 v1
+        assert abs(r["readiness_score"] - 0.45 * r["market_coverage_score"]) > 0.5
+
+    def test_fewer_skills_lower_readiness(self, weights):
+        full = self._eval(["python", "sql", "git", "fastapi", "docker"], weights)
+        thin = self._eval(["python"], weights)
+        assert thin["readiness_score"] < full["readiness_score"]
+
+    def test_bounds(self, weights):
+        r = self._eval(["python", "sql", "git", "fastapi", "docker"], weights)
+        assert 0.0 <= r["readiness_score"] <= 100.0
+
+
+class TestCoverageStrictWeightedPair:
+    """R2: строгое и взвешенное покрытия — явной парой, без затирания."""
+
+    def test_trio_present_and_consistent(self):
+        from datetime import datetime
+        from src.models.student import StudentProfile
+        sw = {"middle": {"python": 0.9, "docker": 0.7, "sql": 0.5}}
+        vs = [["python", "sql"], ["python", "docker"]]
+        st = StudentProfile(profile_name="t", competencies=[], skills=["python", "sql"],
+                            target_level="middle", created_at=datetime.now())
+        e = ProfileEvaluator(skill_weights={"python": 0.9},
+                             vacancies_skills=vs,
+                             vacancies_skills_dict=[{"skills": s} for s in vs],
+                             skill_weights_by_level=sw, use_clustering=False)
+        r = e.evaluate_profile(st).unwrap()
+        assert r["coverage_strict"] == r["market_skill_coverage"]
+        assert r["coverage_weighted"] == r["skill_coverage"]
+        assert 0.0 <= r["coverage_strict"] <= 100.0
+        assert 0.0 <= r["coverage_weighted"] <= 100.0
+
+
+class TestLevelClusterRouting:
+    """L1: каждый уровень — свой объект кластерера, last-wins запрещён."""
+
+    def _eval(self):
+        from datetime import datetime
+        from src.models.student import StudentProfile  # noqa
+        sw = {"middle": {"python": 0.9}}
+        vs = [["python", "sql"]]
+        return ProfileEvaluator(
+            skill_weights={"python": 0.9}, vacancies_skills=vs,
+            vacancies_skills_dict=[{"skills": s} for s in vs],
+            skill_weights_by_level=sw, use_clustering=False)
+
+    def test_distinct_objects_per_level(self):
+        e = self._eval()
+        objs = {id(e.get_clusterer(lvl)) for lvl in ("junior", "middle", "senior")}
+        assert len(objs) == 3  # один объект на всех = баг last-wins
+
+    def test_fallback_all_when_level_missing(self):
+        e = self._eval()
+        e.cluster_models_loaded = {"junior": False, "middle": False,
+                                   "senior": False, "all": True}
+        assert e.get_clusterer("middle") is e.clusterers["all"]
+
+    def test_none_when_nothing_loaded(self):
+        e = self._eval()
+        e.cluster_models_loaded = {"junior": False, "middle": False,
+                                   "senior": False, "all": False}
+        e.clusterers = {}
+        assert e.get_clusterer("middle") is None
+
+    def test_context_carries_cluster_level(self):
+        from datetime import datetime
+        from unittest.mock import patch
+        import numpy as np
+        from src import Ok
+        from src.models.student import StudentProfile
+        sw = {"middle": {"python": 0.9, "docker": 0.7, "sql": 0.5}}
+        vs = [["python", "sql"], ["python", "docker"]]
+        st = StudentProfile(profile_name="t", competencies=[],
+                            skills=["python", "sql"],
+                            target_level="middle", created_at=datetime.now())
+        e = ProfileEvaluator(
+            skill_weights={"python": 0.9}, vacancies_skills=vs,
+            vacancies_skills_dict=[{"skills": s} for s in vs],
+            skill_weights_by_level=sw, use_clustering=True)
+        dim = len(e.get_clusterer("middle").cluster_centers[0])
+        with patch.object(e, "_get_or_compute_student_embedding",
+                          return_value=Ok(np.ones(dim))):
+            ctx = e._get_cluster_context(st, "middle").unwrap()
+        assert ctx["cluster_level"] == "middle"
+
+    def test_context_polls_all_levels(self):
+        """Cross-level: кандидаты с тегами уровней из нескольких моделей."""
+        from datetime import datetime
+        from unittest.mock import patch
+        import numpy as np
+        from src import Ok
+        from src.models.student import StudentProfile
+        sw = {"middle": {"python": 0.9}}
+        vs = [["python", "sql"]]
+        st = StudentProfile(profile_name="t", competencies=[],
+                            skills=["python", "sql"],
+                            target_level="middle", created_at=datetime.now())
+        e = ProfileEvaluator(
+            skill_weights={"python": 0.9}, vacancies_skills=vs,
+            vacancies_skills_dict=[{"skills": s} for s in vs],
+            skill_weights_by_level=sw, use_clustering=True)
+        dim = len(e.get_clusterer("middle").cluster_centers[0])
+        with patch.object(e, "_get_or_compute_student_embedding",
+                          return_value=Ok(np.ones(dim))):
+            ctx = e._get_cluster_context(st, "middle").unwrap()
+        lvls = {c.get("level") for c in ctx["closest_clusters"]}
+        assert len(lvls) >= 2
+        assert set(ctx["levels_polled"]) >= {"junior", "middle", "senior"}
+        # Wide net: пул покрывает зону бленда (top-10 с уровня, не top-2).
+        assert len(ctx["closest_clusters"]) > 6
+
+
+class TestStage4ApiParity:
+    """Stage 4: паритет API/CLI — домены, профессия, KRM, обязательный уровень."""
+
+    def _eval(self, skills, domains, prof):
+        from datetime import datetime
+        from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
+        from src.models.student import StudentProfile
+        sw = {"middle": {"python": 0.9, "docker": 0.7, "sql": 0.5}}
+        vs = [["python", "sql"], ["python", "docker"]]
+        st = StudentProfile(profile_name="t", competencies=[], skills=skills,
+                            target_level="middle", target_profession=prof,
+                            created_at=datetime.now())
+        e = ProfileEvaluator(
+            skill_weights={"python": 0.9}, vacancies_skills=vs,
+            vacancies_skills_dict=[{"skills": s} for s in vs],
+            skill_weights_by_level=sw, use_clustering=False)
+        return e.evaluate_profile(st, target_domains=domains,
+                                  taxonomy=ProfessionTaxonomy()).unwrap()
+
+    def test_domains_filter_profession_coverage(self):
+        r = self._eval(["python", "sql"], ["Data Science"], "Data Scientist")
+        assert r["profession_coverage"] > 0.0
+        assert r["profession_coverage_detail"].get("Data Science", 0) > 0
+
+    def test_no_domains_zero_profession(self):
+        r = self._eval(["python", "sql"], None, "")
+        assert r["profession_coverage"] == 0.0
+
+    def test_target_profession_field_exists(self):
+        from src.models.student import StudentProfile
+        assert StudentProfile.model_fields["target_profession"].default == ""
+
+    def test_custom_profile_level_required(self):
+        from pydantic import ValidationError
+        from src.api_pkg.routers.profiles import CustomProfileIn
+        try:
+            CustomProfileIn(name="x", skills=["python"])
+            raise SystemExit("must not pass without target_level")
+        except ValidationError:
+            pass
+        ok = CustomProfileIn(name="x", skills=["python"], target_level="senior")
+        assert ok.target_level == "senior"

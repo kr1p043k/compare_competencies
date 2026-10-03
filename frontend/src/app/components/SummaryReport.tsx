@@ -19,13 +19,22 @@ interface MetricDef {
 
 const METRICS: MetricDef[] = [
   { key: "market_coverage_score", label: "Покрытие рынка", hint: "Доля востребованных на рынке навыков" },
-  { key: "skill_coverage", label: "Покрытие навыков", hint: "Навыки профиля против требований" },
-  { key: "readiness_score", label: "Готовность к рынку", hint: "Совокупная готовность" },
+  { key: "skill_coverage", label: "Покрытие навыков (взвеш.)", hint: "Взвешено по спросу; может льстить" },
+  { key: "readiness_score", label: "Готовность к рынку", hint: "0.45×рынок + 0.30×сильные% − 0.25×слабые%" },
   { key: "domain_coverage_score", label: "Покрытие доменов", hint: "Охват профессиональных доменов" },
   { key: "profession_coverage", label: "Покрытие профессии", hint: "Совпадение с целевой профессией" },
-  { key: "market_skill_coverage", label: "Востребованность навыков", hint: "Рыночная востребованность" },
+  { key: "market_skill_coverage", label: "Покрытие (строгое)", hint: "Бинарное пересечение со спросом" },
+  { key: "coverage_weighted", label: "Покрытие (взвешенное, API)", hint: "То же, что «взвеш.» выше — поле API" },
   { key: "avg_gap", label: "Средний разрыв", hint: "Разрыв между текущим и требуемым уровнем" },
 ];
+
+function rowVisible(key: string, evals: Record<string, EvalEntry>, profiles: string[]): boolean {
+  const vals = profiles.map((p) => evals[p]?.[key as keyof EvalEntry]);
+  if (vals.every((v) => v === undefined || v === null)) return false;
+  // profession_coverage без фокуса всегда 0 — строку не показываем.
+  if (key === "profession_coverage" && vals.every((v) => v === 0)) return false;
+  return true;
+}
 
 interface EvalEntry {
   market_coverage_score?: number;
@@ -34,6 +43,9 @@ interface EvalEntry {
   domain_coverage_score?: number;
   profession_coverage?: number;
   market_skill_coverage?: number;
+  coverage_strict?: number;
+  coverage_weighted?: number;
+  coverage_strict_scope?: string;
   avg_gap?: number;
   match_score?: number;
   target_profession?: string;
@@ -48,36 +60,37 @@ interface SummaryReportProps {
 
 function scoreColor(v: number, isGap = false) {
   if (isGap) {
-    if (v < 30) return "text-green-600";
-    if (v < 60) return "text-orange-500";
-    return "text-red-500";
+    if (v < 30) return "text-green-600 dark:text-green-400";
+    if (v < 60) return "text-orange-500 dark:text-orange-400";
+    return "text-red-500 dark:text-red-400";
   }
-  if (v >= 60) return "text-green-600";
-  if (v >= 30) return "text-orange-500";
-  return "text-red-500";
+  if (v >= 60) return "text-green-600 dark:text-green-400";
+  if (v >= 30) return "text-orange-500 dark:text-orange-400";
+  return "text-red-500 dark:text-red-400";
 }
 
 function scoreCell(v: number | undefined, isGap: boolean) {
-  if (v === undefined || v === null) return <span className="text-gray-400">—</span>;
-  const fixed = isGap ? v.toFixed(2) : `${v.toFixed(1)}%`;
+  if (v === undefined || v === null) return <span className="text-gray-400 dark:text-slate-500">–</span>;
+  // avg_gap уже в процентах 0–100 (бэкенд), gap_j в GapRow — доля 0..1.
+  const fixed = `${v.toFixed(1)}%`;
   return <span className={`font-mono font-semibold ${scoreColor(v, isGap)}`}>{fixed}</span>;
 }
 
 function GapRow({ skill, entry }: { skill: string; entry: { gap_j?: number; importance?: number; category?: string } }) {
   return (
-    <div className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
+    <div className="flex items-center justify-between py-1.5 border-b border-gray-100 dark:border-slate-800 last:border-0">
       <div className="flex items-center gap-2 min-w-0">
-        <span className="text-sm font-medium text-gray-800 truncate">{entry.skill || skill}</span>
+        <span className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{entry.skill || skill}</span>
         {entry.category && (
           <Badge variant="outline" className="text-[10px] px-1.5 py-0">{entry.category}</Badge>
         )}
       </div>
       <div className="flex items-center gap-4 text-sm shrink-0">
-        <span className="text-gray-500 text-xs">
-          важность {(entry.importance ?? 0).toFixed(2)}
+        <span className="text-gray-500 dark:text-slate-400 text-xs">
+          важность {((entry.importance ?? 0) * 100).toFixed(0)}%
         </span>
-        <span className="font-mono font-semibold text-red-500">
-          +{(entry.gap_j ?? 0).toFixed(2)}
+        <span className="font-mono font-semibold text-red-500 dark:text-red-400">
+          +{((entry.gap_j ?? 0) * 100).toFixed(0)}%
         </span>
       </div>
     </div>
@@ -90,7 +103,7 @@ function ProfileDetails({ name, ev }: { name: string; ev: EvalEntry }) {
   const roles = ev.closest_roles || [];
 
   return (
-    <Card className="border-gray-200">
+    <Card className="border-gray-200 dark:border-slate-700">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-5 py-4 text-left"
@@ -98,25 +111,25 @@ function ProfileDetails({ name, ev }: { name: string; ev: EvalEntry }) {
         <div className="flex items-center gap-3">
           <Award className="size-5 text-indigo-600" />
           <div>
-            <div className="font-bold text-gray-900">{name}</div>
-            <div className="text-xs text-gray-500">
-              {ev.target_profession || "—"}
+            <div className="font-bold text-gray-900 dark:text-slate-100">{name}</div>
+            <div className="text-xs text-gray-500 dark:text-slate-400">
+              {ev.target_profession || "–"}
               {ev.dominant_domain_name ? ` · ${ev.dominant_domain_name}` : ""}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-4">
           <span className={`font-mono font-bold text-lg ${scoreColor(ev.market_coverage_score ?? 0)}`}>
-            {ev.market_coverage_score !== undefined ? `${ev.market_coverage_score.toFixed(1)}%` : "—"}
+            {ev.market_coverage_score !== undefined ? `${ev.market_coverage_score.toFixed(1)}%` : "–"}
           </span>
-          {open ? <ChevronUp className="size-4 text-gray-400" /> : <ChevronDown className="size-4 text-gray-400" />}
+          {open ? <ChevronUp className="size-4 text-gray-400 dark:text-slate-500" /> : <ChevronDown className="size-4 text-gray-400 dark:text-slate-500" />}
         </div>
       </button>
       {open && (
         <div className="px-5 pb-5 space-y-4">
           {roles.length > 0 && (
             <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Ближайшие роли</div>
+              <div className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">Ближайшие роли</div>
               <div className="flex flex-wrap gap-1.5">
                 {roles.slice(0, 6).map((r, i) => (
                   <Badge key={i} variant="outline" className="text-xs">
@@ -129,8 +142,8 @@ function ProfileDetails({ name, ev }: { name: string; ev: EvalEntry }) {
           )}
           {gaps.length > 0 && (
             <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Ключевые разрывы</div>
-              <div className="rounded-lg border border-gray-200 divide-y divide-gray-100">
+              <div className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">Ключевые разрывы</div>
+              <div className="rounded-lg border border-gray-200 dark:border-slate-700 divide-y divide-gray-100">
                 {gaps.map(([skill, entry]) => (
                   <GapRow key={skill} skill={skill} entry={entry} />
                 ))}
@@ -152,7 +165,7 @@ export function SummaryReport({ data }: SummaryReportProps) {
 
   if (profiles.length === 0) {
     return (
-      <div className="text-sm text-gray-500 text-center py-10">
+      <div className="text-sm text-gray-500 dark:text-slate-400 text-center py-10">
         Нет данных для отображения.
       </div>
     );
@@ -171,18 +184,18 @@ export function SummaryReport({ data }: SummaryReportProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs text-gray-500">Метрика</TableHead>
+                <TableHead className="text-xs text-gray-500 dark:text-slate-400">Метрика</TableHead>
                 {profiles.map((p) => (
-                  <TableHead key={p} className="text-xs text-gray-500 whitespace-nowrap">{p}</TableHead>
+                  <TableHead key={p} className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">{p}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {METRICS.map((m) => (
+              {METRICS.filter((m) => rowVisible(m.key, evals, profiles)).map((m) => (
                 <TableRow key={m.key}>
                   <TableCell>
-                    <div className="text-sm font-medium text-gray-800">{m.label}</div>
-                    <div className="text-xs text-gray-400">{m.hint}</div>
+                    <div className="text-sm font-medium text-gray-800 dark:text-slate-200">{m.label}</div>
+                    <div className="text-xs text-gray-400 dark:text-slate-500">{m.hint}</div>
                   </TableCell>
                   {profiles.map((p) => (
                     <TableCell key={p} className="whitespace-nowrap">

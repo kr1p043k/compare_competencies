@@ -224,17 +224,17 @@ export function ScientificTrendsTab() {
   return (
     <div className="space-y-6">
       {/* Запрос */}
-      <Card className="border border-gray-200 shadow-sm">
-        <CardHeader className="border-b border-gray-200 bg-gray-50">
+      <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
+        <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-10 h-10 bg-indigo-600 rounded-lg">
               <Search className="size-5 text-white" />
             </div>
             <div>
-              <CardTitle className="text-xl font-semibold text-gray-900">
+              <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
                 Академический анализ
               </CardTitle>
-              <CardDescription className="text-sm text-gray-600">
+              <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
                 Компетенции и разрывы по научной тематике (локальный анализ)
               </CardDescription>
             </div>
@@ -242,7 +242,7 @@ export function ScientificTrendsTab() {
         </CardHeader>
         <CardContent className="p-6 space-y-4">
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-gray-900">Тема / научный запрос</Label>
+            <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">Тема / научный запрос</Label>
             <Input
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
@@ -258,7 +258,7 @@ export function ScientificTrendsTab() {
                 : <Sparkles className="size-4 mr-2" />}
               Рекомендуемые компетенции
             </Button>
-            <Button onClick={analyzeGap} disabled={loading !== null} variant="outline" className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50">
+            <Button onClick={analyzeGap} disabled={loading !== null} variant="outline" className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800">
               {loading === "gap"
                 ? <span className="mr-2 inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 : <Target className="size-4 mr-2" />}
@@ -266,15 +266,15 @@ export function ScientificTrendsTab() {
             </Button>
           </div>
           {krmCount !== null && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-slate-400">
               В анализе разрыва учтено компетенций КРМ: <b>{krmCount}</b>
             </p>
           )}
 
           {loading === "gap" && (
             <div className="space-y-2">
-              <Progress value={gapProgress} className="h-2.5 bg-indigo-100 [&>div]:bg-indigo-600" />
-              <p className="text-xs text-gray-500">
+              <Progress value={gapProgress} className="h-2.5 bg-indigo-100 dark:bg-indigo-950/30 [&>div]:bg-indigo-600" />
+              <p className="text-xs text-gray-500 dark:text-slate-400">
                 Анализ разрыва выполняется, это может занять несколько минут… ({Math.round(gapProgress)}%)
               </p>
             </div>
@@ -291,17 +291,17 @@ export function ScientificTrendsTab() {
 
       {/* Рекомендуемые компетенции */}
       {trend && (
-        <Card className="border border-gray-200 shadow-sm">
-          <CardHeader className="border-b border-gray-200 bg-gray-50">
+        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
+          <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-10 h-10 bg-emerald-600 rounded-lg">
                 <TrendingUp className="size-5 text-white" />
               </div>
               <div>
-                <CardTitle className="text-xl font-semibold text-gray-900">
+                <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
                   Рекомендуемые компетенции
                 </CardTitle>
-                <CardDescription className="text-sm text-gray-600">
+                <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
                   Тема: {trend.topic}
                 </CardDescription>
               </div>
@@ -315,18 +315,18 @@ export function ScientificTrendsTab() {
               if (trendsList.length === 0) return null;
               return (
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Найденные научные тренды</h4>
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Найденные научные тренды</h4>
                   <div className="space-y-3">
                     {trendsList.map((t) => (
-                      <div key={t.title} className="rounded-lg border border-gray-200 p-4">
-                        <p className="text-sm font-semibold text-gray-900">{t.title}</p>
-                        {t.summary && <p className="text-xs text-gray-600 mt-1">{t.summary}</p>}
+                      <div key={t.title} className="rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{t.title}</p>
+                        {t.summary && <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">{t.summary}</p>}
                         {t.keywords.length > 0 && (
                           <div className="flex gap-1.5 flex-wrap mt-2">
                             {t.keywords.map((k) => (
                               <span
                                 key={k}
-                                className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600"
+                                className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400"
                               >
                                 {k}
                               </span>
@@ -342,7 +342,7 @@ export function ScientificTrendsTab() {
 
             {trend.recommended_competencies.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">Рекомендуемые компетенции</h4>
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Рекомендуемые компетенции</h4>
                 <div className="space-y-3">
                   {(() => {
                     const seenSources = new Set<string>();
@@ -356,9 +356,9 @@ export function ScientificTrendsTab() {
                         return true;
                       });
                       return (
-                        <div key={c.code} className="rounded-lg border border-gray-200 p-4">
+                        <div key={c.code} className="rounded-lg border border-gray-200 dark:border-slate-700 p-4">
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="font-mono text-sm font-semibold text-indigo-700">{c.code}</span>
+                            <span className="font-mono text-sm font-semibold text-indigo-700 dark:text-indigo-300">{c.code}</span>
                             <div className="flex items-center gap-2">
                               {c.coverage_percent !== undefined && (
                                 <Badge
@@ -374,7 +374,7 @@ export function ScientificTrendsTab() {
                                 </Badge>
                               )}
                               {c.skills_count !== undefined && (
-                                <span className="text-xs text-gray-400">{c.skills_count} навыков</span>
+                                <span className="text-xs text-gray-400 dark:text-slate-500">{c.skills_count} навыков</span>
                               )}
                             </div>
                           </div>
@@ -382,12 +382,12 @@ export function ScientificTrendsTab() {
                           {c.disciplines && c.disciplines.length > 0 && (
                             <div className="flex items-center gap-1.5 flex-wrap mt-1">
                               {c.disciplines.slice(0, 3).map((d) => (
-                                <span key={d} className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                                <span key={d} className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400">
                                   {d}
                                 </span>
                               ))}
                               {c.disciplines.length > 3 && (
-                                <span className="text-[11px] text-gray-400">+{c.disciplines.length - 3}</span>
+                                <span className="text-[11px] text-gray-400 dark:text-slate-500">+{c.disciplines.length - 3}</span>
                               )}
                             </div>
                           )}
@@ -397,7 +397,7 @@ export function ScientificTrendsTab() {
                               {c.near_skills.map((n) => (
                                 <span
                                   key={n.skill}
-                                  className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                  className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-950/30"
                                 >
                                   {n.skill.length > 40 ? n.skill.slice(0, 40) + "…" : n.skill} ({n.similarity.toFixed(2)})
                                 </span>
@@ -410,7 +410,7 @@ export function ScientificTrendsTab() {
                               {c.missing_topic_skills.map((m) => (
                                 <span
                                   key={m}
-                                  className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100"
+                                  className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-950/30"
                                 >
                                   {m.length > 40 ? m.slice(0, 40) + "…" : m}
                                 </span>
@@ -418,18 +418,18 @@ export function ScientificTrendsTab() {
                             </div>
                           )}
 
-                          {c.description && <p className="text-sm text-gray-700 mt-2">{c.description}</p>}
-                          {c.keywords && <p className="text-xs text-gray-500 mt-1">Ключевые слова: {c.keywords}</p>}
-                          {c.reason && !c.description && <p className="text-xs text-gray-500 mt-1">{c.reason}</p>}
+                          {c.description && <p className="text-sm text-gray-700 dark:text-slate-300 mt-2">{c.description}</p>}
+                          {c.keywords && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Ключевые слова: {c.keywords}</p>}
+                          {c.reason && !c.description && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{c.reason}</p>}
 
                           {c.suggested_skills && c.suggested_skills.length > 0 && (
-                            <div className="mt-2 text-xs text-gray-500">
+                            <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
                               <span className="font-medium">Рекомендуемые навыки:</span>
                               <ul className="mt-1 space-y-0.5">
                                 {c.suggested_skills.map((s) => (
                                   <li key={s.skill + s.source}>
-                                    <span className="font-mono text-indigo-700">{s.skill}</span>{" "}
-                                    <span className="text-gray-400">
+                                    <span className="font-mono text-indigo-700 dark:text-indigo-300">{s.skill}</span>{" "}
+                                    <span className="text-gray-400 dark:text-slate-500">
                                       ({s.similarity.toFixed(2)}
                                       {s.source === "competency" ? ", близок к компетенции" : ", по теме"})
                                     </span>
@@ -445,7 +445,7 @@ export function ScientificTrendsTab() {
                                 <span
                                   key={t.title}
                                   title={t.summary || t.title}
-                                  className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100"
+                                  className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-950/30"
                                 >
                                   {t.title}
                                 </span>
@@ -461,7 +461,7 @@ export function ScientificTrendsTab() {
             )}
 
             {trend.rationale && (
-              <div className="rounded-lg bg-indigo-50 border border-indigo-100 p-4 text-sm text-indigo-900">
+              <div className="rounded-lg bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-950/30 p-4 text-sm text-indigo-900 dark:text-indigo-100">
                 <span className="font-semibold">Обоснование: </span>{trend.rationale}
               </div>
             )}
@@ -471,17 +471,17 @@ export function ScientificTrendsTab() {
 
       {/* Анализ разрыва */}
       {gap && (
-        <Card className="border border-gray-200 shadow-sm">
-          <CardHeader className="border-b border-gray-200 bg-gray-50">
+        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
+          <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-10 h-10 bg-rose-600 rounded-lg">
                 <GitCompare className="size-5 text-white" />
               </div>
               <div>
-                <CardTitle className="text-xl font-semibold text-gray-900">
+                <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
                   Анализ разрыва компетенций
                 </CardTitle>
-                <CardDescription className="text-sm text-gray-600">
+                <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
                   Тема: {gapTopic}
                 </CardDescription>
               </div>
@@ -489,14 +489,14 @@ export function ScientificTrendsTab() {
           </CardHeader>
           <CardContent className="p-6 space-y-5">
             <div className="flex items-center gap-3">
-              <span className="text-3xl font-bold text-gray-900">
+              <span className="text-3xl font-bold text-gray-900 dark:text-slate-100">
                 {Math.round(gap.overall_score * 100)}%
               </span>
-              <span className="text-sm text-gray-500">общее покрытие</span>
+              <span className="text-sm text-gray-500 dark:text-slate-400">общее покрытие</span>
             </div>
 
             {gap.summary && (
-              <p className="text-sm text-gray-700 rounded-lg bg-gray-50 border border-gray-200 p-4">
+              <p className="text-sm text-gray-700 dark:text-slate-300 rounded-lg bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 p-4">
                 {gap.summary}
               </p>
             )}
@@ -505,9 +505,9 @@ export function ScientificTrendsTab() {
               {gap.detailed_analysis.map((item) => {
                 const covered = item.coverage_percent >= 80;
                 return (
-                  <div key={item.code} className="rounded-lg border border-gray-200 p-4">
+                  <div key={item.code} className="rounded-lg border border-gray-200 dark:border-slate-700 p-4">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-sm font-semibold text-gray-800">{item.code}</span>
+                      <span className="font-mono text-sm font-semibold text-gray-800 dark:text-slate-200">{item.code}</span>
                       <div className="flex items-center gap-2">
                         {covered ? <CheckCircle2 className="size-4 text-emerald-600" /> : <AlertCircle className="size-4 text-amber-500" />}
                         <Badge variant={covered ? "secondary" : "destructive"}>
@@ -518,25 +518,25 @@ export function ScientificTrendsTab() {
 
                     {item.disciplines && item.disciplines.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                        <span className="text-xs text-gray-400">Дисциплины:</span>
+                        <span className="text-xs text-gray-400 dark:text-slate-500">Дисциплины:</span>
                         {item.disciplines.slice(0, 3).map((d) => (
-                          <span key={d} className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                          <span key={d} className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400">
                             {d}
                           </span>
                         ))}
                         {item.disciplines.length > 3 && (
-                          <span className="text-[11px] text-gray-400">+{item.disciplines.length - 3}</span>
+                          <span className="text-[11px] text-gray-400 dark:text-slate-500">+{item.disciplines.length - 3}</span>
                         )}
                       </div>
                     )}
 
-                    {item.reason && <p className="text-xs text-gray-500 mt-1">{item.reason}</p>}
+                    {item.reason && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{item.reason}</p>}
 
                     {item.near_skills && item.near_skills.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                        <span className="text-xs text-gray-400">Близкие к теме:</span>
+                        <span className="text-xs text-gray-400 dark:text-slate-500">Близкие к теме:</span>
                         {item.near_skills.map((n) => (
-                          <span key={n.skill} className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                          <span key={n.skill} className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-950/30">
                             {n.skill.length > 40 ? n.skill.slice(0, 40) + "…" : n.skill} ({n.similarity.toFixed(2)})
                           </span>
                         ))}
@@ -545,9 +545,9 @@ export function ScientificTrendsTab() {
 
                     {item.missing_topic_skills && item.missing_topic_skills.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                        <span className="text-xs text-gray-400">Чего не хватает:</span>
+                        <span className="text-xs text-gray-400 dark:text-slate-500">Чего не хватает:</span>
                         {item.missing_topic_skills.map((m) => (
-                          <span key={m} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                          <span key={m} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-950/30">
                             {m.length > 40 ? m.slice(0, 40) + "…" : m}
                           </span>
                         ))}
@@ -555,19 +555,19 @@ export function ScientificTrendsTab() {
                     )}
 
                     {item.recommendation && (
-                      <p className="text-sm text-indigo-800 mt-2 bg-indigo-50 rounded p-2">
+                      <p className="text-sm text-indigo-800 dark:text-indigo-200 mt-2 bg-indigo-50 dark:bg-indigo-950/30 rounded p-2">
                         Рекомендация: {item.recommendation}
                       </p>
                     )}
 
                     {item.suggested_skills && item.suggested_skills.length > 0 && (
-                      <div className="mt-2 text-xs text-gray-500">
+                      <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
                         <span className="font-medium">Рекомендуемые навыки:</span>
                         <ul className="mt-1 space-y-0.5">
                           {item.suggested_skills.map((s) => (
                             <li key={s.skill + s.source}>
-                              <span className="font-mono text-indigo-700">{s.skill}</span>{" "}
-                              <span className="text-gray-400">
+                              <span className="font-mono text-indigo-700 dark:text-indigo-300">{s.skill}</span>{" "}
+                              <span className="text-gray-400 dark:text-slate-500">
                                 ({s.similarity.toFixed(2)}
                                 {s.source === "competency" ? ", близок к вашим навыкам" : ", по теме"})
                               </span>
@@ -586,9 +586,9 @@ export function ScientificTrendsTab() {
 
       {/* Пустое состояние */}
       {!trend && !gap && !error && (
-        <Card className="border border-gray-200 shadow-sm">
+        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
           <CardContent className="p-6">
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-slate-500">
               <TrendingUp className="size-12 mb-4" />
               <p className="text-lg font-medium">Задайте тему</p>
               <p className="text-sm mt-1">

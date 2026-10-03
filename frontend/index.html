@@ -5,8 +5,16 @@
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>Competency Gap Analyzer</title>
-      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-      <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
+    <script>
+      try {
+        if (localStorage.getItem("cc-theme") === "dark") {
+          document.documentElement.classList.add("dark");
+          document.documentElement.style.colorScheme = "dark";
+        }
+      } catch (e) {}
+    </script>
     </head>
 
     <body>

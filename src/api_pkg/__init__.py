@@ -5,18 +5,19 @@ import uuid
 from contextlib import asynccontextmanager
 
 import structlog
+
+# Suppress cmdstanpy BEFORE any imports that might trigger Prophet
+from cmdstanpy.utils.logging import disable_logging as _disable_cmdstan
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from src.monitoring.metrics import get_metrics
 
 from src import config
+from src.monitoring.metrics import get_metrics
 
-# Suppress cmdstanpy BEFORE any imports that might trigger Prophet
-from cmdstanpy.utils.logging import disable_logging as _disable_cmdstan
 _disable_cmdstan().__enter__()
 
 from src.api_pkg import deps as deps  # noqa: F401
@@ -46,8 +47,8 @@ def create_app() -> FastAPI:
 
         await run_startup(app)
         yield
-        from src.db import close_pool
         from src.database import get_engine
+        from src.db import close_pool
         await close_pool()
         await get_engine().dispose()
         logger.info("API shutting down...")
@@ -191,6 +192,8 @@ def create_app() -> FastAPI:
     _mount(zun_router)
     from src.api_pkg.routers.krm_teacher import router as krm_teacher_router
     _mount(krm_teacher_router)
+    from src.api_pkg.routers.krm_student import router as krm_student_router
+    _mount(krm_student_router)
     from src.api_pkg.routers.student import router as student_router
     _mount(student_router)
     from src.api_pkg.routers.llm import router as llm_router
@@ -212,7 +215,6 @@ def create_app() -> FastAPI:
 
     @app.get("/metrics")
     async def metrics():
-        from src.monitoring.metrics import get_metrics
         data, content_type = get_metrics()
         from fastapi.responses import Response
         return Response(content=data, media_type=content_type)

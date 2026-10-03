@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
 
 import structlog
 
@@ -54,6 +53,7 @@ class DisciplineCoverage:
     strong_coverage: float = 0.0
     coverage_level: str = "low"
     top_matched: list[SkillMatch] = field(default_factory=list)
+    matched_market: list[str] = field(default_factory=list)
     gaps_list: list[str] = field(default_factory=list)
     emerging: list[SkillMatch] = field(default_factory=list)
     truly_missing: list[SkillMatch] = field(default_factory=list)

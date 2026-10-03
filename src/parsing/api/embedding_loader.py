@@ -1,4 +1,5 @@
 import os
+
 import structlog
 
 from src import config
@@ -21,8 +22,9 @@ def get_embedding_model(model_name: str = None):
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
-        import sentence_transformers
         import logging
+
+        import sentence_transformers
         logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
         SentenceTransformer = sentence_transformers.SentenceTransformer
 

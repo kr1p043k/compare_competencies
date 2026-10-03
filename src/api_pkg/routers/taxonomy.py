@@ -7,14 +7,14 @@ from slowapi.util import get_remote_address
 
 from src import Err, Ok
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
+from src.api_pkg import deps
+from src.api_pkg.routers.auth import user_error_detail
 from src.models.api_responses import (
     KRMCoverageResponse,
     ProfessionDetailResponse,
     ProfessionsResponse,
     TaxonomyCoverageResponse,
 )
-
-from src.api_pkg import deps
 
 logger = structlog.get_logger("api")
 
@@ -24,8 +24,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 @router.get("/taxonomy/coverage", response_model=TaxonomyCoverageResponse)
 @limiter.limit("20/minute")
-async def taxonomy_coverage(
-    request: Request,
+async def taxonomy_coverage(    request: Request,
     taxonomy_instance: SkillTaxonomy | None = Depends(deps.get_taxonomy),
 ):
     """Покрытие таксономии."""
@@ -35,14 +34,27 @@ async def taxonomy_coverage(
         case Ok(categories):
             cat_ids = categories
         case Err(err):
-            raise HTTPException(status_code=500, detail=str(err))
+            logger.warning("taxonomy_categories_failed", error=str(err))
+            raise HTTPException(
+                status_code=500,
+                detail=await user_error_detail(request, str(err), "Не удалось загрузить категории таксономии. Попробуйте позже."),
+            )
     coverage = {}
     for cat_id in cat_ids:
         match taxonomy_instance.get_skills_in_category(cat_id):
             case Ok(skills):
                 cat_skills = set(s.lower() for s in skills)
             case Err(err):
-                raise HTTPException(status_code=500, detail=str(err))
+                logger.warning("taxonomy_category_skills_failed", category=cat_id, error=str(err))
+                raise HTTPException(
+                    status_code=500,
+                    detail=await user_error_detail(request, str(err), "Не удалось загрузить навыки категории. Попробуйте позже."),
+                )
+        if not cat_skills:
+            # Категории-пустышки (только aliases, без skills: methodologies,
+            # business_tools, abstract_concepts) — не навыки, в покрытие не идут,
+            # иначе рисуют фантомные «0.0%».
+            continue
         covered = cat_skills & deps.current_skills_set
         coverage[cat_id] = {
             "label": taxonomy_instance.get_category_label_by_id(cat_id),
@@ -54,6 +66,42 @@ async def taxonomy_coverage(
             else 0,
         }
     return {"coverage": coverage}
+
+
+@router.get("/taxonomy/categories", response_model=dict)
+@limiter.limit("60/minute")
+async def taxonomy_categories(
+    request: Request,
+    taxonomy_instance: SkillTaxonomy | None = Depends(deps.get_taxonomy),
+):
+    """Полная таксономия для просмотра (преподаватель): категории и навыки."""
+    if not taxonomy_instance:
+        raise HTTPException(status_code=503, detail="Таксономия не загружена")
+    match taxonomy_instance.get_all_categories():
+        case Ok(categories):
+            cat_ids = categories
+        case Err(err):
+            raise HTTPException(
+                status_code=500,
+                detail=await user_error_detail(request, str(err), "Не удалось загрузить категории. Попробуйте позже."),
+            )
+    out = []
+    for cat_id in cat_ids:
+        match taxonomy_instance.get_skills_in_category(cat_id):
+            case Ok(skills):
+                if not skills:
+                    # Пустышки-алиасы (methodologies/business_tools/abstract_concepts)
+                    continue
+                out.append({
+                    "id": cat_id,
+                    "label": taxonomy_instance.get_category_label_by_id(cat_id),
+                    "icon": taxonomy_instance.get_category_icon_by_id(cat_id),
+                    "total": len(skills),
+                    "skills": sorted(skills),
+                })
+            case Err(_):
+                continue
+    return {"categories": out, "total": len(out)}
 
 
 @router.get("/taxonomy/professions", response_model=ProfessionsResponse)
@@ -79,11 +127,14 @@ async def get_professions(request: Request):
         return {"professions": professions, "total": len(professions)}
     except Exception as e:
         logger.error("get_professions_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=await user_error_detail(request, str(e), "Не удалось загрузить список профессий. Попробуйте позже."),
+        )
 
 
 @router.get(
-    "/api/taxonomy/profession/{profession_name}",
+    "/taxonomy/profession/{profession_name}",
     response_model=ProfessionDetailResponse,
 )
 @limiter.limit("60/minute")
@@ -120,11 +171,14 @@ async def get_profession_detail(request: Request, profession_name: str):
         raise
     except Exception as e:
         logger.error("get_profession_detail_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=await user_error_detail(request, str(e), "Не удалось загрузить профессию. Попробуйте позже."),
+        )
 
 
 @router.get(
-    "/api/taxonomy/profession/{profession_name}/krm-coverage",
+    "/taxonomy/profession/{profession_name}/krm-coverage",
     response_model=KRMCoverageResponse,
 )
 @limiter.limit("30/minute")
@@ -143,7 +197,7 @@ async def get_profession_krm_coverage(
         coverage = taxonomy.compute_krm_coverage(profession_name, user_skills)
         if not coverage:
             raise HTTPException(
-                status_code=404, detail=f"No KRM data for '{profession_name}'"
+                status_code=404, detail=f"Нет KRM-данных для '{profession_name}'"
             )
 
         return {
@@ -161,4 +215,7 @@ async def get_profession_krm_coverage(
         raise
     except Exception as e:
         logger.error("get_krm_coverage_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=await user_error_detail(request, str(e), "Не удалось загрузить KRM-покрытие. Попробуйте позже."),
+        )

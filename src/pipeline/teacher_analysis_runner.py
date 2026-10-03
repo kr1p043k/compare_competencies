@@ -13,21 +13,22 @@ from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
+
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-import numpy as np
 import structlog
 
 from src import config
-from src.result import Ok, Err, Result
-from src.errors import AnalysisRunnerError
-from src.db import create_pool, close_pool, get_pool
-from src.models.teacher_analysis import DirectionSummary, GapAnalysisResult
-from src.analyzers.skill_matcher import SkillMatcher, normalize as normalize_skill
 from src.analyzers.coverage_analyzer import CoverageAnalyzer
+from src.analyzers.skill_matcher import SkillMatcher
+from src.analyzers.skill_matcher import normalize as normalize_skill
 from src.analyzers.trend_analyzer import SnapshotTrendAnalyzer
-from src.predictors.curriculum_recommender import CurriculumRecommender
+from src.db import close_pool, create_pool, get_pool
+from src.errors import AnalysisRunnerError
+from src.models.teacher_analysis import DirectionSummary, GapAnalysisResult
 from src.predictors.curriculum_optimizer import CurriculumOptimizer
+from src.predictors.curriculum_recommender import CurriculumRecommender
+from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 OUTPUT = Path(__file__).resolve().parent.parent.parent / "data" / "result" / "teacher"
@@ -202,10 +203,9 @@ def _enhance_disciplines_with_gap_analysis(
     try:
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
         from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
-        from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
 
         comp = EmbeddingComparator(similarity_threshold=0.5)
-        comp.build_market_index(market_skill_names, level="middle")
+        comp.build_market_index(market_skill_names, level="all")
         logger.info("market_embedding_index_built", skills=len(market_skill_names))
     except Exception as exc:
         logger.warning("gap_enhance_skip_embedding", error=str(exc))
@@ -362,7 +362,7 @@ async def run_teacher_analysis(
         return Err(AnalysisRunnerError(stage="db", message="Failed to create database pool"))
 
     # — create pipeline run —
-    from src.pipeline.db_writer import create_pipeline_run, complete_pipeline_run, save_to_analysis_results
+    from src.pipeline.db_writer import complete_pipeline_run, create_pipeline_run, save_to_analysis_results
 
     run_id = await create_pipeline_run("teacher-analysis")
 
@@ -407,7 +407,7 @@ async def run_teacher_analysis(
 
         it_skills_path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
         if it_skills_path.exists():
-            with open(it_skills_path, "r", encoding="utf-8") as f:
+            with open(it_skills_path, encoding="utf-8") as f:
                 it_data = json.load(f)
             for name in it_data:
                 k = name.strip().lower()
@@ -685,7 +685,7 @@ async def run_teacher_analysis(
                     )
                 except Exception as exc:
                     logger.warning("skip_pipeline_run_close_failed", error=str(exc))
-                with open(summary_path, "r", encoding="utf-8") as _sf:
+                with open(summary_path, encoding="utf-8") as _sf:
                     return Ok(json.load(_sf))
         except Exception as exc:
             logger.warning("skip_check_failed_recompute", error=str(exc))
@@ -706,8 +706,8 @@ async def run_teacher_analysis(
                     direction_rpd_norm.add(n)
         discipline_skill_map[dname] = dskills
 
-    from concurrent.futures import ThreadPoolExecutor, as_completed
     import threading
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     _discipline_lock = threading.Lock()
 
@@ -950,10 +950,22 @@ async def run_teacher_analysis(
         sum(r.discipline.strong_coverage for _, r in discipline_reports) / len(discipline_reports), 4
     ) if discipline_reports else 0
 
-    # Direction-level emerging: skills not found in ANY discipline (giants capped, v42)
+    # Direction-level emerging: skills not found in ANY discipline (giants capped, v42).
+    # Исключаем и реально сматченное (also_exclude): textual-проверки не видят
+    # семантические матчи и межскриптовые пары, которые матчер уже покрыл.
     from src.analyzers.skill_matcher import EMERGING_MAX_FREQ
+    matched_market_all: set[str] = set()
+    for _, rep in discipline_reports:
+        dc = rep.discipline
+        if dc is None:
+            continue
+        matched_market_all.update(getattr(dc, "matched_market", []) or [])
+        for m in (dc.top_matched or []):
+            if m.market_match:
+                matched_market_all.add(m.market_match)
     direction_emerging_result = matcher.get_emerging(
-        direction_rpd_norm, top_n=15, max_freq=EMERGING_MAX_FREQ)
+        direction_rpd_norm, top_n=15, max_freq=EMERGING_MAX_FREQ,
+        also_exclude=matched_market_all)
     direction_emerging: list[dict] = []
     if direction_emerging_result.is_ok():
         direction_emerging = [
@@ -1088,7 +1100,6 @@ async def run_teacher_analysis(
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        import numpy as np
 
         chart_dir = out_dir / "_charts"
         os.makedirs(chart_dir, exist_ok=True)

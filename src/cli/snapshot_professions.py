@@ -1,12 +1,10 @@
 """Snapshot per-profession skill frequencies from the vacancies database."""
 from __future__ import annotations
 
-import argparse
 import asyncio
-import asyncpg
 import json
-from collections import Counter
-from datetime import datetime
+
+import asyncpg
 
 from src import config
 from src.analyzers.skills.trends import TrendAnalyzer

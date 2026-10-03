@@ -7,10 +7,10 @@ from pathlib import Path
 
 import structlog
 
-from src.result import Ok, Err, Result
 from src.errors import RecommendationError
-from src.models.teacher_analysis import Recommendation, DisciplineCoverage
 from src.feature_flags import weak_comp_recs_enabled
+from src.models.teacher_analysis import DisciplineCoverage, Recommendation
+from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 
@@ -22,7 +22,7 @@ def _load_skill_types() -> dict[str, list[str]]:
     if not SKILL_TYPES_PATH.exists():
         logger.warning("skill_types_file_not_found", path=str(SKILL_TYPES_PATH))
         return {"academic": [], "professional": []}
-    with open(SKILL_TYPES_PATH, "r", encoding="utf-8") as f:
+    with open(SKILL_TYPES_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -102,6 +102,46 @@ def _norm_msg(msg: str) -> str:
     return _PUNCT_WS.sub(" ", (msg or "").casefold()).strip()
 
 
+def _gap_hints(gaps: list[str], truly_missing) -> dict[str, tuple[str, int, int]]:
+    """Ближайший рыночный навык для каждого гэпа — свидетельство, не матчинг.
+
+    Возвращает {gap: (market_skill, shared_lemmas, frequency)}.
+    Пулы — truly_missing (рынок вне дисциплины). Порог — хотя бы одна общая
+    значимая лемма; дальше решает человек (сообщение так и говорит).
+    """
+    try:
+        from src.analyzers.skill_matcher import sig_lemmas
+    except Exception:
+        return {}
+    pool = [
+        (m.skill_name, getattr(m, "frequency", 0) or 0)
+        for m in (truly_missing or [])
+        if (getattr(m, "skill_name", "") or "").strip()
+    ]
+    if not pool:
+        return {}
+    try:
+        pool_sig = [(nm, fq, sig_lemmas(nm)) for nm, fq in pool]
+    except Exception:
+        return {}
+    hints: dict[str, tuple[str, int, int]] = {}
+    for g in gaps or []:
+        try:
+            gs = sig_lemmas(g)
+        except Exception:
+            continue
+        if not gs:
+            continue
+        best: tuple[str, int, int] | None = None
+        for nm, fq, st in pool_sig:
+            shared = len(st & gs)
+            if shared and (best is None or (shared, fq) > (best[1], best[2])):
+                best = (nm, shared, fq)
+        if best:
+            hints[g] = best
+    return hints
+
+
 class CurriculumRecommender:
     def __init__(self):
         self.skill_types = _load_skill_types()
@@ -151,11 +191,7 @@ class CurriculumRecommender:
         for ref, labels in self._taxo_map.items():
             if not ref:
                 continue
-            if ref == sn or ref in words:
-                cats.update(labels)
-            elif len(ref) > 4 and ref in sn:
-                cats.update(labels)
-            elif len(sn) > 4 and sn in ref:
+            if ref == sn or ref in words or len(ref) > 4 and ref in sn or len(sn) > 4 and sn in ref:
                 cats.update(labels)
         return cats
 
@@ -184,8 +220,14 @@ class CurriculumRecommender:
             codes = comp_of.get((skill or "").lower().strip(), [])[:3]
             return (" (" + ", ".join(codes) + ")") if codes else ""
 
-        # Gaps: RPD skills not found on market — one per skill
+        # Gaps: RPD skills not found on market — one per skill.
+        # Сообщения честные: бездоказательное «пересмотрите актуальность» заменено
+        # на «не сопоставлено автоматически + ближайшее свидетельство + проверьте вручную».
+        # Типы/приоритеты не меняем (контракт тестов): academic->foundational/low,
+        # остальное->review_content/medium.
         _ksa_types = coverage.ksa_types or {}
+        _gap_skills = [s for s in coverage.gaps_list if not self._is_fragment(s)]
+        _hints = _gap_hints(_gap_skills, getattr(coverage, "truly_missing", None))
         for s in coverage.gaps_list:
             if self._is_fragment(s):
                 continue
@@ -193,15 +235,22 @@ class CurriculumRecommender:
                 cls = "academic"  # DB ground truth beats text heuristics (v37)
             else:
                 cls = _classify_skill(s, self.skill_types)
+            hint = _hints.get(s)
+            hint_txt = (
+                f" (ближайшее на рынке: «{hint[0]}», вакансий: {hint[2]})."
+                if hint else " (ничего близкого на рынке нет)."
+            )
             if cls == "academic":
                 recs.append(Recommendation(
                     type="foundational", priority="low", skill_name=s,
-                    message=f"«{s}» — фундаментальный навык, не обнаружен на рынке. Не требует замены.",
+                    message=f"«{s}» — фундаментальный навык, на рынке прямых аналогов нет. "
+                            f"Не требует замены.{hint_txt if hint else ''}",
                 ))
             else:
                 recs.append(Recommendation(
                     type="review_content", priority="medium", skill_name=s,
-                    message=f"«{s}» — навык из РПД не обнаружен в рыночных данных. Рекомендуется пересмотреть его актуальность.",
+                    message=f"«{s}» — не сопоставлено с рынком автоматически.{hint_txt} "
+                            f"Проверьте вручную: возможно, стоит переформулировать ближе к рынку.",
                 ))
 
         # v29: attach owning competency codes to gap messages (actionability).

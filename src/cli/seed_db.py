@@ -64,7 +64,7 @@ async def seed_skills(session) -> dict[str, str]:
     for source in ("it_skills", "rpd_skills"):
         path = IT_SKILLS_PATH if source == "it_skills" else RPD_SKILLS_PATH
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 raw = json.load(f)
             names = [s.strip() for s in raw if s.strip()]
         except FileNotFoundError:
@@ -87,7 +87,7 @@ async def seed_skills(session) -> dict[str, str]:
 
 
 async def seed_krm(session, skill_map: dict[str, str]) -> None:
-    with open(KRM_PATH, "r", encoding="utf-8") as f:
+    with open(KRM_PATH, encoding="utf-8") as f:
         data = json.load(f)
     direction_data = data.get("09.03.02", {})
     disciplines_raw = direction_data.get("disciplines", {})
@@ -180,7 +180,7 @@ async def seed_users(session) -> None:
     if not users_file.exists():
         print("users.json not found, skipping users seed")
         return
-    with open(users_file, "r", encoding="utf-8") as f:
+    with open(users_file, encoding="utf-8") as f:
         raw = json.load(f)
     from sqlalchemy import text as sa_text
     created = 0
@@ -208,7 +208,7 @@ async def seed_users(session) -> None:
 
 async def seed_recommendations(session) -> None:
     try:
-        with open(RECOMMENDATIONS_PATH, "r", encoding="utf-8") as f:
+        with open(RECOMMENDATIONS_PATH, encoding="utf-8") as f:
             recs = json.load(f)
     except FileNotFoundError:
         print("No recommendations to seed")

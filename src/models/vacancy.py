@@ -225,6 +225,9 @@ class Vacancy:
     # Служебные поля (NOT для use в основной логике!)
     raw_data: dict[str, Any] = field(default_factory=dict, repr=False)
     parsed_at: datetime = field(default_factory=datetime.now)
+    # Навыки, извлечённые парсером из описания/сниппета (заполняет SkillExtractionStage;
+    # читает LevelBuilder). Нужно как поле: slots=True запрещает произвольные атрибуты.
+    extracted_skills: list[str] = field(default_factory=list, repr=False)
 
     def __post_init__(self):
         """Валидация при создании"""

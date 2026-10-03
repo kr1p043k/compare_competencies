@@ -340,3 +340,36 @@ class TestVacancyParserEdgeCases:
 
     def test_strip_html_no_text(self):
         assert VacancyParser._strip_html(None) == ""
+
+
+class TestBlankSkillsDropped:
+    def test_clean_skill_list_api(self):
+        from src.api_pkg.routers.vacancies import _clean_skill_list
+        assert _clean_skill_list(["crm", "", "  ", "make", "crm", "Make"]) == ["crm", "make"]
+        assert _clean_skill_list([{"name": " sql "}, {"name": ""}, {"name": "  "}]) == [{"name": "sql"}]
+        assert _clean_skill_list(None) == []
+        assert _clean_skill_list(["", "   "]) == []
+
+    def test_parse_vacancy_drops_blanks(self):
+        from unittest.mock import MagicMock, patch
+        from src import Ok
+        from src.models.vacancy import Area, Employer, Vacancy
+        from src.parsing.skills.skill_parser import SkillParser, ExtractedSkill, SkillSource
+        parser = SkillParser.__new__(SkillParser)
+        parser.stats = MagicMock()
+        area = Area(1, "M")
+        employer = Employer("1", "C")
+        vac = Vacancy(id="1", name="Dev", area=area, employer=employer, key_skills=[],
+                      description="Need crm experience")
+        blanks = [
+            ExtractedSkill(text="", source=SkillSource.DESCRIPTION, raw_match="", confidence=0.5),
+            ExtractedSkill(text="   ", source=SkillSource.DESCRIPTION, raw_match=" ", confidence=0.5),
+            ExtractedSkill(text="crm", source=SkillSource.DESCRIPTION, raw_match="crm", confidence=0.9),
+        ]
+        with patch.object(SkillParser, "_extract_from_text", return_value=Ok(blanks)):
+            result = parser.parse_vacancy(vac)
+        assert result.is_ok()
+        texts = [s.text for s in result.unwrap()]
+        assert "" not in texts
+        assert not any(not t.strip() for t in texts)
+        assert "crm" in texts

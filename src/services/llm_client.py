@@ -1,9 +1,15 @@
 import time
-import structlog
 from typing import Any
 
+import structlog
+
 from src import config
-from src.monitoring.metrics import llm_requests_total, llm_request_duration_seconds, llm_token_usage, llm_response_length
+from src.monitoring.metrics import (
+    llm_request_duration_seconds,
+    llm_requests_total,
+    llm_response_length,
+    llm_token_usage,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -26,7 +32,7 @@ class LLMClient:
         self._client = OpenAI(
             base_url=f"{self.base_url}/v1",
             api_key=api_key or "ollama",
-            timeout=60.0,
+            timeout=120.0,
             max_retries=2,
         )
 

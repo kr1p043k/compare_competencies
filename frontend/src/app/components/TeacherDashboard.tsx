@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../api";
 import { authHeaders } from "../../lib/auth";
+import { useTheme } from "../../lib/theme";
 import { AnalysisPanel } from "./AnalysisPanel";
+import { TaxonomyBrowser } from "./TaxonomyBrowser";
 import CompetencyTrendsPanel from "./CompetencyTrendsPanel";
 
 const API = "/api/teacher";
@@ -105,6 +107,8 @@ type Stats = {
 };
 
 export function TeacherDashboard() {
+  const { theme } = useTheme();
+  const dk = theme === "dark";
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [selected, setSelected] = useState<DisciplineDetail | null>(null);
   const [scopeSaving, setScopeSaving] = useState<string | null>(null);
@@ -157,7 +161,35 @@ export function TeacherDashboard() {
   const [selectedDir, setSelectedDir] = useState("09.03.02");
   const [analysis, setAnalysis] = useState<DirectionAnalysis | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
-  const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends">("coverage");
+  const [analysisMode, setAnalysisMode] = useState<"coverage" | "trends" | "taxonomy">("coverage");
+  const [teacherSection, setTeacherSection] = useState("t-overview");
+  const [collapsedComps, setCollapsedComps] = useState<Record<string, boolean>>({});
+  const scrollTeacherTo = (id: string) => {
+    setTeacherSection(id);
+    try {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch {}
+  };
+  // Подсветка активного раздела при скролле (иначе залипает на кликнутом).
+  useEffect(() => {
+    const root = document.getElementById("teacher-main");
+    if (!root) return;
+    const ids = ["t-overview", "t-recs", "t-gaps", "t-trends", "t-discs",
+      "d-cover", "d-recs", "d-top", "d-gaps", "d-comps"];
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) setTeacherSection(e.target.id);
+        }
+      },
+      { root, rootMargin: "-20% 0px -70% 0px", threshold: 0 }
+    );
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) obs.observe(el);
+    });
+    return () => obs.disconnect();
+  }, [analysis, analysisMode]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [seedMsg, setSeedMsg] = useState("");
   const [seedLoading, setSeedLoading] = useState(false);
@@ -303,7 +335,7 @@ export function TeacherDashboard() {
         })
         .catch(() => {
           if (cancelled) return;
-          // Разовый сбой сети/рестарт сервера — ждём, а не висим молча.
+          // Разовый сбой сети/рестарт сервера – ждём, а не висим молча.
           misses += 1;
           if (misses < 10) {
             setRpdMsg(`Сервер перезапускается, жду статус... (${misses})`);
@@ -332,7 +364,7 @@ export function TeacherDashboard() {
         headers: { ...authHeaders() },
         body: fd,
       });
-      if (res.status === 429) throw new Error("Слишком частые запросы — подождите минуту и повторите");
+      if (res.status === 429) throw new Error("Слишком частые запросы – подождите минуту и повторите");
       const data = await res.json().catch(() => ({} as any));
       if (!res.ok) throw new Error(data.detail || res.statusText);
       if (!data.run_id) throw new Error("Сервер не вернул ID задачи");
@@ -379,7 +411,7 @@ export function TeacherDashboard() {
       });
       if (res.status === 429) {
         setCollectCooldown(30);
-        throw new Error("Слишком частые запросы — кнопка заблокирована на 30 секунд");
+        throw new Error("Слишком частые запросы – кнопка заблокирована на 30 секунд");
       }
       const data = await res.json().catch(() => ({} as any));
       if (!res.ok) throw new Error(data.detail || res.statusText);
@@ -520,14 +552,17 @@ export function TeacherDashboard() {
     display: "flex",
     height: "calc(100vh - 100px)",
     fontFamily: "system-ui, -apple-system, sans-serif",
-    color: "#111827",
-    background: "#fff",
+    color: dk ? "#f1f5f9" : "#111827",
+    background: dk ? "#0f172a" : "#fff",
+    borderRadius: 16,
+    border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
+    overflow: "hidden",
   };
 
   const sidebarStyle: React.CSSProperties = {
     width: 380,
     minWidth: 380,
-    borderRight: "1px solid #e5e7eb",
+    borderRight: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
@@ -540,9 +575,9 @@ export function TeacherDashboard() {
   };
 
   const card: React.CSSProperties = {
-    background: "#fff",
+    background: dk ? "#0f172a" : "#fff",
     borderRadius: 8,
-    border: "1px solid #e5e7eb",
+    border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
     padding: 14,
     marginBottom: 10,
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
@@ -555,13 +590,13 @@ export function TeacherDashboard() {
   return (
     <div style={containerStyle}>
       <div style={sidebarStyle}>
-          <div style={{ padding: "16px", borderBottom: "1px solid #e5e7eb" }}>
+          <div style={{ padding: "16px", borderBottom: "1px solid " + (dk ? "#334155" : "#e5e7eb") }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h1 style={{ fontSize: 18, margin: 0, color: "#111827" }}>
+              <h1 style={{ fontSize: 18, margin: 0, color: dk ? "#f1f5f9" : "#111827" }}>
                 KRM Teacher
               </h1>
               {stats && (
-                  <div style={{ fontSize: 11, color: "#6b7280", textAlign: "right" }}>
+                  <div style={{ fontSize: 11, color: dk ? "#94a3b8" : "#6b7280", textAlign: "right" }}>
                     <div>{(() => { const n = (stats as any).total_disciplines ?? (stats as any).total_reports ?? 0; return `${n} ${plural(n, "дисциплина", "дисциплины", "дисциплин")}`; })()}</div>
                     <div>{(() => { const n = (stats as any).total_competencies ?? Object.keys((stats as any).by_profession || {}).length; return `${n} ${plural(n, "компетенция", "компетенции", "компетенций")}`; })()}</div>
                     <div>{(() => { const n = (stats as any).total_skills ?? 0; return `${n.toLocaleString()} ${plural(n, "навык", "навыка", "навыков")}`; })()}</div>
@@ -577,10 +612,10 @@ export function TeacherDashboard() {
               width: "100%",
               marginTop: 10,
               padding: "6px 8px",
-              background: "#fff",
-              border: "1px solid #e5e7eb",
+              background: dk ? "#0f172a" : "#fff",
+              border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
               borderRadius: 6,
-              color: "#111827",
+              color: dk ? "#f1f5f9" : "#111827",
               fontSize: 12,
               outline: "none",
             }}
@@ -624,7 +659,7 @@ export function TeacherDashboard() {
                     break;
                   }
                   setRunMsg(`Этап: пересчёт анализа (60 дисциплин)… ${spent} c`);
-                  if (i === 359) setRunMsg("Превышено ожидание — проверьте результат позже");
+                  if (i === 359) setRunMsg("Превышено ожидание – проверьте результат позже");
                 }
               } catch (e: any) {
                 setRunMsg(`Ошибка запуска: ${e?.message || e}`);
@@ -657,8 +692,8 @@ export function TeacherDashboard() {
             style={{
               marginTop: 12,
               padding: "10px 12px",
-              background: "#fffbeb",
-              border: "1px solid #fde68a",
+              background: dk ? "#2a230f" : "#fffbeb",
+              border: "1px solid " + (dk ? "#57481c" : "#fde68a"),
               borderRadius: 6,
             }}
           >
@@ -714,7 +749,7 @@ export function TeacherDashboard() {
                 {rpdCollecting ? "Отмена" : collectCooldown > 0 ? `Подождите ${collectCooldown} сек` : "Собрать с Yandex Disk"}
               </button>
             )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: "1px dashed #fde68a", paddingTop: 8, marginTop: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: "1px dashed " + (dk ? "#57481c" : "#fde68a"), paddingTop: 8, marginTop: 8 }}>
               <input
                 type="text"
                 value={rpdYandexUrl}
@@ -723,7 +758,7 @@ export function TeacherDashboard() {
                 style={{
                   width: "100%",
                   padding: "8px 10px",
-                  border: "1px solid #fde68a",
+                  border: "1px solid " + (dk ? "#57481c" : "#fde68a"),
                   borderRadius: 6,
                   fontSize: 12,
                   boxSizing: "border-box",
@@ -757,7 +792,7 @@ export function TeacherDashboard() {
               >
                 {rpdMsg}
                 {rpdStatus.stats?.disciplines != null && rpdStatus.status === "completed" && (
-                  <span> — {rpdStatus.stats.disciplines} дисциплин</span>
+                  <span> – {rpdStatus.stats.disciplines} дисциплин</span>
                 )}
               </div>
             )}
@@ -766,7 +801,7 @@ export function TeacherDashboard() {
                 <div
                   style={{
                     height: 8,
-                    background: "#fde68a",
+                    background: dk ? "#57481c" : "#fde68a",
                     borderRadius: 4,
                     overflow: "hidden",
                   }}
@@ -794,7 +829,7 @@ export function TeacherDashboard() {
               style={{
                 marginTop: 10,
                 padding: "8px 12px",
-                background: "#f9fafb",
+                background: dk ? "#1e293b" : "#f9fafb",
                 border: `1px solid ${covColor(analysis.average_coverage)}`,
                 borderRadius: 6,
                 cursor: "pointer",
@@ -812,7 +847,7 @@ export function TeacherDashboard() {
                   )}
                 </span>
               </div>
-              <div style={{ color: "#6b7280", marginTop: 2 }}>
+              <div style={{ color: dk ? "#94a3b8" : "#6b7280", marginTop: 2 }}>
                 {analysis.total_disciplines} {plural(analysis.total_disciplines, "дисциплина", "дисциплины", "дисциплин")}, {analysis.total_gaps_across_all} {plural(analysis.total_gaps_across_all, "пробел", "пробела", "пробелов")}
               </div>
             </div>
@@ -827,10 +862,10 @@ export function TeacherDashboard() {
               width: "100%",
               marginTop: 10,
               padding: "8px 12px",
-              background: "#fff",
-              border: "1px solid #e5e7eb",
+              background: dk ? "#0f172a" : "#fff",
+              border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
               borderRadius: 6,
-              color: "#111827",
+              color: dk ? "#f1f5f9" : "#111827",
               fontSize: 13,
               outline: "none",
               boxSizing: "border-box",
@@ -838,19 +873,19 @@ export function TeacherDashboard() {
           />
         </div>
         <div style={{ flex: 1, overflow: "auto" }}>
-          <div style={{ padding: "6px 16px", fontSize: 11, color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
+          <div style={{ padding: "6px 16px", fontSize: 11, color: dk ? "#94a3b8" : "#6b7280", borderBottom: "1px solid " + (dk ? "#334155" : "#e5e7eb") }}>
             В учёте: {disciplines.filter((x) => x.in_scope ?? true).length} из {disciplines.length}
             {scopeMsg && (<div style={{ color: "#92400e", marginTop: 2 }}>{scopeMsg}</div>)}
             <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
               <button onClick={() => saveScopeBulk(true)} disabled={scopeSaving !== null}
-                style={{ fontSize: 11, padding: "3px 10px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer" }}>
+                style={{ fontSize: 11, padding: "3px 10px", borderRadius: 5, border: "1px solid " + (dk ? "#475569" : "#d1d5db"), background: dk ? "#0f172a" : "#fff", cursor: "pointer" }}>
                 Выбрать все
               </button>
               <button onClick={() => saveScopeBulk(false)} disabled={scopeSaving !== null}
-                style={{ fontSize: 11, padding: "3px 10px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer" }}>
+                style={{ fontSize: 11, padding: "3px 10px", borderRadius: 5, border: "1px solid " + (dk ? "#475569" : "#d1d5db"), background: dk ? "#0f172a" : "#fff", cursor: "pointer" }}>
                 Снять все
               </button>
-              {metaStale && (<span style={{ fontSize: 11, color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "2px 7px" }}>данные устарели — обновите анализ</span>)}
+              {metaStale && (<span style={{ fontSize: 11, color: "#92400e", background: dk ? "#453a17" : "#fef3c7", borderRadius: 4, padding: "2px 7px" }}>данные устарели – обновите анализ</span>)}
             </div>
           </div>
           {filtered.map((d) => {
@@ -868,9 +903,9 @@ export function TeacherDashboard() {
                   alignItems: "flex-start",
                   padding: "10px 12px 10px 8px",
                   cursor: "pointer",
-                  borderBottom: "1px solid #e5e7eb",
+                  borderBottom: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
                   background:
-                    selected?.name === d.name ? "#eef2ff" : "transparent",
+                    selected?.name === d.name ? dk ? "#1d2440" : "#eef2ff" : "transparent",
                   opacity: (d.in_scope ?? true) ? 1 : 0.55,
                 }}
               >
@@ -899,12 +934,12 @@ export function TeacherDashboard() {
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: dk ? "#94a3b8" : "#6b7280", marginTop: 2 }}>
                     {d.scope_source === "methodology" && (
-                      <span style={{ marginRight: 6, fontSize: 10, color: "#9333ea", background: "#f3e8ff", borderRadius: 4, padding: "1px 5px" }}>методология</span>
+                      <span style={{ marginRight: 6, fontSize: 10, color: "#9333ea", background: dk ? "#2e2145" : "#f3e8ff", borderRadius: 4, padding: "1px 5px" }}>методология</span>
                     )}
                     {d.scope_source === "custom" && (
-                      <span style={{ marginRight: 6, fontSize: 10, color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "1px 5px" }}>вручную</span>
+                      <span style={{ marginRight: 6, fontSize: 10, color: "#92400e", background: dk ? "#453a17" : "#fef3c7", borderRadius: 4, padding: "1px 5px" }}>вручную</span>
                     )}
                   {d.course != null && `${d.course} курс · `}
                   {d.competencies_count} {plural(d.competencies_count, "комп.", "комп.", "комп.")} · {d.skills_count} {plural(d.skills_count, "навык", "навыка", "навыков")}
@@ -919,7 +954,7 @@ export function TeacherDashboard() {
         </div>
       </div>
 
-      <div style={mainStyle}>
+      <div style={mainStyle} id="teacher-main">
         {!selected && !showAnalysis && (
           <div style={{ textAlign: "center", marginTop: 80, color: "#9ca3af", fontSize: 14 }}>
             Выберите дисциплину или откройте анализ
@@ -937,34 +972,80 @@ export function TeacherDashboard() {
               cursor: "pointer",
               fontSize: 12,
               fontWeight: analysisMode === "coverage" ? 700 : 400,
-              background: analysisMode === "coverage" ? "#7c3aed" : "#f9fafb",
+              background: analysisMode === "coverage" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
               color: analysisMode === "coverage" ? "#fff" : "#7c3aed",
             }}
           >
             Покрытие
           </button>
-          <button
-            onClick={() => setAnalysisMode("trends")}
-            style={{
-              padding: "6px 14px",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontSize: 12,
-              fontWeight: analysisMode === "trends" ? 700 : 400,
-              background: analysisMode === "trends" ? "#7c3aed" : "#f9fafb",
-              color: analysisMode === "trends" ? "#fff" : "#7c3aed",
-            }}
-          >
-            Тренды компетенций
-          </button>
+            <button
+              onClick={() => setAnalysisMode("trends")}
+              style={{
+                padding: "6px 14px",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: analysisMode === "trends" ? 700 : 400,
+                background: analysisMode === "trends" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
+                color: analysisMode === "trends" ? "#fff" : "#7c3aed",
+              }}
+            >
+              Тренды компетенций
+            </button>
+            <button
+              onClick={() => setAnalysisMode("taxonomy")}
+              style={{
+                padding: "6px 14px",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: analysisMode === "taxonomy" ? 700 : 400,
+                background: analysisMode === "taxonomy" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
+                color: analysisMode === "taxonomy" ? "#fff" : "#7c3aed",
+              }}
+            >
+              Таксономия
+            </button>
         </div>
 
         {analysisMode === "coverage" && analysis && (<>
-          <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>
+          {/* Суб-навигация: при выбранной дисциплине — по её разделам, иначе по сводке */}
+          <div className="inline-flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-slate-900 p-1 mb-4 sticky top-0 z-10 flex-wrap">
+            {(selected
+              ? [
+                  ["d-cover", "Покрытие"],
+                  ["d-recs", "Рекомендации"],
+                  ["d-top", "Совпадения"],
+                  ["d-gaps", "Пробелы"],
+                  ["d-comps", "Компетенции"],
+                ]
+              : [
+                  ["t-overview", "Обзор"],
+                  ["t-recs", "Рекомендации"],
+                  ["t-gaps", "Разрывы"],
+                  ["t-trends", "Тренды"],
+                  ["t-discs", "Дисциплины"],
+                ]
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => scrollTeacherTo(id)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                  teacherSection === id
+                    ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
+                    : "text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div id="t-overview" style={{ fontSize: 11, color: dk ? "#94a3b8" : "#6b7280", marginBottom: 8, scrollMarginTop: 8 }}>
             {selected
               ? `Дисциплина: ${selected.name} (направление ${selectedDir})`
-              : `Направление ${selectedDir} — сводка по всем ${analysis.total_disciplines} дисциплинам, ни одна дисциплина не выбрана`}
+              : `Направление ${selectedDir} – сводка по всем ${analysis.total_disciplines} дисциплинам, ни одна дисциплина не выбрана`}
           </div>
           {/* When a discipline is selected, show its coverage instead of direction average */}
           {(() => {
@@ -977,7 +1058,7 @@ export function TeacherDashboard() {
           return (<>
           <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
             <div style={card}>
-              <div style={{ fontSize: 11, color: "#6b7280" }}>
+              <div style={{ fontSize: 11, color: dk ? "#94a3b8" : "#6b7280" }}>
                 {discData ? `Coverage: ${selected.name}` : "Average Coverage"}
               </div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: covColor(cov) }}>
@@ -988,13 +1069,13 @@ export function TeacherDashboard() {
                   </div>
                 </div>
                 <div style={card}>
-                  <div style={{ fontSize: 11, color: "#6b7280" }}>Gaps</div>
+                  <div style={{ fontSize: 11, color: dk ? "#94a3b8" : "#6b7280" }}>Gaps</div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: "#fca5a5" }}>
                     {gaps}
                   </div>
                 </div>
                 <div style={card}>
-                  <div style={{ fontSize: 11, color: "#6b7280" }}>Disciplines</div>
+                  <div style={{ fontSize: 11, color: dk ? "#94a3b8" : "#6b7280" }}>Disciplines</div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: "#93c5fd" }}>
                     {analysis.total_disciplines}
                   </div>
@@ -1002,33 +1083,33 @@ export function TeacherDashboard() {
               </div>
           </>)})()}
 
-              {/* Общие блоки направления — только пока дисциплина не выбрана.
+              {/* Общие блоки направления – только пока дисциплина не выбрана.
                   При выбранной дисциплине её детали ниже (AnalysisPanel). */}
               {!selected && (<>
               {/* Direction-level recommendations */}
               {(analysis.recommendations || []).length > 0 && (
-                <div style={card}>
+                <div id="t-recs" style={{ ...card, scrollMarginTop: 8 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>
                     Рекомендации
                   </div>
                   {(analysis.recommendations || []).map((r, i) => (
-                    <div key={i} style={{ padding: "8px 10px", marginBottom: 6, borderRadius: 6, fontSize: 12, background: r.priority === "high" ? "#fef2f2" : r.priority === "medium" ? "#fffbeb" : "#eff6ff", border: `1px solid ${r.priority === "high" ? "#fecaca" : r.priority === "medium" ? "#fde68a" : "#bfdbfe"}` }}>
+                    <div key={i} style={{ padding: "8px 10px", marginBottom: 6, borderRadius: 6, fontSize: 12, background: r.priority === "high" ? dk ? "#3b1d1d" : "#fef2f2" : r.priority === "medium" ? dk ? "#2a230f" : "#fffbeb" : dk ? "#1d2440" : "#eff6ff", border: `1px solid ${r.priority === "high" ? dk ? "#7f2d2d" : "#fecaca" : r.priority === "medium" ? dk ? "#57481c" : "#fde68a" : dk ? "#2c4a7c" : "#bfdbfe"}` }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
-                        <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: r.priority === "high" ? "#fee2e2" : r.priority === "medium" ? "#fef3c7" : "#dbeafe", color: r.priority === "high" ? "#dc2626" : r.priority === "medium" ? "#92400e" : "#1d4ed8", fontWeight: 600 }}>{r.priority === "high" ? "высокий" : r.priority === "medium" ? "средний" : "низкий"}</span>
-                        <span style={{ fontSize: 11, color: "#6b7280" }}>{r.type}</span>
+                        <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: r.priority === "high" ? dk ? "#3b1d1d" : "#fee2e2" : r.priority === "medium" ? dk ? "#453a17" : "#fef3c7" : dk ? "#1e3a5f" : "#dbeafe", color: r.priority === "high" ? "#dc2626" : r.priority === "medium" ? "#92400e" : "#1d4ed8", fontWeight: 600 }}>{r.priority === "high" ? "высокий" : r.priority === "medium" ? "средний" : "низкий"}</span>
+                        <span style={{ fontSize: 11, color: dk ? "#94a3b8" : "#6b7280" }}>{r.type}</span>
                       </div>
-                      <div style={{ color: "#374151", lineHeight: 1.4 }}>{r.message}</div>
+                      <div style={{ color: dk ? "#cbd5e1" : "#374151", lineHeight: 1.4 }}>{r.message}</div>
                     </div>
                   ))}
                 </div>
               )}
 
-                 <div style={card}>
+                 <div id="t-gaps" style={{ ...card, scrollMarginTop: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Междисциплинарные разрывы</div>
                 {((analysis.top_cross_discipline_gaps || []) as any[]).map((g: any, i: number) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid #e5e7eb", fontSize: 12 }}>
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid " + (dk ? "#334155" : "#e5e7eb"), fontSize: 12 }}>
                     <span style={{ color: "#b91c1c", fontWeight: 500 }}>{g.skill}</span>
-                    <span style={{ color: "#6b7280" }}>{g.disciplines} дисциплин</span>
+                    <span style={{ color: dk ? "#94a3b8" : "#6b7280" }}>{g.disciplines} дисциплин</span>
                   </div>
                 ))}
               </div>
@@ -1037,7 +1118,7 @@ export function TeacherDashboard() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Востребованные навыки рынка</div>
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                   {((analysis.top_emerging_across_all || []) as any[]).map((s: any, i: number) => (
-                    <span key={i} style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: "#e0e7ff", color: "#4338ca", margin: 2 }}>
+                    <span key={i} style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: dk ? "#232a4d" : "#e0e7ff", color: "#4338ca", margin: 2 }}>
                       {s.skill}
                     </span>
                   ))}
@@ -1045,13 +1126,13 @@ export function TeacherDashboard() {
               </div>
 
               {analysis.trends && (
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <div id="t-trends" style={{ display: "flex", gap: 12, flexWrap: "wrap", scrollMarginTop: 8 }}>
                   {analysis.trends.rising?.length > 0 && (
                     <div style={{ ...card, flex: 1, minWidth: 200 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: "#059669", marginBottom: 8 }}>Растущие навыки</div>
                       {analysis.trends.rising.map((t, i) => (
-                        <div key={i} style={{ fontSize: 11, padding: "2px 0", color: "#4b5563" }}>
-                          {t.skill} <span style={{ color: "#059669" }}>+{t.change_pct}%</span>
+                        <div key={i} style={{ fontSize: 11, padding: "2px 0", color: dk ? "#94a3b8" : "#4b5563" }}>
+                          {t.skill} <span style={{ color: "#059669" }}>{t.change_pct > 0 ? "+" : ""}{t.change_pct}%</span>
                         </div>
                       ))}
                     </div>
@@ -1060,7 +1141,7 @@ export function TeacherDashboard() {
                     <div style={{ ...card, flex: 1, minWidth: 200 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: "#dc2626", marginBottom: 8 }}>Падающие навыки</div>
                       {analysis.trends.declining.map((t, i) => (
-                        <div key={i} style={{ fontSize: 11, padding: "2px 0", color: "#4b5563" }}>
+                        <div key={i} style={{ fontSize: 11, padding: "2px 0", color: dk ? "#94a3b8" : "#4b5563" }}>
                           {t.skill} <span style={{ color: "#dc2626" }}>{t.change_pct}%</span>
                         </div>
                       ))}
@@ -1069,7 +1150,7 @@ export function TeacherDashboard() {
                 </div>
               )}
 
-              <div style={card}>
+              <div id="t-discs" style={{ ...card, scrollMarginTop: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", marginBottom: 8 }}>Разбивка по дисциплинам</div>
                 {(() => {
                   const aMap = new Map(analysis.disciplines.map((x) => [x.name, x]));
@@ -1081,12 +1162,12 @@ export function TeacherDashboard() {
                   }));
                   const inN = rows.filter((r) => r.inScope).length;
                   return (<>
-                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, color: dk ? "#94a3b8" : "#6b7280", marginBottom: 6 }}>
                       В учёте: {inN} из {rows.length}
                       {scopeMsg && (<span style={{ marginLeft: 8, color: "#92400e" }}>{scopeMsg}</span>)}
                     </div>
                     {rows.map((r, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid #e5e7eb", fontSize: 12, opacity: r.inScope ? 1 : 0.55 }}>
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid " + (dk ? "#334155" : "#e5e7eb"), fontSize: 12, opacity: r.inScope ? 1 : 0.55 }}>
                       <input
                         type="checkbox"
                         checked={r.inScope}
@@ -1098,15 +1179,15 @@ export function TeacherDashboard() {
                         style={{ width: 15, height: 15, accentColor: "#7c3aed", cursor: "pointer", flexShrink: 0 }}
                       />
                       <span
-                        style={{ color: "#374151", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: r.a ? "pointer" : "default", flex: 1 }}
+                        style={{ color: dk ? "#cbd5e1" : "#374151", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: r.a ? "pointer" : "default", flex: 1 }}
                         onClick={() => { if (r.a) { const found = disciplines.find((dd) => dd.name === r.name); if (found) loadDiscipline(found.name); } }}
                       >
                         {r.name}
                         {r.src === "methodology" && (
-                          <span style={{ marginLeft: 6, fontSize: 10, color: "#9333ea", background: "#f3e8ff", borderRadius: 4, padding: "1px 5px" }}>методология</span>
+                          <span style={{ marginLeft: 6, fontSize: 10, color: "#9333ea", background: dk ? "#2e2145" : "#f3e8ff", borderRadius: 4, padding: "1px 5px" }}>методология</span>
                         )}
                         {r.src === "custom" && (
-                          <span style={{ marginLeft: 6, fontSize: 10, color: "#92400e", background: "#fef3c7", borderRadius: 4, padding: "1px 5px" }}>вручную</span>
+                          <span style={{ marginLeft: 6, fontSize: 10, color: "#92400e", background: dk ? "#453a17" : "#fef3c7", borderRadius: 4, padding: "1px 5px" }}>вручную</span>
                         )}
                       </span>
                       {r.a ? (
@@ -1136,10 +1217,16 @@ export function TeacherDashboard() {
             />
           )}
 
+          {analysisMode === "taxonomy" && (
+            <div className="mt-4">
+              <TaxonomyBrowser showSuggest />
+            </div>
+          )}
+
         {/* Discipline detail */}
         {selected && (
           <>
-            <h2 style={{ fontSize: 20, margin: "0 0 20px", color: "#111827" }}>
+            <h2 style={{ fontSize: 20, margin: "0 0 20px", color: dk ? "#f1f5f9" : "#111827" }}>
               {selected.name}
             </h2>
 
@@ -1153,20 +1240,20 @@ export function TeacherDashboard() {
                   + Компетенция
                 </button>
               ) : (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 space-y-2">
+                <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-3 space-y-2">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div>
                       <input value={compCode} onChange={(e) => setCompCode(e.target.value)}
                         placeholder="Код: ПК-2.1"
                         aria-label="Код компетенции"
-                        className={`h-9 w-full px-2 rounded border bg-white text-xs ${compErr.code ? "border-red-400" : "border-gray-300"}`} />
+                        className={`h-9 w-full px-2 rounded border bg-white dark:bg-slate-950 text-xs ${compErr.code ? "border-red-400" : "border-gray-300 dark:border-slate-600"}`} />
                       {compErr.code && <div className="text-[11px] text-red-600 mt-1">{compErr.code}</div>}
                     </div>
                     <div>
                       <input value={compName} onChange={(e) => setCompName(e.target.value)}
                         placeholder="Название (необязательно)"
                         aria-label="Название компетенции"
-                        className={`h-9 w-full px-2 rounded border bg-white text-xs ${compErr.name ? "border-red-400" : "border-gray-300"}`} />
+                        className={`h-9 w-full px-2 rounded border bg-white dark:bg-slate-950 text-xs ${compErr.name ? "border-red-400" : "border-gray-300 dark:border-slate-600"}`} />
                       {compErr.name && <div className="text-[11px] text-red-600 mt-1">{compErr.name}</div>}
                     </div>
                   </div>
@@ -1177,9 +1264,9 @@ export function TeacherDashboard() {
                       {compSaving ? "..." : "Создать"}
                     </button>
                     <button onClick={() => setCompForm(false)}
-                      className="text-xs text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
+                      className="text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
                   </div>
-                  <div className="text-[11px] text-gray-400">ЗУН и инструменты дописываются после создания: +ЗУН у компетенции, инструменты — через Администрирование → Навыки.</div>
+                  <div className="text-[11px] text-gray-400 dark:text-slate-500">ЗУН и инструменты дописываются после создания: +ЗУН у компетенции, инструменты – через Администрирование → Навыки.</div>
                 </div>
               )}
             </div>
@@ -1200,9 +1287,9 @@ export function TeacherDashboard() {
               return (
               <div
                 key={comp.code}
-                className="mb-2 border border-gray-200 rounded-lg overflow-hidden"
+                className="mb-2 border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden"
               >
-                <div className="px-4 py-2.5 bg-gray-50 flex items-center gap-2">
+                <div className="px-4 py-2.5 bg-gray-50 dark:bg-slate-900 flex items-center gap-2">
                   <span className="font-semibold text-sm text-violet-600">
                     {comp.code}
                   </span>
@@ -1213,18 +1300,26 @@ export function TeacherDashboard() {
                   >
                     + ЗУН
                   </button>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-gray-400 dark:text-slate-500">
                     {total} {plural(total, "навык", "навыка", "навыков")}
                   </span>
+                  <button
+                    onClick={() => setCollapsedComps((p) => ({ ...p, [comp.id]: !(p[comp.id] ?? total === 0) }))}
+                    className="text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 border-0 bg-transparent cursor-pointer text-xs px-1"
+                    title={(collapsedComps[comp.id] ?? total === 0) ? "Развернуть" : "Свернуть"}
+                  >
+                    {(collapsedComps[comp.id] ?? total === 0) ? "▸" : "▾"}
+                  </button>
                 </div>
+                {!(collapsedComps[comp.id] ?? total === 0) && (
                 <div className="px-4 py-2">
                 {zunForm && zunForm.compId === comp.id && (
-                  <div className="mb-2 rounded-lg border border-violet-200 bg-violet-50 p-2">
+                  <div className="mb-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 p-2">
                     <div className="flex gap-2 mb-2">
                       <select
                         value={zunForm.ksaType}
                         onChange={(e) => setZunForm({ ...zunForm, ksaType: e.target.value })}
-                        className="text-xs border border-gray-300 rounded-md px-2 py-1 bg-white"
+                        className="text-xs border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1 bg-white dark:bg-slate-950"
                       >
                         <option value="knowledge">Знания</option>
                         <option value="abilities">Умения</option>
@@ -1232,7 +1327,7 @@ export function TeacherDashboard() {
                       </select>
                       <button
                         onClick={() => setZunForm(null)}
-                        className="text-xs text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer"
+                        className="text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 border-0 bg-transparent cursor-pointer"
                       >
                         Отмена
                       </button>
@@ -1243,7 +1338,7 @@ export function TeacherDashboard() {
                       rows={3}
                       maxLength={2000}
                       placeholder="Текст пункта: знание, умение или навык…"
-                      className="w-full text-xs border border-gray-300 rounded-md px-2 py-1 mb-2"
+                      className="w-full text-xs border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1 mb-2"
                     />
                     <div className="flex items-center gap-2">
                       <button
@@ -1253,13 +1348,13 @@ export function TeacherDashboard() {
                       >
                         {zunSaving ? "Сохранение…" : "Добавить"}
                       </button>
-                      {zunMsg && <span className="text-xs text-gray-600">{zunMsg}</span>}
+                      {zunMsg && <span className="text-xs text-gray-600 dark:text-slate-400">{zunMsg}</span>}
                     </div>
-                    <div className="text-[11px] text-gray-400 mt-1">Пункт попадёт в анализ при следующем пересчёте.</div>
+                    <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">Пункт попадёт в анализ при следующем пересчёте.</div>
                   </div>
                 )}
                   {total === 0 ? (
-                    <div className="text-xs text-gray-400">Навыки не извлечены</div>
+                    <div className="text-xs text-gray-400 dark:text-slate-500">Навыки не извлечены</div>
                   ) : hasGroups ? (
                     groups.map((g) => g.items.length > 0 && (
                       <div key={g.title} className="mb-2 last:mb-0">
@@ -1267,7 +1362,7 @@ export function TeacherDashboard() {
                           {g.title} ({g.items.length})
                         </div>
                         {g.items.map((sk) => (
-                          <div key={sk.id} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 last:border-0">
+                          <div key={sk.id} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 dark:border-slate-800 last:border-0">
                             {ksaEditing && ksaEditing.id === sk.id ? (
                               <div className="flex gap-2 items-start">
                                 <textarea
@@ -1275,10 +1370,10 @@ export function TeacherDashboard() {
                                   onChange={(e) => setKsaEditing({ ...ksaEditing, text: e.target.value })}
                                   rows={2}
                                   maxLength={2000}
-                                  className="flex-1 text-xs border border-gray-300 rounded-md px-2 py-1"
+                                  className="flex-1 text-xs border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1"
                                 />
                                 <button onClick={saveKsaEdit} disabled={zunSaving} className="text-xs bg-violet-600 text-white px-2 py-1 rounded-md hover:bg-violet-700 cursor-pointer border-0 disabled:opacity-50">OK</button>
-                                <button onClick={() => setKsaEditing(null)} className="text-xs text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
+                                <button onClick={() => setKsaEditing(null)} className="text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
                               </div>
                             ) : (
                               <div className="flex gap-1 items-start group">
@@ -1293,12 +1388,13 @@ export function TeacherDashboard() {
                     ))
                   ) : (
                     comp.skills.map((sk, i) => (
-                      <div key={i} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 last:border-0">
+                      <div key={i} className="py-0.5 text-xs leading-relaxed border-b border-gray-100 dark:border-slate-800 last:border-0">
                         {sk}
                       </div>
                     ))
                   )}
                 </div>
+                )}
               </div>
               );
             })}
@@ -1308,9 +1404,9 @@ export function TeacherDashboard() {
                 <div className="flex items-center justify-center w-8 h-8 bg-violet-600 rounded-lg">
                   <span className="text-white text-sm font-bold">!</span>
                 </div>
-                <h3 className="text-sm font-semibold text-gray-900">Рекомендации</h3>
-                <span className="text-xs text-gray-400">({recs.filter((r) => r.discipline_id === selected?.name).length})</span>
-                {seedMsg && <span className="text-xs text-gray-500">{seedMsg}</span>}
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Рекомендации</h3>
+                <span className="text-xs text-gray-400 dark:text-slate-500">({recs.filter((r) => r.discipline_id === selected?.name).length})</span>
+                {seedMsg && <span className="text-xs text-gray-500 dark:text-slate-400">{seedMsg}</span>}
                 <button
                   onClick={() => setShowAddForm(!showAddForm)}
                   className="ml-auto text-xs bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 transition-colors cursor-pointer border-0"
@@ -1321,18 +1417,18 @@ export function TeacherDashboard() {
                   onClick={seedAutoRecs}
                   disabled={seedLoading}
                   title="Заполнить панель топ-рекомендациями из автоанализа (ручные сохранятся)"
-                  className="text-xs bg-white text-violet-700 border border-purple-300 px-3 py-1.5 rounded-lg hover:bg-violet-50 transition-colors cursor-pointer disabled:opacity-50"
+                  className="text-xs bg-white dark:bg-slate-950 text-violet-700 dark:text-violet-300 border border-purple-300 dark:border-purple-700 px-3 py-1.5 rounded-lg hover:bg-violet-50 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   {seedLoading ? "Заполнение…" : "Заполнить из анализа"}
                 </button>
               </div>
               {showAddForm && (
-                <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="mb-4 p-4 bg-gray-50 dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700">
                   {(recType === "modify" || recType === "remove") && (
                     <select
                       value={selectedCompetency}
                       onChange={(e) => setSelectedCompetency(e.target.value)}
-                      className="w-full h-9 px-2 mb-2 text-sm bg-white border border-gray-300 rounded-lg outline-none text-gray-900"
+                      className="w-full h-9 px-2 mb-2 text-sm bg-white dark:bg-slate-950 border border-gray-300 dark:border-slate-600 rounded-lg outline-none text-gray-900 dark:text-slate-100"
                     >
                       <option value="">-- Select competency --</option>
                       {selected?.competencies.map((c) => (
@@ -1345,14 +1441,14 @@ export function TeacherDashboard() {
                     value={suggestion}
                     onChange={(e) => setSuggestion(e.target.value)}
                     rows={2}
-                    className="w-full p-2 text-sm border border-gray-300 rounded-lg resize-vertical outline-none box-border"
-                    style={{ background: "#fff", color: "#1f2937" }}
+                    className="w-full p-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg resize-vertical outline-none box-border"
+                    style={{ background: dk ? "#0f172a" : "#fff", color: dk ? "#e2e8f0" : "#1f2937" }}
                   />
                   <div className="flex gap-2 mt-2 items-center">
                     <select
                       value={recType}
                       onChange={(e) => { setRecType(e.target.value); setSelectedCompetency(""); }}
-                      className="h-9 px-2 text-sm bg-white border border-gray-300 rounded-lg outline-none text-gray-900"
+                      className="h-9 px-2 text-sm bg-white dark:bg-slate-950 border border-gray-300 dark:border-slate-600 rounded-lg outline-none text-gray-900 dark:text-slate-100"
                     >
                       <option value="modify">Modify</option>
                       <option value="add">Add</option>
@@ -1368,7 +1464,7 @@ export function TeacherDashboard() {
                 </div>
               )}
               {recs.filter((r) => r.discipline_id === selected?.name).length === 0 ? (
-                <div className="text-xs text-gray-400 bg-gray-50 rounded-lg p-4 text-center">
+                <div className="text-xs text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-900 rounded-lg p-4 text-center">
                   No recommendations for this discipline yet
                 </div>
               ) : (
@@ -1379,13 +1475,13 @@ export function TeacherDashboard() {
                       key={i}
                       className="rounded-lg p-3 mb-2 text-sm"
                       style={{
-                        border: "1px solid #ddd6fe", background: "#faf9ff",
+                        border: "1px solid #ddd6fe", background: dk ? "#1e1b2e" : "#faf9ff",
                       }}
                     >
-                      <div className="text-gray-400 mb-1 text-xs">
+                      <div className="text-gray-400 dark:text-slate-500 mb-1 text-xs">
                         [{r.suggestion_type}] {r.competency_id}
                       </div>
-                      <div className="text-gray-900">{r.suggestion}</div>
+                      <div className="text-gray-900 dark:text-slate-100">{r.suggestion}</div>
                       <button
                         onClick={() => { if (window.confirm("Удалить рекомендацию безвозвратно?")) deleteRec(r.id); }}
                         className="mt-2 text-xs text-red-500 border border-red-500 rounded px-2 py-0.5 hover:bg-red-50 transition-colors bg-transparent cursor-pointer"

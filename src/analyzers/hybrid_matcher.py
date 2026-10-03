@@ -164,16 +164,21 @@ class HybridMatcher:
             if normalize(key) == n:
                 return Ok((key, "exact", 1.0))
 
-        # Stage 2: hybrid fuzzy = RapidFuzz AND boundary guard
+        # Stage 2: hybrid fuzzy = RapidFuzz AND boundary guard.
+        # normalize(mn) считается один раз на кандидата (без смены семантики:
+        # никаких length/bigram-предикатов — они резали легитимные пары
+        # 'длинный запрос vs короткий навык', напр. '... тестирования программ'
+        # vs 'тестирование по' 78).
         best_hf: tuple[str | None, float] = (None, 0.0)
         for mn in self.market_skills:
             if len(mn) < 3:
                 continue
-            score = fuzz.WRatio(n, normalize(mn))
+            mn_norm = normalize(mn)
+            score = fuzz.WRatio(n, mn_norm)
             if score < self._rf_threshold:
                 continue
             # Boundary guard: reject strict prefix traps
-            if _is_strict_prefix_trap(n, normalize(mn)):
+            if _is_strict_prefix_trap(n, mn_norm):
                 continue
             if score > best_hf[1]:
                 best_hf = (mn, float(score))

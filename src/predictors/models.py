@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field
 from typing import Any
+
+from pydantic import BaseModel, Field
 
 
 class SkillImpact(BaseModel):
@@ -12,6 +13,9 @@ class Recommendation(BaseModel):
     rank: int = 0
     skill: str
     importance_score: float = Field(ge=0.0)
+    # R3: разложение итога — база (blend ev/LTR + reranker) и дельта бонусов.
+    importance_base: float = 0.0
+    importance_bonus: float = 0.0
     priority: str = "medium"
     category: str = "missing"
     why_important: str = ""
@@ -34,6 +38,10 @@ class RecommendationSummary(BaseModel):
     coverage: float = 0.0
     coverage_details: dict[str, int] = {}
     market_skill_coverage: float = 0.0
+    # R2: явная пара покрытий + область строгого ("market" | "profession").
+    coverage_strict: float = 0.0
+    coverage_weighted: float = 0.0
+    coverage_strict_scope: str = "market"
 
 
 class ClosestRole(BaseModel):
@@ -45,6 +53,12 @@ class ClosestRole(BaseModel):
     coverage_explanation: str = ""
     cluster_skills: list[str] = []
     cluster_core_skills: list[str] = []
+    # L2: прозрачность ранжирования ролей.
+    rank_score: float = 0.0
+    target_overlap: float = 0.0
+    target_profession: str = ""
+    dominant_category: str = ""
+    cluster_level: str = ""
 
 
 class RecommendationResult(BaseModel):

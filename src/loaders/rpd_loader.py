@@ -6,8 +6,11 @@ Usage:
     disc = loader.load_discipline("Операционные системы")  # one discipline
 """
 
-import json, os, re, sys, unicodedata
-from typing import Optional
+import json
+import os
+import re
+import sys
+import unicodedata
 
 from pypdf import PdfReader
 
@@ -118,7 +121,7 @@ def normalize_comp_code(code: str) -> str:
 
 # ─── Text extraction ────────────────────────────────────────────────────────
 
-def extract_text_pypdf(fpath: str) -> Optional[str]:
+def extract_text_pypdf(fpath: str) -> str | None:
     try:
         reader = PdfReader(fpath)
         text = ""
@@ -142,7 +145,7 @@ def _get_module_ocr_reader():
     if _module_ocr_reader is None and HAS_EASYOCR:
         _module_ocr_reader = easyocr.Reader(["ru", "en"], gpu=False)
     return _module_ocr_reader
-def extract_text_ocr(fpath: str) -> Optional[str]:
+def extract_text_ocr(fpath: str) -> str | None:
     if not HAS_EASYOCR or not HAS_PDF2IMAGE:
         return None
     try:
@@ -312,7 +315,7 @@ def extract_ksa_skills(text: str) -> dict:
 
 # ─── Section detection ──────────────────────────────────────────────────────
 
-def find_section_text(text: str, sec_matches: list) -> Optional[str]:
+def find_section_text(text: str, sec_matches: list) -> str | None:
     """Find the best competency section in the PDF text."""
     if sec_matches:
         best_start, best_end = None, None
@@ -519,7 +522,7 @@ class RPDLoader:
 
         return result
 
-    def load_discipline(self, name: str) -> Optional[dict]:
+    def load_discipline(self, name: str) -> dict | None:
         """Parse a single discipline by name (avoids full OCR on all PDFs)."""
         fpath = self._find_pdf(name)
         if not fpath:
@@ -553,7 +556,7 @@ class RPDLoader:
             }
         }
 
-    def extract_text(self, fpath: str, use_ocr: bool = True) -> Optional[str]:
+    def extract_text(self, fpath: str, use_ocr: bool = True) -> str | None:
         """Extract text: pypdf first, OCR fallback if low Cyrillic.
 
         Args:
@@ -562,7 +565,7 @@ class RPDLoader:
         """
         text = extract_text_pypdf(fpath)
         if not text:
-            print(f"    pypdf failed")
+            print("    pypdf failed")
             return None
 
         ratio = cyrillic_ratio(text)
@@ -609,7 +612,7 @@ class RPDLoader:
                 break
         return name.strip()
 
-    def _find_pdf(self, name: str) -> Optional[str]:
+    def _find_pdf(self, name: str) -> str | None:
         name_lower = name.lower().replace(" ", "")
         candidates = []
         for f in os.listdir(self.pdf_dir):
@@ -652,7 +655,7 @@ class RPDLoader:
         candidates.sort()
         return os.path.join(self.pdf_dir, candidates[0][1])
 
-    def _resolve_canonical(self, name: str) -> Optional[str]:
+    def _resolve_canonical(self, name: str) -> str | None:
         norm = normalize_disc_name(name)
         # Check explicit aliases
         if norm in DISC_NORM:

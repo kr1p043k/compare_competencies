@@ -1,6 +1,5 @@
 """Auth: login/logout against DB users + sessions (asyncpg)."""
 
-import asyncio
 import base64
 import hashlib
 import hmac
@@ -71,7 +70,16 @@ def _request_token(request: Request) -> str:
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         return auth[7:]
-    return request.cookies.get("token", "") or request.query_params.get("token", "")
+    cookie_token = request.cookies.get("token", "")
+    if cookie_token:
+        return cookie_token
+    query_token = request.query_params.get("token", "")
+    if query_token:
+        logger.warning(
+            "auth_token_via_query_deprecated",
+            path=request.url.path,
+        )
+    return query_token
 
 
 async def get_current_user(request: Request) -> dict[str, Any] | None:
@@ -125,12 +133,33 @@ def require_any_role(*roles: str):
     return dependency
 
 
+async def user_error_detail(request: Request | None, technical: str, user_msg: str) -> str:
+    """Внутренности — только админу.
+
+    Технические детали (тексты исключений, пути) показываем только роли admin;
+    остальным — безопасное сообщение. request=None (нет контекста запроса) —
+    всегда безопасное. Ошибка уже должна быть залогирована вызывающей стороной.
+    """
+    try:
+        if request is None:
+            return user_msg
+        user = await get_current_user(request)
+        if isinstance(user, dict) and user.get("r") == "admin" and technical:
+            return technical
+    except Exception:
+        pass
+    return user_msg
+
+
 @router.post("/auth/login")
 @limiter.limit("10/minute")
 async def login(body: LoginRequest, request: Request):
     """Вход по email/паролю, выдача токена."""
+    pool = get_pool()
+    if pool is None:
+        logger.error("login_no_pool")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     try:
-        pool = get_pool()
         row = await pool.fetchrow(
             "SELECT id, email, role, full_name, password_hash = crypt($2, password_hash) AS pw_match FROM users WHERE email = $1 AND is_active = true",
             body.email, body.password,
@@ -165,6 +194,7 @@ async def login(body: LoginRequest, request: Request):
 
 
 @router.post("/auth/logout")
+@limiter.limit("30/minute")
 async def logout(request: Request):
     """Выход (инвалидация сессии)."""
     user_data = await get_current_user(request)
@@ -175,6 +205,9 @@ async def logout(request: Request):
     token_hash = _hash_token(token)
 
     pool = get_pool()
+    if pool is None:
+        logger.error("logout_no_pool")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     await pool.execute(
         "UPDATE sessions SET logged_out_at = NOW() WHERE token_hash = $1 AND logged_out_at IS NULL",
         token_hash,
@@ -185,6 +218,7 @@ async def logout(request: Request):
 
 
 @router.get("/auth/me")
+@limiter.limit("60/minute")
 async def me(request: Request):
     """Текущий пользователь по токену."""
     user_data = await get_current_user(request)
@@ -192,6 +226,9 @@ async def me(request: Request):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     pool = get_pool()
+    if pool is None:
+        logger.error("me_no_pool")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     row = await pool.fetchrow(
         "SELECT email, role, full_name FROM users WHERE email = $1",
         user_data["u"],

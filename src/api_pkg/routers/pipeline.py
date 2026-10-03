@@ -5,6 +5,7 @@ import json
 import shutil
 import threading
 import time
+import uuid
 from enum import Enum
 from pathlib import Path
 
@@ -14,12 +15,12 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from src.api_pkg.routers.auth import require_any_role
+from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.models.api_responses import (
     CacheRefreshResponse,
     GapProgressResponse,
-    PipelineTaskStatus,
     PipelineTaskListResponse,
+    PipelineTaskStatus,
 )
 
 logger = structlog.get_logger("api")
@@ -29,16 +30,70 @@ BASE_DIR = Path(__file__).parent.parent.parent.parent
 GAP_PROGRESS_FILE = BASE_DIR / "data" / "cache" / "gap_progress.json"
 PIPELINE_PROGRESS_FILE = BASE_DIR / "data" / "cache" / "pipeline_progress.json"
 TASKS_STORE_FILE = BASE_DIR / "data" / "cache" / "pipeline_tasks.json"
+IDEMPOTENCY_STORE_FILE = BASE_DIR / "data" / "cache" / "pipeline_idempotency.json"
+_idempotency_map: dict[str, str] = {}
 
 
 def _read_progress_file(path: Path) -> dict:
     try:
         if path.exists():
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
     except Exception:
         pass
     return {}
+
+
+async def _aread_progress_file(path: Path) -> dict:
+    return await asyncio.to_thread(_read_progress_file, path)
+
+
+async def _asave_tasks() -> None:
+    await asyncio.to_thread(_save_tasks)
+
+
+def _load_idempotency() -> None:
+    try:
+        if IDEMPOTENCY_STORE_FILE.exists():
+            data = json.loads(IDEMPOTENCY_STORE_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                _idempotency_map.update({str(k): str(v) for k, v in data.items()})
+    except Exception:
+        pass
+
+
+def _persist_idempotency_sync() -> None:
+    try:
+        IDEMPOTENCY_STORE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        IDEMPOTENCY_STORE_FILE.write_text(
+            json.dumps(_idempotency_map, ensure_ascii=False), encoding="utf-8"
+        )
+    except Exception:
+        pass
+
+
+def _new_task_id(action_value: str) -> str:
+    return f"{action_value}_{uuid.uuid4().hex[:12]}"
+
+
+def _idempotency_key_from_request(request: Request) -> str:
+    return (
+        request.headers.get("Idempotency-Key", "")
+        or request.headers.get("idempotency-key", "")
+    ).strip()
+
+
+async def _register_task(action_value: str, idempotency_key: str) -> tuple[str, bool]:
+    """Строгая идемпотентность: повторный ключ возвращает существующий task_id."""
+    if idempotency_key:
+        existing = _idempotency_map.get(idempotency_key)
+        if existing and existing in pipeline_tasks:
+            return existing, True
+    task_id = _new_task_id(action_value)
+    if idempotency_key:
+        _idempotency_map[idempotency_key] = task_id
+        await asyncio.to_thread(_persist_idempotency_sync)
+    return task_id, False
 
 
 def _read_gap_progress() -> dict:
@@ -51,31 +106,53 @@ def _read_pipeline_progress() -> dict:
 
 async def _resolve_area_ids(regions_str: str) -> str:
     parts = [p.strip() for p in regions_str.split(",") if p.strip()]
+    if not parts:
+        raise HTTPException(status_code=400, detail="Пустой список регионов")
     ids = []
+    unknown = []
     for p in parts:
         if p.isdigit():
             ids.append(p)
         else:
-            aid = await asyncio.to_thread(_resolve_city_name_sync, p)
+            try:
+                aid = await asyncio.to_thread(_resolve_city_name_sync, p)
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error("region_resolve_failed", region=p, error=str(e))
+                raise HTTPException(status_code=503, detail="Справочник регионов hh.ru недоступен")
             if aid:
                 ids.append(str(aid))
             else:
-                logger.warning("region_not_found", region=p)
-                ids.append("0")
-    return ",".join(ids) if ids else "0"
+                unknown.append(p)
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Неизвестные регионы: {', '.join(unknown)}. Укажите ID hh.ru или точное название города",
+        )
+    return ",".join(ids)
 
 
 def _resolve_city_name_sync(name: str) -> int | None:
     global _areas_cache
     if _areas_cache is None:
-        try:
-            import requests
-            resp = requests.get("https://api.hh.ru/areas", timeout=10)
-            resp.encoding = "utf-8"
-            _areas_cache = resp.json()
-        except Exception as e:
-            logger.error("areas_fetch_failed", error=str(e))
-            _areas_cache = []
+        last_err: Exception | None = None
+        import requests
+
+        for attempt in range(3):
+            try:
+                resp = requests.get("https://api.hh.ru/areas", timeout=10)
+                resp.encoding = "utf-8"
+                resp.raise_for_status()
+                _areas_cache = resp.json()
+                break
+            except Exception as e:
+                last_err = e
+                logger.warning("areas_fetch_retry", attempt=attempt + 1, error=str(e))
+                time.sleep(1 * (2 ** attempt))
+        else:
+            logger.error("areas_fetch_failed", error=str(last_err))
+            raise HTTPException(status_code=503, detail="Справочник регионов hh.ru недоступен")
     name_lower = name.strip().lower()
     def _search(areas):
         for a in areas:
@@ -124,8 +201,9 @@ def _save_tasks():
 
 def _load_tasks():
     try:
+        _load_idempotency()
         if TASKS_STORE_FILE.exists():
-            with open(TASKS_STORE_FILE, "r", encoding="utf-8") as f:
+            with open(TASKS_STORE_FILE, encoding="utf-8") as f:
                 data = json.load(f)
             now = time.time()
             for tid, tdata in data.items():
@@ -185,12 +263,12 @@ async def _rotate_progress(task_id: str, step: int = 1, skip_collection: bool = 
             break
         pct = -1
         msg = ""
-        pp = _read_pipeline_progress()
+        pp = await _aread_progress_file(PIPELINE_PROGRESS_FILE)
         if pp and pp.get("pct") is not None:
             pct = int(pp["pct"])
             msg = pp.get("message", "")
         if _pct_to_step(pct) >= 4:
-            gp = _read_gap_progress()
+            gp = await _aread_progress_file(GAP_PROGRESS_FILE)
             if gp and gp.get("pct", 0) > 0:
                 gp_pct = int(gp["pct"])
                 interpolated = 70 + (92 - 70) * gp_pct / 100
@@ -214,7 +292,7 @@ async def _rotate_progress(task_id: str, step: int = 1, skip_collection: bool = 
             logs = pp.get("logs", [])
             if logs:
                 t.logs = logs
-        _save_tasks()
+        await _asave_tasks()
         await asyncio.sleep(5)
 
 
@@ -241,9 +319,9 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
 
     started_at = time.time()
     pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск...", started_at, step=0)
-    _save_tasks()
+    await _asave_tasks()
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     def cancel_aware(fn, *args):
         if cancel_event.is_set():
@@ -273,8 +351,9 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
 
             for fp in (PIPELINE_PROGRESS_FILE, GAP_PROGRESS_FILE):
                 try:
-                    if fp.exists():
-                        fp.unlink()
+                    exists = await asyncio.to_thread(fp.exists)
+                    if exists:
+                        await asyncio.to_thread(fp.unlink)
                 except Exception as e:
                     logger.warning("clean_progress_failed", error=str(e))
 
@@ -353,6 +432,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
                 interactive=False, max_vacancies_per_query=2000, it_sector=False,
                 use_async=True, async_workers=3, async_threshold=10000,
             )
+            gap_args.profiles_override = kwargs.get("profiles_override")
             gap_args.cancel_event = cancel_event
             main_task = asyncio.ensure_future(
                 loop.run_in_executor(None, lambda: cancel_aware(pr.run_full_pipeline, gap_args))
@@ -374,14 +454,14 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
                 return
             pipeline_tasks[task_id] = _make_task_status(
                 task_id, "failed", f"Неизвестное действие: {action}", started_at, output="")
-            _save_tasks()
+            await _asave_tasks()
             return
 
         if cancel_event.is_set():
             return
         pipeline_tasks[task_id] = _make_task_status(
             task_id, status, msg[:500], started_at, output=msg)
-        _save_tasks()
+        await _asave_tasks()
 
     except (asyncio.CancelledError, RuntimeError) as e:
         if "cancelled" in str(e).lower() or isinstance(e, asyncio.CancelledError):
@@ -390,18 +470,18 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
                 t.status = "cancelled"
                 t.message = "Отменено"
                 t.completed_at = time.time()
-                _save_tasks()
+                await _asave_tasks()
         else:
             pipeline_tasks[task_id] = _make_task_status(
                 task_id, "failed", str(e), started_at, output="")
-            _save_tasks()
+            await _asave_tasks()
     except Exception as e:
         if cancel_event.is_set():
             return
         logger.exception("Pipeline task failed", task_id=task_id)
         pipeline_tasks[task_id] = _make_task_status(
             task_id, "failed", str(e), started_at, output="")
-        _save_tasks()
+        await _asave_tasks()
     finally:
         _cancel_events.pop(task_id, None)
         _running_futures.pop(task_id, None)
@@ -411,7 +491,14 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
 @limiter.limit("2/minute")
 async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
     """Полная пересборка данных пайплайна."""
-    task_id = f"rebuild_{int(time.time())}"
+    idem_key = _idempotency_key_from_request(request)
+    task_id, duplicate = await _register_task(PipelineAction.REBUILD.value, idem_key)
+    if duplicate:
+        return PipelineResponse(
+            status="started", message="Duplicate request — returning existing task",
+            command="rebuild",
+            output=f"Task ID: {task_id}. Check /api/pipeline/task/{task_id} for status",
+        )
     started_at = time.time()
     pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0)
     background_tasks.add_task(run_pipeline_task, PipelineAction.REBUILD, task_id)
@@ -430,16 +517,21 @@ async def refresh_cache(request: Request):
         BASE_DIR / "data" / "cache" / "embeddings",
         BASE_DIR / "data" / "cache" / "clusters",
     ]
-    removed = []
-    for cache_dir in cache_dirs:
-        if cache_dir.exists():
-            shutil.rmtree(cache_dir)
-            removed.append(str(cache_dir))
-            cache_dir.mkdir(parents=True, exist_ok=True)
     parsed_skills = BASE_DIR / "data" / "cache" / "parsed_skills.joblib"
-    if parsed_skills.exists():
-        parsed_skills.unlink()
-        removed.append(str(parsed_skills))
+
+    def _clear_sync() -> list[str]:
+        removed: list[str] = []
+        for cache_dir in cache_dirs:
+            if cache_dir.exists():
+                shutil.rmtree(cache_dir)
+                removed.append(str(cache_dir))
+                cache_dir.mkdir(parents=True, exist_ok=True)
+        if parsed_skills.exists():
+            parsed_skills.unlink()
+            removed.append(str(parsed_skills))
+        return removed
+
+    removed = await asyncio.to_thread(_clear_sync)
     return {
         "status": "success", "message": "Cache cleared", "removed": removed,
         "next_step": "Run POST /api/pipeline/full-cycle?skip_collection=false to rebuild",
@@ -456,7 +548,11 @@ async def reload_api(request: Request):
             status="started", message="API data reload started. Check /api/status for completion.",
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("api_reload_failed", error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=await user_error_detail(request, str(e), "Не удалось перезагрузить данные. Попробуйте позже."),
+        )
 
 
 async def _reload_api_data():
@@ -491,7 +587,15 @@ async def run_pipeline_action_sync(
 
     if action == PipelineAction.REBUILD:
         req_id = getattr(request.state, "request_id", "unknown")
-        task_id = f"{action.value}_{int(time.time())}"
+        idem_key = _idempotency_key_from_request(request)
+        task_id, duplicate = await _register_task(action.value, idem_key)
+        if duplicate:
+            return PipelineResponse(
+                status="started",
+                message="Duplicate request — returning existing task",
+                exit_code=None,
+                output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
+            )
         started_at = time.time()
         logger.info("pipeline_scheduled", request_id=req_id, task_id=task_id)
         pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0)
@@ -505,7 +609,7 @@ async def run_pipeline_action_sync(
 
     elif action == PipelineAction.TRAIN_CLUSTERS:
         from src.ml.clusters import train_clusters
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         ok = await loop.run_in_executor(
             None, lambda: train_clusters(level="all", save_report=True, interpret=True)
         )
@@ -516,7 +620,7 @@ async def run_pipeline_action_sync(
         )
 
     elif action == PipelineAction.TRAIN_MODEL:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, pr.run_train_model)
         return PipelineResponse(
             status="success" if result.is_ok() else "failed",
@@ -525,8 +629,19 @@ async def run_pipeline_action_sync(
         )
 
     elif action == PipelineAction.GAP_ANALYSIS:
+        from src.pipeline.background_collector import is_scheduler_busy
+        if is_scheduler_busy():
+            raise HTTPException(status_code=409, detail="Идёт плановый прогон планировщика — дождитесь его завершения")
         req_id = getattr(request.state, "request_id", "unknown")
-        task_id = f"{action.value}_{int(time.time())}"
+        idem_key = _idempotency_key_from_request(request)
+        task_id, duplicate = await _register_task(action.value, idem_key)
+        if duplicate:
+            return PipelineResponse(
+                status="started",
+                message="Duplicate request — returning existing task",
+                exit_code=None,
+                output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
+            )
         started_at = time.time()
         logger.info("pipeline_scheduled", request_id=req_id, task_id=task_id)
         pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск GAP-анализа...", started_at, step=0)
@@ -543,8 +658,19 @@ async def run_pipeline_action_sync(
         )
 
     elif action == PipelineAction.FULL_CYCLE:
+        from src.pipeline.background_collector import is_scheduler_busy
+        if is_scheduler_busy():
+            raise HTTPException(status_code=409, detail="Идёт плановый прогон планировщика — дождитесь его завершения")
         req_id = getattr(request.state, "request_id", "unknown")
-        task_id = f"{action.value}_{int(time.time())}"
+        idem_key = _idempotency_key_from_request(request)
+        task_id, duplicate = await _register_task(action.value, idem_key)
+        if duplicate:
+            return PipelineResponse(
+                status="started",
+                message="Duplicate request — returning existing task",
+                exit_code=None,
+                output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
+            )
         started_at = time.time()
         logger.info("pipeline_scheduled", request_id=req_id, task_id=task_id)
         pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск сбора...", started_at, step=0)
@@ -653,7 +779,7 @@ async def cancel_pipeline_task(task_id: str, request: Request):
     t.status = "cancelled"
     t.message = "Отменено пользователем"
     t.completed_at = time.time()
-    _save_tasks()
+    await _asave_tasks()
 
     # Signal cancellation to running pipeline
     cancel_event = _cancel_events.get(task_id)
@@ -672,7 +798,7 @@ async def cancel_pipeline_task(task_id: str, request: Request):
 @limiter.limit("60/minute")
 async def get_gap_progress(task_id: str, request: Request):
     """Прогресс gap-анализа задачи."""
-    gp = _read_gap_progress()
+    gp = await _aread_progress_file(GAP_PROGRESS_FILE)
     if gp:
         return GapProgressResponse(
             pct=gp.get("pct", 0),
@@ -688,30 +814,18 @@ _ws_clients: set[WebSocket] = set()
 
 @router.websocket("/pipeline/ws")
 async def pipeline_ws(websocket: WebSocket, token: str = ""):
-    # JWT проверка перед accept
+    # JWT проверка перед accept — переиспользуем auth._decode_token
     try:
-        from src import config
-        import hmac, hashlib, base64, json as _json
-
-        secret = config.get_secret_key()
-        if not secret or not token:
+        if not token:
+            # slowapi не покрывает WS — фиксируем попытку без токена
+            logger.warning("pipeline_ws_no_token")
             await websocket.close(code=4001, reason="Unauthorized")
             return
-        parts = token.split(".")
-        if len(parts) != 2:
-            await websocket.close(code=4001, reason="Invalid token")
-            return
-        payload_b64 = parts[0] + "=" * ((4 - len(parts[0]) % 4) % 4)
-        sig_b64 = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
-        payload_bytes = base64.urlsafe_b64decode(payload_b64)
-        expected_sig = base64.urlsafe_b64decode(sig_b64)
-        actual_sig = hmac.new(secret.encode(), payload_bytes, hashlib.sha256).digest()
-        if not hmac.compare_digest(expected_sig, actual_sig):
-            await websocket.close(code=4001, reason="Invalid signature")
-            return
-        token_data = _json.loads(payload_bytes)
-        if token_data.get("t", 0) < time.time():
-            await websocket.close(code=4001, reason="Token expired")
+        from src.api_pkg.routers.auth import _decode_token as _auth_decode
+
+        token_data = _auth_decode(token)
+        if token_data is None:
+            await websocket.close(code=4001, reason="Invalid or expired token")
             return
     except Exception:
         await websocket.close(code=4001, reason="Auth failed")
@@ -724,12 +838,14 @@ async def pipeline_ws(websocket: WebSocket, token: str = ""):
         while True:
             raw = None
             for fp in (PIPELINE_PROGRESS_FILE, GAP_PROGRESS_FILE):
-                if fp.exists():
-                    try:
-                        raw = json.loads(fp.read_text(encoding="utf-8"))
+                try:
+                    exists = await asyncio.to_thread(fp.exists)
+                    if exists:
+                        text_raw = await asyncio.to_thread(fp.read_text, encoding="utf-8")
+                        raw = json.loads(text_raw)
                         break
-                    except Exception:
-                        pass
+                except Exception:
+                    pass
             if raw:
                 text = json.dumps(raw, ensure_ascii=False)
                 if text != prev_data:
@@ -737,7 +853,7 @@ async def pipeline_ws(websocket: WebSocket, token: str = ""):
                     await websocket.send_text(text)
             await asyncio.sleep(2)
             _ = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
-    except (WebSocketDisconnect, asyncio.TimeoutError, Exception):
+    except (TimeoutError, WebSocketDisconnect, Exception):
         pass
     finally:
         _ws_clients.discard(websocket)

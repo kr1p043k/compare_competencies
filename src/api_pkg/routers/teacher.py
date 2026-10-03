@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -15,7 +14,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role
+from src.api_pkg.routers.profiles import _load_self_profile, _self_profile_name
 from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
@@ -48,6 +49,65 @@ def _load_json(path) -> dict | list:
 def _save_json(path, data) -> None:
     with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+
+
+def _foundational_path() -> Path:
+    return Path(__file__).resolve().parent.parent.parent.parent / "data" / "manual_foundational_skills.json"
+
+
+def _norm_skill(skill: str) -> str:
+    """Каноническое имя навыка для ручных флагов: lower + trim + схлоп пробелов."""
+    return " ".join((skill or "").lower().split())
+
+
+def _load_foundational() -> list[str]:
+    try:
+        data = _load_json(_foundational_path())
+    except Exception:
+        return []
+    if isinstance(data, dict):
+        items = data.get("skills", [])
+    elif isinstance(data, list):
+        items = data
+    else:
+        return []
+    seen: list[str] = []
+    for s in items:
+        n = _norm_skill(str(s))
+        if n and n not in seen:
+            seen.append(n)
+    return seen
+
+
+def _save_foundational(skills: list[str]) -> None:
+    _save_json(_foundational_path(), {"skills": skills})
+
+
+def _apply_foundational_filter(
+    recs: list[dict], flags: list[str] | set[str]
+) -> tuple[list[dict], list[dict]]:
+    """Убрать фундаментальное из выдачи (pure, тестируется).
+
+    Скрывается: помеченное вручную (любой тип) + авто-foundational.
+    Подписей "foundational" на странице нет — всё лежит в скрытом списке.
+    Возвращает (visible, hidden); hidden-элементы — копии с флагом manual.
+    Реки без skill не трогаем.
+    """
+    flag_set = set(flags or [])
+    visible: list[dict] = []
+    hidden: list[dict] = []
+    for r in recs or []:
+        if not isinstance(r, dict):
+            visible.append(r)
+            continue
+        name = _norm_skill(r.get("skill", ""))
+        manual = bool(name) and name in flag_set
+        auto = r.get("type") == "foundational"
+        if manual or auto:
+            hidden.append({**r, "manual": manual})
+        else:
+            visible.append(r)
+    return visible, hidden
 
 
 _DIR_CODE_RE = re.compile(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$")
@@ -299,6 +359,11 @@ async def krm_add_recommendation(request: Request):
         recs = []
     recs.append(rec.model_dump())
     _save_json(config.TEACHER_RECOMMENDATIONS_PATH, recs)
+    await audit_action(
+        request, "krm.recommendation.add",
+        f"discipline={rec.discipline_id} competency={rec.competency_id} "
+        f"type={rec.suggestion_type} suggestion={rec.suggestion[:120]!r}",
+    )
     return {"status": "ok", "id": len(recs) - 1}
 
 
@@ -308,9 +373,94 @@ async def krm_delete_recommendation(request: Request, index: int):
     recs = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
     if not isinstance(recs, list) or index < 0 or index >= len(recs):
         raise HTTPException(404, "Recommendation not found")
-    recs.pop(index)
+    removed = recs.pop(index)
     _save_json(config.TEACHER_RECOMMENDATIONS_PATH, recs)
+    await audit_action(
+        request, "krm.recommendation.delete",
+        f"index={index} discipline={removed.get('discipline_id')} "
+        f"suggestion={str(removed.get('suggestion', ''))[:120]!r}",
+    )
     return {"status": "ok"}
+
+
+class FoundationalIn(BaseModel):
+    skill: str
+
+
+@router.get("/teacher/krm/foundational")
+@limiter.limit("30/minute")
+async def krm_list_foundational(request: Request):
+    """Ручные пометки 'фундаментальный навык'."""
+    return {"skills": _load_foundational()}
+
+
+@router.post("/teacher/krm/foundational", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+async def krm_add_foundational(request: Request):
+    """Пометить навык фундаментальным вручную (идемпотентно)."""
+    raw = await request.json()
+    name = _norm_skill((raw or {}).get("skill", "") if isinstance(raw, dict) else "")
+    if not name:
+        raise HTTPException(status_code=400, detail="Empty skill name")
+    skills = _load_foundational()
+    if name not in skills:
+        skills.append(name)
+        _save_foundational(skills)
+        await audit_action(request, "krm.foundational.add", f"skill={name}")
+    return {"status": "ok", "skills": skills}
+
+
+@router.delete("/teacher/krm/foundational/{skill:path}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+async def krm_delete_foundational(request: Request, skill: str):
+    """Снять ручную пометку."""
+    from urllib.parse import unquote
+
+    name = _norm_skill(unquote(skill))
+    skills = _load_foundational()
+    if name not in skills:
+        raise HTTPException(404, "Skill not flagged")
+    skills = [s for s in skills if s != name]
+    _save_foundational(skills)
+    await audit_action(request, "krm.foundational.delete", f"skill={name}")
+    return {"status": "ok", "skills": skills}
+
+
+@router.post("/teacher/skills/suggest", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("10/minute")
+async def suggest_skill(request: Request):
+    """Предложить навык в таксономию (на модерацию админу)."""
+    from src.api_pkg.routers.auth import get_current_user
+    from src.api_pkg.skill_suggestions import add as suggest_add
+
+    raw = await request.json()
+    skill = ((raw or {}).get("skill", "") if isinstance(raw, dict) else "")
+    hint = ((raw or {}).get("category_hint", "") if isinstance(raw, dict) else "")
+    me = await get_current_user(request) or {}
+    try:
+        entry = suggest_add(skill, hint, me.get("u", ""))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    await audit_action(
+        request, "skills.suggest",
+        f"skill={entry.get('skill')} hint={hint[:64]} id={entry.get('id')}",
+    )
+    return {"status": "ok", "suggestion": entry}
+
+
+@router.get("/teacher/skills/suggestions")
+@limiter.limit("30/minute")
+async def list_own_suggestions(request: Request):
+    """Мои предложения (по токену)."""
+    from src.api_pkg.routers.auth import get_current_user
+    from src.api_pkg.skill_suggestions import load_all
+
+    me = await get_current_user(request) or {}
+    mine = [s for s in load_all() if not me.get("u") or s.get("created_by") == me.get("u")]
+    return {"suggestions": mine}
+
+
+def _teacher_result_base() -> Path:
+    """Base dir of teacher analysis read-model (extracted for test isolation)."""
+    return Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher"
 
 
 @router.post("/teacher/krm/recommendations/seed/auto", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
@@ -322,7 +472,7 @@ async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03
     if not re.match(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$", dir_code):
         raise HTTPException(status_code=400, detail="Invalid direction code format")
     per_discipline = max(1, min(int(per_discipline), 10))
-    base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher"
+    base = _teacher_result_base()
     resolved = (base / dir_code).resolve()
     if base.resolve() not in resolved.parents:
         raise HTTPException(status_code=400, detail="Invalid path")
@@ -358,6 +508,10 @@ async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03
     removed = len(store) - len(kept)
     kept.extend(seeded)
     _save_json(config.TEACHER_RECOMMENDATIONS_PATH, kept)
+    await audit_action(
+        request, "krm.recommendations.seed_auto",
+        f"dir={dir_code} seeded={len(seeded)} removed_auto={removed} total={len(kept)}",
+    )
     return {"status": "ok", "seeded": len(seeded),
             "removed_auto": removed, "total": len(kept)}
 
@@ -369,14 +523,18 @@ async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03
 @limiter.limit("30/minute")
 async def krm_coverage(request: Request):
     """Coverage per discipline (latest analysis)."""
+    from sqlalchemy import func, select
+
     from src.database import async_session_factory
-    from src.models.krm_models import CoverageAnalysis as CAModel, Discipline
-    from sqlalchemy import select, func
+    from src.models.krm_models import CoverageAnalysis as CAModel
+    from src.models.krm_models import Discipline
 
     async with async_session_factory() as session:
         # latest analysis date
         latest = await session.execute(select(func.max(CAModel.analysis_date)))
         latest_date = latest.scalar()
+        if latest_date is not None and getattr(latest_date, "tzinfo", None):
+            latest_date = latest_date.replace(tzinfo=None)
 
         result = await session.execute(
             select(CAModel, Discipline.name)
@@ -404,9 +562,11 @@ async def krm_coverage(request: Request):
 @limiter.limit("30/minute")
 async def krm_coverage_history(request: Request, discipline: str | None = None, limit: int = 20):
     """Coverage history across analyses."""
-    from src.database import async_session_factory
-    from src.models.krm_models import CoverageAnalysis as CAModel, Discipline
     from sqlalchemy import select
+
+    from src.database import async_session_factory
+    from src.models.krm_models import CoverageAnalysis as CAModel
+    from src.models.krm_models import Discipline
 
     async with async_session_factory() as session:
         query = select(CAModel, Discipline.name).join(Discipline, CAModel.discipline_id == Discipline.id)
@@ -436,16 +596,17 @@ async def krm_market_skills(request: Request, limit: int = 50):
     path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
     if not path.exists():
         return []
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         skills = json.load(f)
     return [{"skill": s, "frequency": 1} for s in list(skills)[:limit]]
 
 @router.get("/teacher/krm/search-runs")
 async def krm_search_runs(request: Request, limit: int = 20):
     """История запусков поиска."""
+    from sqlalchemy import select
+
     from src.database import async_session_factory
     from src.models.krm_models import PipelineRun
-    from sqlalchemy import select
 
     async with async_session_factory() as session:
         result = await session.execute(
@@ -471,9 +632,10 @@ async def krm_search_runs(request: Request, limit: int = 20):
 @router.get("/teacher/krm/search-runs/{run_id}")
 async def krm_search_run_detail(run_id: str):
     """Детали запуска поиска."""
-    from src.database import async_session_factory
-    from src.models.krm_models import PipelineRun, AnalysisResult
     from sqlalchemy import select
+
+    from src.database import async_session_factory
+    from src.models.krm_models import AnalysisResult, PipelineRun
 
     async with async_session_factory() as session:
         run = await session.get(PipelineRun, run_id)
@@ -539,20 +701,28 @@ async def run_teacher_analysis_endpoint(
     return {"status": "started", "direction": dir_code, "run_id": run_id}
 
 
-@router.get("/teacher/export/vacancies")
+@router.get("/teacher/export/vacancies", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("3/minute")
 async def export_vacancies_excel(request: Request, search: str | None = None,
                                        experience: str | None = None,
                                        region: str | None = None,
-                                       months: int | None = Query(None, ge=1, le=24)):
+                                       months: int | None = Query(None, ge=1, le=24),
+                                       date_from: str | None = None,
+                                       date_to: str | None = None):
     """Export vacancies to Excel with list filters (v45). No filters = full dump."""
     import json
+
     import pandas as pd
 
-    from src.api_pkg.routers.vacancies import _classify_experience, build_vacancy_where
+    from src.api_pkg.routers.vacancies import _classify_experience, _parse_day, build_vacancy_where
     pool = get_pool()
+    for label, val in (("date_from", date_from), ("date_to", date_to)):
+        if val and _parse_day(val) is None:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail=f"{label} must be YYYY-MM-DD")
     where, params = build_vacancy_where(search=search, experience=experience,
-                                        region=region, months=months)
+                                        region=region, months=months,
+                                        date_from=date_from, date_to=date_to)
     recs = await pool.fetch(
         """SELECT hh_id, name, employer_name, area_name, salary_from, salary_to,
                   experience, alternate_url, parsed_skills, key_skills
@@ -595,13 +765,17 @@ async def competency_tree(dir_code: str = "09.03.02"):
     import re
     if not re.match(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$", dir_code):
         raise HTTPException(status_code=400, detail="Invalid direction code format")
+    from sqlalchemy import func, select
+
     from src.database import async_session_factory
-    from src.models.krm_models import Competency as CompModel, CoverageAnalysis, Direction, Discipline
-    from sqlalchemy import select, func
+    from src.models.krm_models import Competency as CompModel
+    from src.models.krm_models import CoverageAnalysis, Direction, Discipline
 
     async with async_session_factory() as session:
         latest = await session.execute(select(func.max(CoverageAnalysis.analysis_date)))
         latest_date = latest.scalar()
+        if latest_date is not None and getattr(latest_date, "tzinfo", None):
+            latest_date = latest_date.replace(tzinfo=None)
 
         cov_subq = select(
             CoverageAnalysis.discipline_id,
@@ -718,6 +892,98 @@ async def get_analysis_meta(dir_code: str = "09.03.02"):
     return {"meta": meta, "stale": stale, "stale_reason": reason,
             "current_vac_hash": current_hash}
 
+# ---------- Students skills view (teacher/rop/admin) ----------
+# NOTE: placed here, not in admin.py — the admin router guard is
+# admin+teacher only, while these endpoints must also serve rop.
+# Existing /admin/students and /admin/users guards are untouched.
+
+
+@router.get("/admin/students/skills", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("30/minute")
+async def admin_student_skills(request: Request, email: str = ""):
+    """Навыки + компетенции студента из его self-профиля.
+
+    Self file resolved via profiles helpers (no duplication).
+    404 when the user has no self file; never 500 for a missing file.
+    """
+    target = (email or "").strip().lower()
+    if not target:
+        raise HTTPException(status_code=400, detail="email is required")
+    name, fpath = _self_profile_name(target)
+    probe = Path(fpath)
+    if not probe.exists():
+        raise HTTPException(status_code=404, detail=f"No self profile for '{target}'")
+    data = _load_self_profile(name, fpath)
+    try:
+        updated = datetime.fromtimestamp(probe.stat().st_mtime).isoformat()
+    except Exception:
+        updated = None
+    try:
+        row = await get_pool().fetchrow(
+            "SELECT full_name FROM users WHERE email = $1", target)
+        full_name = (row["full_name"] if row else "") or ""
+    except Exception as exc:
+        logger.warning("admin_student_skills_db_failed", error=str(exc))
+        raise HTTPException(status_code=503, detail="User directory unavailable")
+    return {
+        "email": target,
+        "full_name": full_name,
+        "target_level": data.get("target_level", "middle"),
+        "skills": data.get("skills", []),
+        "user_added": data.get("user_added", []),
+        "competencies": data.get("competencies", []),
+        "updated_at": updated,
+    }
+
+
+@router.get("/teacher/students", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("30/minute")
+async def teacher_students(request: Request):
+    """Students (role=student) with self-profile stats for the Students tab."""
+    try:
+        rows = await get_pool().fetch(
+            "SELECT email, full_name FROM users "
+            "WHERE role = 'student' AND is_active = true ORDER BY email")
+    except Exception as exc:
+        logger.warning("teacher_students_db_failed", error=str(exc))
+        raise HTTPException(status_code=503, detail="User directory unavailable")
+    items: list[dict] = []
+    for r in rows:
+        email = str(r["email"] or "")
+        try:
+            name, fpath = _self_profile_name(email)
+            probe = Path(fpath)
+            if probe.exists():
+                data = _load_self_profile(name, fpath)
+                items.append({
+                    "email": email,
+                    "full_name": (r["full_name"] or ""),
+                    "target_level": data.get("target_level", "middle"),
+                    "skills_count": len(data.get("skills", [])),
+                    "competencies_count": len(data.get("competencies", [])),
+                    "has_profile": True,
+                })
+            else:
+                items.append({
+                    "email": email,
+                    "full_name": (r["full_name"] or ""),
+                    "target_level": None,
+                    "skills_count": 0,
+                    "competencies_count": 0,
+                    "has_profile": False,
+                })
+        except Exception:
+            items.append({
+                "email": email,
+                "full_name": (r["full_name"] or ""),
+                "target_level": None,
+                "skills_count": 0,
+                "competencies_count": 0,
+                "has_profile": False,
+            })
+    return {"students": items, "total": len(items)}
+
+
 @router.get("/teacher/analysis/{discipline_name:path}")
 async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02"):
     """Teacher analysis дисциплины."""
@@ -734,4 +1000,31 @@ async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.0
             if discipline_name.lower() in f.stem.lower(): files.append(f)
     if not files:
         raise HTTPException(404, f"'{discipline_name}' not found")
-    return json.loads(files[0].read_text(encoding="utf-8"))
+    data = json.loads(files[0].read_text(encoding="utf-8"))
+    # Ручные пометки foundational применяются на выдаче: помеченное исчезает
+    # со страницы сразу, без рерана пайплайна.
+    try:
+        flags = _load_foundational()
+    except Exception:
+        flags = []
+    if isinstance(data, dict) and isinstance(data.get("recommendations"), list):
+        visible, hidden = _apply_foundational_filter(data["recommendations"], flags)
+        data["recommendations"] = visible
+        if config.LLM_ENABLED and config.LLM_ENHANCE_TEACHER:
+            try:
+                from src.services.llm_recommend import enhance_teacher_recs
+                enhanced = enhance_teacher_recs(
+                    discipline=discipline_name,
+                    gaps=data.get("gaps", []),
+                    base_recs=data,
+                )
+                if isinstance(enhanced, dict):
+                    data = enhanced
+            except Exception:
+                logger.warning("llm_teacher_enhance_failed", discipline=discipline_name)
+        data["hidden_foundational"] = [
+            {"skill": (r.get("skill", "") if isinstance(r, dict) else ""),
+             "type": r.get("type", ""), "manual": bool(r.get("manual", False))}
+            for r in hidden if isinstance(r, dict)
+        ]
+    return data

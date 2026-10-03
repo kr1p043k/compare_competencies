@@ -4,14 +4,12 @@ import json
 import math
 import re
 import sys
-from datetime import datetime
-from pathlib import Path
 from collections import Counter
+from datetime import datetime
 
 import structlog
 
 from src import config
-from src.result import Err, Ok, Result
 from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import read_json
@@ -94,11 +92,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
         for v in prepared:
             exp = v.get("experience", "").lower()
             name = v.get("name", "").lower()
-            if level.value == "junior" and ("noexperience" in exp or "less" in exp or "junior" in exp or "junior" in name or "младший" in name):
-                level_prepared.append(v)
-            elif level.value == "middle" and ("between" in exp or "middle" in exp or "middle" in name):
-                level_prepared.append(v)
-            elif level.value == "senior" and ("morethan" in exp or "senior" in exp or "senior" in name or "старший" in name or "ведущий" in name):
+            if level.value == "junior" and ("noexperience" in exp or "less" in exp or "junior" in exp or "junior" in name or "младший" in name) or level.value == "middle" and ("between" in exp or "middle" in exp or "middle" in name) or level.value == "senior" and ("morethan" in exp or "senior" in exp or "senior" in name or "старший" in name or "ведущий" in name):
                 level_prepared.append(v)
         logger.info("level_vacancies", level=level.value, count=len(level_prepared))
         if len(level_prepared) < 10:
@@ -125,7 +119,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
     _CLUSTER_STOP = frozenset({
         "для", "от", "по", "на", "c", "о", "об", "из", "без", "в", "и",
         "не", "а", "но", "за", "до", "при", "про", "как", "еще", "уже",
-        "na", "ot", "po", "c", "пo", "oт", "na",
+        "na", "ot", "po", "пo", "oт",
     })
 
     # load known skill taxonomy for clean cluster naming

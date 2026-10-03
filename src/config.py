@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     REQUEST_DELAY: float = 0.1
     MAX_RETRIES: int = 3
     RETRY_DELAY: float = 2.0
+    PIPELINE_RETRIES: int = 2
 
     HH_CLIENT_ID: SecretStr | None = None
     HH_CLIENT_SECRET: SecretStr | None = None
@@ -109,15 +110,21 @@ class Settings(BaseSettings):
 
     # ---------- Ollama ----------
     OLLAMA_URL: str = "http://ollama:11434"
-    OLLAMA_MODEL: str = "qwen3.6:latest"
-    OLLAMA_EMBEDDING_MODEL: str = "qwen3.6:latest"
+    OLLAMA_MODEL: str = "gpt-oss:120b"
+    OLLAMA_EMBEDDING_MODEL: str = "qwen2.5:0.5b"
     QWEN_TEMPERATURE: float = 0.7
     QWEN_MAX_TOKENS: int = 2000
+
+    # ---------- LLM enhancement (opt-in, fallback-first) ----------
+    LLM_ENABLED: bool = True
+    LLM_ENHANCE_STUDENT: bool = False
+    LLM_ENHANCE_TEACHER: bool = False
+    LLM_EXTRACT: bool = False
+    LLM_TIMEOUT_S: int = 60
 
     # ---------- эмбеддинги ----------
     EMBEDDING_MODEL: str = "paraphrase-multilingual-mpnet-base-v2"
     HF_TOKEN: SecretStr | None = None
-    SIMILARITY_THRESHOLD: float = 0.80
 
     # ---------- BM25 ----------
     BM25_MAX_CORPUS_DOCS: int = 200
@@ -163,8 +170,12 @@ class Settings(BaseSettings):
     TQDM_DISABLE: bool = False
     PYDANTIC_VALIDATION_ENABLED: bool = True
 
-    # фоновый сбор вакансий каждые 6 часов (вызывается при старте API)
+    # фоновый сбор вакансий (legacy seed; интервал и вкл/выкл — SCHEDULER_* и админка)
     BACKGROUND_COLLECTOR_ENABLED: bool = False
+    # планировщик фоновых задач: seed для data/settings/scheduler.json;
+    # рантайм-управление (вкл/выкл, интервал) — через админку, не через env
+    SCHEDULER_COLLECT_INTERVAL_HOURS: int = 12
+    SCHEDULER_DAILY_GAP_ENABLED: bool = False
 
     # ---------- academic-api (ЮФУ: компетенции/разрывы по научным темам) ----------
     ACADEMIC_API_BASE: str = "https://academic-api.lib.sfedu.ru"
@@ -293,6 +304,7 @@ HH_USER_AGENT = settings.HH_USER_AGENT
 REQUEST_DELAY = settings.REQUEST_DELAY
 MAX_RETRIES = settings.MAX_RETRIES
 RETRY_DELAY = settings.RETRY_DELAY
+PIPELINE_RETRIES = settings.PIPELINE_RETRIES
 HH_CLIENT_ID = settings.HH_CLIENT_ID
 HH_CLIENT_SECRET = settings.HH_CLIENT_SECRET
 
@@ -313,9 +325,14 @@ OLLAMA_EMBEDDING_MODEL = settings.OLLAMA_EMBEDDING_MODEL
 QWEN_TEMPERATURE = settings.QWEN_TEMPERATURE
 QWEN_MAX_TOKENS = settings.QWEN_MAX_TOKENS
 
+LLM_ENABLED = settings.LLM_ENABLED
+LLM_ENHANCE_STUDENT = settings.LLM_ENHANCE_STUDENT
+LLM_ENHANCE_TEACHER = settings.LLM_ENHANCE_TEACHER
+LLM_EXTRACT = settings.LLM_EXTRACT
+LLM_TIMEOUT_S = settings.LLM_TIMEOUT_S
+
 EMBEDDING_MODEL = settings.EMBEDDING_MODEL
 HF_TOKEN = settings.HF_TOKEN
-SIMILARITY_THRESHOLD = settings.SIMILARITY_THRESHOLD
 
 BM25_MAX_CORPUS_DOCS = settings.BM25_MAX_CORPUS_DOCS
 BM25_MIN_SCORE = settings.BM25_MIN_SCORE

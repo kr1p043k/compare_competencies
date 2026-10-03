@@ -1,20 +1,19 @@
 """Vacancies: list, detail, stats — DB-backed."""
 
 import json
-import structlog
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+import structlog
+from fastapi import APIRouter, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src.api_pkg import deps
 from src.models.api_responses import (
     VacanciesResponse,
     VacancyDetailResponse,
     VacancyStatsResponse,
 )
-
-from src.api_pkg import deps
 
 logger = structlog.get_logger("api")
 
@@ -56,7 +55,45 @@ async def _get_db_pool():
     return get_pool()
 
 
-def build_vacancy_where(search=None, experience=None, region=None, months=None):
+def _clean_skill_list(items) -> list:
+    """Выкинуть пустые/пробельные навыки и дубли (артефакты парсера в stored data).
+
+    Принимает строки или dict'и {name, ...}, возвращает тот же тип со
+    стрипнутыми именами. Пустая строка иначе рисуется пустым бейджем.
+    """
+    seen: set[str] = set()
+    out: list = []
+    for s in items or []:
+        if isinstance(s, dict):
+            name = (s.get("name", "") or "").strip()
+            if not name or name.lower() in seen:
+                continue
+            seen.add(name.lower())
+            out.append({**s, "name": name} if s.get("name", "") != name else s)
+            continue
+        name = (s or "").strip() if isinstance(s, str) else ""
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        out.append(name)
+    return out
+
+
+MSK = timezone(timedelta(hours=3))  # Europe/Moscow без DST: всегда +03
+
+
+def _parse_day(value: str | None) -> datetime | None:
+    """Строгий разбор YYYY-MM-DD как полночь МСК (даты вакансий — московские)."""
+    if not value or not str(value).strip():
+        return None
+    try:
+        return datetime.strptime(str(value).strip(), "%Y-%m-%d").replace(tzinfo=MSK)
+    except ValueError:
+        return None
+
+
+def build_vacancy_where(search=None, experience=None, region=None, months=None,
+                        date_from=None, date_to=None):
     """Shared WHERE builder for list + export (v45). Returns (clause, params), $N from 1."""
     conditions: list[str] = []
     params: list = []
@@ -70,9 +107,17 @@ def build_vacancy_where(search=None, experience=None, region=None, months=None):
         conditions.append(f"v.area_name ILIKE ${len(params) + 1}")
         params.append(region.strip())
     if months:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=int(months) * 30)
+        cutoff = datetime.now(UTC) - timedelta(days=int(months) * 30)
         conditions.append(f"v.published_at >= ${len(params) + 1}")
         params.append(cutoff)
+    df = _parse_day(date_from) if isinstance(date_from, str) else date_from
+    dt = _parse_day(date_to) if isinstance(date_to, str) else date_to
+    if df:
+        conditions.append(f"v.published_at >= ${len(params) + 1}")
+        params.append(df)
+    if dt:
+        conditions.append(f"v.published_at < ${len(params) + 1}")
+        params.append(dt + timedelta(days=1))
     return (" AND ".join(conditions) if conditions else "TRUE"), params
 
 
@@ -88,14 +133,20 @@ async def get_vacancies(
     search: str | None = Query(None, description="Поиск по названию"),
     months: int | None = Query(None, ge=1, le=24, description="Период в месяцах"),
     region: str | None = Query(None, description="Город (точное название)"),
+    date_from: str | None = Query(None, description="Дата публикации от (YYYY-MM-DD)"),
+    date_to: str | None = Query(None, description="Дата публикации до (YYYY-MM-DD)"),
 ):
     """Список вакансий (фильтры, пагинация)."""
     pool = await _get_db_pool()
     if not pool:
         raise HTTPException(status_code=503, detail="Database unavailable")
+    for label, val in (("date_from", date_from), ("date_to", date_to)):
+        if val and _parse_day(val) is None:
+            raise HTTPException(status_code=400, detail=f"{label} must be YYYY-MM-DD")
 
     where_clause, params = build_vacancy_where(
-        search=search, experience=experience, region=region, months=months)
+        search=search, experience=experience, region=region, months=months,
+        date_from=date_from, date_to=date_to)
 
     count_sql = f"SELECT COUNT(*) FROM vacancies v WHERE {where_clause}"
     total = await pool.fetchval(count_sql, *params)
@@ -104,7 +155,8 @@ async def get_vacancies(
         SELECT v.hh_id, v.name, v.experience, v.salary_from, v.salary_to,
                v.salary_currency, v.employer_name, v.area_name,
                v.snippet_requirement, v.snippet_responsibility,
-               v.published_at, v.alternate_url, v.parsed_skills, v.key_skills
+               v.published_at, v.alternate_url, v.parsed_skills, v.key_skills,
+               v.employer_logo
         FROM vacancies v
         WHERE {where_clause}
         ORDER BY v.published_at DESC NULLS LAST
@@ -117,7 +169,7 @@ async def get_vacancies(
         parsed = r["parsed_skills"]
         if isinstance(parsed, str):
             parsed = json.loads(parsed) if parsed else []
-        skills = (parsed[:10] if isinstance(parsed, list) else [])
+        skills = _clean_skill_list(parsed)[:10]
 
         exp = _classify_experience(r["experience"], r["name"] or "")
 
@@ -139,6 +191,7 @@ async def get_vacancies(
             "area": r["area_name"] or "Не указано",
             "published_at": r["published_at"].isoformat() if r["published_at"] else None,
             "alternate_url": r["alternate_url"],
+            "employer_logo": r["employer_logo"],
             "skills": skills,
             "snippet": snippet,
         })
@@ -155,7 +208,6 @@ async def get_vacancies(
 @router.get("/vacancies/info")
 async def get_vacancies_info():
     """Информация об источнике вакансий."""
-    from src.api_pkg import deps
     pool = await _get_db_pool()
 
     info = {"count": 0, "file_modified": None, "date_range": None, "load_error": deps.vacancy_load_error}
@@ -167,11 +219,13 @@ async def get_vacancies_info():
 
     if pool:
         try:
-            total = await pool.fetchval(
+            total = await pool.fetchval("SELECT COUNT(*) FROM vacancies")
+            with_skills = await pool.fetchval(
                 "SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NOT NULL AND parsed_skills::text != '[]'"
             )
             info["total_vacancies"] = total or 0
             info["count"] = total or 0
+            info["with_skills"] = with_skills or 0
 
             row = await pool.fetchrow(
                 "SELECT MAX(published_at) AS max_p, MIN(published_at) AS min_p FROM vacancies WHERE published_at IS NOT NULL"
@@ -220,7 +274,8 @@ async def get_vacancy_detail(
         """SELECT hh_id, name, description, experience, salary_from, salary_to,
                   salary_currency, employer_name, employer_id, area_name,
                   snippet_requirement, snippet_responsibility,
-                  published_at, alternate_url, parsed_skills, key_skills
+                  published_at, alternate_url, parsed_skills, key_skills,
+                  employer_logo
            FROM vacancies WHERE hh_id = $1""",
         hh_id,
     )
@@ -233,10 +288,10 @@ async def get_vacancy_detail(
         return list(val) if isinstance(val, list) else []
 
     parsed = _load_jsonb(row["parsed_skills"])
-    skills = parsed[:20]
+    skills = _clean_skill_list(parsed)[:20]
 
     ks = _load_jsonb(row["key_skills"])
-    key_skills = ks
+    key_skills = _clean_skill_list(ks)
 
     snippet = {}
     if row["snippet_requirement"] or row["snippet_responsibility"]:
@@ -262,6 +317,7 @@ async def get_vacancy_detail(
         "area": {"id": None, "name": row["area_name"]} if row["area_name"] else None,
         "published_at": row["published_at"].isoformat() if row["published_at"] else None,
         "alternate_url": row["alternate_url"],
+        "employer_logo": row["employer_logo"],
         "skills": skills,
         "schedule": None,
         "employment": None,

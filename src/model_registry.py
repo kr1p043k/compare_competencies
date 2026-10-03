@@ -1,7 +1,7 @@
 """Model Registry — version tracking for LTR, embeddings, clusters."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +57,7 @@ class ModelRegistry:
                 "size_bytes": path.stat().st_size,
                 "metrics": metrics or {},
                 "tags": tags or {},
-                "registered_at": datetime.now(timezone.utc).isoformat(),
+                "registered_at": datetime.now(UTC).isoformat(),
             }
             self._index.setdefault(model_type, []).append(entry)
             self._save_index()
@@ -101,7 +101,7 @@ class ModelRegistry:
         path = config.MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
         return self.register("ltr", path, metrics=metrics)
 
-    def register_embeddings(self, level: str = "middle") -> Result[str, DomainError]:
+    def register_embeddings(self, level: str = "all") -> Result[str, DomainError]:
         from src import config
 
         path = config.EMBEDDINGS_CACHE_DIR / f"market_embeddings_{level}.joblib"

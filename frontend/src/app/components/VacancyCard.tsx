@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
@@ -17,9 +16,6 @@ import {
   Star,
   AlertTriangle,
   ChevronDown,
-  Loader2,
-  FileText,
-  Tags,
 } from "lucide-react";
 
 interface Vacancy {
@@ -45,13 +41,25 @@ interface Vacancy {
 
 interface VacancyCardProps {
   vacancy: Vacancy;
+  onOpen?: (vacancy: Vacancy) => void;
 }
 
 const experienceLevels = {
-  junior: { label: "Junior", color: "from-blue-500 to-cyan-500", badge: "secondary" },
-  middle: { label: "Middle", color: "from-purple-500 to-pink-500", badge: "default" },
-  senior: { label: "Senior", color: "from-orange-500 to-red-500", badge: "destructive" },
+  junior: { label: "Junior", color: "from-blue-50 dark:from-blue-950/30 to-cyan-50 dark:to-cyan-950/30", badge: "secondary" },
+  middle: { label: "Middle", color: "from-purple-50 dark:from-purple-950/30 to-pink-50 dark:to-pink-950/30", badge: "default" },
+  senior: { label: "Senior", color: "from-orange-50 dark:from-orange-950/30 to-red-50 dark:to-red-950/30", badge: "destructive" },
 };
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  "RUR": "₽", "RUB": "₽", "USD": "$", "EUR": "€", "GBP": "£",
+  "KZT": "₸", "BYN": "Br", "AZN": "₼", "UZS": "сум", "GEL": "₾",
+  "KGS": "сом", "TJS": "смн", "UAH": "₴", "CNY": "¥",
+};
+
+function currencySymbol(code?: string): string {
+  // Неизвестную валюту показываем кодом как есть, а не молча считаем рублями.
+  return CURRENCY_SYMBOLS[code || ""] || code || "₽";
+}
 
 const TECH_KEYWORDS = new Set([
   "Python","PyTorch","TensorFlow","Keras","JAX","NumPy","Pandas","Scikit-learn",
@@ -68,7 +76,8 @@ const TECH_KEYWORDS = new Set([
   "Airflow","dbt","Kuberhealthy","Prometheus","Grafana","ELK","Elasticsearch",
   "Prolog","SAS","MATLAB","Tableau","Power BI","Excel","Word","PowerPoint",
   "Photoshop","Figma","Sketch","Illustrator","InDesign",
-  "1С","1С:Предприятие","1С:Розница","1С:Бухгалтерия","1С:ЗУП","БСП","СКД",
+  "1С","1C","1С:Предприятие","1С:Розница","1С:Бухгалтерия","1С:ЗУП","1С:УТ","БСП","СКД",
+  "УРИБ","РИБ","ККТ","MS-SQL","HTTP-сервисы","Веб-сервисы",
   "ЕГАИС","МДЛП","ФГИС","Честный ЗНАК","ККМ","ТСД","ЭЦП",
   "SiebelCRM","ActiveMQ","WebSocket","WebSockets","Helm","gRPC",
   "Spring Boot","Spring Cloud","Spring Security","Spring Data","Spring Framework",
@@ -81,7 +90,7 @@ const TECH_KEYWORDS = new Set([
 
 const RUSSIAN_STOPWORDS = /\b(и|в|на|по|с|для|от|за|из|у|о|об|про|без|до|при|не|или|а|но|да|же|ли|бы|если|чтобы|так|как|это|что|котор|таких|такой|такие|всех|все|всё|может|можно|навыки|опыт|знание|понимание|умение|работа|разработка|настройка|внедрение|поддержка|сопровождение|управление|взаимодействие|наличие|готовность|способность|участие|проведение|создание|использование|обеспечение|выполнение|формирование|организация|обучение|контроль|оценка|анализ|расчет|подготовка|применение|интеграция|автоматизация|оптимизация|проектирование|администрирование|конфигурирование|программирование|тестирование|отладка|документирование|коммуникабельность|системное|аналитическое|критическое|техническое|проактивность|ответственность|самостоятельность|ориентированность|стрессоустойчивость|исполнительность|дисциплинированность|пунктуальность|работоспособность|обучаемость|грамотность|аккуратность|внимательность|терпеливость|честность|порядочность|креативность|инициативность|целеустремленность|нацеленность|мотивация|интерес|желание|готов|уверенный|уверенное|хорошее|базовое|высшее|среднее|полное|неполное|специальное|профессиональное|образование|зарплата|доход|график|офис|удаленно|гибрид|командировки|оформление|тк|рф|сетью|точками|узлов|области|данными|системами|средой|платформой|архитектурой|пользователями|задачами|проектами|командами|процессами|требованиями|решениями|результатами|целями|сроками|стандартами|регламентами|инструментами|технологиями|методами|подходами|принципами|механизмами|алгоритмами|протоколами|форматами|типами)+/iu;
 
-function sanitizeHtml(html: string): string {
+export function sanitizeHtml(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/?[^>]+(>|$)/g, "")
@@ -103,12 +112,17 @@ function isValidSkill(s: string): boolean {
   return true;
 }
 
-function parseSkillsFromHtml(html: string): string[] {
+export function parseSkillsFromHtml(html: string): string[] {
   const text = html.replace(/<[^>]+>/g, " ").replace(/&[^;]+;/g, " ").replace(/\s+/g, " ").trim();
   const found = new Set<string>();
 
   for (const kw of TECH_KEYWORDS) {
-    const re = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    // Юникод-границы: JS \b без u-флага считает кириллицу не-буквой,
+    // поэтому `\b1С\b` никогда не матчится. Используем \p{L}\p{N}.
+    const re = new RegExp(
+      `(?<![\\p{L}\\p{N}_])${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}_])`,
+      "iu"
+    );
     if (re.test(text) && isValidSkill(kw)) found.add(kw);
   }
 
@@ -126,39 +140,8 @@ function parseSkillsFromHtml(html: string): string[] {
   return Array.from(found).sort();
 }
 
-interface VacancyDetail {
-  id: string;
-  name?: string;
-  description?: string;
-  experience?: any;
-  salary?: any;
-  employer?: any;
-  area?: any;
-  published_at?: string;
-  alternate_url?: string;
-  skills?: string[];
-  schedule?: any;
-  employment?: any;
-  key_skills?: any[];
-  snippet?: any;
-}
-
-export function VacancyCard({ vacancy }: VacancyCardProps) {
-  const [expanded, setExpanded] = useState(false);
-  const [detail, setDetail] = useState<VacancyDetail | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
+export function VacancyCard({ vacancy, onOpen }: VacancyCardProps) {
   const expLevel = experienceLevels[vacancy.experience as keyof typeof experienceLevels] || experienceLevels.middle;
-
-  useEffect(() => {
-    if (!expanded) return;
-    if (detail) return;
-    setLoadingDetail(true);
-    fetch(`/api/vacancies/${vacancy.id}`)
-      .then((r) => r.json())
-      .then((d) => setDetail(d))
-      .catch(() => {})
-      .finally(() => setLoadingDetail(false));
-  }, [expanded]);
 
   const formatSalary = () => {
     if (!vacancy.salary_from && !vacancy.salary_to) return null;
@@ -167,10 +150,12 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
       return new Intl.NumberFormat("ru-RU").format(num);
     };
 
-    const currencyMap: Record<string, string> = {"RUR": "₽", "RUB": "₽", "USD": "$", "EUR": "€"};
-    const currency = currencyMap[vacancy.salary_currency || ""] || "₽";
+    const currency = currencySymbol(vacancy.salary_currency);
 
     if (vacancy.salary_from && vacancy.salary_to) {
+      if (vacancy.salary_from === vacancy.salary_to) {
+        return `${format(vacancy.salary_from)} ${currency}`;
+      }
       return `${format(vacancy.salary_from)} - ${format(vacancy.salary_to)} ${currency}`;
     } else if (vacancy.salary_from) {
       return `от ${format(vacancy.salary_from)} ${currency}`;
@@ -187,11 +172,13 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
 
     if (diffDays === 1) return "Сегодня";
     if (diffDays === 2) return "Вчера";
-    if (diffDays <= 7) return `${diffDays} дня назад`;
-    return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+    if (diffDays <= 4) return `${diffDays} дня назад`;
+    if (diffDays <= 7) return `${diffDays} дней назад`;
+    return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
   };
 
   const salary = formatSalary();
+  const salarySymbol = currencySymbol(vacancy.salary_currency);
 
   return (
     <motion.div
@@ -199,9 +186,9 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
-      className="group"
+      className="group h-full"
     >
-      <Card className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl overflow-hidden relative">
+      <Card className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl overflow-hidden relative h-full">
         {/* Accent bar */}
         <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${expLevel.color}`} />
 
@@ -220,7 +207,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
               <div className="flex items-center gap-3 flex-wrap">
                 <Badge
                   variant={expLevel.badge as any}
-                  className={`bg-gradient-to-r ${expLevel.color} text-white border-0 shadow-md`}
+                  className={`bg-gradient-to-r ${expLevel.color} text-slate-800 dark:text-white border-0 shadow-md`}
                 >
                   <Briefcase className="size-3 mr-1" />
                   {expLevel.label}
@@ -240,7 +227,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
                     className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-lg"
                     whileHover={{ scale: 1.05 }}
                   >
-                    <span className="text-lg font-bold leading-none" style={{ fontFamily: "'Segoe UI', Tahoma, sans-serif" }}>₽</span>
+                    <span className="text-lg font-bold leading-none" style={{ fontFamily: "'Segoe UI', Tahoma, sans-serif" }}>{salarySymbol}</span>
                     {salary}
                   </motion.div>
                 )}
@@ -261,7 +248,7 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
               </motion.div>
             ) : (
               <motion.div
-                className={`size-16 rounded-xl bg-gradient-to-br ${expLevel.color} flex items-center justify-center shadow-lg flex-shrink-0`}
+                className="size-16 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg flex-shrink-0"
                 whileHover={{ scale: 1.05, rotate: -2 }}
               >
                 <Building2 className="size-8 text-white" />
@@ -309,14 +296,16 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
           )}
 
           {/* Skills */}
-          {vacancy.skills && vacancy.skills.length > 0 && (
+          {(() => {
+            const shownSkills = (vacancy.skills || []).filter((s) => (s || "").trim());
+            return shownSkills.length > 0 ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                 <Star className="size-3" />
                 Ключевые навыки
               </div>
               <div className="flex flex-wrap gap-2">
-                {vacancy.skills.slice(0, 8).map((skill, index) => (
+                {shownSkills.slice(0, 8).map((skill, index) => (
                   <motion.div
                     key={skill}
                     initial={{ opacity: 0, scale: 0.8 }}
@@ -331,102 +320,18 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
                     </Badge>
                   </motion.div>
                 ))}
-                {vacancy.skills.length > 8 && (
+                {shownSkills.length > 8 && (
                   <Badge variant="secondary" className="bg-slate-200 dark:bg-slate-700">
-                    +{vacancy.skills.length - 8}
+                    +{shownSkills.length - 8}
                   </Badge>
                 )}
               </div>
             </div>
-          )}
+            ) : null;
+          })()}
         </CardContent>
 
-        {/* Expanded details */}
-        <AnimatePresence>
-          {expanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden border-t border-slate-200/50 dark:border-slate-700/50"
-            >
-              <div className="p-4 space-y-4">
-                {loadingDetail ? (
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="size-5 animate-spin text-slate-400" />
-                  </div>
-                ) : (
-                  <>
-                    {/* Description */}
-                    {detail?.description && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          <FileText className="size-3" />
-                          Описание вакансии
-                        </div>
-                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                          <div className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
-                            {sanitizeHtml(detail.description)}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* HH key_skills */}
-                    {detail?.key_skills && detail.key_skills.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          <Star className="size-3" />
-                          Ключевые навыки (HH)
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(detail.key_skills as any[]).map((ks: any) => (
-                            <Badge
-                              key={typeof ks === 'string' ? ks : ks.name}
-                              variant="secondary"
-                              className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800"
-                            >
-                              {typeof ks === 'string' ? ks : ks.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Skills from description (parsed fallback) */}
-                    {(() => {
-                      const extracted = detail?.skills ?? [];
-                      const parsed = detail?.description ? parseSkillsFromHtml(detail.description) : [];
-                      const displaySkills = extracted.length > 0 ? extracted : parsed;
-                      if (displaySkills.length === 0) return null;
-                      return (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            <Tags className="size-3" />
-                            {extracted.length > 0 ? "Найденные навыки" : "Технологии из описания"}
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {displaySkills.map((skill: string) => (
-                              <Badge
-                                key={skill}
-                                variant="outline"
-                                className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
-                              >
-                                {skill}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <CardFooter className="pt-4 border-t border-slate-200/50 dark:border-slate-700/50 relative">
+        <CardFooter className="pt-4 border-t border-slate-200/50 dark:border-slate-700/50 relative mt-auto">
           <div className="flex gap-2 w-full">
             <motion.div
               className="flex-1"
@@ -436,10 +341,10 @@ export function VacancyCard({ vacancy }: VacancyCardProps) {
               <Button
                 variant="outline"
                 className="w-full border-2 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-all group/btn"
-                onClick={() => setExpanded((p) => !p)}
+                onClick={() => onOpen?.(vacancy)}
               >
-                <ChevronDown className={`mr-2 size-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
-                {expanded ? "Свернуть" : "Подробнее"}
+                <ChevronDown className="mr-2 size-4 -rotate-90" />
+                Подробнее
               </Button>
             </motion.div>
             <motion.div

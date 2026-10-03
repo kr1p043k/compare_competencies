@@ -33,12 +33,12 @@ interface GapAnalysisVisualizerProps {
 }
 
 const PROFILES = [
-  { id: "base", label: "Base" },
-  { id: "dc", label: "DC" },
-  { id: "top_dc", label: "Top DC" },
+  { id: "base", label: "Base (junior)" },
+  { id: "dc", label: "Data Scientist (middle)" },
+  { id: "top_dc", label: "Top (senior)" },
 ];
 
-type ImageType = "radar" | "ml_importance" | "cluster_insights";
+type ImageType = "ml_importance" | "cluster_insights";
 
 interface ImageData {
   type: ImageType;
@@ -50,31 +50,24 @@ interface ImageData {
 
 const IMAGE_CONFIGS: ImageData[] = [
   {
-    type: "radar",
-    title: "Радарная диаграмма",
-    description: "Сравнение компетенций по категориям",
-    icon: Radar,
-    gradient: "from-blue-500 to-cyan-500",
-  },
-  {
     type: "ml_importance",
     title: "Важность признаков ML",
     description: "Приоритизация компетенций по модели",
     icon: Activity,
-    gradient: "from-purple-500 to-pink-500",
+    gradient: "from-purple-50 dark:from-purple-950/30 to-pink-50 dark:to-pink-950/30",
   },
   {
     type: "cluster_insights",
     title: "Кластерные инсайты",
     description: "Группировка схожих навыков",
     icon: Network,
-    gradient: "from-emerald-500 to-teal-500",
+    gradient: "from-emerald-50 dark:from-emerald-950/30 to-teal-50 dark:to-teal-950/30",
   },
 ];
 
 export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisVisualizerProps) {
   const [viewProfile, setViewProfile] = useState(profile);
-  const [selectedImage, setSelectedImage] = useState<ImageType>("radar");
+  const [selectedImage, setSelectedImage] = useState<ImageType>("ml_importance");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -223,7 +216,7 @@ export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisV
                     )}
                     className="inline-flex items-center gap-2 mt-4 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
                   >
-                    Run analysis to generate charts
+                    Запустить анализ для построения графиков
                   </button>
                 </div>
               </div>
@@ -286,21 +279,21 @@ export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisV
           description="Сопоставление всех профилей"
           imageUrl={coverageUrl}
           icon={BarChart3}
-          gradient="from-blue-500 to-cyan-500"
+          gradient="from-blue-50 dark:from-blue-950/30 to-cyan-50 dark:to-cyan-950/30"
         />
         <GlobalVisualizationCard
           title="Тепловая карта навыков"
           description="Распределение компетенций"
           imageUrl={heatmapUrl}
           icon={Flame}
-          gradient="from-orange-500 to-red-500"
+          gradient="from-orange-50 dark:from-orange-950/30 to-red-50 dark:to-red-950/30"
         />
         <GlobalVisualizationCard
           title="Корреляция навыков"
           description="Взаимосвязь компетенций"
           imageUrl={correlationUrl}
           icon={Network}
-          gradient="from-purple-500 to-pink-500"
+          gradient="from-purple-50 dark:from-purple-950/30 to-pink-50 dark:to-pink-950/30"
         />
       </div>
     </div>

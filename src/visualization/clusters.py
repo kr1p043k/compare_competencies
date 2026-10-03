@@ -20,7 +20,9 @@ def plot_cluster_insights(results: dict[str, Any], output_dir: Path):
             logger.info("no_cluster_context_for_profile", profile=profile_name)
             continue
 
-        closest = cluster_ctx.get("closest_clusters", [])
+        # Кросс-уровневый пул даёт до 30 кандидатов — показываем топ-15,
+        # иначе подписи сливаются. Горизонтальные бары: длинные имена не налезают.
+        closest = (cluster_ctx.get("closest_clusters", []) or [])[:15]
         if not closest:
             continue
 
@@ -37,6 +39,8 @@ def plot_cluster_insights(results: dict[str, Any], output_dir: Path):
                 name = name.split(":")[0].strip()
             for emoji, text in EMOJI_TO_TEXT.items():
                 name = name.replace(emoji, text)
+            if len(name) > 42:
+                name = name[:41] + "…"
             cluster_names.append(name)
 
         similarities = [c["similarity"] * 100 for c in closest]
@@ -46,29 +50,29 @@ def plot_cluster_insights(results: dict[str, Any], output_dir: Path):
         else:
             coverage = 0.0
 
-        fig, ax = plt.subplots(figsize=(10, 5))
-        x = np.arange(len(closest))
-        width = 0.4
+        fig, ax = plt.subplots(figsize=(10, max(4, 0.55 * len(closest))))
+        y = np.arange(len(closest))
 
-        bars = ax.bar(x, similarities, width, color="#1f77b4", alpha=0.85, label="Близость к профилю")
-        ax.axhline(y=coverage, color="#2ca02c", linestyle="--", linewidth=2, label=f"Покрытие навыков: {coverage:.1f}%")
+        bars = ax.barh(y, similarities, 0.55, color="#1f77b4", alpha=0.85, label="Близость к профилю")
+        ax.axvline(x=coverage, color="#2ca02c", linestyle="--", linewidth=2, label=f"Покрытие навыков: {coverage:.1f}%")
 
-        ax.set_title(f"Ближайшие кластеры вакансий — {profile_name}", pad=15, fontsize=14)
-        ax.set_xticks(x)
-        ax.set_xticklabels(cluster_names, rotation=20, ha="right", fontsize=11)
-        ax.set_ylabel("Сходство (%)", fontsize=12)
-        ax.set_ylim(0, 105)
+        ax.set_title(f"Ближайшие кластеры вакансий: {profile_name} (топ-{len(closest)})", pad=15, fontsize=14)
+        ax.set_yticks(y)
+        ax.set_yticklabels(cluster_names, fontsize=10)
+        ax.set_xlabel("Сходство (%)", fontsize=12)
+        ax.set_xlim(0, 105)
+        ax.invert_yaxis()
         ax.legend(fontsize=11)
 
-        for bar in bars:
-            height = bar.get_height()
+        for bar, val in zip(bars, similarities):
+            width = bar.get_width()
             ax.text(
-                bar.get_x() + bar.get_width() / 2.0,
-                height + 2,
-                f"{height:.1f}%",
-                ha="center",
-                va="bottom",
-                fontsize=12,
+                width + 1,
+                bar.get_y() + bar.get_height() / 2.0,
+                f"{val:.1f}%",
+                ha="left",
+                va="center",
+                fontsize=10,
                 fontweight="bold",
             )
 

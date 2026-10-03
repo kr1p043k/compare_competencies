@@ -2,8 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
-from pathlib import Path
+import re
 
 import structlog
 from fastapi import APIRouter, HTTPException, Query
@@ -25,6 +24,9 @@ async def list_professions():
     seen: set[str] = set()
     result: list[dict] = []
     for f in files:
+        # Мусорные файлы без профессии (freq_profession_2026-09.json) пропускаем.
+        if not re.match(r"^freq_profession_.+_\d{4}-\d{2}\.json$", f.name):
+            continue
         try:
             raw = json.loads(f.read_text(encoding="utf-8"))
             meta = raw.get("_meta", {})
@@ -62,6 +64,9 @@ async def get_profession_trends(
         "profession": profession,
         "source": "snapshot",
         "snapshot_date": meta.get("snapshot_date", ""),
+        "vacancy_count": meta.get("vacancy_count"),
+        "synthetic": bool(meta.get("synthetic", False)),
+        "methodology_version": meta.get("methodology_version", ""),
         "skills": [{"skill": s, "frequency": f} for s, f in skills],
     }
 

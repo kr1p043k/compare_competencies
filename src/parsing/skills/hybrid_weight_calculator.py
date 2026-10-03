@@ -1,6 +1,7 @@
 """Гибридные веса BM25 + Embeddings (с PCA, graceful degradation, merge BM25-only)."""
 
 import math
+
 import numpy as np
 import structlog
 import torch
@@ -71,6 +72,7 @@ class HybridWeightCalculator:
         # IDF bonus: rare skills get higher weight
         try:
             import json
+
             from src import config as cfg
             freq_path = cfg.DATA_PROCESSED_DIR / "competency_frequency.json"
             if freq_path.exists():

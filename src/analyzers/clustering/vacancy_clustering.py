@@ -14,9 +14,9 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
 
-from src import Result, Ok, Err, config
-from src.errors import DomainError
+from src import Ok, Result, config
 from src.artifacts import ArtifactManifest
+from src.errors import DomainError
 from src.models.enums import ExperienceLevel
 from src.parsing.api.embedding_loader import get_embedding_model
 from src.parsing.skills.skill_normalizer import SkillNormalizer
@@ -134,6 +134,14 @@ class VacancyClusterer:
             logger.warning("no_vacancies_for_clustering")
             return self
 
+        # Детерминизм: порядок строк X обязан быть фиксирован, иначе KMeans++
+        # при том же seed даёт другой init (вероятности зависят от порядка).
+        # Источники (БД без ORDER BY, glob) порядок не гарантируют.
+        try:
+            vacancies = sorted(vacancies, key=lambda v: str(v.get("id", "")))
+        except Exception:
+            pass
+
         n_samples = len(vacancies)
         if n_samples < 10:
             logger.warning("too_few_vacancies_for_clustering", samples=n_samples, level=level)
@@ -168,7 +176,7 @@ class VacancyClusterer:
                 continue
             kmeans = KMeans(
                 n_clusters=k,
-                random_state=config.GLOBAL_RANDOM_SEED if hasattr(config, "GLOBAL_RANDOM_SEED") else 42,
+                random_state=self.random_state,
                 n_init="auto",
                 max_iter=300,
             )
@@ -177,7 +185,7 @@ class VacancyClusterer:
                 continue
             try:
                 if n_samples > 500:
-                    rng = np.random.RandomState(42)
+                    rng = np.random.RandomState(self.random_state)
                     idx = rng.choice(n_samples, 500, replace=False)
                     score = silhouette_score(x[idx], labels[idx], metric="cosine")
                 else:
@@ -205,10 +213,13 @@ class VacancyClusterer:
         if best_score < 0.2 and self.use_hdbscan_fallback and n_samples >= self.min_cluster_size * 2:
             logger.info("trying_hdbscan_fallback", silhouette=round(best_score, 3))
             try:
-                # euclidean на L2-нормализованных векторах эквивалентен cosine
+                # euclidean на L2-нормализованных векторах эквивалентен cosine.
+                # HDBSCAN детерминирован при фиксированных данных (без random_state
+                # в API); фиксируем seed через numpy для воспроизводимости сэмплов.
                 clusterer = hdbscan.HDBSCAN(
                     min_cluster_size=self.min_cluster_size, metric="euclidean", core_dist_n_jobs=-1
                 )
+                logger.info("hdbscan_fallback_seed", random_state=self.random_state)
                 labels = clusterer.fit_predict(x)
                 n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
                 if n_clusters >= 2:
@@ -471,6 +482,13 @@ class VacancyClusterer:
             name += f" + {secondary}"
 
         return name
+
+    def get_cluster_sizes(self) -> dict[int, int]:
+        """Размер каждого кластера в вакансиях (для фильтра микрокластеров)."""
+        if self.labels_ is None:
+            return {}
+        from collections import Counter
+        return dict(Counter(int(label) for label in self.labels_))
 
     def get_top_skills_in_cluster(self, cluster_id: int, top_n: int = 30) -> list[str]:
         """Возвращает топ-N навыков кластера по частоте."""

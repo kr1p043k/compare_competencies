@@ -1,8 +1,6 @@
 """Concrete pipeline stages — адаптеры для существующих классов."""
 
 import json
-import time
-from pathlib import Path
 from typing import Any
 
 import structlog
@@ -15,10 +13,9 @@ from src.pipeline.level_builder import LevelBuilder
 from src.pipeline.skill_extractor import SkillExtractor
 from src.pipeline.stage import PipelineStage
 from src.pipeline.weight_cleaner import WeightCleaner
-from src.pipeline.progress import write as write_progress
+from src.predictors import create_ranking_predictor
 from src.result import Result
 from src.scoring.vacancy_quality_scorer import VacancyQualityScorer
-from src.predictors import create_ranking_predictor
 from src.utils import safe_read_json
 
 logger = structlog.get_logger(__name__)
@@ -32,7 +29,8 @@ class DataCollectionStage(PipelineStage):
         self.args = args
 
     def run(self, **kwargs) -> Result[tuple, Any]:
-        from src.monitoring.metrics import track_pipeline_stage, vacancies_loaded as vm
+        from src.monitoring.metrics import track_pipeline_stage
+        from src.monitoring.metrics import vacancies_loaded as vm
         @track_pipeline_stage("data_collection")
         def _run():
             if self.args.skip_collection:
@@ -126,8 +124,8 @@ class QualityScoringStage(PipelineStage):
                     total=total,
                 )
                 print(f"\n  ⚠️  Обнаружено {spam_count}/{total} нерелевантных вакансий ({clean_pct:.0f}% качественных).")
-                print(f"     Возможно, HH.ru вернул «похожие запросы» вместо точных результатов.")
-                print(f"     Попробуйте другой регион или уточните запрос.\n")
+                print("     Возможно, HH.ru вернул «похожие запросы» вместо точных результатов.")
+                print("     Попробуйте другой регион или уточните запрос.\n")
 
             return Ok({"quality_report": quality_report})
         return _run()
@@ -157,6 +155,9 @@ class SkillExtractionStage(PipelineStage):
                                 case Err(_):
                                     texts = []
                             v.raw_data["extracted_skills"] = texts
+                            # LevelBuilder читает атрибут vac.extracted_skills — дублируем туда же,
+                            # иначе level_data/vacancies_skills всегда пустые на кэш-файлах без key_skills.
+                            v.extracted_skills = texts
                         elif isinstance(v, dict):
                             vac_obj = Vacancy.from_api(v)
                             match parser.skill_parser.parse_vacancy(vac_obj):
@@ -247,7 +248,7 @@ class ModelTrainingStage(PipelineStage):
     pct_range = (65, 70)
 
     def run(self, **kwargs) -> Result[dict, Any]:
-        from src.monitoring.metrics import track_pipeline_stage, ltr_model_metrics
+        from src.monitoring.metrics import ltr_model_metrics, track_pipeline_stage
         @track_pipeline_stage("model_training")
         def _run():
             self._progress(0, "Обучение LTR-модели ранжирования...")
@@ -324,7 +325,7 @@ class GapAnalysisStage(PipelineStage):
         self.args = args
 
     def run(self, **kwargs) -> Result[dict, Any]:
-        from src.monitoring.metrics import track_pipeline_stage, recommendations_generated
+        from src.monitoring.metrics import recommendations_generated, track_pipeline_stage
         @track_pipeline_stage("gap_analysis")
         def _run():
             num_profiles = len(self.profiles)

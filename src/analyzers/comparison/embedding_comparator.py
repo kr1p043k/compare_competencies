@@ -16,15 +16,14 @@ import structlog
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src import Err, Ok, Result, config
-from src.errors import DomainError
+from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
 from src.analyzers.comparison.engines import (
     ComparisonResult,
     EnsembleEngine,
-    JaccardEngine,
     SimilarityEngine,
 )
 from src.artifacts import ArtifactManifest
-from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+from src.errors import DomainError
 
 if TYPE_CHECKING:
     from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
@@ -60,7 +59,7 @@ class EmbeddingComparator:
         self._skill_cache_lock = threading.Lock()
         self._skill_cache: dict[str, np.ndarray] = {}
 
-    def _get_cache_path(self, name: str, level: str = "middle") -> Path:
+    def _get_cache_path(self, name: str, level: str = "all") -> Path:
         return self.cache_dir / f"{name}_{level}.joblib"
 
     def _load_skill_cache(self) -> None:
@@ -121,7 +120,7 @@ class EmbeddingComparator:
             self._save_skill_cache()
         return np.stack([self._skill_cache[s] for s in skills])
 
-    def build_market_index(self, all_market_skills: list[str], level: str = "middle"):
+    def build_market_index(self, all_market_skills: list[str], level: str = "all"):
         cache_path = self._get_cache_path("market_embeddings", level)
 
         if cache_path.exists():

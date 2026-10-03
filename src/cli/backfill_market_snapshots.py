@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import json
 from collections import Counter
-from datetime import datetime
 
 from sqlalchemy import text
 
@@ -50,6 +49,27 @@ async def _build_monthly_freqs() -> dict[str, dict[str, float]]:
     return {m: {k: float(v) for k, v in c.items()} for m, c in monthly.items()}
 
 
+async def _build_monthly_counts() -> dict[str, int]:
+    """Объём выборки по месяцам (для _meta.vacancy_count)."""
+    counts: dict[str, int] = {}
+    async with async_session_factory() as session:
+        rows = await session.execute(text(
+            """
+            SELECT
+                to_char(date_trunc('month', v.published_at::timestamp), 'YYYY-MM') AS month,
+                COUNT(DISTINCT v.id) AS n
+            FROM vacancies v
+            WHERE v.parsed_skills IS NOT NULL
+              AND v.parsed_skills::text != '[]'
+              AND v.published_at IS NOT NULL
+            GROUP BY month
+            """
+        ))
+        for row in rows:
+            counts[row.month] = int(row.n)
+    return counts
+
+
 def _existing_months() -> set[str]:
     existing: set[str] = set()
     for f in sorted(config.HISTORY_DIR.glob("freq_market_*.json")):
@@ -58,7 +78,8 @@ def _existing_months() -> set[str]:
     return existing
 
 
-def _write_month_snapshot(month: str, freqs: dict[str, float]) -> None:
+def _write_month_snapshot(month: str, freqs: dict[str, float],
+                          vacancy_count: int | None = None) -> None:
     """Пишет freq_market_YYYY-MM.json в формате _meta (как save_snapshot)."""
     # whitelist-фильтр, как в save_snapshot(apply_whitelist=True)
     try:
@@ -77,7 +98,9 @@ def _write_month_snapshot(month: str, freqs: dict[str, float]) -> None:
         "_meta": {
             "type": "full_market",
             "snapshot_date": f"{month}-01",
-            "vacancy_count": None,
+            "vacancy_count": vacancy_count,
+            "synthetic": False,
+            "methodology_version": "v2",
             "source": "it_sector",
         }
     }
@@ -92,6 +115,8 @@ def main(force: bool = False) -> None:
     if not monthly:
         print("No monthly data found in vacancies.parsed_skills")
         return
+
+    counts = asyncio.run(_build_monthly_counts())
 
     existing = _existing_months()
     print(f"Months in DB: {sorted(monthly)}")
@@ -108,7 +133,8 @@ def main(force: bool = False) -> None:
     print(f"Backfilling {len(missing)} months: {missing}")
     for month in missing:
         print(f"  {month}: {len(monthly[month])} skills")
-        _write_month_snapshot(month, monthly[month])
+        _write_month_snapshot(month, monthly[month],
+                              vacancy_count=counts.get(month))
 
     print("Done.")
 

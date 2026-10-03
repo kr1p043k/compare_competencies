@@ -2,13 +2,12 @@
 import asyncio
 import json
 import sys
-from datetime import datetime
 
 sys.path.insert(0, str(__file__).rsplit("\\", 4)[0])
 
 from sqlalchemy import text
 
-from src import Ok, Err
+from src import Ok
 from src.database import async_session_factory
 from src.models.vacancy import Area, Employer, KeySkill, Snippet, Vacancy
 from src.parsing.skills.skill_normalizer import SkillNormalizer

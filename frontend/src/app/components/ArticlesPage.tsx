@@ -13,7 +13,6 @@ import {
   Briefcase,
   Wallet,
   TrendingUp,
-  Radar as RadarIcon,
   Layers,
   BookOpen,
   AlertCircle,
@@ -24,11 +23,13 @@ import {
   Building2,
 } from "lucide-react";
 import { api } from "../api";
+import { AnalyticsCharts } from "./AnalyticsCharts";
+import { ShowMore } from "./ui/show-more";
 
 const fmt = new Intl.NumberFormat("ru-RU");
 
 function formatSalary(value: number): string {
-  if (!value) return "—";
+  if (!value) return "–";
   return `${fmt.format(Math.round(value))} ₽`;
 }
 
@@ -38,7 +39,7 @@ type VacancyStats = {
   salary: { average: number; min: number; max: number; count: number };
 };
 
-type TopSkill = { skill: string; weight: number };
+type TopSkill = { skill: string; weight: number; frequency?: number };
 
 type TaxonomyCoverage = {
   coverage: Record<string, { label: string; icon: string; total: number; covered: number; percent: number }>;
@@ -53,12 +54,6 @@ type ProfessionTrends = {
   source?: string;
   snapshot_date?: string;
   skills: { skill: string; frequency: number }[];
-};
-
-type ImageEntry = {
-  src: string;
-  title: string;
-  description: string;
 };
 
 type Analytics = {
@@ -110,16 +105,16 @@ function BarRow({
   const width = max > 0 ? Math.max((value / max) * 100, value > 0 ? 2 : 0) : 0;
   return (
     <div className="flex items-center gap-3">
-      <div className="w-28 shrink-0 text-sm text-gray-600 truncate text-right" title={label}>
+      <div className="w-28 shrink-0 text-sm text-gray-600 dark:text-slate-400 truncate text-right" title={label}>
         {label}
       </div>
-      <div className="flex-1 h-6 bg-gray-100 rounded overflow-hidden">
+      <div className="flex-1 h-6 bg-gray-100 dark:bg-slate-800 rounded overflow-hidden">
         <div
           className="h-full rounded transition-all duration-700"
           style={{ width: `${width}%`, backgroundColor: color }}
         />
       </div>
-      <div className="w-24 shrink-0 text-sm font-medium text-gray-800 tabular-nums">
+      <div className="w-24 shrink-0 text-sm font-medium text-gray-800 dark:text-slate-200 tabular-nums">
         {valueText ?? `${fmt.format(value)}${suffix}`}
       </div>
     </div>
@@ -146,29 +141,29 @@ function BlockCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="border border-gray-200 shadow-sm">
-      <CardHeader className="border-b border-gray-200 bg-gray-50">
+    <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
+      <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-9 h-9 bg-blue-600 rounded-lg shrink-0">
             <Icon className="size-5 text-white" />
           </div>
           <div className="min-w-0">
-            <CardTitle className="text-lg font-semibold text-gray-900">{title}</CardTitle>
-            <CardDescription className="text-sm text-gray-600">{description}</CardDescription>
+            <CardTitle className="text-lg font-semibold text-gray-900 dark:text-slate-100">{title}</CardTitle>
+            <CardDescription className="text-sm text-gray-600 dark:text-slate-400">{description}</CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent className="p-6">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+          <div className="flex flex-col items-center justify-center py-10 text-gray-400 dark:text-slate-500">
             <RefreshCw className="size-8 mb-3 animate-spin" />
             <p className="text-sm">Загрузка данных...</p>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <AlertCircle className="size-8 mb-3 text-amber-500" />
-            <p className="text-sm text-gray-600">Данные временно недоступны.</p>
-            <p className="text-xs text-gray-400 mt-1 max-w-md">{error}</p>
+            <p className="text-sm text-gray-600 dark:text-slate-400">Данные временно недоступны.</p>
+            <p className="text-xs text-gray-400 dark:text-slate-500 mt-1 max-w-md">{error}</p>
             {onRetry && (
               <button
                 onClick={onRetry}
@@ -181,8 +176,8 @@ function BlockCard({
         ) : empty ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <BarChart3 className="size-8 mb-3 text-gray-300" />
-            <p className="text-sm text-gray-500">Данные появятся после запуска пайплайна анализа.</p>
-            <p className="text-xs text-gray-400 mt-1">Пока бэкенд прогревается, аналитические метрики не рассчитаны.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Данные появятся после запуска пайплайна анализа.</p>
+            <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Пока бэкенд прогревается, аналитические метрики не рассчитаны.</p>
           </div>
         ) : (
           children
@@ -192,25 +187,7 @@ function BlockCard({
   );
 }
 
-const IMAGES: ImageEntry[] = [
-  {
-    src: "/api/results/images/base/radar",
-    title: "Радар эталонных профилей",
-    description: "Сравнение профилей уровней Junior / Middle / Senior по ключевым навыкам",
-  },
-  {
-    src: "/api/results/images/coverage-comparison",
-    title: "Покрытие рынка по уровням",
-    description: "Доля навыков, покрываемых эталонными профилями каждого уровня",
-  },
-  {
-    src: "/api/results/images/skills-heatmap",
-    title: "Тепловая карта навыков",
-    description: "Распределение навыков по категориям таксономии и уровням",
-  },
-];
-
-export function ArticlesPage() {
+export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () => void }) {
   const [stats, setStats] = useState<VacancyStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
@@ -229,9 +206,11 @@ export function ArticlesPage() {
   const [profTrends, setProfTrends] = useState<ProfessionTrends | null>(null);
   const [profTrendsLoading, setProfTrendsLoading] = useState(false);
 
-  const [images, setImages] = useState(IMAGES.map((i) => ({ ...i, broken: false })));
-
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [showAllRegions, setShowAllRegions] = useState(false);
+  const [showAllRising, setShowAllRising] = useState(false);
+  const [showAllFalling, setShowAllFalling] = useState(false);
+  const [showAllTopSkills, setShowAllTopSkills] = useState(false);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
@@ -319,7 +298,7 @@ export function ArticlesPage() {
     stats?.by_experience.senior ?? 0,
   );
 
-  const skillsMax = topSkills.length ? Math.max(...topSkills.map((s) => s.weight)) : 0;
+    const skillsMax = topSkills.length ? Math.max(...topSkills.map((s) => s.frequency ?? s.weight)) : 0;
 
   const salaryMax = analytics
     ? Math.max(
@@ -349,89 +328,89 @@ export function ArticlesPage() {
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-4">
         <div className="inline-flex items-center justify-center gap-3 mb-2">
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl blur-xl opacity-50 animate-pulse" />
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-50 dark:from-blue-950/30 to-purple-600 rounded-2xl blur-xl opacity-50 animate-pulse" />
             <div className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 p-3 rounded-2xl shadow-2xl">
               <Newspaper className="size-8 text-white" />
             </div>
           </div>
           <div className="text-left">
-            <h2 className="text-3xl font-bold text-gray-900">Аналитика рынка</h2>
-            <p className="text-gray-600">Статистика рынка вакансий и рекомендации по развитию навыков</p>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-slate-100">Аналитика рынка</h2>
+            <p className="text-gray-600 dark:text-slate-400">Статистика рынка вакансий и рекомендации по развитию навыков</p>
           </div>
         </div>
       </motion.div>
 
       {/* KPI cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border border-gray-200 shadow-sm">
+        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
-            <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-xl">
+            <div className="flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-950/30 rounded-xl">
               <Briefcase className="size-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Всего вакансий на рынке</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Всего вакансий на рынке</p>
               {statsLoading ? (
-                <div className="h-7 w-28 bg-gray-200 animate-pulse rounded mt-1" />
+                <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 animate-pulse rounded mt-1" />
               ) : (
-                <p className="text-2xl font-bold text-gray-900 tabular-nums">
-                  {stats ? fmt.format(stats.total) : "—"}
+                <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
+                  {stats ? fmt.format(stats.total) : "–"}
                 </p>
               )}
             </div>
           </CardContent>
         </Card>
-        <Card className="border border-gray-200 shadow-sm">
+        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
-            <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-xl">
+            <div className="flex items-center justify-center w-12 h-12 bg-green-100 dark:bg-green-950/30 rounded-xl">
               <Wallet className="size-6 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Средняя зарплата</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Средняя зарплата</p>
               {statsLoading ? (
-                <div className="h-7 w-28 bg-gray-200 animate-pulse rounded mt-1" />
+                <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 animate-pulse rounded mt-1" />
               ) : (
-                <p className="text-2xl font-bold text-gray-900 tabular-nums">
-                  {stats ? formatSalary(stats.salary.average) : "—"}
+                <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
+                  {stats ? formatSalary(stats.salary.average) : "–"}
                 </p>
               )}
             </div>
           </CardContent>
         </Card>
-        <Card className="border border-gray-200 shadow-sm">
+        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
-            <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-xl">
+            <div className="flex items-center justify-center w-12 h-12 bg-purple-100 dark:bg-purple-950/30 rounded-xl">
               <TrendingUp className="size-6 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Вакансий с указанной зарплатой</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Вакансий с указанной зарплатой</p>
               {statsLoading ? (
-                <div className="h-7 w-28 bg-gray-200 animate-pulse rounded mt-1" />
+                <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 animate-pulse rounded mt-1" />
               ) : (
-                <p className="text-2xl font-bold text-gray-900 tabular-nums">
-                  {stats ? fmt.format(stats.salary.count) : "—"}
+                <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
+                  {stats ? fmt.format(stats.salary.count) : "–"}
                 </p>
               )}
             </div>
           </CardContent>
         </Card>
-        <Card className="border border-gray-200 shadow-sm">
+        <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
-            <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-xl">
+            <div className="flex items-center justify-center w-12 h-12 bg-orange-100 dark:bg-orange-950/30 rounded-xl">
               <ListChecks className="size-6 text-orange-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Вакансии с навыками</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Вакансии с навыками</p>
               {analyticsLoading ? (
-                <div className="h-7 w-28 bg-gray-200 animate-pulse rounded mt-1" />
+                <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 animate-pulse rounded mt-1" />
               ) : (
-                <p className="text-2xl font-bold text-gray-900 tabular-nums">
+                <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
                   {analytics
-                    ? `${fmt.format(analytics.skills.with_skills)} · ${analytics.skills.percent.toFixed(1)}%`
-                    : "—"}
+                    ? fmt.format(analytics.skills.with_skills)
+                    : "–"}
                 </p>
               )}
               {!analyticsLoading && analytics && (
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
                   в среднем {analytics.skills.avg_skills_per_vacancy} навыка на вакансию
                 </p>
               )}
@@ -466,9 +445,9 @@ export function ArticlesPage() {
                   />
                 );
               })}
-              <div className="pt-4 border-t border-gray-100 flex justify-between text-sm text-gray-500">
+              <div className="pt-4 border-t border-gray-100 dark:border-slate-800 flex justify-between text-sm text-gray-500 dark:text-slate-400">
                 <span>Всего вакансий с окладом</span>
-                <span className="font-medium text-gray-800 tabular-nums">
+                <span className="font-medium text-gray-800 dark:text-slate-200 tabular-nums">
                   {fmt.format(stats?.salary.count ?? 0)}
                 </span>
               </div>
@@ -487,7 +466,7 @@ export function ArticlesPage() {
         >
           {analytics && (
             <div className="space-y-2.5">
-              {analytics.top_regions.map((r) => (
+              {(showAllRegions ? analytics.top_regions : analytics.top_regions.slice(0, 5)).map((r) => (
                 <BarRow
                   key={r.name}
                   label={r.name}
@@ -496,6 +475,7 @@ export function ArticlesPage() {
                   color="#3b82f6"
                 />
               ))}
+              <ShowMore total={analytics.top_regions.length} shown={5} expanded={showAllRegions} onToggle={() => setShowAllRegions((v) => !v)} />
             </div>
           )}
         </BlockCard>
@@ -541,13 +521,13 @@ export function ArticlesPage() {
               {trends.rising.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-green-700">Растут</span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-sm font-medium text-green-700 dark:text-green-300">Растут</span>
+                    <span className="text-xs text-gray-400 dark:text-slate-500">
                       относительно снапшота {trends.rising[0]?.prev_label}
                     </span>
                   </div>
                   <div className="space-y-2">
-                    {trends.rising.map((t) => (
+                    {(showAllRising ? trends.rising : trends.rising.slice(0, 5)).map((t) => (
                       <BarRow
                         key={t.skill}
                         label={t.skill}
@@ -557,19 +537,20 @@ export function ArticlesPage() {
                         valueText={`+${t.change_pct.toFixed(1)}%`}
                       />
                     ))}
+                    <ShowMore total={trends.rising.length} shown={5} expanded={showAllRising} onToggle={() => setShowAllRising((v) => !v)} />
                   </div>
                 </div>
               )}
               {trends.falling.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-red-700">Падают</span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-sm font-medium text-red-700 dark:text-red-300">Падают</span>
+                    <span className="text-xs text-gray-400 dark:text-slate-500">
                       относительно снапшота {trends.falling[0]?.prev_label}
                     </span>
                   </div>
                   <div className="space-y-2">
-                    {trends.falling.map((t) => (
+                    {(showAllFalling ? trends.falling : trends.falling.slice(0, 5)).map((t) => (
                       <BarRow
                         key={t.skill}
                         label={t.skill}
@@ -579,6 +560,7 @@ export function ArticlesPage() {
                         valueText={`${t.change_pct.toFixed(1)}%`}
                       />
                     ))}
+                    <ShowMore total={trends.falling.length} shown={5} expanded={showAllFalling} onToggle={() => setShowAllFalling((v) => !v)} />
                   </div>
                 </div>
               )}
@@ -609,9 +591,9 @@ export function ArticlesPage() {
                   color={color}
                 />
               ))}
-              <div className="pt-4 border-t border-gray-100 flex justify-between text-sm text-gray-500">
+              <div className="pt-4 border-t border-gray-100 dark:border-slate-800 flex justify-between text-sm text-gray-500 dark:text-slate-400">
                 <span>Всего в базе</span>
-                <span className="font-medium text-gray-800 tabular-nums">{fmt.format(stats.total)}</span>
+                <span className="font-medium text-gray-800 dark:text-slate-200 tabular-nums">{fmt.format(stats.total)}</span>
               </div>
             </div>
           )}
@@ -620,66 +602,30 @@ export function ArticlesPage() {
         <BlockCard
           icon={TrendingUp}
           title="Топ востребованных навыков"
-          description="Навыки с наибольшим весом на рынке (частота упоминаний в вакансиях)"
+          description="Число упоминаний навыка в вакансиях (вес — нормализованная метрика)"
           loading={skillsLoading}
           error={skillsError}
           onRetry={loadTopSkills}
           empty={topSkills.length === 0}
         >
           <div className="space-y-2.5">
-            {topSkills.map((s) => (
+            {(showAllTopSkills ? topSkills : topSkills.slice(0, 5)).map((s) => (
               <BarRow
                 key={s.skill}
                 label={s.skill}
-                value={s.weight}
+                value={s.frequency ?? s.weight}
                 max={skillsMax}
                 color="#8b5cf6"
-                valueText={s.weight.toFixed(3)}
+                valueText={s.frequency != null ? fmt.format(s.frequency) : s.weight.toFixed(3)}
               />
             ))}
+            <ShowMore total={topSkills.length} shown={5} expanded={showAllTopSkills} onToggle={() => setShowAllTopSkills((v) => !v)} />
           </div>
         </BlockCard>
       </div>
 
-      {/* Embedded images */}
-      <div>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex items-center justify-center w-9 h-9 bg-blue-600 rounded-lg">
-            <RadarIcon className="size-5 text-white" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Аналитические графики</h3>
-            <p className="text-sm text-gray-600">Визуализация профилей компетенций по результатам анализа</p>
-          </div>
-        </div>
-        <div className="grid gap-6 lg:grid-cols-3">
-          {images.map((img) => (
-            <Card key={img.src} className="border border-gray-200 shadow-sm overflow-hidden">
-              {img.broken ? (
-                <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                  <AlertCircle className="size-8 mb-3 text-amber-500" />
-                  <p className="text-sm text-gray-500">График ещё не сгенерирован.</p>
-                </CardContent>
-              ) : (
-                <>
-                  <div className="bg-gray-50 border-b border-gray-200 flex items-center justify-center h-52">
-                    <img
-                      src={img.src}
-                      alt={img.title}
-                      className="max-h-full max-w-full object-contain"
-                      onError={() => setImages((prev) => prev.map((p) => (p.src === img.src ? { ...p, broken: true } : p)))}
-                    />
-                  </div>
-                  <CardHeader>
-                    <CardTitle className="text-base font-semibold text-gray-900">{img.title}</CardTitle>
-                    <CardDescription className="text-sm text-gray-600">{img.description}</CardDescription>
-                  </CardHeader>
-                </>
-              )}
-            </Card>
-          ))}
-        </div>
-      </div>
+      {/* Интерактивные графики */}
+      <AnalyticsCharts onStartGapAnalysis={onStartGapAnalysis} />
 
       {/* Taxonomy coverage */}
       <BlockCard
@@ -707,15 +653,15 @@ export function ArticlesPage() {
       </BlockCard>
 
       {/* Profession trends */}
-      <Card className="border border-gray-200 shadow-sm">
-        <CardHeader className="border-b border-gray-200 bg-gray-50">
+      <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
+        <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-9 h-9 bg-blue-600 rounded-lg">
               <BookOpen className="size-5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <CardTitle className="text-lg font-semibold text-gray-900">Тренды по профессиям</CardTitle>
-              <CardDescription className="text-sm text-gray-600">
+              <CardTitle className="text-lg font-semibold text-gray-900 dark:text-slate-100">Тренды по профессиям</CardTitle>
+              <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
                 Топ навыков из последнего снапшота анализа по выбранной профессии
               </CardDescription>
             </div>
@@ -725,8 +671,8 @@ export function ArticlesPage() {
           {profError ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
               <AlertCircle className="size-8 mb-3 text-amber-500" />
-              <p className="text-sm text-gray-600">Данные временно недоступны.</p>
-              <p className="text-xs text-gray-400 mt-1 max-w-md">{profError}</p>
+              <p className="text-sm text-gray-600 dark:text-slate-400">Данные временно недоступны.</p>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1 max-w-md">{profError}</p>
               <button
                 onClick={loadProfessions}
                 className="mt-4 inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -737,8 +683,8 @@ export function ArticlesPage() {
           ) : professions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
               <BookOpen className="size-8 mb-3 text-gray-300" />
-              <p className="text-sm text-gray-500">Снапшоты профессий ещё не сформированы.</p>
-              <p className="text-xs text-gray-400 mt-1">Данные появятся после первого запуска пайплайна анализа.</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Снапшоты профессий ещё не сформированы.</p>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Данные появятся после первого запуска пайплайна анализа.</p>
             </div>
           ) : (
             <div className="space-y-5">
@@ -756,7 +702,7 @@ export function ArticlesPage() {
               </Select>
 
               {profTrendsLoading ? (
-                <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                <div className="flex flex-col items-center justify-center py-8 text-gray-400 dark:text-slate-500">
                   <RefreshCw className="size-7 mb-3 animate-spin" />
                   <p className="text-sm">Загрузка навыков профессии...</p>
                 </div>
@@ -779,7 +725,7 @@ export function ArticlesPage() {
               ) : (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <BarChart3 className="size-7 mb-3 text-gray-300" />
-                  <p className="text-sm text-gray-500">Навыки по этой профессии пока не рассчитаны.</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Навыки по этой профессии пока не рассчитаны.</p>
                 </div>
               )}
             </div>

@@ -1,12 +1,9 @@
 """EmbeddingProvider abstraction layer for skill embeddings."""
 
-from abc import ABC, abstractmethod
-from typing import Any
 import threading
+from abc import ABC, abstractmethod
 
 import numpy as np
-
-from src import Ok, Result
 
 
 class EmbeddingProvider(ABC):

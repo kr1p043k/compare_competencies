@@ -53,10 +53,10 @@ function coverageColor(val: number | undefined): string {
 }
 
 function bgColor(val: number | undefined): string {
-  if (val === undefined) return "bg-gray-50";
-  if (val >= 0.6) return "bg-green-50 border-green-200";
-  if (val >= 0.2) return "bg-yellow-50 border-yellow-200";
-  return "bg-red-50 border-red-200";
+  if (val === undefined) return "bg-gray-50 dark:bg-slate-900";
+  if (val >= 0.6) return "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800";
+  if (val >= 0.2) return "bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800";
+  return "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800";
 }
 
 function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
@@ -75,27 +75,27 @@ function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
   return (
     <div>
       <div
-        className={`flex items-center justify-between px-3 py-2 text-sm border rounded mb-0.5 cursor-pointer transition-colors hover:bg-gray-100 ${bgColor(displayCov)}`}
+        className={`flex items-center justify-between px-3 py-2 text-sm border rounded mb-0.5 cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-slate-800 ${bgColor(displayCov)}`}
         style={{ marginLeft: depth * 16 }}
         onClick={() => (hasChildren || hasSkills) && setOpen(!open)}
       >
         <div className="flex items-center gap-2 min-w-0">
           {hasChildren ? (
-            open ? <ChevronDown className="size-4 shrink-0 text-gray-400" /> : <ChevronRight className="size-4 shrink-0 text-gray-400" />
+            open ? <ChevronDown className="size-4 shrink-0 text-gray-400 dark:text-slate-500" /> : <ChevronRight className="size-4 shrink-0 text-gray-400 dark:text-slate-500" />
           ) : (
             <span className="size-4 inline-block" />
           )}
-          <span className="font-medium text-gray-800 truncate">{node.code}</span>
+          <span className="font-medium text-gray-800 dark:text-slate-200 truncate">{node.code}</span>
           {hasChildren && (
-            <span className="text-xs text-gray-400 shrink-0">({node.children!.length})</span>
+            <span className="text-xs text-gray-400 dark:text-slate-500 shrink-0">({node.children!.length})</span>
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0 ml-3">
-          <span className={`text-xs ${total > 0 ? "text-gray-500" : "text-gray-300"}`}>
+          <span className={`text-xs ${total > 0 ? "text-gray-500 dark:text-slate-400" : "text-gray-300"}`}>
             {matched}/{total}
           </span>
           <span className={`font-semibold text-sm tabular-nums ${coverageColor(displayCov)}`}>
-            {displayCov !== undefined ? (displayCov * 100).toFixed(0) : "—"}%
+            {displayCov !== undefined ? (displayCov * 100).toFixed(0) : "–"}%
           </span>
         </div>
       </div>
@@ -109,17 +109,17 @@ function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
       {open && hasSkills && (
         <div className="flex flex-wrap gap-1 px-3 py-2" style={{ marginLeft: depth * 16 + 20 }}>
           {matchedList.slice(0, 8).map((s, i) => (
-            <span key={"m" + i} title={s} className="text-[11px] px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+            <span key={"m" + i} title={s} className="text-[11px] px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800">
               {shortSkill(s)}
             </span>
           ))}
           {gapList.slice(0, 8).map((s, i) => (
-            <span key={"g" + i} title={s} className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
+            <span key={"g" + i} title={s} className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
               {shortSkill(s)}
             </span>
           ))}
           {(matchedList.length > 8 || gapList.length > 8) && (
-            <span className="text-[11px] px-2 py-0.5 text-gray-400">
+            <span className="text-[11px] px-2 py-0.5 text-gray-400 dark:text-slate-500">
               +{Math.max(0, matchedList.length - 8) + Math.max(0, gapList.length - 8)} more
             </span>
           )}

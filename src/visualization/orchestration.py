@@ -1,8 +1,10 @@
 """Оркестрация построения всех графиков с учётом таксономии профессий."""
 
+import gc
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +28,20 @@ from .radar import plot_skill_comparison_radar
 logger = structlog.get_logger(__name__)
 
 
+def _chart_step(label: str, fn: Callable[[], None]) -> None:
+    """Один график: падение фигуры роняет только её, плюс чистка памяти."""
+    try:
+        fn()
+    except Exception as e:
+        logger.warning("chart_step_failed_nonfatal", chart=label, error=str(e)[:300])
+    finally:
+        try:
+            plt.close("all")
+        except Exception:
+            pass
+        gc.collect()
+
+
 def save_all_charts(
     results: dict[str, Any],
     output_dir: Path,
@@ -36,37 +52,40 @@ def save_all_charts(
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info("generating_all_charts", output_dir=str(output_dir), profiles=len(results))
 
-    logger.info("chart_coverage_comparison")
-    plot_coverage_comparison(results, output_dir / "coverage_comparison.png")
-    logger.info("chart_profession_coverage")
-    plot_profession_coverage(results, output_dir / "profession_coverage.png")
-    logger.info("chart_domain_skill_gaps")
-    plot_domain_skill_gaps(results, output_dir / "domain_skill_gaps.png")
+    _chart_step("coverage_comparison", lambda: plot_coverage_comparison(results, output_dir / "coverage_comparison.png"))
+    _chart_step("profession_coverage", lambda: plot_profession_coverage(results, output_dir / "profession_coverage.png"))
+    _chart_step("domain_skill_gaps", lambda: plot_domain_skill_gaps(results, output_dir / "domain_skill_gaps.png"))
 
     skill_weights = load_skill_weights()
     market_top = list(skill_weights.keys())[:15] if skill_weights else []
 
     logger.info("chart_per_profile_start", profiles=list(results.keys()))
     for profile_name, eval_dict in results.items():
-        prof_dir = output_dir / profile_name
-        prof_dir.mkdir(exist_ok=True)
-        student_skills = eval_dict.get("student_skills", [])
-        if market_top:
-            plot_skill_comparison_radar(
-                student_skills,
-                market_top,
-                profile_name.capitalize(),
-                prof_dir / f"radar_{profile_name}.png",
-            )
-        if use_ml:
-            plot_ml_importance(profile_name, save_path=prof_dir / f"ml_importance_{profile_name}.png")
-        plot_weight_distribution(skill_weights, save_path=prof_dir / f"weights_{profile_name}.png")
+        if not isinstance(eval_dict, dict):
+            logger.warning("chart_profile_skipped_not_dict", profile=profile_name)
+            continue
+
+        def _one_profile(pn=profile_name, ev=eval_dict):
+            prof_dir = output_dir / pn
+            prof_dir.mkdir(exist_ok=True)
+            student_skills = ev.get("student_skills", [])
+            if market_top:
+                plot_skill_comparison_radar(
+                    student_skills,
+                    market_top,
+                    pn.capitalize(),
+                    prof_dir / f"radar_{pn}.png",
+                )
+            if use_ml:
+                plot_ml_importance(pn, save_path=prof_dir / f"ml_importance_{pn}.png")
+            plot_weight_distribution(skill_weights, save_path=prof_dir / f"weights_{pn}.png")
+
+        _chart_step(f"profile_{profile_name}", _one_profile)
 
 
     logger.info("chart_per_profile_done")
     if vacancies_skills_list:
-        try:
-            logger.info("chart_correlation_heatmap")
+        def _corr():
             from src.analyzers.skills.skill_correlation import SkillCorrelationAnalyzer
 
             corr_analyzer = SkillCorrelationAnalyzer()
@@ -74,13 +93,10 @@ def save_all_charts(
             plot_skill_correlation_heatmap(
                 corr_analyzer, top_n=25, save_path=output_dir / "skill_correlation_heatmap.png"
             )
-        except Exception as e:
-            logger.warning("correlation_heatmap_failed", error=str(e))
+        _chart_step("correlation_heatmap", _corr)
 
-    logger.info("chart_skills_heatmap")
-    plot_skills_heatmap(results, top_n=20, save_path=output_dir / "skills_heatmap.png")
-    logger.info("chart_cluster_insights")
-    plot_cluster_insights(results, output_dir)
+    _chart_step("skills_heatmap", lambda: plot_skills_heatmap(results, top_n=20, save_path=output_dir / "skills_heatmap.png"))
+    _chart_step("cluster_insights", lambda: plot_cluster_insights(results, output_dir))
     logger.info("all_charts_generated")
 
 

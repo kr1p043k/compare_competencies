@@ -5,9 +5,7 @@ import time
 from functools import wraps
 
 import structlog
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
-
-from src import config
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
 logger = structlog.get_logger(__name__)
 

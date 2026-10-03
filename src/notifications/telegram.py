@@ -1,5 +1,5 @@
-import structlog
 import httpx
+import structlog
 
 from src import config
 

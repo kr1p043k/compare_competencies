@@ -20,7 +20,7 @@ def _write(pct: int, message: str, logs: list[str] | None = None) -> None:
     existing_logs: list[str] = []
     if PROGRESS_FILE.exists():
         try:
-            with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+            with open(PROGRESS_FILE, encoding="utf-8") as f:
                 prev = json.load(f)
                 existing_logs = prev.get("logs", [])
         except Exception as e:

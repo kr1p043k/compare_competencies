@@ -2,9 +2,10 @@
 
 import json
 import os
-import structlog
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+import structlog
 from tqdm import tqdm
 
 from src import Err, GapAnalysisError, Ok, Result
@@ -13,9 +14,8 @@ from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 from src.models.data_contracts import PipelineContext
-from src.models.enums import ComparisonLevel, ExperienceLevel
+from src.models.enums import ExperienceLevel
 from src.predictors.recommendation_engine import RecommendationEngine
-from src.predictors.models import RecommendationResult
 
 logger = structlog.get_logger("gap_runner")
 
@@ -101,7 +101,7 @@ class GapRunner:
                 min_df=1,
                 max_df=0.95,
                 use_embeddings=True,
-                level=ComparisonLevel.MIDDLE,
+                level="all",
                 similarity_threshold=0.80,
             )
             pct = self._update_progress()
@@ -201,22 +201,21 @@ class GapRunner:
                     return pname, None
 
         logger.info("profile_evaluation_start", profiles=n, max_workers=max_workers)
-        with tqdm(total=n, desc="Оценка профилей") as pbar:
-            with ThreadPoolExecutor(max_workers=max_workers) as pool:
-                futures = {pool.submit(_eval_one, pname): pname for pname in self._profile_names}
-                for future in as_completed(futures):
-                    try:
-                        pname, result = future.result(timeout=300)
-                    except TimeoutError:
-                        logger.error("profile_evaluation_timeout")
-                        raise
-                    if result is not None:
-                        evals[pname] = result
-                    else:
-                        logger.warning("profile_evaluation_skipped", profile=pname)
-                    pbar.update(1)
-                    pct = self._update_progress()
-                    self._write_progress(pct, f"Оценка профилей... {len(evals)}/{n}", "evaluation")
+        with tqdm(total=n, desc="Оценка профилей") as pbar, ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {pool.submit(_eval_one, pname): pname for pname in self._profile_names}
+            for future in as_completed(futures):
+                try:
+                    pname, result = future.result(timeout=300)
+                except TimeoutError:
+                    logger.error("profile_evaluation_timeout")
+                    raise
+                if result is not None:
+                    evals[pname] = result
+                else:
+                    logger.warning("profile_evaluation_skipped", profile=pname)
+                pbar.update(1)
+                pct = self._update_progress()
+                self._write_progress(pct, f"Оценка профилей... {len(evals)}/{n}", "evaluation")
         logger.info("profile_evaluation_done", evaluated=len(evals))
         return evals
 
@@ -255,6 +254,7 @@ class GapRunner:
                     student,
                     user_type="student",
                     precomputed_eval=v2_result,
+                    taxonomy=self.taxonomy,
                 ):
                     case Ok(full_rec):
                         full_rec.summary.market_coverage_score = v2_result["market_coverage_score"]

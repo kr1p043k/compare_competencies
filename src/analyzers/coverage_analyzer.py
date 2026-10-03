@@ -5,21 +5,22 @@ import json
 import os
 import tempfile
 import threading
-from collections import Counter
 
 import numpy as np
 import structlog
 
 from src import config
-from src.result import Ok, Err, Result
-from src.errors import CoverageError
-from src.models.teacher_analysis import CompetencyCoverage, CrossReference, DisciplineCoverage, SkillMatch
 from src.analyzers.skill_matcher import (
     MARKET_MIN_FREQ,
     SkillMatcher,
     coverage_level,
+)
+from src.analyzers.skill_matcher import (
     normalize as normalize_skill,
 )
+from src.errors import CoverageError
+from src.models.teacher_analysis import CompetencyCoverage, CrossReference, DisciplineCoverage, SkillMatch
+from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 
@@ -240,6 +241,7 @@ class CoverageAnalyzer:
                 if self._discipline_scorer is not None and em_skills_to_embed:
                     self._discipline_scorer._ensure_embeddings()
                     sk_embs = self._get_skill_embeddings(em_skills_to_embed)
+                    disc_emb_cache: dict[str, object] = {}
                     for em in emerging_skills:
                         if em.skill_name in dir_emerging:
                             continue
@@ -273,7 +275,11 @@ class CoverageAnalyzer:
                             if len(evidenced) > 1:
                                 scored: list[tuple[float, str]] = []
                                 for dn in evidenced:
-                                    disc_emb = self._discipline_scorer.get_discipline_embedding(dn)
+                                    if dn in disc_emb_cache:
+                                        disc_emb = disc_emb_cache[dn]
+                                    else:
+                                        disc_emb = self._discipline_scorer.get_discipline_embedding(dn)
+                                        disc_emb_cache[dn] = disc_emb
                                     if disc_emb is not None:
                                         scored.append((float(np.dot(sk_emb, disc_emb)), dn))
                                 if scored:
@@ -336,6 +342,7 @@ class CoverageAnalyzer:
             weighted_coverage=weighted,
             coverage_level=coverage_level(ratio),
             top_matched=deduped_top,
+            matched_market=[m.market_match for m in matched_list if m.market_match],
             ksa_types=dict(ksa_types or {}),
             gaps_list=deduped_gaps[:20],
             emerging=emerging_skills,

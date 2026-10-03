@@ -1,7 +1,6 @@
 """n8n webhook router — приём callback'ов от n8n."""
 
 import hmac
-import json
 from datetime import datetime
 from pathlib import Path
 
@@ -9,9 +8,8 @@ import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from src import Err, Ok
-from src.utils import safe_read_json, atomic_write_json
 from src.notifications.telegram import send_telegram
+from src.utils import atomic_write_json, safe_read_json
 
 logger = structlog.get_logger("n8n_webhook")
 

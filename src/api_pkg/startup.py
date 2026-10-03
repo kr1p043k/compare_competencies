@@ -4,26 +4,26 @@ import asyncio
 import hashlib
 import json
 import re
-import structlog
 from pathlib import Path
 
+import structlog
+
+import src.api_pkg.deps as deps
 from src import Err, Ok, config
-from src.cache_manager import CacheManager
 from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.analyzers.skills.trends import TrendAnalyzer
-from src.models.enums import ComparisonLevel, ExperienceLevel
+from src.cache_manager import CacheManager
+from src.models.enums import ExperienceLevel
 from src.models.student import StudentProfile, merge_skills_hierarchically
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import filter_skills_by_whitelist, load_it_skills
 from src.predictors.recommendation_engine import RecommendationEngine
 from src.utils import load_competency_mapping
-
-import src.api_pkg.deps as deps
 
 logger = structlog.get_logger("api")
 
@@ -44,7 +44,7 @@ def _available_ram_bytes() -> int | None:
 _PROPHET_MIN_AVAILABLE_RAM = 1.5 * 1024**3
 
 
-_CUSTOM_PROFILE_RE = re.compile(r"^[a-z0-9_]{2,32}$")
+_CUSTOM_PROFILE_RE = re.compile(r"^[a-z0-9_-]{2,40}$")
 
 
 def register_custom_student_profiles(students_dir, already, map_codes):
@@ -86,8 +86,15 @@ def register_custom_student_profiles(students_dir, already, map_codes):
                 level = ExperienceLevel.MIDDLE
             if not codes and not skills:
                 continue
-            already[name] = StudentProfile(
-                profile_name=name, competencies=codes, skills=skills, target_level=level)
+            techs = [str(t).strip() for t in (data.get("technologies") or [])
+                     if t and str(t).strip()][:200]
+            try:
+                already[name] = StudentProfile(
+                    profile_name=name, competencies=codes, skills=skills, target_level=level,
+                    technologies=techs)
+            except TypeError:
+                already[name] = StudentProfile(
+                    profile_name=name, competencies=codes, skills=skills, target_level=level)
             restored.append(name)
             logger.info("custom_profile_restored", profile=name)
     except Exception as exc:
@@ -273,9 +280,10 @@ async def run_startup(app):
     asyncio.create_task(_warmup_background(basic_vacancies, raw_file))
 
     # 6. фоновый сбор вакансий (инкрементально, каждые 6 часов)
-    if config.settings.BACKGROUND_COLLECTOR_ENABLED:
-        from src.pipeline.background_collector import start_background_collector
-        await start_background_collector()
+    # планировщик фоновых задач: сбор каждые N часов + ночной gap цепочкой.
+    # Сам решает по data/settings/scheduler.json (админка); env — только seed.
+    from src.pipeline.background_collector import start_background_collector
+    await start_background_collector()
 
 
 async def _warmup_background(basic_vacancies, raw_file):
@@ -542,11 +550,12 @@ async def _warmup_background(basic_vacancies, raw_file):
             skill_weights_by_level=skill_weights_by_level,
         )
         deps.recommendation_engine = RecommendationEngine(
-            use_ltr=True, use_llm=False, profile_evaluator=deps.evaluator
+            use_ltr=True, use_llm=False, use_reranker=True,
+            profile_evaluator=deps.evaluator
         )
         deps.recommendation_engine.comparator = CompetencyComparator(
             ngram_range=(1, 2), min_df=1, max_df=0.95,
-            use_embeddings=True, level=ComparisonLevel.MIDDLE, similarity_threshold=0.80,
+            use_embeddings=True, level="all", similarity_threshold=0.80,
         )
         match await asyncio.to_thread(
             deps.recommendation_engine.fit, vacancies_skills, skill_weights=hybrid_weights
@@ -583,6 +592,14 @@ async def _warmup_background(basic_vacancies, raw_file):
         )
         deps.trend_analyzer = TrendAnalyzer(skill_freq_filtered)
         logger.info("фоновая инициализация: trend_analyzer готов")
+        # Движок рекомендаций без trend_analyzer считает без тренд-бонусов
+        # (расхождение API vs pipeline). Привязываем постфактум.
+        try:
+            if deps.recommendation_engine is not None:
+                deps.recommendation_engine.trend_analyzer = deps.trend_analyzer
+                logger.info("recommendation_engine trend attached")
+        except Exception as e:
+            logger.warning("recommendation_engine trend attach failed", error=str(e))
         await _resolve_warmup_failure("trend_analyzer")
     except Exception as e:
         logger.warning("фоновая инициализация: trend_analyzer не загружен", error=str(e))
@@ -590,9 +607,8 @@ async def _warmup_background(basic_vacancies, raw_file):
 
     # Prophet
     try:
-        from cmdstanpy.utils.logging import disable_logging
-        from src.predictors.prophet_forecast import ProphetForecastEngine, load_time_series
         from src.database import async_session_factory
+        from src.predictors.prophet_forecast import ProphetForecastEngine, load_time_series
 
         async with async_session_factory() as session:
             match await load_time_series(session):

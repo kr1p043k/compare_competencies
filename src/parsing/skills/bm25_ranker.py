@@ -8,8 +8,7 @@ import pymorphy3
 import structlog
 from rank_bm25 import BM25Okapi
 
-from src import Result, Ok, Err
-from src import config
+from src import Err, Ok, Result, config
 from src.errors import DomainError
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.parsing.utils import load_it_skills
@@ -50,7 +49,8 @@ class BM25Ranker:
 
     def _compute_corpus_hash(self, vacancies: list) -> str:
         """Хеш ID + длин + содержимого (одни ID протухают при правках)."""
-        import hashlib, json
+        import hashlib
+        import json
         parts = []
         for v in vacancies:
             if not v:
@@ -84,6 +84,16 @@ class BM25Ranker:
         else:
             if hasattr(vac, "description") and vac.description:
                 parts.append(re.sub(r"<[^>]+>", " ", vac.description))
+            # Кэш-файлы без description: добираем текст из сниппета (как в dict-ветке),
+            # иначе корпус пуст и hybrid_weights всегда {}.
+            sn = getattr(vac, "snippet", None)
+            if sn is not None:
+                req = getattr(sn, "requirement", None) or (sn.get("requirement") if isinstance(sn, dict) else None) or ""
+                resp = getattr(sn, "responsibility", None) or (sn.get("responsibility") if isinstance(sn, dict) else None) or ""
+                if req:
+                    parts.append(re.sub(r"<[^>]+>", " ", req))
+                if resp:
+                    parts.append(re.sub(r"<[^>]+>", " ", resp))
             key_skills = " ".join(s.name for s in (vac.key_skills if hasattr(vac, "key_skills") else []))
             if key_skills:
                 parts.append(key_skills)

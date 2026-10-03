@@ -664,4 +664,19 @@ class TestCompetencyComparatorFull:
                 result = comp.hybrid_compare(["python"], {"python": 0.9})
                 assert result["global_score"] == 0.7
                 assert result["cluster_score"] is None
-                assert result["hybrid_score"] == 0.7   # строка 235
+                assert result["hybrid_score"] == 0.7
+
+
+class TestMarketIndexAllLabel:
+    """Stage 3: смешанный рынок индексируется как all, не middle."""
+
+    def test_comparator_default_level_all(self):
+        assert CompetencyComparator().level == "all"
+
+    def test_cache_path_all_labeled(self):
+        comp = EmbeddingComparator()
+        assert comp._get_cache_path("market_embeddings").name == "market_embeddings_all.joblib"
+
+    def test_skill_matcher_cache_all_labeled(self):
+        from src.analyzers.skill_matcher import MARKET_EMB_CACHE_NAME
+        assert MARKET_EMB_CACHE_NAME == "market_embeddings_all.joblib"   # строка 235

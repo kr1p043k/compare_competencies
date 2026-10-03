@@ -23,7 +23,6 @@ from src.models.krm_models import (
     CompetencySkill,
     Direction,
     Discipline,
-    KSAEntry,
     ParseVersion,
     Skill,
 )
@@ -37,7 +36,7 @@ RPD_SKILLS_PATH = DATA_DIR / "reference" / "rpd_skills.json"
 
 
 def load_json(path: Path) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -125,7 +124,6 @@ async def populate_ksa_entries(
     comp_map: dict[tuple[int, str], int],
 ) -> int:
     """Insert KSA entries from KRM JSON into ksa_entries table."""
-    from sqlalchemy import text as sa_text
 
     direction_data = krm.get("09.03.02", {})
     disciplines_raw = direction_data.get("disciplines", {})
@@ -154,6 +152,7 @@ async def populate_ksa_entries(
                     count += 1
 
     import uuid
+
     from src.db import get_pool
     pool = get_pool()
     for i in range(0, len(values), 500):
@@ -179,10 +178,9 @@ async def rematch_competencies_to_it_skills(
     parse_version_id: int,
 ) -> int:
     """Match KSA text against it_skills and create competency_skills links."""
-    import re
 
     it_skill_names = set(
-        k for k in skill_map.keys()
+        k for k in skill_map
     )
 
     direction_data = krm.get("09.03.02", {})

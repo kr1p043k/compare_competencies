@@ -27,7 +27,7 @@ VACANCIES_DIR = Path(__file__).parent.parent.parent / "data" / "processed"
 
 
 def load_existing_skills() -> set[str]:
-    with open(SKILLS_PATH, "r", encoding="utf-8") as f:
+    with open(SKILLS_PATH, encoding="utf-8") as f:
         return {s.strip().lower() for s in json.load(f) if s.strip()}
 
 

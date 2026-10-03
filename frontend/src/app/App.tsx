@@ -17,10 +17,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
+import { Tabs, TabsContent, TabsList } from "./components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./components/ui/dropdown-menu";
 import { GapAnalysisVisualizer } from "./components/GapAnalysisVisualizer";
 import { Footer } from "./components/Footer";
 import { VacanciesList } from "./components/VacanciesList";
+import { MarketView } from "./components/MarketView";
+import { ProfileView } from "./components/ProfileView";
 import { ArticlesPage } from "./components/ArticlesPage";
 import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
 import { PipelineProgress } from "./components/PipelineProgress";
@@ -32,10 +40,15 @@ import { MonitoringTab } from "./components/MonitoringTab";
 import { LogsTab } from "./components/LogsTab";
 import { LoginPage } from "./components/LoginPage";
 import { AdminDashboard } from "./components/AdminDashboard";
+import { StudentsTab } from "./components/StudentsTab";
 import { TeacherDashboard } from "./components/TeacherDashboard";
 import { StudentDashboard } from "./components/StudentDashboard";
+import { AdminProfilePage, TeacherProfilePage, StudentProfilePage } from "./components/ProfilePages";
 import { FaqPage } from "./components/FaqPage";
+import { TaxonomyBrowser } from "./components/TaxonomyBrowser";
 import { authHeaders, useAuth, apiFetch } from "../lib/auth";
+import { profileLabel } from "../lib/profiles";
+import { useTheme } from "../lib/theme";
 import { initApiLogger } from "../lib/logger";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -54,15 +67,85 @@ import {
   Info,
   AlertCircle,
   LogOut,
+  Moon,
+  Sun,
   Shield,
   GraduationCap,
   UserCheck,
+  User,
   History,
   Activity,
   HelpCircle,
+  ChevronDown,
+  FolderOpen,
+  LineChart,
+  BookOpen,
 } from "lucide-react";
 
 const API = "/api";
+
+type NavItem = { value: string; label: string; Icon: any };
+
+function NavGroup({
+  title,
+  items,
+  activeTab,
+  onSelect,
+}: {
+  title: string;
+  items: NavItem[];
+  activeTab: string;
+  onSelect: (v: string) => void;
+}) {
+  if (items.length === 0) return null;
+  const active = items.find((i) => i.value === activeTab);
+  if (items.length === 1) {
+    const only = items[0];
+    const isActive = only.value === activeTab;
+    return (
+      <button
+        onClick={() => onSelect(only.value)}
+        className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
+          isActive
+            ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
+            : "text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
+        }`}
+      >
+        <only.Icon className="size-4" />
+        {only.label}
+      </button>
+    );
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
+            active
+              ? "bg-white text-gray-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
+              : "text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
+          }`}
+        >
+          {active ? <active.Icon className="size-4" /> : null}
+          {active ? active.label : title}
+          <ChevronDown className="size-3.5 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-52">
+        {items.map(({ value, label, Icon }) => (
+          <DropdownMenuItem
+            key={value}
+            onSelect={() => onSelect(value)}
+            className={`gap-2 cursor-pointer ${value === activeTab ? "font-semibold text-blue-700 dark:text-blue-300" : ""}`}
+          >
+            <Icon className="size-4" />
+            {label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 interface PipelineStep {
   step: number;
@@ -165,6 +248,8 @@ export default function App() {
   });
   const [analysisData, setAnalysisData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("vacancies");
+  const [professionsList, setProfessionsList] = useState<string[]>([]);
+  const [targetProfession, setTargetProfession] = useState("");
 
   const handleProfileChange = (newProfile: string) => {
     setProfile(newProfile);
@@ -185,12 +270,52 @@ export default function App() {
   const profileRef = useRef(profile);
   useEffect(() => { profileRef.current = profile; }, [profile]);
 
-  const { isAuth, login, logout, role, name } = useAuth();
+  const { isAuth, login, logout, role, name, username } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const roleRef = useRef(role);
   useEffect(() => { roleRef.current = role; }, [role]);
 
-  // Дата подгрузки переживает перезагрузку (localStorage), а сами результаты — нет.
-  // Если штамп есть, а результата в памяти нет — подтягиваем автоматически.
+  // Предпросмотр чужой роли (только admin, только UI: API-права не меняются).
+  const [rolePreview, setRolePreview] = useState<string | null>(() => {
+    try {
+      const v = localStorage.getItem("rolePreview");
+      return v === "admin" || v === "teacher" || v === "rop" || v === "student" ? v : null;
+    } catch { return null; }
+  });
+  const canPreview = role === "admin";
+  const effectiveRole = canPreview && rolePreview ? rolePreview : role;
+  const previewActive = canPreview && !!rolePreview && rolePreview !== role;
+  const setPreview = (v: string | null) => {
+    setRolePreview(v);
+    try {
+      if (v) localStorage.setItem("rolePreview", v);
+      else localStorage.removeItem("rolePreview");
+    } catch {}
+    setActiveTab("vacancies");
+  };
+  useEffect(() => {
+    if (role !== "admin") {
+      setRolePreview(null);
+      try { localStorage.removeItem("rolePreview"); } catch {}
+    }
+  }, [role]);
+  useEffect(() => {
+    // Роль сменилась (или включён предпросмотр): уводим с вкладки,
+    // недоступной текущей роли, на безопасную «vacancies».
+    const adminOnly = ["visualization", "monitoring", "logs", "admin"];
+    const teacherOnly = ["taxonomy", "teacher", "students"];
+    const studentOnly = ["student"];
+    setActiveTab((cur) => {
+      if (adminOnly.includes(cur) && effectiveRole !== "admin") return "vacancies";
+      if (teacherOnly.includes(cur) && !(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin")) return "vacancies";
+      if (studentOnly.includes(cur) && !(effectiveRole === "student" || effectiveRole === "admin")) return "vacancies";
+      return cur;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveRole]);
+
+  // Дата подгрузки переживает перезагрузку (localStorage), а сами результаты – нет.
+  // Если штамп есть, а результата в памяти нет – подтягиваем автоматически.
   const autoLoadedRef = useRef<Record<string, boolean>>({});
   useEffect(() => {
     if (!isAuth) return;
@@ -207,18 +332,22 @@ export default function App() {
   }, [isAuth, profile]);
 
   // Показываем экран техработ, если backend недоступен (пересборка/рестарт).
+  // Один упавший poll – ещё не даун: тяжёлый запрос (прогнозы) может на
+  // секунды занять event loop. Maintenance только после 3 фейлов подряд.
   useEffect(() => {
     let cancelled = false;
+    let fails = 0;
     const check = async () => {
       try {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 5000);
         const res = await fetch("/api/health", { signal: ctrl.signal });
         clearTimeout(t);
-        if (!cancelled) setBackendDown(!res.ok);
+        fails = res.ok ? 0 : fails + 1;
       } catch {
-        if (!cancelled) setBackendDown(true);
+        fails += 1;
       }
+      if (!cancelled) setBackendDown(fails >= 3);
     };
     check();
     const id = setInterval(check, 8000);
@@ -542,72 +671,62 @@ export default function App() {
     }
   }
 
-  async function handleDownloadExcel() {
+  async function handleDownloadPdf() {
     try {
-      const response = await fetch(`/api/teacher/export/vacancies`);
+      const response = await fetch(`/api/results/report/${profile}`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `vacancies_${new Date().toISOString().split("T")[0]}.xlsx`;
+        a.download = `report_${profile}_${new Date().toISOString().split("T")[0]}.pdf`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-      } else if (response.status === 429) {
-        alert("Слишком частые запросы. Подождите 20 секунд.");
       } else {
         const d = await response.json().catch(() => ({}));
-        alert(d.detail || "Ошибка выгрузки Excel");
+        alert(d.detail || "Ошибка формирования PDF");
       }
     } catch (error) {
-      console.error("Failed to download Excel:", error);
+      console.error("Failed to download PDF report:", error);
     }
   }
 
-  async function handleDownloadReport() {
-    try {
-      const response = await fetch(`/api/results/recommendations/${profile}`);
-      if (response.ok) {
-        const data = await response.json();
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `analysis_report_${profile}_${new Date().toISOString().split("T")[0]}.json`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }
-    } catch (error) {
-      console.error("Failed to download analysis report:", error);
-    }
+  function handlePrintReport() {
+    // Вариант B (frontend): печать текущей вкладки «Данные» в PDF через браузер.
+    window.print();
   }
 
   function loadMarket() {
     apiCall("/market-competencies");
   }
 
-  function loadSummary() {
-    apiCall("/results/summary");
+  // Список профессий таксономии — для выбора цели сравнения на вкладке «Данные».
+  useEffect(() => {
+    if (activeTab !== "data" || !isAuth || professionsList.length > 0) return;
+    fetch(`${API}/taxonomy/professions`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const names = ((d?.professions || []) as any[])
+          .map((p) => p?.name)
+          .filter(Boolean);
+        if (names.length > 0) {
+          setProfessionsList(names);
+          setTargetProfession((prev) => prev || names[0]);
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isAuth]);
+
+  function compareWithProfession() {
+    if (!targetProfession) return;
+    apiCall(`/profiles/${profile}/profession-evaluation?profession=${encodeURIComponent(targetProfession)}`);
   }
 
-  async function loadHealth() {
-    try {
-      setLoading(true);
-      showStatus("info", "Выполнение...");
-      const res = await fetch("/health");
-      const data = await res.json();
-      setLastResult(data);
-      showStatus(res.ok ? "success" : "error", res.ok ? "✓ Готово" : `✗ ${data.detail || "Ошибка"}`);
-      return data;
-    } catch (e: any) {
-      showStatus("error", `✗ ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
+  function loadSummary() {
+    apiCall("/results/summary");
   }
 
   if (backendDown) {
@@ -619,44 +738,91 @@ export default function App() {
   }
 
   const roleIcon = role === "admin" ? <Shield className="size-4" /> : (role === "teacher" || role === "rop") ? <UserCheck className="size-4" /> : <GraduationCap className="size-4" />;
-  const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "rop" ? "Руководитель ОП" : "Студент";
+  const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "rop" ? "Руководитель ОП" : role === "student" ? "Студент" : "—";
+  const isStudent = effectiveRole === "student";
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white text-gray-900 dark:bg-slate-950 dark:text-slate-100">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <header className="border-b border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+        <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center justify-center w-12 h-12 bg-blue-600 rounded-xl">
                 <TrendingUp className="size-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                   Competency Gap Analyzer
                 </h1>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-slate-400">
                   AI-powered competency analysis platform
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
                 {roleIcon}
                 <span>{name || roleLabel}</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100">{roleLabel}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 dark:text-slate-200">{roleLabel}</span>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => { fetch("/api/auth/logout", { method: "POST", headers: authHeaders() }).catch(() => {}); logout(); }} className="text-gray-500 hover:text-red-600">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setActiveTab("profile")}
+                title="Мой профиль"
+                className="cursor-pointer transition-colors duration-200 text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+              >
+                <User className="size-4" />
+              </Button>
+              {canPreview && (
+                <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
+                  Просмотр как
+                  <select
+                    value={rolePreview ?? ""}
+                    onChange={(e) => setPreview(e.target.value || null)}
+                    className="h-8 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-1.5 text-xs text-gray-700 dark:text-slate-200"
+                  >
+                    <option value="">своя роль</option>
+                    <option value="admin">admin</option>
+                    <option value="teacher">teacher</option>
+                    <option value="rop">rop</option>
+                    <option value="student">student</option>
+                  </select>
+                </label>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleTheme}
+                title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+                className="text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-100"
+              >
+                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { fetch("/api/auth/logout", { method: "POST", headers: authHeaders() }).catch(() => {}); try { localStorage.removeItem("rolePreview"); } catch {} setRolePreview(null); logout(); }} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
                 <LogOut className="size-4" />
               </Button>
             </div>
           </div>
         </div>
       </header>
+      {previewActive && (
+        <div className="bg-amber-100 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-800">
+          <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-3">
+            <p className="text-xs text-amber-800 dark:text-amber-200">
+              Предпросмотр интерфейса роли «{rolePreview}». API-права не меняются — данные чужих ролей могут быть недоступны.
+            </p>
+            <Button variant="ghost" size="sm" onClick={() => setPreview(null)} className="h-7 text-xs text-amber-800 dark:text-amber-200">
+              Сбросить
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Status */}
         <AnimatePresence>
           {status.type && (
@@ -669,10 +835,10 @@ export default function App() {
               <div
                 className={`px-4 py-3 rounded-lg border ${
                   status.type === "success"
-                    ? "bg-green-50 border-green-200 text-green-800"
+                    ? "bg-green-50 border-green-200 text-green-800 dark:bg-green-950/40 dark:border-green-800 dark:text-green-200"
                     : status.type === "error"
-                      ? "bg-red-50 border-red-200 text-red-800"
-                      : "bg-blue-50 border-blue-200 text-blue-800"
+                      ? "bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-200"
+                      : "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-200"
                 }`}
               >
                 {status.message}
@@ -683,88 +849,62 @@ export default function App() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="inline-flex h-12 items-center justify-center rounded-lg bg-gray-100 p-1">
-            <TabsTrigger
-              value="vacancies"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
-            >
-              <Briefcase className="size-4" />
-              Вакансии
-            </TabsTrigger>
-            <TabsTrigger
-              value="data"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
-            >
-              <Database className="size-4" />
-              Данные
-            </TabsTrigger>
-            {role !== "teacher" && (
-              <TabsTrigger
-                value="visualization"
-                className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
-              >
-                <BarChart3 className="size-4" />
-                Визуализация
-              </TabsTrigger>
-            )}
-            <TabsTrigger
-              value="predictions"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
-            >
-              <TrendingUp className="size-4" />
-              Прогнозы
-            </TabsTrigger>
-            <TabsTrigger
-              value="articles"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
-            >
-              <BarChart3 className="size-4" />
-              Аналитика рынка
-            </TabsTrigger>
-            <TabsTrigger
-              value="scientific-trends"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
-            >
-              <TrendingUp className="size-4" />
-              Научные тренды
-            </TabsTrigger>
-            <TabsTrigger
-              value="help"
-              className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm"
-            >
-              <HelpCircle className="size-4" />
-              Помощь
-            </TabsTrigger>
-            {role === "admin" && (
-              <TabsTrigger value="monitoring" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
-                <Activity className="size-4" />
-                Мониторинг
-              </TabsTrigger>
-            )}
-            {role === "admin" && (
-              <TabsTrigger value="logs" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
-                <FileText className="size-4" />
-                Логи
-              </TabsTrigger>
-            )}
-            {role === "admin" && (
-              <TabsTrigger value="admin" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
-                <Shield className="size-4" />
-                Админ
-              </TabsTrigger>
-            )}
-            {(role === "teacher" || role === "rop") && (
-              <TabsTrigger value="teacher" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
-                <BarChart3 className="size-4" />
-                Статистика
-              </TabsTrigger>
-            )}
-            {role === "student" && (
-              <TabsTrigger value="student" className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm">
-                <History className="size-4" />
-                Мои запросы
-              </TabsTrigger>
-            )}
+          <TabsList className="inline-flex h-12 items-center justify-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-slate-900">
+            <NavGroup
+              title="Работа"
+              activeTab={activeTab}
+              onSelect={setActiveTab}
+              items={[
+                { value: "vacancies", label: "Вакансии", Icon: Briefcase },
+                ...(effectiveRole === "student"
+                  ? []
+                  : [{ value: "data", label: "Результаты", Icon: Database }]),
+                ...(effectiveRole === "admin"
+                  ? [{ value: "visualization", label: "Визуализация", Icon: BarChart3 }]
+                  : []),
+              ]}
+            />
+            <NavGroup
+              title="Анализ"
+              activeTab={activeTab}
+              onSelect={setActiveTab}
+              items={[
+                { value: "predictions", label: "Прогнозы", Icon: TrendingUp },
+                { value: "articles", label: "Аналитика рынка", Icon: LineChart },
+                { value: "scientific-trends", label: "Научные тренды", Icon: FolderOpen },
+                ...(effectiveRole === "student"
+                  ? [{ value: "data", label: "Результаты", Icon: Database }]
+                  : []),
+                ...(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin"
+                  ? [{ value: "teacher", label: "Преподавательский анализ", Icon: BarChart3 }]
+                  : []),
+                ...(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin"
+                  ? [{ value: "students", label: "Студенты", Icon: GraduationCap }]
+                  : []),
+              ]}
+            />
+            <NavGroup
+              title="Система"
+              activeTab={activeTab}
+              onSelect={setActiveTab}
+              items={[
+                ...(effectiveRole === "admin"
+                  ? [
+                      { value: "monitoring", label: "Мониторинг", Icon: Activity },
+                      { value: "logs", label: "Логи", Icon: FileText },
+                      { value: "admin", label: "Админ", Icon: Shield },
+                    ]
+                  : []),
+                ...(effectiveRole === "student" || effectiveRole === "admin"
+                  ? [{ value: "student", label: "Мои запросы", Icon: History }]
+                  : []),
+                ...((effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin")
+                  ? [{ value: "taxonomy", label: "Таксономия", Icon: BookOpen }]
+                  : []),
+                { value: "profile", label: "Мой профиль", Icon: User },
+                { value: "help", label: "Помощь", Icon: HelpCircle },
+              ]}
+            />
           </TabsList>
 
           {/* Pipeline progress */}
@@ -780,25 +920,26 @@ export default function App() {
               pipelineStep={pipelineStep}
               pipelineLoading={pipelineLoading}
               restartFlag={restartFlag}
-              onStartPipeline={(regionIds, profession, maxPages, periodDays) => startPipeline(regionIds, profession, maxPages, periodDays)}
+              onStartPipeline={effectiveRole === "student" ? undefined : (regionIds, profession, maxPages, periodDays) => startPipeline(regionIds, profession, maxPages, periodDays)}
               pipelineMaxPages={pipelineMaxPages}
               pipelinePeriod={pipelinePeriod}
+              canRunPipeline={effectiveRole !== "student"}
             />
           </TabsContent>
 
           {/* Data Tab */}
           <TabsContent value="data">
-            <Card className="border border-gray-200 shadow-sm">
-              <CardHeader className="border-b border-gray-200 bg-gray-50">
+            <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+              <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center justify-center w-10 h-10 bg-emerald-600 rounded-lg">
                     <Database className="size-5 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl font-semibold text-gray-900">
-                      Данные и результаты
+                    <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
+                      Результаты
                     </CardTitle>
-                    <CardDescription className="text-sm text-gray-600">
+                    <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
                       Просмотр профилей, рекомендаций и статистики
                     </CardDescription>
                   </div>
@@ -806,19 +947,19 @@ export default function App() {
               </CardHeader>
               <CardContent className="p-6 space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-900">
+                  <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
                     Профиль компетенций
                   </Label>
                   <Select value={profile} onValueChange={handleProfileChange}>
-                    <SelectTrigger className="h-11 bg-white border-gray-300">
+                    <SelectTrigger className="h-11 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {profilesList.map((p) => (
                         <SelectItem key={p} value={p}>
                           <div className="flex items-center gap-2">
-                            <Award className={`size-4 ${p === profile ? "text-emerald-600" : "text-gray-400"}`} />
-                            <span>{p === "base" ? "BASE (junior)" : p === "dc" ? "DATA SCIENTIST (middle)" : p === "top_dc" ? "TOP DATA SCIENTIST (senior)" : p}</span>
+                            <Award className={`size-4 ${p === profile ? "text-emerald-600" : "text-gray-400 dark:text-slate-500"}`} />
+                            <span>{profileLabel(p)}</span>
                           </div>
                         </SelectItem>
                       ))}
@@ -833,11 +974,12 @@ export default function App() {
                     className="h-11 bg-blue-700 hover:bg-blue-800 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                   >
                     <Search className="mr-2 size-4" />
-                    Загрузить результаты
+                    Показать сохранённые
                   </Button>
                   <Button
                     onClick={loadProfileDetail}
-                    disabled={loading}
+                    disabled={loading || isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
                     className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
                   >
                     <FileText className="mr-2 size-4" />
@@ -845,7 +987,8 @@ export default function App() {
                   </Button>
                   <Button
                     onClick={loadRecommendations}
-                    disabled={loading}
+                    disabled={loading || isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
                     className="h-11 bg-blue-600 hover:bg-blue-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                   >
                     <Sparkles className="mr-2 size-4" />
@@ -853,34 +996,28 @@ export default function App() {
                   </Button>
                   <Button
                     onClick={loadMarket}
-                    disabled={loading}
+                    disabled={loading || isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
                     variant="outline"
-                    className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
                     <BarChart3 className="mr-2 size-4" />
                     Рынок
                   </Button>
                   <Button
                     onClick={loadSummary}
-                    disabled={loading}
+                    disabled={loading || isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
                     variant="outline"
-                    className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
                     <FileText className="mr-2 size-4" />
                     Сводка
                   </Button>
                   <Button
-                    onClick={loadHealth}
-                    disabled={loading}
-                    variant="outline"
-                    className="h-11 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  >
-                    <Zap className="mr-2 size-4" />
-                    Проверка
-                  </Button>
-                  <Button
                     onClick={runGapAnalysis}
-                    disabled={loading || gapRunning}
+                    disabled={loading || gapRunning || isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
                     className="h-11 bg-amber-600 hover:bg-amber-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
                   >
                     <Zap className="mr-2 size-4" />
@@ -888,9 +1025,38 @@ export default function App() {
                   </Button>
                 </div>
                 {gapRunning && (
-                  <p className="text-sm text-amber-700">{gapMsg || "Выполняется..."}</p>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">{gapMsg || "Выполняется..."}</p>
                 )}
-                <p className="text-xs text-gray-500">
+                {!isStudent && (
+                <div className="space-y-2 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                  <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                    Целевая профессия для сравнения
+                  </Label>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Select value={targetProfession} onValueChange={setTargetProfession}>
+                      <SelectTrigger className="h-11 flex-1 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600">
+                        <SelectValue placeholder="Выберите профессию..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {professionsList.map((p) => (
+                          <SelectItem key={p} value={p}>
+                            {p}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      onClick={compareWithProfession}
+                      disabled={loading || !targetProfession}
+                      className="h-11 bg-violet-600 hover:bg-violet-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:outline-none sm:w-auto w-full"
+                    >
+                      <Briefcase className="mr-2 size-4" />
+                      Сравнить с профессией
+                    </Button>
+                  </div>
+                </div>
+                )}
+                <p className="text-xs text-gray-500 dark:text-slate-400">
                   Последняя подгрузка результатов [{profile}]: {(() => {
                     const iso = resultLoadedAt[profile];
                     if (!iso) return "ещё не подгружались";
@@ -898,83 +1064,116 @@ export default function App() {
                     return isNaN(d.getTime()) ? iso : d.toLocaleString("ru-RU");
                   })()}
                 </p>
+                {(() => {
+                  const g = (lastResult as any)?.generated_at;
+                  if (typeof g !== "string") return null;
+                  const age = Date.now() - new Date(g).getTime();
+                  if (isNaN(age) || age < 7 * 864e5) return null;
+                  const days = Math.floor(age / 864e5);
+                  return <span className="ml-2 px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200">данные устарели ({days} дн.)</span>;
+                })()}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card className="border-2 border-green-200 dark:border-green-800 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20">
-                    <CardHeader>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-600 rounded-lg">
-                          <FileSpreadsheet className="size-5 text-white" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">Excel вакансий</CardTitle>
-                          <CardDescription>Скачать список вакансий с навыками</CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <Button
-                        onClick={handleDownloadExcel}
-                        variant="outline"
-                        className="w-full border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50"
-                      >
-                        <Download className="size-4 mr-2" />
-                        Скачать Excel
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
-                    <CardHeader>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-600 rounded-lg">
-                          <FileText className="size-5 text-white" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">Отчёт по анализу</CardTitle>
-                          <CardDescription>Скачать результаты gap-анализа</CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <Button
-                        onClick={handleDownloadReport}
-                        variant="outline"
-                        className="w-full border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                      >
-                        <Download className="size-4 mr-2" />
-                        Скачать отчёт
-                      </Button>
-                    </CardContent>
-                  </Card>
+                <div className="flex flex-wrap items-center gap-2 no-print">
+                  <Button
+                    onClick={handleDownloadPdf}
+                    disabled={isStudent}
+                    title={isStudent ? "Только для преподавателя" : undefined}
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50 gap-1.5"
+                  >
+                    <Download className="size-3.5" />
+                    Отчёт (PDF)
+                  </Button>
+                  <Button
+                    onClick={handlePrintReport}
+                    variant="outline"
+                    size="sm"
+                    title="Печать текущей вкладки в PDF через браузер"
+                    className="border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-900/50 gap-1.5"
+                  >
+                    <Download className="size-3.5" />
+                    Печать / PDF (браузер)
+                  </Button>
                 </div>
 
                 {lastResult && (() => {
                   const d = lastResult as Record<string, unknown>;
                   if (d.recommendations || d.closest_roles) {
-                    return <RecommendationsReport data={lastResult as any} />;
+                    return (
+                      <>
+                        {(d as any).focus_mode && (d as any).target_profession && (
+                          <Card className="border-2 border-violet-200 dark:border-violet-800 bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 mb-4">
+                            <CardContent className="pt-5">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="p-2 bg-violet-600 rounded-lg">
+                                  <Briefcase className="size-5 text-white" />
+                                </div>
+                                <div>
+                                  <div className="font-bold text-gray-900 dark:text-slate-100">
+                                    Фокус: {(d as any).target_profession} · профиль {String((d as any).profile || "")}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">
+                                    {((d as any).target_domains || []).join(", ")}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                                <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
+                                  <div className="text-2xl font-bold text-violet-700 dark:text-violet-300">{Number((d as any).profession_coverage || 0).toFixed(1)}%</div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">покрытие профессии</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
+                                  <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{Number((d as any).coverage_strict ?? (d as any).skill_coverage ?? 0).toFixed(1)}%</div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">навыки: {(d as any).skill_strict_has ?? "–"} из {(d as any).skill_strict_total ?? "–"}</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
+                                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{Number((d as any).readiness_score || 0).toFixed(1)}%</div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">готовность</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
+                                  <div className="text-2xl font-bold text-slate-700 dark:text-slate-200">{Number((d as any).domain_coverage_score || 0).toFixed(1)}%</div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">покрытие доменов</div>
+                                </div>
+                              </div>
+                              {(d as any).krm_note && (
+                                <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">{String((d as any).krm_note)}</p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        )}
+                        <RecommendationsReport data={lastResult as any} />
+                      </>
+                    );
                   }
                   if (d.evaluations && Array.isArray(d.profiles)) {
                     return <SummaryReport data={lastResult as any} />;
                   }
+                  if (Array.isArray((d as any).skills) && typeof (d as any).total === "number") {
+                    return <MarketView data={lastResult as any} />;
+                  }
+                  if (Array.isArray((d as any).skills) && typeof (d as any).profile_name === "string") {
+                    return <ProfileView data={lastResult as any} />;
+                  }
                   const msg = d.message as string | undefined;
                   if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {
                     return (
-                      <Card className="border-2 border-amber-200 bg-amber-50/50">
+                      <Card className="border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
                         <CardContent className="pt-6 text-center py-12">
                           <AlertCircle className="size-12 text-amber-400 mx-auto mb-4" />
-                          <h3 className="text-lg font-semibold text-amber-800 mb-2">{msg}</h3>
+                          <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-2">{msg}</h3>
                           <p className="text-sm text-amber-600 mb-4">Запустите gap-анализ для расчёта покрытия</p>
-                          <Button
-                            onClick={runGapAnalysis}
-                            disabled={gapRunning}
-                            className="bg-amber-600 hover:bg-amber-700"
-                          >
+                           <Button
+                             onClick={runGapAnalysis}
+                             disabled={gapRunning || isStudent}
+                             title={isStudent ? "Только для преподавателя" : undefined}
+                             className="bg-amber-600 hover:bg-amber-700"
+                           >
                             <Zap className="size-4 mr-2" />
                             Запустить gap-анализ
                           </Button>
                           {gapRunning && (
-                            <p className="text-sm text-amber-700 mt-3">{gapMsg || "Выполняется..."}</p>
+                            <p className="text-sm text-amber-700 dark:text-amber-300 mt-3">{gapMsg || "Выполняется..."}</p>
                           )}
                         </CardContent>
                       </Card>
@@ -987,7 +1186,7 @@ export default function App() {
           </TabsContent>
 
           {/* Visualization Tab */}
-          {role !== "teacher" && (
+          {effectiveRole === "admin" && (
             <TabsContent value="visualization">
               <GapAnalysisVisualizer profile={profile} onProfileChange={handleProfileChange} />
             </TabsContent>
@@ -997,7 +1196,7 @@ export default function App() {
             <PredictionsTab />
           </TabsContent>
           <TabsContent value="articles">
-            <ArticlesPage />
+            <ArticlesPage onStartGapAnalysis={() => { runGapAnalysis(); setActiveTab("data"); }} />
           </TabsContent>
           <TabsContent value="scientific-trends">
             <ScientificTrendsTab />
@@ -1005,31 +1204,50 @@ export default function App() {
           <TabsContent value="help">
             <FaqPage />
           </TabsContent>
-          {role === "admin" && (
+          {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
+            <TabsContent value="taxonomy">
+              <TaxonomyBrowser showSuggest={effectiveRole !== "student"} />
+            </TabsContent>
+          )}
+          {effectiveRole === "admin" && (
             <TabsContent value="monitoring">
               <MonitoringTab />
             </TabsContent>
           )}
-          {role === "admin" && (
+          {effectiveRole === "admin" && (
             <TabsContent value="logs">
               <LogsTab />
             </TabsContent>
           )}
-          {role === "admin" && (
+          {effectiveRole === "admin" && (
             <TabsContent value="admin">
               <AdminDashboard />
             </TabsContent>
           )}
-          {(role === "teacher" || role === "rop") && (
+          {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="teacher">
               <TeacherDashboard />
             </TabsContent>
           )}
-          {role === "student" && (
-            <TabsContent value="student">
-              <StudentDashboard />
+          {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
+            <TabsContent value="students">
+              <StudentsTab />
             </TabsContent>
           )}
+          {(effectiveRole === "student" || effectiveRole === "admin") && (
+            <TabsContent value="student">
+              <StudentDashboard onNavigate={setActiveTab} />
+            </TabsContent>
+          )}
+          <TabsContent value="profile">
+            {effectiveRole === "admin" ? (
+              <AdminProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
+            ) : effectiveRole === "teacher" || effectiveRole === "rop" ? (
+              <TeacherProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
+            ) : (
+              <StudentProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
+            )}
+          </TabsContent>
         </Tabs>
 
         <div className="mt-12">

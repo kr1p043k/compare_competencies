@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { VacancyCard } from "./VacancyCard";
+import { VacancyDetailPanel } from "./VacancyDetailPanel";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -18,7 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from "./ui/card";
-import { Search, X, Filter, Briefcase, TrendingUp, Loader2, AlertCircle, ChevronLeft, ChevronRight, LayoutGrid, List, Database, Sparkles, Rocket, CheckCircle2, Globe, MapPin, ChevronDown, Download } from "lucide-react";
+import { Search, X, Filter, Briefcase, TrendingUp, Loader2, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, LayoutGrid, List, Database, Sparkles, Rocket, CheckCircle2, Globe, MapPin, ChevronDown, Download } from "lucide-react";
 
 const HH_REGIONS = [
   "Москва", "Санкт-Петербург", "Екатеринбург", "Новосибирск",
@@ -113,9 +114,10 @@ interface VacanciesListProps {
   onStartPipeline?: (regionIds: string, profession: string, maxPages?: number, periodDays?: number) => void;
   pipelineMaxPages?: number;
   pipelinePeriod?: number;
+  canRunPipeline?: boolean;
 }
 
-export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onStartPipeline, pipelineMaxPages, pipelinePeriod }: VacanciesListProps) {
+export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onStartPipeline, pipelineMaxPages, pipelinePeriod, canRunPipeline = true }: VacanciesListProps) {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,10 +128,14 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [vacancyInfo, setVacancyInfo] = useState<{ count: number; file_modified: string | null; date_range: { from: string; to: string } | null; load_error: string | null } | null>(null);
+  const [drawerVacancy, setDrawerVacancy] = useState<Vacancy | null>(null);
+  const [vacancyInfo, setVacancyInfo] = useState<{ count: number; with_skills?: number; file_modified: string | null; date_range: { from: string; to: string } | null; load_error: string | null } | null>(null);
   const [showPipelineSetup, setShowPipelineSetup] = useState(false);
   const [pipelineRegion, setPipelineRegion] = useState("0");
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [cityQuery, setCityQuery] = useState("");
+  const [openLetters, setOpenLetters] = useState<Record<string, boolean>>({});
+  const [filterOpen, setFilterOpen] = useState(false);
   const [cityMode, setCityMode] = useState(false);
   const [pipelineProfession, setPipelineProfession] = useState("");
   const [pipelineMaxPagesLocal, setPipelineMaxPagesLocal] = useState(20);
@@ -137,9 +143,29 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [showAllMarketInfo, setShowAllMarketInfo] = useState(false);
   const [allMarketVacancyCount, setAllMarketVacancyCount] = useState(0);
   const [monthsFilter, setMonthsFilter] = useState<number | null>(null);
-  const [applied, setApplied] = useState<{ search: string; experience: string; city: string; months: number | null }>({ search: "", experience: "all", city: "all", months: null });
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [applied, setApplied] = useState<{ search: string; experience: string; city: string; months: number | null; date_from: string; date_to: string }>({ search: "", experience: "all", city: "all", months: null, date_from: "", date_to: "" });
+  const activeFilterCount = [
+    experienceFilter !== "all",
+    cityFilter !== "all",
+    searchQuery.trim() !== "",
+    monthsFilter !== null,
+    dateFrom !== "" || dateTo !== "",
+  ].filter(Boolean).length;
   const handledCompleteRef = useRef(false);
   const itemsPerPage = 12;
+  const fmtDateRU = (iso: string) => {
+    const p = (iso || "").slice(0, 10).split("-");
+    return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
+  };
+  const PERIOD_PRESETS: { value: number | null; label: string }[] = [
+    { value: null, label: "Всё время" },
+    { value: 1, label: "Месяц" },
+    { value: 3, label: "3 месяца" },
+    { value: 6, label: "Полгода" },
+    { value: 12, label: "Год" },
+  ];
 
   useEffect(() => {
     loadVacancies();
@@ -190,6 +216,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         params.append("months", applied.months.toString());
       }
 
+      if (applied.date_from) {
+        params.append("date_from", applied.date_from);
+      }
+      if (applied.date_to) {
+        params.append("date_to", applied.date_to);
+      }
+
       const response = await fetch(`/api/vacancies?${params}`);
       if (!response.ok) {
         throw new Error("Ошибка загрузки вакансий");
@@ -221,6 +254,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       if (applied.city && applied.city !== "all") params.append("region", applied.city);
       if (applied.search.trim()) params.append("search", applied.search.trim());
       if (applied.months) params.append("months", applied.months.toString());
+      if (applied.date_from) params.append("date_from", applied.date_from);
+      if (applied.date_to) params.append("date_to", applied.date_to);
       const response = await fetch(`/api/vacancies?${params}`);
       if (response.ok) {
         const data: VacanciesResponse = await response.json();
@@ -234,12 +269,14 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     } catch {}
   };
 
-  const applyFilters = (over: Partial<{ search: string; experience: string; city: string; months: number | null }> = {}) => {
+  const applyFilters = (over: Partial<{ search: string; experience: string; city: string; months: number | null; date_from: string; date_to: string }> = {}) => {
     setApplied({
       search: searchQuery,
       experience: experienceFilter,
       city: cityFilter,
       months: monthsFilter,
+      date_from: dateFrom,
+      date_to: dateTo,
       ...over,
     });
     setCurrentPage(1);
@@ -254,7 +291,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     setExperienceFilter("all");
     setCityFilter("all");
     setMonthsFilter(null);
-    setApplied({ search: "", experience: "all", city: "all", months: null });
+    setDateFrom("");
+    setDateTo("");
+    setApplied({ search: "", experience: "all", city: "all", months: null, date_from: "", date_to: "" });
     setCurrentPage(1);
   };
 
@@ -286,7 +325,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       >
         <div className="inline-flex items-center justify-center gap-3 mb-2">
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl blur-xl opacity-50 animate-pulse" />
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500 dark:from-blue-950/30 to-purple-600 rounded-2xl blur-xl opacity-30 dark:opacity-50 animate-pulse" />
             <div className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 p-3 rounded-2xl shadow-2xl">
               <Briefcase className="size-8 text-white" />
             </div>
@@ -301,7 +340,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         {vacancyInfo && (
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400 dark:text-slate-500">
             {vacancyInfo.date_range && (
-              <span>{vacancyInfo.date_range.from} &mdash; {vacancyInfo.date_range.to}</span>
+              <span>Записи с {fmtDateRU(vacancyInfo.date_range.from)}</span>
             )}
             <span>файл: {vacancyInfo.file_modified}</span>
             <span>{vacancyInfo.count} вакансий</span>
@@ -312,7 +351,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       </motion.div>
 
       {/* Pipeline trigger / settings panel */}
-      {showPipelineSetup && (!pipelineStep || pipelineStep.status !== "running") ? (
+      {canRunPipeline && (showPipelineSetup && (!pipelineStep || pipelineStep.status !== "running") ? (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -322,7 +361,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-lg shadow-md">
+                  <div className="p-2 bg-gradient-to-br from-sky-500 dark:from-sky-950/30 to-indigo-600 rounded-lg shadow-md">
                     <Rocket className="size-5 text-white" />
                   </div>
                   <div>
@@ -330,8 +369,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     <CardDescription>Выберите профессию и города для поиска</CardDescription>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setShowPipelineSetup(false)}>
-                  <X className="size-4" />
+                <Button variant="ghost" size="icon" onClick={() => setShowPipelineSetup(false)} title="Свернуть настройки">
+                  <ChevronUp className="size-4" />
                 </Button>
               </div>
             </CardHeader>
@@ -348,7 +387,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   disabled={!cityMode}
                   className="h-10"
                 />
-                <p className="text-xs text-slate-400">{!cityMode ? "Весь рынок — поиск по всем IT-профессиям" : "Оставьте пустым для поиска по всем профессиям"}</p>
+                <p className="text-xs text-slate-400">{!cityMode ? "Весь рынок – поиск по всем IT-профессиям" : "Оставьте пустым для поиска по всем профессиям"}</p>
               </div>
 
               {/* Search params */}
@@ -388,7 +427,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   variant={!cityMode ? "default" : "outline"}
                   onClick={() => { setCityMode(false); setSelectedCities([]); setPipelineRegion("0"); setPipelineProfession(""); }}
-                  className="flex-1 h-10 gap-2"
+                  className={`flex-1 h-10 gap-2 ${!cityMode ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <Globe className="size-4" />
                   Весь рынок
@@ -396,7 +435,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   variant={cityMode ? "default" : "outline"}
                   onClick={() => { setCityMode(true); if (selectedCities.length === 0) setSelectedCities([...HH_REGIONS]); }}
-                  className="flex-1 h-10 gap-2"
+                  className={`flex-1 h-10 gap-2 ${cityMode ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <MapPin className="size-4" />
                   Выбрать города
@@ -445,7 +484,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                                 : [...prev, city]
                             );
                           }}
-                          className="rounded border-slate-300"
+                          className="rounded border-slate-300 dark:border-slate-600"
                         />
                         <span className="truncate">{city}</span>
                       </label>
@@ -476,23 +515,76 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                         Поиск по всему рынку
                       </div>
                       <p className="text-xs text-blue-700 dark:text-blue-300">
-                        Будут собраны вакансии {vacancyInfo?.count ? `(текущая база: ${vacancyInfo.count} шт.)` : ""} по всем IT-направлениям: Data Scientist, ML Engineer, Python/Java/Fullstack/Frontend/Backend Developer, DevOps, QA, Security, SRE, Mobile Dev, Analyst, Architect, Team Lead, UX/UI Designer, Game Dev и другим
+                        Будут собраны вакансии {vacancyInfo?.count ? `(в базе: ${vacancyInfo.count} шт.${vacancyInfo.with_skills ? `, с навыками: ${vacancyInfo.with_skills} шт.` : ""})` : ""} по всем IT-направлениям: Data Scientist, ML Engineer, Python/Java/Fullstack/Frontend/Backend Developer, DevOps, QA, Security, SRE, Mobile Dev, Analyst, Architect, Team Lead, UX/UI Designer, Game Dev и другим
                       </p>
                       <div className="text-xs text-blue-600 dark:text-blue-400">
                         <span className="font-medium">Города ({HH_REGIONS.length}):</span>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {HH_REGIONS.map(c => (
-                            <span key={c} className="inline-block px-2 py-0.5 bg-white/70 dark:bg-slate-800/70 rounded-full">
-                              {c}
-                            </span>
-                          ))}
+                        <input
+                          value={cityQuery}
+                          onChange={(e) => setCityQuery(e.target.value)}
+                          placeholder="Найти город..."
+                          className="mt-2 w-full h-8 px-3 text-xs rounded-lg border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100 outline-none"
+                        />
+                        <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-blue-200/60 dark:border-blue-800/60 divide-y divide-blue-100 dark:divide-blue-900/40">
+                          {(() => {
+                            const q = cityQuery.trim().toLowerCase();
+                            const filtered = HH_REGIONS.filter((c) => !q || c.toLowerCase().includes(q));
+                            const groups = new Map<string, string[]>();
+                            for (const c of filtered) {
+                              const letter = (c[0] || "#").toUpperCase();
+                              if (!groups.has(letter)) groups.set(letter, []);
+                              groups.get(letter)!.push(c);
+                            }
+                            if (filtered.length === 0) {
+                              return <p className="p-3 text-xs text-blue-500">Ничего не найдено</p>;
+                            }
+                            return [...groups.entries()]
+                              .sort(([a], [b]) => a.localeCompare(b, "ru"))
+                              .map(([letter, cities]) => {
+                                const sel = cities.filter((c) => selectedCities.includes(c)).length;
+                                const open = openLetters[letter] ?? q.length > 0 ?? sel > 0;
+                                return (
+                                  <div key={letter}>
+                                    <button
+                                      onClick={() => setOpenLetters((p) => ({ ...p, [letter]: !(p[letter] ?? q.length > 0 ?? sel > 0) }))}
+                                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-blue-800 dark:text-blue-200 hover:bg-white/60 dark:hover:bg-slate-800/60 cursor-pointer"
+                                    >
+                                      <ChevronDown className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+                                      {letter}
+                                      <span className="ml-auto font-normal text-blue-500">
+                                        {sel > 0 ? `${sel}/${cities.length}` : cities.length}
+                                      </span>
+                                    </button>
+                                    {open && (
+                                      <div className="px-3 pb-2 flex flex-wrap gap-1">
+                                        {cities.map((c) => {
+                                          const on = selectedCities.includes(c);
+                                          return (
+                                            <button
+                                              key={c}
+                                              onClick={() => setSelectedCities((prev) => (on ? prev.filter((x) => x !== c) : [...prev, c]))}
+                                              title={on ? "Убрать из выборки" : "Добавить к выборке"}
+                                              className={`px-2 py-0.5 text-xs rounded-full border transition-colors cursor-pointer ${
+                                                on
+                                                  ? "bg-blue-600 text-white border-blue-600"
+                                                  : "bg-white/70 dark:bg-slate-800/70 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:border-blue-500"
+                                              }`}
+                                            >
+                                              {c}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              });
+                          })()}
                         </div>
+                        {selectedCities.length > 0 && (
+                          <p className="mt-1 text-xs text-blue-500">Выбрано для сбора: {selectedCities.length}</p>
+                        )}
                       </div>
-                      {vacancyInfo?.date_range && (
-                        <p className="text-xs text-blue-500">
-                          Данные за период: {vacancyInfo.date_range.from} — {vacancyInfo.date_range.to}
-                        </p>
-                      )}
                     </motion.div>
                   )}
                 </>
@@ -538,7 +630,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <CardContent className="p-4">
               <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
                 <div className="flex items-center gap-3 flex-1">
-                  <div className="p-2 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-lg shrink-0">
+                  <div className="p-2 bg-gradient-to-br from-sky-500 dark:from-sky-950/30 to-indigo-600 rounded-lg shrink-0">
                     <Rocket className="size-5 text-white" />
                   </div>
                   <div className="flex-1">
@@ -567,7 +659,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             </CardContent>
           </Card>
         </motion.div>
-      )}
+      ))}
 
       {/* Filters */}
       <motion.div
@@ -579,7 +671,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-md">
+                <div className="p-2 bg-blue-700 rounded-lg">
                   <Filter className="size-5 text-white" />
                 </div>
                 <div>
@@ -589,10 +681,24 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               </div>
               <div className="flex items-center gap-2">
                 <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFilterOpen(true)}
+                  className="gap-2"
+                >
+                  <Filter className="size-4" />
+                  Фильтры
+                  {activeFilterCount > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-[11px] font-semibold">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </Button>
+                <Button
                   variant={viewMode === "grid" ? "default" : "outline"}
                   size="icon"
                   onClick={() => setViewMode("grid")}
-                  className="size-9"
+                  className={`size-9 ${viewMode === "grid" ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <LayoutGrid className="size-4" />
                 </Button>
@@ -600,17 +706,54 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   variant={viewMode === "list" ? "default" : "outline"}
                   size="icon"
                   onClick={() => setViewMode("list")}
-                  className="size-9"
+                  className={`size-9 ${viewMode === "list" ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <List className="size-4" />
                 </Button>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        </Card>
+      </motion.div>
+
+      {/* Фильтры выезжают справа */}
+      <AnimatePresence>
+        {filterOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-slate-950/50"
+              onClick={() => setFilterOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "tween", duration: 0.22, ease: "easeOut" }}
+              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-lg bg-white dark:bg-slate-950 border-l border-gray-200 dark:border-slate-700 shadow-2xl flex flex-col"
+            >
+              <div className="flex items-center justify-between gap-3 p-5 border-b border-gray-200 dark:border-slate-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-700 rounded-lg">
+                    <Filter className="size-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-slate-100">Фильтры и поиск</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {activeFilterCount > 0 ? `Активно: ${activeFilterCount}` : "Показаны все вакансии"}
+                    </div>
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setFilterOpen(false)} title="Закрыть">
+                  <X className="size-4" />
+                </Button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+            <div className="space-y-6">
               {/* Search */}
-              <div className="md:col-span-2 space-y-2">
+              <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Поиск по названию
                 </label>
@@ -621,33 +764,35 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyPress={handleSearchKeyPress}
-                      placeholder="Введите должность или компанию..."
-                      className="pl-10 h-11 border-2"
+                      placeholder="Должность или компания"
+                      className="pl-10 h-10 rounded-lg focus-visible:ring-2 focus-visible:ring-blue-500"
                     />
                   </div>
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                      onClick={handleSearch}
-                      disabled={loading}
-                      className="h-11 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                    >
-                      {loading ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Search className="size-4" />
-                      )}
-                    </Button>
-                  </motion.div>
+                  <Button
+                    onClick={handleSearch}
+                    disabled={loading}
+                    aria-label="Найти"
+                    className="h-10 w-11 bg-blue-700 hover:bg-blue-800 text-white rounded-lg"
+                  >
+                    {loading ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Search className="size-4" />
+                    )}
+                  </Button>
                 </div>
               </div>
 
-              {/* Experience filter */}
+              <div className="border-t border-slate-200 dark:border-slate-800" />
+
+              {/* Experience + city */}
+              <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  Уровень опыта
+                  Опыт
                 </label>
                 <Select value={experienceFilter} onValueChange={(v) => { setExperienceFilter(v); }}>
-                  <SelectTrigger className="h-11 border-2">
+                  <SelectTrigger className="h-10 rounded-lg">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -665,7 +810,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   Город
                 </label>
                 <Select value={cityFilter} onValueChange={(v) => { setCityFilter(v); }}>
-                  <SelectTrigger className="h-11 border-2">
+                  <SelectTrigger className="h-10 rounded-lg">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="max-h-80">
@@ -678,58 +823,69 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   </SelectContent>
                 </Select>
               </div>
+              </div>
 
-              {/* Months filter */}
-              <div className="space-y-2">
+              <div className="border-t border-slate-200 dark:border-slate-800" />
+
+              {/* Period presets */}
+              <div className="space-y-3">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Период
                 </label>
-                <Select value={String(monthsFilter ?? "all")} onValueChange={(v) => { setMonthsFilter(v === "all" ? null : Number(v)); }}>
-                  <SelectTrigger className="h-11 border-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Весь период</SelectItem>
-                    <SelectItem value="1">1 месяц</SelectItem>
-                    <SelectItem value="3">3 месяца</SelectItem>
-                    <SelectItem value="6">6 месяцев</SelectItem>
-                    <SelectItem value="12">12 месяцев</SelectItem>
-                    <SelectItem value="24">24 месяца</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-wrap gap-2">
+                  {PERIOD_PRESETS.map(p => {
+                    const isActive = monthsFilter === p.value && !dateFrom && !dateTo;
+                    const dimmed = (dateFrom !== "" || dateTo !== "") && p.value !== null;
+                    return (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => { setMonthsFilter(p.value); if (p.value !== null) { setDateFrom(""); setDateTo(""); } }}
+                        className={`h-9 px-4 rounded-full border text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none ${
+                          isActive
+                            ? "bg-blue-700 border-blue-700 text-white"
+                            : "border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-blue-500 hover:text-blue-700 dark:hover:text-blue-400"
+                        } ${dimmed ? "opacity-40" : ""}`}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    min={vacancyInfo?.date_range?.from?.slice(0, 10)}
+                    max={dateTo || vacancyInfo?.date_range?.to?.slice(0, 10)}
+                    onChange={(e) => { setDateFrom(e.target.value); if (e.target.value) setMonthsFilter(null); }}
+                    className="h-10 rounded-lg dark:[color-scheme:dark]"
+                    aria-label="Дата от"
+                  />
+                  <span className="text-sm text-slate-400">—</span>
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    min={dateFrom || vacancyInfo?.date_range?.from?.slice(0, 10)}
+                    max={vacancyInfo?.date_range?.to?.slice(0, 10)}
+                    onChange={(e) => { setDateTo(e.target.value); if (e.target.value) setMonthsFilter(null); }}
+                    className="h-10 rounded-lg dark:[color-scheme:dark]"
+                    aria-label="Дата до"
+                  />
+                </div>
+                {vacancyInfo?.date_range && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Записи с {fmtDateRU(vacancyInfo.date_range.from)}
+                  </p>
+                )}
               </div>
-              <div className="md:col-span-3 flex items-end justify-end gap-3">
-                <Button
-                  onClick={() => applyFilters()}
-                  disabled={loading}
-                  className="h-11 px-6 bg-blue-700 hover:bg-blue-800 text-white transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none gap-2"
-                >
-                  {loading ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Search className="size-4" />
-                  )}
-                  Применить фильтры
-                </Button>
-                <Button
-                  onClick={clearFilters}
-                  disabled={loading}
-                  variant="outline"
-                  className="h-11 px-6 border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none gap-2"
-                >
-                  <X className="size-4" />
-                  Очистить
-                </Button>
-              </div>
+            </div>
             </div>
 
             {/* Active filters */}
-            {(applied.experience !== "all" || applied.city !== "all" || applied.search) && (
-              <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Активные фильтры:
-                </span>
-                {experienceFilter !== "all" && (
+            {(applied.experience !== "all" || applied.city !== "all" || applied.search || applied.months !== null || applied.date_from || applied.date_to) && (
+              <div className="flex flex-wrap items-center gap-2 px-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+                {applied.experience !== "all" && (
                   <Badge
                     variant="secondary"
                     className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
@@ -738,7 +894,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     {applied.experience} ✕
                   </Badge>
                 )}
-                {cityFilter !== "all" && (
+                {applied.city !== "all" && (
                   <Badge
                     variant="secondary"
                     className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
@@ -747,7 +903,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     {applied.city} ✕
                   </Badge>
                 )}
-                {searchQuery && (
+                {applied.search && (
                   <Badge
                     variant="secondary"
                     className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
@@ -759,11 +915,53 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     "{applied.search}" ✕
                   </Badge>
                 )}
+                {applied.months !== null && (
+                  <Badge
+                    variant="secondary"
+                    className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
+                    onClick={() => { setMonthsFilter(null); applyFilters({ months: null }); }}
+                  >
+                    {applied.months} мес ✕
+                  </Badge>
+                )}
+                {(applied.date_from || applied.date_to) && (
+                  <Badge
+                    variant="secondary"
+                    className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
+                    onClick={() => { setDateFrom(""); setDateTo(""); applyFilters({ date_from: "", date_to: "" }); }}
+                  >
+                    {applied.date_from ? fmtDateRU(applied.date_from) : "…"} — {applied.date_to ? fmtDateRU(applied.date_to) : "…"} ✕
+                  </Badge>
+                )}
               </div>
             )}
-          </CardContent>
-        </Card>
-      </motion.div>
+              <div className="flex items-center gap-3 p-5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+                <Button
+                  onClick={() => { applyFilters(); setFilterOpen(false); }}
+                  disabled={loading}
+                  className="h-10 flex-1 bg-blue-700 hover:bg-blue-800 text-white rounded-lg gap-2 whitespace-nowrap"
+                >
+                  {loading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Search className="size-4" />
+                  )}
+                  Показать вакансии{total > 0 ? ` (${total})` : ""}
+                </Button>
+                <Button
+                  onClick={clearFilters}
+                  disabled={loading || activeFilterCount === 0}
+                  variant="outline"
+                  className="h-10 rounded-lg text-slate-600 dark:text-slate-300 gap-2 whitespace-nowrap"
+                >
+                  <X className="size-4" />
+                  Сбросить
+                </Button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Vacancies Grid */}
       {loading ? (
@@ -792,35 +990,35 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               <p className="text-red-700 dark:text-red-300">{error}</p>
 
               {vacancyInfo?.load_error?.startsWith("corrupted:") ? (
-                <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg text-left max-w-lg mx-auto">
-                  <p className="text-sm text-orange-800">
+                <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg text-left max-w-lg mx-auto">
+                  <p className="text-sm text-orange-800 dark:text-orange-200">
                     <AlertCircle className="size-4 inline mr-1" />
-                    <strong>Файл вакансий повреждён.</strong> Файл существует (<code className="text-xs bg-orange-100 px-1 rounded">{vacancyInfo.file_modified ?? "неизвестно"}</code>), но не может быть прочитан.
+                    <strong>Файл вакансий повреждён.</strong> Файл существует (<code className="text-xs bg-orange-100 dark:bg-orange-950/30 px-1 rounded">{vacancyInfo.file_modified ?? "неизвестно"}</code>), но не может быть прочитан.
                   </p>
-                  <p className="text-xs text-orange-700 mt-2">
-                    Попробуйте запустить повторный сбор вакансий — файлы будут перезаписаны.
+                  <p className="text-xs text-orange-700 dark:text-orange-300 mt-2">
+                    Попробуйте запустить повторный сбор вакансий – файлы будут перезаписаны.
                   </p>
                 </div>
               ) : !vacancyInfo?.file_modified ? (
-                <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-left max-w-lg mx-auto">
-                  <p className="text-sm text-amber-800">
+                <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-left max-w-lg mx-auto">
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
                     <Database className="size-4 inline mr-1" />
                     <strong>Вакансии не собраны.</strong> Нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
                   </p>
-                  <p className="text-xs text-amber-700 mt-2">
-                    После сбора вакансий данные кэшируются. Если вы уже запускали сбор — проверьте, что бэкенд запущен.
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                    После сбора вакансий данные кэшируются. Если вы уже запускали сбор – проверьте, что бэкенд запущен.
                   </p>
                 </div>
               ) : (
-                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-left max-w-lg mx-auto">
-                  <p className="text-sm text-red-800">
+                <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg text-left max-w-lg mx-auto">
+                  <p className="text-sm text-red-800 dark:text-red-200">
                     <AlertCircle className="size-4 inline mr-1" />
                     <strong>Не удалось загрузить данные из файла.</strong> Файл существует, но возникла ошибка при обработке.
                   </p>
                   {vacancyInfo?.load_error && (
                     <p className="text-xs text-red-600 mt-1 font-mono">{vacancyInfo.load_error}</p>
                   )}
-                  <p className="text-xs text-red-700 mt-2">
+                  <p className="text-xs text-red-700 dark:text-red-300 mt-2">
                     Попробуйте перезапустить сервер или запустить повторный сбор.
                   </p>
                 </div>
@@ -850,12 +1048,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               <p className="text-slate-600 dark:text-slate-400 mb-4">
                 По вашему запросу ничего не найдено
               </p>
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-left max-w-lg mx-auto">
-                <p className="text-sm text-blue-800">
+              <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-left max-w-lg mx-auto">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
                   <Database className="size-4 inline mr-1" />
-                  <strong>Если вакансии ещё не собраны</strong> — нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
+                  <strong>Если вакансии ещё не собраны</strong> – нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
                 </p>
-                <ul className="mt-2 text-xs text-blue-700 space-y-1 list-disc list-inside">
+                <ul className="mt-2 text-xs text-blue-700 dark:text-blue-300 space-y-1 list-disc list-inside">
                   <li>После нажатия запустится полный цикл сбора (10-15 минут)</li>
                   <li>Прогресс будет отображаться на этой же странице</li>
                   <li>После завершения данные обновятся автоматически</li>
@@ -866,14 +1064,19 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         </motion.div>
       ) : (
         <>
+          <VacancyDetailPanel vacancy={drawerVacancy} onClose={() => setDrawerVacancy(null)} />
+
           {/* Count + Export */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center justify-between"
           >
-            <p className="text-sm text-slate-500">
-              Найдено <span className="font-semibold text-slate-700 dark:text-slate-300">{vacancies.length}</span> вакансий
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Найдено <span className="font-semibold text-slate-700 dark:text-slate-300">{total}</span> вакансий
+              {vacancies.length < total && (
+                <span> (показано {vacancies.length})</span>
+              )}
             </p>
             <Button
               variant="outline"
@@ -885,6 +1088,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   if (applied.experience !== "all") eq.append("experience", applied.experience);
                   if (applied.city !== "all") eq.append("region", applied.city);
                   if (applied.months) eq.append("months", String(applied.months));
+                  if (applied.date_from) eq.append("date_from", applied.date_from);
+                  if (applied.date_to) eq.append("date_to", applied.date_to);
                   const qs = eq.toString();
                   const r = await fetch(`/api/teacher/export/vacancies${qs ? `?${qs}` : ""}`);
                   if (r.ok) {
@@ -910,24 +1115,23 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           </motion.div>
 
           <motion.div
-            className={`grid gap-6 ${
+            className={`gap-6 ${
               viewMode === "grid"
-                ? "grid-cols-1 lg:grid-cols-2"
-                : "grid-cols-1"
+                ? "columns-1 lg:columns-2 [&>*]:mb-6"
+                : "columns-1"
             }`}
-            layout
           >
             <AnimatePresence mode="popLayout">
               {vacancies.map((vacancy, index) => (
                 <motion.div
                   key={vacancy.id}
-                  layout
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ delay: index * 0.05 }}
+                  className="h-full break-inside-avoid"
                 >
-                  <VacancyCard vacancy={vacancy} />
+                  <VacancyCard vacancy={vacancy} onOpen={(v) => setDrawerVacancy(v)} />
                 </motion.div>
               ))}
             </AnimatePresence>

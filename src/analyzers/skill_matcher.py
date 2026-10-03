@@ -7,22 +7,92 @@ from typing import Any
 import numpy as np
 import structlog
 
-from src.result import Ok, Err, Result
 from src.errors import MatchingError
+from src.result import Err, Ok, Result
 
 logger = structlog.get_logger(__name__)
 
 NORMALIZE_RE = re.compile(r"[^\w\s\-/]")
+# Market-навыки, чей смысл убит NORMALIZE_RE при нормализации РПД
+# (c++ -> c, c# -> c, .net -> net). Для emerging-проверки ищем stripped-ядро
+# как целое слово. Только allowlist: широкое правило ложно сматчит короткие ядра.
+_STRIPPED_CORE_SKILLS = {"c++": "c", "c#": "c", "f#": "f", ".net": "net"}
 # Single-char market tokens are почти всегда мусор парсинга (напр. 'я').
 # Allowlist: языки с однобуквенным именем. Остальное режется везде (v28).
 _MARKET_SINGLE_ALLOW = frozenset({"r", "c"})
-SEMANTIC_THRESHOLD = 0.78
 # A market token with fewer vacancies is fringe: it must neither count as
 # coverage (see CoverageAnalyzer) nor shadow stronger stages (v36: e.g. the
 # fringe token 'документация'/1 hijacked 'отчетная документация' via fuzzy
 # and blocked the mapped hit 'техническая документация'/63).
 MARKET_MIN_FREQ = 5
-# Leading competency verbs stripped before matching (v44, flag-gated).
+# Свертка визуально неразличимой кириллицы в латиницу — ТОЛЬКО для сравнения.
+# normalize() намеренно не трогаем: леммы/семантика работают на исходном скрипте
+# (свертка до лемматизации ломает pymorphy: 'oтлаживать' уже не слово).
+_SCRIPT_FOLD = str.maketrans({
+    "а": "a", "в": "b", "с": "c", "е": "e", "ё": "e", "н": "h", "к": "k",
+    "м": "m", "о": "o", "р": "p", "т": "t", "х": "x", "у": "y",
+    "А": "A", "В": "B", "С": "C", "Е": "E", "Ё": "E", "Н": "H", "К": "K",
+    "М": "M", "О": "O", "Р": "P", "Т": "T", "Х": "X", "У": "Y",
+})
+# Стоп-токены для лемма-якоря (совпадение только по ним — шум).
+_STOP_TOKENS = frozenset({
+    "на", "в", "с", "к", "о", "и", "для", "по", "от", "из", "у", "же", "ли",
+    "бы", "как", "что", "это", "не", "ни", "или", "а", "но", "при", "над",
+    "под", "про", "через", "без", "до", "между", "все", "его", "ее", "их",
+    "мы", "вы", "они", "она", "оно", "я", "ты", "он", "со", "во", "то",
+})
+
+
+def fold_script(s: str) -> str:
+    """Свернуть визуальные кириллические двойники в латиницу (детерминировано)."""
+    return (s or "").translate(_SCRIPT_FOLD)
+
+
+def sig_lemmas(text: str) -> frozenset[str]:
+    """Значимые леммы текста для якоря: стоп/слова-мусор выкинуты, свертка последней.
+
+    Порядок важен: лемматизация — на исходном скрипте, свертка — после.
+    Без pymorphy деградирует до свернутых сырых токенов (C++/C# ловятся и так).
+    """
+    try:
+        from src.text.ru_morph import available as _avail
+        from src.text.ru_morph import lemma as _lemma
+        use_morph = _avail()
+    except Exception:
+        use_morph = False
+    out: set[str] = set()
+    for t in re.findall(r"[a-zA-Zа-яёА-ЯЁ0-9#+/]+", text or ""):
+        tl = t.lower()
+        if tl in _STOP_TOKENS and "/" not in tl:
+            continue
+        # Части составных токенов ('с/с++' -> 'с','с++') стоп-фильтру не подлежат:
+        # это фрагменты, а не отдельные слова.
+        parts = {tl} | (set(tl.split("/")) if "/" in tl else set())
+        for p in parts:
+            if p in _STOP_TOKENS and "/" in p:
+                continue
+            if p in _STOP_TOKENS and p == tl:
+                continue
+            variants = {p}
+            stripped = re.sub(r"[+#]", "", p)
+            if stripped and stripped != p:
+                variants.add(stripped)
+            for v in variants:
+                if v in _STOP_TOKENS and "/" in v:
+                    continue
+                lemma = None
+                if use_morph:
+                    try:
+                        lemma = _lemma(v)
+                    except Exception:
+                        lemma = None
+                lemma = lemma or v
+                if ((not lemma or len(lemma) < 2)
+                        and fold_script(v) not in {"r", "c"}
+                        and "+" not in v and "#" not in v and "/" not in v):
+                    continue
+                out.add(fold_script(lemma))
+    return frozenset(out)
 # RPD speaks in actions ('владеть X'), the market in nouns ('X').
 _LEAD_VERB_LEMMAS = frozenset({
     "владеть", "знать", "уметь", "применять", "понимать", "обладать",
@@ -39,7 +109,8 @@ def strip_lead_verbs(text: str) -> str:
     """Drop leading competency verbs ("знать python" -> "python"). Deterministic."""
     words = (text or "").split()
     try:
-        from src.text.ru_morph import lemma as _lemma, available as _avail
+        from src.text.ru_morph import available as _avail
+        from src.text.ru_morph import lemma as _lemma
         use_morph = _avail()
     except Exception:
         use_morph = False
@@ -72,7 +143,7 @@ def fold_market_synonyms(market: dict[str, int]) -> dict[str, int]:
             canon = MARKET_SYNONYMS[alias]
             out[canon] = out.get(canon, 0) + out.pop(alias)
     return out
-MARKET_EMB_CACHE_NAME = "market_embeddings_middle.joblib"
+MARKET_EMB_CACHE_NAME = "market_embeddings_all.joblib"
 MARKET_CACHE_MIN_SKILLS = 300
 
 
@@ -246,10 +317,30 @@ class SkillMatcher:
         self._market_word_pats = [
             (name, _word_pattern(name)) for name in self.market_skills
         ]
+        # Свернутые паттерны: кириллический запрос 'с/с' находит латинский 'c/c++'.
+        self._market_fold_pats = [
+            (name, _word_pattern(fold_script(normalize(name))))
+            for name in self.market_skills
+        ]
+        # fold_map для свернутого exact: первое (самое частотное при set_market) побеждает.
+        self._fold_map: dict[str, str] = {}
+        for name in self.market_skills:
+            fk = fold_script(normalize(name))
+            if fk and fk not in self._fold_map:
+                self._fold_map[fk] = name
+        # Лемма-подписи навыков для якоря (строятся один раз, запрос — за матч).
+        # Per-skill guard: одна кривая подпись не должна гасить весь индекс.
+        self._market_siglemmas: dict[str, frozenset[str]] = {}
+        for name in self.market_skills:
+            try:
+                self._market_siglemmas[name] = sig_lemmas(name)
+            except Exception:
+                self._market_siglemmas[name] = frozenset()
         # Lemma-space patterns for inflection-insensitive fuzzy (v44).
         self._market_lemma_pats = []
         try:
-            from src.text.ru_morph import available as _avail, lemma_key as _lkey
+            from src.text.ru_morph import available as _avail
+            from src.text.ru_morph import lemma_key as _lkey
             if _avail():
                 self._market_lemma_pats = [
                     (name, _word_pattern(lk))
@@ -267,6 +358,7 @@ class SkillMatcher:
         Identical semantics and order to the original loop:
         for mn in market_skills:
             if _word_match(n, mn) or _word_match(mn, n): return mn
+        Плюс второй проход по свернутым паттернам (кириллица->латиница).
         """
         if not self._market_word_pats:
             return None
@@ -274,7 +366,60 @@ class SkillMatcher:
         for mn, mpat in self._market_word_pats:
             if qpat.search(mn) or mpat.search(n):
                 return mn
+        folded_n = fold_script(n)
+        if folded_n != n:
+            qpat_folded = _word_pattern(folded_n)
+            for mn, mpat_folded in self._market_fold_pats:
+                if qpat_folded.search(fold_script(mn)) or mpat_folded.search(folded_n):
+                    return mn
         return None
+
+    def _anchor_hit_name(self, n: str) -> str | None:
+        """Якорь: все значимые леммы навыка покрыты запросом (containment).
+
+        Ловит 'С/С++'->c/c++, 'тестирование по' в 'способ ... тестирования ...'.
+        Не ловит 'программирование плк' для 'создавать программный код'
+        ('плк' отсутствует в запросе) — защита от ложной точности.
+        Fringe-навыки (freq < 5) отбрасываются как везде.
+        """
+        if not self._market_siglemmas:
+            return None
+        q = sig_lemmas(n)
+        if not q:
+            return None
+        cands: list[tuple[int, int, str]] = []
+        for name, st in self._market_siglemmas.items():
+            if st and st <= q:
+                cands.append((len(st), self.market_skills.get(name, 0), name))
+        if not cands:
+            return None
+        cands.sort(key=lambda z: (-z[0], -z[1]))
+        best = cands[0][2]
+        if self.market_skills.get(best, 0) < MARKET_MIN_FREQ:
+            logger.debug("skill_anchor_fringe_skipped", rpd_skill=n, market_skill=best)
+            return None
+        logger.debug("skill_anchor_match", rpd_skill=n, market_skill=best)
+        return best
+
+    def closest_hint(self, skill_name: str) -> tuple[str, int] | None:
+        """Ближайший рыночный навык по пересечению лемм — для честных сообщений.
+
+        Возвращает (market_skill, shared_count) или None. Только свидетельство,
+        не матчинг: fringe-фильтра нет, порог — хотя бы одна значимая общая лемма.
+        """
+        if not self._market_siglemmas:
+            return None
+        q = sig_lemmas(normalize(skill_name))
+        if not q:
+            return None
+        best: tuple[int, int, str] | None = None
+        for name, st in self._market_siglemmas.items():
+            shared = len(st & q)
+            if shared:
+                key = (shared, self.market_skills.get(name, 0), name)
+                if best is None or (shared, self.market_skills.get(name, 0)) > (best[0], best[1]):
+                    best = key
+        return (best[2], best[0]) if best else None
 
     @staticmethod
     def _word_match(a: str, b: str) -> bool:
@@ -359,6 +504,12 @@ class SkillMatcher:
             logger.debug("skill_exact_match", skill=n)
             return Ok((n, "exact", 1.0))
 
+        folded_n = fold_script(n)
+        if folded_n != n and folded_n in self._fold_map:
+            hit = self._fold_map[folded_n]
+            logger.debug("skill_folded_exact_match", skill=n, market_skill=hit)
+            return Ok((hit, "exact", 1.0))
+
         mn = self._fuzzy_hit_name(n)
         if mn:
             if self.market_skills.get(mn, 0) < MARKET_MIN_FREQ:
@@ -366,7 +517,6 @@ class SkillMatcher:
             else:
                 logger.debug("skill_fuzzy_match", rpd_skill=n, market_skill=mn)
                 return Ok((mn, "fuzzy", 0.5))
-
 
         mapped, _, _ = self._mapped_match(n)
         if mapped:
@@ -381,6 +531,14 @@ class SkillMatcher:
                 else:
                     logger.debug("skill_lemma_match", rpd_skill=n, market_skill=lm)
                     return Ok((lm, "lemma", 0.5))
+
+        # Якорь — после mapped/lemma: ловит то, что whole-word и лемма-фразы
+        # пропустили из-за словоизменения ('тестирования' vs 'тестирование'),
+        # но не перебивает закрепленные решения (mapped action->tool, lemma).
+        # Fringe-guard внутри.
+        anch = self._anchor_hit_name(skill_name)
+        if anch:
+            return Ok((anch, "anchor", 0.75))
 
         mn, mt, score = self._semantic_match(n, skill_name)
         if mn:
@@ -398,7 +556,15 @@ class SkillMatcher:
             return Err(MatchingError(skill_name="", message="No market skills loaded"))
 
         rpd_pats = [(_word_pattern(r)) for r in rpd_normalized] if rpd_normalized else []
-        excl_pats = [(_word_pattern(r)) for r in also_exclude] if also_exclude else []
+        # Свернутые формы для межскриптовых пар ('с/с' vs 'c++'): иначе навыки,
+        # сматченные через folded exact/anchor, всё равно всплывают в emerging.
+        rpd_folded = {fold_script(r) for r in rpd_normalized} if rpd_normalized else set()
+        rpd_fold_pats = [_word_pattern(f) for f in rpd_folded]
+        # also_exclude — это тождества уже покрытых навыков (из реальных матчей),
+        # а не текстовые вхождения: только exact + свернутый exact.
+        # Word-паттерны здесь давили бы соседей ('c++' убивал бы 'arduino c++',
+        # хотя это другой навык и честный гэп).
+        excl_folds = {fold_script(e).lower() for e in also_exclude} if also_exclude else set()
 
         result = []
         for mn, mf in sorted(self.market_skills.items(), key=lambda x: (-x[1], x[0])):
@@ -408,7 +574,7 @@ class SkillMatcher:
                 continue
             if mn in rpd_normalized:
                 continue
-            if also_exclude and mn in also_exclude:
+            if also_exclude and (mn in also_exclude or fold_script(mn).lower() in excl_folds):
                 continue
             # Equivalent to the original nested loop:
             #   for rn in rpd_normalized:
@@ -418,15 +584,24 @@ class SkillMatcher:
             qpat = _word_pattern(mn)
             skip = False
             if rpd_pats:
-                if any(p.search(mn) for p in rpd_pats):
+                if any(p.search(mn) for p in rpd_pats) or any(qpat.search(rn) for rn in rpd_normalized):
                     skip = True
-                elif any(qpat.search(rn) for rn in rpd_normalized):
+            mn_folds: set[str] = set()
+            mn_fold_pats: list = []
+            if not skip and rpd_fold_pats:
+                mn_folds = {fold_script(mn), fold_script(normalize(mn))} - {""}
+                mn_fold_pats = [_word_pattern(mv) for mv in mn_folds]
+                if any(p.search(mf_) for p in rpd_fold_pats for mf_ in mn_folds) or any(qp.search(rf) for qp in mn_fold_pats for rf in rpd_folded):
                     skip = True
-            if also_exclude and not skip and excl_pats:
-                if any(p.search(mn) for p in excl_pats):
-                    skip = True
-                elif any(qpat.search(rn) for rn in also_exclude):
-                    skip = True
+            if not skip:
+                # Навыки, чей смысл убит NORMALIZE_RE (c++ -> c, c# -> c, .net -> net):
+                # в нормах РПД ищем stripped-ядро как целое слово. Строгий allowlist,
+                # широкое правило дало бы ложные срабатывания на коротких ядрах.
+                core = _STRIPPED_CORE_SKILLS.get(mn.lower())
+                if core:
+                    cpat = _word_pattern(core)
+                    if any(cpat.search(rn) for rn in rpd_normalized):
+                        skip = True
             if not skip:
                 result.append((mn, mf, "emerging"))
                 if len(result) >= top_n:

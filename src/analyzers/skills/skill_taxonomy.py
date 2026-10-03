@@ -8,7 +8,7 @@ from typing import Optional
 
 import structlog
 
-from src import Result, Ok, Err, config
+from src import Err, Ok, Result, config
 from src.errors import DomainError
 
 logger = structlog.get_logger(__name__)

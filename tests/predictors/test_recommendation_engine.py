@@ -246,7 +246,8 @@ class TestGenerateRecommendations:
 class TestGenerateExplanation:
     def test_explanation_high_cluster_relevance(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        expl = engine._generate_explanation("docker", 0.85, _unwrap(mock_profile_evaluator.evaluate_profile.return_value))
+        expl = engine._generate_explanation(
+            "docker", 0.85, _unwrap(mock_profile_evaluator.evaluate_profile.return_value), True)
         assert "🎯" in expl
 
     def test_explanation_high_score_no_cluster(self, mock_profile_evaluator):
@@ -303,7 +304,7 @@ class TestTimeframes:
 
     def test_get_timeframe_default(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        assert engine._get_timeframe("unknown") == "1-3 месяца"
+        assert engine._get_timeframe("unknown").startswith("оценка")
 
 
 # ---------------------------------------------------------------------------
@@ -320,12 +321,12 @@ class TestLearningPaths:
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         profile = StudentProfile(profile_name="s", competencies=[], skills=["python"], target_level="senior", created_at=datetime.now())
         path = engine._get_learning_path("docker", False, profile)
-        assert "Углублённое изучение" in path
+        assert path == ""
 
     def test_get_learning_path_default(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         path = engine._get_learning_path("unknown", False, None)
-        assert "Изучите документацию" in path
+        assert path == ""
 
 
 # ---------------------------------------------------------------------------
@@ -381,14 +382,17 @@ class TestRoleOutcome:
             "coverage_percent": 50.0,
             "skills_covered": "3/6",
         }]
-        outcome = engine._get_role_outcome("docker", roles)
+        roles[0]["cluster_core_skills"] = ["docker"]
+        outcome = engine._get_role_outcome("docker", roles, True)
         assert "docker" in outcome
         assert "Backend" in outcome
+        assert "(+" in outcome
+        assert engine._get_role_outcome("docker", roles) == ""
 
     def test_get_role_outcome_no_roles(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         outcome = engine._get_role_outcome("docker", [])
-        assert "расширит ваш технический кругозор" in outcome
+        assert outcome == ""
 
 
 # ---------------------------------------------------------------------------
@@ -559,14 +563,17 @@ class TestRecommendationEngineExtended:
     def test_get_role_outcome_no_roles(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         outcome = engine._get_role_outcome("docker", [])
-        assert "расширит" in outcome
+        assert outcome == ""
 
     def test_get_role_outcome_with_roles(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         roles = [{"role": "Backend", "semantic_similarity": 80.0, "coverage_percent": 50.0,
                   "skills_covered": "3/6"}]
-        outcome = engine._get_role_outcome("docker", roles)
+        roles[0]["cluster_core_skills"] = ["docker"]
+        outcome = engine._get_role_outcome("docker", roles, True)
         assert "Backend" in outcome
+        assert "(+" in outcome
+        assert engine._get_role_outcome("docker", roles) == ""
 
     def test_llm_explain_with_retry_without_credentials(self, mock_profile_evaluator, monkeypatch):
         monkeypatch.setattr(config, "YC_API_KEY", None)
@@ -632,12 +639,11 @@ class TestRoleCoreGate:
     def test_tail_skill_not_attributed_to_role(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         out = engine._get_role_outcome("tail_skill_00", self._roles())
-        assert "tail_skill_00" in out and "Mgmt" in out
-        assert "(+" not in out
+        assert out == ""
 
     def test_core_skill_gets_coverage_math(self, mock_profile_evaluator):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
-        out = engine._get_role_outcome("mgmt_skill_00", self._roles())
+        out = engine._get_role_outcome("mgmt_skill_00", self._roles(), True)
         assert "(+" in out
 
     def test_build_roles_has_sorted_core(self, mock_profile_evaluator):
@@ -645,7 +651,223 @@ class TestRoleCoreGate:
         mock_profile_evaluator.clusterer = MagicMock()
         mock_profile_evaluator.clusterer.get_top_skills_in_cluster.return_value = [
             f"s{i:02d}" for i in range(50)]
+        # L1: движок идёт через get_clusterer(level) — мок отдаёт тот же кластерер.
+        mock_profile_evaluator.get_clusterer.return_value = mock_profile_evaluator.clusterer
         roles = engine._build_closest_roles(
             [{"id": 0, "name": "R", "similarity": 0.9}], {}, set())
         assert roles[0]["cluster_core_skills"] == [f"s{i:02d}" for i in range(15)]
         assert roles[0]["cluster_skills"] == sorted(roles[0]["cluster_skills"])
+
+
+# ---------------------------------------------------------------------------
+# Template consistency: explanation and outcome must never contradict
+# ---------------------------------------------------------------------------
+class TestTemplateConsistency:
+    def _roles(self):
+        return [{"role": "Backend", "semantic_similarity": 80.0,
+                  "coverage_percent": 50.0, "skills_covered": "3/6",
+                  "cluster_core_skills": ["docker"]}]
+    def test_core_skill_no_contradiction(self, mock_profile_evaluator):
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        expl = engine._generate_explanation("docker", 0.85,
+            _unwrap(mock_profile_evaluator.evaluate_profile.return_value), True)
+        out = engine._get_role_outcome("docker", self._roles(), True)
+        assert "Backend" in expl and "Backend" in out
+        assert "(+" in out
+        assert "не входит в топ" not in expl and "не входит в топ" not in out
+    def test_tail_skill_silent(self, mock_profile_evaluator):
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        expl = engine._generate_explanation("flask", 0.4,
+            _unwrap(mock_profile_evaluator.evaluate_profile.return_value), False)
+        out = engine._get_role_outcome("flask", self._roles(), False)
+        assert "Ключевой навык для роли" not in expl
+        assert out == ""
+
+
+# ---------------------------------------------------------------------------
+# Metrics honesty gates (R5/M4): blacklist vs whitelist, trend-key normalization
+# ---------------------------------------------------------------------------
+class TestRoleRankingL2:
+    """L2: бленд sim+цель и дедап категорий в топ-3 ролей."""
+
+    def _engine(self, mock_profile_evaluator, tops):
+        from unittest.mock import MagicMock
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        cl = MagicMock()
+        cl.get_top_skills_in_cluster.side_effect = lambda cid, top_n=50: tops[cid][:top_n]
+        mock_profile_evaluator.get_clusterer.return_value = cl
+        return engine
+
+    def test_ds_rises_past_sim_order(self, mock_profile_evaluator):
+        ds_prof = {"python", "pandas", "numpy", "sklearn", "sql",
+                   "matplotlib", "seaborn", "scipy", "statsmodels", "plotly"}
+        tops = {
+            1: ["kotlin", "swift", "android", "ios", "flutter"] * 10,
+            2: ["docker", "kubernetes", "linux", "bash", "terraform"] * 10,
+            3: ["docker", "git", "jenkins", "ansible", "nginx"] * 10,
+            4: sorted(ds_prof) * 5,
+        }
+        engine = self._engine(mock_profile_evaluator, tops)
+        clusters = [
+            {"id": 1, "name": "M", "similarity": 0.94},
+            {"id": 2, "name": "D1", "similarity": 0.88},
+            {"id": 3, "name": "D2", "similarity": 0.82},
+            {"id": 4, "name": "DS", "similarity": 0.81},
+        ]
+        roles = engine._build_closest_roles(clusters, {}, set(),
+                                            prof_skills=set(ds_prof),
+                                            target_profession="Data Scientist")
+        names = [r["role"] for r in roles]
+        assert "DS" in names  # 4-я по sim, но в топ-3 по бленду
+        assert len(roles) == 3
+        cats = [r["dominant_category"] for r in roles]
+        assert len(set(cats)) == len(cats)  # без дублей категорий
+        scores = [r["rank_score"] for r in roles]
+        assert scores == sorted(scores, reverse=True)
+        assert all(r["target_profession"] == "Data Scientist" for r in roles)
+
+    def test_no_prof_no_boost_pure_sim(self, mock_profile_evaluator):
+        tops = {1: ["a"] * 50, 2: ["b"] * 50, 3: ["c"] * 50}
+        engine = self._engine(mock_profile_evaluator, tops)
+        clusters = [
+            {"id": 1, "name": "A", "similarity": 0.9},
+            {"id": 2, "name": "B", "similarity": 0.8},
+            {"id": 3, "name": "C", "similarity": 0.7},
+        ]
+        roles = engine._build_closest_roles(clusters, {}, set())
+        assert [r["role"] for r in roles] == ["A", "B", "C"]
+        assert all(r["target_overlap"] == 0.0 for r in roles)
+
+    def test_other_category_falls_back_for_dedup(self, mock_profile_evaluator):
+        """Кластер с доминантой other, но devops-начинкой дедапится с devops."""
+        tops = {
+            1: (["docker", "kubernetes"] + ["zz_unknown_skill"] * 13) * 4,
+            2: ["docker", "kubernetes", "linux", "bash", "terraform"] * 10,
+        }
+        engine = self._engine(mock_profile_evaluator, tops)
+        clusters = [
+            {"id": 1, "name": "Backend", "similarity": 0.9},
+            {"id": 2, "name": "DevOps", "similarity": 0.8},
+        ]
+        roles = engine._build_closest_roles(clusters, {}, set())
+        cats = [r["dominant_category"] for r in roles]
+        assert "other" not in cats  # other не категория для дедапа
+        assert len(roles) == 1  # оба devops-семейства: второй отброшен
+
+    def test_generate_wires_taxonomy_boost(self, mock_profile_evaluator,
+                                           sample_student_profile):
+        """Регрессия обрыва L2: generate без taxonomy = буста нет даже при цели."""
+        from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
+        eval_d = mock_profile_evaluator.evaluate_profile.return_value.unwrap()
+        eval_d["target_profession"] = "Data Scientist"
+        eval_d["cluster_context"] = {
+            "cluster_level": "middle",
+            "closest_clusters": [{"id": 0, "name": "R", "similarity": 0.8}],
+            "skills": {"python": 0.9, "pandas": 0.8, "docker": 0.5},
+        }
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator,
+                                      use_ltr=False)
+        engine._always_hot = set()
+        mock_profile_evaluator.get_clusterer.return_value = None
+        match engine.generate_recommendations(sample_student_profile,
+                                              precomputed_eval=eval_d,
+                                              taxonomy=ProfessionTaxonomy()):
+            case Ok(result):
+                assert result.closest_roles, "роли обязаны построиться"
+                assert result.closest_roles[0].target_overlap > 0.0
+                assert result.closest_roles[0].target_profession == "Data Scientist"
+            case _:
+                raise AssertionError("expected Ok")
+
+    def test_candidate_level_routes_clusterer(self, mock_profile_evaluator):
+        """Cross-level: ID кластера читается в модели СВОЕГО уровня + тег в роли."""
+        from unittest.mock import MagicMock
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
+        senior_cl, middle_cl = MagicMock(), MagicMock()
+        senior_cl.get_top_skills_in_cluster.return_value = ["kotlin"] * 50
+        middle_cl.get_top_skills_in_cluster.return_value = ["python"] * 50
+        mock_profile_evaluator.get_clusterer.side_effect = (
+            lambda lvl: {"senior": senior_cl, "middle": middle_cl}.get(lvl))
+        clusters = [
+            {"id": 7, "name": "S", "similarity": 0.9, "level": "senior"},
+            {"id": 3, "name": "M", "similarity": 0.7, "level": "middle"},
+        ]
+        roles = engine._build_closest_roles(clusters, {}, set(), "senior")
+        by_name = {r["role"]: r for r in roles}
+        assert by_name["S"]["cluster_level"] == "senior"
+        assert by_name["M"]["cluster_level"] == "middle"
+        senior_cl.get_top_skills_in_cluster.assert_called_with(7, top_n=50)
+        middle_cl.get_top_skills_in_cluster.assert_called_with(3, top_n=50)
+
+
+class TestImportanceSplit:
+    """R3: importance раскладывается на base + bonus без остатка."""
+
+    def test_base_plus_bonus_equals_final(self, mock_profile_evaluator,
+                                          sample_student_profile):
+        from src.models.enums import TrendType
+        mock_trends = MagicMock()
+        mock_trends.get_trending_skills.return_value = Ok({
+            TrendType.RISING: [{"skill": "docker", "change_pct": 20.0}]
+        })
+        mock_trends.save_trends.return_value = None
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator,
+                                      trend_analyzer=mock_trends, use_ltr=False)
+        engine._always_hot = set()
+        match engine.generate_recommendations(sample_student_profile):
+            case Ok(result):
+                assert result.recommendations, "жду рекомендаций"
+                for rec in result.recommendations:
+                    assert rec.importance_base + rec.importance_bonus == pytest.approx(
+                        rec.importance_score, abs=1e-3)
+                dock = next((r for r in result.recommendations if r.skill == "docker"), None)
+                if dock is not None:
+                    assert dock.importance_bonus > 0.0  # тренд-бонус виден отдельно
+            case _:
+                raise AssertionError("expected Ok")
+
+
+class TestMetricsHonestyGates:
+    def test_no_hard_skill_in_blacklist(self):
+        """R5: жёсткий навык не может одновременно быть в whitelist и blacklist."""
+        repo = Path(__file__).resolve().parents[2]
+        wl = {s.lower().strip() for s in json.loads(
+            (repo / "data/reference/it_skills.json").read_text(encoding="utf-8"))}
+        bl = json.loads(
+            (repo / "data/reference/skill_blacklist.json").read_text(encoding="utf-8"))
+        overlap = {b for b in bl if b.lower().strip() in wl}
+        assert overlap == set(), f"blacklist поглощает whitelist: {sorted(overlap)}"
+
+    def test_hot_skills_resolve_to_whitelist(self):
+        """M4: каждый hot-ключ обязан резолвиться через нормалайзер в whitelist."""
+        from src.parsing.skills.skill_normalizer import SkillNormalizer
+        repo = Path(__file__).resolve().parents[2]
+        wl = {s.lower().strip() for s in json.loads(
+            (repo / "data/reference/it_skills.json").read_text(encoding="utf-8"))}
+        hot = json.loads(
+            (repo / "data/reference/trend_hot_skills.json").read_text(encoding="utf-8"))
+        bad = []
+        for h in hot:
+            r = SkillNormalizer.normalize(h)
+            canon = (r.ok().lower() if r.is_ok() and r.ok() else str(h).lower()).strip()
+            if canon not in wl:
+                bad.append(h)
+        assert bad == [], f"hot-ключи мимо whitelist: {bad}"
+
+    def test_trend_bonuses_normalized(self, mock_profile_evaluator, sample_student_profile):
+        """M4: сырой ключ k8s обязан превратиться в kubernetes в бонусах."""
+        from src.models.enums import TrendType
+        mock_trends = MagicMock()
+        mock_trends.get_trending_skills.return_value = Ok({
+            TrendType.RISING: [{"skill": "k8s", "change_pct": 20.0}]
+        })
+        mock_trends.save_trends.return_value = None
+        engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator,
+                                      trend_analyzer=mock_trends, use_ltr=False)
+        engine._always_hot = set()
+        match engine.generate_recommendations(sample_student_profile):
+            case Ok(_):
+                assert "k8s" not in engine._cached_trend_bonuses
+                assert engine._cached_trend_bonuses.get("kubernetes") == pytest.approx(0.2)
+            case _:
+                raise AssertionError("expected Ok")

@@ -851,3 +851,17 @@ class TestExtendedCoverage:
         show_context_info()
         captured = capsys.readouterr()
         assert "Запустите gap-анализ" in captured.out
+
+
+class TestChartStepGuards:
+    """Viz OOM: падение одной фигуры не роняет прогон."""
+
+    def test_failing_chart_does_not_raise(self):
+        from src.visualization.orchestration import _chart_step
+        _chart_step("boom", lambda: 1 / 0)
+        _chart_step("ok", lambda: None)
+
+    def test_save_all_charts_survives_bad_profile(self, tmp_path):
+        from src.visualization.orchestration import save_all_charts
+        bad = {"p1": {"student_skills": ["python"]}, "p2": None}
+        save_all_charts(bad, tmp_path, use_ml=False, vacancies_skills_list=None)

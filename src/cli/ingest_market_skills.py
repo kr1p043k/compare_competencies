@@ -60,6 +60,7 @@ def collect_market_skills(min_freq: int) -> Counter:
 def _is_clean_it_skill(skill: str) -> bool:
     """Пропускает навык через валидатор (blacklist/generic/длина)."""
     import re
+
     from src.parsing.skills.skill_validator import SkillValidator
 
     # Артефакты нормализации (напр. "1С:ERP" -> "сerp") — пропускаем

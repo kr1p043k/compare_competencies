@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import structlog
 
-from src import Ok, Err, Result
+from src import Err, Ok, Result
 from src.errors import DataSourceError
 from src.parsing.api.hh_api import HeadHunterAPI
 

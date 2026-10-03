@@ -79,7 +79,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
       case "error":
         return "bg-red-600";
       default:
-        return "bg-gray-400";
+        return "bg-gray-400 dark:bg-slate-500";
     }
   };
 
@@ -93,7 +93,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
       exit={{ opacity: 0, y: -20 }}
       transition={{ type: "spring", stiffness: 200 }}
     >
-      <Card className="border border-gray-200 shadow-sm">
+      <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
         <CardContent className="p-6">
           {/* Header */}
           <div className="flex items-center gap-4 mb-6">
@@ -106,12 +106,12 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
               {getStatusIcon()}
             </motion.div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
                 {currentStep.status === "completed"
                   ? "Анализ завершен!"
                   : `Шаг ${currentStep.step} из ${currentStep.total}`}
               </h3>
-              <p className="text-sm text-gray-600">{currentStep.message}</p>
+              <p className="text-sm text-gray-600 dark:text-slate-400">{currentStep.message}</p>
             </div>
             <div className="text-right">
               <div className="text-3xl font-bold text-blue-600">
@@ -122,7 +122,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
 
           {/* Progress Bars */}
           <div className="space-y-3">
-            <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div className="relative h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
               <motion.div
                 className={`absolute inset-y-0 left-0 ${getStatusColor()} rounded-full`}
                 initial={{ width: 0 }}
@@ -133,7 +133,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
 
             {showSubBar && (
               <div className="space-y-1">
-                <div className="relative h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="relative h-1.5 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <motion.div
                     className="absolute inset-y-0 left-0 bg-blue-400 rounded-full"
                     initial={{ width: 0 }}
@@ -141,7 +141,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
                     transition={{ duration: 0.3, ease: "easeOut" }}
                   />
                 </div>
-                <p className="text-xs text-gray-400 text-right">{subPct}%</p>
+                <p className="text-xs text-gray-400 dark:text-slate-500 text-right">{subPct}%</p>
               </div>
             )}
 
@@ -156,7 +156,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
                           ? "bg-green-600 text-white"
                           : stepNum === currentStep.step
                             ? "bg-blue-600 text-white"
-                            : "bg-gray-200 text-gray-500"
+                            : "bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400"
                       }`}
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
@@ -173,7 +173,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
                         className={`w-12 h-0.5 ${
                           stepNum < currentStep.step
                             ? "bg-green-600"
-                            : "bg-gray-200"
+                            : "bg-gray-200 dark:bg-slate-700"
                         }`}
                       />
                     )}
@@ -201,7 +201,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
             {currentStep.status === "running" && onCancel && (
               <button
                 onClick={onCancel}
-                className="px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/30 transition-colors"
               >
                 Остановить
               </button>
@@ -209,7 +209,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
             {(currentStep.status === "completed" || currentStep.status === "error") && onRestart && (
               <button
                 onClick={onRestart}
-                className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-950/30 transition-colors"
               >
                 {currentStep.status === "error" ? "Повторить" : "Запустить ещё"}
               </button>
@@ -227,7 +227,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
                 <Terminal className="size-3.5" />
                 Журнал пайплайна
               </div>
-              <ScrollArea className="h-48 rounded-lg border border-gray-200 bg-gray-950 p-3">
+              <ScrollArea className="h-48 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-950 p-3">
                 <div className="font-mono text-xs leading-relaxed">
                   {logs.map((line, i) => (
                     <div
@@ -255,9 +255,9 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg"
+              className="mt-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg"
             >
-              <p className="text-sm text-red-800">
+              <p className="text-sm text-red-800 dark:text-red-200">
                 <strong>Ошибка:</strong> {currentStep.message}
               </p>
             </motion.div>
@@ -267,9 +267,9 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg"
+              className="mt-6 p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg"
             >
-              <p className="text-sm text-green-800 flex items-center gap-2">
+              <p className="text-sm text-green-800 dark:text-green-200 flex items-center gap-2">
                 <CheckCircle2 className="size-5" />
                 <strong>Успешно!</strong> Все данные обновлены.
               </p>

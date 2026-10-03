@@ -132,7 +132,6 @@ class TestVacancyFileStatus:
         assert st["students_files"] == ["base_competency.json"]
 
     def test_never_raises(self, tmp_path, monkeypatch):
-        import pytest as _pt
         from src.pipeline.helpers import vacancy_file_status
         monkeypatch.setattr("src.pipeline.helpers.config.DATA_PROCESSED_DIR", tmp_path / "nope")
         monkeypatch.setattr("src.pipeline.helpers.config.DATA_RAW_DIR", tmp_path / "nope")

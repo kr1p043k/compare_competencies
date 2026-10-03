@@ -1,10 +1,10 @@
 """API эндпоинты для метрик конверсии и gap-анализа."""
 
 from fastapi import APIRouter, Response
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from src.monitoring.pipeline_metrics import pipeline_metrics, step_success_rate, pipeline_success_rate
-from src.monitoring.gap_metrics import gap_metrics, gap_success_rate, gap_cache_hit_rate
+from src.monitoring.gap_metrics import gap_cache_hit_rate, gap_metrics, gap_success_rate
+from src.monitoring.pipeline_metrics import pipeline_metrics, pipeline_success_rate, step_success_rate
 
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
@@ -47,12 +47,12 @@ async def get_gap_stats():
 async def get_pipeline_summary():
     """Сводка по пайплайну."""
     step_rates = {}
-    for step in ["vacancy_fetch", "spam_filter", "skill_parse", 
-                 "weight_normalize", "level_assign", "cluster_train", 
+    for step in ["vacancy_fetch", "spam_filter", "skill_parse",
+                 "weight_normalize", "level_assign", "cluster_train",
                  "ltr_train", "gap_compute"]:
         value = step_success_rate.labels(step=step)._value.get()
         step_rates[step] = value if value is not None else 100.0
-    
+
     return {
         "total_success_rate": pipeline_success_rate._value.get() or 100.0,
         "step_success_rates": step_rates,

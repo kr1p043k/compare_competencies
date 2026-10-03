@@ -8,11 +8,10 @@ Usage:
 
 import asyncio
 import sys
-from datetime import datetime
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-from sqlalchemy import select, delete
+from sqlalchemy import select
 
 from src.database import async_session_factory
 from src.models.krm_models import (
@@ -24,6 +23,10 @@ from src.models.krm_models import (
 
 
 async def main(force: bool = False) -> None:
+    raise RuntimeError(
+        "CompetencyTrend table not implemented in src/models/krm_models.py; "
+        "CLI disabled until the model + migration exist"
+    )
     async with async_session_factory() as session:
         snaps_result = await session.execute(
             select(TrendSnapshot).order_by(TrendSnapshot.snapshot_date.asc())
@@ -43,7 +46,7 @@ async def main(force: bool = False) -> None:
             date = cur_snap.snapshot_date
 
             existing = await session.execute(
-                select(CompetencyTrend).where(CompetencyTrend.snapshot_date == date)
+                select(CompetencyTrend).where(CompetencyTrend.snapshot_date == date)  # noqa: F821 — table not implemented, guarded above
             )
             if existing.scalars().first() and not force:
                 print(f"Skipping {date.date()} — already computed (use --force to recompute)")
@@ -90,7 +93,7 @@ async def main(force: bool = False) -> None:
                 else:
                     direction = "stable"
 
-                ct = CompetencyTrend(
+                ct = CompetencyTrend(  # noqa: F821 — table not implemented, guarded above
                     competency_id=comp_id,
                     trend_direction=direction,
                     change_pct=round(avg_change, 2),

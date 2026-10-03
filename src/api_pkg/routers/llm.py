@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from src.api_pkg.routers.auth import require_any_role
+from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.services.llm_client import LLMClient
 
 logger = structlog.get_logger("api")
@@ -37,4 +37,7 @@ async def llm_chat(request: Request, req: ChatRequest):
         return ChatResponse(response=response, model=client.model)
     except Exception as e:
         logger.error("llm_chat_failed", error=str(e))
-        raise HTTPException(status_code=502, detail=f"LLM request failed: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=await user_error_detail(request, str(e), "Запрос к языковой модели не удался. Попробуйте позже."),
+        )

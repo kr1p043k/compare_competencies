@@ -1,7 +1,7 @@
 """Results summary, recommendations files, images."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -11,6 +11,7 @@ from slowapi.util import get_remote_address
 
 from src import config
 from src.api_pkg import deps
+from src.api_pkg.routers.auth import user_error_detail
 from src.api_pkg.summary_builder import build_summary_payload, load_recommendations_from_disk
 from src.models.student import StudentProfile
 
@@ -43,7 +44,11 @@ async def get_results_summary(
                 with open(summary_path, encoding="utf-8") as f:
                     return json.load(f)
             except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
+                logger.warning("results_summary_read_failed", path=str(summary_path), error=str(e))
+                raise HTTPException(
+                    status_code=500,
+                    detail=await user_error_detail(request, str(e), "Не удалось прочитать результаты анализа. Попробуйте позже."),
+                )
 
     return {
         "message": "Результаты анализа не найдены. Запустите gap-анализ.",
@@ -71,12 +76,16 @@ async def get_recommendations_result(
                 payload = json.load(f)
             try:
                 mtime = result_path.stat().st_mtime
-                payload["generated_at"] = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+                payload["generated_at"] = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
             except Exception:
                 pass
             return payload
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.warning("results_recommendations_read_failed", path=str(result_path), error=str(e))
+            raise HTTPException(
+                status_code=500,
+                detail=await user_error_detail(request, str(e), "Не удалось прочитать рекомендации. Попробуйте позже."),
+            )
 
     return {
         "profile": profile,
@@ -85,6 +94,49 @@ async def get_recommendations_result(
     }
 
 
+@router.get("/results/report/{profile}")
+@limiter.limit("10/minute")
+async def get_report_pdf(
+    request: Request,
+    profile: str,
+    profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
+):
+    """PDF-отчёт профиля: метрики, роли, рекомендации + PNG-графики."""
+    import asyncio
+
+    from fastapi.responses import Response
+
+    from src.reports.pdf_report import build_profile_pdf
+
+    if profile not in profiles:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+    result_path = (
+        config.DATA_DIR / "result" / profile / f"full_recommendations_{profile}.json"
+    )
+    if not result_path.exists():
+        raise HTTPException(status_code=404, detail="Рекомендации не найдены. Запустите gap-анализ.")
+    try:
+        with open(result_path, encoding="utf-8") as f:
+            payload = json.load(f)
+        pdf_bytes = await asyncio.to_thread(
+            build_profile_pdf, profile, payload, config.REPORTS_DIR)
+    except Exception as e:
+        logger.warning("results_report_pdf_failed", profile=profile, error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=await user_error_detail(request, str(e), "Не удалось собрать PDF. Попробуйте позже."),
+        )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="report_{profile}.pdf"'},
+    )
+
+
+# FROZEN v1: PNG-графики (радар/heatmap/coverage). Зафиксированы как v1 API:
+# доступны и под /api/..., и под /api/v1/... (общий _mount). Интерактивные
+# графики фронта ходят по данным (/market, /taxonomy, /profiles) и эти
+# эндпоинты не используют. НЕ удалять и НЕ менять контракт без новой версии.
 @router.get("/results/images/{profile}/{image_type}")
 @limiter.limit("60/minute")
 async def get_profile_image(

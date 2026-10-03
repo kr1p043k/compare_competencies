@@ -3,7 +3,7 @@ import structlog
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from src import Result, Ok, Err
+from src import Err, Ok, Result
 from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
 from src.analyzers.comparison.engines import BM25Engine, JaccardEngine
 from src.errors import DomainError
@@ -18,7 +18,7 @@ class CompetencyComparator:
         min_df: int = 1,
         max_df: float = 0.95,
         use_embeddings: bool = False,
-        level: str = "middle",
+        level: str = "all",
         similarity_threshold: float = 0.5,
     ):
         self.use_embeddings = use_embeddings

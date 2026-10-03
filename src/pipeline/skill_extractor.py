@@ -5,10 +5,10 @@ from pathlib import Path
 
 import structlog
 
-from src import Err, Ok, Result, SkillExtractionError, config, timed
-from src.cache_manager import CacheManager
+from src import Err, Ok, Result, SkillExtractionError, config
 from src.analyzers.skills.trends import TrendAnalyzer
 from src.artifacts import ArtifactManifest
+from src.cache_manager import CacheManager
 from src.parsing.skills.vacancy_parser import VacancyParser
 from src.parsing.utils import (
     filter_skills_by_whitelist,
@@ -49,6 +49,12 @@ class SkillExtractor:
                         pass
 
             if cached_result:
+                # Протухший кэш (частоты есть, hybrid пуст) — игнорируем, считаем заново,
+                # иначе WeightCleaning получит пустой вход и gap-analysis упадёт.
+                if not cached_result.get("hybrid_weights"):
+                    logger.warning("parse_cache_stale_hybrid_empty_recompute")
+                    cached_result = None
+            if cached_result:
                 skill_freq = cached_result["frequencies"]
                 hybrid_weights_raw = cached_result.get("hybrid_weights", {})
             else:
@@ -70,8 +76,19 @@ class SkillExtractor:
             whitelist = load_it_skills()
             skill_freq_filtered = filter_skills_by_whitelist(skill_freq, whitelist) if whitelist else skill_freq
             trend_analyzer = TrendAnalyzer(skill_freq_filtered)
-            source_type = "full_market" if getattr(self.args, 'it_sector', False) else "targeted_query"
-            trend_analyzer.save_snapshot(skill_freq_filtered, apply_whitelist=False, source_type=source_type)
+            # targeted_query без профессии даёт мусорный файл freq_profession_2026-09.json.
+            # Маркируем targeted только при явном запросе/профессии, иначе full_market.
+            _q = (getattr(self.args, "query", "") or "").strip()
+            _prof = (getattr(self.args, "profession", "") or "").strip()
+            if getattr(self.args, "it_sector", False) or (not _q and not _prof):
+                source_type = "full_market"
+            else:
+                source_type = "targeted_query"
+            trend_analyzer.save_snapshot(
+                skill_freq_filtered, apply_whitelist=False,
+                source_type=source_type, profession=_prof or None,
+                vacancy_count=len(vacancies),
+            )
 
             match parser.save_processed_frequencies(skill_freq, apply_filter=not self.args.no_filter):
                 case Ok(_): pass

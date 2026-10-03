@@ -1,13 +1,12 @@
 """PipelineStage abstraction — единый интерфейс для всех этапов пайплайна."""
 
 from abc import ABC, abstractmethod
-from pathlib import Path
 from typing import Any, Generic, TypeVar
 
 import structlog
 
-from src.pipeline.progress import write as write_progress
 from src import Ok, Result
+from src.pipeline.progress import write as write_progress
 
 T = TypeVar("T")
 logger = structlog.get_logger(__name__)
