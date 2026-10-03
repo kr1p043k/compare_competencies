@@ -392,7 +392,6 @@ class CurriculumRecommender:
                         ),
                     ))
         seen: set[str] = set()
-        seen = set()
         drops: dict = {}
         deduped: list = []
         for r in recs:

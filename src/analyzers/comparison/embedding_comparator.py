@@ -233,7 +233,7 @@ class EmbeddingComparator:
                 avg = float(best.mean()) if best.size else 0.0
                 top_idx = np.argsort(best)[-15:][::-1]
                 matches = [
-                    {"skill": self._outer.market_skills[i], "similarity": float(best[i])}
+                    {"skill": self._outer.market_skills[i], "similarity": min(1.0, float(best[i]))}
                     for i in top_idx
                 ]
                 return Ok(dict(score=round(avg, 4), weighted_coverage=round(avg, 4),
@@ -286,7 +286,7 @@ class EmbeddingComparator:
 
         top_idx = np.argsort(values)[-15:][::-1]
         matches = [
-            {"skill": skills_list[i], "similarity": float(values[i])}
+            {"skill": skills_list[i], "similarity": min(1.0, float(values[i]))}
             for i in top_idx
         ]
 
