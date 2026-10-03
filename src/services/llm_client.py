@@ -32,7 +32,7 @@ class LLMClient:
         self._client = OpenAI(
             base_url=f"{self.base_url}/v1",
             api_key=api_key or "ollama",
-            timeout=60.0,
+            timeout=120.0,
             max_retries=2,
         )
 

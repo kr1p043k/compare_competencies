@@ -693,6 +693,11 @@ export default function App() {
     }
   }
 
+  function handlePrintReport() {
+    // Вариант B (frontend): печать текущей вкладки «Данные» в PDF через браузер.
+    window.print();
+  }
+
   function loadMarket() {
     apiCall("/market-competencies");
   }
@@ -1068,7 +1073,7 @@ export default function App() {
                   return <span className="ml-2 px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200">данные устарели ({days} дн.)</span>;
                 })()}
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 no-print">
                   <Button
                     onClick={handleDownloadPdf}
                     disabled={isStudent}
@@ -1079,6 +1084,16 @@ export default function App() {
                   >
                     <Download className="size-3.5" />
                     Отчёт (PDF)
+                  </Button>
+                  <Button
+                    onClick={handlePrintReport}
+                    variant="outline"
+                    size="sm"
+                    title="Печать текущей вкладки в PDF через браузер"
+                    className="border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-900/50 gap-1.5"
+                  >
+                    <Download className="size-3.5" />
+                    Печать / PDF (браузер)
                   </Button>
                 </div>
 

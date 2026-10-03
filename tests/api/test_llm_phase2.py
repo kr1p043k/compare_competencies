@@ -175,7 +175,7 @@ class TestFlagsOff:
         assert cfg.LLM_ENHANCE_STUDENT is False
         assert cfg.LLM_ENHANCE_TEACHER is False
         assert cfg.LLM_EXTRACT is False
-        assert float(cfg.LLM_TIMEOUT_S) == 20.0
+        assert float(cfg.LLM_TIMEOUT_S) == 60.0
 
 # ---------------------------------------------------------------------------
 # (e) krm_teacher gap wiring: analyzer-shaped dict passes through

@@ -110,8 +110,8 @@ class Settings(BaseSettings):
 
     # ---------- Ollama ----------
     OLLAMA_URL: str = "http://ollama:11434"
-    OLLAMA_MODEL: str = "qwen3.6:latest"
-    OLLAMA_EMBEDDING_MODEL: str = "qwen3.6:latest"
+    OLLAMA_MODEL: str = "gpt-oss:120b"
+    OLLAMA_EMBEDDING_MODEL: str = "qwen2.5:0.5b"
     QWEN_TEMPERATURE: float = 0.7
     QWEN_MAX_TOKENS: int = 2000
 
@@ -120,7 +120,7 @@ class Settings(BaseSettings):
     LLM_ENHANCE_STUDENT: bool = False
     LLM_ENHANCE_TEACHER: bool = False
     LLM_EXTRACT: bool = False
-    LLM_TIMEOUT_S: int = 20
+    LLM_TIMEOUT_S: int = 60
 
     # ---------- эмбеддинги ----------
     EMBEDDING_MODEL: str = "paraphrase-multilingual-mpnet-base-v2"

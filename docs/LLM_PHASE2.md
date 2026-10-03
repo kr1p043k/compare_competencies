@@ -5,15 +5,15 @@
 | Var | Default | Назначение |
 |---|---|---|
 | `OLLAMA_URL` | `http://ollama8.r61.net:11434` | Endpoint Ollama (OpenAI-совместимый `/v1`) |
-| `OLLAMA_MODEL` | `qwen3.6:latest` | Модель чата (`LLMClient.model`) |
-| `OLLAMA_EMBEDDING_MODEL` | `qwen3.6:latest` | Модель эмбеддингов |
+| `OLLAMA_MODEL` | `gpt-oss:120b` | Модель чата (`LLMClient.model`) |
+| `OLLAMA_EMBEDDING_MODEL` | `qwen2.5:0.5b` | Модель эмбеддингов |
 | `QWEN_TEMPERATURE` | `0.7` | Температура по умолчанию |
 | `QWEN_MAX_TOKENS` | `2000` | Лимит токенов по умолчанию |
 | `LLM_ENABLED` | `true` | Мастер-флаг Phase 2 (без саб-флагов поведения не меняет) |
 | `LLM_ENHANCE_STUDENT` | `false` | LLM-дополнение рекомендаций студента |
 | `LLM_ENHANCE_TEACHER` | `false` | LLM-дополнение рекомендаций преподавателя |
 | `LLM_EXTRACT` | `false` | LLM-извлечение скиллов из текста |
-| `LLM_TIMEOUT_S` | `20` | Таймаут вызова LLM в UX-путях, сек |
+| `LLM_TIMEOUT_S` | `60` | Таймаут вызова LLM в UX-путях, сек |
 
 ## Архитектура
 
@@ -22,10 +22,10 @@ router (/llm/chat, student/teacher wiring) -> LLMClient -> [cache] -> Ollama /v1
                                                         -> fallback (base) при любой ошибке
 ```
 
-`LLMClient` (`src/services/llm_client.py`, frozen — не менять): OpenAI-клиент на
-`base_url + /v1`, `api_key="ollama"`, `timeout=60.0`, `max_retries=2`.
+`LLMClient` (`src/services/llm_client.py`): OpenAI-клиент на
+`base_url + /v1`, `api_key="ollama"`, `timeout=120.0`, `max_retries=2`.
 `.chat(messages, temperature, max_tokens)`; UX-пути оборачивают вызов в
-`ThreadPoolExecutor` с `LLM_TIMEOUT_S` (20с), `llm_client.py` не трогаем.
+`ThreadPoolExecutor` с `LLM_TIMEOUT_S` (60с).
 Метрики: `llm_requests_total{model,status}`, `llm_request_duration_seconds`,
 `llm_token_usage`, `llm_response_length`.
 Сервисы Phase 2: `src/services/llm_extract.py` (`extract_skills`, задача кэша

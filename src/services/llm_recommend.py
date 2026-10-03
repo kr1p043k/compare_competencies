@@ -79,9 +79,9 @@ def _model_of(client: Any) -> str:
         pass
     try:
         from src import config as _cfg
-        return str(getattr(_cfg, "OLLAMA_MODEL", "") or "qwen3.6:latest")
+        return str(getattr(_cfg, "OLLAMA_MODEL", "") or "gpt-oss:120b")
     except Exception:
-        return "qwen3.6:latest"
+        return "gpt-oss:120b"
 
 
 def _rest_copy(rest: list) -> list:
