@@ -379,7 +379,7 @@ class StudentSkill(Base):
     achieved_level: Mapped[str | None] = mapped_column(String(10))
     direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="SET NULL"))
     competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="SET NULL"))
-    assessed_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, UTC))
+    assessed_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     student: Mapped["Student"] = relationship(back_populates="skills")
@@ -404,8 +404,8 @@ class Session(Base):
     token_hash: Mapped[str] = mapped_column(Text, nullable=False)
     ip_address: Mapped[str | None] = mapped_column(String(45))
     user_agent: Mapped[str | None] = mapped_column(Text)
-    logged_in_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, UTC))
-    last_activity: Mapped[datetime] = mapped_column(default=partial(datetime.now, UTC))
+    logged_in_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
+    last_activity: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
     logged_out_at: Mapped[datetime | None]
     sso_token: Mapped[str | None] = mapped_column(Text)
 
@@ -447,7 +447,7 @@ class CoverageAnalysis(Base):
     total_skills: Mapped[int] = mapped_column(Integer, default=0)
     market_matched_skills: Mapped[int] = mapped_column(Integer, default=0)
     coverage_ratio: Mapped[float] = mapped_column(Float, default=0.0)
-    analysis_date: Mapped[datetime] = mapped_column(default=partial(datetime.now, UTC))
+    analysis_date: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     discipline: Mapped["Discipline"] = relationship(back_populates="coverage_analyses")
 
@@ -461,7 +461,7 @@ class PipelineRun(Base):
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="started")
-    started_at: Mapped[datetime] = mapped_column(default=partial(datetime.now, UTC))
+    started_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
     completed_at: Mapped[datetime | None]
     error_message: Mapped[str | None] = mapped_column(Text)
     stats: Mapped[dict | None] = mapped_column(sa.JSON())

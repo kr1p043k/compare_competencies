@@ -102,7 +102,7 @@ class NewCompetencyIn(BaseModel):
 
 class CustomProfileIn(BaseModel):
     name: str
-    target_level: str
+    target_level: str = "middle"
     competencies: list[str] = []
     skills: list[str] = []
     base: str | None = None
@@ -573,6 +573,7 @@ async def get_recommendations(
     profile: str,
     engine: RecommendationEngine = Depends(deps.get_recommendation_engine),
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
+    eval_instance: ProfileEvaluator = Depends(deps.get_evaluator),
 ):
     """Рекомендации навыков профилю."""
     if profile not in profiles:
@@ -590,7 +591,7 @@ async def get_recommendations(
                     student.target_profession = cfg.get("target_profession", "")
                 except Exception:
                     pass
-            match deps.get_evaluator().evaluate_profile(
+            match eval_instance.evaluate_profile(
                 student, target_domains=domains, taxonomy=prof_taxonomy,
             ):
                 case Ok(ev):

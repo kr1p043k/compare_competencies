@@ -30,7 +30,7 @@ class StudentProfile(BaseModel):
 
     # Для работы кластерного контекста
     embedding: Any | None = Field(default=None, exclude=True)  # np.ndarray или list[float]
-    embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
+    embedding_model: str = "paraphrase-multilingual-mpnet-base-v2"
 
     class Config:
         use_enum_values = True

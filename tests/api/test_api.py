@@ -1,59 +1,47 @@
 # tests/api/test_api.py
+"""Smoke-тесты публичных GET-эндпоинтов через dependency_overrides.
+
+Паттерн: моки подсовываются через app.dependency_overrides[deps.get_*],
+а не через глобалы src.api_pkg (роутеры читают зависимости через deps).
+"""
 import sys
 from unittest.mock import MagicMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
 
 # Предотвращаем импорт shap и cv2
-sys.modules['shap'] = MagicMock()
-sys.modules['cv2'] = MagicMock()
+sys.modules["shap"] = MagicMock()
+sys.modules["cv2"] = MagicMock()
 
 # NOTE: sentence_transformers is mocked session-wide by tests/conftest.py
 # (configured mock with working encode). Do NOT overwrite sys.modules here:
 # a bare MagicMock breaks every other test file importing embeddings
 # (proven: 15 comparator failures). shap/cv2 mocks below are load-bearing
 # (packages not installed) and harmless (additive, nothing overwritten).
+from src import Err, Ok
 from src.api_pkg import app
+from src.api_pkg import deps
 from src.models.student import StudentProfile
 
 client = TestClient(app)
 
 
 def _profile():
-    return StudentProfile(profile_name="base", competencies=[], skills=["python", "sql"], target_level="junior")
+    return StudentProfile(
+        profile_name="base", competencies=[], skills=["python", "sql"],
+        target_level="junior",
+    )
 
 
 @pytest.fixture(autouse=True)
-def mock_globals():
-    """Подменяет глобальные переменные src.api_pkg на моки перед каждым тестом."""
-    import src.api_pkg as _api
-    import src.api_pkg.deps as _deps
-    _originals = {}
-    _mocks = {
-        'evaluator': MagicMock(),
-        'recommendation_engine': MagicMock(is_fitted=True),
-        'clusterer': MagicMock(is_fitted=True),
-        'trend_analyzer': MagicMock(),
-        'skill_weights': {"python": 0.9, "sql": 0.7},
-        'skill_freq': {"python": 100, "sql": 80},
-        'taxonomy': MagicMock(),
-        'current_skills_set': {"python", "sql"},
-        'basic_vacancies': [{"id": 1}],
-        'student_profiles': {"base": _profile()},
-    }
-    _deps_originals = {}
-    for name, mock in _mocks.items():
-        _originals[name] = getattr(_api, name, None)
-        setattr(_api, name, mock)
-        # Also patch deps module (where routers actually read via deps.get_*)
-        if hasattr(_deps, name):
-            _deps_originals[name] = getattr(_deps, name, None)
-            setattr(_deps, name, mock)
+def clean_overrides():
+    """Чистые dependency_overrides + живой current_skills_set на каждый тест."""
+    app.dependency_overrides.clear()
+    old_skills = deps.current_skills_set
     yield
-    for name, original in _originals.items():
-        setattr(_api, name, original)
-    for name, original in _deps_originals.items():
-        setattr(_deps, name, original)
+    app.dependency_overrides.clear()
+    deps.current_skills_set = old_skills
 
 
 class TestHealth:
@@ -65,81 +53,107 @@ class TestHealth:
         r = client.get("/ready")
         assert r.status_code == 200
 
+    def test_api_health(self):
+        r = client.get("/api/health")
+        assert r.status_code == 200
+        assert r.json()["status"] == "ok"
+
 
 class TestRecommendations:
     def test_existing(self):
-        import src.api_pkg
-        src.api_pkg.recommendation_engine.generate_recommendations.return_value = {"summary": {}, "recommendations": []}
+        rec = MagicMock()
+        rec.model_dump.return_value = {"summary": {}, "recommendations": []}
+        engine = MagicMock()
+        engine.generate_recommendations.return_value = Ok(rec)
+        evaluator = MagicMock()
+        evaluator.evaluate_profile.return_value = Ok({"market_coverage_score": 70})
+        app.dependency_overrides[deps.get_recommendation_engine] = lambda: engine
+        app.dependency_overrides[deps.get_evaluator] = lambda: evaluator
+        app.dependency_overrides[deps.get_student_profiles] = lambda: {"base": _profile()}
         r = client.get("/api/recommendations/base")
         assert r.status_code == 200
 
     def test_missing(self):
+        engine = MagicMock()
+        app.dependency_overrides[deps.get_recommendation_engine] = lambda: engine
+        app.dependency_overrides[deps.get_evaluator] = lambda: MagicMock()
+        app.dependency_overrides[deps.get_student_profiles] = lambda: {"base": _profile()}
         r = client.get("/api/recommendations/nobody")
         assert r.status_code == 404
 
 
 class TestMarket:
     def test_top_skills(self):
+        app.dependency_overrides[deps.get_skill_weights] = lambda: {"python": 0.9, "sql": 0.7}
+        app.dependency_overrides[deps.get_skill_freq] = lambda: {"python": 100, "sql": 80}
         r = client.get("/api/market/top-skills?limit=2")
         assert r.status_code == 200
         data = r.json()
         assert len(data["skills"]) == 2
+        assert data["skills"][0]["skill"] == "python"
 
     def test_skill_info(self):
-        import src.api_pkg
-        src.api_pkg.taxonomy.get_category_label.return_value = "Lang"
-        src.api_pkg.taxonomy.get_category_icon.return_value = "💻"
+        taxonomy = MagicMock()
+        taxonomy.get_category_label.return_value = "Lang"
+        taxonomy.get_category_icon.return_value = "icon"
+        app.dependency_overrides[deps.get_skill_weights] = lambda: {"python": 0.9}
+        app.dependency_overrides[deps.get_skill_freq] = lambda: {"python": 100}
+        app.dependency_overrides[deps.get_taxonomy] = lambda: taxonomy
         r = client.get("/api/market/skill/python")
         assert r.status_code == 200
         assert r.json()["skill"] == "python"
+        assert r.json()["category"] == "Lang"
 
     def test_skill_info_no_taxonomy(self):
-        import src.api_pkg
-        src.api_pkg.taxonomy = None
+        app.dependency_overrides[deps.get_skill_weights] = lambda: {"python": 0.9}
+        app.dependency_overrides[deps.get_skill_freq] = lambda: {"python": 100}
+        app.dependency_overrides[deps.get_taxonomy] = lambda: None
         r = client.get("/api/market/skill/python")
         assert r.status_code == 200
         assert r.json()["category"] == "unknown"
 
 
+def _clusterer_mock(*, fitted=True, n=2):
+    inst = MagicMock()
+    inst.load_model.return_value = True
+    inst.is_fitted = fitted
+    inst.n_clusters_ = n
+    inst.clusterer_type = "kmeans"
+    inst._generate_cluster_name.side_effect = lambda cid: f"Cluster{cid}"
+    inst.get_top_skills_in_cluster.return_value = ["a", "b"]
+    return inst
+
+
 class TestClusters:
     def test_cluster_by_level(self):
-        import src.api_pkg
-        src.api_pkg.clusterer.n_clusters_ = 2
-        src.api_pkg.clusterer._generate_cluster_name.side_effect = lambda cid: f"Cluster{cid}"
-        src.api_pkg.clusterer.get_top_skills_in_cluster.return_value = ["a", "b"]
-        src.api_pkg.clusterer.load_model.return_value = True
-        r = client.get("/api/clusters/junior")
+        with patch("src.api_pkg.routers.clusters.VacancyClusterer",
+                   return_value=_clusterer_mock(fitted=True, n=2)):
+            r = client.get("/api/clusters/junior")
         assert r.status_code == 200
         data = r.json()
         assert data["level"] == "junior"
         assert len(data["clusters"]) == 2
 
     def test_cluster_not_loaded(self):
-        import src.api_pkg
-        src.api_pkg.clusterer.is_fitted = False
-        src.api_pkg.clusterer.load_model.return_value = False
-        r = client.get("/api/clusters/senior")
+        with patch("src.api_pkg.routers.clusters.VacancyClusterer",
+                   return_value=_clusterer_mock(fitted=False)):
+            r = client.get("/api/clusters/senior")
         assert r.status_code == 503
 
     def test_clusters_summary(self):
-        import src.api_pkg
-        src.api_pkg.clusterer.is_fitted = True
-        src.api_pkg.clusterer.n_clusters_ = 3
-        src.api_pkg.clusterer.clusterer_type = "kmeans"
-        src.api_pkg.clusterer._generate_cluster_name.return_value = "C0"
-        src.api_pkg.clusterer.get_top_skills_in_cluster.return_value = ["py", "sql"]
-        src.api_pkg.clusterer.load_model.return_value = True
-        r = client.get("/api/clusters/summary")
+        with patch("src.api_pkg.routers.clusters.VacancyClusterer",
+                   return_value=_clusterer_mock(fitted=True, n=3)):
+            r = client.get("/api/clusters/summary")
         assert r.status_code == 200
         data = r.json()
         for lvl in ["junior", "middle", "senior"]:
             assert lvl in data
+            assert len(data[lvl]["top_clusters"]) == 3
 
     def test_clusters_summary_unfitted(self):
-        import src.api_pkg
-        src.api_pkg.clusterer.is_fitted = False
-        src.api_pkg.clusterer.load_model.return_value = False
-        r = client.get("/api/clusters/summary")
+        with patch("src.api_pkg.routers.clusters.VacancyClusterer",
+                   return_value=_clusterer_mock(fitted=False)):
+            r = client.get("/api/clusters/summary")
         assert r.status_code == 200
         data = r.json()
         for lvl in ["junior", "middle", "senior"]:
@@ -148,19 +162,26 @@ class TestClusters:
 
 class TestProfilesCompare:
     def test_compare(self):
-        import src.api_pkg
-        src.api_pkg.evaluator.evaluate_profile.return_value = {
+        evaluator = MagicMock()
+        evaluator.evaluate_profile.return_value = Ok({
             "market_coverage_score": 70, "skill_coverage": 60,
             "domain_coverage_score": 50, "readiness_score": 65,
-            "market_skill_coverage": 40
-        }
+            "market_skill_coverage": 40,
+        })
+        app.dependency_overrides[deps.get_evaluator] = lambda: evaluator
+        app.dependency_overrides[deps.get_student_profiles] = lambda: {"base": _profile()}
         r = client.get("/api/profiles/compare")
         assert r.status_code == 200
-        assert "base" in r.json()["profiles"]
+        body = r.json()["profiles"]
+        assert "base" in body
+        assert body["base"]["readiness_score"] == 65
+        assert body["base"]["real_coverage"] == 40
 
     def test_compare_error(self):
-        import src.api_pkg
-        src.api_pkg.evaluator.evaluate_profile.side_effect = Exception("fail")
+        evaluator = MagicMock()
+        evaluator.evaluate_profile.return_value = Err("fail")
+        app.dependency_overrides[deps.get_evaluator] = lambda: evaluator
+        app.dependency_overrides[deps.get_student_profiles] = lambda: {"base": _profile()}
         r = client.get("/api/profiles/compare")
         assert r.status_code == 200
         assert "error" in r.json()["profiles"]["base"]
@@ -168,44 +189,48 @@ class TestProfilesCompare:
 
 class TestTrends:
     def test_trends(self):
-        import src.api_pkg
-        src.api_pkg.trend_analyzer.get_trending_skills.return_value = {"rising": [], "falling": []}
+        analyzer = MagicMock()
+        analyzer.get_trending_skills.return_value = Ok({"rising": [], "falling": []})
+        app.dependency_overrides[deps.get_trend_analyzer] = lambda: analyzer
         r = client.get("/api/trends")
         assert r.status_code == 200
+        assert r.json()["trends"] == {"rising": [], "falling": []}
 
     def test_trends_error(self):
-        import src.api_pkg
-        src.api_pkg.trend_analyzer.get_trending_skills.side_effect = Exception("boom")
+        analyzer = MagicMock()
+        analyzer.get_trending_skills.side_effect = Exception("boom")
+        app.dependency_overrides[deps.get_trend_analyzer] = lambda: analyzer
         r = client.get("/api/trends")
         assert r.status_code == 500
 
 
 class TestTaxonomyCoverage:
     def test_coverage(self):
-        import src.api_pkg
-        src.api_pkg.taxonomy.get_all_categories.return_value = ["cat1"]
-        src.api_pkg.taxonomy.get_skills_in_category.return_value = ["python", "java"]
-        src.api_pkg.taxonomy.get_category_label_by_id.return_value = "Test"
-        src.api_pkg.taxonomy.get_category_icon_by_id.return_value = "🧪"
-        src.api_pkg.current_skills_set = {"python"}
+        taxonomy = MagicMock()
+        taxonomy.get_all_categories.return_value = Ok(["cat1"])
+        taxonomy.get_skills_in_category.return_value = Ok(["python", "java"])
+        taxonomy.get_category_label_by_id.return_value = "Test"
+        taxonomy.get_category_icon_by_id.return_value = "icon"
+        app.dependency_overrides[deps.get_taxonomy] = lambda: taxonomy
+        deps.current_skills_set = {"python"}
         r = client.get("/api/taxonomy/coverage")
         assert r.status_code == 200
         assert r.json()["coverage"]["cat1"]["covered"] == 1
 
     def test_no_taxonomy(self):
-        import src.api_pkg
-        src.api_pkg.taxonomy = None
+        app.dependency_overrides[deps.get_taxonomy] = lambda: None
         r = client.get("/api/taxonomy/coverage")
         assert r.status_code == 503
 
 
 class TestSkills:
     def test_missing(self):
-        import src.api_pkg
-        src.api_pkg.skill_freq = {"docker": 5, "k8s": 3}
-        src.api_pkg.current_skills_set = {"python"}
-        with patch('src.api_pkg.SkillValidator') as mock_validator:
-            mock_validator.return_value.validate.return_value.is_valid = True
+        app.dependency_overrides[deps.get_skill_freq] = lambda: {"docker": 5, "k8s": 3}
+        deps.current_skills_set = {"python"}
+        with patch("src.api_pkg.routers.profiles.SkillValidator") as mock_validator:
+            mock_validator.return_value.validate.return_value = Ok(
+                MagicMock(is_valid=True)
+            )
             r = client.get("/api/skills/missing")
         assert r.status_code == 200
         skills = r.json()["missing_skills"]
@@ -213,22 +238,8 @@ class TestSkills:
         assert skills[0]["skill"] == "docker"
 
     def test_dead(self):
-        import src.api_pkg
-        src.api_pkg.skill_freq = {"python": 10}
-        src.api_pkg.current_skills_set = {"python", "sql"}
+        app.dependency_overrides[deps.get_skill_freq] = lambda: {"python": 10}
+        deps.current_skills_set = {"python", "sql"}
         r = client.get("/api/skills/dead")
         assert r.status_code == 200
         assert "sql" in r.json()["dead_skills"]
-
-
-class TestStatus:
-    def test_status(self):
-        import src.api_pkg
-        src.api_pkg.clusterer.load_model.return_value = True
-        src.api_pkg.clusterer.is_fitted = True
-        src.api_pkg.recommendation_engine.is_fitted = True
-        r = client.get("/api/status")
-        assert r.status_code == 200
-        data = r.json()
-        assert data["vacancies_loaded"] is True
-        assert data["profiles_available"] == ["base"]

@@ -36,9 +36,19 @@ async def get_trends(
     trend_analyzer_instance: TrendAnalyzer = Depends(deps.get_trend_analyzer),
 ):
     """Тренды навыков."""
-    match trend_analyzer_instance.get_trending_skills(
-        top_n=top_n, min_change_percent=min_change
-    ):
+    try:
+        result = trend_analyzer_instance.get_trending_skills(
+            top_n=top_n, min_change_percent=min_change
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("trends_failed", error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=await user_error_detail(request, str(e), "Не удалось построить тренды. Попробуйте позже."),
+        ) from None
+    match result:
         case Ok(trends):
             return {"trends": trends}
         case Err(err):

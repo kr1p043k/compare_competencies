@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
-import { Textarea } from "./components/ui/textarea";
 import {
   Card,
   CardContent,
@@ -56,14 +55,12 @@ import {
   Sparkles,
   Search,
   FileText,
-  FileSpreadsheet,
   Download,
   BarChart3,
   Zap,
   Award,
   Briefcase,
   TrendingUp,
-  TrendingDown,
   Info,
   AlertCircle,
   LogOut,
@@ -178,16 +175,6 @@ export default function App() {
   const [backendDown, setBackendDown] = useState(false);
   const [profile, setProfile] = useState("base");
   const [profilesList, setProfilesList] = useState<string[]>(["base", "dc", "top_dc"]);
-  const [cpName, setCpName] = useState("");
-  const [cpLevel, setCpLevel] = useState("middle");
-  const [cpCodes, setCpCodes] = useState("");
-  const [cpSkills, setCpSkills] = useState("");
-  const [cpMsg, setCpMsg] = useState("");
-  const [cpSaving, setCpSaving] = useState(false);
-  const [cpOpen, setCpOpen] = useState(false);
-
-  const parseList = (s: string) =>
-    s.split(/[,\n;]+/).map((x) => x.trim()).filter(Boolean);
 
   async function loadProfiles(select?: string) {
     try {
@@ -201,36 +188,6 @@ export default function App() {
     } catch { /* keep hardcoded fallback */ }
   }
 
-  async function createCustomProfile() {
-    setCpMsg("");
-    const name = cpName.trim().toLowerCase();
-    if (!/^[a-z0-9_]{2,32}$/.test(name)) {
-      setCpMsg("Имя: латиница/цифры/_, 2-32 символа");
-      return;
-    }
-    setCpSaving(true);
-    try {
-      const r = await fetch(`${API}/profiles/custom`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          target_level: cpLevel,
-          competencies: parseList(cpCodes),
-          skills: parseList(cpSkills),
-        }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error((d as any).detail || r.statusText);
-      setCpMsg(`Профиль «${name}» создан: компетенций ${d.competencies_count}, навыков ${d.skills_count}`);
-      setCpName(""); setCpCodes(""); setCpSkills("");
-      await loadProfiles(name);
-    } catch (e: any) {
-      setCpMsg("Ошибка: " + e.message);
-    } finally {
-      setCpSaving(false);
-    }
-  }
   const [status, setStatus] = useState<{
     type: "success" | "error" | "info" | null;
     message: string;

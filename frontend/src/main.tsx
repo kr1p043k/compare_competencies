@@ -4,8 +4,7 @@ import App from "./app/App.tsx";
 import { AuthProvider, setSession } from "./lib/auth.tsx";
 import "./styles/index.css";
 
-// Убеждаемся, что React загружен
-console.log('React version:', React.version);
+// React загружен (версию смотреть в package.json)
 
 /**
  * Вход с хаба ЮФУ: hub.sfedu.ru открывает наш сайт с ?token=<JWT>.
