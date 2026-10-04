@@ -26,6 +26,7 @@ plotly>=5.25.0
 structlog==25.5.0
 tqdm>=4.67.0
 fastapi==0.116.1
+starlette==0.47.2
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
 alembic==1.14.1

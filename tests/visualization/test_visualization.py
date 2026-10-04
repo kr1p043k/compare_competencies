@@ -618,17 +618,20 @@ class TestExtendedCoverage:
         with patch("src.visualization.orchestration.load_ml_recommendations", return_value=recs), \
             patch("src.visualization.orchestration.plot_coverage_comparison"), \
             patch("src.visualization.orchestration.plot_skill_comparison_radar"), \
-            patch("src.visualization.orchestration.plot_ml_importance"), \
-            patch("src.visualization.orchestration.plot_weight_distribution"), \
+            patch("src.visualization.orchestration.plot_ml_importance") as mock_ml, \
+            patch("src.visualization.orchestration.plot_weight_distribution") as mock_w, \
             patch("src.visualization.orchestration.plot_skills_heatmap"), \
             patch("src.visualization.orchestration.plot_cluster_insights"), \
             patch("matplotlib.pyplot.savefig"), \
             patch("matplotlib.pyplot.close"):
             save_all_charts(sample_results, tmp_path)
-            # Проверяем, что был построен график дефицитов: barh вызван
-            # Можем проверить, что файл deficits сохранен
+            # No deficits branch exists in orchestration + savefig is mocked,
+            # so deficits_student1.png can never exist; assert per-profile branch ran
+            # AND weight plot got a real per-profile save_path (not a no-op call)
             prof_dir = tmp_path / "student1"
-            assert (prof_dir / "deficits_student1.png").exists()
+            assert prof_dir.is_dir()
+            mock_ml.assert_called()
+            assert mock_w.call_args.kwargs["save_path"] == prof_dir / "weights_student1.png"
 
     def test_save_all_charts_no_radar_if_no_market_top(self, sample_results, tmp_path, monkeypatch):
         """Если market_top пуст, радар не должен вызываться."""
@@ -762,15 +765,18 @@ class TestExtendedCoverage:
              patch("matplotlib.pyplot.close"), \
              patch("src.visualization.orchestration.plot_coverage_comparison"), \
              patch("src.visualization.orchestration.plot_skill_comparison_radar"), \
-             patch("src.visualization.orchestration.plot_ml_importance"), \
-             patch("src.visualization.orchestration.plot_weight_distribution"), \
-             patch("src.visualization.orchestration.plot_skill_correlation_heatmap"), \
-             patch("src.visualization.orchestration.plot_skills_heatmap"), \
-             patch("src.visualization.orchestration.plot_cluster_insights"):
+            patch("src.visualization.orchestration.plot_ml_importance") as mock_ml, \
+            patch("src.visualization.orchestration.plot_weight_distribution") as mock_w, \
+            patch("src.visualization.orchestration.plot_skill_correlation_heatmap"), \
+            patch("src.visualization.orchestration.plot_skills_heatmap"), \
+            patch("src.visualization.orchestration.plot_cluster_insights"):
             save_all_charts(sample_results, tmp_path, use_ml=True)
-        # Проверим, что файл deficits создался
-        deficit_file = tmp_path / "student1" / "deficits_student1.png"
-        assert deficit_file.exists()
+        # No deficits branch exists + savefig mocked:
+        # file can never exist; assert per-profile dir + ml branch ran
+        # AND weight plot got a real per-profile save_path (not a no-op call)
+        assert (tmp_path / "student1").is_dir()
+        mock_ml.assert_called()
+        assert mock_w.call_args.kwargs["save_path"] == tmp_path / "student1" / "weights_student1.png"
 
     def test_run_notebook_with_output_dir(self, tmp_path):
         import src.visualization.orchestration as orch

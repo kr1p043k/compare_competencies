@@ -73,3 +73,6 @@ recompute_*.err.log
 frontend/dist/
 grafana/data/
 prometheus/data/
+
+# test-run artifacts (mocked paths materialize on disk)
+MagicMock/

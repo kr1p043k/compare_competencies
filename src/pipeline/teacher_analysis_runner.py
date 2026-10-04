@@ -834,7 +834,8 @@ async def run_teacher_analysis(
                 "weighted_coverage": coverage.weighted_coverage,
                 "coverage_level": coverage.coverage_level,
                 "top_market_matched_skills": [
-                    {"skill": m.skill_name, "frequency": m.frequency, "match_type": m.match_type}
+                    {"skill": m.skill_name, "matched_as": m.market_match,
+                     "frequency": m.frequency, "match_type": m.match_type}
                     for m in coverage.top_matched
                 ],
                 "gaps_in_curriculum": coverage.gaps_list,

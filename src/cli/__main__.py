@@ -95,7 +95,9 @@ def main() -> None:
     p.set_defaults(func=lambda a: teacher_analysis.main(direction=a.direction, discipline=a.discipline))
 
     p = sub.add_parser("populate-parsed-skills", help="Заполнить parsed_skills в БД перепарсингом вакансий")
-    p.set_defaults(func=lambda a: asyncio.run(populate_parsed_skills.main()))
+    p.add_argument("--force-all", action="store_true",
+                   help="Re-parse ALL vacancies (homoglyph backfill)")
+    p.set_defaults(func=lambda a: asyncio.run(populate_parsed_skills.main(force_all=a.force_all)))
 
     p = sub.add_parser("export-vacancies", help="Экспорт JSON-вакансий в БД")
     p.add_argument("--basic", help="Путь к hh_vacancies_basic.json")

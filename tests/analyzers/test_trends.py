@@ -296,14 +296,17 @@ class TestTrendAnalyzerPlots:
         assert result.ok() is None
 
     def test_get_trending_skills_falling_only(self, tmp_path):
-        current = {"python": 50}
-        prev = {"python": 100}
+        # Share math: single skill always yields 0%. Stable anchor holds
+        # the total so python falls -47.6% while anchor rises +4.8%
+        # (below the 10% threshold, filtered out).
+        current = {"python": 50, "anchor": 1000}
+        prev = {"python": 100, "anchor": 1000}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=prev)
         assert len(trends.ok()["rising"]) == 0
         assert len(trends.ok()["falling"]) > 0
         assert trends.ok()["falling"][0]["skill"] == "python"
-        assert trends.ok()["falling"][0]["change_pct"] == -50.0
+        assert trends.ok()["falling"][0]["change_pct"] == -47.6
 
     def test_get_stable_skills_critical_threshold(self, tmp_path):
         freq = {"critical": 100, "normal": 20, "low": 15}
@@ -423,12 +426,14 @@ class TestTrendAnalyzerPlots:
         assert isinstance(saved, dict)
 
     def test_get_trending_skills_falling_edge_case(self, tmp_path):
-        current = {"legacy_skill": 10}
-        prev = {"legacy_skill": 100}
+        # Anchor keeps total near-constant: legacy_skill -89.1% falling,
+        # anchor +8.9% stays below the 10% threshold.
+        current = {"legacy_skill": 10, "anchor": 1000}
+        prev = {"legacy_skill": 100, "anchor": 1000}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=prev)
         assert len(trends.ok()["falling"]) > 0
-        assert trends.ok()["falling"][0]["change_pct"] == -90.0
+        assert trends.ok()["falling"][0]["change_pct"] == -89.1
 
     def test_plot_timeline_mdates_formatting(self, tmp_path, freq, prev):
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
@@ -461,13 +466,16 @@ class TestTrendAnalyzerPlots:
         assert len(trends.ok()["rising"]) == 0
         assert len(trends.ok()["falling"]) == 0
 
-    def test_get_trending_skills_rising_only(self, tmp_path):
+    def test_get_trending_skills_rising_and_falling_mixed(self, tmp_path):
+        # Share math: totals differ (300 vs 450), so docker's share falls
+        # -33.3% even though its raw count is flat. Pure rising-only is
+        # impossible in share terms (shares sum to 1).
         current = {"python": 200, "sql": 150, "docker": 100}
         prev = {"python": 100, "sql": 100, "docker": 100}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=prev)
         assert len(trends.ok()["rising"]) >= 1
-        assert len(trends.ok()["falling"]) == 0
+        assert len(trends.ok()["falling"]) == 1
 
     def test_plot_trending_only_falling(self, tmp_path):
         current = {"python": 50, "sql": 40}
@@ -561,8 +569,10 @@ class TestTrendAnalyzerPlots:
                 assert isinstance(result.ok(), matplotlib.figure.Figure)
 
     def test_get_trending_skills_auto_previous_with_files(self, tmp_path):
-        current = {"python": 200}
-        prev = {"python": 100}
+        # Multi-skill fixture: single skill yields 0% in share math.
+        # python +33.3% rising; anchor -33.3% falling (not asserted).
+        current = {"python": 200, "anchor": 100}
+        prev = {"python": 100, "anchor": 100}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=prev)
         assert len(trends.ok()["rising"]) > 0
@@ -591,23 +601,30 @@ class TestTrendAnalyzerPlots:
         assert len(saved) == len(freq) + 1  # updated: code adds _meta key
 
     def test_get_trending_skills_rising_edge(self, tmp_path):
-        current = {"python": 110}
-        prev = {"python": 100}
+        # Totals held constant (1000) so share change == raw change.
+        # 111 vs 100 = +11%: just over the 10% threshold (exactly +10.0%
+        # is flaky — float gives 9.999... which the unrounded comparison
+        # in trends.py:243 rejects).
+        current = {"python": 111, "anchor": 889}
+        prev = {"python": 100, "anchor": 900}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=prev)
         assert len(trends.ok()["rising"]) == 1
 
     def test_get_trending_skills_falling_edge(self, tmp_path):
-        current = {"python": 90}
-        prev = {"python": 100}
+        # Totals held constant (1000): python 100->90 = -10.0% share change.
+        current = {"python": 90, "anchor": 910}
+        prev = {"python": 100, "anchor": 900}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(top_n=5, min_change_percent=10.0, previous_snapshot=prev)
         assert len(trends.ok()["falling"]) == 1
         assert trends.ok()["falling"][0]["change_pct"] == -10.0
 
     def test_plot_trending_no_rising_only_falling(self, tmp_path):
-        current = {"python": 50}
-        prev = {"python": 100}
+        # Large anchor absorbs the share: python -48.8% falling, anchor
+        # +2.4% stays below the 3.0 plot threshold.
+        current = {"python": 50, "anchor": 2000}
+        prev = {"python": 100, "anchor": 2000}
         analyzer = TrendAnalyzer(current, historical_dir=tmp_path)
         save_path = tmp_path / "trending_fall.png"
         with patch("matplotlib.pyplot.savefig") as mock_save:
@@ -796,8 +813,10 @@ class TestTrendAnalyzerEdgeCases:
 
     def test_get_trending_skills_auto_previous_from_snapshots(self, tmp_path):
         import json
-        freq = {"python": 120}
-        prev = {"python": 100}
+        # Two-skill fixture (same shape as the passing twin in
+        # TestTrendAnalyzerExtended): single skill yields 0% in share math.
+        freq = {"python": 120, "docker": 80}
+        prev = {"python": 100, "docker": 60}
         analyzer = TrendAnalyzer(freq, historical_dir=tmp_path)
         with open(tmp_path / "freq_2024-01-01.json", "w") as f:
             json.dump(prev, f)

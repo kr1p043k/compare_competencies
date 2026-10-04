@@ -58,7 +58,11 @@ class TestDisciplineAwareScorer:
         assert len(names) == 2
 
     def test_compute_relevance_no_model(self):
-        scorer = DisciplineAwareScorer()
+        class _NoModel:
+            def encode(self, *args, **kwargs):
+                raise RuntimeError("no embedding model")
+
+        scorer = DisciplineAwareScorer(embedding_model=_NoModel())
         result = scorer.compute_relevance("python", "Базы данных")
         assert result.combined == 0.0
 

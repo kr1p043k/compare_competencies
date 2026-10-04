@@ -69,6 +69,8 @@ class BM25Ranker:
         parts = []
         if isinstance(vac, dict):
             desc = vac.get("description") or ""
+            if not isinstance(desc, str):
+                desc = ""
             if desc:
                 parts.append(re.sub(r"<[^>]+>", " ", desc))
             snippet = vac.get("snippet") or {}
@@ -78,7 +80,7 @@ class BM25Ranker:
                 parts.append(re.sub(r"<[^>]+>", " ", req))
             if resp:
                 parts.append(re.sub(r"<[^>]+>", " ", resp))
-            key_skills = " ".join(s.get("name", "") for s in vac.get("key_skills", []))
+            key_skills = " ".join(str(s.get("name", "")) for s in vac.get("key_skills", []) if isinstance(s, dict))
             if key_skills:
                 parts.append(key_skills)
         else:
@@ -90,11 +92,15 @@ class BM25Ranker:
             if sn is not None:
                 req = getattr(sn, "requirement", None) or (sn.get("requirement") if isinstance(sn, dict) else None) or ""
                 resp = getattr(sn, "responsibility", None) or (sn.get("responsibility") if isinstance(sn, dict) else None) or ""
+                if not isinstance(req, str):
+                    req = ""
+                if not isinstance(resp, str):
+                    resp = ""
                 if req:
                     parts.append(re.sub(r"<[^>]+>", " ", req))
                 if resp:
                     parts.append(re.sub(r"<[^>]+>", " ", resp))
-            key_skills = " ".join(s.name for s in (vac.key_skills if hasattr(vac, "key_skills") else []))
+            key_skills = " ".join(str(getattr(s, "name", "")) for s in (vac.key_skills if hasattr(vac, "key_skills") else []))
             if key_skills:
                 parts.append(key_skills)
         return " ".join(p.strip() for p in parts if p and p.strip())

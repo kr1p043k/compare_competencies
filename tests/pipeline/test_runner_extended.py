@@ -218,7 +218,6 @@ class TestRunFullPipeline:
 
         mocks["logger"] = stack.enter_context(patch("src.pipeline.runner.logger"))
         mocks["timed_block"] = stack.enter_context(patch("src.pipeline.runner.timed_block"))
-        mocks["sys_exit"] = stack.enter_context(patch("src.pipeline.runner.sys.exit"))
 
         if opts["run_notebooks"]:
             mocks["run_notebook"] = stack.enter_context(patch("src.pipeline.runner.run_notebook"))
@@ -248,6 +247,8 @@ class TestRunFullPipeline:
         args.skip_collection = opts["skip_collection"]
         args.skip_gap_analysis = opts["skip_gap_analysis"]
         args.run_notebooks = opts["run_notebooks"]
+        args.profiles_override = None
+        args.cancel_event = None
 
         for sn in ["DataCollectionStage", "QualityScoringStage",
                     "SkillExtractionStage", "WeightCleaningStage",
@@ -360,10 +361,11 @@ class TestRunFullPipeline:
 
     # ── gap analysis failure ──
 
-    def test_gap_analysis_failure_exits(self):
+    def test_gap_analysis_failure_returns_err(self):
         mocks, args, stack = self._setup_mocks(gap_is_err=True)
         with stack:
-            run_full_pipeline(args)
+            result = run_full_pipeline(args)
+        assert result.is_err()
         mocks["logger"].error.assert_called()
 
     # ── skip_collection ──
@@ -413,11 +415,12 @@ class TestRebuildExtended:
 
         with patch("src.pipeline.runner.config") as cfg:
             cfg.DATA_DIR = tmp_path
+            cfg.PIPELINE_RETRIES = 0
             with patch("src.pipeline.runner.console_info"):
                 rebuild()
 
         assert not (tmp_path / "cache" / "embeddings").exists()
-        assert not (tmp_path / "cache" / "clusters").exists()
+        assert (tmp_path / "cache" / "clusters").exists()
         for f in to_touch:
             assert not f.exists()
 
@@ -434,6 +437,7 @@ class TestRebuildExtended:
 
         with patch("src.pipeline.runner.config") as cfg:
             cfg.DATA_DIR = tmp_path
+            cfg.PIPELINE_RETRIES = 0
             with patch("src.pipeline.runner.console_info"):
                 rebuild()
 

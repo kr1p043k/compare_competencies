@@ -165,7 +165,7 @@ def _load_krm_direction(dir_code: str) -> dict:
 
 # ---------- endpoints ----------
 
-@router.get("/teacher/stats")
+@router.get("/teacher/stats", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
 async def teacher_stats(request: Request):
     """Real discipline/competency/skill counts from DB + vacancy stats."""
@@ -199,7 +199,7 @@ async def teacher_stats(request: Request):
     return result
 
 
-@router.get("/teacher/krm/stats")
+@router.get("/teacher/krm/stats", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
 async def krm_stats(request: Request, dir_code: str = "09.03.02"):
     """Статистика KRM направления."""
@@ -225,7 +225,7 @@ async def krm_stats(request: Request, dir_code: str = "09.03.02"):
     }
 
 
-@router.get("/teacher/krm/directions")
+@router.get("/teacher/krm/directions", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
 async def krm_directions(request: Request):
     """Список направлений KRM."""
@@ -287,7 +287,7 @@ async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
     ]
 
 
-@router.get("/teacher/krm/disciplines/{discipline_name:path}")
+@router.get("/teacher/krm/disciplines/{discipline_name:path}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
 async def krm_discipline_detail(request: Request, discipline_name: str, dir_code: str = "09.03.02"):
     """Детали дисциплины (компетенции, KSA)."""
@@ -339,7 +339,7 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
     }
 
 
-@router.get("/teacher/krm/recommendations")
+@router.get("/teacher/krm/recommendations", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
 async def krm_get_recommendations(request: Request):
     """Рекомендации KRM."""
@@ -352,7 +352,10 @@ async def krm_get_recommendations(request: Request):
 @router.post("/teacher/krm/recommendations", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def krm_add_recommendation(request: Request):
     """Добавить рекомендацию KRM."""
-    raw = await request.json()
+    try:
+        raw = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Некорректный JSON.") from None
     rec = RecommendationIn(**raw)
     recs = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
     if not isinstance(recs, list):
@@ -387,7 +390,7 @@ class FoundationalIn(BaseModel):
     skill: str
 
 
-@router.get("/teacher/krm/foundational")
+@router.get("/teacher/krm/foundational", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
 async def krm_list_foundational(request: Request):
     """Ручные пометки 'фундаментальный навык'."""
@@ -431,14 +434,18 @@ async def suggest_skill(request: Request):
     from src.api_pkg.routers.auth import get_current_user
     from src.api_pkg.skill_suggestions import add as suggest_add
 
-    raw = await request.json()
+    try:
+        raw = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Некорректный JSON.") from None
     skill = ((raw or {}).get("skill", "") if isinstance(raw, dict) else "")
     hint = ((raw or {}).get("category_hint", "") if isinstance(raw, dict) else "")
     me = await get_current_user(request) or {}
     try:
         entry = suggest_add(skill, hint, me.get("u", ""))
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("skill_suggest_rejected", error=str(e))
+        raise HTTPException(status_code=400, detail="Некорректные данные навыка.")
     await audit_action(
         request, "skills.suggest",
         f"skill={entry.get('skill')} hint={hint[:64]} id={entry.get('id')}",
@@ -454,7 +461,9 @@ async def list_own_suggestions(request: Request):
     from src.api_pkg.skill_suggestions import load_all
 
     me = await get_current_user(request) or {}
-    mine = [s for s in load_all() if not me.get("u") or s.get("created_by") == me.get("u")]
+    if not me.get("u"):
+        return {"suggestions": []}
+    mine = [s for s in load_all() if s.get("created_by") == me.get("u")]
     return {"suggestions": mine}
 
 
@@ -519,7 +528,7 @@ async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03
 # ---------- DB-backed coverage analysis ----------
 
 
-@router.get("/teacher/krm/coverage")
+@router.get("/teacher/krm/coverage", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
 async def krm_coverage(request: Request):
     """Coverage per discipline (latest analysis)."""
@@ -558,7 +567,7 @@ async def krm_coverage(request: Request):
     }
 
 
-@router.get("/teacher/krm/coverage/history")
+@router.get("/teacher/krm/coverage/history", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
 async def krm_coverage_history(request: Request, discipline: str | None = None, limit: int = 20):
     """Coverage history across analyses."""
@@ -587,7 +596,7 @@ async def krm_coverage_history(request: Request, discipline: str | None = None, 
     ]
 
 
-@router.get("/teacher/krm/market-skills")
+@router.get("/teacher/krm/market-skills", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
 async def krm_market_skills(request: Request, limit: int = 50):
     """Top market-demanded skills (from it_skills.json)."""
@@ -600,7 +609,7 @@ async def krm_market_skills(request: Request, limit: int = 50):
         skills = json.load(f)
     return [{"skill": s, "frequency": 1} for s in list(skills)[:limit]]
 
-@router.get("/teacher/krm/search-runs")
+@router.get("/teacher/krm/search-runs", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def krm_search_runs(request: Request, limit: int = 20):
     """История запусков поиска."""
     from sqlalchemy import select
@@ -629,7 +638,7 @@ async def krm_search_runs(request: Request, limit: int = 20):
     ]
 
 
-@router.get("/teacher/krm/search-runs/{run_id}")
+@router.get("/teacher/krm/search-runs/{run_id}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def krm_search_run_detail(run_id: str):
     """Детали запуска поиска."""
     from sqlalchemy import select
@@ -759,7 +768,7 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
                         filename="vacancies_export.xlsx")
 
 
-@router.get("/teacher/krm/competencies/tree")
+@router.get("/teacher/krm/competencies/tree", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def competency_tree(dir_code: str = "09.03.02"):
     """Competency tree with hierarchy built from parent_id and coverage data."""
     import re
@@ -828,7 +837,7 @@ async def competency_tree(dir_code: str = "09.03.02"):
     return {"direction_code": dir_code, "competencies": roots}
 
 
-@router.get("/teacher/analysis")
+@router.get("/teacher/analysis", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def get_analysis(dir_code: str = "09.03.02"):
     """Сводка teacher analysis направления."""
     import re
@@ -871,7 +880,7 @@ def report_staleness(meta: dict, current_vac_hash: str | None,
     return False, "fresh"
 
 
-@router.get("/teacher/analysis/meta")
+@router.get("/teacher/analysis/meta", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def get_analysis_meta(dir_code: str = "09.03.02"):
     """CQRS read-model lineage: which code/data produced the stored report + staleness."""
     from src.pipeline.teacher_analysis_runner import CODE_VERSION
@@ -984,7 +993,7 @@ async def teacher_students(request: Request):
     return {"students": items, "total": len(items)}
 
 
-@router.get("/teacher/analysis/{discipline_name:path}")
+@router.get("/teacher/analysis/{discipline_name:path}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02"):
     """Teacher analysis дисциплины."""
     import re

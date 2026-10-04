@@ -14,12 +14,19 @@ from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.parsing.skills.skill_parser import SkillParser
 
 
-async def main():
+async def main(force_all: bool = False):
+    """Re-parse vacancies. Default: only NULL/empty parsed_skills.
+    force_all=True: re-parse EVERYTHING (homoglyph backfill: parser used to
+    store the folded form; re-parse restores originals from raw)."""
     parser = SkillParser()
+    if force_all:
+        print("FORCE-ALL mode: re-parsing every vacancy (homoglyph backfill)")
+    where = "" if force_all else "WHERE parsed_skills IS NULL OR jsonb_array_length(parsed_skills) = 0"
+    where_and = (where + " AND") if where else "WHERE"
     async with async_session_factory() as session:
         # count
         total = await session.execute(
-            text("SELECT COUNT(*) FROM vacancies WHERE parsed_skills IS NULL OR jsonb_array_length(parsed_skills) = 0")
+            text(f"SELECT COUNT(*) FROM vacancies {where}")
         )
         total_count = total.scalar()
         if total_count == 0:
@@ -32,15 +39,14 @@ async def main():
         processed = 0
         while True:
             rows = await session.execute(
-                text("""
+                text(f"""
                     SELECT id, name, key_skills, description,
-                           snippet_requirement, snippet_responsibility,
-                           employer_name, area_name
-                    FROM vacancies
-                    WHERE (parsed_skills IS NULL OR jsonb_array_length(parsed_skills) = 0)
-                      AND id::text > :last_id
-                    ORDER BY id
-                    LIMIT :lim
+                            snippet_requirement, snippet_responsibility,
+                            employer_name, area_name
+                     FROM vacancies
+                     {where_and} id::text > :last_id
+                     ORDER BY id
+                     LIMIT :lim
                 """),
                 {"lim": BATCH, "last_id": last_id},
             )
@@ -84,14 +90,15 @@ async def main():
                             normed = norm_result.unwrap()
                         else:
                             normed = texts
-                        normed = list(dict.fromkeys(normed))
+                        normed = [s for s in dict.fromkeys(normed) if s and s.strip()]
                     else:
                         normed = []
 
                     updates.append((json.dumps(normed, ensure_ascii=False), r.id))
                 except Exception as exc:
-                    print(f"  ERROR vacancy {r.id}: {exc}")
-                    updates.append(('[]', r.id))
+                    # Never wipe a good row with [] on transient failure —
+                    # skip it, it will be retried on the next run.
+                    print(f"  SKIP vacancy {r.id}: {exc}")
 
             for skills_json, vid in updates:
                 await session.execute(

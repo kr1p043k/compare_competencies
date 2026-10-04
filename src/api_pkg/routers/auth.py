@@ -131,6 +131,7 @@ def require_any_role(*roles: str):
             raise HTTPException(status_code=403, detail="Forbidden")
         return user
     return dependency
+    return dependency
 
 
 async def user_error_detail(request: Request | None, technical: str, user_msg: str) -> str:

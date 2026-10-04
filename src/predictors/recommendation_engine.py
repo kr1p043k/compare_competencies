@@ -641,11 +641,15 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         return priority + leftover
 
     def _get_role_outcome(self, skill: str, closest_roles: list[dict], skill_relevant: bool = False) -> str:
-        # Ожидаемый результат считаем для ВСЕХ рекомендаций с ролью-контекстом,
-        # а не только для skill_relevant — иначе блок «Ожидаемый результат» пропадает.
-        if not closest_roles:
+        # Ожидаемый результат — только для навыков, релевантных роли:
+        # без флага или вне ядра кластера молчим, иначе хвостовым навыкам
+        # приписывается чужой coverage-прирост.
+        if not closest_roles or not skill_relevant:
             return ""
         top_role = closest_roles[0]
+        core = {s.lower() for s in top_role.get("cluster_core_skills", []) or []}
+        if core and skill.lower() not in core:
+            return ""
         role_name = top_role["role"]
         similarity = top_role["semantic_similarity"]
         coverage = top_role["coverage_percent"]

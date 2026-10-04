@@ -21,12 +21,8 @@ def isolated(tmp_path, monkeypatch):
 
 
 def _open_auth(app):
-    for route in app.routes:
-        dep = getattr(route, "dependant", None)
-        for sub in (getattr(dep, "dependencies", None) or []):
-            fn = sub.call
-            if getattr(fn, "__qualname__", "").startswith("require_any_role"):
-                app.dependency_overrides[fn] = lambda: {"r": "admin"}
+    from tests.conftest import open_all_gates
+    return open_all_gates(app)
 
 
 def _client():

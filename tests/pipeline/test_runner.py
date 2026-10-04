@@ -392,27 +392,27 @@ class TestRebuild:
 @pytest.mark.asyncio
 async def test_run_pipeline_task_async():
     with patch("src.pipeline.runner.clean_progress_files"):
-        with patch("src.pipeline.runner.run_full_pipeline"):
+        with patch("src.pipeline.runner.run_full_pipeline", return_value=Ok(None)):
             result = await run_pipeline_task_async(MagicMock())
     assert result == {"status": "completed"}
 
 
 @pytest.mark.asyncio
 async def test_run_train_model_async():
-    with patch("src.pipeline.runner.run_train_model"):
+    with patch("src.pipeline.runner.run_train_model", return_value=Ok(None)):
         result = await run_train_model_async(MagicMock())
     assert result == {"status": "completed"}
 
 
 @pytest.mark.asyncio
 async def test_run_status_async():
-    with patch("src.pipeline.runner.run_status"):
+    with patch("src.pipeline.runner.run_status", return_value=Ok(None)):
         result = await run_status_async(MagicMock())
     assert result == {"status": "completed"}
 
 
 @pytest.mark.asyncio
 async def test_rebuild_async():
-    with patch("src.pipeline.runner.rebuild"):
+    with patch("src.pipeline.runner.rebuild", return_value=Ok(None)):
         result = await rebuild_async()
     assert result == {"status": "completed"}

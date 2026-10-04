@@ -37,7 +37,9 @@ def _profile():
 @pytest.fixture(autouse=True)
 def clean_overrides():
     """Чистые dependency_overrides + живой current_skills_set на каждый тест."""
+    from tests.conftest import open_all_gates
     app.dependency_overrides.clear()
+    open_all_gates(app)
     old_skills = deps.current_skills_set
     yield
     app.dependency_overrides.clear()

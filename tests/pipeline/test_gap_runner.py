@@ -356,9 +356,10 @@ class TestEvaluateProfilesParallel:
         with patch.object(runner, "taxonomy", mock_taxonomy):
             with patch.object(runner, "_write_progress"):
                 result = runner._evaluate_profiles_parallel()
-        assert len(result) == 2
-        assert result["john"] is None
-        assert result["jane"] is None
+        assert result == {}
+        # Mutation-sniff: evaluator must actually have run (not a stubbed {}),
+        # once per profile in runner.profiles
+        assert mock_evaluator.evaluate_profile.call_count == len(runner.profiles)
 
 
 class TestPrintSummary:

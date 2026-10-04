@@ -694,7 +694,7 @@ async def run_pipeline_action_sync(
     )
 
 
-@router.get("/pipeline/active", response_model=PipelineTaskStatus | None)
+@router.get("/pipeline/active", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))], response_model=PipelineTaskStatus | None)
 @limiter.limit("30/minute")
 async def get_active_pipeline_task(request: Request):
     """Активная задача пайплайна."""
@@ -704,7 +704,7 @@ async def get_active_pipeline_task(request: Request):
     return None
 
 
-@router.get("/pipeline/task/{task_id}", response_model=PipelineTaskStatus)
+@router.get("/pipeline/task/{task_id}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))], response_model=PipelineTaskStatus)
 @limiter.limit("60/minute")
 async def get_pipeline_task_status(request: Request, task_id: str):
     """Статус задачи по ID."""
@@ -713,7 +713,7 @@ async def get_pipeline_task_status(request: Request, task_id: str):
     return pipeline_tasks[task_id]
 
 
-@router.get("/pipeline/tasks", response_model=PipelineTaskListResponse)
+@router.get("/pipeline/tasks", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))], response_model=PipelineTaskListResponse)
 @limiter.limit("30/minute")
 async def list_pipeline_tasks(request: Request, limit: int = Query(10, ge=1, le=50)):
     """Список задач пайплайна."""
@@ -722,7 +722,7 @@ async def list_pipeline_tasks(request: Request, limit: int = Query(10, ge=1, le=
     return {"tasks": tasks[:limit], "total": len(tasks)}
 
 
-@router.get("/pipeline/status", response_model=dict)
+@router.get("/pipeline/status", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))], response_model=dict)
 @limiter.limit("30/minute")
 async def get_pipeline_status(request: Request):
     """Общий статус пайплайна."""
@@ -794,7 +794,7 @@ async def cancel_pipeline_task(task_id: str, request: Request):
     return {"status": "cancelled", "message": "Pipeline остановлен"}
 
 
-@router.get("/pipeline/gap-progress/{task_id}", response_model=GapProgressResponse)
+@router.get("/pipeline/gap-progress/{task_id}", response_model=GapProgressResponse, dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("60/minute")
 async def get_gap_progress(task_id: str, request: Request):
     """Прогресс gap-анализа задачи."""

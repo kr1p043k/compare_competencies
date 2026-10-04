@@ -255,7 +255,8 @@ async def custom_profile_options(request: Request):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)[:300]) from None
+        logger.warning("custom_options_failed", error=str(exc))
+        raise HTTPException(status_code=400, detail="Не удалось загрузить опции профиля.") from None
 
 
 @router.post("/profiles/custom", status_code=201, dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
@@ -396,7 +397,8 @@ async def create_custom_profile(request: Request, body: CustomProfileIn):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)[:300]) from None
+        logger.warning("custom_profile_create_failed", error=str(exc))
+        raise HTTPException(status_code=400, detail="Не удалось создать профиль.") from None
 
 
 @router.get(
@@ -566,7 +568,7 @@ async def _build_focused_profession_view(
     }
 
 
-@router.get("/recommendations/{profile}", response_model=dict)
+@router.get("/recommendations/{profile}", response_model=dict, dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
 @limiter.limit("30/minute")
 async def get_recommendations(
     request: Request,

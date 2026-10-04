@@ -83,7 +83,7 @@ class TestMapKsaToSkills:
             return result
         session.execute = mock_execute
 
-        count = await tier_substring(session, krm, disc_map, comp_map)
+        count = await tier_substring(session, krm["09.03.02"]["disciplines"], disc_map, comp_map)
         assert count >= 1
 
     @pytest.mark.asyncio

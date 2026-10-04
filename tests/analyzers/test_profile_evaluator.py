@@ -1364,13 +1364,11 @@ class TestStage4ApiParity:
         from src.models.student import StudentProfile
         assert StudentProfile.model_fields["target_profession"].default == ""
 
-    def test_custom_profile_level_required(self):
-        from pydantic import ValidationError
+    def test_custom_profile_level_optional(self):
         from src.api_pkg.routers.profiles import CustomProfileIn
-        try:
-            CustomProfileIn(name="x", skills=["python"])
-            raise SystemExit("must not pass without target_level")
-        except ValidationError:
-            pass
+        # Контракт: target_level опционален, default middle (HTTP-слой:
+        # POST /profiles/custom без level -> 201; см. test_profiles_custom_v33).
+        defaulted = CustomProfileIn(name="x", skills=["python"])
+        assert defaulted.target_level == "middle"
         ok = CustomProfileIn(name="x", skills=["python"], target_level="senior")
         assert ok.target_level == "senior"

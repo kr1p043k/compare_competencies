@@ -11,7 +11,7 @@ from slowapi.util import get_remote_address
 
 from src import config
 from src.api_pkg import deps
-from src.api_pkg.routers.auth import user_error_detail
+from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.api_pkg.summary_builder import build_summary_payload, load_recommendations_from_disk
 from src.models.student import StudentProfile
 
@@ -21,7 +21,7 @@ router = APIRouter(tags=["results"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-@router.get("/results/summary", response_model=dict)
+@router.get("/results/summary", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))], response_model=dict)
 @limiter.limit("30/minute")
 async def get_results_summary(
     request: Request,
@@ -56,7 +56,7 @@ async def get_results_summary(
     }
 
 
-@router.get("/results/recommendations/{profile}", response_model=dict)
+@router.get("/results/recommendations/{profile}", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))], response_model=dict)
 @limiter.limit("30/minute")
 async def get_recommendations_result(
     request: Request,
@@ -94,7 +94,7 @@ async def get_recommendations_result(
     }
 
 
-@router.get("/results/report/{profile}")
+@router.get("/results/report/{profile}", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
 @limiter.limit("10/minute")
 async def get_report_pdf(
     request: Request,
@@ -137,7 +137,7 @@ async def get_report_pdf(
 # доступны и под /api/..., и под /api/v1/... (общий _mount). Интерактивные
 # графики фронта ходят по данным (/market, /taxonomy, /profiles) и эти
 # эндпоинты не используют. НЕ удалять и НЕ менять контракт без новой версии.
-@router.get("/results/images/{profile}/{image_type}")
+@router.get("/results/images/{profile}/{image_type}", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
 @limiter.limit("60/minute")
 async def get_profile_image(
     request: Request,
@@ -171,7 +171,7 @@ async def get_profile_image(
     return FileResponse(resolved, media_type="image/png")
 
 
-@router.get("/results/images/coverage-comparison")
+@router.get("/results/images/coverage-comparison", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
 @limiter.limit("30/minute")
 async def get_coverage_comparison_image(request: Request):
     """PNG сравнения покрытия."""
@@ -183,7 +183,7 @@ async def get_coverage_comparison_image(request: Request):
     return FileResponse(image_path, media_type="image/png")
 
 
-@router.get("/results/images/skills-heatmap")
+@router.get("/results/images/skills-heatmap", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
 @limiter.limit("30/minute")
 async def get_skills_heatmap_image(request: Request):
     """PNG тепловой карты навыков."""
@@ -193,7 +193,7 @@ async def get_skills_heatmap_image(request: Request):
     return FileResponse(image_path, media_type="image/png")
 
 
-@router.get("/results/images/skill-correlation")
+@router.get("/results/images/skill-correlation", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
 @limiter.limit("30/minute")
 async def get_skill_correlation_image(request: Request):
     """PNG корреляций навыков."""

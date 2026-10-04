@@ -217,6 +217,9 @@ class SkillParser:
             # _HOMOGLYPH_MAP now module-level (F6 fix).
             # Пустые имена отбрасываем здесь, чтобы "" не оседали в parsed_skills
             # и не рисовались пустыми бейджами в карточках.
+            # Дедуп — по свёрнутому ключу, но ХРАНИМ ОРИГИНАЛ: свёртка необратима
+            # (несколько кириллических букв → одна латинская), запись norm в text
+            # портила parsed_skills в БД смешанно-алфавитной кашей.
             deduped = []
             seen: set[str] = set()
             for s in skills:
@@ -225,7 +228,7 @@ class SkillParser:
                 norm = s.text.lower().translate(_HOMOGLYPH_MAP)
                 if norm not in seen:
                     seen.add(norm)
-                    s.text = norm
+                    s.text = s.text.strip()
                     deduped.append(s)
             return Ok(deduped)
         except Exception as e:

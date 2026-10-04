@@ -118,7 +118,9 @@ async def test_krm_discipline_detail_returns_200():
             pytest.skip("no seed disciplines")
         from httpx import AsyncClient, ASGITransport
         from src.api_pkg import create_app
-        async with AsyncClient(transport=ASGITransport(app=create_app()),
+        from tests.conftest import open_all_gates
+        app = open_all_gates(create_app())
+        async with AsyncClient(transport=ASGITransport(app=app),
                                base_url="http://t") as c:
             r = await c.get(
                 "/api/teacher/krm/disciplines/" + urllib.parse.quote(row["name"]),
@@ -144,7 +146,9 @@ async def test_krm_coverage_no_tz_crash():
     try:
         from httpx import AsyncClient, ASGITransport
         from src.api_pkg import create_app
-        async with AsyncClient(transport=ASGITransport(app=create_app()),
+        from tests.conftest import open_all_gates
+        app = open_all_gates(create_app())
+        async with AsyncClient(transport=ASGITransport(app=app),
                                base_url="http://t") as c:
             r = await c.get("/api/teacher/krm/coverage")
         assert r.status_code == 200, r.text[:300]
@@ -164,7 +168,9 @@ async def test_krm_tree_no_tz_crash():
     try:
         from httpx import AsyncClient, ASGITransport
         from src.api_pkg import create_app
-        async with AsyncClient(transport=ASGITransport(app=create_app()),
+        from tests.conftest import open_all_gates
+        app = open_all_gates(create_app())
+        async with AsyncClient(transport=ASGITransport(app=app),
                                base_url="http://t") as c:
             r = await c.get("/api/teacher/krm/competencies/tree",
                             params={"dir_code": "09.03.02"})

@@ -574,7 +574,7 @@ class SeedDBRequest(BaseModel):
     drop: bool = False
 
 
-@router.post("/admin/db/seed")
+@router.post("/admin/db/seed", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("1/minute")
 async def admin_seed_db(request: Request, body: SeedDBRequest, background_tasks: BackgroundTasks):
     """Seed database from JSON files (skills, disciplines, competencies)."""

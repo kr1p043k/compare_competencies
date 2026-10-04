@@ -33,6 +33,9 @@ class TestTrendAnalyzer:
         assert result.err().reason == "empty"
 
     def test_get_rising_success(self):
+        # Share-based math: prev shares python=10/30, sql=20/30;
+        # cur shares python=30/45, sql=15/45.
+        # python +100.0% (rising); sql -50% (excluded from rising).
         records = [
             {"skill_freq": {"python": 10, "sql": 20}},
             {"skill_freq": {"python": 30, "sql": 15}},
@@ -41,11 +44,10 @@ class TestTrendAnalyzer:
         result = ta.get_rising(top_n=10)
         assert result.is_ok()
         rising = result.ok()
-        assert len(rising) == 2
+        assert len(rising) == 1
         python_item = next(r for r in rising if r["skill"] == "python")
-        sql_item = next(r for r in rising if r["skill"] == "sql")
-        assert python_item["change_pct"] == 200.0
-        assert sql_item["change_pct"] == -25.0
+        assert python_item["change_pct"] == 100.0
+        assert not any(r["skill"] == "sql" for r in rising)
 
     def test_get_rising_insufficient_snapshots(self):
         ta = SnapshotTrendAnalyzer([{"skill_freq": {"python": 10}}])
@@ -73,9 +75,11 @@ class TestTrendAnalyzer:
         assert python_item is None
 
     def test_get_rising_top_n_limits(self):
+        # Unequal growth: equal 10->100 x3 gives 0% shares.
+        # Here a +76.5% and b +5.9% rise; c falls out of rising.
         records = [
             {"skill_freq": {"a": 10, "b": 10, "c": 10}},
-            {"skill_freq": {"a": 100, "b": 100, "c": 100}},
+            {"skill_freq": {"a": 100, "b": 60, "c": 10}},
         ]
         ta = SnapshotTrendAnalyzer(records)
         result = ta.get_rising(top_n=2)
@@ -83,6 +87,8 @@ class TestTrendAnalyzer:
         assert len(result.ok()) == 2
 
     def test_get_declining_success(self):
+        # Shares: python 50/80 -> 10/30 = -46.7% (declining);
+        # sql 30/80 -> 20/30 = +77.8% (rising, excluded here).
         records = [
             {"skill_freq": {"python": 50, "sql": 30}},
             {"skill_freq": {"python": 10, "sql": 20}},
@@ -91,10 +97,10 @@ class TestTrendAnalyzer:
         result = ta.get_declining(top_n=10)
         assert result.is_ok()
         declining = result.ok()
+        assert len(declining) == 1
         python_item = next(r for r in declining if r["skill"] == "python")
-        sql_item = next(r for r in declining if r["skill"] == "sql")
-        assert python_item["change_pct"] == -80.0
-        assert sql_item["change_pct"] == -33.3
+        assert python_item["change_pct"] == -46.7
+        assert not any(r["skill"] == "sql" for r in declining)
 
     def test_get_declining_insufficient_snapshots(self):
         ta = SnapshotTrendAnalyzer()
@@ -123,9 +129,11 @@ class TestTrendAnalyzer:
         assert legacy_item["change_pct"] == -100.0
 
     def test_get_declining_top_n_limits(self):
+        # Unequal decline: equal 10->1 x3 gives 0% shares.
+        # Here only "a" falls (-72.0%); b/c rise (+180%) and are excluded.
         records = [
-            {"skill_freq": {"a": 10, "b": 10, "c": 10}},
-            {"skill_freq": {"a": 1, "b": 1, "c": 1}},
+            {"skill_freq": {"a": 50, "b": 10, "c": 10}},
+            {"skill_freq": {"a": 5, "b": 10, "c": 10}},
         ]
         ta = SnapshotTrendAnalyzer(records)
         result = ta.get_declining(top_n=1)

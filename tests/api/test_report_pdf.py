@@ -18,6 +18,8 @@ def test_report_unknown_profile_404(monkeypatch):
         "base": StudentProfile(profile_name="base", competencies=[],
                                skills=["python"], target_level="middle"),
     }
+    from tests.conftest import open_all_gates
+    open_all_gates(app)
     client = TestClient(app, raise_server_exceptions=False)
     try:
         assert client.get("/api/results/report/nope").status_code == 404
@@ -41,6 +43,8 @@ def test_report_pdf_bytes_base(monkeypatch):
         "base": StudentProfile(profile_name="base", competencies=[],
                                skills=["python"], target_level="middle"),
     }
+    from tests.conftest import open_all_gates
+    open_all_gates(app)
     client = TestClient(app, raise_server_exceptions=False)
     try:
         r = client.get("/api/results/report/base")
