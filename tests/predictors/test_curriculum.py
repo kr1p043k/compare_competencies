@@ -134,6 +134,49 @@ class TestCurriculumRecommender:
         assert len(recs) >= 2
 
     @patch("src.predictors.curriculum_recommender._load_skill_types")
+    @patch("src.predictors.curriculum_recommender._exact_demand")
+    def test_generate_honest_demand_messages(self, mock_demand, mock_load):
+        """Низкий, но реальный спрос и переводы вместо «ничего нет»."""
+        mock_load.return_value = {"academic": [], "professional": []}
+        mock_demand.return_value = (
+            {"k-means": 5, "embedded systems": 6},
+            {"k-means": "k-means",
+             "встроенные системы": "embedded systems"},
+        )
+        rec = CurriculumRecommender()
+        coverage = self.make_coverage(
+            gaps_list=["k-means", "встроенные системы", "навык-призрак"])
+        result = rec.generate(coverage)
+        assert result.is_ok()
+        by_skill = {r.skill_name: r.message for r in result.ok()
+                    if r.type == "review_content"}
+        assert "точный спрос: 5 вакансий" in by_skill["k-means"]
+        assert "встречается как" in by_skill["встроенные системы"]
+        assert "embedded systems" in by_skill["встроенные системы"]
+        assert "ничего близкого" in by_skill["навык-призрак"]
+
+    @patch("src.predictors.curriculum_recommender._load_skill_types")
+    @patch("src.predictors.curriculum_recommender._exact_demand")
+    def test_generate_academic_keeps_demand(self, mock_demand, mock_load):
+        """Foundational тоже получает честный спрос, не только review."""
+        mock_load.return_value = {"academic": [], "professional": []}
+        mock_demand.return_value = ({"теория вероятностей": 3},
+                                    {"теория вероятностей": "теория вероятностей"})
+        rec = CurriculumRecommender()
+        coverage = self.make_coverage(
+            gaps_list=["теория вероятностей"],
+            ksa_types={"теория вероятностей": "knowledge"})
+        result = rec.generate(coverage)
+        assert result.is_ok()
+        msgs = [r.message for r in result.ok() if r.type == "foundational"]
+        assert msgs and "точный спрос: 3 вакансий" in msgs[0]
+
+    def test_exact_demand_empty_input_no_db(self):
+        """Пустой вход — пустой выход без обращения к БД."""
+        from src.predictors.curriculum_recommender import _exact_demand
+        assert _exact_demand([]) == ({}, {})
+
+    @patch("src.predictors.curriculum_recommender._load_skill_types")
     def test_generate_none_coverage(self, mock_load):
         mock_load.return_value = {"academic": [], "professional": []}
         rec = CurriculumRecommender()

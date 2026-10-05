@@ -2,10 +2,16 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
 import structlog
+
+try:
+    import psycopg2
+except Exception:
+    psycopg2 = None  # type: ignore[assignment]
 
 from src.errors import RecommendationError
 from src.feature_flags import weak_comp_recs_enabled
@@ -16,6 +22,24 @@ logger = structlog.get_logger(__name__)
 
 SKILL_TYPES_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "skill_types.json"
 TAXONOMY_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "skill_taxonomy.json"
+
+EXACT_DEMAND_TIMEOUT_S = 3
+
+
+def _to_sync_dsn(url: str) -> str:
+    return (url or "").replace("postgresql+asyncpg://", "postgresql://")
+
+
+def _resolve_sync_dsn() -> str:
+    try:
+        from src import config as _cfg
+        dsn = _to_sync_dsn(_cfg.DATABASE_URL or "")
+        if dsn:
+            return dsn
+    except Exception:
+        pass
+    return _to_sync_dsn(os.environ.get("DATABASE_URL", "") or os.environ.get(
+        "TEST_DATABASE_URL", ""))
 
 
 def _load_skill_types() -> dict[str, list[str]]:
@@ -100,6 +124,50 @@ def _norm_msg(msg: str) -> str:
     except Exception:
         pass
     return _PUNCT_WS.sub(" ", (msg or "").casefold()).strip()
+
+
+def _exact_demand(skills: list[str]) -> tuple[dict[str, int], dict[str, str]]:
+    """Точный спрос по БД: сколько вакансий содержат навык дословно.
+
+    Вокабуляр частот урезан топ-N, поэтому редкие (k-means: 5 вакансий),
+    но реальные навыки выглядят «несопоставленными». Один запрос на всех.
+    Без БД — пусто (старое поведение). Возвращает (counts, normalized_form).
+    """
+    out: dict[str, int] = {}
+    norms: dict[str, str] = {}
+    names = sorted({(s or "").strip().lower() for s in skills if (s or "").strip()})
+    if not names:
+        return out, norms
+    try:
+        from src.parsing.skills.skill_normalizer import SkillNormalizer
+        variants: set[str] = set(names)
+        for s in names:
+            try:
+                r = SkillNormalizer.normalize(s)
+                if r.is_ok() and r.unwrap().strip():
+                    norms[s] = r.unwrap().strip().lower()
+                    variants.add(norms[s])
+            except Exception:
+                pass
+        dsn = _resolve_sync_dsn()
+        if not dsn or psycopg2 is None:
+            return out, norms
+        conn = psycopg2.connect(dsn, connect_timeout=EXACT_DEMAND_TIMEOUT_S)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT s AS skill, COUNT(*) FROM vacancies, "
+                    "jsonb_array_elements_text(parsed_skills) AS s "
+                    "WHERE s = ANY(%s) GROUP BY s",
+                    (list(variants),),
+                )
+                for skill, cnt in cur.fetchall():
+                    out[str(skill).lower()] = int(cnt)
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning("exact_demand_failed", error=str(exc))
+    return out, norms
 
 
 def _gap_hints(gaps: list[str], truly_missing) -> dict[str, tuple[str, int, int]]:
@@ -232,6 +300,7 @@ class CurriculumRecommender:
         _ksa_types = coverage.ksa_types or {}
         _gap_skills = [s for s in coverage.gaps_list if not self._is_fragment(s)]
         _hints = _gap_hints(_gap_skills, getattr(coverage, "truly_missing", None))
+        _demand, _norms = _exact_demand(_gap_skills)
         for s in coverage.gaps_list:
             if self._is_fragment(s):
                 continue
@@ -240,15 +309,33 @@ class CurriculumRecommender:
             else:
                 cls = _classify_skill(s, self.skill_types)
             hint = _hints.get(s)
-            hint_txt = (
-                f" (ближайшее на рынке: «{hint[0]}», вакансий: {hint[2]})."
-                if hint else " (ничего близкого на рынке нет)."
-            )
+            # Честный спрос: точное число вакансий из БД вместо
+            # «ничего нет» для редких, но реальных навыков (k-means: 5).
+            # Плюс перевод: нормализованная форма может жить на рынке
+            # под другим именем (встроенные системы → embedded systems).
+            _sl = (s or "").lower()
+            _exact_n = _demand.get(_sl, 0)
+            _nm = _norms.get(_sl, "")
+            _trans_n = _demand.get(_nm, 0) if _nm and _nm != _sl else 0
+            if _trans_n:
+                hint_txt = (
+                    f" (на рынке встречается как «{_nm}», вакансий: {_trans_n})."
+                )
+            elif _exact_n:
+                hint_txt = (
+                    f" (точный спрос: {_exact_n} вакансий — нишевый навык)."
+                )
+            elif hint:
+                hint_txt = (
+                    f" (ближайшее на рынке: «{hint[0]}», вакансий: {hint[2]})."
+                )
+            else:
+                hint_txt = " (ничего близкого на рынке нет)."
             if cls == "academic":
                 recs.append(Recommendation(
                     type="foundational", priority="low", skill_name=s,
                     message=f"«{s}» — фундаментальный навык, на рынке прямых аналогов нет. "
-                            f"Не требует замены.{hint_txt if hint else ''}",
+                            f"Не требует замены.{hint_txt}",
                 ))
             else:
                 recs.append(Recommendation(

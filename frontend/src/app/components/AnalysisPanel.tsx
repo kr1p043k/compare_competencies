@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { AlertCircle, TrendingUp, TrendingDown, Lightbulb, Target, ChevronDown, ChevronRight, Undo2 } from "lucide-react";
 import { CompetencyTree } from "./CompetencyTree";
+import { ShowMore } from "./ui/show-more";
 
 interface CompetencyCov {
   code: string;
@@ -50,9 +51,11 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
   const [data, setData] = useState<DisciplineAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [showHidden, setShowHidden] = useState(false);
+  const [expandedGaps, setExpandedGaps] = useState(false);
 
   const reload = () => {
     setLoading(true);
+    setExpandedGaps(false);
     apiFetch(`/api/teacher/analysis/${encodeURIComponent(disciplineName)}?dir_code=${encodeURIComponent(dirCode)}`)
       .then(r => r.ok ? r.json() : null)
       .then(d => setData(d))
@@ -262,15 +265,14 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                 Навыки РПД без спроса на рынке
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {metrics.gaps_in_curriculum.slice(0, 10).map((g, i) => (
+                {(expandedGaps ? metrics.gaps_in_curriculum : metrics.gaps_in_curriculum.slice(0, 10)).map((g, i) => (
                   <Badge key={i} variant="secondary" className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/30 border-red-200 dark:border-red-800">
-                    {g.length > 35 ? g.slice(0, 35) + "…" : g}
+                    {g.length > 35 && !expandedGaps ? g.slice(0, 35) + "…" : g}
                   </Badge>
                 ))}
-                {metrics.gaps_in_curriculum.length > 10 && (
-                  <Badge variant="outline" className="text-gray-400 dark:text-slate-500">+{metrics.gaps_in_curriculum.length - 10} ещё</Badge>
-                )}
               </div>
+              <ShowMore total={metrics.gaps_in_curriculum.length} shown={10}
+                        expanded={expandedGaps} onToggle={() => setExpandedGaps(!expandedGaps)} />
             </div>
           )}
 
