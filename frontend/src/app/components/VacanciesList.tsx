@@ -1081,6 +1081,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <Button
               variant="outline"
               size="sm"
+              style={canRunPipeline === false ? { display: "none" } : undefined}
+              title={canRunPipeline === false ? "Экспорт доступен преподавателям" : undefined}
               onClick={async () => {
                 try {
                   const eq = new URLSearchParams();

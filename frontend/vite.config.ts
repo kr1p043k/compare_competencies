@@ -40,6 +40,7 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_API_URL || 'http://localhost:8000',
           changeOrigin: true,
           secure: false,
+          ws: true,
         },
         '/health': {
           target: env.VITE_API_URL || 'http://localhost:8000',

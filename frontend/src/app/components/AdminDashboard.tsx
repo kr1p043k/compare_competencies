@@ -412,7 +412,7 @@ export function AdminDashboard() {
     logAction("/api/admin/export/db");
     setExportLoading(true); setExportMsg("");
     try {
-      const r = await apiFetch("/api/admin/export/db", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const r = await apiFetch("/api/admin/export/db");
       const d = await r.json();
       setExportMsg(d.message || "Done");
     } catch (e: any) { setExportMsg("Error: " + e.message); }

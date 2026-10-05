@@ -6,6 +6,7 @@ import { Label } from "./ui/label";
 import { Badge } from "./ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Progress } from "./ui/progress";
+import { useAuth } from "../../lib/auth";
 import { TrendingUp, GitCompare, Search, Sparkles, Target, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface TrendCompetency {
@@ -140,6 +141,8 @@ async function academicCall(path: string, body: unknown): Promise<unknown> {
 }
 
 export function ScientificTrendsTab() {
+  const { role } = useAuth();
+  const isStudent = role === "student";
   const [topic, setTopic] = useState("");
   const [loading, setLoading] = useState<"trends" | "gap" | null>(null);
   const [error, setError] = useState("");
@@ -258,7 +261,7 @@ export function ScientificTrendsTab() {
                 : <Sparkles className="size-4 mr-2" />}
               Рекомендуемые компетенции
             </Button>
-            <Button onClick={analyzeGap} disabled={loading !== null} variant="outline" className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800">
+            <Button onClick={analyzeGap} disabled={loading !== null || isStudent} title={isStudent ? "Анализ разрыва доступен преподавателям" : undefined} variant="outline" className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800">
               {loading === "gap"
                 ? <span className="mr-2 inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 : <Target className="size-4 mr-2" />}
