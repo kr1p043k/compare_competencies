@@ -187,8 +187,8 @@ class TestTopicFilterRelevance:
             assert len(topic_items) <= 2, [s["skill"] for s in topic_items]
 
     def test_category_mismatched_topic_items_dropped(self):
-        """Второй рубеж: zustand (Frontend) не должен висеть на компетенциях
-        без frontend-категорий, даже при высоком comp-sim."""
+        """Category gate: zustand (Frontend) must not hang on competencies
+        without frontend categories, even at high comp-sim."""
         from src.analyzers.academic_gap import AcademicGapAnalyzer
         a = AcademicGapAnalyzer()
         assert a._get_taxonomy_cats() is not None
@@ -205,3 +205,26 @@ class TestTopicFilterRelevance:
             skills = [s["skill"].lower() for s in d.get("suggested_skills", [])
                       if s.get("source") == "topic"]
             assert "zustand" not in skills, (code, skills)
+
+
+class TestTopicFilterStats:
+    """Замеры фильтра: структура, арифметика, разделение kept/dropped."""
+
+    def test_stats_present_and_consistent(self):
+        from src.analyzers.academic_gap import AcademicGapAnalyzer
+        a = AcademicGapAnalyzer()
+        out = a.analyze("нейросетевые методы обработки изображений")
+        st = out.get("topic_filter_stats")
+        assert isinstance(st, dict) and st["candidates"] > 0
+        assert st["kept"] + st["a_drop"] + st["c_drop"] == st["candidates"]
+        assert isinstance(st["per_code"], dict) and st["per_code"]
+        if st["a_drop"] + st["c_drop"]:
+            assert st["dropped_examples"], "drops without examples"
+        if st["kept"]:
+            sims = [s["similarity"] for d in out["detailed_analysis"]
+                    for s in d.get("suggested_skills", [])
+                    if s.get("source") == "topic"]
+            assert sims, "kept>0 but no topic items in output"
+            assert min(sims) >= 0.45, "kept item below gate"
+            assert st["dropped_max_comp_sim"] <= st["kept_avg_comp_sim"] or \
+                st["c_drop"] > 0, "drops should not outrank keeps w/o cat reason"

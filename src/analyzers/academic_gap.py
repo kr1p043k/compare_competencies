@@ -193,6 +193,12 @@ class AcademicGapAnalyzer:
         market = _load_it_skills()
 
         results: list[dict] = []
+        fstat_total = {"candidates": 0, "kept": 0, "a_drop": 0,
+                       "c_drop": 0, "passthrough": 0}
+        fstat_dropped: list[dict] = []
+        fstat_kept_sims: list[float] = []
+        fstat_dropped_sims: list[float] = []
+        fstat_per_code: dict[str, dict[str, int]] = {}
         for code, entry in krm.items():
             skills = entry["skills"]
             skill_examples = [s for s in skills[:_TOP_NEAR]]
@@ -316,6 +322,8 @@ class AcademicGapAnalyzer:
                 if curr is not None:
                     for _s in skills:
                         comp_cats |= curr.cats_of(_s)
+                code_stat = {"kept": 0, "a_drop": 0, "c_drop": 0,
+                             "passthrough": 0}
                 for m in market_top:
                     if len(suggested) >= _TOP_SUGGEST + 2:
                         break
@@ -323,20 +331,44 @@ class AcademicGapAnalyzer:
                         continue
                     mi = midx.get(m["skill"].lower())
                     comp_sim = float(market_best[mi]) if mi is not None and mi < len(market_best) else 0.0
+                    fstat_total["candidates"] += 1
                     if comp_sim < COMP_MARKET_THRESHOLD:
+                        code_stat["a_drop"] += 1
+                        fstat_total["a_drop"] += 1
+                        fstat_dropped_sims.append(comp_sim)
+                        if len(fstat_dropped) < 10:
+                            fstat_dropped.append(
+                                {"skill": m["skill"], "code": code,
+                                 "comp_sim": round(comp_sim, 3), "gate": "sim"})
                         continue
                     if curr is not None and comp_cats:
                         cand_cats = curr.cats_of(m["skill"])
                         if cand_cats and cand_cats.isdisjoint(comp_cats):
+                            code_stat["c_drop"] += 1
+                            fstat_total["c_drop"] += 1
+                            fstat_dropped_sims.append(comp_sim)
+                            if len(fstat_dropped) < 10:
+                                fstat_dropped.append(
+                                    {"skill": m["skill"], "code": code,
+                                     "comp_sim": round(comp_sim, 3),
+                                     "gate": "category"})
                             continue
                     elif curr is not None:
+                        # passthrough: uncategorized either side — still kept,
+                        # so passthrough ⊆ kept in the counters below.
                         logger.info("cat_passthrough", code=code,
                                     skill=m["skill"])
+                        code_stat["passthrough"] += 1
+                        fstat_total["passthrough"] += 1
+                    code_stat["kept"] += 1
+                    fstat_total["kept"] += 1
+                    fstat_kept_sims.append(comp_sim)
                     suggested.append({
                         "skill": m["skill"],
                         "similarity": round(comp_sim, 3),
                         "source": "topic",
                     })
+                fstat_per_code[code] = code_stat
 
             # рекомендация: уникальный текст с похожестью
             if suggested:
@@ -365,6 +397,15 @@ class AcademicGapAnalyzer:
             })
 
         results.sort(key=lambda r: r["coverage_percent"])
+        self._last_topic_filter_stats = {
+            **fstat_total,
+            "kept_avg_comp_sim": round(
+                sum(fstat_kept_sims) / len(fstat_kept_sims), 3) if fstat_kept_sims else 0.0,
+            "dropped_max_comp_sim": round(
+                max(fstat_dropped_sims), 3) if fstat_dropped_sims else 0.0,
+            "dropped_examples": fstat_dropped,
+            "per_code": fstat_per_code,
+        }
         return results
 
     # ── шаг 4: сводка ─────────────────────────────────────────────────────
@@ -395,6 +436,7 @@ class AcademicGapAnalyzer:
                 "overall_score": 0,
                 "detailed_analysis": [],
                 "summary": "Тема не задана.",
+                "topic_filter_stats": {},
             }
         topic_skills = self.topic_to_skills(topic)
         if not topic_skills:
@@ -415,6 +457,7 @@ class AcademicGapAnalyzer:
             "overall_score": overall,
             "detailed_analysis": results,
             "summary": summary,
+            "topic_filter_stats": getattr(self, "_last_topic_filter_stats", {}),
         }
 
     # ── публичный метод: рекомендуемые компетенции ───────────────────────
@@ -433,6 +476,7 @@ class AcademicGapAnalyzer:
                 "found_trends": [],
                 "recommended_competencies": [],
                 "rationale": "Тема не задана.",
+                "topic_filter_stats": {},
             }
         topic_skills = self.topic_to_skills(topic)
         if not topic_skills:
@@ -492,4 +536,5 @@ class AcademicGapAnalyzer:
             "found_trends": found_trends,
             "recommended_competencies": recommended,
             "rationale": rationale,
+            "topic_filter_stats": getattr(self, "_last_topic_filter_stats", {}),
         }
