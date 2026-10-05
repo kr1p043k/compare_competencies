@@ -90,6 +90,19 @@ class AcademicGapAnalyzer:
     def __init__(self, dir_code: str = "09.03.02"):
         self.dir_code = dir_code
         self._comparator = None
+        try:
+            from src.predictors.curriculum_recommender import (
+                CurriculumRecommender,
+            )
+            self._curr = CurriculumRecommender()
+        except Exception:
+            self._curr = None
+
+    def _get_taxonomy_cats(self):
+        """Доступ к cats_of из curriculum recommender (категории таксономии
+        для второго рубежа topic-фильтра). None при недоступности —
+        тогда работает только sim-гейт."""
+        return self._curr
 
     def _get_comparator(self):
         if self._comparator is None:
@@ -298,6 +311,11 @@ class AcademicGapAnalyzer:
                 # competency-ветки выше. Число — comp-sim (честнее в разрезе
                 # компетенции, чем глобальный topic-sim).
                 midx = {mm.lower(): i for i, mm in enumerate(market)}
+                curr = self._get_taxonomy_cats()
+                comp_cats: set[str] = set()
+                if curr is not None:
+                    for _s in skills:
+                        comp_cats |= curr.cats_of(_s)
                 for m in market_top:
                     if len(suggested) >= _TOP_SUGGEST + 2:
                         break
@@ -307,6 +325,13 @@ class AcademicGapAnalyzer:
                     comp_sim = float(market_best[mi]) if mi is not None and mi < len(market_best) else 0.0
                     if comp_sim < COMP_MARKET_THRESHOLD:
                         continue
+                    if curr is not None and comp_cats:
+                        cand_cats = curr.cats_of(m["skill"])
+                        if cand_cats and cand_cats.isdisjoint(comp_cats):
+                            continue
+                    elif curr is not None:
+                        logger.info("cat_passthrough", code=code,
+                                    skill=m["skill"])
                     suggested.append({
                         "skill": m["skill"],
                         "similarity": round(comp_sim, 3),

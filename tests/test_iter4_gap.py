@@ -185,3 +185,23 @@ class TestTopicFilterRelevance:
             topic_items = [s for s in d.get("suggested_skills", [])
                            if s.get("source") == "topic"]
             assert len(topic_items) <= 2, [s["skill"] for s in topic_items]
+
+    def test_category_mismatched_topic_items_dropped(self):
+        """Второй рубеж: zustand (Frontend) не должен висеть на компетенциях
+        без frontend-категорий, даже при высоком comp-sim."""
+        from src.analyzers.academic_gap import AcademicGapAnalyzer
+        a = AcademicGapAnalyzer()
+        assert a._get_taxonomy_cats() is not None
+        out = a.analyze("нейросетевые методы обработки изображений")
+        by_code = {d["code"]: d for d in out["detailed_analysis"]}
+        codes = ["ОПК-2", "ОПК-5", "ОПК-6", "ПК-2", "ПК-3", "ПК-11",
+                 "ПК-17", "ПК-18", "УК-3"]
+        assert set(codes) <= set(by_code), "KRM codes shifted"
+        assert any(s.get("source") == "topic"
+                   for d in by_code.values()
+                   for s in d.get("suggested_skills", [])), "no topic items at all"
+        for code in codes:
+            d = by_code[code]
+            skills = [s["skill"].lower() for s in d.get("suggested_skills", [])
+                      if s.get("source") == "topic"]
+            assert "zustand" not in skills, (code, skills)

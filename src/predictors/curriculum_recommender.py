@@ -177,6 +177,10 @@ class CurriculumRecommender:
         return False
 
 
+    def cats_of(self, skill_name: str) -> set[str]:
+        """Публичная обёртка над _cats_of (для academic_gap второго рубежа)."""
+        return self._cats_of(skill_name)
+
     def _cats_of(self, skill_name: str) -> set[str]:
         """Области таксономии навыка: короткие эталоны — только по границам слов.
 
