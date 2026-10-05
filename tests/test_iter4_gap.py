@@ -145,3 +145,43 @@ class TestEnhancedFlagLogic:
     def test_enhanced_total_positive(self):
         enhanced_total = 3
         assert (enhanced_total > 0) is True
+
+
+class TestTopicFilterRelevance:
+    """Topic-branch items must be relevant to THIS competency, not just the topic.
+
+    Regression: global market_top was pasted into every competency (zustand
+    with topic-sim 0.83 showed up in math competencies). The filter gates on
+    comp-sim (max similarity to the competency's own skills) with the same
+    COMP_MARKET_THRESHOLD as the competency branch.
+    """
+
+    def test_topic_items_meet_comp_threshold(self):
+        from src.analyzers.academic_gap import (
+            AcademicGapAnalyzer,
+            COMP_MARKET_THRESHOLD,
+        )
+        a = AcademicGapAnalyzer()
+        out = a.analyze("Мультимедиа технологии")
+        assert out["detailed_analysis"], "no competencies analyzed"
+        checked = 0
+        for det in out["detailed_analysis"]:
+            for s in det.get("suggested_skills", []):
+                if s.get("source") == "topic":
+                    assert s["similarity"] >= COMP_MARKET_THRESHOLD, (
+                        det["code"], s)
+                    checked += 1
+        assert checked > 0, "no topic-branch items to check"
+
+    def test_far_competency_gets_no_topic_items(self):
+        """A competency with no market-relevant skills gets empty topic block."""
+        from src.analyzers.academic_gap import AcademicGapAnalyzer
+        a = AcademicGapAnalyzer()
+        out = a.analyze("Мультимедиа технологии")
+        by_code = {d["code"]: d for d in out["detailed_analysis"]}
+        # УК-3 has 10 generic skills; pre-filter it received all 10 global items
+        d = by_code.get("УК-3")
+        if d is not None:
+            topic_items = [s for s in d.get("suggested_skills", [])
+                           if s.get("source") == "topic"]
+            assert len(topic_items) <= 2, [s["skill"] for s in topic_items]

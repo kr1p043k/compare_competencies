@@ -290,15 +290,26 @@ class AcademicGapAnalyzer:
                         "similarity": round(float(market_best[i]), 3),
                         "source": "competency",
                     })
-                # рыночные навыки, близкие к теме, которых нет в компетенции
+                # рыночные навыки, близкие к теме, которых нет в компетенции.
+                # Фильтр релевантности: навык должен быть близок не только теме,
+                # но и ЭТОЙ компетенции (market_best — макс. sim к её навыкам).
+                # Без него глобальный топ темы paste'ится во все компетенции
+                # подряд (напр. zustand — в математику). Порог тот же, что у
+                # competency-ветки выше. Число — comp-sim (честнее в разрезе
+                # компетенции, чем глобальный topic-sim).
+                midx = {mm.lower(): i for i, mm in enumerate(market)}
                 for m in market_top:
                     if len(suggested) >= _TOP_SUGGEST + 2:
                         break
                     if m["skill"].lower() in skills_lower or m["skill"].lower() in {s["skill"].lower() for s in suggested}:
                         continue
+                    mi = midx.get(m["skill"].lower())
+                    comp_sim = float(market_best[mi]) if mi is not None and mi < len(market_best) else 0.0
+                    if comp_sim < COMP_MARKET_THRESHOLD:
+                        continue
                     suggested.append({
                         "skill": m["skill"],
-                        "similarity": m["similarity"],
+                        "similarity": round(comp_sim, 3),
                         "source": "topic",
                     })
 
