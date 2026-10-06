@@ -318,29 +318,34 @@ class CurriculumRecommender:
             _nm = _norms.get(_sl, "")
             _trans_n = _demand.get(_nm, 0) if _nm and _nm != _sl else 0
             if _trans_n:
-                hint_txt = (
-                    f" (на рынке встречается как «{_nm}», вакансий: {_trans_n})."
+                head_txt = (
+                    f" — на рынке встречается как «{_nm}» "
+                    f"(вакансий: {_trans_n})."
                 )
             elif _exact_n:
-                hint_txt = (
-                    f" (точный спрос: {_exact_n} вакансий — нишевый навык)."
+                head_txt = (
+                    f" — нишевый навык (точный спрос: {_exact_n} вакансий)."
                 )
             elif hint:
-                hint_txt = (
-                    f" (ближайшее на рынке: «{hint[0]}», вакансий: {hint[2]})."
+                head_txt = (
+                    f" — не сопоставлено с рынком автоматически "
+                    f"(ближайшее на рынке: «{hint[0]}», вакансий: {hint[2]})."
                 )
             else:
-                hint_txt = " (ничего близкого на рынке нет)."
+                head_txt = (
+                    " — не сопоставлено с рынком автоматически "
+                    "(ничего близкого на рынке нет)."
+                )
             if cls == "academic":
                 recs.append(Recommendation(
                     type="foundational", priority="low", skill_name=s,
-                    message=f"«{s}» — фундаментальный навык, на рынке прямых аналогов нет. "
-                            f"Не требует замены.{hint_txt}",
+                    message=f"«{s}» — фундаментальный навык.{head_txt} "
+                            f"Не требует замены.",
                 ))
             else:
                 recs.append(Recommendation(
                     type="review_content", priority="medium", skill_name=s,
-                    message=f"«{s}» — не сопоставлено с рынком автоматически.{hint_txt} "
+                    message=f"«{s}»{head_txt} "
                             f"Проверьте вручную: возможно, стоит переформулировать ближе к рынку.",
                 ))
 
