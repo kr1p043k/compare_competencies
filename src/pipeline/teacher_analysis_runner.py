@@ -38,7 +38,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 45  # honest demand/translation hints in gap messages
+CODE_VERSION = 46  # conservative coverage_level = min(ratio, weighted)
 
 # Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
 # IT-coverage picture. Data stays in DB (nothing deleted); they are only
@@ -1020,6 +1020,10 @@ async def run_teacher_analysis(
     if declining_result.is_err():
         logger.warning("declining_trends_unavailable", reason=str(declining_result.err()))
 
+    _lvl_base = min(avg_cov, avg_quality)
+    _dir_level = ("high" if _lvl_base >= 0.5
+                  else "medium" if _lvl_base >= 0.2 else "low")
+
     dir_summary = {
         "direction": dir_code,
         "direction_name": direction["name"],
@@ -1029,7 +1033,8 @@ async def run_teacher_analysis(
         "average_coverage": summary.average_coverage,
         "average_quality_coverage": avg_quality,
         "average_strong_coverage": avg_strong,
-        "coverage_level": "high" if avg_cov >= 0.5 else "medium" if avg_cov >= 0.2 else "low",
+        # Консервативно: уровень по худшей из двух средних (см. выше).
+        "coverage_level": _dir_level,
         "total_gaps_across_all": summary.total_gaps,
         "top_cross_discipline_gaps": summary.top_cross_discipline_gaps,
         "top_emerging_across_all": summary.top_emerging,
@@ -1237,13 +1242,16 @@ async def run_teacher_analysis(
             if dc and dc.discipline_id:
                 dir_id = direction.get("id") if direction else None
                 cov_ratio = round(dc.coverage_ratio, 4)
+                cov_weighted = round(dc.weighted_coverage or 0.0, 4)
                 await pool.execute(
                     """INSERT INTO coverage_analyses
                        (discipline_id, direction_id, total_skills,
-                        market_matched_skills, coverage_ratio, analysis_date)
-                       VALUES ($1, $2, $3, $4, $5, NOW())""",
+                        market_matched_skills, coverage_ratio,
+                        weighted_coverage, analysis_date)
+                       VALUES ($1, $2, $3, $4, $5, $6, NOW())""",
                     dc.discipline_id, dir_id,
                     dc.total_skills, dc.market_matched, cov_ratio,
+                    cov_weighted,
                 )
         logger.info("coverage_analyses_saved", count=len(discipline_reports))
     except Exception as exc:

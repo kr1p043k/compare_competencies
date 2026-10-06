@@ -340,7 +340,9 @@ class CoverageAnalyzer:
             strong_matched=strong_total,
             strong_coverage=round(strong_total / total, 4) if total else 0,
             weighted_coverage=weighted,
-            coverage_level=coverage_level(ratio),
+            # Консервативный уровень: min(ratio, weighted). Иначе ratio 0.55
+            # при weighted 0.33 даёт лживый HIGH (пример: Мультимедиа).
+            coverage_level=coverage_level(min(ratio, weighted)),
             top_matched=deduped_top,
             matched_market=[m.market_match for m in matched_list if m.market_match],
             ksa_types=dict(ksa_types or {}),

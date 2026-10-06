@@ -65,3 +65,26 @@ def test_put_scope_upserts():
     assert r.status_code == 200, r.text
     assert r.json()['updated'] == 2
     assert any('INSERT INTO discipline_scope' in s for s in pool.exec_log)
+
+
+class TestCoverageLevelConservative:
+    """ZUN-уровень консервативен, как в teacher reports: min(ratio, weighted)."""
+
+    def test_min_rule(self):
+        from src.api_pkg.routers.zun import _coverage_level
+        assert _coverage_level(0.55, 0.33) == "medium"
+        assert _coverage_level(0.9, 0.8) == "high"
+        assert _coverage_level(0.1, 0.05) == "low"
+
+    def test_weighted_none_fallback(self):
+        """Старые строки без weighted: поведение как раньше."""
+        from src.api_pkg.routers.zun import _coverage_level
+        assert _coverage_level(0.9) == "high"
+        assert _coverage_level(0.3) == "medium"
+        assert _coverage_level(None) is None
+
+    def test_legacy_null_weighted_falls_back_to_ratio(self):
+        """Legacy-строка (weighted NULL): уровень по ratio, не low."""
+        from src.api_pkg.routers.zun import _coverage_level
+        assert _coverage_level(0.85, None) == "high"
+        assert _coverage_level(0.55, None) == "high"

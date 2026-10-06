@@ -125,3 +125,33 @@ class TestCoverageAnalyzer:
         assert coverage_level(0.1) == "low"
         assert coverage_level(0.0) == "low"
         assert coverage_level(1.0) == "high"
+
+    def test_level_conservative_min_ratio_weighted(self):
+        """Уровень — от min(ratio, weighted), а не от ratio.
+
+        Мультимедиа-кейс: ratio 0.55 при weighted 0.33 — V0 давал лживый
+        HIGH. Мок матчера: 2 fuzzy-совпадения conf 0.4 + 2 промаха
+        (ratio 0.5, weighted 0.2) → medium.
+        """
+        from unittest.mock import MagicMock
+        from src import Err, Ok
+        from src.analyzers.coverage_analyzer import CoverageAnalyzer
+        matcher = MagicMock()
+        matcher.market_skills = {"market_a": 100, "market_b": 100}
+        hits = {"skill_a": ("market_a", "fuzzy", 0.4),
+                "skill_b": ("market_b", "fuzzy", 0.4)}
+
+        def _match(skill):
+            return Ok(hits[skill]) if skill in hits else Err("miss")
+
+        matcher.match.side_effect = _match
+        matcher.get_emerging.return_value = Err("no emerging")
+        ca = CoverageAnalyzer(matcher)
+        result = ca.analyze_discipline(
+            "d1", "Test", {"C1": ["skill_a", "skill_b", "skill_c", "skill_d"]})
+        assert result.is_ok()
+        dc = result.unwrap()
+        # ratio высокий, weighted низкий: V0 дал бы HIGH, V1 даёт medium.
+        assert dc.coverage_ratio >= 0.5
+        assert dc.weighted_coverage < 0.5
+        assert dc.coverage_level == "medium"

@@ -100,10 +100,11 @@ async def _latest_coverage_subq(pool, dir_ids: list[str]) -> dict[str, dict]:
         return {}
     rows = await pool.fetch(
         """SELECT DISTINCT ON (discipline_id) discipline_id, total_skills,
-                  market_matched_skills, coverage_ratio, analysis_date
-           FROM coverage_analyses
-           WHERE direction_id = ANY($1::uuid[])
-           ORDER BY discipline_id, analysis_date DESC""",
+                  market_matched_skills, coverage_ratio, weighted_coverage,
+                  analysis_date
+            FROM coverage_analyses
+            WHERE direction_id = ANY($1::uuid[])
+            ORDER BY discipline_id, analysis_date DESC""",
         dir_ids,
     )
     return {
@@ -111,16 +112,21 @@ async def _latest_coverage_subq(pool, dir_ids: list[str]) -> dict[str, dict]:
             "total_skills": r["total_skills"],
             "matched_skills": r["market_matched_skills"],
             "coverage_ratio": round(float(r["coverage_ratio"]), 4),
+            "weighted_coverage": (round(float(r["weighted_coverage"]), 4)
+                                  if r["weighted_coverage"] is not None else None),
             "analysis_date": r["analysis_date"].isoformat() if r["analysis_date"] else None,
         }
         for r in rows
     }
 
 
-def _coverage_level(ratio: float | None) -> str | None:
+def _coverage_level(ratio: float | None, weighted: float | None = None) -> str | None:
+    """Консервативный уровень: min(ratio, weighted), как в teacher reports.
+    Без weighted (старые строки) — по ratio."""
     if ratio is None:
         return None
-    return "high" if ratio >= 0.5 else "medium" if ratio >= 0.2 else "low"
+    base = min(ratio, weighted) if weighted is not None else ratio
+    return "high" if base >= 0.5 else "medium" if base >= 0.2 else "low"
 
 
 # semantic cache: {dir_code: (ts, items:list[dict], embs:np.ndarray, max_created)}
@@ -327,7 +333,10 @@ async def zun_disciplines(
             },
             "linked_skills": r["linked_skills"],
             "coverage_ratio": cov.get(str(r["id"]), {}).get("coverage_ratio"),
-            "coverage_level": _coverage_level(cov.get(str(r["id"]), {}).get("coverage_ratio")),
+            "weighted_coverage": cov.get(str(r["id"]), {}).get("weighted_coverage"),
+            "coverage_level": _coverage_level(
+                cov.get(str(r["id"]), {}).get("coverage_ratio"),
+                cov.get(str(r["id"]), {}).get("weighted_coverage")),
         }
         for r in rows
     ]
@@ -415,7 +424,8 @@ async def _build_discipline_tree(pool, disc_id: str, dir_code: str | None = None
 
     # coverage for the discipline (latest analysis)
     cov_row = await pool.fetchrow(
-        """SELECT total_skills, market_matched_skills, coverage_ratio, analysis_date
+        """SELECT total_skills, market_matched_skills, coverage_ratio,
+                  weighted_coverage, analysis_date
            FROM coverage_analyses
            WHERE discipline_id = $1
            ORDER BY analysis_date DESC LIMIT 1""",
@@ -423,11 +433,15 @@ async def _build_discipline_tree(pool, disc_id: str, dir_code: str | None = None
     )
     coverage = None
     if cov_row:
+        _ratio = round(float(cov_row["coverage_ratio"]), 4)
+        _raw_w = cov_row["weighted_coverage"]
+        _weighted = round(float(_raw_w), 4) if _raw_w is not None else None
         coverage = {
             "total_skills": cov_row["total_skills"],
             "matched_skills": cov_row["market_matched_skills"],
-            "coverage_ratio": round(float(cov_row["coverage_ratio"]), 4),
-            "coverage_level": _coverage_level(float(cov_row["coverage_ratio"])),
+            "coverage_ratio": _ratio,
+            "weighted_coverage": _weighted,
+            "coverage_level": _coverage_level(_ratio, _weighted),
             "analysis_date": cov_row["analysis_date"].isoformat() if cov_row["analysis_date"] else None,
         }
     return {

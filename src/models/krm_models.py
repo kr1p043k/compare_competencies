@@ -534,6 +534,8 @@ class CoverageAnalysis(Base):
     total_skills: Mapped[int] = mapped_column(Integer, default=0)
     market_matched_skills: Mapped[int] = mapped_column(Integer, default=0)
     coverage_ratio: Mapped[float] = mapped_column(Float, default=0.0)
+    # NULL = legacy row (weighted не считался); свежие прогоны пишут значение.
+    weighted_coverage: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
     analysis_date: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     discipline: Mapped["Discipline"] = relationship(back_populates="coverage_analyses")
