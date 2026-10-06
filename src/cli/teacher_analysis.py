@@ -11,10 +11,12 @@ from src.pipeline.teacher_analysis_runner import run_teacher_analysis
 from src.result import Ok
 
 
-def main(direction: str = "09.03.02", discipline: str | None = None) -> None:
+def main(direction: str = "09.03.02", discipline: str | None = None,
+         force: bool = False) -> None:
     result = asyncio.run(run_teacher_analysis(
         direction_code=direction,
         discipline_filter=discipline,
+        force=force,
     ))
     if isinstance(result, Ok):
         d = result.unwrap()
@@ -30,5 +32,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--direction", default="09.03.02")
+    parser.add_argument("--discipline", default=None)
+    parser.add_argument("--force", action="store_true")
     args, _ = parser.parse_known_args()
-    main(direction=args.direction)
+    main(direction=args.direction, discipline=args.discipline, force=args.force)

@@ -92,7 +92,8 @@ def main() -> None:
     p = sub.add_parser("teacher-analysis", help="Запустить преподавательский анализ (gap + embedding + SHAP)")
     p.add_argument("--direction", default="09.03.02", help="Код направления (09.03.02)")
     p.add_argument("--discipline", help="Фильтр по дисциплине (необязательно)")
-    p.set_defaults(func=lambda a: teacher_analysis.main(direction=a.direction, discipline=a.discipline))
+    p.add_argument("--force", action="store_true", help="Принудительно пересчитать (игнор skip data_unchanged)")
+    p.set_defaults(func=lambda a: teacher_analysis.main(direction=a.direction, discipline=a.discipline, force=a.force))
 
     p = sub.add_parser("populate-parsed-skills", help="Заполнить parsed_skills в БД перепарсингом вакансий")
     p.add_argument("--force-all", action="store_true",

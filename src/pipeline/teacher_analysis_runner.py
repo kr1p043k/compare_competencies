@@ -350,6 +350,7 @@ async def run_teacher_analysis(
     direction_code: str | None = None,
     discipline_filter: str | None = None,
     user_id: str | None = None,
+    force: bool = False,
 ) -> Result[dict, AnalysisRunnerError]:
     """Полный teacher analysis направления: покрытие, гэпы, рекомендации, графики."""
     logger.info("analysis_started", direction=direction_code, discipline=discipline_filter)
@@ -676,7 +677,7 @@ async def run_teacher_analysis(
                 sdata = {}
             version_ok = sdata.get("code_version") == CODE_VERSION
 
-            if market_unchanged and krm_unchanged and file_unchanged and version_ok:
+            if market_unchanged and krm_unchanged and file_unchanged and version_ok and not force:
                 logger.info("skipping_analysis_data_unchanged", direction=dir_code)
                 try:
                     await complete_pipeline_run(
@@ -1064,6 +1065,38 @@ async def run_teacher_analysis(
             except Exception:
                 pass
     dir_summary["has_enhanced_gap"] = _has_enh
+
+    # Частичный прогон (фильтр по дисциплине) не должен затирать сводку
+    # направления частичными данными — было: summary на 1 дисциплину.
+    # Ран закрываем здесь же, иначе run_id навсегда зависнет в running
+    # (complete_pipeline_run ниже по потоку для partial недостижим).
+    # Charts/summary/meta/coverage-вставки осознанно пропускаем: это
+    # артефакты полного прогона, их перезапишет следующий full run.
+    if discipline_filter:
+        logger.info("partial_run_summary_skipped", direction=dir_code,
+                    discipline_filter=discipline_filter)
+        try:
+            await complete_pipeline_run(
+                run_id, status="completed",
+                stats={"direction": dir_code,
+                       "discipline_filter": discipline_filter,
+                       "disciplines": len(discipline_reports),
+                       "partial": True, "avg_coverage": avg_cov},
+            )
+        except Exception as exc:
+            logger.warning("partial_pipeline_run_close_failed", error=str(exc))
+        return Ok({
+            "direction": dir_code,
+            "direction_name": direction["name"],
+            "profile": direction["profile"],
+            "code_version": CODE_VERSION,
+            "total_disciplines": len(discipline_reports),
+            "average_coverage": avg_cov,
+            "total_gaps_across_all": len(all_gaps),
+            "partial": True,
+            "disciplines": [dn for dn, _ in discipline_reports],
+            "generated_at": datetime.now().isoformat(),
+        })
 
     try:
         (out_dir / "_summary.json").write_text(
