@@ -40,7 +40,9 @@ class DIContainer:
     def freeze(self):
         self._frozen = True
 
-    def register(self, key: Any, factory: Callable[[], Any] | None = None, instance: Any = None, singleton: bool = True):
+    def register(
+        self, key: Any, factory: Callable[[], Any] | None = None, instance: Any = None, singleton: bool = True
+    ):
         if self._frozen:
             raise RuntimeError(f"Cannot register({key}): container is frozen")
         if instance is not None:

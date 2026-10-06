@@ -171,7 +171,9 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         self.cluster_weights = None
         logger.info("cluster_context_cleared")
 
-    def fit(self, vacancies_skills: list[list[str]], skill_weights: dict[str, float]) -> Result["RecommendationEngine", Exception]:
+    def fit(
+        self, vacancies_skills: list[list[str]], skill_weights: dict[str, float]
+    ) -> Result["RecommendationEngine", Exception]:
         if not vacancies_skills:
             return Err(RecommendationError(message="no_vacancy_data_for_training", profile=""))
         if not skill_weights:
@@ -198,7 +200,10 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         from src.utils import atomic_write_json
 
         if self.profile_evaluator is None:
-            return Err(RecommendationError(message="RecommendationEngine не инициализирован с profile_evaluator", profile=student.profile_name))
+            return Err(RecommendationError(
+                message="RecommendationEngine не инициализирован с profile_evaluator",
+                profile=student.profile_name
+            ))
 
         profile_name = student.profile_name
         logger.info("generate_recommendations_started", profile=profile_name)
@@ -218,7 +223,10 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                     case Err(e):
                         return Err(RecommendationError(message=str(e), profile=profile_name))
                     case _:
-                        return Err(RecommendationError(message="Оценка профиля вернула неожиданный результат", profile=profile_name))
+                        return Err(RecommendationError(
+                            message="Оценка профиля вернула неожиданный результат",
+                            profile=profile_name
+                        ))
 
             cluster_context = eval_result.get("cluster_context") or {}
             closest_clusters = cluster_context.get("closest_clusters", [])
@@ -263,7 +271,8 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                             scaler = MinMaxScaler()
                             normalized_scores = scaler.fit_transform(np.array(raw_scores).reshape(-1, 1)).flatten()
                             ltr_scores = {
-                                skill.lower(): float(score) for skill, score in zip(skills, normalized_scores, strict=False)
+                                skill.lower(): float(score)
+                                for skill, score in zip(skills, normalized_scores, strict=False)
                             }
                         logger.info("ltr_scores_normalized", profile=profile_name, ltr_skills=len(ltr_scores))
                     case Err(e):
@@ -282,7 +291,10 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                     combined_scores[skill] = ev
 
             now = time.time()
-            if (self._cached_trend_bonuses is None or now - self._trend_bonuses_cached_at > 3600) and self.trend_analyzer is not None:
+            if (
+                (self._cached_trend_bonuses is None or now - self._trend_bonuses_cached_at > 3600)
+                and self.trend_analyzer is not None
+            ):
                 match self.trend_analyzer.get_trending_skills(top_n=500, min_change_percent=0.0):
                     case Ok(trends):
                         self.trend_analyzer.save_trends(trends)

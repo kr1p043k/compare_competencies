@@ -160,7 +160,7 @@ async def populate_ksa_entries(
         for v in batch:
             await pool.execute(
                 """INSERT INTO ksa_entries (id, competency_id, ksa_type, original_text, cleaned_text, sort_order, parse_version_id, created_at)
-                   VALUES ($1::uuid, $2::uuid, $3::ksa_type, $4, NULL, $5, $6::uuid, NOW())""",
+                   VALUES ($1::uuid, $2::uuid, $3::ksa_type, $4, NULL, $5, $6::uuid, NOW())""",  # noqa: E501 — SQL string must not be split
                 str(uuid.uuid4()), v['comp_id'], v['ksa_type'], v['text'], v['sort'], v['pv_id'],
             )
 

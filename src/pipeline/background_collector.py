@@ -342,7 +342,7 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
         conn = await asyncpg.connect(db_url)
         try:
             last_run = await conn.fetchval(
-                "SELECT MAX(started_at) FROM pipeline_runs WHERE action IN ('full-cycle','data-collection') AND status='completed'"
+                "SELECT MAX(started_at) FROM pipeline_runs WHERE action IN ('full-cycle','data-collection') AND status='completed'"  # noqa: E501 — SQL string must not be split
             )
             before = await conn.fetchval("SELECT COUNT(*) FROM vacancies") or 0
             after = before

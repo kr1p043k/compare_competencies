@@ -160,7 +160,10 @@ def safe_read_json_result(filepath: Path) -> Result[list, DomainError]:
         with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
         if not isinstance(data, list):
-            return Err(DomainError(message="Invalid JSON structure, expected list", detail=f"got {type(data).__name__}"))
+            return Err(DomainError(
+                message="Invalid JSON structure, expected list",
+                detail=f"got {type(data).__name__}"
+            ))
         return Ok(data)
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         return Err(DomainError(message="JSON read error", detail=str(e)))

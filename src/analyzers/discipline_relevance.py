@@ -63,7 +63,9 @@ class DisciplineAwareScorer:
             for comp_code in disc_data.get("competencies", []):
                 texts.extend(disc_data.get("skills", {}).get(comp_code, []))
             if texts:
-                self._disciplines[disc_name] = {"competencies": disc_data.get("competencies", []), "text_count": len(texts)}
+                self._disciplines[disc_name] = {
+                    "competencies": disc_data.get("competencies", []), "text_count": len(texts)
+                }
                 self._discipline_texts[disc_name] = texts
         self._loaded = True
         logger.info("discipline_relevance_loaded", disciplines=len(self._disciplines))

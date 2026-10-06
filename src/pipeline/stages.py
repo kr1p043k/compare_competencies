@@ -334,7 +334,9 @@ class GapAnalysisStage(PipelineStage):
             match runner.run():
                 case Ok((evaluations, recs)):
                     for pname in recs:
-                        recommendations_generated.labels(profile=pname).inc(len(recs[pname].get("recommendations", [])) if isinstance(recs[pname], dict) else 0)
+                        recommendations_generated.labels(profile=pname).inc(
+                            len(recs[pname].get("recommendations", [])) if isinstance(recs[pname], dict) else 0
+                        )
                     self._progress(100, f"GAP-анализ завершён для {num_profiles} профилей")
                     return Ok({"evaluations": evaluations, "recommendations": recs})
                 case Err(err):

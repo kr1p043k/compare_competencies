@@ -148,7 +148,9 @@ class SkillValidator:
             if not skill or not skill.strip():
                 self.stats["rejected"] += 1
                 self.stats["reasons"]["empty"] += 1
-                return Ok(ValidationResult(skill=skill, is_valid=False, reasons=[ValidationReason.EMPTY], confidence=0.0))
+                return Ok(ValidationResult(
+                    skill=skill, is_valid=False, reasons=[ValidationReason.EMPTY], confidence=0.0
+                ))
 
             skill = skill.strip()
             skill_lower = skill.lower()

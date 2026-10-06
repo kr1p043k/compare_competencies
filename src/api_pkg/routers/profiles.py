@@ -259,14 +259,18 @@ async def custom_profile_options(request: Request):
         raise HTTPException(status_code=400, detail="Не удалось загрузить опции профиля.") from None
 
 
-@router.post("/profiles/custom", status_code=201, dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
+@router.post(
+    "/profiles/custom",
+    status_code=201,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
+)
 @limiter.limit("10/minute")
 async def create_custom_profile(request: Request, body: CustomProfileIn):
     """Create your own competency profile (Data tab): persists to
     data/students/<name>_competency.json and registers it in memory.
 
     Old shape {name, target_level, competencies[], skills[]} still works.
-    New shape adds {base, competency_codes[], new_competencies[{code,title,knowledge,abilities,skills}], technologies[]}."""
+    New shape adds {base, competency_codes[], new_competencies[{code,title,knowledge,abilities,skills}], technologies[]}."""  # noqa: E501
     import json
     import re
     from pathlib import Path
@@ -530,7 +534,9 @@ async def _build_focused_profession_view(
             logger.warning("focused_recommend_err", profession=profession, error=str(err))
             raise HTTPException(
                 status_code=500,
-                detail=await user_error_detail(request, str(err), "Не удалось пересчитать рекомендации. Попробуйте позже."),
+                detail=await user_error_detail(
+                    request, str(err), "Не удалось пересчитать рекомендации. Попробуйте позже."
+                ),
             )
         case _:
             raise HTTPException(status_code=500, detail="Не удалось пересчитать рекомендации. Попробуйте позже.")
@@ -568,7 +574,11 @@ async def _build_focused_profession_view(
     }
 
 
-@router.get("/recommendations/{profile}", response_model=dict, dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
+@router.get(
+    "/recommendations/{profile}",
+    response_model=dict,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
+)
 @limiter.limit("30/minute")
 async def get_recommendations(
     request: Request,
@@ -622,7 +632,9 @@ async def get_recommendations(
                 logger.warning("profile_recommendations_failed", profile=profile, error=str(err))
                 raise HTTPException(
                     status_code=500,
-                    detail=await user_error_detail(request, str(err), "Не удалось построить рекомендации. Попробуйте позже."),
+                    detail=await user_error_detail(
+                        request, str(err), "Не удалось построить рекомендации. Попробуйте позже."
+                    ),
                 )
     except HTTPException:
         raise

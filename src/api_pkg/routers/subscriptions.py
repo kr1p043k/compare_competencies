@@ -117,7 +117,9 @@ async def delete_subscription(sub_id: str, request: Request, user: dict = Depend
 
 @router.get("/notifications")
 @limiter.limit("30/minute")
-async def list_notifications(request: Request, limit: int = 50, unread_only: bool = False, user: dict = Depends(require_auth)):
+async def list_notifications(
+    request: Request, limit: int = 50, unread_only: bool = False, user: dict = Depends(require_auth)
+):
     """Уведомления пользователя."""
     uid = user["uid"]
     from sqlalchemy import desc, select

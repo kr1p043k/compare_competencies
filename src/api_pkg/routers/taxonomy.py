@@ -37,7 +37,9 @@ async def taxonomy_coverage(    request: Request,
             logger.warning("taxonomy_categories_failed", error=str(err))
             raise HTTPException(
                 status_code=500,
-                detail=await user_error_detail(request, str(err), "Не удалось загрузить категории таксономии. Попробуйте позже."),
+                detail=await user_error_detail(
+                    request, str(err), "Не удалось загрузить категории таксономии. Попробуйте позже."
+                ),
             )
     coverage = {}
     for cat_id in cat_ids:
@@ -48,7 +50,9 @@ async def taxonomy_coverage(    request: Request,
                 logger.warning("taxonomy_category_skills_failed", category=cat_id, error=str(err))
                 raise HTTPException(
                     status_code=500,
-                    detail=await user_error_detail(request, str(err), "Не удалось загрузить навыки категории. Попробуйте позже."),
+                    detail=await user_error_detail(
+                        request, str(err), "Не удалось загрузить навыки категории. Попробуйте позже."
+                    ),
                 )
         if not cat_skills:
             # Категории-пустышки (только aliases, без skills: methodologies,

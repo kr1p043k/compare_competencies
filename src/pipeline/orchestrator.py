@@ -92,7 +92,9 @@ class PipelineOrchestrator:
                             logger.info("stage_ok", stage=stage_name, elapsed=round(elapsed, 2))
                             write_progress(pct_base + int(100 / total * 0.9), f"✓ {stage_name}")
                             self.event_bus.emit(
-                                PipelineEvent(stage=stage_name, status="ok", elapsed=elapsed, metadata={"retry": attempt})
+                                PipelineEvent(
+                                    stage=stage_name, status="ok", elapsed=elapsed, metadata={"retry": attempt}
+                                )
                             )
                             break
                         case Err(err):
@@ -100,7 +102,10 @@ class PipelineOrchestrator:
                             elapsed = time.time() - t0
                             logger.error("stage_failed", stage=stage_name, error=last_error, attempt=attempt)
                             self.event_bus.emit(
-                                PipelineEvent(stage=stage_name, status="fail", elapsed=elapsed, metadata={"error": str(err), "retry": attempt})
+                                PipelineEvent(
+                                    stage=stage_name, status="fail", elapsed=elapsed,
+                                    metadata={"error": str(err), "retry": attempt}
+                                )
                             )
                             if attempt < self.num_retries:
                                 continue
@@ -112,7 +117,10 @@ class PipelineOrchestrator:
                     elapsed = time.time() - t0
                     logger.exception("stage_exception", stage=stage_name, attempt=attempt)
                     self.event_bus.emit(
-                        PipelineEvent(stage=stage_name, status="error", elapsed=elapsed, metadata={"error": str(e), "retry": attempt})
+                        PipelineEvent(
+                            stage=stage_name, status="error", elapsed=elapsed,
+                            metadata={"error": str(e), "retry": attempt}
+                        )
                     )
                     if attempt < self.num_retries:
                         continue
@@ -130,13 +138,18 @@ class PipelineOrchestrator:
                 self.event_bus.emit(
                     PipelineEvent(stage=stage_name, status="fail", elapsed=run.elapsed, metadata={"error": last_error})
                 )
-                return Err(PipelineError(message=f"Pipeline failed at stage {stage_name}", stage=stage_name, detail=last_error))
+                return Err(PipelineError(
+                    message=f"Pipeline failed at stage {stage_name}",
+                    stage=stage_name, detail=last_error
+                ))
 
         run.status = "completed"
         run.finished_at = time.time()
         write_progress(100, "Пайплайн завершён")
         logger.info("pipeline_completed", elapsed=round(run.elapsed, 2))
         self.event_bus.emit(
-            PipelineEvent(stage="__pipeline__", status="finish", elapsed=run.elapsed, metadata={"stages": len(run.stages)})
+            PipelineEvent(
+                stage="__pipeline__", status="finish", elapsed=run.elapsed, metadata={"stages": len(run.stages)}
+            )
         )
         return Ok(run)

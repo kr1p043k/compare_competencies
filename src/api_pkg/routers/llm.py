@@ -23,7 +23,11 @@ class ChatResponse(BaseModel):
     model: str
 
 
-@router.post("/llm/chat", response_model=ChatResponse, dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.post(
+    "/llm/chat",
+    response_model=ChatResponse,
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("10/minute")
 async def llm_chat(request: Request, req: ChatRequest):
     """Чат с LLM (лимит 10/мин, до 4000 символов)."""

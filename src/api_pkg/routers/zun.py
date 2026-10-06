@@ -627,7 +627,11 @@ async def zun_search_semantic(
             _SEM_CACHE[dir_code] = (time.time(), items, embs, max_created)
         else:
             _SEM_CACHE.pop(dir_code, None)
-            return {"mode": "fallback_substring", "matches": await _fallback_semantic(pool, q, dir_code, ksa_type, limit), "note": "embeddings unavailable"}
+            return {
+                "mode": "fallback_substring",
+                "matches": await _fallback_semantic(pool, q, dir_code, ksa_type, limit),
+                "note": "embeddings unavailable",
+            }
 
     try:
         from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
@@ -636,7 +640,11 @@ async def zun_search_semantic(
         qn = qemb / (np.linalg.norm(qemb) + 1e-9)
     except Exception as exc:
         logger.warning("zun_semantic_query_encode_failed", error=str(exc))
-        return {"mode": "fallback_substring", "matches": await _fallback_semantic(pool, q, dir_code, ksa_type, limit), "note": "embeddings unavailable"}
+        return {
+            "mode": "fallback_substring",
+            "matches": await _fallback_semantic(pool, q, dir_code, ksa_type, limit),
+            "note": "embeddings unavailable",
+        }
 
     sims = embs @ qn
     order = np.argsort(sims)[::-1][:limit]
@@ -650,7 +658,11 @@ async def zun_search_semantic(
             break
     if not matches and ksa_type:
         # filtered everything out — return fallback to be helpful
-        return {"mode": "fallback_substring", "matches": await _fallback_semantic(pool, q, dir_code, ksa_type, limit), "note": "no semantic matches for filter"}
+        return {
+            "mode": "fallback_substring",
+            "matches": await _fallback_semantic(pool, q, dir_code, ksa_type, limit),
+            "note": "no semantic matches for filter",
+        }
     return {"mode": "semantic", "query": q.strip(), "matches": matches}
 
 
@@ -1302,7 +1314,7 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
                     )
                     await pool.execute(
                         """INSERT INTO ksa_entries (competency_id, ksa_type, original_text, cleaned_text, sort_order, parse_version_id)
-                           VALUES ($1, $2::ksa_type, $3, $3, $4, NULL)""",
+                           VALUES ($1, $2::ksa_type, $3, $3, $4, NULL)""",  # noqa: E501
                         comp_id, kt, text, sort,
                     )
                     inserted += 1

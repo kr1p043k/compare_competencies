@@ -125,7 +125,9 @@ def generate_profiles_from_csv(
                         if _v in ("\u2713", "\u0445", "\u0425", "X", "\u0411", "\u041f", "\u042d", "B", "P", "E"):
                             profiles_skills[profile_name].add(indicator_code)
                             # C2 fix: preserve mastery level (normalize Cyrillic to Latin)
-                            _lvl = {"\u0411": "B", "\u041f": "P", "\u042d": "E", "\u0445": "X", "\u0425": "X"}.get(_v, _v)
+                            _lvl = {
+                                "\u0411": "B", "\u041f": "P", "\u042d": "E", "\u0445": "X", "\u0425": "X"
+                            }.get(_v, _v)
                             profiles_levels[profile_name][indicator_code] = _lvl
 
         result = {}
@@ -136,7 +138,10 @@ def generate_profiles_from_csv(
 
             json_path = output_dir / f"{profile_name}_competency.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump({"навыки": sorted_skills, "skill_levels": profiles_levels[profile_name]}, f, ensure_ascii=False, indent=2)
+                json.dump(
+                    {"навыки": sorted_skills, "skill_levels": profiles_levels[profile_name]},
+                    f, ensure_ascii=False, indent=2
+                )
 
         if save_copy:
             LAST_UPLOADED_DIR.mkdir(parents=True, exist_ok=True)

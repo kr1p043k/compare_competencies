@@ -48,7 +48,9 @@ class VacancyParser:
         except Exception as e:
             return Err(DomainError(message=str(e), detail="extract_skills_from_description"))
 
-    def extract_skills_from_vacancies(self, vacancies: list[dict] | list[Vacancy]) -> Result[dict[str, Any], DomainError]:
+    def extract_skills_from_vacancies(
+        self, vacancies: list[dict] | list[Vacancy]
+    ) -> Result[dict[str, Any], DomainError]:
         try:
             vacancy_objects = []
             for vac in vacancies:
@@ -151,7 +153,9 @@ class VacancyParser:
         except Exception as e:
             return Err(DomainError(message=str(e), detail=f"save_raw_vacancies({filename})"))
 
-    def save_processed_frequencies(self, frequencies, filename="competency_frequency.json", apply_filter=True) -> Result[None, DomainError]:
+    def save_processed_frequencies(
+        self, frequencies, filename="competency_frequency.json", apply_filter=True
+    ) -> Result[None, DomainError]:
         try:
             if apply_filter:
                 whitelist = load_it_skills()

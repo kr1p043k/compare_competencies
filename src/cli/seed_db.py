@@ -145,14 +145,28 @@ async def seed_krm(session, skill_map: dict[str, str]) -> None:
             )
             comp = existing_comp.scalar_one_or_none()
             if not comp:
-                comp = Competency(discipline_id=disc.id, code=comp_code, category=category, number=number, parse_version_id=pv.id)
+                comp = Competency(
+                    discipline_id=disc.id,
+                    code=comp_code,
+                    category=category,
+                    number=number,
+                    parse_version_id=pv.id,
+                )
                 session.add(comp)
                 await session.flush()
                 comp_count += 1
 
             for kt in ("knowledge", "abilities", "skills"):
                 for idx, text in enumerate(ksa_data.get(comp_code, {}).get(kt, [])):
-                    session.add(KSAEntry(competency_id=comp.id, ksa_type=kt, original_text=text, sort_order=idx, parse_version_id=pv.id))
+                    session.add(
+                        KSAEntry(
+                            competency_id=comp.id,
+                            ksa_type=kt,
+                            original_text=text,
+                            sort_order=idx,
+                            parse_version_id=pv.id,
+                        )
+                    )
                     ksa_count += 1
 
             for skill_name in skills_data.get(comp_code, []):
@@ -161,10 +175,23 @@ async def seed_krm(session, skill_map: dict[str, str]) -> None:
                 if not skill_id:
                     continue
                 existing_cs = await session.execute(
-                    select(CompetencySkill).where(CompetencySkill.competency_id == comp.id, CompetencySkill.skill_id == skill_id, CompetencySkill.ksa_type == "flat")
+                    select(CompetencySkill).where(
+                        CompetencySkill.competency_id == comp.id,
+                        CompetencySkill.skill_id == skill_id,
+                        CompetencySkill.ksa_type == "flat",
+                    )
                 )
                 if not existing_cs.scalar_one_or_none():
-                    session.add(CompetencySkill(competency_id=comp.id, skill_id=skill_id, ksa_type="flat", source_text=skill_name, match_type="fuzzy", parse_version_id=pv.id))
+                    session.add(
+                        CompetencySkill(
+                            competency_id=comp.id,
+                            skill_id=skill_id,
+                            ksa_type="flat",
+                            source_text=skill_name,
+                            match_type="fuzzy",
+                            parse_version_id=pv.id,
+                        )
+                    )
                     cs_count += 1
 
     await session.commit()
@@ -223,11 +250,20 @@ async def seed_recommendations(session) -> None:
         comp_code = rec.get("competency")
         comp_id = None
         if comp_code:
-            result = await session.execute(select(Competency).where(Competency.discipline_id == disc.id, Competency.code == comp_code))
+            result = await session.execute(
+                select(Competency).where(Competency.discipline_id == disc.id, Competency.code == comp_code)
+            )
             comp = result.scalar_one_or_none()
             if comp:
                 comp_id = comp.id
-        session.add(Recommendation(discipline_id=disc.id, competency_id=comp_id, suggestion=rec.get("suggestion", ""), suggestion_type=rec.get("type", "modify")))
+        session.add(
+            Recommendation(
+                discipline_id=disc.id,
+                competency_id=comp_id,
+                suggestion=rec.get("suggestion", ""),
+                suggestion_type=rec.get("type", "modify"),
+            )
+        )
         count += 1
     await session.commit()
     print(f"Recommendations: {count}")

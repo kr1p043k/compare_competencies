@@ -24,7 +24,9 @@ class GapAnalyzer:
         ExperienceLevel.SENIOR: "s",
     }
 
-    def compute_metrics(self, user_skills: list[str], user_levels: dict[str, float]) -> Result[dict[str, SkillMetrics], DomainError]:
+    def compute_metrics(
+        self, user_skills: list[str], user_levels: dict[str, float]
+    ) -> Result[dict[str, SkillMetrics], DomainError]:
         metrics: dict[str, SkillMetrics] = {}
         all_weights = {}
         for level_data in self.skill_weights_by_level.values():

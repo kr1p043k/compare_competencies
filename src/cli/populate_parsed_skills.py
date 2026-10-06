@@ -57,7 +57,9 @@ async def main(force_all: bool = False):
             updates = []
             for r in batch:
                 try:
-                    ks_raw = r.key_skills if isinstance(r.key_skills, list) else json.loads(r.key_skills) if isinstance(r.key_skills, str) else []
+                    ks_raw = r.key_skills if isinstance(r.key_skills, list) else (
+                        json.loads(r.key_skills) if isinstance(r.key_skills, str) else []
+                    )
                     key_skills = []
                     for s in ks_raw:
                         if isinstance(s, str):

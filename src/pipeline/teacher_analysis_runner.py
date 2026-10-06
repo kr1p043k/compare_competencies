@@ -422,7 +422,10 @@ async def run_teacher_analysis(
         market_skills.pop(k, None)
     if _dirty:
         logger.info("market_skills_sanitized", dropped=len(_dirty))
-        print(f"TEACHER-ANALYSIS SANITIZED market skills: dropped {len(_dirty)} empty keys", file=sys.stderr, flush=True)
+        print(
+            f"TEACHER-ANALYSIS SANITIZED market skills: dropped {len(_dirty)} empty keys",
+            file=sys.stderr, flush=True
+        )
     # Track B (v32, flag-gated): fold version-split aliases into canonical keys.
     from src.feature_flags import market_synonyms_enabled as _syn_on
     if _syn_on() and market_skills:
@@ -448,7 +451,9 @@ async def run_teacher_analysis(
                     logger.warning("cooc_cache_corrupt", error=str(exc))
     if _cooc is None:
         try:
-            _vrows = await pool.fetch("SELECT parsed_skills FROM vacancies WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0 ORDER BY id")
+            _vrows = await pool.fetch(
+                "SELECT parsed_skills FROM vacancies WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0 ORDER BY id"  # noqa: E501 — SQL string must not be split
+            )
             import json as _json
             _vocab = {s for s, _ in sorted(market_skills.items(), key=lambda x: (-x[1], x[0]))[:500]}
             _sets = []
@@ -812,7 +817,7 @@ async def run_teacher_analysis(
                 recs.append(Recommendation(
                     type="ksa_context", priority="medium",
                     skill_name=skill,
-                    message=f"Навык «{skill}» упомянут в KSA компетенции {comp_code}, но не обнаружен на рынке. Рекомендуется проверить актуальность.",
+                    message=f"Навык «{skill}» упомянут в KSA компетенции {comp_code}, но не обнаружен на рынке. Рекомендуется проверить актуальность.",  # noqa: E501 — f-string, must not split
                 ))
 
         with _discipline_lock:
@@ -910,7 +915,10 @@ async def run_teacher_analysis(
                     discipline_reports.append(res)
             except Exception as e:
                 logger.error("discipline_parallel_failed", discipline=dname, error=str(e))
-                print(f"TEACHER-ANALYSIS DISCIPLINE-FAILED (stale file kept): {dname}: {e}", file=sys.stderr, flush=True)
+                print(
+                    f"TEACHER-ANALYSIS DISCIPLINE-FAILED (stale file kept): {dname}: {e}",
+                    file=sys.stderr, flush=True
+                )
 
     # — enhanced gap analysis (embedding + LTR/SHAP) —
     try:

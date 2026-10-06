@@ -87,7 +87,10 @@ class HeadHunterAPI:
             case Ok(raw):
                 return Ok(parse_response(raw, VacancyDetailResponse))
             case Err(e):
-                return Err(ApiError(message=f"Vacancy {vacancy_id} not found or API error", endpoint=f"vacancies/{vacancy_id}", detail=str(e)))
+                return Err(ApiError(
+                    message=f"Vacancy {vacancy_id} not found or API error",
+                    endpoint=f"vacancies/{vacancy_id}", detail=str(e)
+                ))
 
     # -----------------------------------------------------------------------
     def _load_cached_token(self) -> Result[bool, ApiError]:
@@ -169,7 +172,10 @@ class HeadHunterAPI:
             elif resp.status_code == 403:
                 return Err(ApiError(message="Token refresh too early", status_code=403, endpoint="token"))
             else:
-                return Err(ApiError(message=f"Token request failed: {resp.status_code}", status_code=resp.status_code, endpoint="token"))
+                return Err(ApiError(
+                    message=f"Token request failed: {resp.status_code}",
+                    status_code=resp.status_code, endpoint="token"
+                ))
         except Exception as e:
             return Err(ApiError(message=f"Token request exception: {e}", endpoint="token"))
 
@@ -231,7 +237,10 @@ class HeadHunterAPI:
             found = d.get("found", 0)
             if found == 0:
                 if items:
-                    logger.warning("hh_no_exact_results_similar_queries_returned", query=text, area=area, similar_items=len(items))
+                    logger.warning(
+                        "hh_no_exact_results_similar_queries_returned",
+                        query=text, area=area, similar_items=len(items)
+                    )
                 break
             if not items:
                 break
@@ -337,10 +346,16 @@ class HeadHunterAPI:
                     time.sleep(retry_after)
                     return self._get_result(url, params, retry_count + 1)
                 logger.error("http_429_max_retries_exceeded")
-                return Err(RateLimitError(message="Max retries exceeded for 429", status_code=429, endpoint=url, retry_after=retry_after))
+                return Err(RateLimitError(
+                    message="Max retries exceeded for 429", status_code=429,
+                    endpoint=url, retry_after=retry_after
+                ))
             else:
                 logger.warning("http_unexpected_status", status=response.status_code, response=response.text[:500])
-                return Err(ApiError(message=f"Unexpected status {response.status_code}", status_code=response.status_code, endpoint=url))
+                return Err(ApiError(
+                    message=f"Unexpected status {response.status_code}",
+                    status_code=response.status_code, endpoint=url
+                ))
         except requests.exceptions.Timeout:
             logger.error("http_timeout", url=url)
             return Err(ApiError(message=f"Timeout: {url}", endpoint=url))

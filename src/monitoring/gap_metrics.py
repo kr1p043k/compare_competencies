@@ -118,7 +118,9 @@ class GapMetricsTracker:
         """Записать время загрузки профиля."""
         profile_load_duration.labels(profile_type=self.profile_type).observe(duration)
 
-    def record_analysis(self, profile_type: str, duration: float, success: bool, recommendations_count_val: int = 0) -> None:
+    def record_analysis(
+        self, profile_type: str, duration: float, success: bool, recommendations_count_val: int = 0
+    ) -> None:
         """Record gap analysis metrics for pipeline_steps."""
         gap_duration.labels(profile_type=profile_type, region=str(self.region)).observe(duration)
         if success:

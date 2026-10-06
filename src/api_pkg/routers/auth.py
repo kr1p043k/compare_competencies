@@ -161,7 +161,7 @@ async def login(body: LoginRequest, request: Request):
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     try:
         row = await pool.fetchrow(
-            "SELECT id, email, role, full_name, password_hash = crypt($2, password_hash) AS pw_match FROM users WHERE email = $1 AND is_active = true",
+            "SELECT id, email, role, full_name, password_hash = crypt($2, password_hash) AS pw_match FROM users WHERE email = $1 AND is_active = true",  # noqa: E501 — SQL string must not be split
             body.email, body.password,
         )
         if row is None or not row["pw_match"]:

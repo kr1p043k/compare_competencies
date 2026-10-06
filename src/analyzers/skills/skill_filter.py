@@ -45,7 +45,9 @@ class SkillFilter:
         except Exception:
             return set()
 
-    def filter_weights(self, skill_weights: dict[str, float], min_weight: float = 0.01) -> Result[dict[str, float], DomainError]:
+    def filter_weights(
+        self, skill_weights: dict[str, float], min_weight: float = 0.01
+    ) -> Result[dict[str, float], DomainError]:
         """
         Агрессивно фильтрует веса навыков.
 
@@ -115,7 +117,9 @@ class SkillFilter:
 
         return Ok(filtered)
 
-    def normalize_weights(self, skill_weights: dict[str, float], method: str = "minmax") -> Result[dict[str, float], DomainError]:
+    def normalize_weights(
+        self, skill_weights: dict[str, float], method: str = "minmax"
+    ) -> Result[dict[str, float], DomainError]:
         """
         Нормализует веса с сохранением пропорций.
 

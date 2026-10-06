@@ -249,7 +249,9 @@ def _parse_pdfs_to_krm(dir_code: str, direction_name: str | None, profile: str |
     return merged
 
 
-async def _upload_pipeline(run_id: str, dir_code: str, fname: str, direction_name: str | None, profile: str | None) -> None:
+async def _upload_pipeline(
+    run_id: str, dir_code: str, fname: str, direction_name: str | None, profile: str | None
+) -> None:
     from src.pipeline.db_writer import complete_pipeline_run
 
     _rpd_cancel[run_id] = threading.Event()

@@ -21,7 +21,10 @@ class N8NAuthMiddleware(BaseHTTPMiddleware):
                     raise HTTPException(status_code=500, detail="N8N_API_KEY not configured")
                 auth = request.headers.get("Authorization", "")
                 if not auth.startswith("Bearer ") or auth[7:] != api_key.get_secret_value():
-                    logger.warning("n8n_auth_failed", path=request.url.path, client=request.client.host if request.client else "unknown")
+                    logger.warning(
+                        "n8n_auth_failed", path=request.url.path,
+                        client=request.client.host if request.client else "unknown"
+                    )
                     raise HTTPException(status_code=401, detail="Invalid n8n API key")
                 break
         return await call_next(request)

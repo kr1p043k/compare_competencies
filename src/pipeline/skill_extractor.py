@@ -28,7 +28,9 @@ class SkillExtractor:
     def __init__(self, args):
         self.args = args
 
-    def extract(self, vacancies: list, parser: VacancyParser, raw_file: Path | None = None) -> Result[tuple, SkillExtractionError]:
+    def extract(
+        self, vacancies: list, parser: VacancyParser, raw_file: Path | None = None
+    ) -> Result[tuple, SkillExtractionError]:
         cache = CacheManager(config.PARSED_SKILLS_CACHE_PATH.parent)
         cache_key = config.PARSED_SKILLS_CACHE_PATH.stem
         cache_path = config.PARSED_SKILLS_CACHE_PATH
@@ -65,7 +67,11 @@ class SkillExtractor:
                         skill_freq = result["frequencies"]
                         hybrid_weights_raw = result.get("hybrid_weights", {})
                     case Err(e):
-                        return Err(SkillExtractionError(message=f"Ошибка извлечения навыков: {e}", detail=str(e), stage="skill_extraction", vacancies_count=len(vacancies)))
+                        return Err(SkillExtractionError(
+                            message=f"Ошибка извлечения навыков: {e}",
+                            detail=str(e), stage="skill_extraction",
+                            vacancies_count=len(vacancies)
+                        ))
                 cache_data = {"source_hash": vacancies_hash, "result": result}
                 cache.save(cache_key, cache_data)
                 self._console_info("💾 Кэш результатов сохранён")

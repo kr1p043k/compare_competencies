@@ -43,7 +43,9 @@ class Settings(BaseSettings):
     PROFESSION_TAXONOMY_PATH: Path = Field(default_factory=lambda: Path("data/reference/profession_taxonomy.json"))
     KRM_MAPPING_PATH: Path = Field(default_factory=lambda: Path("data/reference/krm_competency_mapping.json"))
     KRM_DISCIPLINES_PATH: Path = Field(default_factory=lambda: Path("data/reference/krm_disciplines_09.03.02.json"))
-    TEACHER_RECOMMENDATIONS_PATH: Path = Field(default_factory=lambda: Path("data/reference/teacher_recommendations.json"))
+    TEACHER_RECOMMENDATIONS_PATH: Path = Field(
+        default_factory=lambda: Path("data/reference/teacher_recommendations.json")
+    )
     HARD_SKILLS_PATH: Path = Field(default_factory=lambda: Path("data/reference/hard_skills.json"))
     TREND_HOT_SKILLS_PATH: Path = Field(default_factory=lambda: Path("data/reference/trend_hot_skills.json"))
     TIMEFRAME_GROUPS_PATH: Path = Field(default_factory=lambda: Path("data/reference/timeframe_groups.json"))

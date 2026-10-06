@@ -479,7 +479,9 @@ async def admin_monitoring_summary(request: Request):
                 for s in f.samples:
                     if s.name.endswith("_bucket"):
                         key = (s.labels.get("method", ""), s.labels.get("path", ""))
-                        buckets.setdefault(key, []).append((float(s.labels.get("le", "inf").replace("inf", "1e18")), s.value))
+                        buckets.setdefault(key, []).append(
+                            (float(s.labels.get("le", "inf").replace("inf", "1e18")), s.value)
+                        )
         tops = sorted(buckets.items(), key=lambda kv: kv[1][-1][1] if kv[1] else 0, reverse=True)[:5]
         for (method, path), b in tops:
             b_sorted = sorted(b, key=lambda x: x[0])

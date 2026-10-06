@@ -41,7 +41,7 @@ _NOISE_PATTERNS: list[re.Pattern] = [
 ]
 
 _VERBOSE_FILTERS: list[re.Pattern] = [
-    re.compile(r"^(?:проводить|выполнять|осуществлять|разрабатывать|создавать|применять|использовать|организовывать|реализовывать|анализировать|проектировать|оценивать|исследовать|выбирать|интегрировать|демонстрировать|составлять|оформлять|настраивать|сопровождать|контролировать|выявлять|определять|рассчитывать|классифицировать|интерпретировать)\s", re.IGNORECASE),
+    re.compile(r"^(?:проводить|выполнять|осуществлять|разрабатывать|создавать|применять|использовать|организовывать|реализовывать|анализировать|проектировать|оценивать|исследовать|выбирать|интегрировать|демонстрировать|составлять|оформлять|настраивать|сопровождать|контролировать|выявлять|определять|рассчитывать|классифицировать|интерпретировать)\s", re.IGNORECASE),  # noqa: E501 — regex pattern must not be split
     re.compile(r"^[а-яё]\s", re.IGNORECASE),
     re.compile(r"^-+\s"),
     re.compile(r"\bосновн(?:ые|ых|ые)\s+теорем", re.IGNORECASE),
@@ -103,7 +103,10 @@ class RPDSkillCleaner:
                         match self.clean_skills(raw):
                             case Ok(cleaned):
                                 disc_data["ksa"][comp][ksa_type] = cleaned
-            logger.info("rpd_disciplines_cleaned", disciplines=len(data.get("09.03.02", {}).get("disciplines", {})), removed=cleaned_count)
+            logger.info(
+                "rpd_disciplines_cleaned", disciplines=len(data.get("09.03.02", {}).get("disciplines", {})),
+                removed=cleaned_count
+            )
             return Ok(data)
         except Exception as e:
             return Err(DomainError(message=str(e), detail="RPDSkillCleaner.clean_discipline_data"))
@@ -160,7 +163,9 @@ class RPDSkillCleaner:
         if len(tokens) > 25:
             return None
 
-        tech_tokens = sum(1 for t in tokens if t.lower() in _KNOWN_SKILL_WORDS or re.match(r'^[a-z][a-z0-9+#.\-]*$', t.lower()))
+        tech_tokens = sum(
+            1 for t in tokens if t.lower() in _KNOWN_SKILL_WORDS or re.match(r'^[a-z][a-z0-9+#.\-]*$', t.lower())
+        )
         has_tech_keyword = any(t.lower() in _KNOWN_SKILL_WORDS for t in tokens)
 
         if not has_tech_keyword and len(tokens) > 8:

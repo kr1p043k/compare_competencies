@@ -41,7 +41,9 @@ class ExperimentTracker:
         self._current: ExperimentRun | None = None
         self._log_dir = log_dir
 
-    def start(self, name: str, params: dict[str, Any] | None = None, tags: dict[str, str] | None = None) -> Result[None, DomainError]:
+    def start(
+        self, name: str, params: dict[str, Any] | None = None, tags: dict[str, str] | None = None
+    ) -> Result[None, DomainError]:
         if self._current is not None:
             return Err(DomainError(message="experiment already running", detail=self._current.name))
         self._current = ExperimentRun(name=name, params=params or {}, tags=tags or {})

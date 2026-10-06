@@ -287,7 +287,10 @@ async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
     ]
 
 
-@router.get("/teacher/krm/disciplines/{discipline_name:path}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/krm/disciplines/{discipline_name:path}",
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("30/minute")
 async def krm_discipline_detail(request: Request, discipline_name: str, dir_code: str = "09.03.02"):
     """Детали дисциплины (компетенции, KSA)."""
@@ -318,7 +321,7 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
         WHERE c.discipline_id = $1 AND c.parent_id IS NULL
         GROUP BY c.id, c.code
         ORDER BY c.sort_order, c.code
-    """, disc["id"])
+    """, disc["id"])  # noqa: E501
 
     return {
         "name": disc["name"],
@@ -329,9 +332,15 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
                 "code": c["code"],
                 "skills": c["skills"] or [],
                 "ksa": {
-                    "knowledge": [{"id": str(i), "text": t} for i, t in zip(c["knowledge_ids"] or [], c["knowledge"] or [])],
-                    "abilities": [{"id": str(i), "text": t} for i, t in zip(c["abilities_ids"] or [], c["abilities"] or [])],
-                    "skills": [{"id": str(i), "text": t} for i, t in zip(c["prof_skills_ids"] or [], c["prof_skills"] or [])],
+                    "knowledge": [
+                        {"id": str(i), "text": t} for i, t in zip(c["knowledge_ids"] or [], c["knowledge"] or [])
+                    ],
+                    "abilities": [
+                        {"id": str(i), "text": t} for i, t in zip(c["abilities_ids"] or [], c["abilities"] or [])
+                    ],
+                    "skills": [
+                        {"id": str(i), "text": t} for i, t in zip(c["prof_skills_ids"] or [], c["prof_skills"] or [])
+                    ],
                 },
             }
             for c in comps
@@ -370,7 +379,10 @@ async def krm_add_recommendation(request: Request):
     return {"status": "ok", "id": len(recs) - 1}
 
 
-@router.delete("/teacher/krm/recommendations/{index}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.delete(
+    "/teacher/krm/recommendations/{index}",
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 async def krm_delete_recommendation(request: Request, index: int):
     """Удалить рекомендацию KRM."""
     recs = _load_json(config.TEACHER_RECOMMENDATIONS_PATH)
@@ -412,7 +424,10 @@ async def krm_add_foundational(request: Request):
     return {"status": "ok", "skills": skills}
 
 
-@router.delete("/teacher/krm/foundational/{skill:path}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.delete(
+    "/teacher/krm/foundational/{skill:path}",
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 async def krm_delete_foundational(request: Request, skill: str):
     """Снять ручную пометку."""
     from urllib.parse import unquote
@@ -472,7 +487,10 @@ def _teacher_result_base() -> Path:
     return Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher"
 
 
-@router.post("/teacher/krm/recommendations/seed/auto", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.post(
+    "/teacher/krm/recommendations/seed/auto",
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("10/minute")
 async def krm_seed_auto_recommendations(request: Request, dir_code: str = "09.03.02",
                                         per_discipline: int = 3):
@@ -993,7 +1011,10 @@ async def teacher_students(request: Request):
     return {"students": items, "total": len(items)}
 
 
-@router.get("/teacher/analysis/{discipline_name:path}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.get(
+    "/teacher/analysis/{discipline_name:path}",
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02"):
     """Teacher analysis дисциплины."""
     import re

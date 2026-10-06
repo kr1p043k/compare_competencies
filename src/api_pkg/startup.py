@@ -55,8 +55,9 @@ def register_custom_student_profiles(students_dir, already, map_codes):
                 continue
             if not isinstance(data, dict):
                 continue
-            codes = [str(c).strip() for c in (data.get("компетенции") or data.get("competencies") or data.get("codes") or [])
-                     if c and str(c).strip()][:200]
+            codes = [str(c).strip() for c in (
+                data.get("компетенции") or data.get("competencies") or data.get("codes") or []
+            ) if c and str(c).strip()][:200]
             skills = [str(s).strip() for s in (data.get("навыки") or data.get("skills") or [])
                       if s and str(s).strip()][:500]
             if not skills and codes:
@@ -304,7 +305,9 @@ async def _warmup_background(basic_vacancies, raw_file):
                         break
             return list(skills)
 
-        profile_levels = {"base": ExperienceLevel.JUNIOR, "dc": ExperienceLevel.MIDDLE, "top_dc": ExperienceLevel.SENIOR}
+        profile_levels = {
+            "base": ExperienceLevel.JUNIOR, "dc": ExperienceLevel.MIDDLE, "top_dc": ExperienceLevel.SENIOR
+        }
         for pname, target in profile_levels.items():
             codes = load_student_codes(pname)
             if pname == "top_dc":

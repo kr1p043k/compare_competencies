@@ -94,7 +94,9 @@ class SkillLevelAnalyzer:
 
         return max_level
 
-    def get_weights_for_level(self, skill_weights: dict[str, float], target_level: str) -> Result[dict[str, float], DomainError]:
+    def get_weights_for_level(
+        self, skill_weights: dict[str, float], target_level: str
+    ) -> Result[dict[str, float], DomainError]:
         """
         Фильтрует и переустанавливает веса для конкретного уровня
 

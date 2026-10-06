@@ -71,7 +71,9 @@ class SkillCorrelationAnalyzer:
         """Возвращает топ-N навыков по частоте."""
         return Ok([s for s, _ in sorted(self._skill_freq.items(), key=lambda x: x[1], reverse=True)[:top_n]])
 
-    def get_correlation_matrix(self, skills: list[str] | None = None, top_n: int = 30) -> Result[np.ndarray, DomainError]:
+    def get_correlation_matrix(
+        self, skills: list[str] | None = None, top_n: int = 30
+    ) -> Result[np.ndarray, DomainError]:
         """
         Возвращает матрицу корреляций (нормированных) для указанных навыков.
 
@@ -116,7 +118,9 @@ class SkillCorrelationAnalyzer:
 
         return Ok(matrix)
 
-    def get_correlation_labeled(self, skills: list[str] | None = None, top_n: int = 30) -> Result[tuple[list[str], np.ndarray], DomainError]:
+    def get_correlation_labeled(
+        self, skills: list[str] | None = None, top_n: int = 30
+    ) -> Result[tuple[list[str], np.ndarray], DomainError]:
         """
         Возвращает (список навыков, матрица корреляций).
         Удобно для визуализации.
@@ -131,7 +135,9 @@ class SkillCorrelationAnalyzer:
             return Err(matrix_result.err())
         return Ok((skills, matrix_result.ok()))
 
-    def get_related_skills(self, skill: str, top_k: int = 10, min_cooccurrence: int = 3) -> Result[list[tuple[str, float]], DomainError]:
+    def get_related_skills(
+        self, skill: str, top_k: int = 10, min_cooccurrence: int = 3
+    ) -> Result[list[tuple[str, float]], DomainError]:
         """
         Возвращает навыки, наиболее связанные с указанным.
         """

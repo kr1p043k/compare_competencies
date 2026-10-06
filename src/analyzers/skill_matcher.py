@@ -499,7 +499,9 @@ class SkillMatcher:
                 return mn
         return None
 
-    def _match_uncached(self, n: str, skill_name: str, lemma_fuzzy: bool = False) -> Result[tuple[str | None, str, float], MatchingError]:
+    def _match_uncached(
+        self, n: str, skill_name: str, lemma_fuzzy: bool = False
+    ) -> Result[tuple[str | None, str, float], MatchingError]:
         if n in self.market_skills:
             logger.debug("skill_exact_match", skill=n)
             return Ok((n, "exact", 1.0))
@@ -591,7 +593,9 @@ class SkillMatcher:
             if not skip and rpd_fold_pats:
                 mn_folds = {fold_script(mn), fold_script(normalize(mn))} - {""}
                 mn_fold_pats = [_word_pattern(mv) for mv in mn_folds]
-                if any(p.search(mf_) for p in rpd_fold_pats for mf_ in mn_folds) or any(qp.search(rf) for qp in mn_fold_pats for rf in rpd_folded):
+                if any(p.search(mf_) for p in rpd_fold_pats for mf_ in mn_folds) or any(
+                    qp.search(rf) for qp in mn_fold_pats for rf in rpd_folded
+                ):
                     skip = True
             if not skip:
                 # Навыки, чей смысл убит NORMALIZE_RE (c++ -> c, c# -> c, .net -> net):

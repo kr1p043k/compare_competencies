@@ -181,7 +181,9 @@ class AcademicGapAnalyzer:
 
     # ── шаг 3: сравнение с компетенциями КРМ ──────────────────────────────
 
-    def _competency_analysis(self, topic_skills: list[str], market_top: list[dict], market_embs, topic_lower: str = "") -> list[dict]:
+    def _competency_analysis(
+        self, topic_skills: list[str], market_top: list[dict], market_embs, topic_lower: str = ""
+    ) -> list[dict]:
         comp = self._get_comparator()
         krm = _load_krm(self.dir_code)
         if not krm:
@@ -302,7 +304,9 @@ class AcademicGapAnalyzer:
                         break
                     if float(market_best[i]) < COMP_MARKET_THRESHOLD:
                         break
-                    if market[i].lower() in skills_lower or market[i].lower() in {s["skill"].lower() for s in suggested}:
+                    if market[i].lower() in skills_lower or market[i].lower() in {
+                        s["skill"].lower() for s in suggested
+                    }:
                         continue
                     suggested.append({
                         "skill": market[i],
@@ -327,7 +331,9 @@ class AcademicGapAnalyzer:
                 for m in market_top:
                     if len(suggested) >= _TOP_SUGGEST + 2:
                         break
-                    if m["skill"].lower() in skills_lower or m["skill"].lower() in {s["skill"].lower() for s in suggested}:
+                    if m["skill"].lower() in skills_lower or m["skill"].lower() in {
+                        s["skill"].lower() for s in suggested
+                    }:
                         continue
                     mi = midx.get(m["skill"].lower())
                     comp_sim = float(market_best[mi]) if mi is not None and mi < len(market_best) else 0.0

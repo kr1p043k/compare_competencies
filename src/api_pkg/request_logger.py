@@ -65,7 +65,10 @@ def _extract_user(request: Request) -> str | None:
 class LogEntry:
     __slots__ = ("method", "path", "status", "duration_ms", "user_email", "timestamp", "source", "detail")
 
-    def __init__(self, method: str, path: str, status: int, duration_ms: float, user_email: str | None, source: str = "backend", detail: str | None = None):
+    def __init__(
+        self, method: str, path: str, status: int, duration_ms: float, user_email: str | None,
+        source: str = "backend", detail: str | None = None
+    ):
         self.method = method
         self.path = path
         self.status = status
@@ -139,7 +142,9 @@ def start_log_flusher() -> None:
         loop.create_task(_periodic_flush())
 
 
-def get_logs(user: str | None = None, limit: int = 100, source: str | None = None, action: str | None = None) -> list[dict[str, Any]]:
+def get_logs(
+    user: str | None = None, limit: int = 100, source: str | None = None, action: str | None = None
+) -> list[dict[str, Any]]:
     """Return recent logs from the in-memory buffer (rolling window, see merged variant below)."""
     entries = list(_log_buffer)
     if user:
@@ -322,7 +327,7 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             from src.notifications.system import queue_system_error
             queue_system_error(
                 f"Ошибка API: {request.method} {request.url.path}",
-                f"Статус {response.status_code} за {elapsed:.0f} мс | user={user or 'anonymous'} | path={request.url.path}",
+                f"Статус {response.status_code} за {elapsed:.0f} мс | user={user or 'anonymous'} | path={request.url.path}",  # noqa: E501 — f-string, must not split
                 severity="error" if response.status_code >= 500 else "warning",
                 article_url=f"api:{request.method} {request.url.path}",
                 dedupe=True,

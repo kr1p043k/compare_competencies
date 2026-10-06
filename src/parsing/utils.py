@@ -546,7 +546,9 @@ def normalize_skill_for_matching(skill: str) -> str:
     return normalized
 
 
-def extract_and_count_skills(vacancies: list[dict[str, Any]], parser: VacancyParser) -> Result[dict[str, Any], DomainError]:
+def extract_and_count_skills(
+    vacancies: list[dict[str, Any]], parser: VacancyParser
+) -> Result[dict[str, Any], DomainError]:
     logger.info("extracting_skills_from_vacancies", count=len(vacancies))
     if not vacancies:
         return Ok({"frequencies": {}, "tfidf_weights": {}})

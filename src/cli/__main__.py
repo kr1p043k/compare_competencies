@@ -74,7 +74,9 @@ def main() -> None:
     p.add_argument("--restore", nargs="?", const="latest", help="Восстановить из бэкапа")
     p.set_defaults(func=lambda a: backup_db.main(restore=a.restore))
 
-    p = sub.add_parser("backfill-market-snapshots", help="Построить недостающие месячные freq_market снимки из parsed_skills")
+    p = sub.add_parser(
+        "backfill-market-snapshots", help="Построить недостающие месячные freq_market снимки из parsed_skills"
+    )
     p.add_argument("--force", action="store_true", help="Перезаписать все месяцы")
     p.set_defaults(func=lambda a: backfill_market_snapshots.main(force=a.force))
 
@@ -124,7 +126,9 @@ def main() -> None:
     p.add_argument("--top", type=int, default=20)
     p.set_defaults(func=lambda a: forecast_audit.main(a))
 
-    p = sub.add_parser("map-ksa-to-skills", help="Сопоставить тексты KSA с it_skills (tier1 JSON, tier2 substring, tier3 semantic)")
+    p = sub.add_parser(
+        "map-ksa-to-skills", help="Сопоставить тексты KSA с it_skills (tier1 JSON, tier2 substring, tier3 semantic)"
+    )
     p.add_argument("--json-map", default=None, help="Путь к krm_it_skill_map.json")
     p.add_argument("--dir-code", default="09.03.02", help="Код направления (09.03.02)")
     p.add_argument("--all", action="store_true", help="Прогнать все направления последовательно")

@@ -47,7 +47,9 @@ def _load_details_progress(current: int, total: int, phase: str):
     pwrite(pct, f"Загрузка деталей: {current}/{total} ({phase})")
 
 
-def load_vacancies_details(basic_vacancies: list, hh_api, use_async: bool, async_workers: int, parser, log) -> Result[list, DomainError]:
+def load_vacancies_details(
+    basic_vacancies: list, hh_api, use_async: bool, async_workers: int, parser, log
+) -> Result[list, DomainError]:
     print("  Загрузка детальной информации по вакансиям...")
     log.info("loading_vacancy_details_started")
     _load_details_progress(0, len(basic_vacancies), "старт")

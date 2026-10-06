@@ -92,7 +92,14 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
         for v in prepared:
             exp = v.get("experience", "").lower()
             name = v.get("name", "").lower()
-            if level.value == "junior" and ("noexperience" in exp or "less" in exp or "junior" in exp or "junior" in name or "младший" in name) or level.value == "middle" and ("between" in exp or "middle" in exp or "middle" in name) or level.value == "senior" and ("morethan" in exp or "senior" in exp or "senior" in name or "старший" in name or "ведущий" in name):
+            if (level.value == "junior"
+                    and ("noexperience" in exp or "less" in exp or "junior" in exp
+                         or "junior" in name or "младший" in name)
+                    or level.value == "middle"
+                    and ("between" in exp or "middle" in exp or "middle" in name)
+                    or level.value == "senior"
+                    and ("morethan" in exp or "senior" in exp or "senior" in name
+                         or "старший" in name or "ведущий" in name)):
                 level_prepared.append(v)
         logger.info("level_vacancies", level=level.value, count=len(level_prepared))
         if len(level_prepared) < 10:

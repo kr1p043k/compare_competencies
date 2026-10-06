@@ -63,7 +63,9 @@ async def create_pipeline_run(action: str) -> str:
     return rid
 
 
-async def complete_pipeline_run(run_id: str, status: str = "completed", error: str | None = None, stats: dict | None = None) -> None:
+async def complete_pipeline_run(
+    run_id: str, status: str = "completed", error: str | None = None, stats: dict | None = None
+) -> None:
     pool = await _pool()
     await pool.execute(
         """UPDATE pipeline_runs SET status=$1, completed_at=NOW(),
@@ -136,7 +138,9 @@ async def save_to_analysis_results(run_id: str, analysis_type: str, data: dict) 
     )
 
 
-async def save_trend_snapshot(snapshot_date: datetime, skill_freq: dict, source: str = "hh_vacancies", run_id: str | None = None) -> None:
+async def save_trend_snapshot(
+    snapshot_date: datetime, skill_freq: dict, source: str = "hh_vacancies", run_id: str | None = None
+) -> None:
     pool = await _pool()
     await pool.execute(
         "DELETE FROM trend_snapshots WHERE snapshot_date=$1 AND source=$2",

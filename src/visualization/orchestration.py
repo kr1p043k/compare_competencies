@@ -52,8 +52,12 @@ def save_all_charts(
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info("generating_all_charts", output_dir=str(output_dir), profiles=len(results))
 
-    _chart_step("coverage_comparison", lambda: plot_coverage_comparison(results, output_dir / "coverage_comparison.png"))
-    _chart_step("profession_coverage", lambda: plot_profession_coverage(results, output_dir / "profession_coverage.png"))
+    _chart_step(
+        "coverage_comparison", lambda: plot_coverage_comparison(results, output_dir / "coverage_comparison.png")
+    )
+    _chart_step(
+        "profession_coverage", lambda: plot_profession_coverage(results, output_dir / "profession_coverage.png")
+    )
     _chart_step("domain_skill_gaps", lambda: plot_domain_skill_gaps(results, output_dir / "domain_skill_gaps.png"))
 
     skill_weights = load_skill_weights()
@@ -95,7 +99,9 @@ def save_all_charts(
             )
         _chart_step("correlation_heatmap", _corr)
 
-    _chart_step("skills_heatmap", lambda: plot_skills_heatmap(results, top_n=20, save_path=output_dir / "skills_heatmap.png"))
+    _chart_step(
+        "skills_heatmap", lambda: plot_skills_heatmap(results, top_n=20, save_path=output_dir / "skills_heatmap.png")
+    )
     _chart_step("cluster_insights", lambda: plot_cluster_insights(results, output_dir))
     logger.info("all_charts_generated")
 

@@ -95,7 +95,9 @@ class TrendAnalyzer:
         except Exception as e:
             return Err(DomainError(f"Failed to save snapshot: {e}"))
 
-    def load_all_snapshots(self, filter_type: str | None = "full_market") -> Result[list[tuple[datetime, Path, dict[str, float]]], DomainError]:
+    def load_all_snapshots(
+        self, filter_type: str | None = "full_market"
+    ) -> Result[list[tuple[datetime, Path, dict[str, float]]], DomainError]:
         """
         Загружает снимки из history_dir.
         filter_type: 'full_market' (только рыночные), 'profession' (только по профессиям), None (все).
@@ -160,7 +162,9 @@ class TrendAnalyzer:
     # ------------------------------------------------------------------
     # Выбор снимков по параметру --history
     # ------------------------------------------------------------------
-    def get_snapshots_for_analysis(self, n: int = None) -> Result[list[tuple[datetime, Path, dict[str, float]]], DomainError]:
+    def get_snapshots_for_analysis(
+        self, n: int = None
+    ) -> Result[list[tuple[datetime, Path, dict[str, float]]], DomainError]:
         """
         Возвращает список снимков для анализа:
         - Если n=None — все доступные снимки
@@ -343,9 +347,13 @@ class TrendAnalyzer:
         plt.close(fig)
         return Ok(fig)
 
-    def plot_trending(self, top_n: int = 15, save_path: Path | None = None, previous_snapshot: dict = None) -> Result[plt.Figure | None, DomainError]:
+    def plot_trending(
+        self, top_n: int = 15, save_path: Path | None = None, previous_snapshot: dict = None
+    ) -> Result[plt.Figure | None, DomainError]:
         """Горизонтальный бар-чарт растущих и падающих навыков."""
-        trends_result = self.get_trending_skills(top_n=top_n, min_change_percent=3.0, previous_snapshot=previous_snapshot)
+        trends_result = self.get_trending_skills(
+            top_n=top_n, min_change_percent=3.0, previous_snapshot=previous_snapshot
+        )
         if trends_result.is_err():
             return Err(trends_result.err())
         trends = trends_result.ok()

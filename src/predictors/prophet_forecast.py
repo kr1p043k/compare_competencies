@@ -596,7 +596,10 @@ class ProphetForecastEngine(BasePredictor):
     def top_growing(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
-                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0 and r.predicted_growth > 0]
+                results = [
+                    r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ
+                    and r.next_year_frequency > 0 and r.predicted_growth > 0
+                ]
                 # Exclude unreliable predictions: growth > 200% with confidence < 30%
                 results = [r for r in results if not (r.predicted_growth > 2.0 and r.confidence < 0.3)]
                 if not results:
@@ -613,7 +616,10 @@ class ProphetForecastEngine(BasePredictor):
     def top_declining(self, n: int = 10, months: int = 12) -> Result[list[ForecastResult], DomainError]:
         match self.forecast_all(months):
             case Ok(results):
-                results = [r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ and r.next_year_frequency > 0 and r.predicted_growth < 0]
+                results = [
+                    r for r in results if r.current_frequency >= self.TOP_DISPLAY_MIN_FREQ
+                    and r.next_year_frequency > 0 and r.predicted_growth < 0
+                ]
                 results.sort(key=lambda x: x.predicted_growth)
                 return Ok(results[:n])
             case Err(e):

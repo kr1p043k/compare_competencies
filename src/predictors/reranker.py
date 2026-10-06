@@ -181,7 +181,10 @@ class HybridReranker(BaseReranker):
 
         blended = {doc: sum(scores) for doc, scores in all_scores.items() if scores}
         if not blended:
-            return Ok(RerankerResult(query=query, documents=documents, scores=[0.0]*len(documents), ranked_indices=list(range(len(documents)))))
+            return Ok(RerankerResult(
+                query=query, documents=documents, scores=[0.0]*len(documents),
+                ranked_indices=list(range(len(documents)))
+            ))
 
         sorted_docs = sorted(blended, key=blended.get, reverse=True)
         doc_to_idx = {d: i for i, d in enumerate(documents)}

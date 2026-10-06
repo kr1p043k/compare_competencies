@@ -22,7 +22,9 @@ logger = structlog.get_logger("data_source")
 
 
 class DataSourceProtocol(Protocol):
-    def get_vacancies(self, queries: list[str], max_pages: int) -> Result[tuple[list[dict], VacancyParser], DataSourceError]: ...
+    def get_vacancies(
+        self, queries: list[str], max_pages: int
+    ) -> Result[tuple[list[dict], VacancyParser], DataSourceError]: ...
 
 
 class HhDataSource(DataSourceProtocol):

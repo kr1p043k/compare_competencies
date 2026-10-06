@@ -557,7 +557,9 @@ def run_full_pipeline(args) -> Result[None, str]:
     console_info(f"📁 Результаты: {config.DATA_DIR / 'result'}")
     console_info(f"📋 Логи бэкенда: {config.LOG_FILE}")
     console_info("📋 Логи фронтенда: frontend/logs/app.log")
-    console_info(f"⏰ Завершено за {run.elapsed:.1f} сек" if run.elapsed < 120 else f"⏰ Завершено за {run.elapsed / 60:.1f} мин")
+    console_info(
+        f"⏰ Завершено за {run.elapsed:.1f} сек" if run.elapsed < 120 else f"⏰ Завершено за {run.elapsed / 60:.1f} мин"
+    )
     return Ok(None)
 
 

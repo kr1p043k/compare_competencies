@@ -57,7 +57,10 @@ class HeadHunterAPIAsync:
             case Ok(raw):
                 return Ok(cast(VacancyDetailResponse, parse_response(raw, VacancyDetailResponse)))
             case Err(e):
-                return Err(ApiError(message=f"Vacancy {vacancy_id} not found or API error", endpoint=f"vacancies/{vacancy_id}", detail=str(e)))
+                return Err(ApiError(
+                    message=f"Vacancy {vacancy_id} not found or API error",
+                    endpoint=f"vacancies/{vacancy_id}", detail=str(e)
+                ))
 
     def _write_progress(self, loaded: int, total: int):
         if not self._progress_file:
@@ -131,7 +134,10 @@ class HeadHunterAPIAsync:
                     return Ok(True)
                 else:
                     text = await resp.text()
-                    return Err(ApiError(message=f"Token request failed: {resp.status}", status_code=resp.status, endpoint="token", detail=text[:200]))
+                    return Err(ApiError(
+                        message=f"Token request failed: {resp.status}",
+                        status_code=resp.status, endpoint="token", detail=text[:200]
+                    ))
         except Exception as e:
             return Err(ApiError(message=f"Token request exception: {e}", endpoint="token"))
 
@@ -177,7 +183,9 @@ class HeadHunterAPIAsync:
                         if retries < max_retries:
                             return await self._request_result(session, url, params, retries + 1, max_retries)
                         logger.error("max_retries_exceeded_async", url=url)
-                        return Err(RateLimitError(message="Max retries exceeded", endpoint=url, retry_after=retry_after))
+                        return Err(RateLimitError(
+                            message="Max retries exceeded", endpoint=url, retry_after=retry_after
+                        ))
 
                     if resp.status == 401:
                         if retries < 1:
@@ -217,15 +225,24 @@ class HeadHunterAPIAsync:
                             backoff = min(2**retries, 30)
                             jitter = random.uniform(0, 0.5)
                             wait_time = backoff + jitter
-                            logger.warning("http_server_error_async", status=resp.status, attempt=retries + 1, wait=round(wait_time, 2))
+                            logger.warning(
+                                "http_server_error_async", status=resp.status,
+                                attempt=retries + 1, wait=round(wait_time, 2)
+                            )
                             await asyncio.sleep(wait_time)
                             return await self._request_result(session, url, params, retries + 1, max_retries)
                         logger.error("max_retries_exceeded_async", url=url, status=resp.status)
-                        return Err(ApiError(message=f"Server error {resp.status} max retries", status_code=resp.status, endpoint=url))
+                        return Err(ApiError(
+                            message=f"Server error {resp.status} max retries",
+                            status_code=resp.status, endpoint=url
+                        ))
 
                     self.stats["other_errors"] += 1
                     logger.warning("http_unexpected_status_async", status=resp.status, url=url)
-                    return Err(ApiError(message=f"Unexpected status {resp.status}", status_code=resp.status, endpoint=url))
+                    return Err(ApiError(
+                        message=f"Unexpected status {resp.status}",
+                        status_code=resp.status, endpoint=url
+                    ))
 
             except TimeoutError:
                 self.stats["timeouts"] += 1
@@ -257,11 +274,15 @@ class HeadHunterAPIAsync:
     ) -> Result[dict, ApiError]:
         return await self._request_result(session, url, params, retries, max_retries)
 
-    async def get_vacancy_details_async(self, session: aiohttp.ClientSession, vacancy_id: str) -> Result[dict, ApiError]:
+    async def get_vacancy_details_async(
+        self, session: aiohttp.ClientSession, vacancy_id: str
+    ) -> Result[dict, ApiError]:
         url = f"{self.BASE_URL}vacancies/{vacancy_id}"
         return await self._request(session, url)
 
-    async def get_vacancies_details_batch_validated(self, vacancy_ids: list[str]) -> Result[list[VacancyDetailResponse], ApiError]:
+    async def get_vacancies_details_batch_validated(
+        self, vacancy_ids: list[str]
+    ) -> Result[list[VacancyDetailResponse], ApiError]:
         if not vacancy_ids:
             return Ok([])
         match await self._ensure_token():
@@ -297,7 +318,9 @@ class HeadHunterAPIAsync:
         logger.info("async_validated_batch_completed", loaded=len(all_results))
         return Ok(all_results)
 
-    def get_vacancies_details_sync_validated(self, vacancy_ids: list[str]) -> Result[list[VacancyDetailResponse], ApiError]:
+    def get_vacancies_details_sync_validated(
+        self, vacancy_ids: list[str]
+    ) -> Result[list[VacancyDetailResponse], ApiError]:
         try:
             loop = asyncio.get_event_loop()
             if loop.is_closed():

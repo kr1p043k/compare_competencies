@@ -58,7 +58,12 @@ def test_pipeline_runs_all_stages(mock_stage, patch_progress):
         assert st.status == "ok"
     assert run.started_at > 0
     assert run.finished_at > 0
-    assert run.elapsed > 0
+    # NOTE: elapsed may be exactly 0.0 on coarse clocks when mocked stages
+    # finish within one tick — assert ordering/recording, not positivity.
+    assert run.finished_at >= run.started_at
+    assert run.elapsed >= 0
+    for st in run.stages:
+        assert st.elapsed >= 0
 
 
 def test_pipeline_passes_context_between_stages(mock_stage, patch_progress):

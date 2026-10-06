@@ -228,7 +228,7 @@ async def get_vacancies_info():
             info["with_skills"] = with_skills or 0
 
             row = await pool.fetchrow(
-                "SELECT MAX(published_at) AS max_p, MIN(published_at) AS min_p FROM vacancies WHERE published_at IS NOT NULL"
+                "SELECT MAX(published_at) AS max_p, MIN(published_at) AS min_p FROM vacancies WHERE published_at IS NOT NULL"  # noqa: E501 — SQL string must not be split
             )
             if row and row["min_p"]:
                 info["date_range"] = {

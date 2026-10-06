@@ -249,7 +249,9 @@ class SkillParser:
         except Exception as e:
             return Err(DomainError(message=str(e), detail="_extract_from_key_skills"))
 
-    def _extract_from_text(self, text: str, source: SkillSource, max_text_length: int = 1000) -> Result[list[ExtractedSkill], DomainError]:
+    def _extract_from_text(
+        self, text: str, source: SkillSource, max_text_length: int = 1000
+    ) -> Result[list[ExtractedSkill], DomainError]:
         """Извлекает навыки из текста несколькими методами"""
         try:
             if not text:
@@ -311,7 +313,9 @@ class SkillParser:
                             continue
 
                         original = text[i:end].strip()
-                        skills.append(ExtractedSkill(text=original or skill, source=source, raw_match=skill, confidence=0.95))
+                        skills.append(ExtractedSkill(
+                            text=original or skill, source=source, raw_match=skill, confidence=0.95
+                        ))
                         self._update_stats(source)
                 i += 1
 
@@ -420,7 +424,9 @@ class SkillParser:
                                     continue
                                 if ABBREV_RE.match(token):
                                     continue
-                                skills.append(ExtractedSkill(text=token, source=source, raw_match=match, confidence=confidence))
+                                skills.append(ExtractedSkill(
+                                    text=token, source=source, raw_match=match, confidence=confidence
+                                ))
                                 self._update_stats(source)
 
             return Ok(skills)

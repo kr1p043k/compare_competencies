@@ -165,7 +165,9 @@ class SkillForecastEngine(BasePredictor):
             logger.warning("trend_fallback_insufficient_data", snapshots=len(snapshots))
             if skill_frequencies:
                 for skill, freq in skill_frequencies.items():
-                    self._models[skill] = {"slope": 0.0, "intercept": freq, "n": 1, "rmse": None, "mape": None, "last_freq": freq}
+                    self._models[skill] = {
+                        "slope": 0.0, "intercept": freq, "n": 1, "rmse": None, "mape": None, "last_freq": freq
+                    }
             self._is_fitted = True
             return Ok(self)
 
@@ -189,7 +191,10 @@ class SkillForecastEngine(BasePredictor):
             x = np.array([(d - snapshots[0][0]).days for d in skill_dates[skill]], dtype=float)
             y = np.array(skill_freqs[skill], dtype=float)
             if len(x) < 2:
-                self._models[skill] = {"slope": 0.0, "intercept": y[0] if len(y) > 0 else 0.0, "n": len(x), "last_freq": float(y[-1]) if len(y) > 0 else 0.0}
+                self._models[skill] = {
+                    "slope": 0.0, "intercept": y[0] if len(y) > 0 else 0.0, "n": len(x),
+                    "last_freq": float(y[-1]) if len(y) > 0 else 0.0
+                }
                 continue
             slope, intercept = np.polyfit(x, y, 1)
             residuals = y - (slope * x + intercept)
@@ -209,7 +214,9 @@ class SkillForecastEngine(BasePredictor):
         if skill_frequencies:
             for skill, freq in skill_frequencies.items():
                 if skill not in self._models:
-                    self._models[skill] = {"slope": 0.0, "intercept": freq, "n": 1, "rmse": None, "mape": None, "last_freq": freq}
+                    self._models[skill] = {
+                        "slope": 0.0, "intercept": freq, "n": 1, "rmse": None, "mape": None, "last_freq": freq
+                    }
 
         self._is_fitted = True
         logger.info("trend_forecast_fitted", models=len(self._models), snapshots=len(snapshots))

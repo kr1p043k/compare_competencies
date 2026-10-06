@@ -209,7 +209,10 @@ async def krm_teacher_discipline_detail(request: Request, dir_code: str, discipl
     }
 
 
-@router.post("/krm/teacher/directions/{dir_code}/gap", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@router.post(
+    "/krm/teacher/directions/{dir_code}/gap",
+    dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
+)
 @limiter.limit("20/minute")
 async def krm_teacher_gap(request: Request, dir_code: str, payload: GapRequest = Body(...)):
     """Анализ разрыва компетенций по теме для направления преподавателя.

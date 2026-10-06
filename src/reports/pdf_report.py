@@ -194,7 +194,9 @@ def build_profile_pdf(profile: str, full_rec: dict, reports_dir: Path | str) -> 
     pdf.ln(2)
     pdf.set_font("DejaVu", "", 8)
     pdf.set_text_color(*MUTED)
-    pdf.multi_cell(0, 5, "Важность — композитный балл (blend gap-анализа и ML + бонусы тренда, домена, роли), а не доля вакансий.")
+    pdf.multi_cell(
+        0, 5, "Важность — композитный балл (blend gap-анализа и ML + бонусы тренда, домена, роли), а не доля вакансий."
+    )
 
     reports = Path(reports_dir)
     charts: list[tuple[str, Path]] = [

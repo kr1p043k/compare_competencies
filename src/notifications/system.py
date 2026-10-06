@@ -82,7 +82,9 @@ def _schedule_flush() -> None:
         logger.debug("system_notify_queued_sync")
 
 
-def queue_system_error(title: str, body: str, severity: str = "error", article_url: str | None = None, dedupe: bool = False) -> None:
+def queue_system_error(
+    title: str, body: str, severity: str = "error", article_url: str | None = None, dedupe: bool = False
+) -> None:
     """Добавить системную ошибку/предупреждение в очередь уведомлений.
 
     Безопасна из любого контекста: при запущенном loop планирует немедленный

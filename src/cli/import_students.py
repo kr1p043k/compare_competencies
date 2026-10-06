@@ -71,7 +71,10 @@ async def main(csv_path: str) -> None:
                         skills_cache[sk] = s.id if s else None
                     skill_id = skills_cache.get(sk)
                     if skill_id:
-                        session.add(StudentSkill(student_id=student.id, skill_id=skill_id, source="auto_extracted", proficiency=0.5))
+                        session.add(StudentSkill(
+                            student_id=student.id, skill_id=skill_id,
+                            source="auto_extracted", proficiency=0.5
+                        ))
             total += 1
 
         await session.commit()

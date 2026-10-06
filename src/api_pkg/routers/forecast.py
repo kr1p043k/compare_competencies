@@ -271,13 +271,17 @@ async def get_all_forecasts(request: Request, months: int = Query(12, ge=1, le=2
                     logger.warning("forecast_compute_failed", error=str(e))
                     raise HTTPException(
                         status_code=500,
-                        detail=await user_error_detail(request, str(e), "Не удалось построить прогноз. Попробуйте позже."),
+                        detail=await user_error_detail(
+                            request, str(e), "Не удалось построить прогноз. Попробуйте позже."
+                        ),
                     )
         case Err(e):
             logger.warning("forecast_engine_unavailable", error=str(e))
             raise HTTPException(
                 status_code=503,
-                detail=await user_error_detail(request, str(e), "Сервис прогнозов временно недоступен. Попробуйте позже."),
+                detail=await user_error_detail(
+                    request, str(e), "Сервис прогнозов временно недоступен. Попробуйте позже."
+                ),
             )
 
 
@@ -325,19 +329,31 @@ async def get_top_forecasts(
                         logger.warning("forecast_compute_failed", error=str(e))
                         raise HTTPException(
                             status_code=500,
-                            detail=await user_error_detail(request, str(e), "Не удалось построить прогноз. Попробуйте позже."),
+                            detail=await user_error_detail(
+                                request, str(e), "Не удалось построить прогноз. Попробуйте позже."
+                            ),
                         )
                 _top_cache_set(cache_key, items)
             # Determine actual forecast horizon (Prophet caps it internally)
             actual_months = months
             if isinstance(engine, ProphetForecastEngine) and engine.is_fitted:
                 actual_months = min(months, engine.max_forecast_months())
-            return {"direction": direction, "n": n, "months": actual_months, "requested_months": months, "forecasts": items, **_engine_info(engine), **meta}
+            return {
+                "direction": direction,
+                "n": n,
+                "months": actual_months,
+                "requested_months": months,
+                "forecasts": items,
+                **_engine_info(engine),
+                **meta,
+            }
         case Err(e):
             logger.warning("forecast_engine_unavailable", error=str(e))
             raise HTTPException(
                 status_code=503,
-                detail=await user_error_detail(request, str(e), "Сервис прогнозов временно недоступен. Попробуйте позже."),
+                detail=await user_error_detail(
+                    request, str(e), "Сервис прогнозов временно недоступен. Попробуйте позже."
+                ),
             )
 
 
@@ -414,7 +430,9 @@ async def get_observed_drops(
             logger.warning("forecast_engine_unavailable", error=str(e))
             raise HTTPException(
                 status_code=503,
-                detail=await user_error_detail(request, str(e), "Сервис прогнозов временно недоступен. Попробуйте позже."),
+                detail=await user_error_detail(
+                    request, str(e), "Сервис прогнозов временно недоступен. Попробуйте позже."
+                ),
             )
 
 
@@ -440,7 +458,9 @@ async def get_popular_forecasts(
                         logger.warning("forecast_compute_failed", error=str(e))
                         raise HTTPException(
                             status_code=500,
-                            detail=await user_error_detail(request, str(e), "Не удалось построить прогноз. Попробуйте позже."),
+                            detail=await user_error_detail(
+                                request, str(e), "Не удалось построить прогноз. Попробуйте позже."
+                            ),
                         )
             else:
                 all_results = await asyncio.to_thread(engine.forecast_all, months)
@@ -448,12 +468,21 @@ async def get_popular_forecasts(
                 all_results = [r for r in all_results if _is_usable_forecast(r)][:n]
                 _record_forecast_accuracy(engine, all_results)
                 items = [_serialize(r, "growing", "genetic") for r in all_results]
-            return {"direction": "popular", "n": n, "months": months, "forecasts": items, **_engine_info(engine), **meta}
+            return {
+                "direction": "popular",
+                "n": n,
+                "months": months,
+                "forecasts": items,
+                **_engine_info(engine),
+                **meta,
+            }
         case Err(e):
             logger.warning("forecast_engine_unavailable", error=str(e))
             raise HTTPException(
                 status_code=503,
-                detail=await user_error_detail(request, str(e), "Сервис прогнозов временно недоступен. Попробуйте позже."),
+                detail=await user_error_detail(
+                    request, str(e), "Сервис прогнозов временно недоступен. Попробуйте позже."
+                ),
             )
 
 
@@ -478,5 +507,7 @@ async def get_skill_forecast(skill: str, request: Request, months: int = Query(1
             logger.warning("forecast_engine_unavailable", error=str(e))
             raise HTTPException(
                 status_code=503,
-                detail=await user_error_detail(request, str(e), "Сервис прогнозов временно недоступен. Попробуйте позже."),
+                detail=await user_error_detail(
+                    request, str(e), "Сервис прогнозов временно недоступен. Попробуйте позже."
+                ),
             )

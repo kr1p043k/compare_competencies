@@ -130,7 +130,8 @@ class SkillNormalizer:
         # AI-автоматизация / интеграции (whitelist: it_skills.json)
         "n8n": ["n8n"],
         "webhook": ["webhook", "webhooks", "вебхук", "вебхуки", "вебхуков", "вебхука"],
-        "chatbot": ["chatbot", "chatbots", "chat-bot", "чат-бот", "чат-боты", "чат-ботов", "чатбот", "чатботы", "чатботов"],
+        "chatbot": ["chatbot", "chatbots", "chat-bot", "чат-бот", "чат-боты",
+                    "чат-ботов", "чатбот", "чатботы", "чатботов"],
         "dashboard": ["dashboard", "dashboards", "дашборд", "дашборды", "дашбордов", "дашборда"],
         "api": ["api"],
         # Misc aliases from usage tracking
@@ -169,7 +170,8 @@ class SkillNormalizer:
         "еспд": ["еспд"],
         "тсд": ["тсд"],
         "ms-sql": ["ms-sql", "ms sql"],
-        "конвертация данных": ["конвертация данных", "конвертацию данных", "конвертация данных 2.0", "конвертация данных 3.0",
+        "конвертация данных": ["конвертация данных", "конвертацию данных", "конвертация данных 2.0",
+                                   "конвертация данных 3.0",
                                    "кoнвepтaцию дaнныx"],
         "управляемые формы": ["управляемые формы", "управляемая форма", "управляемых форм"],
         "http-сервисы": ["http-сервисы", "http-сервис", "http сервисы", "http-сервисами",
@@ -200,7 +202,9 @@ class SkillNormalizer:
             # Load aliases from taxonomy
             try:
                 from pathlib import Path
-                tax_path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "reference" / "skill_taxonomy.json"
+                tax_path = (
+                    Path(__file__).resolve().parent.parent.parent.parent / "data" / "reference" / "skill_taxonomy.json"
+                )
                 if tax_path.exists():
                     import json
                     tax = json.loads(tax_path.read_text(encoding="utf-8"))
@@ -503,7 +507,9 @@ class SkillNormalizer:
                 best = matches[0][0]
                 # Reject fuzzy match if candidate is too short (< 3 chars) unless input is also short
                 if len(best) < 3 and len(text) >= 3:
-                    logger.debug("fuzzy_skipped_short_candidate", original=original, candidate=best, score=matches[0][1])
+                    logger.debug(
+                        "fuzzy_skipped_short_candidate", original=original, candidate=best, score=matches[0][1]
+                    )
                     return Ok(text)
                 logger.debug("fuzzy_match", original=original, matched=best, score=matches[0][1])
                 return Ok(best)
