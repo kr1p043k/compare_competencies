@@ -39,7 +39,7 @@ class SkillNormalizer:
         "react native": ["reactnative"],
         "vue": ["vue.js", "vuejs", "vue3", "vue 3"],
         "angular": ["angular.js", "angularjs"],
-        "next": ["next.js", "nextjs", "next js"],
+        "next.js": ["next", "nextjs", "next js"],
         "nuxt": ["nuxt.js", "nuxtjs"],
         "svelte": ["sveltekit"],
         "tailwind": ["tailwind css", "tailwindcss"],
@@ -68,7 +68,7 @@ class SkillNormalizer:
         "mongodb": ["mongo", "mongo db"],
         "redis": ["redis cache"],
         "elasticsearch": ["elastic", "elastic search", "es"],
-        "sqlserver": ["mssql", "ms sql", "sql server"],
+        "ms sql": ["mssql", "sqlserver", "sql server"],
         "sqlite": ["sqlite"],
         "oracle": ["oracle db"],
         "cassandra": ["cassandra"],
@@ -135,7 +135,7 @@ class SkillNormalizer:
         "dashboard": ["dashboard", "dashboards", "дашборд", "дашборды", "дашбордов", "дашборда"],
         "api": ["api"],
         # Misc aliases from usage tracking
-        "msoffice": ["ms office", "microsoft office"],
+        "ms office": ["msoffice", "microsoft office"],
         "tcp/ip": ["tcpip", "tcp ip", "tcp-ip"],
         "vlan": ["vlan", "виртуальные локальные сети", "vlan сети"],
         # Cloud
@@ -158,7 +158,7 @@ class SkillNormalizer:
         "css": ["css3", "css"],
         "sass": ["scss"],
         "less": ["less"],
-        "rest": ["rest api", "restful api", "restful", "restapi"],
+        "rest api": ["rest", "restful", "restful api", "restapi"],
         "graphql": ["graph ql"],
         "apollo": ["apollo"],
         # 1С продукты
@@ -410,6 +410,19 @@ class SkillNormalizer:
             _canon = SkillNormalizer._get_canonical_map()
             if text in _canon:
                 return Ok(_canon[text].lower())
+            # Хомоглиф-варианты (с++ кириллицей): свернуть тем же маппингом,
+            # что парсер, и поискать свёртку. Deferred import — skill_parser
+            # импортирует этот модуль (цикл на верхнем уровне).
+            try:
+                from src.parsing.skills.skill_parser import (
+                    _normalize_for_matching as _fold,
+                )
+
+                _folded = _fold(text)
+            except Exception:
+                _folded = text
+            if _folded != text and _folded in _canon:
+                return Ok(_canon[_folded].lower())
             # Та же проверка без версии в хвосте (2.0/8.3): дедуп сохраняет хвост.
             _noversion = re.sub(r"\s+v?\d+(\.\d+)*\s*$", "", text).strip()
             if _noversion and _noversion in _canon:

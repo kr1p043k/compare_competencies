@@ -10,6 +10,11 @@ from src.errors import DomainError
 
 logger = structlog.get_logger(__name__)
 
+#: Веса extra-движков ансамбля (сырые, до рескейла (1-COSINE_WEIGHT)).
+#: Sweep/decomposition: (0.5/0.1/0.25)@0.7 F1 0.9307 vs база 0.9135.
+JACCARD_WEIGHT = 0.1
+BM25_WEIGHT = 0.25
+
 
 class CompetencyComparator:
     def __init__(
@@ -84,8 +89,8 @@ class CompetencyComparator:
             result = self.embedding_comparator.compare_student_to_market_ensemble(
                 student_skills,
                 extra_engines={
-                    "jaccard": (self.jaccard_engine, 0.2),
-                    "bm25": (self.bm25_engine, 0.15),
+                    "jaccard": (self.jaccard_engine, JACCARD_WEIGHT),
+                    "bm25": (self.bm25_engine, BM25_WEIGHT),
                 },
             )
             score = result.get("score", result.get("weighted_coverage", 0.0))
