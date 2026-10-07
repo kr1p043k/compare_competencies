@@ -348,3 +348,14 @@ def _market_freq_lookup(
 
     return 0
 
+
+def clip01(x: float) -> float:
+    """Зажать cosine-similarity в [0, 1].
+
+    float32-артефакты дают 1.0000001, сырой косинус бывает отрицательным —
+    оба случая мусор на витринах. Единая точка вместо разрозненных
+    min(1.0, ...) по кодбазе.
+    """
+    v = float(x)
+    return 0.0 if v < 0.0 else (1.0 if v > 1.0 else v)
+

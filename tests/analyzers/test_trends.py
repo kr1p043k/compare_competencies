@@ -98,7 +98,18 @@ class TestTrendAnalyzer:
     def test_get_trending_skills_no_previous_no_snapshots(self, sample_current_freq, tmp_path):
         analyzer = TrendAnalyzer(sample_current_freq, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills()
-        assert trends.ok() == {"rising": [], "falling": []}
+        assert trends.ok() == {"rising": [], "falling": [], "emerging": []}
+
+    def test_get_trending_skills_emerging_path(self, tmp_path):
+        """Новый навык (prev ниже шумового пола, cur значимый) — в emerging,
+        а не потерян: rust 0 -> 400."""
+        analyzer = TrendAnalyzer({"rust": 400, "python": 50}, historical_dir=tmp_path)
+        trends = analyzer.get_trending_skills(
+            previous_snapshot={"python": 50}, min_frequency=5)
+        out = trends.ok()
+        assert [r["skill"] for r in out["emerging"]] == ["rust"]
+        assert all(r["skill"] != "rust"
+                   for r in out["rising"] + out["falling"])
 
     def test_get_trending_skills_empty_current(self, sample_prev_freq, tmp_path):
         analyzer = TrendAnalyzer({}, historical_dir=tmp_path)

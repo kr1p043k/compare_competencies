@@ -23,6 +23,7 @@ from rapidfuzz import fuzz
 
 from src.errors import MatchingError
 from src.result import Err, Ok, Result
+from src.utils import clip01
 
 logger = structlog.get_logger(__name__)
 
@@ -196,7 +197,7 @@ class HybridMatcher:
                     qemb = qemb / qnorm
                 sims = self._market_embeddings @ qemb.T
                 best = int(np.argmax(sims))
-                score = float(sims[best])
+                score = clip01(float(sims[best][0]))
                 cand = self._market_names[best]
                 thresh = adaptive_threshold(original, cand)
                 if score >= thresh:

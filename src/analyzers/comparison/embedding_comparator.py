@@ -24,6 +24,7 @@ from src.analyzers.comparison.engines import (
 )
 from src.artifacts import ArtifactManifest
 from src.errors import DomainError
+from src.utils import clip01
 
 if TYPE_CHECKING:
     from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
@@ -231,9 +232,9 @@ class EmbeddingComparator:
                 sims = cosine_similarity(student_embs, self._outer.market_embeddings)
                 best = sims.max(axis=0)
                 avg = float(best.mean()) if best.size else 0.0
-                top_idx = np.argsort(best)[-15:][::-1]
+                top_idx = np.argsort(-best, kind="stable")[:15]
                 matches = [
-                    {"skill": self._outer.market_skills[i], "similarity": min(1.0, float(best[i]))}
+                    {"skill": self._outer.market_skills[i], "similarity": clip01(best[i])}
                     for i in top_idx
                 ]
                 return Ok(dict(score=round(avg, 4), weighted_coverage=round(avg, 4),
@@ -284,9 +285,13 @@ class EmbeddingComparator:
         if skills_list is None:
             skills_list = [self.market_skills[i] for i in range(len(values))]
 
-        top_idx = np.argsort(values)[-15:][::-1]
+        # Порог наконец работает: ниже similarity_threshold — не совпадение.
+        # Stable-сортировка: при равных скорах порядок детерминирован.
+        mask = values >= self.similarity_threshold
+        eligible = np.flatnonzero(mask)
+        top_idx = eligible[np.argsort(-values[eligible], kind="stable")[:15]]
         matches = [
-            {"skill": skills_list[i], "similarity": min(1.0, float(values[i]))}
+            {"skill": skills_list[i], "similarity": clip01(values[i])}
             for i in top_idx
         ]
 
@@ -335,7 +340,7 @@ class EmbeddingComparator:
             vac_embs[i] = np.mean(embs, axis=0) if embs else np.zeros(self.model.get_sentence_embedding_dimension())
 
         similarities = cosine_similarity(student_emb, vac_embs)[0]
-        top_indices = np.argsort(similarities)[-top_k:][::-1]
+        top_indices = np.argsort(-similarities, kind="stable")[:top_k]
         return [level_vacancies[i] for i in top_indices]
 
     def set_clusterer(self, clusterer: "VacancyClusterer", vacancies_data: list[dict]):

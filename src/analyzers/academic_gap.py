@@ -18,6 +18,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from src import config
 from src.parsing.skills.skill_parser import SkillParser, SkillSource
+from src.utils import clip01
 
 logger = structlog.get_logger(__name__)
 
@@ -181,7 +182,7 @@ class AcademicGapAnalyzer:
                                 sim=round(float(sims[i]), 3))
                     continue
                 picked.append({"skill": name,
-                               "similarity": round(float(sims[i]), 4)})
+                               "similarity": round(clip01(sims[i]), 4)})
                 if len(picked) >= 15:
                     break
             top = picked
@@ -287,7 +288,7 @@ class AcademicGapAnalyzer:
             # near_skills: топ навыков компетенции, близких к теме
             idx = np.argsort(per_skill)[::-1][:_TOP_NEAR]
             near_skills = [
-                {"skill": skills[i], "similarity": round(float(per_skill[i]), 3)}
+                {"skill": skills[i], "similarity": round(clip01(per_skill[i]), 3)}
                 for i in idx if float(per_skill[i]) >= 0.4
             ]
             reason = (
@@ -386,7 +387,7 @@ class AcademicGapAnalyzer:
                     fstat_kept_sims.append(comp_sim)
                     suggested.append({
                         "skill": m["skill"],
-                        "similarity": round(comp_sim, 3),
+                        "similarity": round(clip01(comp_sim), 3),
                         "source": "topic",
                     })
                 fstat_per_code[code] = code_stat

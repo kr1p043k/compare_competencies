@@ -136,7 +136,7 @@ def test_prophet_engine_predict_unknown_skill():
     assert isinstance(result, Err)
 
 
-def test_prophet_engine_fallback_to_genetic():
+def test_prophet_engine_fallback_to_trend():
     """Skills with < 2 history points use flat (no-growth) forecast."""
     snapshots = [Snapshot(date(2025, 1, 1), {"rust": 30})]
     engine = ProphetForecastEngine()

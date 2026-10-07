@@ -33,6 +33,7 @@ class TrendType(StrEnum):
 
     RISING = "rising"
     FALLING = "falling"
+    EMERGING = "emerging"
 
 
 class SkillCategory(StrEnum):

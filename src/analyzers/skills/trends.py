@@ -26,6 +26,11 @@ logger = structlog.get_logger(__name__)
 # (vacancy_count/synthetic пишутся с этого релиза; старые файлы без них).
 SNAPSHOT_METHODOLOGY_VERSION = "v2"
 
+# Порог абсолютной частоты для emerging-навыков: значимость нового навыка
+# измеряется сырым числом упоминаний, а не долей (доля от нуля неопределена).
+# Не параметризован сознательно: это пол шума, а не пользовательская настройка.
+EMERGING_MIN_FREQ = 20
+
 
 class TrendAnalyzer:
     """Анализатор трендов с поддержкой множественных исторических снимков."""
@@ -210,7 +215,11 @@ class TrendAnalyzer:
             snapshots = snapshots_result.ok()
             if len(snapshots) < 2:
                 logger.warning("not_enough_snapshots_for_trends")
-                return Ok({TrendType.RISING: [], TrendType.FALLING: []})
+                return Ok({
+                    TrendType.RISING: [],
+                    TrendType.FALLING: [],
+                    TrendType.EMERGING: [],
+                })
             prev_dt, _, prev_data = snapshots[-2]
             _cur_dt, _, cur_data = snapshots[-1]
             prev_label = prev_dt.strftime("%Y-%m-%d")
@@ -223,13 +232,26 @@ class TrendAnalyzer:
         prev_total = sum(v for v in prev_data.values() if isinstance(v, (int, float))) or 1.0
         cur_total = sum(v for v in cur_data.values() if isinstance(v, (int, float))) or 1.0
 
-        rising, falling = [], []
+        rising, falling, emerging = [], [], []
 
         for skill, current_freq in cur_data.items():
             if skill.startswith("_"):
                 continue
+            if not isinstance(current_freq, (int, float)):
+                continue
             prev_freq = prev_data.get(skill, 0)
             if prev_freq < min_frequency:
+                # Нового навыка (prev ниже шумового пола) не бывает в rising
+                # по построению — ведём отдельным списком emerging, иначе
+                # rust 0→400 тихо пропадал. Порог абсолютный: значимость,
+                # а не доля.
+                if current_freq >= EMERGING_MIN_FREQ:
+                    emerging.append({
+                        "skill": skill,
+                        "current_freq": current_freq,
+                        "prev_freq": prev_freq,
+                        "prev_label": prev_label,
+                    })
                 continue
             # Доли, а не сырые counts: выборки месяцев разного объёма.
             cur_share = current_freq / cur_total
@@ -253,7 +275,12 @@ class TrendAnalyzer:
 
         rising.sort(key=lambda x: x["change_pct"], reverse=True)
         falling.sort(key=lambda x: x["change_pct"])
-        return Ok({TrendType.RISING: rising[:top_n], TrendType.FALLING: falling[:top_n]})
+        emerging.sort(key=lambda x: x["current_freq"], reverse=True)
+        return Ok({
+            TrendType.RISING: rising[:top_n],
+            TrendType.FALLING: falling[:top_n],
+            TrendType.EMERGING: emerging[:top_n],
+        })
 
     def get_emerging_skills(self, min_weight: float = 0.01, top_n: int = 20) -> Result[list[dict], DomainError]:
         max_weight = max(self.current.values()) if self.current else 1.0

@@ -20,6 +20,7 @@ from src.errors import DomainError
 from src.models.enums import ExperienceLevel
 from src.parsing.api.embedding_loader import get_embedding_model
 from src.parsing.skills.skill_normalizer import SkillNormalizer
+from src.utils import clip01
 
 logger = structlog.get_logger(__name__)
 
@@ -378,13 +379,13 @@ class VacancyClusterer:
             student_emb = student_emb / norm
 
         similarities = cosine_similarity([student_emb], self.cluster_centers)[0]
-        top_indices = np.argsort(similarities)[-top_k:][::-1]
+        top_indices = np.argsort(-similarities, kind="stable")[:top_k]
 
         idx_to_label = {v: k for k, v in self.label_to_center_idx.items()}
         result = []
         for idx in top_indices:
             label = idx_to_label.get(idx, idx)
-            result.append((int(label), float(similarities[idx])))
+            result.append((int(label), clip01(similarities[idx])))
         return result
 
     def get_cluster_skills(self, cluster_id: int, vacancies: list[dict] | None = None) -> list[str]:

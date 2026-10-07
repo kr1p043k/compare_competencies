@@ -217,9 +217,11 @@ class SkillNormalizer:
             logger.info("canonical_map_built", terms=len(canon))
         return cls._canonical_map
 
-    # Версии и варианты (удаляются полностью)
+    # Версии и варианты (удаляются полностью).
+    # Якорь $ обязателен: без него съедаются цифры внутри токена
+    # (utf-8 -> utf-, oauth2 -> oauth). Только хвостовая версия.
     VERSION_PATTERNS = [
-        r"\s*v?\d+(\.\d+)*",
+        r"\s+v?\d+(\.\d+)*\s*$",
         r"\s*\(.*?\)",
         r"\s*\[.*?\]",
     ]
@@ -230,18 +232,10 @@ class SkillNormalizer:
         r"^умение\s+(работать\s+)?(с\s+)?",
         r"^навык(и)?\s+(работы\s+)?(с\s+)?",
         r"^понимание\s+",
-        r"^разработка\s+",
-        r"^программирование\s+на\s+",
+        # Ниже — только обёртки («знаю/умею X»), НЕ смысловые глаголы.
+        # разработка/управление/создание/построение/внедрение и т.п. —
+        # контент, их снос тихо теряет навыки (разработка бэкенда -> бэкенда).
         r"^работа\s+с\s+",
-        r"^участие\s+в\s+",
-        r"^проведение\s+",
-        r"^принципов\s+",
-        r"^организация\s+",
-        r"^управление\s+",
-        r"^построение\s+",
-        r"^создание\s+",
-        r"^внедрение\s+",
-        r"^оценивать\s+",
         r"^(уверенный|senior|middle|junior)\s+",
         r"^(опыт|знание|умение|владение|навык)\s+(работы\s+)?(с\s+)?",
         r"^(разработчик|разработчика)\s+(уровня\s+)?(senior|middle|junior)?",
@@ -261,8 +255,9 @@ class SkillNormalizer:
         r"\s+или\s+подобных\s+языках?",
         r"\s+и\s+(принципов|основ|т\.д\.|т\.п\.|др\.)",
         r"\s+или\s+(аналогичных|подобных)\s+(языков|технологий)?",
+        # NB: НЕТ правила r"\s+(и|или)\s+\w+$" — оно молча съедало второй
+        # навык ("java или kotlin" -> "java"). Лучше честный гэп, чем потеря.
         r"\s+(хорошее|отличное|базовое)\s+(знание|понимание|умение)?$",
-        r"\s+(и|или)\s+\w+$",
         r"\s+или\s+аналогичных\s+(языков|языках)",
         r"\s+и\s+т\.\s*д\.",
         r"\s+и\s+т\.\s*п\.",
@@ -416,7 +411,7 @@ class SkillNormalizer:
             if text in _canon:
                 return Ok(_canon[text].lower())
             # Та же проверка без версии в хвосте (2.0/8.3): дедуп сохраняет хвост.
-            _noversion = re.sub(r"\s*v?\d+(\.\d+)*", "", text).strip()
+            _noversion = re.sub(r"\s+v?\d+(\.\d+)*\s*$", "", text).strip()
             if _noversion and _noversion in _canon:
                 return Ok(_canon[_noversion].lower())
 
@@ -481,6 +476,13 @@ class SkillNormalizer:
                 return Ok(text)
 
             # Token pre-filter: only compare against whitelist entries sharing tokens
+            if re.search(r"\s+(и|или)\s+\w", text):
+                # Альтернация ("java или kotlin"): fuzzy ниже выбрал бы одну
+                # сторону и тихо потерял вторую. Возвращаем как есть —
+                # честный гэп лучше скрытой потери (парсер местами сплитит
+                # сам, skill_parser.py:418).
+                logger.debug("alternation_kept", original=original)
+                return Ok(text)
             input_tokens = set(text.split())
             candidates = [
                 w for w in whitelist

@@ -9,6 +9,7 @@ import structlog
 
 from src.errors import MatchingError
 from src.result import Err, Ok, Result
+from src.utils import clip01
 
 logger = structlog.get_logger(__name__)
 
@@ -196,7 +197,7 @@ class SkillMatcher:
         # (which compiled a regex on every call inside the hot path).
         self._market_word_pats: list[tuple[str, re.Pattern[str]]] = []
         self._market_lemma_pats: list[tuple[str, re.Pattern[str]]] = []
-        self._semantic_cache: dict[str, str] = {}
+        self._semantic_cache: dict[str, tuple[str, float]] = {}
         self._match_cache: dict[str, tuple[str | None, str, float]] = {}
         self._rebuild_fuzzy_patterns()
 
@@ -390,14 +391,13 @@ class SkillMatcher:
         cands: list[tuple[int, int, str]] = []
         for name, st in self._market_siglemmas.items():
             if st and st <= q:
+                if self.market_skills.get(name, 0) < MARKET_MIN_FREQ:
+                    continue
                 cands.append((len(st), self.market_skills.get(name, 0), name))
         if not cands:
             return None
         cands.sort(key=lambda z: (-z[0], -z[1]))
         best = cands[0][2]
-        if self.market_skills.get(best, 0) < MARKET_MIN_FREQ:
-            logger.debug("skill_anchor_fringe_skipped", rpd_skill=n, market_skill=best)
-            return None
         logger.debug("skill_anchor_match", rpd_skill=n, market_skill=best)
         return best
 
@@ -442,7 +442,14 @@ class SkillMatcher:
 
     def _semantic_match(self, n: str, original: str | None = None) -> tuple[str | None, str, float]:
         if n in self._semantic_cache:
-            return (self._semantic_cache[n], "semantic", 1.0)
+            cached_name, cached_score = self._semantic_cache[n]
+            # Кэш хранит пару (имя, скор): порог пересчитываем под текущий
+            # original, а не возвращаем слепые 1.0 мимо порога.
+            _thresh = adaptive_semantic_threshold(
+                original or n, cached_name)
+            if cached_score >= _thresh:
+                return (cached_name, "semantic", cached_score)
+            return (None, "no_match", 0.0)
         if self._market_embeddings is None or self._embedding_provider is None:
             return (None, "no_match", 0.0)
         qemb = self._embedding_provider.encode([n])
@@ -451,10 +458,10 @@ class SkillMatcher:
             qemb /= qnorm
         sims = self._market_embeddings @ qemb.T
         best = int(np.argmax(sims))
-        score = float(sims[best])
+        score = clip01(float(sims[best][0]))
         _thresh = adaptive_semantic_threshold(original or n, self._market_names[best])
         if score >= _thresh:
-            self._semantic_cache[n] = self._market_names[best]
+            self._semantic_cache[n] = (self._market_names[best], score)
             return (self._market_names[best], "semantic", score)
         return (None, "no_match", 0.0)
 

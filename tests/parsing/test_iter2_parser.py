@@ -223,3 +223,16 @@ class TestSkillNormalizerExtended:
         result = SkillNormalizer.normalize_batch([])
         assert result.is_ok()
         assert result.unwrap() == []
+
+
+class TestContentWordPreservation:
+    """Контентные слова не сносятся префикс-правилами; альтернации не схлопываются."""
+
+    def test_dev_prefix_kept(self):
+        assert SkillNormalizer.normalize("разработка бэкенда").unwrap() == "разработка бэкенда"
+
+    def test_alternation_kept_whole(self):
+        assert SkillNormalizer.normalize("java или kotlin").unwrap() == "java или kotlin"
+
+    def test_version_tail_kept(self):
+        assert SkillNormalizer.normalize("utf-8").unwrap() == "utf-8"

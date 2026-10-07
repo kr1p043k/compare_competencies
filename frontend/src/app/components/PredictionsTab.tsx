@@ -58,9 +58,9 @@ export function PredictionsTab() {
     loadForecasts("growing");
   }, []);
 
-  // Countdown Prophet-фита: пока движок genetic – опрашиваем лёгкий статус.
+  // Countdown Prophet-фита: пока движок trend – опрашиваем лёгкий статус.
   useEffect(() => {
-    if (engineInfo && engineInfo.engine !== "genetic") return;
+    if (engineInfo && engineInfo.engine !== "trend") return;
     let stop = false;
     const poll = async () => {
       try {
@@ -155,7 +155,7 @@ export function PredictionsTab() {
                   </div>
                   <div>
                     <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">Топ растущих навыков</CardTitle>
-                    <CardDescription>Прогноз популярности · {vacanciesCount ? `${vacanciesCount} вакансий` : "–"} · {dataFrom && dataTo ? `${dataFrom}–${dataTo}` : "–"}{engineInfo?.engine ? ` · Движок: ${engineInfo.engine === "prophet" ? `Prophet (${engineInfo.prophet_models} моделей)` : "Genetic (Prophet ещё считается)"}` : ""}</CardDescription>
+                    <CardDescription>Прогноз популярности · {vacanciesCount ? `${vacanciesCount} вакансий` : "–"} · {dataFrom && dataTo ? `${dataFrom}–${dataTo}` : "–"}{engineInfo?.engine ? ` · Движок: ${engineInfo.engine === "prophet" ? `Prophet (${engineInfo.prophet_models} моделей)` : "Trend (Prophet ещё считается)"}` : ""}</CardDescription>
                   </div>
                   <div className="ml-auto flex items-center gap-2">
                     <CalendarDays className="size-4 text-gray-400 dark:text-slate-500" />
@@ -263,7 +263,7 @@ export function PredictionsTab() {
 function ForecastRow({ item, rank, expanded, onToggle, months }: { item: ForecastItem; rank: number; expanded: boolean; onToggle: () => void; months?: number }) {
   const changePct = item.predicted_change_pct ?? (item.predicted_growth * 100);
   const changePctSign = changePct > 0 ? "+" : "";
-  const methodColors: Record<string, string> = { prophet: "bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300", ets: "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300", linear: "bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300", genetic: "bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300", trend: "bg-sky-100 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300", insufficient_data: "bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400" };
+  const methodColors: Record<string, string> = { prophet: "bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300", ets: "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300", linear: "bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300", trend: "bg-sky-100 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300", insufficient_data: "bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400" };
   const insufficient = item.method === "insufficient_data" || (item.data_points !== undefined && item.data_points < 3);
   const horizon = item.forecast_months ?? (insufficient ? 0 : (months || 12));
   const confPct = Math.round((item.confidence ?? 0) * 100);

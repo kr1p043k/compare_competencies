@@ -22,9 +22,9 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 def _engine_info(engine) -> dict:
-    """Чем посчитано: имя движка + состояние Prophet (диагностика 'почему genetic').
+    """Чем посчитано: имя движка + состояние Prophet (диагностика 'почему trend').
 
-    genetic на все запросы = Prophet не дофитился на старте (долгий fit сотен
+    trend на все запросы = Prophet не дофитился на старте (долгий fit сотен
     моделей) или упал — это видно здесь, а не гадается по бейджам.
     """
     prophet_fitted = bool(
@@ -37,7 +37,7 @@ def _engine_info(engine) -> dict:
             "prophet_fitted": prophet_fitted,
             "prophet_models": len(getattr(engine, "_models", {}) or {}),
         }
-    return {"engine": "genetic", "prophet_fitted": prophet_fitted, "prophet_models": 0}
+    return {"engine": "trend", "prophet_fitted": prophet_fitted, "prophet_models": 0}
 
 # Кэш топов: fit происходит на старте/пайплайне, а compute — сотни Prophet-
 # predict'ов (десятки секунд GIL). Без кэша каждое переключение горизонта
@@ -77,8 +77,8 @@ def _compute_top(engine, direction: str, months: int, want: int, sort: str):
     res = engine.top_growing(n=want, months=months)
     if res.is_ok() and direction == "declining" and sort == "growth":
         all_results = sorted(res.unwrap(), key=lambda x: x.predicted_growth)
-        return Ok(all_results), "genetic"
-    return res, "genetic"
+        return Ok(all_results), "trend"
+    return res, "trend"
 
 
 def _get_forecast_data() -> dict[str, float]:
@@ -181,7 +181,7 @@ async def _get_vacancy_meta() -> dict:
     return meta
 
 
-def _serialize(r: ForecastResult, direction: str | None = None, method: str = "genetic") -> dict:
+def _serialize(r: ForecastResult, direction: str | None = None, method: str = "trend") -> dict:
     change_pct = round(r.predicted_growth * 100, 2)
     return {
         "skill": r.skill,
@@ -383,7 +383,7 @@ def _engine_info_for_status() -> dict:
     engine = getattr(deps, "prophet_engine", None)
     if engine is not None and getattr(engine, "is_fitted", False):
         return _engine_info(engine)
-    return {"engine": "genetic", "prophet_fitted": False, "prophet_models": 0}
+    return {"engine": "trend", "prophet_fitted": False, "prophet_models": 0}
 
 
 @router.get("/forecast/observed")
@@ -467,7 +467,7 @@ async def get_popular_forecasts(
                 all_results = sorted(all_results.unwrap_or([]), key=lambda x: x.current_frequency, reverse=True)
                 all_results = [r for r in all_results if _is_usable_forecast(r)][:n]
                 _record_forecast_accuracy(engine, all_results)
-                items = [_serialize(r, "growing", "genetic") for r in all_results]
+                items = [_serialize(r, "growing", "trend") for r in all_results]
             return {
                 "direction": "popular",
                 "n": n,

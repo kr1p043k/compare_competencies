@@ -311,12 +311,12 @@ class TestEngineInfo:
         assert info["engine"] == "prophet"
         assert info["prophet_models"] == 2
 
-    def test_genetic_engine_reported(self):
+    def test_trend_engine_reported(self):
         from src.api_pkg.routers.forecast import _engine_info
         from src.predictors.skill_forecast import SkillForecastEngine
 
         info = _engine_info(SkillForecastEngine())
-        assert info["engine"] == "genetic"
+        assert info["engine"] == "trend"
         assert info["prophet_models"] == 0
         assert info["prophet_fitted"] is False
 
@@ -341,7 +341,7 @@ class TestForecastOffLoop:
         }
         gen._is_fitted = True
         res, method = _compute_top(gen, "growing", 3, 10, "growth")
-        assert method == "genetic" and res.is_ok()
+        assert method == "trend" and res.is_ok()
         res, _ = _compute_top(gen, "declining", 3, 10, "growth")
         grows = [r.predicted_growth for r in res.ok()]
         assert grows == sorted(grows)

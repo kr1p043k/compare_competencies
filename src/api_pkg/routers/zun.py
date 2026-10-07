@@ -44,6 +44,7 @@ from src import config
 from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role
 from src.db import get_pool
+from src.utils import clip01
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["zun"], dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
@@ -667,7 +668,7 @@ async def zun_search_semantic(
         item = items[int(idx)]
         if ksa_type and item["ksa_type"] != ksa_type:
             continue
-        matches.append({**item, "similarity": round(float(sims[idx]), 4)})
+        matches.append({**item, "similarity": round(clip01(sims[idx]), 4)})
         if len(matches) >= limit:
             break
     if not matches and ksa_type:
