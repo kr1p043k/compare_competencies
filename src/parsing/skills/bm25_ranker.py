@@ -1,6 +1,7 @@
 """BM25 ранкер с предфильтрацией и кэшированием."""
 
 import json
+import random
 import re
 
 import numpy as np
@@ -127,28 +128,20 @@ class BM25Ranker:
                 lemmas.append(w)
         return lemmas
 
-    def _build_vacancy_skills(
-        self, lemmas: list[str], whitelist: set, whitelist_words: set, whitelist_phrases: set
-    ) -> list[str]:
-        doc_skills = []
-        for n in range(1, 4):
-            for i in range(len(lemmas) - n + 1):
-                ngram_words = lemmas[i : i + n]
-                ngram = " ".join(ngram_words)
-                if n == 1 and ngram not in whitelist_words:
-                    continue
-                if n > 1 and ngram not in whitelist_phrases:
-                    continue
-                if any(lemma in self._stop_lemmas for lemma in ngram_words):
-                    continue
-                match SkillNormalizer.normalize(ngram):
-                    case Ok(norm):
-                        if norm in whitelist:
-                            doc_skills.append(norm)
-        return doc_skills
-
     def calculate_weights(self, vacancies: list) -> Result[dict[str, float], DomainError]:
-        """BM25-веса навыков по корпусу вакансий (IDF-корпус семплируется)."""
+        """BM25-веса навыков по корпусу вакансий (IDF-корпус семплируется).
+
+        P2 (Exp-прототип: IDX-FULL F1 0.981 vs IDX-SKILL 0.936):
+        доки корпуса — ПОЛНЫЕ леммы вакансии (минус стопы), а не
+        whitelist-фильтрованные n-граммы. Чинит два дефекта старого дизайна:
+        (1) мультисловные навыки (`get_scores(["machine learning"])` по
+        однотокенным докам не матчились никогда → системный невесом);
+        (2) 27% вакансий давали пустые skill-доки и выпадали из IDF.
+        Запрос навыка — его леммы-униграммы; вес — средний скор по докам.
+        Скоринг только навыков, чьи леммы есть хотя бы в одном доке
+        (иначе отсутствующие навыки получали бы веса).
+        Сэмпл — random(seed=7), не stride. k1/b — дефолты (сетка плоская).
+        """
         try:
             ch = self._compute_corpus_hash(vacancies)
             if self._cached_corpus is not None and self._corpus_hash == ch:
@@ -162,48 +155,44 @@ class BM25Ranker:
                 norm = r.unwrap() if r.is_ok() else ""
                 if norm:
                     whitelist.add(norm)
-            whitelist_words = {s for s in whitelist if " " not in s}
-            whitelist_phrases = {s for s in whitelist if " " in s}
 
-            corpus_docs = []
-            all_skills = set()
-
+            corpus_docs: list[list[str]] = []
             for vac in vacancies:
                 text = self._extract_vacancy_text(vac)
                 if not text:
                     continue
-
                 lemmas = self._lemmatize(text)
-                if not lemmas:
-                    continue
-
-                doc_skills = self._build_vacancy_skills(lemmas, whitelist, whitelist_words, whitelist_phrases)
-                if doc_skills:
-                    doc_skills_dedup = list(dict.fromkeys(doc_skills))
-                    corpus_docs.append(doc_skills_dedup)
-                    all_skills.update(doc_skills_dedup)
+                doc = [t for t in lemmas if t and t not in self._stop_lemmas]
+                if doc:
+                    corpus_docs.append(doc)
 
             if not corpus_docs:
-                logger.warning("Нет валидных n-грамм для BM25")
+                logger.warning("Нет валидных документов для BM25")
                 return Ok({})
 
-            # Используем все доступные вакансии — BM25Okapi сам нормализует длину doc через b=0.75
-            # Чем больше корпус, тем точнее IDF
-
-
-            # Bound IDF corpus (config BM25_MAX_CORPUS_DOCS); score all skills.
+            # Bound IDF corpus (config BM25_MAX_CORPUS_DOCS); random, не stride
+            # (stride даёт систематическое смещение по порядку вакансий).
+            # Presence-проверка — по ВСЕМ докам (иначе сэмпл режет хвост навыков),
+            # скоринг — по сэмплу.
             _max_docs = getattr(config, "BM25_MAX_CORPUS_DOCS", 200) or 200
             if len(corpus_docs) > _max_docs:
-                _step = max(1, len(corpus_docs) // _max_docs)
-                _corpus_sample = corpus_docs[::_step][:_max_docs]
+                _corpus_sample = random.Random(7).sample(corpus_docs, _max_docs)
             else:
                 _corpus_sample = corpus_docs
             bm25 = BM25Okapi(_corpus_sample)
+            doc_sets_all = [set(d) for d in corpus_docs]
 
             weights = {}
-            for term in all_skills:
+            for term in sorted(whitelist):
                 try:
-                    scores = bm25.get_scores([term])
+                    q = [t for t in self._lemmatize(term)
+                         if t and t not in self._stop_lemmas]
+                    if not q:
+                        continue
+                    qset = set(q)
+                    if not any(qset <= ds for ds in doc_sets_all):
+                        continue
+                    scores = bm25.get_scores(q)
                     if len(scores) == 0:
                         continue
                     avg = float(sum(scores) / len(scores))

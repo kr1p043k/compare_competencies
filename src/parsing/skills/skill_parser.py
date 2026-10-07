@@ -13,6 +13,7 @@ import structlog
 from src import Err, Ok, Result
 from src.errors import DomainError
 from src.models.vacancy import Vacancy
+from src.parsing.skills.skill_normalizer import SkillNormalizer
 
 logger = structlog.get_logger(__name__)
 
@@ -155,6 +156,10 @@ class SkillParser:
     # (frozenset_of_skills, index) — index: first-char -> skills, cached once
     _DIRECT_INDEX: tuple[frozenset, dict] | None = None
 
+    # Скомпилированный alternation-паттерн маркеров (1110 термов собирать
+    # на каждую вакансию дорого) — пересборка при смене TECH_SKILLS.
+    _MARKER_PATTERN: tuple[frozenset, re.Pattern] | None = None
+
     SKILL_MARKERS = [
         "ключевые навыки",
         "ключевые компетенции",
@@ -280,6 +285,9 @@ class SkillParser:
         try:
             skills = []
             text_norm = _normalize_for_matching(text)
+            # P5: отрицания свернуть тем же маппингом, что текст
+            # («не» → «ne», иначе сравнение мёртвое).
+            _negation_norms = [_normalize_for_matching(w) for w in self.NEGATION_WORDS]
 
             extended_skills = [
                 "machine learning", "deep learning", "data science",
@@ -309,7 +317,7 @@ class SkillParser:
 
                         start = max(0, i - 50)
                         context = text_norm[start:end + 50]
-                        if any(neg in context for neg in self.NEGATION_WORDS):
+                        if any(neg in context for neg in _negation_norms):
                             continue
 
                         original = text[i:end].strip()
@@ -356,18 +364,42 @@ class SkillParser:
         return None
 
     def _marker_search(self, text: str, source: SkillSource) -> Result[list[ExtractedSkill], DomainError]:
-        """Поиск навыков после маркеров"""
+        """Поиск навыков после маркеров.
+
+        P0: один проход alternation longest-first С границами слов
+        (было `tech in line` — 'go' срабатывал внутри 'django').
+        Односимвольные навыки пропускаем: в маркерных строках это шум.
+        P5: negation-контекст ±50 как в _direct_search.
+        """
         try:
             skills = []
             text_norm = _normalize_for_matching(text)
+            _negation_norms = [_normalize_for_matching(w) for w in self.NEGATION_WORDS]
 
             # Паттерны для фильтрации не-навыков
             # LOCATION_PATTERNS and ABBREV_RE now module-level (C1 fix)
 
+            techs = sorted(
+                (t for t in self.TECH_SKILLS if len(t) >= 2),
+                key=len, reverse=True,
+            )
+            if not techs:
+                return Ok([])
+            key = frozenset(techs)
+            if SkillParser._MARKER_PATTERN is not None and SkillParser._MARKER_PATTERN[0] == key:
+                marker_pat = SkillParser._MARKER_PATTERN[1]
+            else:
+                marker_pat = re.compile(
+                    r"(?<!\w)(?:" + "|".join(re.escape(t) for t in techs) + r")(?!\w)")
+                SkillParser._MARKER_PATTERN = (key, marker_pat)
+
             for marker in self.SKILL_MARKERS:
-                if marker not in text_norm:
+                # P0: маркеры свернуть так же, как текст (кириллица иначе
+                # никогда не совпадала со свёрнутым текстом).
+                marker_norm = _normalize_for_matching(marker)
+                if marker_norm not in text_norm:
                     continue
-                parts = text_norm.split(marker)
+                parts = text_norm.split(marker_norm)
                 if len(parts) < 2:
                     continue
                 after_marker = parts[1][:600]
@@ -383,20 +415,30 @@ class SkillParser:
                     if ABBREV_RE.match(line):
                         continue
                     # Извлекаем только отдельные навыки из строки, не всю строку
-                    for tech in self.TECH_SKILLS:
-                        if tech in line:
-                            skills.append(ExtractedSkill(text=tech, source=source, raw_match=tech, confidence=0.8))
-                            self._update_stats(source)
+                    for m in marker_pat.finditer(line):
+                        tech = m.group(0)
+                        start = max(0, m.start() - 50)
+                        context = line[start:m.end() + 50]
+                        if any(neg in context for neg in _negation_norms):
+                            continue
+                        skills.append(ExtractedSkill(text=tech, source=source, raw_match=tech, confidence=0.8))
+                        self._update_stats(source)
 
             return Ok(skills)
         except Exception as e:
             return Err(DomainError(message=str(e), detail="_marker_search"))
 
     def _regex_search(self, text: str, source: SkillSource) -> Result[list[ExtractedSkill], DomainError]:
-        """Поиск по regex паттернам"""
+        """Поиск по regex паттернам.
+
+        P0: токен обязан нормализоваться в непустой whitelist-навык
+        (было: свободный текст шёл дальше и лишь частично резался валидатором).
+        P5: negation-контекст ±50 (finditer вместо findall ради позиций).
+        """
         try:
             skills = []
             text_norm = _normalize_for_matching(text)
+            _negation_norms = [_normalize_for_matching(w) for w in self.NEGATION_WORDS]
 
             # Pattern prefixes normalized to match homoglyph-normalized text (C1 fix)
             _rx_p1 = _normalize_for_matching("опыт работы с|опыт с|работа с|знание|владение|умение")
@@ -410,9 +452,8 @@ class SkillParser:
             ]
 
             for pattern, confidence in patterns:
-                matches = re.findall(pattern, text_norm)
-                for match in matches:
-                    match = match.strip()
+                for m in re.finditer(pattern, text_norm):
+                    match = m.group(1).strip()
                     if 3 < len(match) < 100:
                         # Split multi-skill phrases into individual tokens (C1 fix)
                         tokens = re.split(r'[,;]\s*|\s+и\s+|\s+или\s+', match)
@@ -424,8 +465,19 @@ class SkillParser:
                                     continue
                                 if ABBREV_RE.match(token):
                                     continue
+                                # P0: только whitelist-навыки (свёртка+нормализация)
+                                match SkillNormalizer.normalize(token):
+                                    case Ok(norm) if norm and _normalize_for_matching(norm) in self.TECH_SKILLS:
+                                        pass
+                                    case _:
+                                        continue
+                                # P5: отрицание рядом — не навык
+                                start = max(0, m.start() - 50)
+                                context = text_norm[start:m.end() + 50]
+                                if any(neg in context for neg in _negation_norms):
+                                    continue
                                 skills.append(ExtractedSkill(
-                                    text=token, source=source, raw_match=match, confidence=confidence
+                                    text=norm, source=source, raw_match=match, confidence=confidence
                                 ))
                                 self._update_stats(source)
 
