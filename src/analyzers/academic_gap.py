@@ -165,11 +165,26 @@ class AcademicGapAnalyzer:
             market_embs = comp.embed_skills(market)
             sims = cosine_similarity(topic_emb, market_embs)[0]
             order = np.argsort(sims)[::-1]
-            top = [
-                {"skill": market[i], "similarity": round(float(sims[i]), 4)}
-                for i in order[:15]
-                if float(sims[i]) >= 0.3
-            ]
+            # Гибрид H: короткие (<5 символов) токены без категорий таксономии —
+            # почти всегда шум (ккт, тсд, еспд, скд). Легитимные короткие
+            # навыки (sql, go, r) категории имеют и не страдают.
+            # Фильтруем ДО среза топ-15, чтобы их место заняли лучше.
+            curr = self._get_taxonomy_cats()
+            picked: list[dict] = []
+            for i in order:
+                if float(sims[i]) < 0.3:
+                    break
+                name = market[i]
+                if (curr is not None and len(name.strip()) < 5
+                        and not curr.cats_of(name)):
+                    logger.info("short_token_dropped", skill=name,
+                                sim=round(float(sims[i]), 3))
+                    continue
+                picked.append({"skill": name,
+                               "similarity": round(float(sims[i]), 4)})
+                if len(picked) >= 15:
+                    break
+            top = picked
             return {
                 "top_market": top,
                 "market_avg_sim": round(float(sims.mean()), 4),

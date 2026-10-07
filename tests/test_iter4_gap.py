@@ -228,3 +228,37 @@ class TestTopicFilterStats:
             assert min(sims) >= 0.45, "kept item below gate"
             assert st["dropped_max_comp_sim"] <= st["kept_avg_comp_sim"] or \
                 st["c_drop"] > 0, "drops should not outrank keeps w/o cat reason"
+
+
+class TestShortTokenHybrid:
+    """Гибрид H: короткие (<5) токены без категорий — шум (ккт, тсд).
+
+    Детерминированный стаб эмбеддингов (без моделей): zzzq и legit имеют
+    topic-sim ~1.0, но zzzq короткий и без категорий — вылетает, legit остаётся.
+    """
+
+    def test_short_uncategorized_absent(self, monkeypatch):
+        import numpy as np
+        from src.analyzers import academic_gap as agmod
+        from src.analyzers.academic_gap import AcademicGapAnalyzer
+        monkeypatch.setattr(
+            agmod, "_load_it_skills",
+            lambda: ["zzzq", "legit skill name here", "другой навык"])
+        vecs = {"zzzq": [1.0, 0.0],
+                "legit skill name here": [1.0, 0.05],
+                "другой навык": [0.0, 1.0]}
+
+        class _Comp:
+            def embed_skills(self, skills):
+                return np.array([vecs.get(s, [1.0, 0.0]) for s in skills])
+
+        a = AcademicGapAnalyzer()
+        monkeypatch.setattr(a, "_get_comparator", lambda: _Comp())
+        monkeypatch.setattr(a, "_get_taxonomy_cats",
+                            lambda: type("T", (), {
+                                "cats_of": staticmethod(lambda s: set()),
+                            })())
+        top = [m["skill"] for m in
+               a._market_stats(["sometopicword"]).get("top_market", [])]
+        assert "zzzq" not in top
+        assert "legit skill name here" in top
