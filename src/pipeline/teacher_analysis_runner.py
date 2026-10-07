@@ -550,12 +550,18 @@ async def run_teacher_analysis(
     # — load direction meta —
     try:
         if direction_code:
-            direction = await pool.fetchrow(
-                "SELECT id, code, name, profile FROM directions WHERE code=$1", direction_code
+            rows = await pool.fetch(
+                "SELECT id, code, name, profile FROM directions "
+                "WHERE code=$1 ORDER BY id", direction_code
             )
+            if len(rows) > 1:
+                logger.warning("duplicate_direction_code", code=direction_code,
+                               count=len(rows),
+                               picked_profile=rows[0]["profile"])
+            direction = rows[0] if rows else None
         else:
             direction = await pool.fetchrow(
-                "SELECT id, code, name, profile FROM directions LIMIT 1"
+                "SELECT id, code, name, profile FROM directions ORDER BY id LIMIT 1"
             )
     except Exception as exc:
         logger.error("direction_query_failed", error=str(exc))
@@ -648,7 +654,7 @@ async def run_teacher_analysis(
 
             last_run = await pool.fetchval(
                 "SELECT MAX(completed_at) FROM pipeline_runs "
-                "WHERE status = 'completed' AND action IN ('full-cycle', 'hh-import')"
+                "WHERE status = 'completed' AND action IN ('full-cycle', 'hh-import', 'reparse')"
             )
             market_unchanged = bool(last_run) and summary_mtime > last_run.timestamp()
 

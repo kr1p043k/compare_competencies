@@ -34,8 +34,9 @@ logger = structlog.get_logger(__name__)
 
 #: Вес cosine similarity при бленде с extra_engines. Остаток делится между extra.
 #: Sweep (763 пары + 2289 негативов): (0.5/0.1/0.25)@0.7 F1 0.9307
-#: vs (0.7/0.2/0.15)@0.75 F1 0.9135; @0.6 выше (0.9608), но recall там
-#: на token-sharing proxy (инфляция) — держим 0.7 до прод-валидации.
+#: vs (0.7/0.2/0.15)@0.75 F1 0.9135. Порог 0.6: zero-overlap synonym-пары
+#: (129 штук, без LLM): P 0.955 / R 0.651 против P 0.961 / R 0.566 на 0.7 —
+#: −0.6pp точности за +8.5pp recall; на Exp2-парафразах +18pp recall.
 COSINE_WEIGHT = 0.5
 
 
@@ -44,7 +45,7 @@ class EmbeddingComparator:
         self,
         model_name: str = None,
         cache_dir: str = None,
-        similarity_threshold: float = 0.7,
+        similarity_threshold: float = 0.6,
     ):
         self.provider = EmbeddingProviderFactory.get(model_name)
         self.model = self.provider

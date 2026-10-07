@@ -295,7 +295,7 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
             {item.data_points !== undefined && (
               <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800">точек истории: {item.data_points}</span>
             )}
-            {item.mape !== undefined && item.mape > 0 && (
+            {item.mape != null && item.mape > 0 && (
               <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800">hold-out MAPE: {item.mape.toFixed(2)}</span>
             )}
             {insufficient && (

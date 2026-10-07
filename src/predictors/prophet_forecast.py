@@ -35,29 +35,37 @@ except ImportError:
 logger = structlog.get_logger(__name__)
 
 
-def _holdout_mape(points: list[tuple[date, float]]) -> float:
+def _holdout_mape(points: list[tuple[date, float]]) -> float | None:
     """Hold-out MAPE: линейный тренд на всех точках кроме последней, ошибка на последней.
 
     Возвращает MAPE (0 = идеально, 1 = 100% ошибка). При стабильных данных близко к 0.
+    None = посчитать нельзя (<2 точек, вырожденный ряд, actual < 1).
+    Раньше возвращал 0.0 («идеально») при отсутствии данных — враньё:
+    UI прячет бейдж только при mape<=0, и 0.0 выглядел как отличный прогноз.
     """
     import numpy as np
     if len(points) < 2:
-        return 0.0
+        return None
     train = points[:-1]
     x = np.array([(d - train[0][0]).days for d, _ in train], dtype=float)
     y = np.array([f for _, f in train], dtype=float)
     if len(x) < 2 or np.all(x == x[0]):
-        return 0.0
+        return None
     try:
         slope, intercept = np.polyfit(x, y, 1)
     except Exception:
-        return 0.0
+        return None
     last_date, actual = points[-1]
     days_ahead = (last_date - train[0][0]).days
     pred = intercept + slope * days_ahead
     if abs(actual) < 1.0:
-        return 0.0
+        return None
     return float(abs(pred - actual) / abs(actual))
+
+
+def _rounded_mape(mapping: dict[str, float | None], skill: str) -> float | None:
+    v = mapping.get(skill)
+    return round(v, 4) if v is not None else None
 
 
 @dataclass
@@ -341,7 +349,7 @@ class ProphetForecastEngine(BasePredictor):
         self._fallback_engine: SkillForecastEngine | None = None
         self._skill_history: dict[str, list[tuple[date, float]]] = {}
         self._last_actual_freq: dict[str, float] = {}
-        self._skill_mape: dict[str, float] = {}
+        self._skill_mape: dict[str, float | None] = {}
         self._skill_npoints: dict[str, int] = {}
         self._observed: dict[str, list[tuple[date, float]]] = {}
         self._is_fitted = False
@@ -509,7 +517,7 @@ class ProphetForecastEngine(BasePredictor):
                 next_year_frequency=round(next_freq, 4),
                 engine_used="prophet",
                 data_points=self._skill_npoints.get(skill, n_pts),
-                mape=round(self._skill_mape.get(skill, 0.0), 4),
+                mape=_rounded_mape(self._skill_mape, skill),
                 forecast_months=months,
             ))
         if self._fallback_engine:
@@ -538,7 +546,7 @@ class ProphetForecastEngine(BasePredictor):
                     next_year_frequency=fr.next_year_frequency,
                     engine_used="trend",
                     data_points=n_pts,
-                    mape=round(self._skill_mape.get(skill, 0.0), 4),
+                    mape=_rounded_mape(self._skill_mape, skill),
                     forecast_months=min(months, self.max_forecast_months()),
                 ))
             return result
@@ -584,11 +592,11 @@ class ProphetForecastEngine(BasePredictor):
                                 predicted_growth=r.predicted_growth,
                                 confidence=r.confidence,
                                 next_year_frequency=r.next_year_frequency,
-                                engine_used="trend",
-                                data_points=n_pts,
-                                mape=round(self._skill_mape.get(r.skill, 0.0), 4),
-                                forecast_months=min(months, self.max_forecast_months()),
-                            ))
+                            engine_used="trend",
+                            data_points=n_pts,
+                            mape=_rounded_mape(self._skill_mape, r.skill),
+                            forecast_months=min(months, self.max_forecast_months()),
+                        ))
                 case _:
                     pass
         return Ok(results)

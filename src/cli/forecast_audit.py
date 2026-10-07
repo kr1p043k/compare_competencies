@@ -14,7 +14,6 @@ from datetime import date, datetime
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-import numpy as np
 import structlog
 
 from src import config
@@ -76,24 +75,11 @@ def _interp(snaps: list[tuple[date, dict[str, float]]]) -> list[tuple[date, dict
     return result
 
 
-def _holdout_mape(points: list[tuple[date, float]]) -> float:
-    if len(points) < 3:
-        return 0.0
-    train = points[:-1]
-    x = np.array([(d - train[0][0]).days for d, _ in train], dtype=float)
-    y = np.array([f for _, f in train], dtype=float)
-    if len(x) < 2 or np.all(x == x[0]):
-        return 0.0
-    try:
-        slope, intercept = np.polyfit(x, y, 1)
-    except Exception:
-        return 0.0
-    actual = points[-1][1]
-    days_ahead = (points[-1][0] - train[0][0]).days
-    pred = intercept + slope * days_ahead
-    if abs(actual) < 1.0:
-        return 0.0
-    return float(abs(pred - actual) / abs(actual))
+def _holdout_mape(points: list[tuple[date, float]]) -> float | None:
+    """Единая семантика с predictors.prophet_forecast: None = не посчитать."""
+    from src.predictors.prophet_forecast import _holdout_mape as _shared
+
+    return _shared(points)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -129,6 +115,8 @@ def main(args: argparse.Namespace) -> None:
         if len(points) < 4:
             continue
         mape = _holdout_mape(points)
+        if mape is None:
+            continue
         rows.append((skill, len(points), mape, points[-1][1]))
 
     rows.sort(key=lambda x: x[2], reverse=True)

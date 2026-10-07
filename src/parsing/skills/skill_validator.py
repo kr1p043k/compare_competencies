@@ -158,6 +158,9 @@ class SkillValidator:
             # Явный whitelist точнее эвристик: точное совпадение бьет
             # blacklist-подстроки ('автоматизация' в 'автоматизация тестирования')
             # и generic-ярлыки. Структурные проверки (длина/слова/цифры) действуют.
+            # P-length: 2-символьные whitelist-навыки (qa/ui/ux/go/1c) минуют
+            # TOO_SHORT — явная санкция сильнее эвристики длины.
+            # 1-символьные ('r') всё равно режем: ненадёжный токен.
             skill_nospace = skill_lower.replace(" ", "").replace("-", "").replace("_", "")
             wl_norm = {
                 w.lower().replace(" ", "").replace("-", "").replace("_", "")
@@ -168,7 +171,9 @@ class SkillValidator:
             if confidence < self.min_confidence:
                 reasons.append(ValidationReason.LOW_CONFIDENCE)
 
-            if len(skill) < self.min_length:
+            if len(skill) < self.min_length and not (
+                whitelisted_exact and len(skill) >= 2
+            ):
                 reasons.append(ValidationReason.TOO_SHORT)
 
             if len(skill) > self.max_length:

@@ -70,6 +70,20 @@ class DisciplineAwareScorer:
         self._loaded = True
         logger.info("discipline_relevance_loaded", disciplines=len(self._disciplines))
 
+    def _disc_texts_hash(self) -> str:
+        import hashlib
+        import json as _json
+
+        payload = _json.dumps(self._discipline_texts, sort_keys=True, ensure_ascii=False)
+        try:
+            mv = self._model.model_version() if self._model is not None else "unknown"
+        except Exception:
+            mv = "unknown"
+        return hashlib.sha256((mv + "\n" + payload).encode("utf-8")).hexdigest()[:16]
+
+    def _disc_emb_cache_path(self):
+        return config.EMBEDDINGS_CACHE_DIR / "discipline_embeddings.joblib"
+
     def _ensure_embeddings(self) -> None:
         if self._discipline_embeddings or not self._loaded:
             return
@@ -79,6 +93,24 @@ class DisciplineAwareScorer:
             if self._model is None:
                 from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
                 self._model = EmbeddingProviderFactory.get()
+            # Persist поперёк прогонов (~38с/прогон): тексты KRM стабильны,
+            # хэш ловит правки и смену модели.
+            try:
+                import joblib
+
+                _cp = self._disc_emb_cache_path()
+                if _cp.exists():
+                    _loaded = joblib.load(_cp)
+                    if isinstance(_loaded, dict) and _loaded.get("texts_hash") == self._disc_texts_hash():
+                        self._discipline_embeddings = {
+                            k: np.asarray(v, dtype=np.float32)
+                            for k, v in _loaded.get("embeddings", {}).items()
+                        }
+                        logger.info("discipline_embeddings_cache_reused",
+                                    count=len(self._discipline_embeddings))
+                        return
+            except Exception as exc:
+                logger.debug("discipline_emb_cache_unavailable", error=str(exc))
             for disc_name, texts in self._discipline_texts.items():
                 try:
                     embs = self._model.encode(texts, show_progress_bar=False)
@@ -90,6 +122,28 @@ class DisciplineAwareScorer:
                 except Exception as exc:
                     logger.warning("discipline_embedding_failed", discipline=disc_name, error=str(exc))
             logger.info("discipline_embeddings_computed", count=len(self._discipline_embeddings))
+            try:
+                import contextlib
+                import os
+                import tempfile
+
+                import joblib
+
+                _cp = self._disc_emb_cache_path()
+                _cp.parent.mkdir(parents=True, exist_ok=True)
+                fd, _tmp = tempfile.mkstemp(dir=_cp.parent, suffix=".joblib.tmp")
+                os.close(fd)
+                try:
+                    joblib.dump({"texts_hash": self._disc_texts_hash(),
+                                 "embeddings": {k: np.asarray(v) for k, v in
+                                                self._discipline_embeddings.items()}}, _tmp)
+                    os.replace(_tmp, _cp)
+                finally:
+                    with contextlib.suppress(Exception):
+                        if os.path.exists(_tmp):
+                            os.unlink(_tmp)
+            except Exception as exc:
+                logger.warning("discipline_emb_cache_save_failed", error=str(exc))
 
     def _disc_vector(self, discipline_name: str | None):
         """Вектор дисциплины: из карты либо fallback на эмбеддинг названия.

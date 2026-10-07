@@ -12,12 +12,29 @@ from src.database import async_session_factory
 from src.models.vacancy import Area, Employer, KeySkill, Snippet, Vacancy
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.parsing.skills.skill_parser import SkillParser
+from src.pipeline.db_writer import complete_pipeline_run, create_pipeline_run
 
 
 async def main(force_all: bool = False):
     """Re-parse vacancies. Default: only NULL/empty parsed_skills.
     force_all=True: re-parse EVERYTHING (homoglyph backfill: parser used to
-    store the folded form; re-parse restores originals from raw)."""
+    store the folded form; re-parse restores originals from raw).
+
+    Регистрирует pipeline_runs(action='reparse'): skip-гейт teacher-analysis
+    иначе считал бы данные неизменёнными (у vacancies нет updated_at).
+    """
+    run_id = await create_pipeline_run("reparse")
+    try:
+        await _populate(run_id, force_all)
+    except Exception as exc:
+        try:
+            await complete_pipeline_run(run_id, status="failed", error=str(exc))
+        except Exception as log_exc:
+            print(f"  failed to record run failure: {log_exc}")
+        raise
+
+
+async def _populate(run_id: str, force_all: bool) -> None:
     parser = SkillParser()
     if force_all:
         print("FORCE-ALL mode: re-parsing every vacancy (homoglyph backfill)")
@@ -31,6 +48,7 @@ async def main(force_all: bool = False):
         total_count = total.scalar()
         if total_count == 0:
             print("All vacancies already have parsed_skills")
+            await complete_pipeline_run(run_id, stats={"processed": 0, "skipped": True})
             return
         print(f"Found {total_count} vacancies to parse")
 
@@ -114,6 +132,8 @@ async def main(force_all: bool = False):
             await session.commit()
 
         print(f"Done! Updated {processed} vacancies")
+        await complete_pipeline_run(
+            run_id, stats={"processed": processed, "force_all": force_all})
 
 
 if __name__ == "__main__":
