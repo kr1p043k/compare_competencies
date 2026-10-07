@@ -122,6 +122,12 @@ class EmbeddingComparator:
         return np.stack([self._skill_cache[s] for s in skills])
 
     def build_market_index(self, all_market_skills: list[str], level: str = "all"):
+        from src.analyzers.comparison.market_embedding_store import (
+            market_data_hash,
+            merge_matrix,
+            split_cached,
+        )
+
         cache_path = self._get_cache_path("market_embeddings", level)
 
         if cache_path.exists():
@@ -139,6 +145,11 @@ class EmbeddingComparator:
                                     manifest_version=manifest.model_version,
                                     current_version=ArtifactManifest._get_embedding_model_version())
                                 manifest_ok = False
+                        if manifest_ok:
+                            _dh = getattr(manifest, "data_hash", None)
+                            if _dh is not None and all_market_skills and \
+                                    _dh != market_data_hash(all_market_skills):
+                                logger.info("market_cache_data_mismatch_delta_merge", level=level)
                     case Err(err):
                         logger.warning("market_cache_manifest_load_failed", error=str(err))
                         manifest_ok = False
@@ -146,11 +157,36 @@ class EmbeddingComparator:
                 try:
                     loaded = joblib.load(cache_path)
                     if isinstance(loaded, dict):
-                        self.market_embeddings = loaded["embeddings"]
-                        self.market_skills = loaded["skills"]
+                        cached_skills = list(loaded["skills"])
+                        cached_embs = np.asarray(loaded["embeddings"])
                     else:
-                        self.market_embeddings, self.market_skills = loaded
-                    logger.info("embeddings_cache_loaded", level=level)
+                        cached_embs, cached_skills = np.asarray(loaded[0]), list(loaded[1])
+                    if len(cached_skills) != len(cached_embs):
+                        raise ValueError("market cache length mismatch")
+                    if not all_market_skills:
+                        # Legacy: пустой запрос при валидном кэше → отдать кэш.
+                        self.market_embeddings = cached_embs
+                        self.market_skills = cached_skills
+                        logger.info("embeddings_cache_loaded", level=level)
+                        return
+                    have_names, have_mat, missing = split_cached(
+                        cached_skills, cached_embs, all_market_skills)
+                    if not missing:
+                        row_by_skill = {s: i for i, s in enumerate(have_names)}
+                        idx = np.fromiter(
+                            (row_by_skill[n] for n in all_market_skills),
+                            dtype=np.int64, count=len(all_market_skills))
+                        self.market_embeddings = np.asarray(have_mat)[idx]
+                        self.market_skills = list(all_market_skills)
+                        logger.info("embeddings_cache_loaded", level=level)
+                        return
+                    logger.info("market_cache_delta_merge", level=level,
+                                reused=len(have_names), missing=len(missing))
+                    fresh = self.embed_skills(missing)
+                    order, mat = merge_matrix(have_names, have_mat, missing, fresh)
+                    self.market_embeddings = mat
+                    self.market_skills = order
+                    self._save_market_index(cache_path, order, mat)
                     return
                 except Exception as e:
                     logger.warning("market_cache_load_failed", level=level, error=str(e))
@@ -161,31 +197,30 @@ class EmbeddingComparator:
 
         self.market_skills = all_market_skills
         self.market_embeddings = self.embed_skills(self.market_skills)
+        self._save_market_index(cache_path, self.market_skills, self.market_embeddings)
 
+    def _save_market_index(self, cache_path, skills, embs) -> None:
+        """Атомарная запись индекса + манифест с data_hash (ошибки манифеста — мимо)."""
+        from src.analyzers.comparison.market_embedding_store import market_data_hash
+
+        fd, tmp_path = tempfile.mkstemp(dir=cache_path.parent, suffix=".joblib.tmp")
+        os.close(fd)
         try:
-            fd, tmp_path = tempfile.mkstemp(dir=cache_path.parent, suffix=".joblib.tmp")
-            os.close(fd)
-            joblib.dump(
-                {"embeddings": self.market_embeddings, "skills": self.market_skills},
-                tmp_path,
-            )
+            joblib.dump({"embeddings": np.asarray(embs), "skills": list(skills)}, tmp_path)
             os.replace(tmp_path, cache_path)
-            logger.info("market_embeddings_saved_atomically", level=level, path=str(cache_path))
-        except Exception as e:
-            logger.error("failed_to_save_market_embeddings", error=str(e))
+            logger.info("market_embeddings_saved_atomically", path=str(cache_path))
+        except Exception:
             with suppress(Exception):
                 os.unlink(tmp_path)
             raise
-
         try:
-            manifest = ArtifactManifest(
+            ArtifactManifest(
                 artifact_path=cache_path,
-                metrics={"num_skills": len(self.market_skills)},
-            )
-            if manifest.save().is_err():
-                logger.warning("market_cache_manifest_save_failed")
-        except Exception as e:
-            logger.warning("market_cache_manifest_save_failed", error=str(e))
+                data_hash=market_data_hash(list(skills)),
+                metrics={"num_skills": len(skills)},
+            ).save()
+        except Exception as exc:
+            logger.warning("market_index_manifest_save_failed", error=str(exc))
 
     def compare_student_to_market(self, student_skills: list[str]) -> Result[dict, DomainError]:
         if self.market_embeddings is None:

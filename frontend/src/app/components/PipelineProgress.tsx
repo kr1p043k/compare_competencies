@@ -53,6 +53,29 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
     return `~${Math.floor(remaining / 60)} мин ${Math.round(remaining % 60)} сек`;
   }, [elapsed, effectivePct]);
 
+  // Журнал — чистый вывод из currentStep.logs: тик elapsed (1с) не
+  // пересоздаёт строки терминала, они пересобираются только при новых логах.
+  const logLines = useMemo(
+    () =>
+      (currentStep?.logs ?? []).map((line, i) => (
+        <div
+          key={i}
+          className={`${
+            line.includes("ошибка") || line.includes("Error") || line.includes("❌")
+              ? "text-red-400"
+              : line.includes("✅") || line.includes("успешно") || line.includes("завершён")
+                ? "text-green-400"
+                : line.includes("⚠") || line.includes("warning")
+                  ? "text-yellow-400"
+                  : "text-gray-300"
+          }`}
+        >
+          {line}
+        </div>
+      )),
+    [currentStep?.logs]
+  );
+
   if (!currentStep) return null;
 
   const getStatusIcon = () => {
@@ -229,22 +252,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
               </div>
               <ScrollArea className="h-48 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-950 p-3">
                 <div className="font-mono text-xs leading-relaxed">
-                  {logs.map((line, i) => (
-                    <div
-                      key={i}
-                      className={`${
-                        line.includes("ошибка") || line.includes("Error") || line.includes("❌")
-                          ? "text-red-400"
-                          : line.includes("✅") || line.includes("успешно") || line.includes("завершён")
-                            ? "text-green-400"
-                            : line.includes("⚠") || line.includes("warning")
-                              ? "text-yellow-400"
-                              : "text-gray-300"
-                      }`}
-                    >
-                      {line}
-                    </div>
-                  ))}
+                  {logLines}
                 </div>
               </ScrollArea>
             </motion.div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, memo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -42,7 +42,7 @@ interface NotificationItem {
   created_at: string;
 }
 
-export function MonitoringTab() {
+function MonitoringTabBase() {
   const [metrics, setMetrics] = useState<Record<string, MetricFamily> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,10 +157,19 @@ export function MonitoringTab() {
     return metrics[name].samples;
   };
 
-  const pipelineCountSamples = findMetric("pipeline_stage_duration_seconds").filter(
-    (s) => s.name.endsWith("_count")
+  // Чистый derive из metrics: пересчёт только при смене метрик (15с-поллинг),
+  // а не на каждый ререндер компонента (тик, ввод форм, фильтр уведомлений).
+  const pipelineCountSamples = useMemo(
+    () =>
+      findMetric("pipeline_stage_duration_seconds").filter(
+        (s) => s.name.endsWith("_count")
+      ),
+    [metrics]
   );
-  const pipelineRunCount = pipelineCountSamples.reduce((s, m) => s + m.value, 0);
+  const pipelineRunCount = useMemo(
+    () => pipelineCountSamples.reduce((s, m) => s + m.value, 0),
+    [pipelineCountSamples]
+  );
 
   const createSubscription = async () => {
     if (!newTopic.trim()) return;
@@ -598,4 +607,5 @@ export function MonitoringTab() {
   );
 }
 
+export const MonitoringTab = memo(MonitoringTabBase);
 

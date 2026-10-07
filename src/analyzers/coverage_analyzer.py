@@ -99,6 +99,15 @@ class CoverageAnalyzer:
             with self._skill_emb_lock:
                 self._skill_emb_cache.update(disk)
 
+        # Общий стор: векторы маркета уже закодированы матчером (тоже L2) —
+        # забираем без повторного encode.
+        _mn = list(getattr(self.matcher, "_market_names", []) or [])
+        _me = getattr(self.matcher, "_market_embeddings", None)
+        if _me is not None and len(_mn) == len(_me):
+            with self._skill_emb_lock:
+                for s, e in zip(_mn, _me, strict=False):
+                    self._skill_emb_cache.setdefault(s, np.asarray(e, dtype=np.float32))
+
         todo = [s for s in skills if s not in self._skill_emb_cache]
         if todo:
             prov = EmbeddingProviderFactory.get()

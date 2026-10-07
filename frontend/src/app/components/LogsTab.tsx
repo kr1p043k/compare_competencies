@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -14,7 +14,7 @@ function wsUrl(token: string | null): string {
   return `${proto}${window.location.host}/api/admin/logs/ws${q}`;
 }
 
-export function LogsTab() {
+function LogsTabBase() {
   const { token } = useAuth();
   const [lines, setLines] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,16 +136,22 @@ export function LogsTab() {
     setAutoScroll(nearBottom);
   };
 
-  const filtered = search.trim()
-    ? lines.filter((l) => l.toLowerCase().includes(search.toLowerCase()))
-    : lines;
+  // Чистый derive из state: фильтр не пересчитывается при каждом рендере
+  // (WS-кадры, тик 10с-поллинга, ввод в поиске не меняют лишние зависимости).
+  const filtered = useMemo(
+    () =>
+      search.trim()
+        ? lines.filter((l) => l.toLowerCase().includes(search.toLowerCase()))
+        : lines,
+    [lines, search]
+  );
 
-  const levelColor = (line: string) => {
-    if (line.includes("level=error") || line.startsWith("ERROR ")) return "text-red-600";
-    if (line.includes("level=warning") || line.startsWith("WARNING ") || line.startsWith("WARN ")) return "text-amber-600";
-    if (line.includes("level=debug")) return "text-gray-400 dark:text-slate-500";
-    return "text-gray-700 dark:text-slate-300";
-  };
+  // Тяжёлый список (до 500 строк) — мемоизируем вывод: тик авто-скролла и
+  // прочие ререндеры не пересоздают 500 DOM-узлов заново.
+  const logRows = useMemo(
+    () => filtered.map((line, i) => <div key={i} className={levelColor(line)}>{line}</div>),
+    [filtered]
+  );
 
   return (
     <div className="space-y-6">
@@ -219,12 +225,21 @@ export function LogsTab() {
             onScroll={onScroll}
             className="p-4 bg-gray-950 rounded-lg overflow-x-auto text-xs leading-5 max-h-[70vh] overflow-y-auto font-mono whitespace-pre-wrap break-words"
           >
-            {filtered.map((line, i) => (
-              <div key={i} className={levelColor(line)}>{line}</div>
-            ))}
+            {logRows}
           </pre>
         </CardContent>
       </Card>
     </div>
   );
 }
+
+// Чистая функция без доступа к стейту — вынесена на уровень модуля,
+// чтобы useMemo по filtered не зависел от рекреации на каждом рендере.
+function levelColor(line: string) {
+  if (line.includes("level=error") || line.startsWith("ERROR ")) return "text-red-600";
+  if (line.includes("level=warning") || line.startsWith("WARNING ") || line.startsWith("WARN ")) return "text-amber-600";
+  if (line.includes("level=debug")) return "text-gray-400 dark:text-slate-500";
+  return "text-gray-700 dark:text-slate-300";
+}
+
+export const LogsTab = memo(LogsTabBase);

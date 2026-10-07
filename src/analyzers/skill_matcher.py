@@ -241,9 +241,20 @@ class SkillMatcher:
         return config.EMBEDDINGS_CACHE_DIR / MARKET_EMB_CACHE_NAME
 
     def _try_load_market_embs(self, names: list[str]) -> np.ndarray | None:
-        """Загружает кэш эмбеддингов рынка (формат совместим с EmbeddingComparator)."""
+        """Загружает кэш эмбеддингов рынка (формат совместим с EmbeddingComparator).
+
+        All-or-nothing + delta: полное совпадение состава → load;
+        частичное → докодировать недостающее через провайдер, слить,
+        атомарно перезаписать. Чужой model_version → None (полный пересчёт).
+        """
         try:
             import joblib
+
+            from src.analyzers.comparison.market_embedding_store import (
+                market_data_hash,
+                merge_matrix,
+                split_cached,
+            )
 
             cache_path = self._market_cache_path()
             if not cache_path.exists():
@@ -259,6 +270,10 @@ class SkillMatcher:
                                 manifest_ok = True
                             case _:
                                 logger.info("market_emb_cache_invalidated_by_model")
+                                return None
+                        _dh = getattr(manifest, "data_hash", None)
+                        if _dh is not None and _dh != market_data_hash(names) and names:
+                            logger.info("market_emb_cache_data_mismatch_delta_merge")
                     case Err(err):
                         logger.warning("market_emb_cache_manifest_load_failed", error=str(err))
             except ImportError:
@@ -266,14 +281,28 @@ class SkillMatcher:
             if not manifest_ok:
                 return None
             loaded = joblib.load(cache_path)
-            skills = loaded["skills"] if isinstance(loaded, dict) else loaded[1]
+            skills = list(loaded["skills"] if isinstance(loaded, dict) else loaded[1])
             embs = loaded["embeddings"] if isinstance(loaded, dict) else loaded[0]
-            if len(skills) != len(embs) or set(skills) != set(names):
+            if len(skills) != len(np.asarray(embs)):
                 return None
-            row_by_skill = {s: i for i, s in enumerate(skills)}
+            if not names:
+                return np.asarray(embs)
+            have_names, have_mat, missing = split_cached(skills, embs, names)
+            if not missing:
+                logger.info("market_embeddings_cache_reused", count=len(names))
+                row_by_skill = {s: i for i, s in enumerate(have_names)}
+                idx = np.fromiter((row_by_skill[n] for n in names), dtype=np.int64, count=len(names))
+                return np.asarray(have_mat)[idx]
+            if self._embedding_provider is None:
+                return None
+            fresh = np.asarray(self._embedding_provider.encode(missing, show_progress_bar=False))
+            order, mat = merge_matrix(have_names, have_mat, missing, fresh)
+            self._save_market_embs(order, mat)
+            row_by_skill = {s: i for i, s in enumerate(order)}
             idx = np.fromiter((row_by_skill[n] for n in names), dtype=np.int64, count=len(names))
-            logger.info("market_embeddings_cache_reused", count=len(names))
-            return np.asarray(embs)[idx]
+            logger.info("market_embeddings_cache_delta_merged",
+                        reused=len(have_names), encoded=len(missing))
+            return mat[idx]
         except Exception as exc:
             logger.debug("market_emb_cache_unavailable", error=str(exc))
             return None
@@ -295,10 +324,12 @@ class SkillMatcher:
             os.replace(tmp_path, cache_path)
             tmp_path = None
             try:
+                from src.analyzers.comparison.market_embedding_store import market_data_hash
                 from src.artifacts import ArtifactManifest
 
                 ArtifactManifest(
                     artifact_path=cache_path,
+                    data_hash=market_data_hash(names),
                     metrics={"num_skills": len(names)},
                 ).save()
             except Exception as exc:

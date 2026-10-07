@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Suspense, lazy } from "react";
+import { useState, useEffect, useRef, Suspense, lazy, memo, useCallback } from "react";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import {
@@ -82,6 +82,30 @@ import {
 } from "lucide-react";
 
 const API = "/api";
+
+// Fallback для ЛОКАЛЬНОГО Suspense одной вкладки: маленький инлайн-спиннер.
+// Грузится только переключаемая вкладка — вся область контента больше не гасится.
+function TabSpinner() {
+  return (
+    <div
+      className="p-6 flex items-center gap-2 text-sm text-gray-500"
+      role="status"
+      aria-live="polite"
+    >
+      <span
+        className="mr-2 inline-block size-4 shrink-0 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin motion-reduce:animate-none"
+        aria-hidden="true"
+      />
+      Загрузка раздела…
+    </div>
+  );
+}
+
+// Тяжёлые списки под React.memo: не перерисовываются от ререндеров App
+// (health-poll, статусы, шаги пайплайна), только от собственного стейта.
+const MemoPredictionsTab = memo(PredictionsTab);
+const MemoScientificTrendsTab = memo(ScientificTrendsTab);
+const MemoPipelineProgress = memo(PipelineProgress);
 
 type NavItem = { value: string; label: string; Icon: any };
 
@@ -367,7 +391,7 @@ export default function App() {
       });
   };
 
-  const cancelPipeline = () => {
+  const cancelPipeline = useCallback(() => {
     const taskId = pipelineTaskRef.current;
     if (!taskId) return;
     fetch(`/api/pipeline/cancel/${taskId}`, { method: "POST" }).catch(() => {});
@@ -377,15 +401,15 @@ export default function App() {
     pipelineTaskRef.current = null;
     pipelineLoadingRef.current = false;
     // keep task id: refresh shows final state + restart button
-  };
+  }, []);
 
-  const restartPipeline = () => {
+  const restartPipeline = useCallback(() => {
     cancelPipeline();
     setTimeout(() => {
       setPipelineStep(null);
       setRestartFlag(n => n + 1);
     }, 300);
-  };
+  }, [cancelPipeline]);
 
   const pollPipeline = () => {
     const taskId = pipelineTaskRef.current;
@@ -869,7 +893,7 @@ export default function App() {
           {/* Pipeline progress */}
           {pipelineStep && (
             <div className="mb-4">
-              <PipelineProgress currentStep={pipelineStep} onCancel={cancelPipeline} onRestart={restartPipeline} showLogs={activeTab === "admin"} />
+              <MemoPipelineProgress currentStep={pipelineStep} onCancel={cancelPipeline} onRestart={restartPipeline} showLogs={activeTab === "admin"} />
             </div>
           )}
 
@@ -1148,65 +1172,87 @@ export default function App() {
           {/* Visualization Tab */}
           {effectiveRole === "admin" && (
             <TabsContent value="visualization">
-              <GapAnalysisVisualizer profile={profile} onProfileChange={handleProfileChange} />
+              <Suspense fallback={<TabSpinner />}>
+                <GapAnalysisVisualizer profile={profile} onProfileChange={handleProfileChange} />
+              </Suspense>
             </TabsContent>
           )}
 
           <TabsContent value="predictions">
-            <PredictionsTab />
+            <MemoPredictionsTab />
           </TabsContent>
           <TabsContent value="articles">
-            <ArticlesPage onStartGapAnalysis={() => { runGapAnalysis(); setActiveTab("data"); }} />
+            <Suspense fallback={<TabSpinner />}>
+              <ArticlesPage onStartGapAnalysis={() => { runGapAnalysis(); setActiveTab("data"); }} />
+            </Suspense>
           </TabsContent>
           <TabsContent value="scientific-trends">
-            <ScientificTrendsTab />
+            <MemoScientificTrendsTab />
           </TabsContent>
           <TabsContent value="help">
-            <FaqPage />
+            <Suspense fallback={<TabSpinner />}>
+              <FaqPage />
+            </Suspense>
           </TabsContent>
           {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="taxonomy">
-              <TaxonomyBrowser showSuggest={effectiveRole !== "student"} />
+              <Suspense fallback={<TabSpinner />}>
+                <TaxonomyBrowser showSuggest={effectiveRole !== "student"} />
+              </Suspense>
             </TabsContent>
           )}
           {effectiveRole === "admin" && (
             <TabsContent value="monitoring">
-              <MonitoringTab />
+              <Suspense fallback={<TabSpinner />}>
+                <MonitoringTab />
+              </Suspense>
             </TabsContent>
           )}
           {effectiveRole === "admin" && (
             <TabsContent value="logs">
-              <LogsTab />
+              <Suspense fallback={<TabSpinner />}>
+                <LogsTab />
+              </Suspense>
             </TabsContent>
           )}
           {effectiveRole === "admin" && (
             <TabsContent value="admin">
-              <AdminDashboard />
+              <Suspense fallback={<TabSpinner />}>
+                <AdminDashboard />
+              </Suspense>
             </TabsContent>
           )}
           {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="teacher">
-              <TeacherDashboard />
+              <Suspense fallback={<TabSpinner />}>
+                <TeacherDashboard />
+              </Suspense>
             </TabsContent>
           )}
           {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="students">
-              <StudentsTab />
+              <Suspense fallback={<TabSpinner />}>
+                <StudentsTab />
+              </Suspense>
             </TabsContent>
           )}
           {(effectiveRole === "student" || effectiveRole === "admin") && (
             <TabsContent value="student">
-              <StudentDashboard onNavigate={setActiveTab} />
+              <Suspense fallback={<TabSpinner />}>
+                <StudentDashboard onNavigate={setActiveTab} />
+              </Suspense>
             </TabsContent>
           )}
           <TabsContent value="profile">
-            {effectiveRole === "admin" ? (
-              <AdminProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
-            ) : effectiveRole === "teacher" || effectiveRole === "rop" ? (
-              <TeacherProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
-            ) : (
-              <StudentProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
-            )}
+            <Suspense fallback={<TabSpinner />}>
+              {effectiveRole === "admin" ? (
+                <AdminProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
+              ) : effectiveRole === "teacher" || effectiveRole === "rop" ? (
+                <TeacherProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
+              ) : (
+                <StudentProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
+              )}
+            </Suspense>
           </TabsContent>
           </Suspense>
         </Tabs>
