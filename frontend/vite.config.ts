@@ -55,10 +55,15 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
       assetsDir: 'assets',
       sourcemap: false,
-      // Убираем manualChunks - все в один файл
+      // vendor-react отдельно: иначе shell чанк >500kB и варнинг не уходит
+      // даже после lazy-сплита страниц (замер: shell+vendor 505kB raw).
       rollupOptions: {
         output: {
-          manualChunks: undefined
+          manualChunks: (id) => {
+            if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/scheduler')) {
+              return 'vendor-react';
+            }
+          }
         }
       },
     },

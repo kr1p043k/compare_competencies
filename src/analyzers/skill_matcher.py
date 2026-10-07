@@ -165,11 +165,14 @@ def _word_pattern(word: str) -> re.Pattern[str]:
     return re.compile(r"(?<!\w)" + re.escape(word) + r"(?!\w)")
 
 
-def adaptive_semantic_threshold(query: str, candidate: str, base: float = 0.70) -> float:
-    """Адаптивный порог (вывод Exp1: фикс. 0.78 режет recall вдвое).
+def adaptive_semantic_threshold(query: str, candidate: str, base: float = 0.55) -> float:
+    """Адаптивный порог (Exp1: фикс. 0.78 режет recall вдвое; Exp2-парафразы,
+    163 пары canonical-vs-raw, mpnet short-vs-short: F1 пик на 0.45 (0.859),
+    0.50 (0.842); recall@0.70 лишь 0.44, @0.55 — 0.69 при prec 0.91).
 
-    Base 0.70; -0.05 cross-script; -0.05 long query; +0.10 very short query.
-    Clamped to [0.55, 0.85].
+    Base 0.55; -0.05 cross-script; -0.05 long query; +0.10 very short query.
+    Clamped to [0.45, 0.75]. Точность страхует каскад: semantic — последняя
+    стадия после exact/fuzzy, сюда доходят только несхваченные пары.
     """
     t = base
     has_cyr_q = bool(re.search(r"[а-яёА-ЯЁ]", query))
@@ -182,7 +185,7 @@ def adaptive_semantic_threshold(query: str, candidate: str, base: float = 0.70) 
         t -= 0.05
     if len(query.strip()) < 5:
         t += 0.10
-    return max(0.55, min(0.85, t))
+    return max(0.45, min(0.75, t))
 
 
 class SkillMatcher:
@@ -199,6 +202,9 @@ class SkillMatcher:
         self._market_lemma_pats: list[tuple[str, re.Pattern[str]]] = []
         self._semantic_cache: dict[str, tuple[str, float]] = {}
         self._match_cache: dict[str, tuple[str | None, str, float]] = {}
+        # Счётчики для видимости hit-rate (профиль: кэши молчали).
+        self._semantic_hits = 0
+        self._semantic_miss = 0
         self._rebuild_fuzzy_patterns()
 
     def set_market(self, market_skills: dict[str, int]) -> Result[None, MatchingError]:
@@ -207,8 +213,11 @@ class SkillMatcher:
             logger.warning("market_skills_empty")
             return Err(MatchingError(skill_name="", message="Empty market skills map"))
         self.market_skills = dict(sorted(self._clean_market(market_skills).items(), key=lambda kv: (-kv[1], kv[0])))
+        logger.debug("semantic_cache_stats", **{k: v for k, v in self.cache_stats().items()})
         self._semantic_cache.clear()
         self._match_cache.clear()
+        self._semantic_hits = 0
+        self._semantic_miss = 0
         self._rebuild_fuzzy_patterns()
         if self._embedding_provider and market_skills:
             names = list(market_skills.keys())
@@ -440,8 +449,19 @@ class SkillMatcher:
             logger.debug("mapped_match_failed", error=str(exc))
         return (None, "no_match", 0.0)
 
+    def cache_stats(self) -> dict[str, int | float]:
+        """Hit-rate семантического кэша для профилирования."""
+        total = self._semantic_hits + self._semantic_miss
+        return {
+            "semantic_hits": self._semantic_hits,
+            "semantic_miss": self._semantic_miss,
+            "semantic_hit_rate": (self._semantic_hits / total) if total else 0.0,
+            "match_cache_size": len(self._match_cache),
+        }
+
     def _semantic_match(self, n: str, original: str | None = None) -> tuple[str | None, str, float]:
         if n in self._semantic_cache:
+            self._semantic_hits += 1
             cached_name, cached_score = self._semantic_cache[n]
             # Кэш хранит пару (имя, скор): порог пересчитываем под текущий
             # original, а не возвращаем слепые 1.0 мимо порога.
@@ -452,6 +472,7 @@ class SkillMatcher:
             return (None, "no_match", 0.0)
         if self._market_embeddings is None or self._embedding_provider is None:
             return (None, "no_match", 0.0)
+        self._semantic_miss += 1
         qemb = self._embedding_provider.encode([n])
         qnorm = np.linalg.norm(qemb)
         if qnorm > 0:

@@ -758,7 +758,8 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 return Err(e)
 
     def predict_skill_impact_with_shap(
-        self, student_skills: list[str], missing_skills: list[str], compute_shap: bool = True
+        self, student_skills: list[str], missing_skills: list[str], compute_shap: bool = True,
+        shap_top_k: int = 15,
     ) -> Result[tuple[list[tuple[str, float, str]], np.ndarray | None, pd.DataFrame | None], ModelError]:
         if not self.is_fitted or self.model is None:
             logger.warning("model_not_trained")
@@ -794,21 +795,45 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         else:
             scores = raw_scores
 
+        # Ранжируем ВСЕХ кандидатов дешёвым predict, дорогой SHAP считаем
+        # только для показанного топа (Exp-профиль: ~2.2с/дисц. на 200 строк).
+        # Возвращаемый тройной контракт: impacts — топ-15 по score,
+        # shap_values[i] и X.iloc[i] соответствуют impacts[i] (раньше строки
+        # SHAP шли в порядке valid_missing и не совпадали с отсортированными
+        # impacts — persisted shap_per_skill в раннере был перепутан).
+        ranked_idx = list(np.argsort(-scores, kind="stable"))
+        # Защита от рассогласования predict/X (кривые моки/кастомные модели):
+        # индексы обязаны существовать и в scores, и в X.
+        n_rows = min(len(scores), len(X))
+        ranked_idx = [i for i in ranked_idx if i < n_rows]
+        top_idx = ranked_idx[:15]
+        shap_n = min(len(top_idx), max(0, shap_top_k)) if compute_shap else 0
+
         shap_values = None
-        if compute_shap:
+        X_top: pd.DataFrame | None = None
+        if shap_n:
             try:
+                X_top = X.iloc[top_idx[:shap_n]]
                 explainer = shap.TreeExplainer(self.model)
-                shap_values = explainer.shap_values(X)
+                shap_values = np.asarray(explainer.shap_values(X_top))
             except Exception as e:
                 logger.warning("shap_computation_failed", error=str(e))
+                shap_values = None
+                X_top = None
 
+        X_out = X.iloc[top_idx]
         impacts = []
-        for i, skill in enumerate(valid_missing):
+        for pos, i in enumerate(top_idx):
+            skill = valid_missing[i]
             score = float(scores[i])
-            explanation = self._generate_explanation(skill, score, shap_values, i, X, student_skills)
+            sv = shap_values if shap_values is not None and pos < len(shap_values) else None
+            explanation = self._generate_explanation(
+                skill, score, sv, pos,
+                X_top if X_top is not None and pos < len(X_top) else X_out,
+                student_skills)
             impacts.append((skill, round(score * 100, 2), explanation))
 
-        return Ok((sorted(impacts, key=lambda x: x[1], reverse=True)[:15], shap_values, X))
+        return Ok((impacts, shap_values, X_out))
 
     # ------------------------------------------------------------------
     # ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ

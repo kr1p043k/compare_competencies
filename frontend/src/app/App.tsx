@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense, lazy } from "react";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import {
@@ -23,28 +23,30 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu";
-import { GapAnalysisVisualizer } from "./components/GapAnalysisVisualizer";
+const GapAnalysisVisualizer = lazy(() => import("./components/GapAnalysisVisualizer").then(m => ({ default: m.GapAnalysisVisualizer })));
 import { Footer } from "./components/Footer";
 import { VacanciesList } from "./components/VacanciesList";
 import { MarketView } from "./components/MarketView";
 import { ProfileView } from "./components/ProfileView";
-import { ArticlesPage } from "./components/ArticlesPage";
+const ArticlesPage = lazy(() => import("./components/ArticlesPage").then(m => ({ default: m.ArticlesPage })));
 import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
 import { PipelineProgress } from "./components/PipelineProgress";
 import { DataViewer } from "./components/DataViewer";
 import { RecommendationsReport } from "./components/RecommendationsReport";
 import { SummaryReport } from "./components/SummaryReport";
 import { PredictionsTab } from "./components/PredictionsTab";
-import { MonitoringTab } from "./components/MonitoringTab";
-import { LogsTab } from "./components/LogsTab";
+const MonitoringTab = lazy(() => import("./components/MonitoringTab").then(m => ({ default: m.MonitoringTab })));
+const LogsTab = lazy(() => import("./components/LogsTab").then(m => ({ default: m.LogsTab })));
 import { LoginPage } from "./components/LoginPage";
-import { AdminDashboard } from "./components/AdminDashboard";
-import { StudentsTab } from "./components/StudentsTab";
-import { TeacherDashboard } from "./components/TeacherDashboard";
-import { StudentDashboard } from "./components/StudentDashboard";
-import { AdminProfilePage, TeacherProfilePage, StudentProfilePage } from "./components/ProfilePages";
-import { FaqPage } from "./components/FaqPage";
-import { TaxonomyBrowser } from "./components/TaxonomyBrowser";
+const AdminDashboard = lazy(() => import("./components/AdminDashboard").then(m => ({ default: m.AdminDashboard })));
+const StudentsTab = lazy(() => import("./components/StudentsTab").then(m => ({ default: m.StudentsTab })));
+const TeacherDashboard = lazy(() => import("./components/TeacherDashboard").then(m => ({ default: m.TeacherDashboard })));
+const StudentDashboard = lazy(() => import("./components/StudentDashboard").then(m => ({ default: m.StudentDashboard })));
+const AdminProfilePage = lazy(() => import("./components/ProfilePages").then(m => ({ default: m.AdminProfilePage })));
+const TeacherProfilePage = lazy(() => import("./components/ProfilePages").then(m => ({ default: m.TeacherProfilePage })));
+const StudentProfilePage = lazy(() => import("./components/ProfilePages").then(m => ({ default: m.StudentProfilePage })));
+const FaqPage = lazy(() => import("./components/FaqPage").then(m => ({ default: m.FaqPage })));
+const TaxonomyBrowser = lazy(() => import("./components/TaxonomyBrowser").then(m => ({ default: m.TaxonomyBrowser })));
 import { authHeaders, useAuth, apiFetch } from "../lib/auth";
 import { profileLabel } from "../lib/profiles";
 import { useTheme } from "../lib/theme";
@@ -872,6 +874,7 @@ export default function App() {
           )}
 
           {/* Vacancies Tab */}
+          <Suspense fallback={<div className="p-6 text-sm text-gray-500">Загрузка раздела…</div>}>
           <TabsContent value="vacancies">
             <VacanciesList
               pipelineStep={pipelineStep}
@@ -1205,6 +1208,7 @@ export default function App() {
               <StudentProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
             )}
           </TabsContent>
+          </Suspense>
         </Tabs>
 
         <div className="mt-12">
