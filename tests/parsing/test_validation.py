@@ -101,7 +101,7 @@ class TestSkillParserExtended:
             name="Test",
             area=None,
             employer=None,
-            key_skills=[KeySkill(name="A"), KeySkill(name="B")],
+            key_skills=[KeySkill(name="Python"), KeySkill(name="Go")],
             snippet=Snippet(requirement="знание SQL", responsibility=None),
             description="опыт работы с Docker",
         )
@@ -114,7 +114,7 @@ class TestSkillParserExtended:
 
     def test_reset_stats(self):
         parser = SkillParser()
-        v = Vacancy(id="1", name="Test", area=None, employer=None, key_skills=[KeySkill(name="A")])
+        v = Vacancy(id="1", name="Test", area=None, employer=None, key_skills=[KeySkill(name="Go")])
         parser.parse_vacancy(v)
         assert parser.stats.total_extracted > 0
         parser.reset_stats()

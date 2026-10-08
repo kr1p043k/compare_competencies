@@ -241,12 +241,27 @@ class SkillParser:
             return Err(DomainError(message=f"Failed to parse vacancy {vacancy.id}", detail=str(e)))
 
     def _extract_from_key_skills(self, vacancy: Vacancy) -> Result[list[ExtractedSkill], DomainError]:
-        """Извлекает из официального поля key_skills"""
+        """Извлекает из официального поля key_skills.
+
+        Структурный фильтр мусора (цифры/пунктуация/1 символ): whitelist-гейт
+        здесь НЕ ставим — key_skills главный источник discovery новых навыков.
+        Исключение/allowlist как в SkillMatcher._MARKET_SINGLE_ALLOW: языки
+        R и C односимвольны, но реальны.
+        """
         try:
             skills = []
             for key_skill in vacancy.key_skills:
+                name = (key_skill.name or "").strip()
+                if not name:
+                    continue
+                if len(name) < 2 and name.lower() not in ("r", "c"):
+                    continue
+                if re.fullmatch(r"[\d\s.\-,/]+", name):
+                    continue
+                if re.fullmatch(r"[^\w\s]+", name):
+                    continue
                 skill = ExtractedSkill(
-                    text=key_skill.name, source=SkillSource.KEY_SKILLS, raw_match=key_skill.name, confidence=1.0
+                    text=name, source=SkillSource.KEY_SKILLS, raw_match=name, confidence=1.0
                 )
                 skills.append(skill)
                 self._update_stats(SkillSource.KEY_SKILLS)
