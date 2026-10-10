@@ -265,7 +265,6 @@
 │   │   ├── 📄 teacher_analysis.py        # Teacher analysis
 │   │   ├── 📄 fix_rpd_data.py            # Исправление данных РПД
 │   │   ├── 📄 dedup_disciplines.py       # Дедупликация дисциплин
-│   │   ├── 📄 compute_competency_trends.py
 │   │   ├── 📄 compute_competency_vectors.py # Векторные эмбеддинги
 │   │   ├── 📄 export_vacancies.py        # Экспорт вакансий
 │   │   ├── 📄 map_ksa_to_skills.py       # KSA → навыки

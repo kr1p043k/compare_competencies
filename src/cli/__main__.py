@@ -13,7 +13,6 @@ def main() -> None:
     from src.cli import (
         backfill_market_snapshots,
         backup_db,
-        compute_competency_trends,
         compute_competency_vectors,
         create_user,
         embeddings,
@@ -86,10 +85,6 @@ def main() -> None:
     p = sub.add_parser("compute-competency-vectors", help="Вычислить эмбеддинги компетенций через mean pool навыков")
     p.add_argument("--force", action="store_true")
     p.set_defaults(func=lambda a: asyncio.run(compute_competency_vectors.main(force=a.force)))
-
-    p = sub.add_parser("compute-competency-trends", help="Вычислить тренды компетенций из снимков рынка")
-    p.add_argument("--force", action="store_true")
-    p.set_defaults(func=lambda a: asyncio.run(compute_competency_trends.main(force=a.force)))
 
     p = sub.add_parser("teacher-analysis", help="Запустить преподавательский анализ (gap + embedding + SHAP)")
     p.add_argument("--direction", default="09.03.02", help="Код направления (09.03.02)")
