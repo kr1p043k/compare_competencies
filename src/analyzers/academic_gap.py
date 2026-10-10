@@ -109,7 +109,7 @@ class AcademicGapAnalyzer:
         if self._comparator is None:
             from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
 
-            self._comparator = EmbeddingComparator(similarity_threshold=SIM_THRESHOLD)
+            self._comparator = EmbeddingComparator(similarity_threshold=0.6)  # prodval 2026-10-10: 0.6 один в один с валидацией; SIM_THRESHOLD ниже — только для topic-гейта
         return self._comparator
 
     # ── шаг 1: тема → навыки ──────────────────────────────────────────────

@@ -204,7 +204,7 @@ def _enhance_disciplines_with_gap_analysis(
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
         from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
 
-        comp = EmbeddingComparator(similarity_threshold=0.5)
+        comp = EmbeddingComparator(similarity_threshold=0.6)
         comp.build_market_index(market_skill_names, level="all")
         logger.info("market_embedding_index_built", skills=len(market_skill_names))
     except Exception as exc:
