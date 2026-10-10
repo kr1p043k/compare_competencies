@@ -111,7 +111,7 @@ async def build_test_set(pool) -> list[dict]:
         test.append({"id": idx, "query": q, "expected": skill,
                       "label": 1, "category": "exact_noisy", "difficulty": "easy"})
         idx += 1
-    print(f"  B exact_noisy: 30")
+    print("  B exact_noisy: 30")
 
     # ── Category C: paraphrase easy (40) ──
     # From competency_skills where match_type is fuzzy/stem — already matched by fuzzy
@@ -182,7 +182,7 @@ async def build_test_set(pool) -> list[dict]:
         test.append({"id": idx, "query": q, "expected": exp,
                       "label": 1, "category": "hard_synonym", "difficulty": "medium"})
         idx += 1
-    print(f"  F hard_synonyms: 20")
+    print("  F hard_synonyms: 20")
 
     # ── Category G: negative same-domain (80) — HARD, traps fuzzy ──
     # Same competency, semantically different skills
@@ -237,7 +237,7 @@ async def build_test_set(pool) -> list[dict]:
         test.append({"id": idx, "query": q, "expected": exp,
                       "label": 0, "category": "negative_adversarial", "difficulty": "hard"})
         idx += 1
-    print(f"  H negative_adversarial: 30")
+    print("  H negative_adversarial: 30")
 
     # ── Category I: noise (30) ──
     sample_skills = ["python", "java", "docker", "kubernetes", "sql", "git",
@@ -256,7 +256,7 @@ async def build_test_set(pool) -> list[dict]:
         test.append({"id": idx, "query": q, "expected": s,
                       "label": 1, "category": f"noise_{method}", "difficulty": "easy"})
         idx += 1
-    print(f"  I noise: 30")
+    print("  I noise: 30")
 
     # ── Category J: no-exact-match (30) — KSA without competency_skills ──
     rows = await pool.fetch("""
@@ -298,9 +298,8 @@ async def run_predictions(pool, test_set: list[dict]) -> list[dict]:
     """Run each level on every pair, return predictions."""
     print("[Phase 2] Running predictions...")
 
-    from src.analyzers.skill_matcher import SkillMatcher, normalize
-    from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
     from src.analyzers.comparison.engines import BM25Engine, JaccardEngine
+    from src.analyzers.skill_matcher import SkillMatcher, normalize
 
     # Build market skills dict (name -> frequency)
     market_rows = await pool.fetch(
@@ -468,8 +467,9 @@ def compute_category_metrics(results: list[dict]) -> dict:
     Article use: shows WHERE fuzzy succeeds (noise, paraphrase)
     vs WHERE it fails (negatives, long phrases) vs WHERE semantic wins.
     """
-    from src.evaluation.metrics import ClassificationMetrics
     from collections import defaultdict
+
+    from src.evaluation.metrics import ClassificationMetrics
 
     levels = ["L1", "L1+L2", "L1+L2+L3", "BM25", "Jaccard"]
     level_keys = [("L1",), ("L1", "L2"), ("L1", "L2", "L3"), ("BM25",), ("Jaccard",)]
@@ -657,8 +657,8 @@ def compute_ablation(results: list[dict]) -> dict:
 async def benchmark_speed(pool) -> dict:
     """Micro-benchmark: init, encode, compare timings."""
     print("[Phase 5] Speed benchmark...")
-    from src.analyzers.skill_matcher import SkillMatcher
     from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
+    from src.analyzers.skill_matcher import SkillMatcher
 
     market_rows = await pool.fetch(
         "SELECT name, 1 AS freq FROM skills WHERE is_active=true AND source IN ('it_skills','rpd_skills')"
@@ -889,16 +889,16 @@ def generate_report(metrics: dict, ablation: dict, timing: dict, results: list[d
     lines = []
     lines.append("# Отчёт бенчмарка: многоуровневая нечёткая система сравнения навыков")
     lines.append(f"\n**Дата:** {time.strftime('%Y-%m-%d %H:%M')}")
-    lines.append(f"**Проект:** Competency Gap Analyzer (09.03.02)")
+    lines.append("**Проект:** Competency Gap Analyzer (09.03.02)")
     lines.append("")
 
     lines.append("## 1. Датасет")
     lines.append(f"- Всего пар: **{len(dataset)}** (positive={pos}, negative={neg})")
-    lines.append(f"- Категории:")
+    lines.append("- Категории:")
     for cat, cnt in sorted(cats.items(), key=lambda x: -x[1]):
         lines.append(f"  - {cat}: {cnt}")
-    lines.append(f"- DB: ksa_entries=5054, competency_skills=1073, skills=4618")
-    lines.append(f"- Competencies: 583 (root=189, indicator=394)")
+    lines.append("- DB: ksa_entries=5054, competency_skills=1073, skills=4618")
+    lines.append("- Competencies: 583 (root=189, indicator=394)")
     lines.append("")
 
     lines.append("## 2. Точность по уровням")
@@ -944,8 +944,10 @@ def generate_report(metrics: dict, ablation: dict, timing: dict, results: list[d
     lines.append("|-----------|---|-----|----------|-------------|---------------------|")
     if category_metrics:
         for _cat, _m in sorted(category_metrics.items()):
-            _f1 = lambda k: _m.get(k, {}).get("f1", 0)
-            lines.append(f"| {_cat} | {_m.get('n',0)} | {_m.get('positive',0)} | {_f1('L1'):.3f} | {_f1('L1+L2'):.3f} | {_f1('L1+L2+L3'):.3f} |")
+            f1_l1 = _m.get("L1", {}).get("f1", 0)
+            f1_l2 = _m.get("L1+L2", {}).get("f1", 0)
+            f1_l3 = _m.get("L1+L2+L3", {}).get("f1", 0)
+            lines.append(f"| {_cat} | {_m.get('n',0)} | {_m.get('positive',0)} | {f1_l1:.3f} | {f1_l2:.3f} | {f1_l3:.3f} |")
     lines.append("")
     lines.append("## 7b. Вклад нечёткого matching (прирост F1 по этапам)")
     lines.append("| Этап | F1 | Delta к пред. |")
@@ -1018,7 +1020,6 @@ async def run_substring_analysis(pool, prov, market_skills: dict) -> dict:
 
 async def run_threshold_sweep(pool, prov, market_skills: dict) -> list[dict]:
     """Sweep cosine threshold to see where semantic beats fuzzy."""
-    from src.analyzers.skill_matcher import SkillMatcher
 
     # Build market embeddings
     skill_names = list(market_skills.keys())
@@ -1124,7 +1125,7 @@ async def main():
     print("=" * 70)
     print()
 
-    from src.db import create_pool, get_pool, close_pool
+    from src.db import close_pool, create_pool, get_pool
     await create_pool()
     pool = get_pool()
 
@@ -1143,7 +1144,7 @@ async def main():
     with open(DATA_DIR / "predictions.jsonl", "w", encoding="utf-8") as f:
         for r in results:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    print(f"  Saved: predictions.jsonl\n")
+    print("  Saved: predictions.jsonl\n")
 
     # Phase 3: Metrics
     print("[Phase 3] Computing metrics...")
@@ -1207,7 +1208,7 @@ async def main():
                               mcnemar_cat=mcnemar_cat, fuzzy_errors=fuzzy_errors)
     report_path = DATA_DIR / "report.md"
     report_path.write_text(report, encoding="utf-8")
-    print(f"\n  Saved: report.md")
+    print("\n  Saved: report.md")
 
     # Phase 8: Substring analysis (why semantic adds nothing)
     print("\n[Phase 8] Substring analysis...")

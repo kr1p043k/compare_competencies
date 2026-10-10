@@ -93,8 +93,8 @@ class TestIsSkillLikeKsa:
     def test_junk_markers_rejected(self):
         """KSA junk markers are rejected (uses actual marker)."""
         from src.pipeline.teacher_analysis_runner import (
-            _is_skill_like_ksa,
             _KSA_JUNK_MARKERS,
+            _is_skill_like_ksa,
         )
         marker = _KSA_JUNK_MARKERS[0]
         test_text = f"{marker} some skill text here"
@@ -158,8 +158,8 @@ class TestTopicFilterRelevance:
 
     def test_topic_items_meet_comp_threshold(self):
         from src.analyzers.academic_gap import (
-            AcademicGapAnalyzer,
             COMP_MARKET_THRESHOLD,
+            AcademicGapAnalyzer,
         )
         a = AcademicGapAnalyzer()
         out = a.analyze("Мультимедиа технологии")
@@ -239,6 +239,7 @@ class TestShortTokenHybrid:
 
     def test_short_uncategorized_absent(self, monkeypatch):
         import numpy as np
+
         from src.analyzers import academic_gap as agmod
         from src.analyzers.academic_gap import AcademicGapAnalyzer
         monkeypatch.setattr(

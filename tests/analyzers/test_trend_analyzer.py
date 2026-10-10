@@ -1,11 +1,8 @@
 """Tests for SnapshotTrendAnalyzer from analyzers/trend_analyzer.py."""
-from unittest.mock import MagicMock, patch
 
-import pytest
 
-from src import Ok, Err
-from src.errors import TrendError
 from src.analyzers.trend_analyzer import SnapshotTrendAnalyzer
+from src.errors import TrendError
 
 
 class TestTrendAnalyzer:

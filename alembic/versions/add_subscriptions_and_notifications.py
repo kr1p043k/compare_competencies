@@ -5,15 +5,17 @@ Revises: merge_branches
 Create Date: 2026-07-25 17:30:00.000000
 """
 
-from typing import Sequence, Union
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
+from alembic import op
+
 revision: str = "add_subs_and_notifs"
-down_revision: Union[str, None] = "merge_branches"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "merge_branches"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

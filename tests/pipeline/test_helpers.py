@@ -1,8 +1,6 @@
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import MagicMock, patch
 
-import pytest
-
-from src import Ok, Err
+from src import Err, Ok
 
 
 class TestGetLoadMode:
@@ -82,9 +80,8 @@ class TestLoadVacanciesDetails:
         with patch("src.pipeline.helpers.config") as cfg:
             cfg.REQUEST_DELAY = 0.001
             cfg.PYDANTIC_VALIDATION_ENABLED = True
-            with patch("src.pipeline.helpers.tqdm"):
-                with patch("src.pipeline.helpers.Vacancy.from_api"):
-                    result = load_vacancies_details([mock_vac], hh_api, False, 0, MagicMock(), MagicMock())
+            with patch("src.pipeline.helpers.tqdm"), patch("src.pipeline.helpers.Vacancy.from_api"):
+                result = load_vacancies_details([mock_vac], hh_api, False, 0, MagicMock(), MagicMock())
         assert result.is_ok()
 
     def test_sync_load_validated_fails(self):

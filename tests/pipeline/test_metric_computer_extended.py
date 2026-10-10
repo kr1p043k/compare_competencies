@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src import Ok, Err
+from src import Err, Ok
 from src.pipeline.metric_computer import MetricComputer
 
 

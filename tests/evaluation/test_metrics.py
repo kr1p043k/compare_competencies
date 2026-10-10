@@ -1,12 +1,12 @@
+import numpy as np
 import pytest
 
 from src.evaluation.metrics import (
-    RetrievalMetrics,
-    RegressionMetrics,
     ClassificationMetrics,
     ClusteringMetrics,
+    RegressionMetrics,
+    RetrievalMetrics,
 )
-import numpy as np
 
 
 class TestRetrievalMetrics:

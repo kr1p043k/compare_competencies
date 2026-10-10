@@ -1,8 +1,8 @@
 ﻿# tests/scoring/test_vacancy_quality_scorer.py
 import pytest
-from src import Ok
-from src.scoring.vacancy_quality_scorer import VacancyQualityScorer, SpamFlag, QualityScore, _count_urls
-from src.models.vacancy import Vacancy, Salary, Snippet, Area, Employer, KeySkill
+
+from src.models.vacancy import Area, Employer, KeySkill, Salary, Snippet, Vacancy
+from src.scoring.vacancy_quality_scorer import QualityScore, SpamFlag, VacancyQualityScorer, _count_urls
 
 
 @pytest.fixture

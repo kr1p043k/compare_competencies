@@ -3,7 +3,7 @@
 Covers: get_logs_merged fallback + DB union, zun.scope.put / entry.add /
 entry.delete audit rows (representative for all 7 ZUN writers).
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -52,7 +52,7 @@ def test_merged_unions_db_rows(actor):
     row = SimpleNamespace(method="AUDIT", path="/api/old", status=200, duration_ms=0,
                           user_email="old@b.c", source="backend",
                           detail="old-act | t | by old@b.c (admin)",
-                          created_at=datetime(2020, 1, 1, tzinfo=timezone.utc))
+                          created_at=datetime(2020, 1, 1, tzinfo=UTC))
 
     class FakeSession:
         async def __aenter__(self): return self
@@ -80,7 +80,7 @@ def test_merged_action_filter_applies_to_db(actor):
     row = SimpleNamespace(method="AUDIT", path="/api/old", status=200, duration_ms=0,
                           user_email="old@b.c", source="backend",
                           detail="unwanted | t | by old@b.c (admin)",
-                          created_at=datetime(2020, 1, 1, tzinfo=timezone.utc))
+                          created_at=datetime(2020, 1, 1, tzinfo=UTC))
 
     class FakeSession:
         async def __aenter__(self): return self

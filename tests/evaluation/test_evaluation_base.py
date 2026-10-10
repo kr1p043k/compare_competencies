@@ -1,8 +1,7 @@
-﻿from unittest.mock import MagicMock, patch, PropertyMock
+﻿from unittest.mock import MagicMock, patch
 
-import pytest
-
-from src import Ok, Err
+from src import Err
+from src.errors import DomainError
 from src.evaluation.base import (
     BaseEvaluator,
     CoverageEvaluator,
@@ -11,7 +10,6 @@ from src.evaluation.base import (
     GapAccuracyEvaluator,
     SkillMatchEvaluator,
 )
-from src.errors import DomainError
 
 
 class TestEvalReport:
@@ -45,9 +43,8 @@ class TestCoverageEvaluator:
         e = CoverageEvaluator()
         mock_file = MagicMock()
         mock_file.exists.return_value = True
-        with patch("builtins.open"):
-            with patch("json.load", return_value=[{"s": 1}]):
-                result = e.evaluate(student_file=mock_file)
+        with patch("builtins.open"), patch("json.load", return_value=[{"s": 1}]):
+            result = e.evaluate(student_file=mock_file)
         assert result.is_ok()
         report = result.unwrap()
         assert report.metric_name == "coverage_ratio"

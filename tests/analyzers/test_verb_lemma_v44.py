@@ -22,7 +22,6 @@ def test_strip_leading_verbs():
 def test_lemma_fuzzy_declension():
     if not ru_morph.available():
         pytest.skip("pymorphy3 unavailable")
-    import src.feature_flags as _ff
     old_v, old_l = os.environ.get('FF_MATCH_VERBS'), os.environ.get('FF_LEMMA_FUZZY')
     os.environ['FF_MATCH_VERBS'] = '0'
     os.environ['FF_LEMMA_FUZZY'] = '1'
@@ -42,7 +41,6 @@ def test_lemma_fuzzy_declension():
 def test_lemma_fringe_still_gap():
     if not ru_morph.available():
         pytest.skip("pymorphy3 unavailable")
-    import src.feature_flags as _ff
     old_l = os.environ.get('FF_LEMMA_FUZZY')
     os.environ['FF_LEMMA_FUZZY'] = '1'
     try:
@@ -59,6 +57,7 @@ def test_flags_default_on_after_ablation(monkeypatch):
     monkeypatch.delenv('FF_MATCH_VERBS', raising=False)
     monkeypatch.delenv('FF_LEMMA_FUZZY', raising=False)
     import importlib
+
     import src.feature_flags as _ff
     mm = importlib.reload(_ff)
     assert mm.market_verbs_enabled() is True

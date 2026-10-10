@@ -2,14 +2,13 @@
 Covers match types (exact/fuzzy/semantic), coverage vs weighted,
 emerging skills, cross-references, parent-child aggregation.
 """
-import pytest
 
+from src.analyzers.coverage_analyzer import CoverageAnalyzer
 from src.analyzers.skill_matcher import (
     SkillMatcher,
-    normalize,
     coverage_level,
+    normalize,
 )
-from src.analyzers.coverage_analyzer import CoverageAnalyzer
 
 
 class TestNormalize:

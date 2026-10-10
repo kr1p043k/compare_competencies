@@ -116,7 +116,8 @@ async def test_krm_discipline_detail_returns_200():
             "WHERE d.code = $1 ORDER BY disc.name LIMIT 1", "09.03.02")
         if not row:
             pytest.skip("no seed disciplines")
-        from httpx import AsyncClient, ASGITransport
+        from httpx import ASGITransport, AsyncClient
+
         from src.api_pkg import create_app
         from tests.conftest import open_all_gates
         app = open_all_gates(create_app())
@@ -144,7 +145,8 @@ async def test_krm_coverage_no_tz_crash():
     old = dbmod.pool
     dbmod.pool = pool
     try:
-        from httpx import AsyncClient, ASGITransport
+        from httpx import ASGITransport, AsyncClient
+
         from src.api_pkg import create_app
         from tests.conftest import open_all_gates
         app = open_all_gates(create_app())
@@ -166,7 +168,8 @@ async def test_krm_tree_no_tz_crash():
     old = dbmod.pool
     dbmod.pool = pool
     try:
-        from httpx import AsyncClient, ASGITransport
+        from httpx import ASGITransport, AsyncClient
+
         from src.api_pkg import create_app
         from tests.conftest import open_all_gates
         app = open_all_gates(create_app())

@@ -1,12 +1,11 @@
 """Тесты для src.api_pkg.__init__ — фабрика FastAPI приложения."""
 
-import pytest
 from fastapi import FastAPI, HTTPException
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.cors import CORSMiddleware
 
-from src.api_pkg import create_app, app
 from src import config
+from src.api_pkg import app, create_app
 
 
 class TestCreateApp:

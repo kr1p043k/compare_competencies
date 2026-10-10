@@ -1,10 +1,13 @@
 # tests/parsing/test_hybrid_weight_calculator.py
+from unittest.mock import patch
+
 import numpy as np
 import pytest
-from unittest.mock import patch
+
 from src import Ok
-from src.parsing.skills.hybrid_weight_calculator import HybridWeightCalculator
 from src.parsing.skills.bm25_ranker import BM25Ranker
+from src.parsing.skills.hybrid_weight_calculator import HybridWeightCalculator
+
 
 @pytest.fixture
 def calc():

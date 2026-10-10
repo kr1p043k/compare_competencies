@@ -1,5 +1,4 @@
 """Тесты dataset versioning."""
-from pathlib import Path
 from src.pipeline.versioning import compute_file_hash, version_dataset
 
 

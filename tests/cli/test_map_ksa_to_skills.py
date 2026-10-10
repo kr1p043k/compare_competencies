@@ -1,8 +1,8 @@
 """Tests for map_ksa_to_skills CLI."""
 import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from pathlib import Path
+
+import pytest
 
 
 class TestMapKsaToSkills:
@@ -31,7 +31,6 @@ class TestMapKsaToSkills:
     @pytest.mark.asyncio
     async def test_tier_explicit_json_creates_links(self, tmp_path):
         from src.cli.map_ksa_to_skills import tier_explicit_json
-        from src.models.krm_models import CompetencySkill
 
         # Create JSON mapping
         mapping = {"Discipline1": {"PK-1": ["python", "sql"]}}
@@ -56,7 +55,6 @@ class TestMapKsaToSkills:
     @pytest.mark.asyncio
     async def test_tier_substring_finds_matches(self):
         from src.cli.map_ksa_to_skills import tier_substring
-        from src.models.krm_models import Skill
 
         krm = {"09.03.02": {"disciplines": {
             "TestDisc": {"ksa": {"PK-1": {"knowledge": ["используя python для анализа"]}}}
@@ -100,7 +98,6 @@ class TestMapKsaToSkills:
     @pytest.mark.asyncio
     async def test_run_mapping_no_direction(self):
         from src.cli.map_ksa_to_skills import run_mapping
-        from src.models.krm_models import Direction
 
         session = AsyncMock()
         mock_result = MagicMock()

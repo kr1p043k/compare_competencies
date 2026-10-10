@@ -1,11 +1,9 @@
-﻿from unittest.mock import MagicMock, patch
-import json
+﻿import json
+from unittest.mock import patch
 
 import pytest
 
-from src import Ok, Err
 from src.analyzers.skills.skill_ontology import SkillOntology, seed_ontology
-from src.errors import DomainError
 
 
 class TestSkillOntology:

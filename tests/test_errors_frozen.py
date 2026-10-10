@@ -1,9 +1,15 @@
 """Тесты: immutable domain entities (frozen dataclasses)."""
-import pytest
 from dataclasses import FrozenInstanceError
+
+import pytest
+
 from src.errors import (
-    DomainError, VacancyError, ApiError, ModelError, ParseError,
-    PipelineError, CacheError,
+    ApiError,
+    CacheError,
+    DomainError,
+    ModelError,
+    PipelineError,
+    VacancyError,
 )
 
 

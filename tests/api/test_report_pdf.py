@@ -1,8 +1,7 @@
 """PDF report endpoint: route wiring + builder smoke on real data."""
 from fastapi.testclient import TestClient
 
-from src.api_pkg import create_app
-from src.api_pkg import deps
+from src.api_pkg import create_app, deps
 
 
 def test_report_route_registered():
@@ -30,9 +29,9 @@ def test_report_unknown_profile_404(monkeypatch):
 def test_report_pdf_bytes_base(monkeypatch):
     import shutil
     from pathlib import Path
-    from src.models.student import StudentProfile
 
     from src import config as _cfg
+    from src.models.student import StudentProfile
     # conftest autouse уводит DATA_DIR в tmp: кладём туда настоящий full_rec.
     dest = Path(str(_cfg.DATA_DIR)) / "result" / "base"
     dest.mkdir(parents=True, exist_ok=True)
@@ -58,6 +57,7 @@ def test_report_pdf_bytes_base(monkeypatch):
 
 def test_builder_cyrillic():
     import json
+
     from src.reports.pdf_report import build_profile_pdf
     d = json.load(open("data/result/base/full_recommendations_base.json",
                        encoding="utf-8"))

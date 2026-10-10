@@ -1,14 +1,7 @@
 """Extended tests for SkillForecastEngine (trend-based)."""
 from __future__ import annotations
 
-from datetime import date
-from pathlib import Path
-from tempfile import TemporaryDirectory
-
-import pytest
-
-from src import Ok, Err
-from src.predictors.skill_forecast import SkillForecastEngine, ForecastResult
+from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
 
 
 class TestSkillForecastTrend:

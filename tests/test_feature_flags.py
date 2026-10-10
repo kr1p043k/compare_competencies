@@ -1,6 +1,5 @@
 """Unit: feature flags default ON (v32 measured), env opt-out."""
 import importlib
-import os
 
 import src.feature_flags as ff
 

@@ -2,8 +2,6 @@
 import json
 from unittest.mock import patch
 
-import pytest
-
 from src.loaders_student.student_loader import StudentLoader, generate_profiles_from_csv
 
 

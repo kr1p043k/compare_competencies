@@ -1,6 +1,7 @@
 """Тесты health-эндпоинтов."""
 import pytest
 from fastapi.testclient import TestClient
+
 from src.api_pkg import create_app
 
 

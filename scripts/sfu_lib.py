@@ -10,11 +10,10 @@ from __future__ import annotations
 import json
 import re
 import time
-import warnings
 from typing import Any
 
-import urllib3
 import requests
+import urllib3
 
 # sfedu.ru использует сертификат российского УЦ (нет в системных bundle).
 # Данные публичные, read-only — выключаем проверку TLS.

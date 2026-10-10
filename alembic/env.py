@@ -3,13 +3,12 @@
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from alembic import context
 from src.config import settings
 from src.database import Base
-import src.models.krm_models
 
 config = context.config
 if config.config_file_name:

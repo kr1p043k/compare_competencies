@@ -1,8 +1,5 @@
 """Tests for teacher_analysis_runner KSA context integration."""
 import json
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from pathlib import Path
 
 
 class TestTeacherAnalysisKsaContext:
@@ -10,7 +7,6 @@ class TestTeacherAnalysisKsaContext:
 
     def test_load_raw_ksa_from_json(self, tmp_path):
         """Test that raw KSA is loaded from JSON file."""
-        from src.pipeline.teacher_analysis_runner import _safe_filename
 
         krm_data = {
             "09.03.02": {

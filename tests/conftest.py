@@ -3,12 +3,12 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import numpy as np
 import pytest
-import time
 
 from src import config
 from src.analyzers.comparison.domain_analyzer import DomainAnalyzer
@@ -21,6 +21,7 @@ from src.loaders_student.student_loader import StudentLoader
 from src.models.student import StudentProfile
 from src.models.vacancy import Area, Employer, KeySkill, Vacancy
 from src.parsing.skills.skill_validator import SkillValidator
+
 
 @pytest.fixture(autouse=True)
 def mock_sleep():

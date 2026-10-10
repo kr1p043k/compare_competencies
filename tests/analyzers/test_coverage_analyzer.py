@@ -1,12 +1,11 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from src import Ok, Err
+from src import Err, Ok
 from src.analyzers.coverage_analyzer import CoverageAnalyzer
-from src.analyzers.skill_matcher import SkillMatcher, normalize as norm_fn
-from src.errors import CoverageError
-from src.models.teacher_analysis import DisciplineCoverage, CompetencyCoverage
+from src.analyzers.skill_matcher import SkillMatcher
+from src.models.teacher_analysis import DisciplineCoverage
 
 
 class TestCoverageAnalyzer:
@@ -133,8 +132,6 @@ class TestCoverageAnalyzer:
         HIGH. Мок матчера: 2 fuzzy-совпадения conf 0.4 + 2 промаха
         (ratio 0.5, weighted 0.2) → medium.
         """
-        from unittest.mock import MagicMock
-        from src import Err, Ok
         from src.analyzers.coverage_analyzer import CoverageAnalyzer
         matcher = MagicMock()
         matcher.market_skills = {"market_a": 100, "market_b": 100}

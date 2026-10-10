@@ -1,28 +1,25 @@
 # tests/predictors/test_recommendation_engine.py
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch, ANY
-import sys
+from unittest.mock import MagicMock, patch
+
 sys.modules['shap'] = MagicMock()
 sys.modules['cv2'] = MagicMock()
 
-import numpy as np
-import pytest
-from pydantic import SecretStr
-
 from types import SimpleNamespace
 
-from src import Err, Ok, config
-from src.analyzers.gap.profile_evaluator import ProfileEvaluator
-from src.models.student import StudentProfile
-from src.predictors.recommendation_engine import RecommendationEngine
-
+import pytest
+from pydantic import SecretStr
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-from src import Ok, Result
+from src import Ok, Result, config
+from src.analyzers.gap.profile_evaluator import ProfileEvaluator
+from src.models.student import StudentProfile
+from src.predictors.recommendation_engine import RecommendationEngine
 
 
 def _unwrap(res: Result):

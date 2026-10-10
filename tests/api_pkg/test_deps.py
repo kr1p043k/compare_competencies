@@ -3,12 +3,11 @@
 import pytest
 from fastapi import HTTPException
 
-from src.api_pkg import deps
 from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.analyzers.skills.trends import TrendAnalyzer
-from src.models.student import StudentProfile
+from src.api_pkg import deps
 from src.predictors.recommendation_engine import RecommendationEngine
 
 

@@ -1,8 +1,9 @@
 # tests/analyzers/test_domain_analyzer.py
-import pytest
 import json
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
+
+import pytest
 
 from src import Ok, Result
 from src.analyzers.comparison.domain_analyzer import DomainAnalyzer

@@ -1,9 +1,7 @@
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src import Err, Ok
-from src.errors import DataSourceError, DomainError
+from src.errors import DomainError
 from src.infrastructure.file_provider import FileDataProvider, StudentFileProvider
 
 

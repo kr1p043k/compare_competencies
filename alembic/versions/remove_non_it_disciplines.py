@@ -5,15 +5,14 @@
 всеми связанными компетенциями, KSA, навыками и рекомендациями.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
 
 revision: str = "remove_non_it_disciplines"
-down_revision: Union[str, Sequence[str], None] = "merge_branches"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "merge_branches"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 REMOVED_DISCIPLINES = [
     "Безопасность жизнедеятельности",

@@ -1,9 +1,7 @@
 """Tests for PipelineBuilder — mostly standalone, needs mocks for PipelineOrchestrator."""
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-import pytest
-
-from src import Ok, Err
+from src import Ok
 from src.pipeline.builder import PipelineBuilder
 from src.pipeline.stage import PipelineStage
 

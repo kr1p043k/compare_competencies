@@ -1,9 +1,9 @@
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src import Ok, Err
+from src import Err, Ok
 
 
 @pytest.fixture

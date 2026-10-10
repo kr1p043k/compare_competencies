@@ -1,17 +1,17 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, mock_open
 from fastapi import HTTPException
 
 from src.n8n.webhooks import (
-    StudentCreatedBody,
-    PipelineCompletedBody,
     AlertBody,
+    PipelineCompletedBody,
+    StudentCreatedBody,
     _verify_n8n_secret,
-    webhook_student_created,
-    webhook_pipeline_completed,
-    webhook_alert,
     list_webhook_events,
-    WEBHOOK_STORE,
+    webhook_alert,
+    webhook_pipeline_completed,
+    webhook_student_created,
 )
 
 

@@ -20,8 +20,7 @@ sys.modules["cv2"] = MagicMock()
 # (proven: 15 comparator failures). shap/cv2 mocks below are load-bearing
 # (packages not installed) and harmless (additive, nothing overwritten).
 from src import Err, Ok
-from src.api_pkg import app
-from src.api_pkg import deps
+from src.api_pkg import app, deps
 from src.models.student import StudentProfile
 
 client = TestClient(app)

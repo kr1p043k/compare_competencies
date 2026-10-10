@@ -45,8 +45,8 @@ class TestRetryPolicy:
         assert len(calls) == 1
 
     def test_err_then_ok(self):
-        from src.retry import RetryPolicy
         from src.errors import DomainError
+        from src.retry import RetryPolicy
 
         calls = []
 
@@ -58,8 +58,8 @@ class TestRetryPolicy:
         assert len(calls) == 2
 
     def test_exhausted(self):
-        from src.retry import RetryPolicy
         from src.errors import DomainError
+        from src.retry import RetryPolicy
 
         r = RetryPolicy(max_retries=1, jitter=False).execute(
             lambda: Err(DomainError(message="always"))
@@ -97,8 +97,8 @@ class TestRetryPolicy:
         assert (await RetryPolicy(max_retries=1).execute_async(fn)).ok() == "v"
 
     async def test_async_exhausted(self):
-        from src.retry import RetryPolicy
         from src.errors import DomainError
+        from src.retry import RetryPolicy
 
         async def fn():
             return Err(DomainError(message="nope"))

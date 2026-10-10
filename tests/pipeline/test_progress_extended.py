@@ -2,10 +2,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from src import Ok, Err
-from src.pipeline.progress import write, write_result, MAX_LOGS, PROGRESS_FILE
+from src.pipeline.progress import write, write_result
 
 
 class TestProgressWrite:
@@ -57,11 +54,10 @@ class TestProgressWrite:
 
     def test_write_logs_truncated(self, tmp_path):
         f = tmp_path / "cache" / "pipeline_progress.json"
-        with patch("src.pipeline.progress.PROGRESS_FILE", f):
-            with patch("src.pipeline.progress.MAX_LOGS", 2):
-                write(10, "a")
-                write(20, "b")
-                write(30, "c")
+        with patch("src.pipeline.progress.PROGRESS_FILE", f), patch("src.pipeline.progress.MAX_LOGS", 2):
+            write(10, "a")
+            write(20, "b")
+            write(30, "c")
         data = json.loads(f.read_text(encoding="utf-8"))
         assert len(data["logs"]) == 2
         assert "b" in data["logs"][0]
@@ -133,11 +129,10 @@ class TestProgressWriteResult:
 
     def test_write_result_truncates(self, tmp_path):
         f = tmp_path / "cache" / "pipeline_progress.json"
-        with patch("src.pipeline.progress.PROGRESS_FILE", f):
-            with patch("src.pipeline.progress.MAX_LOGS", 2):
-                write_result(10, "a")
-                write_result(20, "b")
-                result = write_result(30, "c")
+        with patch("src.pipeline.progress.PROGRESS_FILE", f), patch("src.pipeline.progress.MAX_LOGS", 2):
+            write_result(10, "a")
+            write_result(20, "b")
+            result = write_result(30, "c")
         assert result.is_ok()
         data = json.loads(f.read_text(encoding="utf-8"))
         assert len(data["logs"]) == 2

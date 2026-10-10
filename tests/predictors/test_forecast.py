@@ -6,7 +6,7 @@ from datetime import date
 
 from src import Err, Ok
 from src.predictors.prophet_forecast import ProphetForecastEngine, Snapshot
-from src.predictors.skill_forecast import SkillForecastEngine, ForecastResult
+from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
 
 
 def test_forecast_engine_creation():
@@ -80,11 +80,6 @@ def test_forecast_engine_empty_fit():
 
 
 # ─── ProphetForecastEngine tests ────────────────────────────────────────────────
-
-
-def _make_snapshots(dates: list[date], skill_freqs: dict[str, list[float]]) -> list[Snapshot]:
-    """Build snapshots from parallel date/freq arrays."""
-    return [Snapshot(d, {s: freqs[i] for s, freqs_list in skill_freqs.items() for i, _ in enumerate(dates) if i < len(freqs_list)}) for d in dates]
 
 
 def test_prophet_engine_creation():

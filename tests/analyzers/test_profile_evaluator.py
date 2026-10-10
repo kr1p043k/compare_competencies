@@ -1,12 +1,12 @@
 # tests/analyzers/test_profile_evaluator.py
-from datetime import datetime
-from unittest.mock import patch, MagicMock
 import json
-import numpy as np
+from datetime import datetime
+from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
-from src import Ok, Err
+from src import Ok
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 from src.models.student import StudentProfile
@@ -1237,6 +1237,7 @@ class TestCoverageStrictWeightedPair:
 
     def test_trio_present_and_consistent(self):
         from datetime import datetime
+
         from src.models.student import StudentProfile
         sw = {"middle": {"python": 0.9, "docker": 0.7, "sql": 0.5}}
         vs = [["python", "sql"], ["python", "docker"]]
@@ -1257,7 +1258,6 @@ class TestLevelClusterRouting:
     """L1: каждый уровень — свой объект кластерера, last-wins запрещён."""
 
     def _eval(self):
-        from datetime import datetime
         from src.models.student import StudentProfile  # noqa
         sw = {"middle": {"python": 0.9}}
         vs = [["python", "sql"]]
@@ -1287,7 +1287,9 @@ class TestLevelClusterRouting:
     def test_context_carries_cluster_level(self):
         from datetime import datetime
         from unittest.mock import patch
+
         import numpy as np
+
         from src import Ok
         from src.models.student import StudentProfile
         sw = {"middle": {"python": 0.9, "docker": 0.7, "sql": 0.5}}
@@ -1309,7 +1311,9 @@ class TestLevelClusterRouting:
         """Cross-level: кандидаты с тегами уровней из нескольких моделей."""
         from datetime import datetime
         from unittest.mock import patch
+
         import numpy as np
+
         from src import Ok
         from src.models.student import StudentProfile
         sw = {"middle": {"python": 0.9}}
@@ -1337,6 +1341,7 @@ class TestStage4ApiParity:
 
     def _eval(self, skills, domains, prof):
         from datetime import datetime
+
         from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
         from src.models.student import StudentProfile
         sw = {"middle": {"python": 0.9, "docker": 0.7, "sql": 0.5}}

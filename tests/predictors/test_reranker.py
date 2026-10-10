@@ -1,11 +1,10 @@
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytest
 
 from src import Err, Ok
 from src.errors import DomainError
-from src.predictors.reranker import RerankerResult, CrossEncoderReranker, HybridReranker, RerankerBuilder
+from src.predictors.reranker import CrossEncoderReranker, HybridReranker, RerankerBuilder, RerankerResult
 
 
 class TestRerankerResult:

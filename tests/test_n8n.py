@@ -1,5 +1,4 @@
-import pytest
-from src.api_pkg.n8n import N8N_ENDPOINTS, N8N_WORKFLOWS, N8N_WEBHOOKS
+from src.api_pkg.n8n import N8N_ENDPOINTS, N8N_WEBHOOKS, N8N_WORKFLOWS
 
 
 class TestN8NEndpoints:

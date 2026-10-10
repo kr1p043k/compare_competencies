@@ -6,7 +6,6 @@ e3 files must have argtype column (vote<->argument consistency check).
 """
 import argparse
 import csv
-import sys
 from collections import Counter
 
 ARGMAP = {"K": 2, "S": 1, "M": 0}

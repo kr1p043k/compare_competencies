@@ -2,7 +2,7 @@
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -74,6 +74,7 @@ class TestExtendItSkills:
         monkeypatch.setattr("src.config.DATA_DIR", sample_skills_file.parent.parent)
 
         from scripts.extend_it_skills import analyze_coverage
+
         from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 
         current_skills = {"python", "django", "fastapi"}
@@ -111,7 +112,6 @@ class TestExtendItSkills:
 
         # Патчим DATA_DIR, а не IT_SKILLS_PATH
         with patch("src.parsing.utils.config.DATA_DIR", sample_skills_file.parent):
-            from src.parsing.utils import load_it_skills
 
             added = add_skills_to_whitelist(
                 skills_to_add={"new_skill_1", "new_skill_2"},
@@ -323,6 +323,7 @@ class TestExtendItSkills:
         monkeypatch.setattr("src.config.DATA_DIR", tmp_path)
 
         from scripts.extend_it_skills import print_new_skills
+
         from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 
         # Сбрасываем синглтон
@@ -349,6 +350,7 @@ class TestExtendItSkills:
         monkeypatch.setattr("src.config.SKILL_TAXONOMY_PATH", tax_path)
 
         from scripts.extend_it_skills import analyze_coverage
+
         from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 
         SkillTaxonomy._instance = None

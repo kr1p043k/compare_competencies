@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from src import Ok, Err
+from src import Err, Ok
 from src.pipeline.metric_computer import MetricComputer
 
 

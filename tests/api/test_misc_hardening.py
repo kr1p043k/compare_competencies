@@ -1,5 +1,4 @@
 """Unit: clusters summary route + log caps."""
-from fastapi.testclient import TestClient
 
 from src.api_pkg import create_app
 
@@ -10,9 +9,10 @@ def test_clusters_summary_registered():
 
 
 def test_log_entry_caps():
-    from src.api_pkg.routers.health import LogEntry
     import pytest
     from pydantic import ValidationError
+
+    from src.api_pkg.routers.health import LogEntry
     LogEntry(message="x" * 2000)
     with pytest.raises(ValidationError):
         LogEntry(message="x" * 2001)

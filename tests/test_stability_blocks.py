@@ -266,6 +266,7 @@ class TestTopUsableFilter:
 
     def test_top_defaults_keep_junk_out(self):
         import inspect
+
         from src.api_pkg.routers.forecast import get_top_forecasts
         params = inspect.signature(get_top_forecasts).parameters
 
@@ -348,6 +349,7 @@ class TestForecastOffLoop:
 
     def test_top_cache_hit_and_stale(self):
         import time
+
         from src.api_pkg.routers import forecast as fc
 
         key = ("test", 1)
@@ -383,6 +385,7 @@ class TestUserErrorDetail:
     def test_admin_sees_technical(self):
         import asyncio
         from unittest.mock import AsyncMock, patch
+
         from src.api_pkg.routers.auth import user_error_detail
 
         req = object()
@@ -395,6 +398,7 @@ class TestUserErrorDetail:
     def test_non_admin_gets_safe(self):
         import asyncio
         from unittest.mock import AsyncMock, patch
+
         from src.api_pkg.routers.auth import user_error_detail
 
         req = object()
@@ -408,6 +412,7 @@ class TestUserErrorDetail:
     def test_no_request_or_broken_auth_is_safe(self):
         import asyncio
         from unittest.mock import AsyncMock, patch
+
         from src.api_pkg.routers.auth import user_error_detail
 
         assert asyncio.run(user_error_detail(None, "TECHNICAL", "safe")) == "safe"
@@ -420,6 +425,7 @@ class TestUserErrorDetail:
     def test_admin_empty_technical_falls_back(self):
         import asyncio
         from unittest.mock import AsyncMock, patch
+
         from src.api_pkg.routers.auth import user_error_detail
 
         with patch(

@@ -1,18 +1,15 @@
 """Extended tests for pipeline runner — uncovered code paths."""
 
 import contextlib
-from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, call, patch
 
-import pytest
-
-from src import Ok, Err
+from src import Err, Ok
 from src.pipeline.runner import (
     build_profiles,
     print_recommendations,
-    show_status,
-    run_full_pipeline,
     rebuild,
+    run_full_pipeline,
+    show_status,
 )
 
 
@@ -71,7 +68,6 @@ class TestBuildProfilesExtended:
         mock_norm.side_effect = lambda s: Ok(s)
         all_codes = {"top_dc": ["T1"], "dc": ["D1"], "base": ["B1"]}
         mapping = {"T1": {"python"}, "D1": {"django"}, "B1": {"flask"}}
-        from src.models.student import merge_skills_hierarchically
         profiles = build_profiles(all_codes, mapping)
         assert "top_dc" in profiles
         assert profiles["top_dc"].competencies == ["T1"]
@@ -105,9 +101,8 @@ class TestPrintRecommendationsExtended:
                 ],
             }
         }
-        with patch("src.pipeline.runner.console_info"):
-            with patch("src.pipeline.runner.atomic_write_json"):
-                print_recommendations(profiles, recs)
+        with patch("src.pipeline.runner.console_info"), patch("src.pipeline.runner.atomic_write_json"):
+            print_recommendations(profiles, recs)
         out = capsys.readouterr().out
         assert "strong alignment" in out
         assert "partial match" not in out
@@ -128,9 +123,8 @@ class TestPrintRecommendationsExtended:
                 "recommendations": [],
             }
         }
-        with patch("src.pipeline.runner.console_info"):
-            with patch("src.pipeline.runner.atomic_write_json"):
-                print_recommendations(profiles, recs)
+        with patch("src.pipeline.runner.console_info"), patch("src.pipeline.runner.atomic_write_json"):
+            print_recommendations(profiles, recs)
         out = capsys.readouterr().out
         assert "\u2139" not in out
 

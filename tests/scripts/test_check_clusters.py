@@ -53,10 +53,10 @@ class TestCheckClusters:
         monkeypatch.setattr(
             "src.analyzers.clustering.vacancy_clustering.config.VACANCY_CLUSTERS_CACHE_DIR", tmp_path
         )
-        from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
-
         import joblib
         import numpy as np
+
+        from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 
         for level in ["junior", "middle", "senior"]:
             c = VacancyClusterer()
@@ -83,7 +83,6 @@ class TestCheckClusters:
             joblib.dump(data, path)
 
         # Запускаем скрипт
-        import scripts.check_clusters as cc
         # Просто проверяем, что не падает
         for level in ["junior", "middle", "senior"]:
             c = VacancyClusterer()
@@ -96,7 +95,9 @@ class TestCheckClusters:
         monkeypatch.setattr(
             "src.analyzers.clustering.vacancy_clustering.config.VACANCY_CLUSTERS_CACHE_DIR", tmp_path
         )
-        import joblib, numpy as np
+        import joblib
+        import numpy as np
+
         from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 
         c = VacancyClusterer()

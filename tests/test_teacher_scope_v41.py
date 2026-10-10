@@ -1,5 +1,4 @@
 """Unit (v41): scope overrides precedence + loader resilience."""
-import pytest
 
 from src.teacher_scope import (
     effective_excluded,

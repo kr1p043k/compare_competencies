@@ -2,8 +2,6 @@
 
 from datetime import datetime
 
-import pytest
-
 from src.models.teacher_analysis import (
     CompetencyCoverage,
     CrossReference,

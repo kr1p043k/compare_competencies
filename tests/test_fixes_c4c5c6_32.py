@@ -3,8 +3,8 @@ C5 (topic_to_skills), 3.2 (student levels).
 """
 import pytest
 
+from src.models.enums import CompetencyLevel
 from src.models.student import StudentProfile
-from src.models.enums import CompetencyLevel, ExperienceLevel
 from src.models.teacher_analysis import DisciplineCoverage
 
 

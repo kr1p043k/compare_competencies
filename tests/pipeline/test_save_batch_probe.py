@@ -1,6 +1,5 @@
 """Integration: save_vacancies_batch persists extracted_skills (fake hh_id, cleaned up)."""
 import asyncpg
-import pytest
 
 DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies"
 FAKE_HH = -777777777

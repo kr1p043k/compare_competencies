@@ -1,8 +1,7 @@
 """KRM студента: направления + merged-вид без дублей."""
 from fastapi.testclient import TestClient
 
-from src.api_pkg import create_app
-from src.api_pkg import deps
+from src.api_pkg import create_app, deps
 
 
 def _override_auth(app, path: str, method: str = "GET"):
@@ -40,6 +39,7 @@ def test_directions_listed():
 
 def test_merged_no_duplicates(monkeypatch):
     from pathlib import Path
+
     from src import config as _cfg
     # conftest autouse уводит DATA_DIR в tmp: возвращаем настоящий для фикстуры.
     monkeypatch.setattr(_cfg, "DATA_DIR", Path("data").resolve())

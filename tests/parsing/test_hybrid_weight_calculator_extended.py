@@ -1,8 +1,9 @@
 """Extended tests for HybridWeightCalculator — covers all uncovered paths."""
-import numpy as np
-from unittest.mock import patch, PropertyMock
+from unittest.mock import PropertyMock, patch
 
-from src import Ok, Err
+import numpy as np
+
+from src import Err, Ok
 from src.errors import DomainError
 from src.parsing.skills.hybrid_weight_calculator import HybridWeightCalculator
 

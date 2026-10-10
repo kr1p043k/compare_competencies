@@ -1,9 +1,10 @@
-import json
-from pathlib import Path
 from unittest.mock import patch
+
 import pytest
+
 from src import Err, Ok
 from src.artifacts import ArtifactManifest
+
 
 class TestArtifactManifest:
     def test_init_with_defaults(self, tmp_path):

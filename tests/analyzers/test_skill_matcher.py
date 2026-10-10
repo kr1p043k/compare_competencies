@@ -1,10 +1,6 @@
-from unittest.mock import MagicMock, patch
 
-import pytest
 
-from src import Ok, Err
-from src.analyzers.skill_matcher import SkillMatcher, normalize, coverage_level
-from src.errors import MatchingError
+from src.analyzers.skill_matcher import SkillMatcher, coverage_level, normalize
 
 
 class TestNormalize:

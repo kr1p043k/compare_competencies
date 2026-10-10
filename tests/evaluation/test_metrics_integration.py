@@ -1,5 +1,6 @@
-from src.evaluation.metrics import RetrievalMetrics, ClassificationMetrics
 import pytest
+
+from src.evaluation.metrics import ClassificationMetrics, RetrievalMetrics
 
 
 def test_no_regression_retrieval():

@@ -1,22 +1,24 @@
 # tests/models/test_models.py
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 from pydantic import ValidationError
+
 from src.models.hh_responses import (
     AreaResponse,
     EmployerResponse,
-    SalaryResponse,
-    SnippetResponse,
     ExperienceResponse,
     KeySkillResponse,
+    SalaryResponse,
+    SnippetResponse,
+    TokenResponse,
+    VacancyDetailResponse,
     VacancySearchItem,
     VacancySearchResponse,
-    VacancyDetailResponse,
-    TokenResponse,
     parse_response,
 )
-from unittest.mock import patch, MagicMock
 from src.models.market_metrics import DomainMetrics, SkillMetrics
 from src.models.student import (
     ProfileEvaluation,
@@ -608,8 +610,9 @@ class TestVacancyExtended:
 
     def test_collection_fetched_at_default(self, sample_vacancies):
         """Строка 360: fetched_at по умолчанию"""
-        from src.models.vacancy import VacancyCollection
         from datetime import datetime
+
+        from src.models.vacancy import VacancyCollection
         coll = VacancyCollection(sample_vacancies)
         assert isinstance(coll.fetched_at, datetime)
 

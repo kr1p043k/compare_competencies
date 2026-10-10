@@ -1,13 +1,10 @@
 # tests/test_utils.py (дополнительные тесты)
 import json
-import tempfile
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from src import utils
-
 
 
 class TestLoadCompetencyMapping:
@@ -30,9 +27,8 @@ class TestAtomicWriteRead:
 
     def test_atomic_write_exception_cleans_temp(self, tmp_path):
         filepath = tmp_path / "test.json"
-        with patch("src.utils.json.dump", side_effect=Exception("write error")):
-            with pytest.raises(Exception):
-                utils.atomic_write_json({"a": 1}, filepath)
+        with patch("src.utils.json.dump", side_effect=Exception("write error")), pytest.raises(Exception):
+            utils.atomic_write_json({"a": 1}, filepath)
         # Временный файл должен быть удалён
         assert len(list(filepath.parent.glob("*.tmp"))) == 0
 

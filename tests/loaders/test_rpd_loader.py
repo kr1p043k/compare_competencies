@@ -1,8 +1,5 @@
 """Tests for RPDLoader and RPDSkillCleaner."""
-import json
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 
 class TestRPDLoader:
@@ -93,7 +90,7 @@ class TestRPDLoader:
         assert result == {}
 
     def test_find_section_text(self):
-        from src.loaders.rpd_loader import find_section_text, SEC_PATTERN
+        from src.loaders.rpd_loader import SEC_PATTERN, find_section_text
         text = "I. Введение\nsome intro\nIII. ТРЕБОВАНИЯ К РЕЗУЛЬТАТАМ\nОПК-2 Знания: python\nУмения: код\nНавыки: отладка\nIV. Учебный план"
         matches = list(SEC_PATTERN.finditer(text))
         result = find_section_text(text, matches)

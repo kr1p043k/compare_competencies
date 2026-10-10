@@ -1,9 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from src import Err, Ok
-from src.errors import DataSourceError
+from src import Ok
 from src.infrastructure.hh_provider import HHVacancyProvider
 
 

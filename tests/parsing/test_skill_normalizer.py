@@ -1,6 +1,6 @@
 # tests/parsing/test_skill_normalizer.py
-import pytest
 from src.parsing.skills.skill_normalizer import SkillNormalizer
+
 
 class TestSkillNormalizer:
     def setup_method(self):

@@ -1,6 +1,5 @@
 """Scheduler tests: settings persistence, due logic, busy guard, profiles override."""
 import sys
-import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 

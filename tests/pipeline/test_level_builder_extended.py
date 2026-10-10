@@ -1,10 +1,9 @@
-from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
-from src import LevelBuildError, Ok, Err
+from src import LevelBuildError
 from src.models.enums import ExperienceLevel
-from src.models.vacancy import Vacancy, Area, Employer, KeySkill, Experience
+from src.models.vacancy import Area, Employer, Experience, KeySkill, Vacancy
 
 
 @pytest.fixture

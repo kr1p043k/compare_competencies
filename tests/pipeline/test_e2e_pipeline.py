@@ -1,18 +1,15 @@
 """E2E integration tests for the full pipeline — orchestrator, stages, progress, events, clean, builder."""
 
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src import Ok, Err
+from src import Err, Ok
 from src.errors import PipelineError
 from src.pipeline.builder import PipelineBuilder
-from src.pipeline.event_bus import EventBus, PipelineEvent
+from src.pipeline.event_bus import EventBus
 from src.pipeline.orchestrator import PipelineOrchestrator, PipelineRun, StageResult
 from src.pipeline.stage import PipelineStage
-from src.models.data_contracts import PipelineContext
-
 
 # =====================================================================
 # Fixtures

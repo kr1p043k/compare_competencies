@@ -4,7 +4,6 @@ Each category tests the fuzzy behavior the article claims:
 - hard positives: fuzzy should miss, semantic should catch
 - negatives: fuzzy should NOT match (precision test)
 """
-import pytest
 
 
 def _mk(query, expected, label, category, l1=False, l2=False, l3=False,

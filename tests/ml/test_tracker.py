@@ -1,6 +1,6 @@
 """Тесты ExperimentTracker."""
 import json
-from pathlib import Path
+
 from src.ml.tracker import ExperimentTracker
 
 

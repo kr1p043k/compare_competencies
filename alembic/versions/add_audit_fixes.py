@@ -4,15 +4,14 @@ ALTER TABLE ADD COLUMN direction_id on several tables,
 refined CHECK constraints, market_skill_mappings changes.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
 
 revision: str = "add_audit_fixes"
-down_revision: Union[str, None] = "initial_schema"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "initial_schema"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

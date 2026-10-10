@@ -1,5 +1,5 @@
 # PipelineStage is an ABC — test with a concrete implementation
-from src import Ok, Err
+from src import Err, Ok
 from src.errors import DomainError
 from src.pipeline.stage import PipelineStage
 

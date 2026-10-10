@@ -1,10 +1,8 @@
 """Tests for CacheManager and JsonCacheManager."""
 import json
+import os
 import tempfile
 from pathlib import Path
-import os
-
-import pytest
 
 from src.cache_manager import CacheManager, JsonCacheManager
 

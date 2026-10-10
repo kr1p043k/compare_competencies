@@ -9,19 +9,21 @@ Create Date: 2026-08-08 00:00:00.000000
 - notifications.severity ('info' | 'warning' | 'error')
 """
 
-from typing import Sequence, Union
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
+from alembic import op
+
 revision: str = "notifications_system_merge"
-down_revision: Union[str, Sequence[str], None] = (
+down_revision: str | Sequence[str] | None = (
     "add_sessions_sso_token",
     "remove_non_it_disciplines",
     "add_subs_and_notifs",
 )
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -1,8 +1,6 @@
 # tests/visualization/test_visualization.py
 import json
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open, ANY
+from unittest.mock import MagicMock, patch
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -11,21 +9,21 @@ import pytest
 
 from src.visualization._config import EMOJI_TO_TEXT
 from src.visualization._utils import (
-    load_skill_weights,
     load_hybrid_weights,
     load_ml_recommendations,
     load_profile_evaluation,
+    load_skill_weights,
 )
 from src.visualization.clusters import plot_cluster_insights
 from src.visualization.correlation import plot_skill_correlation_heatmap
 from src.visualization.coverage import plot_coverage_comparison, plot_skills_heatmap
 from src.visualization.importance import plot_ml_importance, plot_weight_distribution
-from src.visualization.radar import plot_skill_comparison_radar
 from src.visualization.orchestration import (
-    save_all_charts,
     run_notebook,
+    save_all_charts,
     show_context_info,
 )
+from src.visualization.radar import plot_skill_comparison_radar
 
 # отключаем показ графиков во время тестов
 matplotlib.use("Agg")

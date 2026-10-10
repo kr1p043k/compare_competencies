@@ -5,16 +5,17 @@
 - Переводит существующих преподавателей-РОП в роль rop и предзаполняет привязки.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
+from alembic import op
+
 revision: str = "add_rop_role_and_user_directions"
-down_revision: Union[str, None] = "update_direction_supervisors"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "update_direction_supervisors"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 ALL_DIR_CODES = [
     "01.03.01", "01.03.02", "02.03.02_och", "02.03.02_oz", "02.03.03",

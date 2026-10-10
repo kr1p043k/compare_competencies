@@ -1,13 +1,12 @@
 """Extended tests for CoverageAnalyzer — weighted coverage, cross-refs."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from src import Ok
 from src.analyzers.coverage_analyzer import CoverageAnalyzer
-from src.analyzers.skill_matcher import SkillMatcher, normalize
+from src.analyzers.skill_matcher import SkillMatcher
 
 
 class TestCoverageAnalyzerExtended:

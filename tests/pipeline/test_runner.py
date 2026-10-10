@@ -1,25 +1,25 @@
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
-import pytest
 import numpy as np
+import pytest
 
-from src import Ok, Err
+from src import Err, Ok
 from src.pipeline.runner import (
-    convert_float32,
-    clean_progress_files,
-    load_student_competencies,
     build_profiles,
+    clean_progress_files,
+    convert_float32,
+    load_student_competencies,
     print_recommendations,
-    show_status,
-    run_status,
-    run_train_model,
     rebuild,
-    run_pipeline_task_async,
-    run_train_model_async,
-    run_status_async,
     rebuild_async,
+    run_pipeline_task_async,
+    run_status,
+    run_status_async,
+    run_train_model,
+    run_train_model_async,
+    show_status,
 )
 
 
@@ -144,9 +144,8 @@ class TestPrintRecommendations:
                 ],
             }
         }
-        with patch("src.pipeline.runner.console_info"):
-            with patch("src.pipeline.runner.atomic_write_json"):
-                print_recommendations(profiles, recs)
+        with patch("src.pipeline.runner.console_info"), patch("src.pipeline.runner.atomic_write_json"):
+            print_recommendations(profiles, recs)
         out = capsys.readouterr().out
         assert "РЕКОМЕНДАЦИИ" in out
         assert "Python Developer" in out
@@ -165,9 +164,8 @@ class TestPrintRecommendations:
                 "recommendations": [],
             }
         }
-        with patch("src.pipeline.runner.console_info"):
-            with patch("src.pipeline.runner.atomic_write_json"):
-                print_recommendations(profiles, recs)
+        with patch("src.pipeline.runner.console_info"), patch("src.pipeline.runner.atomic_write_json"):
+            print_recommendations(profiles, recs)
         out = capsys.readouterr().out
         assert "РЕКОМЕНДАЦИИ" in out
 
@@ -360,10 +358,9 @@ class TestRebuild:
         tmp = Path(__file__).parent / "tmp_rebuild"
         tmp.mkdir(exist_ok=True)
         rfp, rtm, clusters = self._mock_heavy_steps()
-        with rfp, rtm, clusters:
-            with patch("src.pipeline.runner.config") as cfg:
-                cfg.DATA_DIR = tmp
-                result = rebuild()
+        with rfp, rtm, clusters, patch("src.pipeline.runner.config") as cfg:
+            cfg.DATA_DIR = tmp
+            result = rebuild()
         assert result.is_ok()
 
     def test_rebuild_with_existing_files(self, mock_ci, tmp_path):
@@ -380,10 +377,9 @@ class TestRebuild:
         for f in to_touch:
             f.touch()
         rfp, rtm, clusters = self._mock_heavy_steps()
-        with rfp, rtm, clusters:
-            with patch("src.pipeline.runner.config") as cfg:
-                cfg.DATA_DIR = tmp_path
-                rebuild()
+        with rfp, rtm, clusters, patch("src.pipeline.runner.config") as cfg:
+            cfg.DATA_DIR = tmp_path
+            rebuild()
         for f in to_touch:
             assert not f.exists()
         assert not (tmp_path / "cache" / "embeddings").exists()

@@ -1,7 +1,10 @@
-import numpy as np
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import numpy as np
+
 from src.parsing.skills.skill_embedding_cache import SkillEmbeddingCache
+
 
 def test_cache_compute_new_embeddings(tmp_path, monkeypatch):
     monkeypatch.setattr("src.parsing.skills.skill_embedding_cache.config.EMBEDDINGS_CACHE_DIR", tmp_path)

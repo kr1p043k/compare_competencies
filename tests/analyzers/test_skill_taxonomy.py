@@ -1,6 +1,6 @@
-from src import Ok
 # tests/analyzers/test_skill_taxonomy.py
 import json
+
 import pytest
 
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy

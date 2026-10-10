@@ -1,11 +1,9 @@
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src import Err, Ok
 from src.predictors.base import RankingPredictor
 from src.predictors.factory import create_ranking_predictor, create_recommender
-from src.predictors.models import RecommendationResult, SkillImpact
+from src.predictors.models import SkillImpact
 
 
 class MockRankingPredictor(RankingPredictor):

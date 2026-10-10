@@ -1,6 +1,7 @@
 """Тесты ModelRegistry."""
 from pathlib import Path
-from src.ml.registry import ModelRegistry, ModelRecord
+
+from src.ml.registry import ModelRecord, ModelRegistry
 
 
 class TestModelRegistry:

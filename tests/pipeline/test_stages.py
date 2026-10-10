@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src import Ok, Err
+from src import Err, Ok
 from src.pipeline.stages import (
     ClusterTrainingStage,
     DataCollectionStage,
@@ -61,12 +61,11 @@ class TestSimpleStages:
         with patch("src.pipeline.stages.VacancyQualityScorer") as MockScorer:
             MockScorer.return_value.score.return_value = Ok(mock_score)
             MockScorer.return_value._build_report.return_value = {}
-            with patch("src.pipeline.helpers.save_detailed_vacancies"):
-                with patch("builtins.open"):
-                    with patch("src.pipeline.stages.config") as cfg:
-                        cfg.REPORTS_DIR.__truediv__.return_value = MagicMock()
-                        s.args.excel = False
-                        result = s.run(vacancies=[mock_vacancy], parser=MagicMock())
+            with patch("src.pipeline.helpers.save_detailed_vacancies"), patch("builtins.open"):
+                with patch("src.pipeline.stages.config") as cfg:
+                    cfg.REPORTS_DIR.__truediv__.return_value = MagicMock()
+                    s.args.excel = False
+                    result = s.run(vacancies=[mock_vacancy], parser=MagicMock())
         assert result.is_ok()
 
     def test_quality_scoring_run_spam(self, args, mock_vacancy):
@@ -77,12 +76,11 @@ class TestSimpleStages:
         with patch("src.pipeline.stages.VacancyQualityScorer") as MockScorer:
             MockScorer.return_value.score.return_value = Ok(mock_score)
             MockScorer.return_value._build_report.return_value = {}
-            with patch("src.pipeline.helpers.save_detailed_vacancies"):
-                with patch("builtins.open"):
-                    with patch("src.pipeline.stages.config") as cfg:
-                        cfg.REPORTS_DIR.__truediv__.return_value = MagicMock()
-                        s.args.excel = False
-                        result = s.run(vacancies=[mock_vacancy], parser=MagicMock())
+            with patch("src.pipeline.helpers.save_detailed_vacancies"), patch("builtins.open"):
+                with patch("src.pipeline.stages.config") as cfg:
+                    cfg.REPORTS_DIR.__truediv__.return_value = MagicMock()
+                    s.args.excel = False
+                    result = s.run(vacancies=[mock_vacancy], parser=MagicMock())
         assert result.is_ok()
         assert mock_vacancy.raw_data.get("is_spam") is True
 

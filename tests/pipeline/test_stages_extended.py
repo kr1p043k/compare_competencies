@@ -1,16 +1,16 @@
 """Extended pipeline stage tests for uncovered paths (69% → 85%+)."""
 
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src import Ok, Err
+from src import Err, Ok
 from src.models.vacancy import Vacancy
 from src.pipeline.stages import (
     DataCollectionStage,
+    ModelTrainingStage,
     QualityScoringStage,
     SkillExtractionStage,
-    ModelTrainingStage,
 )
 
 
@@ -64,11 +64,10 @@ class TestQualityScoringExcel:
         with patch("src.pipeline.stages.VacancyQualityScorer") as MockScorer:
             MockScorer.return_value.score.return_value = Ok(mock_score)
             MockScorer.return_value._build_report.return_value = {}
-            with patch("src.pipeline.helpers.save_detailed_vacancies"):
-                with patch("builtins.open"):
-                    with patch("src.pipeline.stages.config") as cfg:
-                        cfg.REPORTS_DIR.__truediv__.return_value = MagicMock()
-                        result = s.run(vacancies=[mock_vacancy], parser=mock_parser)
+            with patch("src.pipeline.helpers.save_detailed_vacancies"), patch("builtins.open"):
+                with patch("src.pipeline.stages.config") as cfg:
+                    cfg.REPORTS_DIR.__truediv__.return_value = MagicMock()
+                    result = s.run(vacancies=[mock_vacancy], parser=mock_parser)
 
         assert result.is_ok()
         mock_parser.aggregate_to_dataframe.assert_called_once()
@@ -81,11 +80,10 @@ class TestQualityScoringExcel:
 
         with patch("src.pipeline.stages.VacancyQualityScorer") as MockScorer:
             MockScorer.return_value._build_report.return_value = {}
-            with patch("src.pipeline.helpers.save_detailed_vacancies"):
-                with patch("builtins.open"):
-                    with patch("src.pipeline.stages.config") as cfg:
-                        cfg.REPORTS_DIR.__truediv__.return_value = MagicMock()
-                        result = s.run(vacancies=[], parser=mock_parser)
+            with patch("src.pipeline.helpers.save_detailed_vacancies"), patch("builtins.open"):
+                with patch("src.pipeline.stages.config") as cfg:
+                    cfg.REPORTS_DIR.__truediv__.return_value = MagicMock()
+                    result = s.run(vacancies=[], parser=mock_parser)
 
         assert result.is_ok()
         mock_parser.aggregate_to_dataframe.assert_not_called()
@@ -103,12 +101,11 @@ class TestQualityScoringCleanPctWarning:
         with patch("src.pipeline.stages.VacancyQualityScorer") as MockScorer:
             MockScorer.return_value.score.return_value = Ok(mock_score)
             MockScorer.return_value._build_report.return_value = {}
-            with patch("src.pipeline.helpers.save_detailed_vacancies"):
-                with patch("builtins.open"):
-                    with patch("src.pipeline.stages.config") as cfg:
-                        cfg.REPORTS_DIR.__truediv__.return_value = MagicMock()
-                        with patch("src.pipeline.stages.logger.warning") as mock_warn:
-                            result = s.run(vacancies=[mock_vacancy], parser=MagicMock())
+            with patch("src.pipeline.helpers.save_detailed_vacancies"), patch("builtins.open"):
+                with patch("src.pipeline.stages.config") as cfg:
+                    cfg.REPORTS_DIR.__truediv__.return_value = MagicMock()
+                    with patch("src.pipeline.stages.logger.warning") as mock_warn:
+                        result = s.run(vacancies=[mock_vacancy], parser=MagicMock())
 
         assert result.is_ok()
         mock_warn.assert_called_once()
@@ -127,12 +124,11 @@ class TestQualityScoringCleanPctWarning:
         with patch("src.pipeline.stages.VacancyQualityScorer") as MockScorer:
             MockScorer.return_value.score.return_value = Ok(mock_score)
             MockScorer.return_value._build_report.return_value = {}
-            with patch("src.pipeline.helpers.save_detailed_vacancies"):
-                with patch("builtins.open"):
-                    with patch("src.pipeline.stages.config") as cfg:
-                        cfg.REPORTS_DIR.__truediv__.return_value = MagicMock()
-                        with patch("src.pipeline.stages.logger.warning") as mock_warn:
-                            result = s.run(vacancies=[mock_vacancy], parser=MagicMock())
+            with patch("src.pipeline.helpers.save_detailed_vacancies"), patch("builtins.open"):
+                with patch("src.pipeline.stages.config") as cfg:
+                    cfg.REPORTS_DIR.__truediv__.return_value = MagicMock()
+                    with patch("src.pipeline.stages.logger.warning") as mock_warn:
+                        result = s.run(vacancies=[mock_vacancy], parser=MagicMock())
 
         assert result.is_ok()
         mock_warn.assert_not_called()

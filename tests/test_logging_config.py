@@ -1,7 +1,5 @@
 # tests/test_logging_config.py
 import logging
-import os
-from unittest.mock import patch, MagicMock
 
 import pytest
 

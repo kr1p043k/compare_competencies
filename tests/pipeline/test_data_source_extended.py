@@ -1,9 +1,9 @@
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src import Ok, Err
+from src import Err, Ok
 
 
 @pytest.fixture
@@ -177,14 +177,11 @@ class TestHhDataSourceGetVacancies:
                 MockParser.return_value = parser_instance
 
                 with patch("src.pipeline.data_source.collect_vacancies_multiple",
-                          return_value=[{"id": "1"}]):
-                    with patch("src.pipeline.data_source.get_load_mode",
-                              return_value=(False, 0, "sync")):
-                        with patch("src.pipeline.data_source.load_vacancies_details",
-                                  return_value=Ok([MagicMock()])):
-                            with patch("src.pipeline.data_source.save_detailed_vacancies",
-                                      return_value=Ok(None)):
-                                result = ds.get_vacancies()
+                          return_value=[{"id": "1"}]), patch("src.pipeline.data_source.get_load_mode",
+                          return_value=(False, 0, "sync")), patch("src.pipeline.data_source.load_vacancies_details",
+                          return_value=Ok([MagicMock()])), patch("src.pipeline.data_source.save_detailed_vacancies",
+                          return_value=Ok(None)):
+                    result = ds.get_vacancies()
         assert result.is_ok()
         assert isinstance(ds.args.queries, list)
         assert len(ds.args.queries) > 5
@@ -206,14 +203,13 @@ class TestHhDataSourceGetVacancies:
                         MockParser.return_value = parser_instance
 
                         with patch("src.pipeline.data_source.collect_vacancies_multiple",
-                                  return_value=[{"id": "1"}]):
-                            with patch("src.pipeline.data_source.get_load_mode",
-                                      return_value=(False, 0, "sync")):
-                                with patch("src.pipeline.data_source.load_vacancies_details",
-                                          return_value=Ok([MagicMock()])):
-                                    with patch("src.pipeline.data_source.save_detailed_vacancies",
-                                              return_value=Ok(None)):
-                                        result = ds.get_vacancies()
+                                  return_value=[{"id": "1"}]), patch("src.pipeline.data_source.get_load_mode",
+                                  return_value=(False, 0, "sync")):
+                            with patch("src.pipeline.data_source.load_vacancies_details",
+                                      return_value=Ok([MagicMock()])):
+                                with patch("src.pipeline.data_source.save_detailed_vacancies",
+                                          return_value=Ok(None)):
+                                    result = ds.get_vacancies()
         assert result.is_ok()
 
     def test_collect_with_queries_file_real(self, args, tmp_path):
@@ -308,14 +304,11 @@ class TestHhDataSourceGetVacancies:
                     MockParser.return_value = parser_instance
 
                     with patch("src.pipeline.data_source.collect_vacancies_multiple",
-                              return_value=[{"id": "1"}]):
-                        with patch("src.pipeline.data_source.get_load_mode",
-                                  return_value=(False, 0, "sync")):
-                            with patch("src.pipeline.data_source.load_vacancies_details",
-                                      return_value=Ok([MagicMock()])):
-                                with patch("src.pipeline.data_source.save_detailed_vacancies",
-                                          return_value=Ok(None)):
-                                    result = ds.get_vacancies()
+                              return_value=[{"id": "1"}]), patch("src.pipeline.data_source.get_load_mode",
+                              return_value=(False, 0, "sync")), patch("src.pipeline.data_source.load_vacancies_details",
+                              return_value=Ok([MagicMock()])), patch("src.pipeline.data_source.save_detailed_vacancies",
+                              return_value=Ok(None)):
+                        result = ds.get_vacancies()
         assert result.is_ok()
 
     def test_collect_with_regions(self, args):
@@ -333,14 +326,11 @@ class TestHhDataSourceGetVacancies:
                 MockParser.return_value = parser_instance
 
                 with patch("src.pipeline.data_source.collect_vacancies_multiple",
-                          return_value=[{"id": "1"}]):
-                    with patch("src.pipeline.data_source.get_load_mode",
-                              return_value=(False, 0, "sync")):
-                        with patch("src.pipeline.data_source.load_vacancies_details",
-                                  return_value=Ok([MagicMock()])):
-                            with patch("src.pipeline.data_source.save_detailed_vacancies",
-                                      return_value=Ok(None)):
-                                result = ds.get_vacancies()
+                          return_value=[{"id": "1"}]), patch("src.pipeline.data_source.get_load_mode",
+                          return_value=(False, 0, "sync")), patch("src.pipeline.data_source.load_vacancies_details",
+                          return_value=Ok([MagicMock()])), patch("src.pipeline.data_source.save_detailed_vacancies",
+                          return_value=Ok(None)):
+                    result = ds.get_vacancies()
         assert result.is_ok()
         assert ds.args.area_ids == [1, 2, 3]
 

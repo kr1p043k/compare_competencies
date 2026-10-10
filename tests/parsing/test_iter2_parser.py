@@ -2,19 +2,14 @@
 Covers _direct_search, _marker_search, _match_skill_at, _direct_index,
 parse_vacancy dedup, homoglyph normalization, config path, synonym map.
 """
-import pytest
 
+from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.parsing.skills.skill_parser import (
     SkillParser,
     SkillSource,
-    ExtractedSkill,
-    ParsingStats,
-    _normalize_for_matching,
     _load_it_skills,
-    LOCATION_PATTERNS,
-    ABBREV_RE,
+    _normalize_for_matching,
 )
-from src.parsing.skills.skill_normalizer import SkillNormalizer
 
 
 class TestDirectSearch:
@@ -97,7 +92,7 @@ class TestMarkerSearch:
 class TestParseVacancy:
     def test_dedup_case_insensitive(self):
         """Duplicate skills (different case) are deduplicated."""
-        from src.models.vacancy import Vacancy, Area, Employer
+        from src.models.vacancy import Area, Employer, Vacancy
         # Build minimal vacancy
         vac = Vacancy(
             id="1", name="Test", key_skills=[],
@@ -113,7 +108,7 @@ class TestParseVacancy:
 
     def test_key_skills_confidence(self):
         """Key skills get confidence 1.0."""
-        from src.models.vacancy import Vacancy, KeySkill, Area, Employer
+        from src.models.vacancy import Area, Employer, KeySkill, Vacancy
         vac = Vacancy(
             id="1", name="Test",
             key_skills=[KeySkill(name="Python")],
@@ -158,6 +153,7 @@ class TestLoadItSkills:
     def test_uses_config_path(self):
         """F5: uses config.IT_SKILLS_PATH (not .parent x4)."""
         import inspect
+
         from src.parsing.skills import skill_parser
         src = inspect.getsource(skill_parser._load_it_skills)
         assert "config" in src.lower() or "_cfg" in src
@@ -168,9 +164,8 @@ class TestSynonymMap:
     """F7: no duplicate keys in SYNONYM_MAP."""
 
     def test_no_duplicate_keys(self):
-        import re
-        from pathlib import Path
         import pathlib
+        import re
         path = pathlib.Path.home() / "workvs" / "compare_competencies" / "src" / "parsing" / "skills" / "skill_normalizer.py"
         text = path.read_text(encoding="utf-8")
         keys = re.findall(r'^\s+"([^"]+)":\s*\[', text, re.MULTILINE)
@@ -193,6 +188,7 @@ class TestSynonymMap:
     def test_no_cache_decorator(self):
         """8b: @cache removed from normalize (stale risk)."""
         import inspect
+
         from src.parsing.skills import skill_normalizer
         src = inspect.getsource(skill_normalizer.SkillNormalizer.normalize)
         # The function itself should not have @cache in its source

@@ -1,12 +1,10 @@
 import json
-from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src import Ok, Err, GapAnalysisError
-from src.models.enums import ComparisonLevel, ExperienceLevel
-from src.pipeline.gap_runner import GapRunner, GAP_PROGRESS_FILE
+from src import Err, Ok
+from src.pipeline.gap_runner import GapRunner
 from src.predictors.models import RecommendationResult, RecommendationSummary
 
 
@@ -134,12 +132,11 @@ class TestRunSkillLevelError:
     def test_returns_err_on_level_weight_failure(self, runner):
         with patch(
             "src.pipeline.gap_runner.SkillLevelAnalyzer.analyze_vacancies"
-        ) as mock_analyze:
-            with patch(
-                "src.pipeline.gap_runner.SkillLevelAnalyzer.get_weights_for_level",
-                return_value=Err("bad level"),
-            ):
-                result = runner.run()
+        ) as mock_analyze, patch(
+            "src.pipeline.gap_runner.SkillLevelAnalyzer.get_weights_for_level",
+            return_value=Err("bad level"),
+        ):
+            result = runner.run()
         assert isinstance(result, Err)
         assert "Не удалось получить веса" in result._error.message
 
@@ -268,9 +265,8 @@ class TestEvaluateProfiles:
             "target_profession": "Python Developer",
         }
         runner.evaluator = mock_evaluator
-        with patch.object(runner, "taxonomy", mock_taxonomy):
-            with patch.object(runner, "_write_progress"):
-                result = runner._evaluate_profiles()
+        with patch.object(runner, "taxonomy", mock_taxonomy), patch.object(runner, "_write_progress"):
+            result = runner._evaluate_profiles()
         assert len(result) == 2
         assert result["john"]["target_profession"] == "Python Developer"
         assert result["john"]["target_domains"] == ["backend"]
@@ -290,9 +286,8 @@ class TestEvaluateProfiles:
         mock_taxonomy = MagicMock()
         mock_taxonomy.get_profile_target.return_value = None
         runner.evaluator = mock_evaluator
-        with patch.object(runner, "taxonomy", mock_taxonomy):
-            with patch.object(runner, "_write_progress"):
-                result = runner._evaluate_profiles()
+        with patch.object(runner, "taxonomy", mock_taxonomy), patch.object(runner, "_write_progress"):
+            result = runner._evaluate_profiles()
         assert result["john"]["target_profession"] == ""
         assert result["john"]["target_domains"] == []
 
@@ -342,9 +337,8 @@ class TestEvaluateProfilesParallel:
             "target_profession": "Python Developer",
         }
         runner.evaluator = mock_evaluator
-        with patch.object(runner, "taxonomy", mock_taxonomy):
-            with patch.object(runner, "_write_progress"):
-                result = runner._evaluate_profiles_parallel()
+        with patch.object(runner, "taxonomy", mock_taxonomy), patch.object(runner, "_write_progress"):
+            result = runner._evaluate_profiles_parallel()
         assert len(result) == 2
 
     def test_handles_failed_evaluation_in_parallel(self, runner):
@@ -353,9 +347,8 @@ class TestEvaluateProfilesParallel:
         mock_taxonomy = MagicMock()
         mock_taxonomy.get_profile_target.return_value = None
         runner.evaluator = mock_evaluator
-        with patch.object(runner, "taxonomy", mock_taxonomy):
-            with patch.object(runner, "_write_progress"):
-                result = runner._evaluate_profiles_parallel()
+        with patch.object(runner, "taxonomy", mock_taxonomy), patch.object(runner, "_write_progress"):
+            result = runner._evaluate_profiles_parallel()
         assert result == {}
         # Mutation-sniff: evaluator must actually have run (not a stubbed {}),
         # once per profile in runner.profiles

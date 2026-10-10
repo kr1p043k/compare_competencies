@@ -1,10 +1,8 @@
 # Hash-seed determinism: same logical inputs built via set iteration must
 # produce byte-identical outputs under different PYTHONHASHSEED (v15).
-import json
 import os
 import subprocess
 import sys
-
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent

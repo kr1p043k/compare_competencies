@@ -2,13 +2,12 @@
 extracts skills from structured patterns, splits multi-skill phrases,
 filters per-token (not full-match).
 """
-import pytest
 
 from src.parsing.skills.skill_parser import (
+    ABBREV_RE,
+    LOCATION_PATTERNS,
     SkillParser,
     SkillSource,
-    LOCATION_PATTERNS,
-    ABBREV_RE,
 )
 
 

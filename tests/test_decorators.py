@@ -1,7 +1,7 @@
 import asyncio
 from unittest.mock import patch
 
-from src.decorators import timed, timed_block, timed_async
+from src.decorators import timed, timed_async, timed_block
 
 
 class TestTimed:
@@ -55,6 +55,5 @@ class TestTimedBlock:
         assert mock_logger.info.call_args.kwargs["function"] == "test_block"
 
     def test_timed_block_default_key(self):
-        with patch("src.decorators.structlog.get_logger"):
-            with timed_block("custom_key") as tb:
-                assert tb.log_key == "custom_key"
+        with patch("src.decorators.structlog.get_logger"), timed_block("custom_key") as tb:
+            assert tb.log_key == "custom_key"

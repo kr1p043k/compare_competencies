@@ -26,7 +26,8 @@ class TestResultSnapshot:
 class TestConfigSnapshot:
     def test_result_module_structure(self, snapshot):
         from src import Result as R
-        from src.result import Ok as OkCls, Err as ErrCls
+        from src.result import Err as ErrCls
+        from src.result import Ok as OkCls
 
         snapshot.assert_match(repr(OkCls), "result_Ok_class.txt")
         snapshot.assert_match(repr(ErrCls), "result_Err_class.txt")

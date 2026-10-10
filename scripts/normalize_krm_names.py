@@ -203,7 +203,7 @@ def process_file(path: Path, use_llm: bool, dry_run: bool) -> None:
             print(f"  {dir_code}: {old_name!r} -> {new_name!r}")
             entry = disciplines.pop(old_name)
             if new_name in disciplines:
-                print(f"    merged into existing key")
+                print("    merged into existing key")
                 disciplines[new_name] = merge_discipline(disciplines[new_name], entry)
             else:
                 disciplines[new_name] = entry

@@ -1,5 +1,4 @@
 """Unit (v45): custom profiles restore on startup scan."""
-from src.api_pkg import deps as _deps
 from src.api_pkg.startup import register_custom_student_profiles
 
 

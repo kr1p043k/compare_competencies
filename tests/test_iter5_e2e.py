@@ -2,14 +2,12 @@
 Tests the complete flow from vacancy text to coverage report, exercising
 all fixed components together (C1, C4, C5, F2, F7).
 """
-import pytest
 
-from src.parsing.skills.skill_parser import SkillParser, SkillSource
-from src.parsing.skills.skill_normalizer import SkillNormalizer
-from src.parsing.skills.skill_validator import SkillValidator
-from src.analyzers.skill_matcher import SkillMatcher
 from src.analyzers.coverage_analyzer import CoverageAnalyzer
-
+from src.analyzers.skill_matcher import SkillMatcher
+from src.parsing.skills.skill_normalizer import SkillNormalizer
+from src.parsing.skills.skill_parser import SkillParser, SkillSource
+from src.parsing.skills.skill_validator import SkillValidator
 
 MARKET = {
     "python": 100, "sql": 80, "docker": 60,

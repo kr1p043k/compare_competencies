@@ -5,14 +5,14 @@ in data/cache/pipeline_idempotency.json; DB enforces uniqueness so a
 retry in the same second cannot start a duplicate heavy job.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
 revision: str = "pipeline_idempotency_key"
-down_revision: Union[str, None] = "add_rpd_import_action"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "add_rpd_import_action"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

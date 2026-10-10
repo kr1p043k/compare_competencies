@@ -1,16 +1,17 @@
 # tests/parsing/test_api.py
-import time
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
 import asyncio
+import time
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
 import aiohttp
 import pytest
 import requests
 from aioresponses import aioresponses
 from pydantic import SecretStr
 
-from src.models.vacancy import Vacancy
-from src import Ok, Err
+from src import Err, Ok
 from src.errors import ApiError
+from src.models.vacancy import Vacancy
 from src.parsing.api.hh_api import HeadHunterAPI
 from src.parsing.api.hh_api_async import HeadHunterAPIAsync
 

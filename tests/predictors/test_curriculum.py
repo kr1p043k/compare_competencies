@@ -1,13 +1,13 @@
 """Tests for CurriculumOptimizer and CurriculumRecommender."""
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
-
-from src import Ok, Err
 from src.errors import RecommendationError
 from src.models.teacher_analysis import (
-    DirectionSummary, Recommendation, DisciplineCoverage, CompetencyCoverage,
-    CrossReference, SkillMatch,
+    CompetencyCoverage,
+    CrossReference,
+    DirectionSummary,
+    DisciplineCoverage,
+    SkillMatch,
 )
 from src.predictors.curriculum_optimizer import CurriculumOptimizer
 from src.predictors.curriculum_recommender import CurriculumRecommender

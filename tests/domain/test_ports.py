@@ -1,16 +1,16 @@
 """Tests for domain port interfaces — Protocol structural subtyping."""
 from typing import Any
 
-from src import Ok, Err, Result
-from src.errors import DomainError, CacheError, DataSourceError
+from src import Ok, Result
 from src.domain.ports import (
-    DataProvider,
     CacheProvider,
+    DataProvider,
+    ForecastProvider,
     Repository,
     SkillProvider,
     VacancyProvider,
-    ForecastProvider,
 )
+from src.errors import CacheError, DataSourceError, DomainError
 
 
 class TestProtocols:

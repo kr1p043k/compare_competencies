@@ -1,7 +1,7 @@
 """Unit (v37): bullet-strip, conditional shreds, ksa-type routing, matched names."""
 from src.analyzers.coverage_analyzer import CoverageAnalyzer
 from src.analyzers.skill_matcher import SkillMatcher
-from src.models.teacher_analysis import CompetencyCoverage, DisciplineCoverage
+from src.models.teacher_analysis import DisciplineCoverage
 from src.pipeline.teacher_analysis_runner import (
     _is_skill_like_ksa,
     _strip_bullet,

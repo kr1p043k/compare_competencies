@@ -1,11 +1,12 @@
 # tests/parsing/test_vacancy_parser.py
-import json
 from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
 import pytest
+
+from src import Err, Ok
 from src.models.vacancy import Area, Employer, KeySkill, Vacancy
-from src import Ok, Err
 from src.parsing.skills.skill_parser import ExtractedSkill, SkillSource
 from src.parsing.skills.vacancy_parser import VacancyParser
 
@@ -352,9 +353,10 @@ class TestBlankSkillsDropped:
 
     def test_parse_vacancy_drops_blanks(self):
         from unittest.mock import MagicMock, patch
+
         from src import Ok
         from src.models.vacancy import Area, Employer, Vacancy
-        from src.parsing.skills.skill_parser import SkillParser, ExtractedSkill, SkillSource
+        from src.parsing.skills.skill_parser import ExtractedSkill, SkillParser, SkillSource
         parser = SkillParser.__new__(SkillParser)
         parser.stats = MagicMock()
         area = Area(1, "M")

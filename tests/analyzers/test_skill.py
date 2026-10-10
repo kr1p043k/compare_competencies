@@ -1,7 +1,6 @@
 # tests/analyzers/test_skill.py
 import pytest
 
-from src import Ok, Err
 from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
 

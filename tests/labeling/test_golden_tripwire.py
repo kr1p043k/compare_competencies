@@ -3,7 +3,6 @@
 NOT a quality gate yet (that needs expert-confirmed round_2 + ranking preds).
 It guards file corruption / schema drift of labeling/gold.csv.
 """
-import csv
 from pathlib import Path
 
 from labeling.score import fleiss_kappa, load_labels

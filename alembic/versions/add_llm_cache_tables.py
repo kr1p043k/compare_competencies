@@ -4,14 +4,14 @@ Revision ID: add_llm_cache_tables
 Revises: add_request_logs_detail
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
 revision: str = "add_llm_cache_tables"
-down_revision: Union[str, None] = "add_request_logs_detail"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "add_request_logs_detail"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

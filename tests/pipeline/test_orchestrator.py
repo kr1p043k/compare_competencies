@@ -1,16 +1,13 @@
 ﻿from unittest.mock import MagicMock, patch
 
-import pytest
-
-from src import Ok, Err
+from src import Err, Ok
+from src.pipeline.event_bus import EventBus
 from src.pipeline.orchestrator import (
     PipelineOrchestrator,
     PipelineRun,
     StageResult,
 )
-from src.pipeline.event_bus import EventBus, PipelineEvent
 from src.pipeline.stage import PipelineStage
-from src.errors import PipelineError
 
 
 class TestStageResultData:

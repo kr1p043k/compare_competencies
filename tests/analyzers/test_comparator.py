@@ -3,6 +3,7 @@ import logging
 import sys
 import traceback
 from unittest.mock import MagicMock, patch
+
 import joblib
 import numpy as np
 import pytest
@@ -521,7 +522,7 @@ class TestCompetencyComparatorFull:
         from src.analyzers.comparison.embedding_comparator import ArtifactManifest as RealArtifactManifest
 
         real_manifest = RealArtifactManifest(cache_path)
-        from src import Ok; real_manifest.is_compatible = MagicMock(return_value=Ok(False))
+        real_manifest.is_compatible = MagicMock(return_value=Ok(False))
         with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
             with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest.load", return_value=Ok(real_manifest)):
                 with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest._get_embedding_model_version", return_value="new"):
@@ -559,7 +560,7 @@ class TestCompetencyComparatorFull:
         fake_model.encode.return_value = np.array([[0.1, 0.2]])
         comp.model = fake_model
 
-        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", side_effect=IOError("disk full")):
+        with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", side_effect=OSError("disk full")):
             with pytest.raises(IOError, match="disk full"):
                 comp.build_market_index(["python"], level="middle")
 

@@ -1,9 +1,9 @@
 import json
+
 import pytest
 
 from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy, TaxonomyValidator
 from src.models.market_metrics import DomainMetrics
-
 
 SAMPLE_TAXONOMY = {
     "professions": {

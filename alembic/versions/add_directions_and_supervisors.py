@@ -8,15 +8,14 @@
 Создаёт/обновляет 8 пользователей-преподавателей.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
 
 revision: str = "add_directions_and_supervisors"
-down_revision: Union[str, None] = "add_llm_tables"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "add_llm_tables"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 DIRECTIONS = [

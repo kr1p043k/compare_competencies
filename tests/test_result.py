@@ -1,7 +1,7 @@
-from hypothesis import assume, given
+from hypothesis import given
 from hypothesis import strategies as st
 
-from src import Err, Ok, Result
+from src import Err, Ok
 
 
 @st.composite

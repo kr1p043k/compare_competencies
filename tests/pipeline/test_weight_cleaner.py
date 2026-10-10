@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src import Ok, Err
+from src import Err, Ok
 from src.pipeline.weight_cleaner import WeightCleaner
 
 

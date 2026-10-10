@@ -4,8 +4,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api_pkg import create_app
-from src.api_pkg import deps
+from src.api_pkg import create_app, deps
 
 STUDENT = {"uid": "00000000-0000-0000-0000-000000000009", "u": "stud@t.local", "r": "student"}
 
@@ -20,7 +19,6 @@ def actor():
 @pytest.fixture()
 def iso(tmp_path, monkeypatch):
     from src import config
-    import src.api_pkg.routers.profiles as pr
 
     students = tmp_path / "students"
     students.mkdir()

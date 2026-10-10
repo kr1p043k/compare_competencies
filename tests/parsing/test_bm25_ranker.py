@@ -1,9 +1,12 @@
 # tests/parsing/test_bm25_ranker.py
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from src import Ok
 from src.parsing.skills.bm25_ranker import BM25Ranker
+
 
 def identity_normalize(x):
     return Ok(x.lower() if isinstance(x, str) else x)

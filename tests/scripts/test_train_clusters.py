@@ -2,7 +2,7 @@
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -218,8 +218,9 @@ class TestTrainClusters:
 
         with patch("src.analyzers.clustering.vacancy_clustering.VacancyClusterer.fit") as mock_fit:
             mock_fit.return_value = MagicMock(is_fitted=True, n_clusters_=1, clusterer_type="kmeans")
-            from scripts.train_clusters import train_clusters
             import logging
+
+            from scripts.train_clusters import train_clusters
             with caplog.at_level(logging.WARNING):
                 train_clusters(level="middle", save_report=False, interpret=False)
         # В логах должно быть предупреждение о вакансиях без навыков

@@ -1,16 +1,14 @@
 """Unit tests for HybridMatcher (new hybrid algorithm for article)."""
-import pytest
 
 from src.analyzers.hybrid_matcher import (
+    SEM_BASE,
+    SEM_MAX,
+    SEM_MIN,
     HybridMatcher,
-    adaptive_threshold,
-    fuzzy_confidence,
-    normalize,
     _is_strict_prefix_trap,
     _word_contained,
-    SEM_BASE,
-    SEM_MIN,
-    SEM_MAX,
+    adaptive_threshold,
+    fuzzy_confidence,
 )
 
 

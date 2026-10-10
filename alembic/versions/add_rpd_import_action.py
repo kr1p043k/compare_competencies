@@ -3,14 +3,14 @@
 Used by the RPD upload/collect pipeline (src.api_pkg.routers.rpd).
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
 revision: str = "add_rpd_import_action"
-down_revision: Union[str, None] = "competency_vpk_subcodes"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "competency_vpk_subcodes"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

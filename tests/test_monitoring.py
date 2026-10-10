@@ -1,13 +1,14 @@
 """Tests for Prometheus monitoring."""
 
-import time
-from unittest.mock import patch
 
 import pytest
 
 from src.monitoring.metrics import (
-    track_pipeline_stage, pipeline_duration, pipeline_errors,
-    recommendations_generated, ltr_model_metrics, get_metrics,
+    get_metrics,
+    ltr_model_metrics,
+    pipeline_errors,
+    recommendations_generated,
+    track_pipeline_stage,
 )
 
 

@@ -3,7 +3,11 @@ import pytest
 
 from src.analyzers.skill_cooccurrence import SkillCooccurrence
 from src.models.teacher_analysis import (
-    CompetencyCoverage, CrossReference, DisciplineCoverage, Recommendation, SkillMatch,
+    CompetencyCoverage,
+    CrossReference,
+    DisciplineCoverage,
+    Recommendation,
+    SkillMatch,
 )
 from src.predictors.curriculum_recommender import CurriculumRecommender, _classify_skill
 from src.text import ru_morph
@@ -314,7 +318,7 @@ def test_foundational_near_dupes_folded():
 
 
 def test_major_revision_suppressed_without_it_evidence():
-    from src.models.teacher_analysis import DisciplineCoverage, SkillMatch
+    from src.models.teacher_analysis import DisciplineCoverage
     from src.predictors.curriculum_recommender import CurriculumRecommender
     cov = DisciplineCoverage(
         discipline_id='t1', discipline_name='Test Philo', top_matched=[],
@@ -366,7 +370,7 @@ def test_market_purge_drops_single_char_junk():
 
 
 def test_empty_competency_gets_explicit_rec():
-    from src.models.teacher_analysis import CompetencyCoverage, DisciplineCoverage
+    from src.models.teacher_analysis import DisciplineCoverage
     from src.predictors.curriculum_recommender import CurriculumRecommender
     cov = DisciplineCoverage(
         discipline_id='t1', discipline_name='Test', top_matched=[], gaps_list=[],
@@ -381,7 +385,7 @@ def test_empty_competency_gets_explicit_rec():
 
 
 def test_review_carries_competency_codes():
-    from src.models.teacher_analysis import CompetencyCoverage, DisciplineCoverage
+    from src.models.teacher_analysis import DisciplineCoverage
     from src.predictors.curriculum_recommender import CurriculumRecommender
     cov = DisciplineCoverage(
         discipline_id='t1', discipline_name='Test', top_matched=[],

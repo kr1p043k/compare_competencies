@@ -1,8 +1,8 @@
 import asyncio
 import json
 import sys
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator
 
 import structlog
 

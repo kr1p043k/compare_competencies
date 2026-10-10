@@ -157,12 +157,12 @@ async def seed_krm(session, skill_map: dict[str, str]) -> None:
                 comp_count += 1
 
             for kt in ("knowledge", "abilities", "skills"):
-                for idx, text in enumerate(ksa_data.get(comp_code, {}).get(kt, [])):
+                for idx, ksa_text in enumerate(ksa_data.get(comp_code, {}).get(kt, [])):
                     existing_ksa = await session.execute(
                         select(KSAEntry).where(
                             KSAEntry.competency_id == comp.id,
                             KSAEntry.ksa_type == kt,
-                            KSAEntry.original_text == text,
+                            KSAEntry.original_text == ksa_text,
                         )
                     )
                     if existing_ksa.scalar_one_or_none():
@@ -171,7 +171,7 @@ async def seed_krm(session, skill_map: dict[str, str]) -> None:
                         KSAEntry(
                             competency_id=comp.id,
                             ksa_type=kt,
-                            original_text=text,
+                            original_text=ksa_text,
                             sort_order=idx,
                             parse_version_id=pv.id,
                         )

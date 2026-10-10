@@ -1,9 +1,9 @@
 # tests/parsing/test_validation.py
-import pytest
 import json
 
+import pytest
+
 from src.models.vacancy import KeySkill, Snippet, Vacancy
-from src import Ok, Err
 from src.parsing.skills.skill_parser import SkillParser, SkillSource
 from src.parsing.skills.skill_validator import SkillValidator, ValidationReason
 

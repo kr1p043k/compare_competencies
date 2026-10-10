@@ -20,8 +20,6 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-import pytest
-
 from src import config as cfg
 from src.services import llm_cache as dbcache
 from src.services.llm_extract import _validate, extract_skills

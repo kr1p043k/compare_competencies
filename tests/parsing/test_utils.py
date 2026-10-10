@@ -3,11 +3,12 @@ import json
 import logging
 from collections import Counter
 from unittest.mock import MagicMock, patch
+
 import pytest
 
 from src import Ok, config
-from src.parsing import utils as parsing_utils
 from src import utils as base_utils
+from src.parsing import utils as parsing_utils
 
 # Чтобы существующие тесты продолжали работать без изменений,
 # назначаем utils = parsing_utils.

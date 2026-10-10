@@ -169,6 +169,7 @@ def test_custom_options_shape(isolated):
 
 def test_custom_options_suggest_fallback_nonempty(isolated, monkeypatch):
     import json as _json
+
     from src.api_pkg import deps as _deps
     monkeypatch.setattr(_deps, "skill_freq", {})
     monkeypatch.setattr(_deps, "skill_weights", {})

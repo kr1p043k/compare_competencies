@@ -1,10 +1,10 @@
 ﻿# tests/analyzers/comparison/test_engines.py
-import pytest
-from unittest.mock import MagicMock, patch
-import numpy as np
+from unittest.mock import MagicMock
 
-from src import Err, Ok, Result
-from src.analyzers.comparison.engines import JaccardEngine, EnsembleEngine, BM25Engine, SimilarityEngine
+import pytest
+
+from src import Ok, Result
+from src.analyzers.comparison.engines import BM25Engine, EnsembleEngine, JaccardEngine, SimilarityEngine
 
 
 def _unwrap(res: Result) -> dict:

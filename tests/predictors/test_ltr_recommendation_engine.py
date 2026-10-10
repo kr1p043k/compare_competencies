@@ -1,9 +1,9 @@
 # tests/predictors/test_ltr_recommendation_engine.py
 import json
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch, ANY
 import sys
+from pathlib import Path
+from unittest.mock import ANY, MagicMock, patch
+
 sys.modules['shap'] = MagicMock()
 sys.modules['cv2'] = MagicMock()
 
@@ -14,7 +14,7 @@ import pytest
 import xgboost as xgb
 
 from src import Ok
-from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine, _SYNTHETIC_DOMAIN_PROFILES
+from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine
 
 
 # ---------------------------------------------------------------------------

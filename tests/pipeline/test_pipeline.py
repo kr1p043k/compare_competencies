@@ -10,18 +10,19 @@ sys.modules['shap'] = MagicMock()
 sys.modules['cv2'] = MagicMock()
 
 from src import Ok
+from src.errors import RecommendationError
+from src.models.vacancy import Vacancy
 from src.pipeline.data_source import HhDataSource
+from src.pipeline.gap_runner import GapRunner
 from src.pipeline.helpers import get_load_mode, load_vacancies_details, save_detailed_vacancies
 from src.pipeline.level_builder import LevelBuilder
 from src.pipeline.metric_computer import MetricComputer
-from src.result import Err, Ok, Result
 from src.pipeline.recommendation_runner import RecommendationRunner
 from src.pipeline.skill_extractor import SkillExtractor
 from src.pipeline.weight_cleaner import WeightCleaner
-from src.errors import RecommendationError
-from src.models.vacancy import Vacancy
-from src.pipeline.gap_runner import GapRunner
 from src.predictors.models import RecommendationResult, RecommendationSummary
+from src.result import Err, Ok
+
 
 # ---------------------------------------------------------------------------
 # Fixtures

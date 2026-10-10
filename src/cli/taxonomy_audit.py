@@ -278,7 +278,6 @@ MANUAL_OVERRIDES = {
     "json api": "frameworks",
     "restful": "frameworks",
     "solid": "methodologies_concepts",
-    "solidity": "programming_languages",
     "erd": "databases",
     "oracle pl/sql": "databases",
     "superset": "data_science",

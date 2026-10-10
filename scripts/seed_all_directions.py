@@ -14,7 +14,7 @@ import asyncio
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -30,7 +30,6 @@ from src.models.krm_models import (
     Discipline,
     KSAEntry,
     ParseVersion,
-    PDFSource,
     Skill,
 )
 
@@ -86,7 +85,7 @@ async def seed_skills(session) -> dict[str, str]:
     for source in ("it_skills", "rpd_skills"):
         path = IT_SKILLS_PATH if source == "it_skills" else RPD_SKILLS_PATH
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 raw = json.load(f)
             names = [s.strip() for s in raw if s.strip()]
         except FileNotFoundError:
@@ -109,7 +108,7 @@ async def seed_skills(session) -> dict[str, str]:
 
 
 async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path: Path) -> None:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, dict) or not data:
         print(f"  {dir_code}: empty file, skipped")
@@ -135,7 +134,7 @@ async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path
 
     pv = ParseVersion(
         direction_id=direction.id,
-        version=datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S"),
+        version=datetime.now(UTC).strftime("%Y%m%d_%H%M%S"),
         opop_year=2024,
         total_disciplines=len(disciplines_raw),
         notes="Seed from parsed RPD JSON (all directions)",

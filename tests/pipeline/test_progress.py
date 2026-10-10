@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from src.pipeline.progress import write, write_result
 
@@ -67,9 +65,8 @@ def test_write_result_returns_err_on_failure():
 
 def test_logs_truncated_to_max(tmp_path):
     f = tmp_path / "cache" / "pipeline_progress.json"
-    with patch("src.pipeline.progress.MAX_LOGS", 3):
-        with patch("src.pipeline.progress.PROGRESS_FILE", f):
-            for i in range(10):
-                write(i * 10, f"step {i}")
+    with patch("src.pipeline.progress.MAX_LOGS", 3), patch("src.pipeline.progress.PROGRESS_FILE", f):
+        for i in range(10):
+            write(i * 10, f"step {i}")
     data = json.loads(f.read_text(encoding="utf-8"))
     assert len(data["logs"]) == 3

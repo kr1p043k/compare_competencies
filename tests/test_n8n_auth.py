@@ -1,7 +1,8 @@
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from src.n8n.auth import N8NAuthMiddleware, N8N_PREFIXES
+import pytest
+
+from src.n8n.auth import N8N_PREFIXES, N8NAuthMiddleware
 
 
 class TestN8NPrefixes:

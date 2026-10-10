@@ -3,6 +3,7 @@ Empty inputs, single items, ties, all-positive, all-negative,
 missing keys, unknown categories.
 """
 import sys
+
 sys.path.insert(0, str(__import__("pathlib").Path.home() / "workvs" / "compare_competencies" / "scripts"))
 import benchmark_matching as bm
 

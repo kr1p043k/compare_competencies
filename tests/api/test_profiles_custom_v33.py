@@ -33,6 +33,7 @@ def _client():
 
 def test_custom_profile_requires_auth(isolated):
     from fastapi.testclient import TestClient as _TC
+
     from src.api_pkg import create_app as _mk
     c = _TC(_mk())
     r = c.post("/api/profiles/custom", json={"name": "zzz", "skills": ["a"]})

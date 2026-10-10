@@ -17,7 +17,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 from src import Err, Ok, Result, config
 from src.logging_config import setup_structlog
 from src.pipeline.runner import (
-    rebuild,
     run_full_pipeline,
     run_status,
     run_train_model,
