@@ -313,19 +313,33 @@ async def main():
             text("DELETE FROM ksa_entries WHERE parse_version_id = :pv_id"),
             {"pv_id": pv.id},
         )
+        # P6 (2026-10-14): populate_ksa_entries вставляет через ОТДЕЛЬНЫЙ
+        # asyncpg-пул, который не видит незакоммиченный ParseVersion —
+        # FK violation на чистой БД. Коммитим ДО переключения на пул.
+        await session.commit()
         ksa_count = await populate_ksa_entries(
             session, krm, direction.id, pv.id, disc_map, comp_map
         )
 
         # 5) Delete old competency_skills and rematch
         print("\n[5/5] Rematching competencies to it_skills...")
+        # P5 (2026-10-14): NULL никогда не матчится с IN — 3314 из 3810
+        # связей (87%%) были недостижимы для пересборки. Скоуп: NULL-pv
+        # связи ТЕКУЩЕГО направления (join по discipline).
         await session.execute(
             text("""
-                DELETE FROM competency_skills
-                WHERE parse_version_id IN (
-                    SELECT id FROM parse_versions
-                    WHERE direction_id = :dir_id
-                )
+                DELETE FROM competency_skills cs
+                USING competencies c, disciplines d
+                WHERE cs.competency_id = c.id
+                  AND c.discipline_id = d.id
+                  AND d.direction_id = :dir_id
+                  AND (
+                    cs.parse_version_id IN (
+                        SELECT id FROM parse_versions
+                        WHERE direction_id = :dir_id
+                    )
+                    OR cs.parse_version_id IS NULL
+                  )
             """),
             {"dir_id": direction.id},
         )

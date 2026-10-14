@@ -249,14 +249,25 @@ async def seed_recommendations(session) -> None:
     except FileNotFoundError:
         print("No recommendations to seed")
         return
+    result = await session.execute(select(Direction).where(Direction.code == "09.03.02"))
+    direction = result.scalar_one_or_none()
+    if direction is None:
+        print("Recommendations: direction 09.03.02 not found, skip")
+        return
     count = 0
     for rec in recs:
-        disc_name = rec.get("discipline", "")
-        result = await session.execute(select(Discipline).where(Discipline.name == disc_name))
+        # P4 (2026-10-14): файл содержит discipline_id/competency_id/
+        # suggestion_type; прежний код читал discipline/competency/type —
+        # все 110 записей молча пропускались (recommendations = 0).
+        disc_name = rec.get("discipline") or rec.get("discipline_id", "")
+        result = await session.execute(
+            select(Discipline).where(
+                Discipline.name == disc_name,
+                Discipline.direction_id == direction.id))
         disc = result.scalar_one_or_none()
         if not disc:
             continue
-        comp_code = rec.get("competency")
+        comp_code = rec.get("competency") or rec.get("competency_id")
         comp_id = None
         if comp_code:
             result = await session.execute(
@@ -265,12 +276,22 @@ async def seed_recommendations(session) -> None:
             comp = result.scalar_one_or_none()
             if comp:
                 comp_id = comp.id
+        suggestion = rec.get("suggestion", "")
+        suggestion_type = rec.get("suggestion_type") or rec.get("type", "modify")
+        # Идемпотентность: перезапуск не должен дублировать записи.
+        existing = await session.execute(
+            select(Recommendation).where(
+                Recommendation.discipline_id == disc.id,
+                Recommendation.competency_id == comp_id,
+                Recommendation.suggestion == suggestion))
+        if existing.scalar_one_or_none():
+            continue
         session.add(
             Recommendation(
                 discipline_id=disc.id,
                 competency_id=comp_id,
-                suggestion=rec.get("suggestion", ""),
-                suggestion_type=rec.get("type", "modify"),
+                suggestion=suggestion,
+                suggestion_type=suggestion_type,
             )
         )
         count += 1

@@ -31,6 +31,47 @@ class TestRPDLoader:
         assert "ОПК-2.1" not in result  # removed (subset)
         assert "ОПК-2.2" in result  # kept (not subset)
 
+    def test_sub_competency_survives_load_order(self):
+        """P1 (2026-10-14): merge-then-dedup удалял ВСЕ дочерние коды —
+        после merge child ⊆ parent по построению. Порядок исправлен:
+        dedup СНАЧАЛА, merge потом. Уникальный ребёнок выживает."""
+        from src.loaders.rpd_loader import dedup_children
+
+        ck = {"ПК-1": {"flat": ["p1k"], "knowledge": [], "abilities": [], "skills": []},
+              "ПК-1.1": {"flat": ["x1"], "knowledge": [], "abilities": [], "skills": []},
+              "ПК-1.2": {"flat": ["p1k"], "knowledge": [], "abilities": [], "skills": []}}
+        # Правильный порядок: dedup ДО merge
+        ck = dedup_children(ck)
+        for comp in list(ck):  # merge (как в load_all)
+            p = comp.rsplit(".", 1)[0]
+            if "." in comp and p in ck:
+                for s in ck[comp]["flat"]:
+                    if s not in ck[p]["flat"]:
+                        ck[p]["flat"].append(s)
+        assert "ПК-1.1" in ck   # уникальный ребёнок выжил
+        assert "ПК-1.2" not in ck  # чистый дубль родителя удалён
+
+    def test_cross_reference_does_not_hijack_parser(self):
+        """P-ksa (2026-10-14): код компетенции внутри буллета KSA
+        ('применять подходы УК-4 к...') переключал парсер на фантомную
+        компетенцию и терял навыки. Теперь код — только заголовок строки."""
+        from src.loaders.rpd_loader import RPDLoader
+
+        text = (
+            "ОПК-2 Знания: основы алгоритмов\n"
+            "- методы анализа\n"
+            "Навыки: применять подходы УК-4 к решению задач\n"
+            "- отладка программ\n"
+            "- модульное тестирование\n"
+            "Навыки: работа с VCS\n"
+            "- git\n"
+        )
+        result = RPDLoader().parse_text(text)
+        assert "УК-4" not in result  # фантомная компетенция не создана
+        assert "отладка программ" in result["ОПК-2"]["skills"]
+        assert "модульное тестирование" in result["ОПК-2"]["skills"]
+        assert "git" in result["ОПК-2"]["skills"]
+
     def test_is_continuation(self):
         from src.loaders.rpd_loader import is_continuation
         assert is_continuation("(продолжение)") is True
@@ -125,6 +166,29 @@ class TestRPDSkillCleaner:
         result = cleaner.clean_skills(["python", "docker", "kubernetes"])
         assert result.is_ok()
         assert len(result.unwrap()) == 3
+
+    def test_core_short_skills_survive(self):
+        """P2 (2026-10-14): гейт len<5 по СИМВОЛАМ убивал 11 из 14 базовых
+        IT-навыков (sql/git/css/java/go/c++/php/node/rest/api/xml).
+        Теперь гейт по структуре: короткие канонические навыки живут."""
+        from src.loaders.rpd_skill_cleaner import RPDSkillCleaner
+        cleaner = RPDSkillCleaner()
+        result = cleaner.clean_skills(
+            ["sql", "git", "css", "java", "go", "c++", "php", "node",
+             "rest", "api", "xml", "linux", "nosql", "numpy"])
+        assert result.is_ok()
+        kept = set(result.unwrap())
+        # Базовые короткие навыки обязаны выжить
+        assert {"sql", "git", "css", "java", "go", "c++", "php", "node",
+                "rest", "api", "xml"} <= kept
+
+    def test_clean_skills_rejects_empty_and_punct(self):
+        """Гейт по-прежнему режет пустоту и пунктуационные обрывки."""
+        from src.loaders.rpd_skill_cleaner import RPDSkillCleaner
+        cleaner = RPDSkillCleaner()
+        result = cleaner.clean_skills(["", "   ", "---", ".,;"])
+        assert result.is_ok()
+        assert result.unwrap() == []
 
     def test_clean_skills_removes_noise(self):
         from src.loaders.rpd_skill_cleaner import RPDSkillCleaner

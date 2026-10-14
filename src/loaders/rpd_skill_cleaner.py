@@ -113,7 +113,11 @@ class RPDSkillCleaner:
 
     def _clean_one(self, raw: str) -> str | None:
         text = raw.strip().rstrip(";.,:-").strip()
-        if not text or len(text) < 5:
+        # Гейт по структуре, не по длине: 'sql','git','css','go','c++','api' —
+        # 2-4 символа и реальные навыки (audit 2026-10-14, P2: 11 из 14
+        # базовых убивал прежний len(text) < 5). Режем только пустоту и
+        # не-алнум-обрывки.
+        if not text or (len(text) < 3 and not any(c.isalnum() for c in text)):
             self._stats["noise_removed"] += 1
             return None
 
@@ -156,7 +160,9 @@ class RPDSkillCleaner:
                 break
 
         text = text.strip().strip(";.,:").strip()
-        if not text or len(text) < 5:
+        # Тот же структурный гейт, что в _clean_one (P2): короткие канонические
+        # навыки ('sql','git','c++','php') — реальные навыки, не шум.
+        if not text or (len(text) < 3 and not any(c.isalnum() for c in text)):
             return None
 
         tokens = text.split()
@@ -188,8 +194,14 @@ def clean_rpd_skills_file(input_path: str, output_path: str | None = None) -> Re
         match cleaner.clean_discipline_data(data):
             case Ok(cleaned):
                 out = output_path or input_path
-                with open(out, "w", encoding="utf-8") as f:
+                # Атомарно: сначала temp, потом replace (P2, 2026-10-14).
+                # Прямая перезапись входа роняла файл при сбое посреди dump.
+                tmp = str(out) + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
                     json.dump(cleaned, f, ensure_ascii=False, indent=2)
+                import os
+
+                os.replace(tmp, out)
                 removed = cleaner.stats()["noise_removed"]
                 logger.info("rpd_skills_file_cleaned", path=out, removed=removed)
                 return Ok(removed)

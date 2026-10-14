@@ -229,7 +229,12 @@ def extract_ksa_skills(text: str) -> dict:
         if not line:
             continue
 
-        cm = COMP_PATTERN.search(line)
+        # Код компетенции — только ЗАГОЛОВОК строки (после буллета).
+        # Внутри фразы KSA ('применять подходы УК-4 к решению задач') это
+        # контент: прежний search() переключал парсер на фантомную
+        # компетенцию и терял остаток секции (P-ksa, 2026-10-14).
+        cm_line = line.lstrip("-•\u2013\u2022 ")
+        cm = COMP_PATTERN.match(cm_line)
         ksa_matches = list(ksa_multi.finditer(line))
 
         # Competency line (possibly with KSA on same line)
@@ -242,13 +247,13 @@ def extract_ksa_skills(text: str) -> dict:
             current_comp = comp_code
 
             # Check if any KSA marker follows the competency on this line
-            after_comp = line[cm.end():]
+            after_comp = cm_line[cm.end():]
             ksa_on_line = list(ksa_multi.finditer(after_comp))
             if ksa_on_line:
                 # KSA on same line as competency
                 current_ksa = _to_ksa_key(ksa_on_line[0])
                 after = after_comp[ksa_on_line[0].end():].strip()
-                if after and len(after) > 3 and current_comp:
+                if after and len(after) >= 2 and any(c.isalnum() for c in after) and current_comp:
                     comp_ksa[current_comp][current_ksa].append(clean_skill(after))
                     comp_ksa[current_comp]["flat"].append(clean_skill(after))
                 inline_mode = False
@@ -275,7 +280,7 @@ def extract_ksa_skills(text: str) -> dict:
                 if content and len(content) > 3 and current_comp and current_ksa:
                     # Try to split content by bullet markers
                     skill = clean_skill(content)
-                    if len(skill) > 3:
+                    if len(skill) >= 2 and any(c.isalnum() for c in skill):
                         comp_ksa[current_comp][current_ksa].append(skill)
                         comp_ksa[current_comp]["flat"].append(skill)
                         inline_mode = False
@@ -294,7 +299,7 @@ def extract_ksa_skills(text: str) -> dict:
         if is_bullet:
             inline_mode = False
             skill = clean_skill(line)
-            if len(skill) > 3:
+            if len(skill) >= 2 and any(c.isalnum() for c in skill):
                 comp_ksa[current_comp][current_ksa].append(skill)
                 comp_ksa[current_comp]["flat"].append(skill)
         elif is_continuation(line):
@@ -306,7 +311,7 @@ def extract_ksa_skills(text: str) -> dict:
                     ksa_list[-1] = flat[-1]
         elif inline_mode:
             skill = clean_skill(line)
-            if len(skill) > 3:
+            if len(skill) >= 2 and any(c.isalnum() for c in skill):
                 comp_ksa[current_comp][current_ksa].append(skill)
                 comp_ksa[current_comp]["flat"].append(skill)
 
@@ -497,6 +502,10 @@ class RPDLoader:
 
         # Convert to final format
         for disc_name, comp_ksa in raw_disciplines.items():
+            # Dedup ДО merge: после слияния каждый child ⊆ parent по построению
+            # и dedup удалил бы все суб-компетенции (audit 2026-10-14, P1).
+            comp_ksa = dedup_children(comp_ksa)
+
             # Merge parents from children
             for comp in list(comp_ksa.keys()):
                 if "." in comp:
@@ -506,8 +515,6 @@ class RPDLoader:
                             for s in comp_ksa[comp].get(k, []):
                                 if s not in comp_ksa[parent].setdefault(k, []):
                                     comp_ksa[parent][k].append(s)
-
-            comp_ksa = dedup_children(comp_ksa)
 
             if not comp_ksa:
                 continue
@@ -535,6 +542,11 @@ class RPDLoader:
         if not comp_ksa:
             return None
 
+        # Dedup до merge — иначе после слияния все дети удаляются (P1, 2026-10-14).
+        comp_ksa = dedup_children(comp_ksa)
+        if not comp_ksa:
+            return None
+
         # Merge parents from children
         for comp in list(comp_ksa.keys()):
             if "." in comp:
@@ -544,7 +556,6 @@ class RPDLoader:
                         for s in comp_ksa[comp].get(k, []):
                             if s not in comp_ksa[parent].setdefault(k, []):
                                 comp_ksa[parent][k].append(s)
-        comp_ksa = dedup_children(comp_ksa)
         if not comp_ksa:
             return None
 
