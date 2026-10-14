@@ -53,7 +53,10 @@ def drop_broken_snapshots(
 
 # Наблюдаемое падение: сколько точек истории нужно на окно (месяцев).
 # Точек меньше — честное "нет данных", а не экстраполяция.
-OBSERVED_REQUIRED = {1: 2, 3: 3, 6: 6, 12: 12}
+# F1 (аудит 2026-10-14): N точек = N-1 месячных интервалов, поэтому окну
+# в M месяцев нужно M+1 точек. Прежние {3:3, 6:6, 12:12} мерили 2/5/11
+# месяцев под вывеской 3/6/12 (недооценка сложного роста ~12пп на 3 мес).
+OBSERVED_REQUIRED = {1: 2, 3: 4, 6: 7, 12: 13}
 OBSERVED_MONTHS = (1, 3, 6, 12)
 
 
@@ -105,6 +108,11 @@ class ForecastResult:
     data_points: int = 0
     mape: float | None = None
     forecast_months: int = 0
+    # F6 (аудит 2026-10-14): 80%%-интервал Prophet вычислялся и выбрасывался;
+    # фронтенд ждал эти поля. None = интервал недоступен (trend-движок,
+    # недостаточно данных).
+    uncertainty_lower: float | None = None
+    uncertainty_upper: float | None = None
 
 
 class SkillForecastEngine(BasePredictor):
@@ -172,6 +180,10 @@ class SkillForecastEngine(BasePredictor):
             return Ok(self)
 
         snapshots = drop_broken_snapshots(snapshots)
+        # F10 (аудит 2026-10-14): порядок был filename-sorted; при расхождении
+        # snapshot_date с именем файла last_freq брал последний ФАЙЛ, а не
+        # последнюю ДАТУ (Prophet-движок сортирует — трендовый нет).
+        snapshots.sort(key=lambda x: x[0])
 
         # Build per-skill time series
         skill_dates: dict[str, list[date]] = {}

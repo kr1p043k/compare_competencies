@@ -198,6 +198,16 @@ def _serialize(r: ForecastResult, direction: str | None = None, method: str = "t
         ),
         "forecast_months": getattr(r, "forecast_months", 0),
         "trend_direction": direction or ("growing" if r.predicted_growth > 0 else "declining"),
+        # F6 (аудит 2026-10-14): фронтенд ждал uncertainty_*, бэкенд не эмитил.
+        # Prophet — реальные 80%%-границы; trend — нет (None).
+        "uncertainty_lower": (
+            round(r.uncertainty_lower, 4)
+            if getattr(r, "uncertainty_lower", None) is not None else None
+        ),
+        "uncertainty_upper": (
+            round(r.uncertainty_upper, 4)
+            if getattr(r, "uncertainty_upper", None) is not None else None
+        ),
     }
 
 
@@ -217,11 +227,21 @@ def _record_forecast_accuracy(engine, forecasts) -> None:
         from src.monitoring.metrics import forecast_accuracy
 
         def _mape_for(skill: str) -> float | None:
+            # F3 (аудит 2026-10-14): для Prophet-навыка engine._models[skill] —
+            # объект Prophet (не dict), и код падал в fallback с ЧУЖОЙ метрикой
+            # (in-sample RMSE по другому ряду). Честный holdout-MAPE лежит
+            # в engine._skill_mape — берём его первым.
+            skill_mape = getattr(engine, "_skill_mape", None)
+            if isinstance(skill_mape, dict) and skill_mape.get(skill) is not None:
+                return float(skill_mape[skill])
             model = getattr(engine, "_models", {}).get(skill)
             if isinstance(model, dict) and model.get("mape") is not None:
                 return float(model["mape"])
             fallback = getattr(engine, "_fallback_engine", None)
             if fallback is not None:
+                fb_mape = getattr(fallback, "_skill_mape", None)
+                if isinstance(fb_mape, dict) and fb_mape.get(skill) is not None:
+                    return float(fb_mape[skill])
                 model = getattr(fallback, "_models", {}).get(skill)
                 if isinstance(model, dict) and model.get("mape") is not None:
                     return float(model["mape"])
@@ -422,7 +442,7 @@ async def get_observed_drops(
                 items = sorted(items, key=lambda x: x["last_frequency"], reverse=True)
             return {
                 "direction": direction, "n": n, "months": months,
-                "required_points": {1: 2, 3: 3, 6: 6, 12: 12}[months],
+                "required_points": {1: 2, 3: 4, 6: 7, 12: 13}[months],
                 "max_points": max_points,
                 "forecasts": items[:n], **_engine_info(engine),
             }

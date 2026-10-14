@@ -502,6 +502,10 @@ class ProphetForecastEngine(BasePredictor):
 
             uncertainty = float(last_row["yhat_upper"] - last_row["yhat_lower"])
             conf = max(0.0, 1.0 - min(uncertainty / max(next_freq, 1.0), 0.85))
+            # F6 (2026-10-14): несём реальные границы интервала наружу
+            # (раньше использовались только для conf и выбрасывались).
+            unc_lower = max(float(last_row["yhat_lower"]), 0.0)
+            unc_upper = float(last_row["yhat_upper"])
             # Penalize confidence and cap growth when few data points
             n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
             if n_pts < 6:
@@ -519,6 +523,8 @@ class ProphetForecastEngine(BasePredictor):
                 data_points=self._skill_npoints.get(skill, n_pts),
                 mape=_rounded_mape(self._skill_mape, skill),
                 forecast_months=months,
+                uncertainty_lower=round(unc_lower, 4),
+                uncertainty_upper=round(unc_upper, 4),
             ))
         if self._fallback_engine:
             result = self._fallback_engine.forecast(skill, min(months, self.max_forecast_months()))

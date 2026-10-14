@@ -396,7 +396,9 @@ class VacancyClusterer:
         for i, label in enumerate(self.labels_):
             if label == cluster_id and i < len(self.vacancy_skills):
                 skills_set.update(self.vacancy_skills[i])
-        return list(skills_set)
+        # C7 (аудит 2026-10-14): list(set) — порядок хеш-случаен (PYTHONHASHSEED),
+        # «top_skills[:10]» менялся между рестартами API. Сортировка = детерминизм.
+        return sorted(skills_set)
 
     def get_cluster_context(
         self,
@@ -408,7 +410,14 @@ class VacancyClusterer:
         if profile_embedding is None:
             return Ok({"clusters": [], "skills": {}, "total_skills_in_context": 0})
 
-        embedding = profile_embedding / np.linalg.norm(profile_embedding)
+        # C1 (аудит 2026-10-14): нулевая норма (пустой профиль студента
+        # возвращает np.zeros) давала 0/0 = NaN → ValueError в cosine_similarity
+        # и 500 вместо пропуска кластерного контекста. Guard как в
+        # find_closest_clusters:377.
+        norm = np.linalg.norm(profile_embedding)
+        if norm == 0 or not np.isfinite(norm):
+            return Ok({"clusters": [], "skills": {}, "total_skills_in_context": 0})
+        embedding = profile_embedding / norm
 
         closest = self.find_closest_clusters(embedding, top_k=top_k_clusters)
         if not closest:

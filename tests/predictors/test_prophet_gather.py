@@ -182,8 +182,10 @@ class TestObservedDrops:
     def test_window_math(self):
         rows = compute_observed_drops(self._obs(), 3)
         by_skill = {r["skill"]: r for r in rows}
-        # окно = последние 3 точки: 80 -> 60
-        assert by_skill["a"]["observed_change_pct"] == -25.0
+        # F1 (аудит 2026-10-14): окно 3 мес = 4 точки (3 интервала).
+        # [90, 80, 70, 60] -> (60-90)/90 = -33.33% — честное 3-месячное
+        # изменение; прежние 3 точки мерили 2 месяца (-25.0).
+        assert by_skill["a"]["observed_change_pct"] == -33.33
         assert by_skill["a"]["points"] == 5
 
     def test_sufficiency_gates(self):
