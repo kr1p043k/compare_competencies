@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Парсер компетенций/заголовков аннотаций: реальные варианты написания
 (замер 2026-10-14 на аннотациях ЮФУ с Яндекс.Диска)."""
 import importlib.util
@@ -60,6 +60,17 @@ class TestSafeCacheName:
         name = sfu.safe_cache_name("А" * 200 + ".pdf")
         assert len(name) <= 140
         assert name.endswith(".pdf")
+
+    def test_discipline_placeholder_junk(self):
+        # «Дисциплины»-заглушка из шаблона — не заголовок (x15/x9/x3 дупов).
+        text = 'РАБОЧАЯ ПРОГРАММА ДИСЦИПЛИНЫ «Дисциплины»'
+        assert sfu.title_from_text(text, 'Operating Systems.pdf') not in ('Дисциплины',)
+
+    def test_abstract_of_syllabus_junk(self):
+        assert 'abstract' in sfu._TITLE_JUNK.pattern
+
+    def test_legit_single_word_kept(self):
+        assert sfu.title_from_text('Математика', 'x.pdf') == 'Математика'
 
     def test_deterministic(self):
         assert sfu.safe_cache_name("a b.pdf") == sfu.safe_cache_name("a b.pdf")

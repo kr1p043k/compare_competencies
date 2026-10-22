@@ -150,9 +150,13 @@ def parse_competencies(text: str, fname: str = "") -> list[str]:
 
 
 _TITLE_JUNK = re.compile(
-    r"^(?:\d+[.)]?\s*)?(?:аннотация|annotation|of the course|name of the course|"
+    r"^(?:\d+[.)]?\s*)?(?:аннотация|annotation|abstract\s+of\s+the\s+"
+    r"(?:course\s+)?(?:syllabus|course)|of the course|name of the course|"
     r"название\s+(?:дисциплины|курса)|рабочей\s+программы|work\s+program|"
-    r"course\s+description|учебной\s+дисциплины|бакалавриат)",
+    r"course\s+description|учебной\s+дисциплины|бакалавриат|"
+    r"дисциплин[аы]\b|практ(ика|ики|икум)\b|факультатив(?:ной|а)?\b|"
+    r"модуля\b|направление\s+подготовки|кафедра\b|"
+    r"код\s+и\s+наименование)",
     re.I,
 )
 
