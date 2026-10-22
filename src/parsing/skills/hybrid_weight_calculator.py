@@ -65,6 +65,13 @@ class HybridWeightCalculator:
         # High = general/common skill, Low = specific/unique skill
         sim_to_center = (embs_t @ centroid.T).squeeze().cpu().numpy()
 
+        # NOTE (2026-10-12, measured): эта половина тянет в редкость
+        # (specific = важно), а BM25-половина и все потребители
+        # (weighted_coverage, LTR, фолбэки) — в спрос (frequent = важно).
+        # Живой артефакт skill_weights.json — чистый спрос (corr 1.0),
+        # т.е. противоречие сегодня не кусается. Полный редизайн
+        # (demand-only + LTR-retrain) отложен осознанно; не трогать
+        # без A/B вторичных метрик + реtrain LTR на labeling/gold.csv.
         # Inverse: specific skills get higher semantic weight
         sem_raw = 1.0 - sim_to_center  # [0, 2], higher = more specific
         sem_raw = np.clip(sem_raw, 0.0, 2.0)

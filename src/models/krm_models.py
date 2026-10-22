@@ -41,7 +41,7 @@ class Vacancy(Base):
     parsed_skills: Mapped[list[str] | None] = mapped_column(sa.JSON())
     published_at: Mapped[datetime | None]
     alternate_url: Mapped[str | None] = mapped_column(Text)
-    pipeline_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
+    pipeline_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True)
     raw: Mapped[dict | None] = mapped_column(sa.JSON())
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
@@ -199,10 +199,10 @@ class Competency(Base):
     name: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
     development_level: Mapped[str | None] = mapped_column(String(10))
-    parent_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
+    parent_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"), index=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(768))
-    parse_version_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("parse_versions.id"))
+    parse_version_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("parse_versions.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
     updated_at: Mapped[datetime] = mapped_column(
        sa.DateTime(timezone=True),
@@ -245,7 +245,7 @@ class KSAEntry(Base):
     original_text: Mapped[str] = mapped_column(Text, nullable=False)
     cleaned_text: Mapped[str | None] = mapped_column(Text)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    parse_version_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("parse_versions.id"))
+    parse_version_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("parse_versions.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     competency: Mapped["Competency"] = relationship(back_populates="ksa_entries")
@@ -305,7 +305,7 @@ class CompetencySkill(Base):
     source_text: Mapped[str | None] = mapped_column(Text)
     match_type: Mapped[str] = mapped_column(String(20), default="fuzzy")
     required_level: Mapped[str | None] = mapped_column(String(10))
-    parse_version_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("parse_versions.id"))
+    parse_version_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("parse_versions.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     competency: Mapped["Competency"] = relationship(back_populates="competency_skills")
@@ -314,7 +314,12 @@ class CompetencySkill(Base):
 
     __table_args__ = (
         CheckConstraint(ksa_type.in_(["knowledge", "abilities", "skills", "flat"]), name="ck_cs_ksa_type"),
-        CheckConstraint(match_type.in_(["exact", "fuzzy", "stem"]), name="ck_cs_match_type"),
+        # 6 значений — как в живой БД (competency_skills_match_type_check);
+        # модель раньше знала 3 и ломала бы fresh-install для semantic/explicit.
+        CheckConstraint(
+            match_type.in_(["exact", "fuzzy", "stem", "substring", "semantic", "explicit"]),
+            name="ck_cs_match_type",
+        ),
         CheckConstraint(required_level.in_(["КС-1", "КС-2", "КС-3"]), name="ck_cs_required_level"),
         UniqueConstraint("competency_id", "skill_id", "ksa_type", "parse_version_id", name="uq_cs_unique"),
     )
@@ -381,13 +386,15 @@ class Recommendation(Base):
        nullable=False,
        index=True,
     )
-    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
-    user_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"))
-    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"))
+    # SET NULL — как в живой БД: удаление компетенции не стирает рекомендации.
+    # CASCADE в модели терял данные на fresh-install (2026-10-12).
+    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="SET NULL"), index=True)
+    user_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"), index=True)
     suggestion: Mapped[str] = mapped_column(Text, nullable=False)
     suggestion_type: Mapped[str] = mapped_column(String(20), nullable=False)
     source: Mapped[str | None] = mapped_column(String(20))
-    llm_request_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"))
+    llm_request_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"), index=True)
     confidence: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
@@ -459,8 +466,8 @@ class StudentSkill(Base):
     source: Mapped[str] = mapped_column(String(30), default="self_assessment")
     proficiency: Mapped[float] = mapped_column(Float, default=0.0)
     achieved_level: Mapped[str | None] = mapped_column(String(10))
-    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="SET NULL"))
-    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="SET NULL"))
+    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="SET NULL"), index=True)
+    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="SET NULL"), index=True)
     assessed_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
@@ -529,8 +536,8 @@ class CoverageAnalysis(Base):
        nullable=False,
        index=True,
     )
-    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"))
-    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
+    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"), index=True)
+    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"), index=True)
     total_skills: Mapped[int] = mapped_column(Integer, default=0)
     market_matched_skills: Mapped[int] = mapped_column(Integer, default=0)
     coverage_ratio: Mapped[float] = mapped_column(Float, default=0.0)
@@ -557,13 +564,21 @@ class PipelineRun(Base):
 
     __table_args__ = (
         CheckConstraint(
+            # Полный список = живая БД (pipeline_runs_action_check) + то, что
+            # пишет код. Расхождение ломало свежий create_all-инсталл:
+            # reparse/rpd-import/cancelled падали бы с CheckViolation
+            # (2026-10-12, сверено с pg_constraint).
             action.in_([
                 "full-cycle", "rebuild", "train-clusters", "train-model",
                 "gap-analysis", "teacher-analysis", "data-collection",
+                "rpd-import", "reparse", "hh-import",
             ]),
             name="ck_pr_action",
         ),
-        CheckConstraint(status.in_(["started", "completed", "failed"]), name="ck_pr_status"),
+        CheckConstraint(
+            status.in_(["started", "completed", "failed", "cancelled"]),
+            name="ck_pr_status",
+        ),
     )
 
 
@@ -574,11 +589,11 @@ class AnalysisResult(Base):
     __tablename__ = "analysis_results"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    pipeline_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
+    pipeline_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True)
     analysis_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"))
-    discipline_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"))
-    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"))
+    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id", ondelete="CASCADE"), index=True)
+    discipline_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), index=True)
+    competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="CASCADE"), index=True)
     data: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
@@ -597,7 +612,7 @@ class TrendSnapshot(Base):
     __tablename__ = "trend_snapshots"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    pipeline_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"))
+    pipeline_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id", ondelete="SET NULL"), index=True)
     snapshot_date: Mapped[datetime] = mapped_column()
     skill_freq: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
     source: Mapped[str] = mapped_column(String(50), default="hh_vacancies")
@@ -611,9 +626,9 @@ class LLMInteraction(Base):
     __tablename__ = "llm_interactions"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    analysis_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id"))
-    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id"))
-    discipline_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("disciplines.id"))
+    analysis_run_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("pipeline_runs.id"), index=True)
+    direction_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("directions.id"), index=True)
+    discipline_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("disciplines.id"), index=True)
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     response_tokens: Mapped[int] = mapped_column(Integer, default=0)
     prompt_hash: Mapped[str | None] = mapped_column(Text)
@@ -651,12 +666,12 @@ class ProfileEvaluation(Base):
     __tablename__ = "profile_evaluations"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    user_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"))
-    discipline_id: Mapped[str] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    discipline_id: Mapped[str] = mapped_column(UUID, ForeignKey("disciplines.id", ondelete="CASCADE"), nullable=False, index=True)
     evaluation_type: Mapped[str] = mapped_column(String(20), nullable=False)
     input_summary: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
     result_summary: Mapped[dict] = mapped_column(sa.JSON(), default=dict)
-    llm_request_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"))
+    llm_request_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("llm_recommendations.id", ondelete="SET NULL"), index=True)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
 
     __table_args__ = (
@@ -697,7 +712,7 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, default=_uuid)
-    subscription_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("subscriptions.id", ondelete="CASCADE"))
+    subscription_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("subscriptions.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)

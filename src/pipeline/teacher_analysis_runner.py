@@ -249,6 +249,40 @@ def _enhance_disciplines_with_gap_analysis(
                         "avg_semantic_similarity": embed_result.get("avg_similarity", 0),
                         "top_market_matches": embed_result.get("matches", [])[:10],
                     }
+                    # Hub-gate (opt-in, default off): вето серой зоны к хабам.
+                    # Фильтрует top_market_matches; покрытие не трогает
+                    # (считается отдельно), фиксирует отброшенное для аудита.
+                    if config.HUB_GATE_ENABLED:
+                        try:
+                            from src.analyzers.comparison.hub_gate import filter_matches
+
+                            kept, vetoed = filter_matches(
+                                disc_skills, embed_result.get("matches", []), comp)
+                            embed_coverage["top_market_matches"] = kept[:10]
+                            embed_coverage["hub_gate"] = {
+                                "vetoed": len(vetoed),
+                                "vetoed_skills": [m["skill"] for m in vetoed[:15]],
+                            }
+                        except Exception as exc:
+                            logger.warning("hub_gate_hook_failed", discipline=dname, error=str(exc))
+                    # LLM-судья хвоста (заготовка, default off): вердикты
+                    # записываются, совпадения НЕ фильтруются (судья не валидирован).
+                    if config.LLM_JUDGE_ENABLED:
+                        try:
+                            from src.services.semantic_judge import gray_pairs_for_judge, judge_pairs
+
+                            gray = gray_pairs_for_judge(
+                                comp, disc_skills, embed_result.get("matches", []))
+                            judged = judge_pairs(gray)
+                            embed_coverage["llm_judge"] = {
+                                "gray_pairs": len(gray),
+                                "confirmed": sum(1 for v in judged["verdicts"].values() if v is True),
+                                "rejected": sum(1 for v in judged["verdicts"].values() if v is False),
+                                "abstained": sum(1 for v in judged["verdicts"].values() if v is None),
+                                "skipped": judged["skipped"],
+                            }
+                        except Exception as exc:
+                            logger.warning("llm_judge_hook_failed", discipline=dname, error=str(exc))
                 case _:
                     embed_coverage = {}
         except Exception as exc:
@@ -371,16 +405,28 @@ async def run_teacher_analysis(
     market_skills: dict[str, int] = {}
     vac_count = 0
 
-    # Кэш: market_skills пересчитываются только при изменении вакансий.
+    # Кэш: market_skills пересчитываются только при изменении содержимого.
     # Навыки берём из parsed_skills (актуальный результат перепарсинга), т.к.
     # key_skills у новых вакансий HH часто пуст.
     from src.cache_manager import CacheManager
     _cache_dir = config.DATA_CACHE_DIR
     _cache_mgr = CacheManager(_cache_dir)
+    # Хэш по СОДЕРЖИМОМУ parsed_skills + whitelist, а не по MAX(created_at):
+    # перепарсинг меняет parsed_skills на месте и created_at не двигает —
+    # кэш от 25.09 пережил репарсинг 10.10 (замерено: 22319 кэш vs 3462 live).
+    # Стоимость ~0.25с на 41k вакансий, хэш стабилен между прогонами.
     _vac_hash = await pool.fetchval(
-        "SELECT MD5(COALESCE(MAX(created_at)::text, '0')) FROM vacancies "
+        "SELECT COUNT(*)::text || ':' || COALESCE(SUM(hashtext(value))::text, '0') || ':' "
+        "|| COALESCE(SUM(jsonb_array_length(parsed_skills)), 0)::text "
+        "FROM vacancies, jsonb_array_elements_text(parsed_skills) AS value "
         "WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0"
     )
+    _it_skills_path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
+    if _it_skills_path.exists():
+        import hashlib as _hashlib
+
+        _wl_hash = _hashlib.md5(_it_skills_path.read_bytes()).hexdigest()
+        _vac_hash = f"{_vac_hash}:wl={_wl_hash}"
     _cache_key = "teacher_market_skills_v3"
     match _cache_mgr.load(_cache_key):
         case Ok(cached):
@@ -406,7 +452,7 @@ async def run_teacher_analysis(
         except Exception as exc:
             logger.warning("market_skills_vacancies_failed", error=str(exc))
 
-        it_skills_path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
+        it_skills_path = _it_skills_path
         if it_skills_path.exists():
             with open(it_skills_path, encoding="utf-8") as f:
                 it_data = json.load(f)

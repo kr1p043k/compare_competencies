@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -17,14 +20,43 @@ class CacheManager:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
+    def _safe_key(self, key: str) -> str:
+        """Ключ -> безопасное имя файла.
+
+        Простые ключи сохраняют вид ('k' -> 'k.json'), чтобы не ломать
+        существующие кэши. Если ключ требует экранирования, добавляем хэш
+        исходного: без этого 'a/b' и 'a_b' давали один файл (2026-10-12).
+        """
+        import hashlib
+        import re as _re
+
+        cleaned = key.replace("..", "_")
+        cleaned = _re.sub(r"[^\w.\-]", "_", cleaned)
+        if cleaned == key:
+            return cleaned
+        digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:8]
+        return f"{cleaned}-{digest}"
+
     def _path(self, key: str) -> Path:
-        safe = key.replace("/", "_").replace("\\", "_").replace("..", "_")
-        return self.cache_dir / f"{safe}.joblib"
+        return self.cache_dir / f"{self._safe_key(key)}.joblib"
 
     def save(self, key: str, data: Any) -> Result[None, CacheError]:
         path = self._path(key)
         try:
-            joblib.dump(data, path)
+            # Атомарно: tmp + os.replace. Прямая запись оставляла обрезанный
+            # pickle при падении/гонке — кэш потом читался как Err навсегда.
+            import os
+            import tempfile
+
+            fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".joblib.tmp")
+            os.close(fd)
+            try:
+                joblib.dump(data, tmp)
+                os.replace(tmp, path)
+            except Exception:
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp)
+                raise
             return Ok(None)
         except Exception as e:
             return Err(CacheError(message=f"Save failed: {e}", cache_path=str(path)))
@@ -65,14 +97,21 @@ class CacheManager:
 
 class JsonCacheManager(CacheManager):
     def _path(self, key: str) -> Path:
-        safe = key.replace("/", "_").replace("\\", "_").replace("..", "_")
-        return self.cache_dir / f"{safe}.json"
+        return self.cache_dir / f"{self._safe_key(key)}.json"
 
     def save(self, key: str, data: Any) -> Result[None, CacheError]:
         path = self._path(key)
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".json.tmp")
+            os.close(fd)
+            try:
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                os.replace(tmp, path)
+            except Exception:
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp)
+                raise
             return Ok(None)
         except Exception as e:
             return Err(CacheError(message=f"JSON save failed: {e}", cache_path=str(path)))

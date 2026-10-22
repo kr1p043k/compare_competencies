@@ -124,6 +124,31 @@ class Settings(BaseSettings):
     LLM_EXTRACT: bool = False
     LLM_TIMEOUT_S: int = 60
 
+    # ---------- LLM semantic judge (opt-in stub, default off) ----------
+    # Судья семантического хвоста: проверяет пары (запрос -> совпадение)
+    # из косинусной серой зоны. Только слоты подключения — впиши URL/ключ
+    # через env (LLM_JUDGE_URL / LLM_JUDGE_API_KEY / LLM_JUDGE_MODEL),
+    # затем включи LLM_JUDGE_ENABLED. Без подключения — тихий skip.
+    LLM_JUDGE_ENABLED: bool = False
+    LLM_JUDGE_URL: str | None = None
+    LLM_JUDGE_API_KEY: SecretStr | None = None
+    LLM_JUDGE_MODEL: str | None = None
+    LLM_JUDGE_TIMEOUT_S: int = 30
+    LLM_JUDGE_MAX_PAIRS: int = 200
+
+    # ---------- Hub-gate (default ON с 2026-10-12) ----------
+    # Вето семантических матчей серой зоны к хаб-навыкам (prodval: kill if
+    # hub>=200 AND morph<0.2 -> P=0.971/R=0.680; ultra hub>=1000&morph==0 ->
+    # 26/0). Замер на проде: vetoed=0, хедлайн бит-в-бит. Откат: False.
+    # Таблица: data/reference/market_hubs.json (пересборка при смене маркета).
+    HUB_GATE_ENABLED: bool = True
+    HUB_GATE_HUB_T: int = 200
+    HUB_GATE_MORPH_M: float = 0.2
+    HUB_GATE_ULTRA_HUB: int = 1000
+    HUB_GATE_SIM_LO: float = 0.6
+    HUB_GATE_SIM_HI: float = 0.75
+    HUB_TABLE_PATH: Path = Path("data/reference/market_hubs.json")
+
     # ---------- эмбеддинги ----------
     EMBEDDING_MODEL: str = "paraphrase-multilingual-mpnet-base-v2"
     HF_TOKEN: SecretStr | None = None
@@ -219,6 +244,7 @@ class Settings(BaseSettings):
         "VACANCY_CLUSTERS_CACHE_DIR",
         "STUDENT_EMB_CACHE_DIR",
         "PARSED_SKILLS_CACHE_PATH",
+        "HUB_TABLE_PATH",
         mode="after",
     )
     @classmethod
@@ -332,6 +358,21 @@ LLM_ENHANCE_STUDENT = settings.LLM_ENHANCE_STUDENT
 LLM_ENHANCE_TEACHER = settings.LLM_ENHANCE_TEACHER
 LLM_EXTRACT = settings.LLM_EXTRACT
 LLM_TIMEOUT_S = settings.LLM_TIMEOUT_S
+
+LLM_JUDGE_ENABLED = settings.LLM_JUDGE_ENABLED
+LLM_JUDGE_URL = settings.LLM_JUDGE_URL
+LLM_JUDGE_API_KEY = settings.LLM_JUDGE_API_KEY
+LLM_JUDGE_MODEL = settings.LLM_JUDGE_MODEL
+LLM_JUDGE_TIMEOUT_S = settings.LLM_JUDGE_TIMEOUT_S
+LLM_JUDGE_MAX_PAIRS = settings.LLM_JUDGE_MAX_PAIRS
+
+HUB_GATE_ENABLED = settings.HUB_GATE_ENABLED
+HUB_GATE_HUB_T = settings.HUB_GATE_HUB_T
+HUB_GATE_MORPH_M = settings.HUB_GATE_MORPH_M
+HUB_GATE_ULTRA_HUB = settings.HUB_GATE_ULTRA_HUB
+HUB_GATE_SIM_LO = settings.HUB_GATE_SIM_LO
+HUB_GATE_SIM_HI = settings.HUB_GATE_SIM_HI
+HUB_TABLE_PATH = settings.HUB_TABLE_PATH
 
 EMBEDDING_MODEL = settings.EMBEDDING_MODEL
 HF_TOKEN = settings.HF_TOKEN

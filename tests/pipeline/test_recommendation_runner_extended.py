@@ -61,8 +61,7 @@ class TestRecommendationRunnerInitializeEngine:
             engine_instance = MagicMock()
             MockEngine.return_value = engine_instance
             engine_instance.fit.return_value = Ok(engine_instance)
-            with patch("src.pipeline.recommendation_runner.CompetencyComparator"):
-                result = runner.initialize_engine(evaluator)
+            result = runner.initialize_engine(evaluator)
         assert result.is_ok()
         assert runner.engine is engine_instance
 
@@ -73,8 +72,7 @@ class TestRecommendationRunnerInitializeEngine:
             engine_instance = MagicMock()
             MockEngine.return_value = engine_instance
             engine_instance.fit.return_value = Err("fit failed")
-            with patch("src.pipeline.recommendation_runner.CompetencyComparator"):
-                result = runner.initialize_engine(evaluator)
+            result = runner.initialize_engine(evaluator)
         assert result.is_err()
 
     def test_initialize_engine_exception(self, profiles, ctx, args, evaluator):

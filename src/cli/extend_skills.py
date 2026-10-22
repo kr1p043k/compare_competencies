@@ -33,11 +33,45 @@ def load_existing_skills() -> set[str]:
 
 def save_skills(skills: list[str]) -> None:
     existing = load_existing_skills()
+    new_names = [s for s in skills if s and s.lower() not in existing]
     merged = sorted(existing | {s.lower() for s in skills})
     with open(SKILLS_PATH, "w", encoding="utf-8") as f:
         json.dump(merged, f, ensure_ascii=False, indent=2)
     print(f"Saved {len(merged)} skills to {SKILLS_PATH}")
-    _extend_skill_taxonomy([s for s in skills if s.lower() not in existing])
+    _extend_skill_taxonomy(new_names)
+    _sync_new_to_db(new_names)
+
+
+def _sync_new_to_db(new_names: list[str]) -> None:
+    """Upsert новых навыков в skills(source='it_skills'), чтобы JSON и БД
+    не расходились (prodval 2026-10-11: было 1204 vs 892). Только полностью
+    отсутствующие имена (unique lower(name)); чужие source не трогаем.
+    БД недоступна — только warning, JSON уже сохранён."""
+    if not new_names:
+        return
+    try:
+        import asyncio
+
+        from sqlalchemy import select
+
+        from src.database import async_session_factory
+        from src.models.krm_models import Skill
+
+        async def _run() -> int:
+            async with async_session_factory() as session:
+                have = {r.lower() for r in (
+                    await session.execute(select(Skill.name))).scalars().all()}
+                todo = [s for s in new_names if s.lower() not in have]
+                for name in todo:
+                    session.add(Skill(name=name, source="it_skills"))
+                if todo:
+                    await session.commit()
+                return len(todo)
+
+        added = asyncio.run(_run())
+        print(f"  [db] synced {added} new skills to skills(it_skills)")
+    except Exception as exc:
+        print(f"  [db] sync skipped: {exc}")
 
 
 def _extend_skill_taxonomy(new_skills: list[str]) -> None:

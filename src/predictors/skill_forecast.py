@@ -264,7 +264,13 @@ class SkillForecastEngine(BasePredictor):
         predicted = last_freq + model["slope"] * days_ahead
         predicted = max(predicted, 0.0)
 
-        growth = (predicted - last_freq) / max(last_freq, 1.0)
+        # Навык, ушедший в ноль (last_freq == 0), — это -100%, а не 0%:
+        # max(last_freq, 1.0) давал рост 0.0, и упавший навык попадал
+        # в «стабильные» вместо «падающих» (2026-10-12).
+        if last_freq <= 0 and predicted <= 0.0:
+            growth = -self.MAX_GROWTH_CAP
+        else:
+            growth = (predicted - last_freq) / max(last_freq, 1.0)
         growth = max(min(growth, self.MAX_GROWTH_CAP), -self.MAX_GROWTH_CAP)
 
         _mape = model.get("mape")

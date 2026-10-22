@@ -4,7 +4,6 @@ import structlog
 from tqdm import tqdm
 
 from src import Err, Ok, RecommendationError, Result
-from src.analyzers.comparison.comparator import CompetencyComparator
 from src.models.data_contracts import PipelineContext
 from src.predictors.recommendation_engine import RecommendationEngine
 
@@ -29,14 +28,7 @@ class RecommendationRunner:
                 profile_evaluator=evaluator,
                 trend_analyzer=self.ctx.trend_analyzer,
             )
-            self.engine.comparator = CompetencyComparator(
-                ngram_range=(1, 2),
-                min_df=1,
-                max_df=0.95,
-                use_embeddings=True,
-                level="all",
-                similarity_threshold=0.80,
-            )
+            # NB: мёртвый оверрайд comparator 0.80 удалён (compare() не вызывается).
             match self.engine.fit(self.ctx.vacancies_skills, skill_weights=hybrid_weights):
                 case Ok(engine):
                     self.engine = engine

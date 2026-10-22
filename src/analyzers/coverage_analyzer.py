@@ -150,23 +150,27 @@ class CoverageAnalyzer:
             comp_weighted = 0.0
             comp_gaps = []
             comp_matched_names = []
+            n = 0
             for s in skills:
-                all_rpd.append(s)
                 match_result = self.matcher.match(s)
                 if match_result.is_err():
+                    # Ошибка матчинга — не гэп и не denominator: исключаем из
+                    # обеих проходок одинаково (2026-10-12: раньше висела в n,
+                    # занижая coverage молча, а дисциплина её отбрасывала).
                     logger.warning("skill_match_failed", skill=s)
                     continue
+                n += 1
+                all_rpd.append(s)
                 m, mtype, conf = match_result.unwrap()
                 if m and not self._is_fringe_match(m):
                     comp_matched += 1
                     comp_weighted += conf
                     if len(comp_matched_names) < 20:
                         comp_matched_names.append(s)
-                    if mtype in ("exact", "fuzzy", "mapped", "lemma"):
+                    if mtype in ("exact", "fuzzy", "mapped", "lemma", "anchor"):
                         strong_total += 1
                 else:
                     comp_gaps.append(s)
-            n = len(skills)
             comp_results.append(CompetencyCoverage(
                 code=ccode,
                 total_skills=n,
@@ -190,7 +194,18 @@ class CoverageAnalyzer:
                 if children and cc.total_skills == 0:
                     total = sum(c.total_skills for c in children)
                     matched = sum(c.matched_skills for c in children)
-                    weighted = sum(c.matched_skills * c.weighted_coverage for c in children) / max(matched, 1)
+                    # Честное взвешенное: сумма conf по детям / всего навыков.
+                    # Было sum(matched_c * w_c)/matched — раздувало родителей
+                    # с низкопокрытыми детьми (2026-10-12: 0.826 вместо 0.495
+                    # на примере 1/10 + 10/10).
+                    weighted = sum(
+                        c.weighted_coverage * c.total_skills for c in children
+                    ) / max(total, 1)
+                    child_gaps: list[str] = []
+                    for c in children:
+                        for g in c.gap_skills:
+                            if g not in child_gaps and len(child_gaps) < 20:
+                                child_gaps.append(g)
                     comp_results[idx] = CompetencyCoverage(
                         code=cc.code,
                         total_skills=total,
@@ -198,7 +213,7 @@ class CoverageAnalyzer:
                         matched_names=[n for c in children for n in c.matched_names][:20],
                         coverage=round(matched / total, 4) if total else 0,
                         weighted_coverage=round(weighted, 4) if total else 0,
-                        gap_skills=cc.gap_skills,
+                        gap_skills=child_gaps,
                     )
 
         matched_list: list[SkillMatch] = []

@@ -10,7 +10,6 @@ import structlog
 
 import src.api_pkg.deps as deps
 from src import Err, Ok, config
-from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.skill_filter import SkillFilter
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
@@ -359,6 +358,11 @@ async def _warmup_background(basic_vacancies, raw_file):
             cache = CacheManager(config.PARSED_SKILLS_CACHE_PATH.parent)
             cache_key = config.PARSED_SKILLS_CACHE_PATH.stem
             vacancies_hash = hashlib.sha256(raw_file.read_bytes()).hexdigest()
+            # + отпечаток кода парсера: правка парсера/справочников иначе не
+            # инвалидирует кэш (тот же класс, что в skill_extractor).
+            from src.pipeline.skill_extractor import _parser_code_version
+
+            vacancies_hash += ":p" + _parser_code_version()
             skill_freq_local = {}
             hybrid_weights_local = {}
             cache_hit = False
@@ -540,10 +544,8 @@ async def _warmup_background(basic_vacancies, raw_file):
             use_ltr=True, use_llm=False, use_reranker=True,
             profile_evaluator=deps.evaluator
         )
-        deps.recommendation_engine.comparator = CompetencyComparator(
-            ngram_range=(1, 2), min_df=1, max_df=0.95,
-            use_embeddings=True, level="all", similarity_threshold=0.80,
-        )
+        # NB: comparator 0.80 тут был мёртвым оверрайдом (compare() никем не
+        # вызывается; fit идёт на конструкторе движка). Удалён 2026-10-12.
         match await asyncio.to_thread(
             deps.recommendation_engine.fit, vacancies_skills, skill_weights=hybrid_weights
         ):

@@ -9,7 +9,6 @@ import structlog
 from tqdm import tqdm
 
 from src import Err, GapAnalysisError, Ok, Result
-from src.analyzers.comparison.comparator import CompetencyComparator
 from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
 from src.analyzers.skills.skill_level_analyzer import SkillLevelAnalyzer
@@ -96,14 +95,7 @@ class GapRunner:
                 profile_evaluator=self.evaluator,
                 trend_analyzer=self.ctx.trend_analyzer,
             )
-            self.recommendation_engine.comparator = CompetencyComparator(
-                ngram_range=(1, 2),
-                min_df=1,
-                max_df=0.95,
-                use_embeddings=True,
-                level="all",
-                similarity_threshold=0.80,
-            )
+            # NB: мёртвый оверрайд comparator 0.80 удалён (compare() не вызывается).
             pct = self._update_progress()
             self._write_progress(pct, "GAP-анализ: подгонка Comparator...")
             match self.recommendation_engine.fit(self.ctx.vacancies_skills, skill_weights=skill_weights):

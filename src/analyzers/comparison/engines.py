@@ -1,12 +1,12 @@
-"""Protocol-based similarity engines.
+"""Protocol-based similarity engines (lab/sweep tooling).
 
 Usage:
     jaccard = JaccardEngine()
     result = jaccard.compare(["python dev"], ["python developer"])
 
-    # Wire into EmbeddingComparator:
-    comp = EmbeddingComparator(extra_engines={"jaccard": (JaccardEngine(), 0.3)})
-    result = comp.compare_student_to_market(student_skills, market_skills)
+NOTE (2026-10-11): the prod ensemble blend is removed — no safe design
+survived prod validation. These engines are used by
+scripts/benchmark_matching.py for measurements only.
 """
 
 from __future__ import annotations

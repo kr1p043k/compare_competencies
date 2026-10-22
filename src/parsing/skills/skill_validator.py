@@ -209,13 +209,50 @@ class SkillValidator:
                 reasons.append(ValidationReason.IN_BLACKLIST)
 
             if self.whitelist is not None:
-                skill_normalized = skill_lower.replace(" ", "").replace("-", "").replace("_", "")
-                if skill_normalized not in self.whitelist:
-                    found_in_whitelist = any(
-                        skill_normalized in wl.replace(" ", "").replace("-", "").replace("_", "")
-                        or wl.replace(" ", "").replace("-", "").replace("_", "") in skill_normalized
-                        for wl in self.whitelist
-                    )
+                # Точки тоже нормализуем с обеих сторон ('nodejs' vs 'node.js').
+                def _wl_norm(w: str) -> str:
+                    return w.lower().replace(" ", "").replace("-", "").replace("_", "").replace(".", "")
+                skill_normalized = _wl_norm(skill_lower)
+                wl_norm = {_wl_norm(w) for w in self.whitelist}
+                if skill_normalized not in wl_norm:
+                    # Проза с вкраплением навыка — не навык ('i love python...').
+                    # Короткие кандидаты (<=3 слов): сабстринг в обе стороны +
+                    # слово целиком (дешёво и покрывает легитимные 'machine
+                    # learning', 'nodejs'). Длинные: доля слов, покрытых
+                    # фразами whitelist (>=0.5), иначе проза валидируется.
+                    words_norm = [_wl_norm(w) for w in words]
+                    if len(words) <= 3:
+                        found_in_whitelist = any(
+                            skill_normalized in wl or wl in skill_normalized
+                            for wl in wl_norm
+                        ) or any(w in wl_norm for w in words_norm)
+                    else:
+                        # Кэш фраз ради скорости (validate вызывается тысячами).
+                        if self.__dict__.get("_wl_phrases") is None:
+                            try:
+                                from src.text.ru_morph import lemma as _lemma
+                            except Exception:
+                                _lemma = lambda w: w  # noqa: E731
+                            self.__dict__["_wl_lemmatize"] = _lemma
+                            # Фразы — по словам ( _wl_norm целиком склеил бы
+                            # 'автоматизация тестирования' в один токен).
+                            self.__dict__["_wl_phrases"] = [
+                                tuple(_lemma(_wl_norm(w)) for w in str(x).split())
+                                for x in (self.whitelist or set())
+                            ]
+                        _lemma = self.__dict__["_wl_lemmatize"]
+                        words_lem = [_lemma(w) for w in words_norm]
+                        covered = [False] * len(words_lem)
+                        for ph in self.__dict__["_wl_phrases"]:
+                            if not ph:
+                                continue
+                            for i in range(len(words_lem) - len(ph) + 1):
+                                if tuple(words_lem[i:i + len(ph)]) == ph:
+                                    for j in range(i, i + len(ph)):
+                                        covered[j] = True
+                        found_in_whitelist = (
+                            sum(covered) / len(words_lem) >= 0.5
+                        )
                     if not found_in_whitelist:
                         reasons.append(ValidationReason.NOT_IN_WHITELIST)
 

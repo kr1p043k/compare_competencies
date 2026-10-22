@@ -45,8 +45,10 @@ class TestSkillExtractorExtract:
             with patch("src.pipeline.skill_extractor.CacheManager") as MockCM:
                 cm_instance = MagicMock()
                 MockCM.return_value = cm_instance
+                from src.pipeline.skill_extractor import _parser_code_version
+
                 cm_instance.load.return_value = Ok({
-                    "source_hash": "abc123",
+                    "source_hash": "abc123:p" + _parser_code_version(),
                     "result": {
                         "frequencies": {"python": 10},
                         "hybrid_weights": {"python": 0.5},

@@ -19,7 +19,7 @@ import structlog
 from sqlalchemy import select
 
 from src.database import async_session_factory
-from src.models.krm_models import Competency, CompetencySkill, Direction, Discipline, Skill
+from src.models.krm_models import Competency, CompetencySkill, Direction, Discipline, KSAEntry, Skill
 
 logger = structlog.get_logger(__name__)
 
@@ -27,8 +27,24 @@ DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 KRM_PATH = DATA_DIR / "reference" / "krm_disciplines_09.03.02.json"
 JSON_MAP_PATH = DATA_DIR / "reference" / "krm_it_skill_map.json"
 
-SEMANTIC_THRESHOLD = 0.45
-MIN_SUBSTRING_LEN = 3
+SEMANTIC_THRESHOLD = 0.6  # prodval 2026-10-10: 0.45 flood ~1/3 junk links; 0.6 validated on pairs + prod workload
+MIN_SUBSTRING_LEN = 3  # исторический минимум; tier2 дополнительно режет <=3 (ниже)
+
+#: Короткие навыки-исключения для tier2: истинные гипонимы даже как сабстринг
+#: ('sql' в 'postgresql'/'mysql' — правда). Остальное длиной <=3 — сабстринг-мусор
+#: ('vue' в 'review', 'ros' в 'вопрос', 'ml' в 'html', 'r'/'c' в любом слове).
+#: Word-boundary вместо этого НЕ вводим: убил бы истинные флексии
+#: ('transformers', 'обработки данных') — замерено 2026-10-12, n=155.
+_SUBSTRING_SHORT_ALLOW = frozenset({"sql"})
+
+#: Языковые дисциплины: их KSA — иноязычная проза, mention != teach.
+#: Сабстринг-тир ловит ловушки ('vue' в 'review'), семантика — упоминания
+#: софта в примерах. Связи для них — ложные гэпы (prodval 2026-10-11:
+#: С1 gaps 4->27/34 дважды). Из DB-merge исключены; старые связи снесены.
+EXCLUDE_MERGE_DISCS = frozenset({
+    "Иностранный язык (англ. яз., уровень С1)",
+    "Иностранный язык для деловой коммуникации",
+})
 
 import re as _re
 
@@ -128,15 +144,27 @@ async def tier_substring(session, disciplines, disc_map, comp_map):
             cid = comp_map.get((did, cc))
             if not cid:
                 continue
-            txt = " ".join(t for kt in ("knowledge", "abilities", "skills") for t in ksa.get(kt, [])).lower()
-            if len(txt) < 10:
-                continue
-            phrases = _split_phrases(txt)
-            if not phrases:
-                phrases = [txt]
+            # Per-text split (prodval 2026-10-11): per-comp join creates giant
+            # blobs; strict phrase filters then starve prose discs (Web-disc:
+            # 177 ksa -> 1 target). Splitting each text keeps coherent phrases.
+            # Фолбэк целым текстом — только для текстов без маркеров мусора
+            # и длиной <=200 (иначе 500-символьные блобы шьют короткие навыки).
+            phrases: list[str] = []
+            for kt in ("knowledge", "abilities", "skills"):
+                for t in ksa.get(kt, []):
+                    t = (t or "").lower()
+                    if len(t) < 10:
+                        continue
+                    parts = _split_phrases(t)
+                    if parts:
+                        phrases.extend(parts)
+                    elif len(t) <= 200 and not any(m in t for m in _JUNK_MARKERS):
+                        phrases.append(t)
             for phrase in phrases:
                 for iname, iid in it_skills.items():
-                    if len(iname) < MIN_SUBSTRING_LEN or iname not in phrase:
+                    if iname not in phrase:
+                        continue
+                    if len(iname) < 4 and iname not in _SUBSTRING_SHORT_ALLOW:
                         continue
                     cid_str, skid_str = str(cid), str(iid)
                     if (cid_str, skid_str) in existing:
@@ -238,14 +266,20 @@ async def tier_semantic(session, disciplines, disc_map, comp_map):
             cid = comp_map.get((did, cc))
             if not cid:
                 continue
-            txt = " ".join(t for kt in ("knowledge", "abilities", "skills") for t in ksa.get(kt, [])).lower()
-            if len(txt) < 10:
-                continue
-            phrases = _split_phrases(txt)
-            if not phrases:
-                phrases = [txt]
-            for phrase in phrases:
-                targets.append((str(cid), phrase))
+            # Per-text split (prodval 2026-10-11): per-comp join creates giant
+            # blobs; strict phrase filters then starve prose discs.
+            # Фолбэк целым текстом — только без маркеров мусора и <=200 симв.
+            for kt in ("knowledge", "abilities", "skills"):
+                for t in ksa.get(kt, []):
+                    t = (t or "").lower()
+                    if len(t) < 10:
+                        continue
+                    parts = _split_phrases(t)
+                    if parts:
+                        for phrase in parts:
+                            targets.append((str(cid), phrase))
+                    elif len(t) <= 200 and not any(m in t for m in _JUNK_MARKERS):
+                        targets.append((str(cid), t))
 
     if not targets:
         print("  [tier3] Semantic: 0")
@@ -254,6 +288,7 @@ async def tier_semantic(session, disciplines, disc_map, comp_map):
     # 2. Батч-кодирование всех фраз (один проход по модели)
     batch_size = 256
     count = 0
+    hub_vetoed = 0
     for start in range(0, len(targets), batch_size):
         chunk = targets[start:start + batch_size]
         texts = [p for _, p in chunk]
@@ -265,12 +300,24 @@ async def tier_semantic(session, disciplines, disc_map, comp_map):
         for row_idx in range(len(chunk)):
             cid_str = chunk[row_idx][0]
             sims = sims_all[row_idx]
-            top = [int(i) for i in np.argsort(sims)[::-1][:3]]
+            # top-1 only: top-3 floods hub skills (prodval 2026-10-10)
+            top = [int(i) for i in np.argsort(sims)[::-1][:1]]
             for idx in top:
                 if float(sims[idx]) < SEMANTIC_THRESHOLD:
                     break
                 skid_str = str(it_ids[idx])
                 if (cid_str, skid_str) in existing:
+                    continue
+                # Hub-gate (безусловный в tier3, prodval 2026-10-11): режем хаб-мусор
+                # (kill if hub>=200 AND morph<0.2; P=0.80-0.97, ноль истинных
+                # убитых в mapping-аудите n=38; 2 известных FP-типа на 128 парах
+                # fit-сета — переводы к хаб-фразам; цена принята осознанно).
+                # Без гейта будущие прогоны воскрешали бы отфильтрованный мусор
+                # (existing-guard его не видит — он не был добавлен).
+                from src.analyzers.comparison.hub_gate import veto_match
+
+                if veto_match(chunk[row_idx][1], it_names[idx], float(sims[idx])):
+                    hub_vetoed += 1
                     continue
                 existing.add((cid_str, skid_str))
                 session.add(CompetencySkill(
@@ -280,7 +327,7 @@ async def tier_semantic(session, disciplines, disc_map, comp_map):
         if start % (batch_size * 4) == 0:
             print(f"    [tier3] encoded {min(start + batch_size, len(targets))}/{len(targets)} phrases, +{count}")
     await session.flush()
-    print(f"  [tier3] Semantic: {count}")
+    print(f"  [tier3] Semantic: {count} (hub-vetoed: {hub_vetoed})")
     return count
 
 
@@ -320,10 +367,35 @@ async def run_mapping(json_map_path: Path | None = None, dir_code: str = "09.03.
         comp_result = await session.execute(select(Competency).where(Competency.discipline_id.in_(disc_map.values())))
         comp_map = {(c.discipline_id, c.code): c.id for c in comp_result.scalars().all()}
 
-        skill_result = await session.execute(select(Skill))
+        skill_result = await session.execute(select(Skill).where(Skill.source == "it_skills"))
         skill_map = {s.name.lower(): s.id for s in skill_result.scalars().all()}
 
         print(f"Maps: {len(disc_map)} disciplines, {len(comp_map)} competencies, {len(skill_map)} skills")
+
+        # DB-derived KSA for discs absent from KRM JSON (verified 2026-10-10:
+        # 32/60 discs of 09.03.02 missing from JSON, incl. 15 teacher-analyzed
+        # IT discs with zero links). Tiers match against it_skills only, so
+        # non-IT prose yields ~zero links; added links are audited per-disc.
+        # NOTE: membership is checked against the frozen JSON key set — the
+        # merged dict grows during the loop (2026-10-11: checking `in
+        # disciplines_data` silently capped every merged disc at 1 text).
+        json_names = set(disciplines_data)
+        db_rows = await session.execute(
+            select(Discipline.name, Competency.code, KSAEntry.ksa_type, KSAEntry.original_text)
+            .join(Competency, Competency.discipline_id == Discipline.id)
+            .join(KSAEntry, KSAEntry.competency_id == Competency.id)
+            .where(Discipline.direction_id == direction.id))
+        db_merged = 0
+        for dname, ccode, ktype, otext in db_rows.all():
+            if dname in json_names or dname in EXCLUDE_MERGE_DISCS:
+                continue
+            if not otext or not otext.strip():
+                continue
+            dd = disciplines_data.setdefault(dname, {"ksa": {}})
+            dd["ksa"].setdefault(ccode, {}).setdefault(str(ktype), []).append(otext)
+            db_merged += 1
+        if db_merged:
+            print(f"  [db-ksa] merged {db_merged} KSA texts for JSON-missing discs")
 
         t1 = await tier_explicit_json(session, map_path, disc_map, comp_map, skill_map)
         await session.commit()

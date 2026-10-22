@@ -24,7 +24,10 @@ class SkillNormalizer:
         "typescript": ["ts", "type script"],
         "go": ["golang", "go lang"],
         "csharp": ["c#", "c sharp"],
-        "cpp": ["c++", "c plus plus", "С++", "C++"],
+        # Каноника строго 'c++' (не 'cpp'): whitelist/таксономия/тесты держат
+        # 'c++'; 'cpp' — лишь вариант. Было наоборот — ломало early-exact
+        # после lower-нормализации ключей (2026-10-12).
+        "c++": ["cpp", "c plus plus", "С++", "C++"],
         "rust": ["rustlang"],
         "swift": ["swiftui"],
         "kotlin": ["kotlin android"],
@@ -196,9 +199,11 @@ class SkillNormalizer:
         if cls._canonical_map is None:
             canon = {}
             for canonical, variants in cls.SYNONYM_MAP.items():
+                # Ключи в нижнем регистре: поиск идёт по lowered text,
+                # иначе 'С++'/'1С' никогда не бьют в early-exact (2026-10-12).
                 for v in variants:
-                    canon[v] = canonical
-                canon[canonical] = canonical
+                    canon.setdefault(str(v).lower(), canonical)
+                canon.setdefault(str(canonical).lower(), canonical)
             # Load aliases from taxonomy
             try:
                 from pathlib import Path
@@ -285,8 +290,10 @@ class SkillNormalizer:
 
     # Обратная карта lookalikes CYR->LAT (полная, как _LAT_TO_CYR в skill_parser):
     # восстанавливает кириллицу после латинизации в parse_vacancy.
+    # Позиции строго 1-в-1 с источником: ...n->н(9), b->в(10).
+    # Прошлая ошибка: b восстанавливалось в 'а' вместо 'в' (2026-10-12).
     _LAT_TO_CYR_LOOKALIKES = str.maketrans(
-        "aeopcyxkmnbAEOPCYXKMNB", "аеорсухкмнаАЕОРСУХКМНВ"
+        "aeopcyxkmnbAEOPCYXKMNB", "аеорсухкм" + "нв" + "АЕОРСУХКМНВ"
     )
 
     _whitelist: set[str] | None = None
@@ -444,7 +451,8 @@ class SkillNormalizer:
                 return Ok("")
             # Mixed Cyrillic+Latin in same word = evasion technique
             # (пропускаем если restore уже вытащил канонический навык из латинизации).
-            if not _restored_ok and re.search(r'[a-z][а-яё]|[а-яё][a-z]', original):
+            # Регистры обе стороны: 'Pythоn' (Latin P + Cyrillic о) тоже ловим.
+            if not _restored_ok and re.search(r'[a-zA-Z][а-яёА-ЯЁ]|[а-яёА-ЯЁ][a-zA-Z]', original):
                 return Ok("")
             # Compound tech stack: 4+ space-separated short alnum words
             words = text.split()

@@ -159,7 +159,7 @@ async def get_vacancies(
                v.employer_logo
         FROM vacancies v
         WHERE {where_clause}
-        ORDER BY v.published_at DESC NULLS LAST
+        ORDER BY v.published_at DESC NULLS LAST, v.hh_id
         LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}
     """
     rows = await pool.fetch(sql, *params, limit, offset)

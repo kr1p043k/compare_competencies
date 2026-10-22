@@ -45,14 +45,29 @@ def test_matcher_delta_merge_encodes_only_missing(tmp_path, monkeypatch):
     monkeypatch.setattr("src.config.EMBEDDINGS_CACHE_DIR", tmp_path)
     prov = _mock_provider()
     m = SkillMatcher({}, embedding_provider=prov)
-    assert m.set_market({"a": 5, "b": 3}).is_ok()
+    assert m.set_market({"alpha": 5, "beta": 3}).is_ok()
     assert prov.encode.call_count == 1
-    # Тот же набор + один новый: кодируется только новый.
-    assert m.set_market({"a": 5, "b": 3, "c": 1}).is_ok()
+    # Тот же маркет + один новый: кодируется только новый.
+    assert m.set_market({"alpha": 5, "beta": 3, "gamma": 1}).is_ok()
     last_call = prov.encode.call_args_list[-1]
-    assert list(last_call.args[0]) == ["c"]
-    assert m._market_names == ["a", "b", "c"]
+    assert list(last_call.args[0]) == ["gamma"]
+    assert m._market_names == ["alpha", "beta", "gamma"]
     assert m._market_embeddings.shape == (3, 4)
+
+
+def test_matcher_junk_names_not_indexed(tmp_path, monkeypatch):
+    """Призраки ('я') чистятся из маркета и НЕ попадают в семантический
+    индекс (2026-10-12: set_market кодировал сырые ключи)."""
+    from src.analyzers import skill_matcher as sm
+    from src.analyzers.skill_matcher import SkillMatcher
+
+    monkeypatch.setattr(sm, "MARKET_CACHE_MIN_SKILLS", 0)
+    monkeypatch.setattr("src.config.EMBEDDINGS_CACHE_DIR", tmp_path)
+    prov = _mock_provider()
+    m = SkillMatcher({}, embedding_provider=prov)
+    assert m.set_market({"я": 99, "python": 10}).is_ok()
+    assert list(m.market_skills) == ["python"]
+    assert list(m._market_names) == ["python"]
 
 
 def test_comparator_reuses_matcher_file_delta(tmp_path):

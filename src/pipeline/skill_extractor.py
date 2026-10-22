@@ -21,6 +21,33 @@ from src.utils import load_competency_mapping
 
 logger = structlog.get_logger("skill_extractor")
 
+#: Файлы, чьё изменение обязано инвалидировать кэш парсинга.
+#: Ключ кэша — хеш СЫРОГО файла вакансий; правки парсера/справочников
+#: его не трогают, и старый результат молча переиспользуется (2026-10-14:
+#: тот же класс, что у teacher-кэша). Дешёвый отпечаток: mtime+size.
+_PARSER_DEPS = (
+    "src/parsing/skills/skill_parser.py",
+    "src/parsing/skills/skill_normalizer.py",
+    "src/parsing/skills/skill_validator.py",
+    "data/reference/skill_blacklist.json",
+    "data/reference/it_skills.json",
+)
+_PARSER_DEPS_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _parser_code_version() -> str:
+    import hashlib
+
+    h = hashlib.md5()
+    for rel in _PARSER_DEPS:
+        p = _PARSER_DEPS_ROOT / rel
+        try:
+            st = p.stat()
+            h.update(f"{rel}:{st.st_mtime_ns}:{st.st_size}".encode())
+        except OSError:
+            h.update(f"{rel}:missing".encode())
+    return h.hexdigest()[:16]
+
 
 class SkillExtractor:
     """Извлекает частоты и hybrid_weights, инициализирует тренды."""
@@ -36,7 +63,9 @@ class SkillExtractor:
         cache_path = config.PARSED_SKILLS_CACHE_PATH
         vacancies_hash = None
         if raw_file:
-            vacancies_hash = self._get_file_hash(raw_file)
+            # Хеш данных + отпечаток кода парсера: иначе правка парсера или
+            # справочника оставляет старый результат валидным.
+            vacancies_hash = self._get_file_hash(raw_file) + ":p" + _parser_code_version()
 
         try:
             cached_result = None

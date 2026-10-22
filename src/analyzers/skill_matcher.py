@@ -201,7 +201,9 @@ class SkillMatcher:
         self._market_word_pats: list[tuple[str, re.Pattern[str]]] = []
         self._market_lemma_pats: list[tuple[str, re.Pattern[str]]] = []
         self._semantic_cache: dict[str, tuple[str, float]] = {}
-        self._match_cache: dict[str, tuple[str | None, str, float]] = {}
+        # Ключ включает lemma-флаг: закэшированный no_match при выключенном
+        # флаге не должен переживать его включение (2026-10-12).
+        self._match_cache: dict[tuple[str, bool], tuple[str | None, str, float]] = {}
         # Счётчики для видимости hit-rate (профиль: кэши молчали).
         self._semantic_hits = 0
         self._semantic_miss = 0
@@ -219,8 +221,10 @@ class SkillMatcher:
         self._semantic_hits = 0
         self._semantic_miss = 0
         self._rebuild_fuzzy_patterns()
-        if self._embedding_provider and market_skills:
-            names = list(market_skills.keys())
+        # Индекс обязан зеркалить очищенный маркет, а не сырые ключи:
+        # иначе семантика возвращает призраков ('я'), вычищенных из matching.
+        if self._embedding_provider and self.market_skills:
+            names = list(self.market_skills.keys())
             embs = None
             if len(names) >= MARKET_CACHE_MIN_SKILLS:
                 embs = self._try_load_market_embs(names)
@@ -345,9 +349,19 @@ class SkillMatcher:
 
     @staticmethod
     def _clean_market(market_skills: dict[str, int]) -> dict[str, int]:
-        """Drop falsy and single-char junk tokens (v28: market contained 'я')."""
-        return {k: v for k, v in market_skills.items()
-                if (k or "").strip() and (len(k.strip()) > 1 or k.strip().lower() in _MARKET_SINGLE_ALLOW)}
+        """Drop falsy and single-char junk tokens (v28: market contained 'я').
+
+        Allowlist проверяется после script-fold: кириллическое 'с' — тот же
+        навык, что латинское 'c' (2026-10-12).
+        """
+        def _keep(k: str) -> bool:
+            s = (k or "").strip()
+            if not s:
+                return False
+            if len(s) > 1:
+                return True
+            return s.lower() in _MARKET_SINGLE_ALLOW or fold_script(s).lower() in _MARKET_SINGLE_ALLOW
+        return {k: v for k, v in market_skills.items() if _keep(k)}
 
     def _rebuild_fuzzy_patterns(self) -> None:
         """Precompile whole-word patterns for every market name.
@@ -392,6 +406,13 @@ class SkillMatcher:
                 ]
         except Exception:
             self._market_lemma_pats = []
+        # Нормализованный exact-индекс: чинит case-mismatch ('python' vs 'Python').
+        # Ключи сырые, запрос нормализован — без карты exact падает во fuzzy/lemma.
+        self._exact_norm_map: dict[str, str] = {}
+        for name in self.market_skills:
+            nk = normalize(name)
+            if nk and nk not in self._exact_norm_map:
+                self._exact_norm_map[nk] = name
 
     def _fuzzy_hit_name(self, n: str) -> str | None:
         """First market name having a whole-word overlap with `n`.
@@ -505,6 +526,9 @@ class SkillMatcher:
             return (None, "no_match", 0.0)
         self._semantic_miss += 1
         qemb = self._embedding_provider.encode([n])
+        qemb = np.asarray(qemb, dtype=float)
+        if qemb.ndim == 1:
+            qemb = qemb.reshape(1, -1)
         qnorm = np.linalg.norm(qemb)
         if qnorm > 0:
             qemb /= qnorm
@@ -519,25 +543,29 @@ class SkillMatcher:
 
     def match(self, skill_name: str) -> Result[tuple[str | None, str, float], MatchingError]:
         """Сопоставить навык: exact -> fuzzy -> typo? -> semantic. Возвращает (совпадение, тип, уверенность)."""
+        if not isinstance(skill_name, str) or not skill_name.strip():
+            return Ok((None, "no_match", 0.0))
         n = normalize(skill_name)
         if not n or len(n) < 3:
             logger.debug("skill_too_short", skill=skill_name)
             return Ok((None, "no_match", 0.0))
         from src.feature_flags import lemma_fuzzy_enabled as _lf_on
         from src.feature_flags import market_verbs_enabled as _verbs_on
+        lemma_fuzzy = bool(_lf_on())
         if _verbs_on():
             stripped = strip_lead_verbs(n)
             if stripped and stripped != n:
                 logger.debug("skill_verbs_stripped", original=n, stripped=stripped)
                 n = stripped
 
-        cached = self._match_cache.get(n)
+        cache_key = (n, lemma_fuzzy)
+        cached = self._match_cache.get(cache_key)
         if cached is not None:
             return Ok(cached)
 
-        result = self._match_uncached(n, skill_name, lemma_fuzzy=_lf_on())
+        result = self._match_uncached(n, skill_name, lemma_fuzzy=lemma_fuzzy)
         if result.is_ok():
-            self._match_cache[n] = result.unwrap()
+            self._match_cache[cache_key] = result.unwrap()
         return result
 
     def _lemma_fuzzy_hit_name(self, n: str) -> str | None:
@@ -564,6 +592,11 @@ class SkillMatcher:
         if n in self.market_skills:
             logger.debug("skill_exact_match", skill=n)
             return Ok((n, "exact", 1.0))
+
+        hit_norm = self._exact_norm_map.get(n)
+        if hit_norm is not None:
+            logger.debug("skill_exact_norm_match", skill=n, market_skill=hit_norm)
+            return Ok((hit_norm, "exact", 1.0))
 
         folded_n = fold_script(n)
         if folded_n != n and folded_n in self._fold_map:
@@ -615,6 +648,8 @@ class SkillMatcher:
         if not self.market_skills:
             logger.warning("no_market_skills_for_emerging")
             return Err(MatchingError(skill_name="", message="No market skills loaded"))
+        if top_n <= 0:
+            return Ok([])
 
         rpd_pats = [(_word_pattern(r)) for r in rpd_normalized] if rpd_normalized else []
         # Свернутые формы для межскриптовых пар ('с/с' vs 'c++'): иначе навыки,

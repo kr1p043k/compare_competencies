@@ -145,7 +145,6 @@ class TestRunSuccess:
     def run_runner_with_mocks(self, runner):
         mock_evaluator = MagicMock()
         mock_engine = MagicMock()
-        mock_comparator = MagicMock()
 
         mock_level_analyzer = MagicMock()
         mock_level_analyzer.analyze_vacancies.return_value = None
@@ -190,11 +189,10 @@ class TestRunSuccess:
         with patch("src.pipeline.gap_runner.SkillLevelAnalyzer", return_value=mock_level_analyzer):
             with patch("src.pipeline.gap_runner.ProfileEvaluator", return_value=mock_evaluator):
                 with patch("src.pipeline.gap_runner.RecommendationEngine", return_value=mock_engine):
-                    with patch("src.pipeline.gap_runner.CompetencyComparator", return_value=mock_comparator):
-                        with patch.object(runner, "taxonomy", mock_taxonomy):
-                            with patch.object(runner, "_write_progress"):
-                                with patch.object(runner, "_print_summary"):
-                                    result = runner.run()
+                    with patch.object(runner, "taxonomy", mock_taxonomy):
+                        with patch.object(runner, "_write_progress"):
+                            with patch.object(runner, "_print_summary"):
+                                result = runner.run()
         return result, mock_engine, mock_evaluator
 
     def test_returns_ok_on_success(self, runner):
@@ -232,9 +230,8 @@ class TestRunFitFailure:
         with patch("src.pipeline.gap_runner.SkillLevelAnalyzer", return_value=mock_level_analyzer):
             with patch("src.pipeline.gap_runner.ProfileEvaluator", return_value=mock_evaluator):
                 with patch("src.pipeline.gap_runner.RecommendationEngine", return_value=mock_engine):
-                    with patch("src.pipeline.gap_runner.CompetencyComparator"):
-                        with patch.object(runner, "_write_progress"):
-                            result = runner.run()
+                    with patch.object(runner, "_write_progress"):
+                        result = runner.run()
         assert isinstance(result, Err)
 
 

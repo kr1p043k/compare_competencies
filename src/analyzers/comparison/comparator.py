@@ -5,15 +5,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from src import Err, Ok, Result
 from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
-from src.analyzers.comparison.engines import BM25Engine, JaccardEngine
 from src.errors import DomainError
 
 logger = structlog.get_logger(__name__)
-
-#: Веса extra-движков ансамбля (сырые, до рескейла (1-COSINE_WEIGHT)).
-#: Sweep/decomposition: (0.5/0.1/0.25)@0.7 F1 0.9307 vs база 0.9135.
-JACCARD_WEIGHT = 0.1
-BM25_WEIGHT = 0.25
 
 
 class CompetencyComparator:
@@ -35,8 +29,6 @@ class CompetencyComparator:
 
         if use_embeddings:
             self.embedding_comparator = EmbeddingComparator(similarity_threshold=similarity_threshold)
-            self.jaccard_engine = JaccardEngine()
-            self.bm25_engine = BM25Engine()
         else:
             self.tfidf = TfidfVectorizer(
                 ngram_range=ngram_range, min_df=min_df, max_df=max_df, token_pattern=r"(?u)\b\w[\w-]*\b"
@@ -62,9 +54,7 @@ class CompetencyComparator:
         if self.use_embeddings and self.embedding_comparator:
             all_skills = [skill for vac in vacancies_skills for skill in vac]
             self.embedding_comparator.build_market_index(all_skills, level=self.level)
-            unique_skills = list(dict.fromkeys(all_skills))
-            self.bm25_engine.fit(unique_skills)
-            logger.info("market_embeddings_and_bm25_built", level=self.level)
+            logger.info("market_embeddings_built", level=self.level)
         else:
             corpus = [" ".join(skills) for skills in vacancies_skills]
             self.tfidf.fit(corpus)
@@ -81,26 +71,17 @@ class CompetencyComparator:
         if self.skill_weights is not None and len(self.skill_weights) > 0:
             score = self.weighted_coverage(student_skills, self.skill_weights)
             student_norm = [s.lower().strip() for s in student_skills]
-            matched = sum(1 for s in student_norm if self.skill_weights.get(s, 0) > 0)
+            weights_norm = {str(k).lower().strip(): v for k, v in self.skill_weights.items()}
+            matched = sum(1 for s in student_norm if weights_norm.get(s, 0) > 0)
             confidence = matched / max(1, len(student_skills))
             return Ok((round(score, 4), round(confidence, 4)))
 
         if self.use_embeddings and self.embedding_comparator:
-            result = self.embedding_comparator.compare_student_to_market_ensemble(
-                student_skills,
-                extra_engines={
-                    "jaccard": (self.jaccard_engine, JACCARD_WEIGHT),
-                    "bm25": (self.bm25_engine, BM25_WEIGHT),
-                },
-            )
-            score = result.get("score", result.get("weighted_coverage", 0.0))
-            matches = result.get("matches", [])
-            confidence = (
-                len([m for m in matches if m.get("similarity", 0) >= 0.65]) / max(1, len(student_skills))
-                if student_skills
-                else 0.0
-            )
-            return Ok((round(score, 4), round(confidence, 4)))
+            # Ensemble blend removed 2026-10-11 (prodval): no safe prod design
+            # (full-replace adds unthresholded junk, lexical veto kills true
+            # translations 19/24, rescue corridor empty on real data).
+            # Engines live on in engines.py as lab/sweep tooling only.
+            return Err(DomainError(message="Embeddings compare needs skill_weights; call set_skill_weights() first"))
 
         else:
             if not student_skills:

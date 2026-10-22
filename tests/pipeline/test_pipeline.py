@@ -554,8 +554,7 @@ class TestRecommendationRunner:
         runner = RecommendationRunner(mock_profiles, mock_data, mock_args)
 
         mock_evaluator = MagicMock()
-        with patch("src.pipeline.recommendation_runner.RecommendationEngine") as MockEngine, \
-             patch("src.pipeline.recommendation_runner.CompetencyComparator") as MockComp:
+        with patch("src.pipeline.recommendation_runner.RecommendationEngine") as MockEngine:
             mock_engine_instance = MockEngine.return_value
             mock_engine_instance.generate_recommendations.return_value = Ok(
                 RecommendationResult(summary=RecommendationSummary(), recommendations=[])
@@ -629,8 +628,7 @@ class TestRecommendationRunner:
         mock_data = {"hybrid_weights": {}, "vacancies_skills": [], "trend_analyzer": None}
         runner = RecommendationRunner(mock_profiles, mock_data, mock_args)
         mock_evaluator = MagicMock()
-        with patch("src.pipeline.recommendation_runner.RecommendationEngine") as MockEngine, \
-             patch("src.pipeline.recommendation_runner.CompetencyComparator"):
+        with patch("src.pipeline.recommendation_runner.RecommendationEngine") as MockEngine:
             runner.initialize_engine(mock_evaluator)
             assert runner.engine is not None
 
@@ -688,7 +686,11 @@ class TestSkillExtractor:
         raw_file = tmp_path / "raw.json"
         raw_file.write_text("dummy")
 
-        data = {"source_hash": "abc", "result": {"frequencies": {"java": 5}, "hybrid_weights": {"java": 0.7}}}
+        # Ключ кэша = хеш файла + отпечаток кода парсера (2026-10-14).
+        from src.pipeline.skill_extractor import _parser_code_version
+
+        data = {"source_hash": "abc:p" + _parser_code_version(),
+                "result": {"frequencies": {"java": 5}, "hybrid_weights": {"java": 0.7}}}
         monkeypatch.setattr("src.pipeline.skill_extractor.config.PARSED_SKILLS_CACHE_PATH", cache_path)
         monkeypatch.setattr("src.pipeline.skill_extractor.config.DATA_PROCESSED_DIR", tmp_path)
 
@@ -844,8 +846,7 @@ class TestGapRunner:
         runner = GapRunner(mock_profiles, mock_data, mock_args)
         with patch("src.pipeline.gap_runner.ProfileEvaluator") as MockPE, \
              patch("src.pipeline.gap_runner.RecommendationEngine") as MockRE, \
-             patch("src.pipeline.gap_runner.SkillLevelAnalyzer") as MockSLA, \
-             patch("src.pipeline.gap_runner.CompetencyComparator"):
+             patch("src.pipeline.gap_runner.SkillLevelAnalyzer") as MockSLA:
             mock_pe_instance = MockPE.return_value
             mock_pe_instance.evaluate_profile.return_value = Ok({
                 "market_coverage_score": 70, "skill_coverage": 65, "domain_coverage_score": 60,
@@ -906,8 +907,7 @@ class TestGapRunner:
         runner = GapRunner(mock_profiles, mock_data, mock_args)
         with patch("src.pipeline.gap_runner.ProfileEvaluator") as MockPE, \
              patch("src.pipeline.gap_runner.RecommendationEngine") as MockRE, \
-             patch("src.pipeline.gap_runner.SkillLevelAnalyzer") as MockSLA, \
-             patch("src.pipeline.gap_runner.CompetencyComparator"):
+             patch("src.pipeline.gap_runner.SkillLevelAnalyzer") as MockSLA:
             mock_pe_instance = MockPE.return_value
             mock_pe_instance.evaluate_profile.return_value = Ok({
                 "market_coverage_score": 70, "skill_coverage": 65, "domain_coverage_score": 60,
@@ -938,8 +938,7 @@ class TestGapRunner:
         runner = GapRunner(mock_profiles, mock_data, mock_args)
         with patch("src.pipeline.gap_runner.ProfileEvaluator") as MockPE, \
              patch("src.pipeline.gap_runner.RecommendationEngine") as MockRE, \
-             patch("src.pipeline.gap_runner.SkillLevelAnalyzer") as MockSLA, \
-             patch("src.pipeline.gap_runner.CompetencyComparator"):
+             patch("src.pipeline.gap_runner.SkillLevelAnalyzer") as MockSLA:
             mock_pe_instance = MockPE.return_value
             mock_pe_instance.evaluate_profile.return_value = Ok({
                 "market_coverage_score": 70, "skill_coverage": 65, "domain_coverage_score": 60,
@@ -969,8 +968,7 @@ class TestGapRunner:
         runner = GapRunner(mock_profiles, mock_data, mock_args)
         with patch("src.pipeline.gap_runner.ProfileEvaluator") as MockPE, \
              patch("src.pipeline.gap_runner.RecommendationEngine") as MockRE, \
-             patch("src.pipeline.gap_runner.SkillLevelAnalyzer") as MockSLA, \
-             patch("src.pipeline.gap_runner.CompetencyComparator"):
+             patch("src.pipeline.gap_runner.SkillLevelAnalyzer") as MockSLA:
             mock_pe_instance = MockPE.return_value
             mock_pe_instance.evaluate_profile.return_value = Ok({
                 "market_coverage_score": 70, "skill_coverage": 65, "domain_coverage_score": 60,

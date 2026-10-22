@@ -17,11 +17,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from src import Err, Ok, Result, config
 from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
-from src.analyzers.comparison.engines import (
-    ComparisonResult,
-    EnsembleEngine,
-    SimilarityEngine,
-)
+from src.analyzers.comparison.engines import ComparisonResult
 from src.artifacts import ArtifactManifest
 from src.errors import DomainError
 from src.utils import clip01
@@ -30,17 +26,6 @@ if TYPE_CHECKING:
     from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 
 logger = structlog.get_logger(__name__)
-
-
-#: Вес cosine similarity при бленде с extra_engines. Остаток делится между extra.
-#: Sweep (763 пары + 2289 негативов): (0.5/0.1/0.25)@0.7 F1 0.9307
-#: vs (0.7/0.2/0.15)@0.75 F1 0.9135. Порог 0.6: zero-overlap synonym-пары
-#: (129 штук, без LLM): P 0.955 / R 0.651 против P 0.961 / R 0.566 на 0.7 —
-#: −0.6pp точности за +8.5pp recall; на Exp2-парафразах +18pp recall.
-#: Расширенный набор (+taxonomy aliases, 197 пар, 2 сида, стабильно):
-#: 0.6 → P 0.86-0.87 / R 0.59 (F1 0.70) vs 0.7 → P 0.91-0.93 / R 0.50
-#: (F1 0.65). F1 держит 0.6 на всех четырёх замерах.
-COSINE_WEIGHT = 0.5
 
 
 class EmbeddingComparator:
@@ -242,57 +227,6 @@ class EmbeddingComparator:
         best_sims = similarities.max(axis=0)
 
         return Ok(self._result_from_sims(best_sims))
-
-    def compare_student_to_market_ensemble(
-        self,
-        student_skills: list[str],
-        extra_engines: dict[str, tuple[SimilarityEngine, float]] | None = None,
-    ) -> ComparisonResult:
-        """Blends cosine similarity with extra_engines via EnsembleEngine.
-
-        Usage:
-            comp.compare_student_to_market_ensemble(
-                student_skills,
-                extra_engines={"jaccard": (JaccardEngine(), 0.3)},
-            )
-        """
-        base = self.compare_student_to_market(student_skills).unwrap_or(
-            {"score": 0.0, "weighted_coverage": 0.0, "avg_similarity": 0.0, "matches": [], "missing": []}
-        )
-        if not extra_engines or not self.market_skills:
-            return base
-
-        class _CosineProxy:
-            def __init__(self, outer):
-                self._outer = outer
-            def compare(self, ss, ms):
-                if self._outer.market_embeddings is None:
-                    return Ok({"score": 0.0, "matches": []})
-                student_embs = self._outer.embed_skills(ss)
-                if len(student_embs) == 0:
-                    return Ok({"score": 0.0, "matches": []})
-                sims = cosine_similarity(student_embs, self._outer.market_embeddings)
-                best = sims.max(axis=0)
-                avg = float(best.mean()) if best.size else 0.0
-                top_idx = np.argsort(-best, kind="stable")[:15]
-                matches = [
-                    {"skill": self._outer.market_skills[i], "similarity": clip01(best[i])}
-                    for i in top_idx
-                ]
-                return Ok(dict(score=round(avg, 4), weighted_coverage=round(avg, 4),
-                            avg_similarity=round(avg, 4), matches=matches, missing=[]))
-
-        total_extra = sum(w for _, w in extra_engines.values()) or 1.0
-        engines: dict[str, tuple[SimilarityEngine, float]] = {
-            "cosine": (_CosineProxy(self), COSINE_WEIGHT),
-        }
-        for name, (engine, weight) in extra_engines.items():
-            engines[name] = (engine, (1 - COSINE_WEIGHT) * weight / total_extra)
-
-        ensemble = EnsembleEngine(engines)
-        return ensemble.compare(student_skills, self.market_skills).unwrap_or(
-            {"score": 0.0, "weighted_coverage": 0.0, "avg_similarity": 0.0, "matches": [], "missing": []}
-        )
 
     def _result_from_sims(self, best_sims: np.ndarray) -> ComparisonResult:
         """Build result from a (n_market,) array of best cosine similarities.

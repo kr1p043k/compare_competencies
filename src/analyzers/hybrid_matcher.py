@@ -143,6 +143,8 @@ class HybridMatcher:
     # -- core matching --
     def match(self, skill_name: str) -> Result[tuple[str | None, str, float], MatchingError]:
         """Матчинг: exact -> hybrid_fuzzy (RF И границы) -> адаптивная семантика."""
+        if not isinstance(skill_name, str) or not skill_name.strip():
+            return Ok((None, "no_match", 0.0))
         n = normalize(skill_name)
         if not n or len(n) < 3:
             return Ok((None, "no_match", 0.0))
@@ -192,6 +194,9 @@ class HybridMatcher:
         if self._market_embeddings is not None and self._embedding_provider is not None:
             try:
                 qemb = self._embedding_provider.encode([original])
+                qemb = np.asarray(qemb, dtype=float)
+                if qemb.ndim == 1:
+                    qemb = qemb.reshape(1, -1)
                 qnorm = np.linalg.norm(qemb)
                 if qnorm > 0:
                     qemb = qemb / qnorm
@@ -211,12 +216,17 @@ class HybridMatcher:
         rpd_normalized: set[str],
         top_n: int = 10,
         also_exclude: set[str] | None = None,
+        max_freq: int | None = None,
     ) -> Result[list[tuple[str, int, str]], MatchingError]:
         """Делегирование word-containment логике (как SkillMatcher, для сравнимости)."""
         if not self.market_skills:
             return Err(MatchingError(skill_name="", message="No market skills loaded"))
+        if top_n <= 0:
+            return Ok([])
         result = []
-        for mn, mf in sorted(self.market_skills.items(), key=lambda x: -x[1]):
+        for mn, mf in sorted(self.market_skills.items(), key=lambda x: (-x[1], x[0])):
+            if max_freq is not None and mf >= max_freq:
+                continue
             if mn in rpd_normalized:
                 continue
             if also_exclude and mn in also_exclude:

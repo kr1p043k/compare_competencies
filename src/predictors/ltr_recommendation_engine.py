@@ -37,6 +37,40 @@ from src.predictors.models import SkillImpact
 
 logger = structlog.get_logger(__name__)
 
+#: Кодировка категории навыка: имя -> код (единственный источник для train,
+#: для category_avg_weight и для _extract_features; 2026-10-12 — раньше карта
+#: жила локально, и predict-path считал среднее по имени, а train — по коду).
+CATEGORY_ENCODING_NAME: dict[str, int] = {
+    "programming_languages": 5,
+    "frameworks": 4,
+    "devops": 4,
+    "cloud": 4,
+    "data_science": 4,
+    "ml_advanced": 4,
+    "llm_ai": 4,
+    "databases": 3,
+    "frontend": 3,
+    "testing_qa": 3,
+    "mobile": 2,
+    "security": 2,
+    "enterprise": 2,
+    "embedded": 2,
+    "game_dev": 2,
+    "gis": 2,
+    "mathematics": 2,
+    "methodologies_concepts": 2,
+    "soft_skills": 1,
+    "management": 1,
+    "other": 1,
+}
+
+#: Обратная карта: код -> имена категорий (для усреднения по всем именам,
+#: попавшим в train, а не по одному каноническому).
+CATEGORY_ENCODING: dict[int, tuple[str, ...]] = {}
+for _name, _enc in CATEGORY_ENCODING_NAME.items():
+    CATEGORY_ENCODING.setdefault(_enc, tuple())
+    CATEGORY_ENCODING[_enc] = CATEGORY_ENCODING[_enc] + (_name,)
+
 def _load_profession_profiles() -> list[list[str]]:
     """Load profession profiles from profession_taxonomy.json + krm_competency_mapping.json."""
     profiles: list[list[str]] = [[]]  # empty profile (no experience)
@@ -250,10 +284,12 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 (hybrid_weights.get(s, 0.0) for s in train_skills), default=max_hybrid,
             ) or 1.0
             for df in (X_train, X_val, X_test):
-                if "freq_normalized" in df.columns:
-                    df["freq_normalized"] = df["freq_normalized"] * (max_freq / train_max_freq)
-                if "hybrid_weight_normalized" in df.columns:
-                    df["hybrid_weight_normalized"] = df["hybrid_weight_normalized"] * (max_hybrid / train_max_hybrid)
+                # Имя колонки — ровно как её эмитит _extract_features.
+                # Раньше проверялось 'freq_normalized' (такого столбца нет),
+                # тело было мёртвым: нормализация делалась по полному
+                # корпусу, т.е. тест видел max_freq из train (2026-10-12).
+                if "skill_freq_normalized" in df.columns:
+                    df["skill_freq_normalized"] = df["skill_freq_normalized"] * (max_freq / train_max_freq)
             logger.info(
                 "ltr_renorm_train_only",
                 train_max_freq=round(train_max_freq, 2),
@@ -273,13 +309,21 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         self.category_avg_weight = {cat: float(np.mean(vals)) for cat, vals in train_cat_buckets.items()}
 
         # Update category_avg_weight column in all splits with train-only values
-        cat_enc_to_avg = {1: self.category_avg_weight.get("soft_skills", 0.0),
-                          2: self.category_avg_weight.get("mobile", 0.0),
-                          3: self.category_avg_weight.get("databases", 0.0),
-                          4: self.category_avg_weight.get("frameworks", 0.0),
-                          5: self.category_avg_weight.get("programming_languages", 0.0)}
+        # category_avg_weight: train-среднее по НАЗВАНИЯМ категорий.
+        # Раньше здесь стояла карта id->одно каноническое имя, а предсказание
+        # читало .get(category_name) — фича получала чужие значения (devops
+        # получал среднее frameworks или 0.0; 2026-10-12).
+        cat_name_by_enc: dict[int, list[str]] = {}
+        for enc, names in CATEGORY_ENCODING.items():
+            cat_name_by_enc[enc] = names
+
+        def _avg_for_enc(enc: object) -> float:
+            vals = [self.category_avg_weight[n] for n in cat_name_by_enc.get(int(enc), [])
+                    if n in self.category_avg_weight]
+            return float(np.mean(vals)) if vals else 0.0
+
         for df in [X_train, X_val, X_test]:
-            df["category_avg_weight"] = df["category_encoded"].map(lambda c: cat_enc_to_avg.get(c, 0.0))
+            df["category_avg_weight"] = df["category_encoded"].map(_avg_for_enc)
 
         self.model = xgb.XGBRegressor(
             objective="reg:squarederror",
@@ -695,30 +739,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
 
         level_map = {"junior": 1, "middle": 2, "senior": 3, "all_levels": 2}
         category = self._get_skill_category(skill)
-
-        category_map = {
-            "programming_languages": 5,
-            "frameworks": 4,
-            "devops": 4,
-            "cloud": 4,
-            "data_science": 4,
-            "ml_advanced": 4,
-            "llm_ai": 4,
-            "databases": 3,
-            "frontend": 3,
-            "testing_qa": 3,
-            "mobile": 2,
-            "security": 2,
-            "enterprise": 2,
-            "embedded": 2,
-            "game_dev": 2,
-            "gis": 2,
-            "mathematics": 2,
-            "methodologies_concepts": 2,
-            "soft_skills": 1,
-            "management": 1,
-            "other": 1,
-        }
+        category_map = CATEGORY_ENCODING_NAME
 
         cat_avg = self.category_avg_weight.get(category, 0.0) if self.category_avg_weight else 0.0
         return {

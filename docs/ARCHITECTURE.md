@@ -232,8 +232,9 @@ FAISS-обёртка: `FaissIndex` с поддержкой FlatIP и HNSW. Ме�
 Студенты → JSON → ProfileEvaluator ← WeightCleaner
                        ↓
               EmbeddingComparator
-                ├── cosine_similarity (sklearn)
-                └── extra_engines (Jaccard/Ensemble)
+                └── cosine_similarity (sklearn), порог 0.6
+              (Jaccard/BM25/Ensemble — только lab/sweep-инструменты в
+              scripts/benchmark_matching.py, в прод-пути не используются)
 
               Метрики + рекомендации → data/result/
 ```

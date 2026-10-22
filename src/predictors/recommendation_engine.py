@@ -256,8 +256,17 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 closest_clusters, cluster_skills_map, student_set, cluster_level,
                 prof_skills=prof_skills, target_profession=target_profession)
 
-            top_recs: list[tuple[str, float]] = eval_result.get("top_recommendations", [])
-            evaluator_scores: dict[str, float] = {skill: score for skill, score in top_recs}
+            top_recs: list[tuple[str, float]] = eval_result.get("top_recommendations") or []
+            # Слияние по ключу в нижнем регистре: LTR отдаёт skill.lower(),
+            # evaluator — имя рынка как есть ("PostgreSQL" vs "postgresql").
+            # Раньше это давало два разных навыка и теряло 40% бленда
+            # (2026-10-12). display_name возвращает рыночное написание.
+            display_name: dict[str, str] = {}
+            evaluator_scores: dict[str, float] = {}
+            for skill, score in top_recs:
+                k = str(skill).lower()
+                evaluator_scores[k] = max(evaluator_scores.get(k, 0.0), score)
+                display_name.setdefault(k, skill)
 
             ltr_scores: dict[str, float] = {}
             if self.ltr_engine and self.ltr_engine.is_fitted:
@@ -274,6 +283,8 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                                 skill.lower(): float(score)
                                 for skill, score in zip(skills, normalized_scores, strict=False)
                             }
+                            for skill in skills:
+                                display_name.setdefault(skill.lower(), skill)
                         logger.info("ltr_scores_normalized", profile=profile_name, ltr_skills=len(ltr_scores))
                     case Err(e):
                         logger.warning("ltr_scoring_failed", error=str(e))
@@ -282,9 +293,10 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
 
             all_skills_to_rank = set(evaluator_scores) | set(ltr_scores)
             combined_scores: dict[str, float] = {}
-            for skill in all_skills_to_rank:
-                ev = evaluator_scores.get(skill, 0.0)
-                ltr = ltr_scores.get(skill, 0.0)
+            for skill_key in all_skills_to_rank:
+                ev = evaluator_scores.get(skill_key, 0.0)
+                ltr = ltr_scores.get(skill_key, 0.0)
+                skill = display_name.get(skill_key, skill_key)
                 if ltr_scores:
                     combined_scores[skill] = config.BLEND_EVALUATOR_WEIGHT * ev + config.BLEND_LTR_WEIGHT * ltr
                 else:

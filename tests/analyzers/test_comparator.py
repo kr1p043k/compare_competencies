@@ -342,21 +342,13 @@ class TestEmbeddingComparatorFull:
 
 
 class TestCompetencyComparatorFull:
-    def test_compare_embeddings_no_weights_no_matches(self):
-        """Строки 81-90: embeddings без весов"""
+    def test_compare_embeddings_no_weights_is_err(self):
+        """Embeddings без весов: ensemble blend удалён (2026-10-11),
+        compare требует skill_weights — явная ошибка вместо тихого нуля."""
         comparator = CompetencyComparator(use_embeddings=True)
         comparator.fitted = True
-        mock_emb = MagicMock()
-        mock_emb.compare_student_to_market_ensemble.return_value = {
-            "score": 0.5,
-            "weighted_coverage": 0.5,
-            "matches": [{"skill": "python", "similarity": 0.3}, {"skill": "java", "similarity": 0.2}],
-        }
-        comparator.embedding_comparator = mock_emb
-        score, confidence = comparator.compare(["python"]).unwrap()
-        # confidence = len(matches with sim >= 0.65) / len(student_skills) = 0/1 = 0
-        assert score == 0.5
-        assert confidence == 0.0
+        result = comparator.compare(["python"])
+        assert result.is_err()
 
     def test_compare_embeddings_no_student_skills(self):
         """Строка 110: пустые навыки студента в TF-IDF"""
