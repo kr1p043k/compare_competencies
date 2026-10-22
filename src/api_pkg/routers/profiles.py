@@ -24,6 +24,7 @@ from src.models.enums import ExperienceLevel
 from src.models.student import StudentProfile
 from src.parsing.skills.skill_validator import SkillValidator
 from src.predictors.recommendation_engine import RecommendationEngine
+import contextlib
 
 logger = structlog.get_logger("api")
 
@@ -62,10 +63,8 @@ async def compare_profiles(
         cfg = prof_taxonomy.get_profile_target(pname) or {}
         domains = cfg.get("target_domains", [])
         if domains and not student.target_profession:
-            try:
+            with contextlib.suppress(Exception):
                 student.target_profession = cfg.get("target_profession", "")
-            except Exception:
-                pass
         match eval_instance.evaluate_profile(
             student,
             target_domains=domains or None,
@@ -176,7 +175,7 @@ async def custom_profile_options(request: Request):
         titles: dict[str, str] = {}
         new_skills: dict[str, list[str]] = {}
         codes_set: set[str] = set(mp.keys()) if isinstance(mp, dict) else set()
-        for pname, prof in (deps.student_profiles or {}).items():
+        for _pname, prof in (deps.student_profiles or {}).items():
             try:
                 for c in (prof.competencies or []):
                     if c and str(c).strip():
@@ -599,10 +598,8 @@ async def get_recommendations(
         precomputed = None
         if domains:
             if not student.target_profession:
-                try:
+                with contextlib.suppress(Exception):
                     student.target_profession = cfg.get("target_profession", "")
-                except Exception:
-                    pass
             match eval_instance.evaluate_profile(
                 student, target_domains=domains, taxonomy=prof_taxonomy,
             ):

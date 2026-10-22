@@ -190,7 +190,7 @@ class TestSynonymMap:
         import inspect
 
         from src.parsing.skills import skill_normalizer
-        src = inspect.getsource(skill_normalizer.SkillNormalizer.normalize)
+        inspect.getsource(skill_normalizer.SkillNormalizer.normalize)
         # The function itself should not have @cache in its source
         # (decorators are not part of getsource for the function, check differently)
         assert callable(skill_normalizer.SkillNormalizer.normalize)

@@ -465,7 +465,7 @@ class RPDLoader:
         for fname in files:
             fpath = os.path.join(self.pdf_dir, fname)
             disc_name = self._discipline_name(fname)
-            normal = normalize_disc_name(disc_name)
+            normalize_disc_name(disc_name)
 
             print(f"  {fname} -> {disc_name}")
 

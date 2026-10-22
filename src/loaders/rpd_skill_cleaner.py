@@ -88,7 +88,7 @@ class RPDSkillCleaner:
     def clean_discipline_data(self, data: dict) -> Result[dict, DomainError]:
         try:
             cleaned_count = 0
-            for disc_name, disc_data in data.get("09.03.02", {}).get("disciplines", {}).items():
+            for _disc_name, disc_data in data.get("09.03.02", {}).get("disciplines", {}).items():
                 for comp in disc_data.get("skills", {}):
                     raw = disc_data["skills"][comp]
                     match self.clean_skills(raw):
@@ -169,7 +169,7 @@ class RPDSkillCleaner:
         if len(tokens) > 25:
             return None
 
-        tech_tokens = sum(
+        sum(
             1 for t in tokens if t.lower() in _KNOWN_SKILL_WORDS or re.match(r'^[a-z][a-z0-9+#.\-]*$', t.lower())
         )
         has_tech_keyword = any(t.lower() in _KNOWN_SKILL_WORDS for t in tokens)

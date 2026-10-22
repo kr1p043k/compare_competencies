@@ -27,7 +27,7 @@ def load(paths, has_argtype=False):
 
 def cohen(a, b):
     n = len(a)
-    agree = sum(1 for x, y in zip(a, b) if x == y) / n
+    agree = sum(1 for x, y in zip(a, b, strict=False) if x == y) / n
     pa, pb = Counter(a), Counter(b)
     pe = sum((pa[k] / n) * (pb[k] / n) for k in (0, 1, 2))
     return (agree - pe) / (1 - pe) if pe < 1 else 1.0, agree
@@ -58,7 +58,7 @@ def main():
     by_role: dict[str, list] = {}
     for i in ids:
         by_role.setdefault(e2[i]["role"], []).append(i)
-    tall, tagree = [], 0.0
+    tall, _tagree = [], 0.0
     for role, rs in by_role.items():
         a = [e2[i]["vote"] for i in rs]
         b = [e3[i]["vote"] for i in rs]
@@ -70,7 +70,7 @@ def main():
     b = [e3[i]["vote"] for i in ids]
     k, agree = cohen(a, b)
     print(f"OVERALL n={len(ids)} agree={agree:.3f} kappa={k:.3f}")
-    conf = Counter(zip(a, b))
+    conf = Counter(zip(a, b, strict=False))
     print("confusion (e2 x e3):")
     for x in (0, 1, 2):
         print("  e2=%d: " % x + " ".join(f"e3={y}:{conf[(x, y)]}" for y in (0, 1, 2)))

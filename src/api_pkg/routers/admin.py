@@ -21,6 +21,7 @@ from src.api_pkg import deps
 from src.api_pkg.request_logger import actor_from_request, audit_action, get_logs_by_user
 from src.api_pkg.routers.auth import require_any_role
 from src.parsing.utils import load_it_skills
+import contextlib
 
 logger = structlog.get_logger("api")
 
@@ -970,10 +971,8 @@ async def admin_logs_ws(websocket: WebSocket, token: str = ""):
     finally:
         stop.set()
         tail_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await tail_task
-        except asyncio.CancelledError:
-            pass
 
 
 # ---------- Scheduler (background collector + nightly gap, admin-only) ----------

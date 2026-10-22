@@ -17,6 +17,7 @@ from src.predictors import create_ranking_predictor
 from src.result import Result
 from src.scoring.vacancy_quality_scorer import VacancyQualityScorer
 from src.utils import safe_read_json
+import contextlib
 
 logger = structlog.get_logger(__name__)
 
@@ -277,10 +278,8 @@ class ModelTrainingStage(PipelineStage):
                             match ArtifactManifest.load(model_path):
                                 case Ok(manifest):
                                     for k, v in (manifest.metrics or {}).items():
-                                        try:
+                                        with contextlib.suppress(Exception):
                                             ltr_model_metrics.labels(metric=k).set(v)
-                                        except Exception:
-                                            pass
                         except Exception:
                             pass
                         return Ok({"model_trained": False, "reason": "already_up_to_date"})
@@ -298,10 +297,8 @@ class ModelTrainingStage(PipelineStage):
                     if hasattr(ltr_engine, "last_metrics"):
                         m = ltr_engine.last_metrics
                         for k, v in m.items():
-                            try:
+                            with contextlib.suppress(Exception):
                                 ltr_model_metrics.labels(metric=k).set(v)
-                            except Exception:
-                                pass
                         r2 = m.get("r2")
                         mae = m.get("mae")
                         if r2 is not None and mae is not None:

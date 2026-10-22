@@ -16,13 +16,13 @@ class TestN8NEndpoints:
         assert "03_market" in N8N_ENDPOINTS
 
     def test_each_endpoint_has_method_and_path(self):
-        for group, endpoints in N8N_ENDPOINTS.items():
+        for _group, endpoints in N8N_ENDPOINTS.items():
             for ep in endpoints:
                 assert "M" in ep
                 assert "P" in ep
 
     def test_each_endpoint_has_rate_limit(self):
-        for group, endpoints in N8N_ENDPOINTS.items():
+        for _group, endpoints in N8N_ENDPOINTS.items():
             for ep in endpoints:
                 assert "RL" in ep
 
@@ -59,7 +59,7 @@ class TestN8NWebhooks:
         assert "body" in wh
 
     def test_webhooks_have_required_fields(self):
-        for name, wh in N8N_WEBHOOKS.items():
+        for _name, wh in N8N_WEBHOOKS.items():
             assert "method" in wh
             assert "path" in wh
             assert "description" in wh

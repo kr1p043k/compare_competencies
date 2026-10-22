@@ -157,7 +157,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
 
     n_clusters = len(unique_labels)
     clusters_out = []
-    for cl_id, cf, size in zip(unique_labels, cluster_skill_freqs, cluster_sizes):
+    for cl_id, cf, size in zip(unique_labels, cluster_skill_freqs, cluster_sizes, strict=False):
         scored = []
         for sk, freq in cf.most_common(50):
             if len(sk) <= 2 or sk.lower() in _CLUSTER_STOP:

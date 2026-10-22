@@ -20,6 +20,7 @@ from src.predictors.skill_forecast import (
     SkillForecastEngine,
     drop_broken_snapshots,
 )
+import contextlib
 
 # Статус фонового фита Prophet (для countdown в UI): обновляется по ходу
 # ThreadPool-фита; читается endpoint'ом /forecast/engine без блокировок.
@@ -112,10 +113,8 @@ def _has_mixed_token(skill: str) -> bool:
         scripts = set()
         for ch in tok:
             if ch.isalpha():
-                try:
+                with contextlib.suppress(Exception):
                     scripts.add(unicodedata.name(ch).split()[0])
-                except Exception:
-                    pass
         if len(scripts) > 1:
             return True
     return False

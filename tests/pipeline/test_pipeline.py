@@ -92,8 +92,8 @@ class TestHhDataSource:
         ds = HhDataSource(mock_args)
 
         # Мокаем все внешние зависимости
-        with patch("src.pipeline.data_source.HeadHunterAPI") as mock_api_class, \
-             patch("src.pipeline.data_source.VacancyParser") as mock_parser_class, \
+        with patch("src.pipeline.data_source.HeadHunterAPI"), \
+             patch("src.pipeline.data_source.VacancyParser"), \
              patch("src.pipeline.data_source.interactive_config") as mock_interact, \
              patch("src.pipeline.data_source.collect_vacancies_multiple") as mock_collect, \
              patch("src.pipeline.data_source.get_load_mode") as mock_load_mode, \
@@ -628,7 +628,7 @@ class TestRecommendationRunner:
         mock_data = {"hybrid_weights": {}, "vacancies_skills": [], "trend_analyzer": None}
         runner = RecommendationRunner(mock_profiles, mock_data, mock_args)
         mock_evaluator = MagicMock()
-        with patch("src.pipeline.recommendation_runner.RecommendationEngine") as MockEngine:
+        with patch("src.pipeline.recommendation_runner.RecommendationEngine"):
             runner.initialize_engine(mock_evaluator)
             assert runner.engine is not None
 
@@ -798,7 +798,7 @@ class TestWeightCleaner:
         mock_filter = MagicMock()
         mock_filter.get_clean_weights.return_value = {"py": 0.5}
         with patch("src.pipeline.weight_cleaner.SkillFilter", return_value=mock_filter):
-            result = cleaner.clean({"py": 0.8})
+            cleaner.clean({"py": 0.8})
             # Проверяем, что передан пустой competency_freq
             call_kwargs = mock_filter.get_clean_weights.call_args[1]
             assert call_kwargs["competency_freq"] == {}

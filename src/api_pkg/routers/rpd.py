@@ -23,6 +23,7 @@ from slowapi.util import get_remote_address
 
 from src import config
 from src.api_pkg.routers.auth import require_any_role
+import contextlib
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["rpd"], dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
@@ -288,11 +289,9 @@ async def _upload_pipeline(
     except Exception as exc:
         logger.error("rpd_upload_pipeline_failed", run_id=run_id, dir_code=dir_code,
                      exc_type=type(exc).__name__, exc_repr=repr(exc))
-        try:
+        with contextlib.suppress(Exception):
             await complete_pipeline_run(run_id, status="failed", error=str(exc),
                                         stats={"stage": "error", "status": "failed"})
-        except Exception:
-            pass
     finally:
         _rpd_cancel.pop(run_id, None)
         _rpd_procs.pop(run_id, None)
@@ -379,11 +378,9 @@ async def _collect_pipeline(run_id: str, dir_code: str, public_url: str | None =
     except Exception as exc:
         logger.error("rpd_collect_pipeline_failed", run_id=run_id, dir_code=dir_code,
                      exc_type=type(exc).__name__, exc_repr=repr(exc))
-        try:
+        with contextlib.suppress(Exception):
             await complete_pipeline_run(run_id, status="failed", error=str(exc),
                                         stats={"stage": "error", "status": "failed"})
-        except Exception:
-            pass
     finally:
         _rpd_cancel.pop(run_id, None)
         _rpd_procs.pop(run_id, None)
@@ -439,10 +436,8 @@ async def rpd_cancel(request: Request, run_id: str):
     if ev is not None:
         ev.set()
     if proc is not None:
-        try:
+        with contextlib.suppress(Exception):
             proc.kill()
-        except Exception:
-            pass
     logger.info("rpd_cancel_requested", run_id=run_id)
     return {"status": "cancelling", "message": "Останавливаю задачу..."}
 

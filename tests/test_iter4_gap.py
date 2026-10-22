@@ -11,7 +11,7 @@ class TestLoadKrm:
         krm = _load_krm("09.03.02")
         assert isinstance(krm, dict)
         if krm:
-            for code, entry in list(krm.items())[:3]:
+            for _code, entry in list(krm.items())[:3]:
                 assert "skills" in entry
                 assert "disciplines" in entry
                 assert isinstance(entry["skills"], list)

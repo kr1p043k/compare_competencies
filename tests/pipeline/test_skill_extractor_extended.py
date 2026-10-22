@@ -135,7 +135,7 @@ class TestSkillExtractorExtract:
                 })
                 with patch("src.pipeline.skill_extractor.load_it_skills", return_value=["python"]):
                     with patch("src.pipeline.skill_extractor.filter_skills_by_whitelist",
-                               return_value={"python": 5}) as mock_filter:
+                               return_value={"python": 5}):
                         with patch("src.pipeline.skill_extractor.TrendAnalyzer") as MockTA:
                             ta_instance = MagicMock()
                             MockTA.return_value = ta_instance

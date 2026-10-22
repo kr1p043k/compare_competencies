@@ -8,6 +8,7 @@ from logging.handlers import RotatingFileHandler
 import structlog
 
 from src.config import LOG_FILE
+import contextlib
 
 
 class SecretsMasker:
@@ -51,10 +52,8 @@ def setup_structlog(console_level: int = None):
     _orig_rollover = file_handler.doRollover
 
     def _safe_rollover():
-        try:
+        with contextlib.suppress(PermissionError):
             _orig_rollover()
-        except PermissionError:
-            pass
 
     file_handler.doRollover = _safe_rollover
 

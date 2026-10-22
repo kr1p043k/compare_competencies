@@ -22,6 +22,7 @@ from src.pipeline.runner import (
     run_train_model,
 )
 from src.pipeline.teacher_analysis_runner import run_teacher_analysis
+import contextlib
 
 
 def parse_arguments():
@@ -60,10 +61,8 @@ def parse_arguments():
     args = parser.parse_args()
     if args.query and args.query.startswith("b64:"):
         import base64
-        try:
+        with contextlib.suppress(Exception):
             args.query = base64.b64decode(args.query[4:]).decode("utf-8")
-        except Exception:
-            pass
     return args
 
 

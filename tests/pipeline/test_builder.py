@@ -59,7 +59,7 @@ def test_build(MockOrch):
 @patch("src.pipeline.builder.PipelineOrchestrator")
 def test_build_no_stages(MockOrch):
     MockOrch.return_value = MagicMock()
-    b = PipelineBuilder().build()
+    PipelineBuilder().build()
 
 
 @patch("src.pipeline.builder.PipelineOrchestrator")

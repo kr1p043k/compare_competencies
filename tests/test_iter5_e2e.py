@@ -82,7 +82,7 @@ class TestE2EMatchCoverage:
 
     def test_quality_below_binary_on_fuzzy(self):
         """C4: fuzzy matches lower quality vs binary."""
-        analyzer = self._analyzer()
+        self._analyzer()
         # 'spring' fuzzy-matches 'spring boot' if in market - use word containment
         matcher = SkillMatcher(market_skills={"spring boot": 50, "python": 100})
         analyzer2 = CoverageAnalyzer(matcher)

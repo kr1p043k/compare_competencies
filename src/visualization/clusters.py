@@ -64,7 +64,7 @@ def plot_cluster_insights(results: dict[str, Any], output_dir: Path):
         ax.invert_yaxis()
         ax.legend(fontsize=11)
 
-        for bar, val in zip(bars, similarities):
+        for bar, val in zip(bars, similarities, strict=False):
             width = bar.get_width()
             ax.text(
                 width + 1,

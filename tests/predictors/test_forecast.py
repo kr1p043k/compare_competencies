@@ -66,7 +66,7 @@ def test_forecast_engine_top_growing_sorted_desc():
     engine.fit(freqs)
     top = engine.top_growing(4).ok()
     assert len(top) == 4
-    for i in range(len(top) - 1):
+    for _i in range(len(top) - 1):
         # Note: with flat data all growth=0.0, order is stable (insertion). Just check count.
         assert len(top) == 4
 

@@ -137,7 +137,7 @@ class TestCheckClusters:
             # выполняем скрипт, не импортируя его как модуль, чтобы избежать раннего выполнения
             import importlib.util
             spec = importlib.util.spec_from_file_location("check_clusters", Path(__file__).parent.parent.parent / "scripts" / "check_clusters.py")
-            module = importlib.util.module_from_spec(spec)
+            importlib.util.module_from_spec(spec)
             # Не выполняем, потому что spec.loader.exec_module выполнит код. Вместо этого выполним exec в изолированном пространстве.
             # Но можно просто выполнить exec с open, избегая импорта модуля.
             # Убедимся, что модуль не был импортирован ранее: удалим из sys.modules

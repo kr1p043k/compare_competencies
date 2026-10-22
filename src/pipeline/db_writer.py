@@ -249,7 +249,7 @@ async def export_history_trends_to_db() -> int:
             raw = json.loads(f.read_text(encoding="utf-8"))
             meta = raw.pop("_meta", {})
             data = raw
-            snapshot_type = meta.get("type", "full_market")
+            meta.get("type", "full_market")
             profession = meta.get("profession")
 
             # source identifies the snapshot type

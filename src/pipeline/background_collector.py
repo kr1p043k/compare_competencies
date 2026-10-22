@@ -19,6 +19,7 @@ logger = structlog.get_logger(__name__)
 from src import config
 from src.circuit_breaker import CircuitBreaker
 from src.utils import atomic_write_json
+import contextlib
 
 SCHEDULER_DIRNAME = "settings"
 SCHEDULER_FILENAME = "scheduler.json"
@@ -561,10 +562,8 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
     # Save to DB (ensure IDs are int)
     for v in all_vacancies:
         if isinstance(v.get("id"), str):
-            try:
+            with contextlib.suppress(ValueError, TypeError):
                 v["id"] = int(v["id"])
-            except (ValueError, TypeError):
-                pass
     from src.pipeline.db_writer import save_vacancies_batch
     await save_vacancies_batch(all_vacancies)
 

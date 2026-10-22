@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api_pkg import create_app
+import contextlib
 
 STUDENT_EMAIL = "test.student@compare-competencies.local"
 STUDENT_PW = "Student_Test_123"
@@ -46,10 +47,8 @@ async def _make_user(pool, email: str, pw: str, role: str, name: str) -> None:
 def _clean_files() -> None:
     from src.api_pkg.routers.profiles import _self_profile_name
     for em in (STUDENT_EMAIL, TEACHER_EMAIL):
-        try:
+        with contextlib.suppress(Exception):
             Path(_self_profile_name(em)[1]).unlink(missing_ok=True)
-        except Exception:
-            pass
 
 
 @pytest.fixture(scope="module")

@@ -22,6 +22,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
+import contextlib
 
 try:  # DB-backed shared cache (parallel worker): get_cached(task, model, prompt)
     from src.services.llm_cache import (  # type: ignore
@@ -223,10 +224,8 @@ def extract_skills(
         if use_cache:
             put_cached("extract", cache_key, result, ttl_s=3600.0 if result else 120.0)
             if _DB_CACHE and text:
-                try:
+                with contextlib.suppress(Exception):
                     _db_put_cached("extract", model, prompt, text)
-                except Exception:
-                    pass
         return result
     except Exception:
         return []

@@ -76,7 +76,7 @@ class TestWebhookStudentCreated:
         body = StudentCreatedBody(profile_name="test", skills=["python"])
         mock_request = MagicMock()
         mock_request.headers = {"X-N8N-Webhook-Secret": "secret"}
-        mock_path = MagicMock()
+        MagicMock()
         with (
             patch("src.n8n.webhooks._verify_n8n_secret", return_value=True),
             patch("src.n8n.webhooks.WEBHOOK_STORE") as mock_store,

@@ -28,7 +28,7 @@ def get_embedding_model(model_name: str = None):
         logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
         SentenceTransformer = sentence_transformers.SentenceTransformer
 
-        for attempt, endpoint in enumerate([None, HF_MIRROR]):
+        for _attempt, endpoint in enumerate([None, HF_MIRROR]):
             try:
                 if endpoint:
                     os.environ["HF_ENDPOINT"] = endpoint

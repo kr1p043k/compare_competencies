@@ -187,20 +187,19 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
         raw_file = a.get("file", "") or ""
         name = norm_name(raw_title)
         hit = None
-        how = None
         if not name or not a.get("text"):
             continue
         # 1. Точное; 2. без скобок; 3. русское из скобок имени файла.
         if name in known:
-            hit, how = known[name], "exact"
+            hit, _how = known[name], "exact"
         if not hit:
             ns = norm_name(_strip_parens(raw_title)) or norm_name(_strip_parens(raw_file))
             if ns and ns in known:
-                hit, how = known[ns], "noparen"
+                hit, _how = known[ns], "noparen"
         if not hit:
             rp = ru_paren(raw_file) or ru_paren(raw_title)
             if rp and norm_name(rp) in known:
-                hit, how = known[norm_name(rp)], "ruparen"
+                hit, _how = known[norm_name(rp)], "ruparen"
         if not hit:
             # 4. Токенное пересечение по леммам (вместо сырого сабстринга:
             # 'физика' в 'физическая культура' больше не матчится, а
@@ -215,7 +214,7 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
                 if inter >= 2 and inter > best_n:
                     best, best_n = orig, inter
             if best:
-                hit, how = best, "tokens:%d" % best_n
+                hit, _how = best, "tokens:%d" % best_n
         if not hit:
             continue
         comps = sorted({normalize_comp(c) for c in a.get("competencies", [])})

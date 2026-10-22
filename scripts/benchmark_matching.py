@@ -360,8 +360,6 @@ async def run_predictions(pool, test_set: list[dict]) -> list[dict]:
                 pass
 
         # L4: ensemble score (simplified — use cosine as proxy for full ensemble)
-        l4_match = l3_match  # simplified for benchmark; full ensemble needs comparator setup
-        l4_score = l3_score
 
         # BM25: term-frequency similarity
         bm25_match = False
@@ -419,7 +417,7 @@ def compute_metrics(results: list[dict]) -> dict:
     metrics = {}
 
     # Per-level binary classification
-    for level_name, keys in zip(levels, level_keys):
+    for level_name, keys in zip(levels, level_keys, strict=False):
         preds = []
         for r in results:
             # Level is matched if ANY of the levels in the chain matched
@@ -437,7 +435,7 @@ def compute_metrics(results: list[dict]) -> dict:
 
     relevant_sets = []
     retrieved_lists = []
-    for query, pairs in queries_grouped.items():
+    for _query, pairs in queries_grouped.items():
         # "relevant" = the expected skill for this query
         relevant = set(r["expected"] for r in pairs)
         # "retrieved" = all market skills ranked by L3 confidence
@@ -449,12 +447,12 @@ def compute_metrics(results: list[dict]) -> dict:
     retrieval = {}
     if relevant_sets:
         for k in [1, 3, 5]:
-            p = np.mean([RetrievalMetrics.precision_at_k(rel, ret, k) for rel, ret in zip(relevant_sets, retrieved_lists)])
-            r = np.mean([RetrievalMetrics.recall_at_k(rel, ret, k) for rel, ret in zip(relevant_sets, retrieved_lists)])
+            p = np.mean([RetrievalMetrics.precision_at_k(rel, ret, k) for rel, ret in zip(relevant_sets, retrieved_lists, strict=False)])
+            r = np.mean([RetrievalMetrics.recall_at_k(rel, ret, k) for rel, ret in zip(relevant_sets, retrieved_lists, strict=False)])
             retrieval[f"P@{k}"] = round(float(p), 4)
             retrieval[f"R@{k}"] = round(float(r), 4)
-        retrieval["MAP"] = round(float(RetrievalMetrics.mean_average_precision(list(zip(relevant_sets, retrieved_lists)))), 4)
-        retrieval["MRR"] = round(float(RetrievalMetrics.mean_reciprocal_rank(list(zip(relevant_sets, retrieved_lists)))), 4)
+        retrieval["MAP"] = round(float(RetrievalMetrics.mean_average_precision(list(zip(relevant_sets, retrieved_lists, strict=False)))), 4)
+        retrieval["MRR"] = round(float(RetrievalMetrics.mean_reciprocal_rank(list(zip(relevant_sets, retrieved_lists, strict=False)))), 4)
 
     return {"levels": metrics, "retrieval": retrieval, "total_pairs": len(results)}
 
@@ -482,7 +480,7 @@ def compute_category_metrics(results: list[dict]) -> dict:
     for cat, items in sorted(by_cat.items()):
         y_true = [r["label"] for r in items]
         out[cat] = {"n": len(items), "positive": sum(y_true), "negative": len(items) - sum(y_true)}
-        for level_name, keys in zip(levels, level_keys):
+        for level_name, keys in zip(levels, level_keys, strict=False):
             preds = [1 if any(r[k]["match"] for k in keys) else 0 for r in items]
             cm = ClassificationMetrics.report(y_true, preds)
             out[cat][level_name] = {
@@ -544,15 +542,15 @@ def compute_mcnemar_per_category(results: list[dict]) -> dict:
     out = {}
     for cat, items in sorted(by_cat.items()):
         # b = fuzzy wrong, semantic right; c = fuzzy right, semantic wrong
-        b = sum(1 for r in items
+        sum(1 for r in items
                 if (0 if (r["L1"]["match"] or r["L2"]["match"]) else 1) != r["label"]
                 and (0 if (r["L1"]["match"] or r["L2"]["match"] or r["L3_raw"]["match"]) else 1) == r["label"])
         # Simplified: L2 pred vs L3 pred disagreement
         l2_preds = [1 if (r["L1"]["match"] or r["L2"]["match"]) else 0 for r in items]
         l3_preds = [1 if (r["L1"]["match"] or r["L2"]["match"] or r["L3_raw"]["match"]) else 0 for r in items]
         y = [r["label"] for r in items]
-        b2 = sum(1 for l2, l3, t in zip(l2_preds, l3_preds, y) if l2 != t and l3 == t)
-        c2 = sum(1 for l2, l3, t in zip(l2_preds, l3_preds, y) if l2 == t and l3 != t)
+        b2 = sum(1 for l2, l3, t in zip(l2_preds, l3_preds, y, strict=False) if l2 != t and l3 == t)
+        c2 = sum(1 for l2, l3, t in zip(l2_preds, l3_preds, y, strict=False) if l2 == t and l3 != t)
         n_discord = b2 + c2
         if n_discord == 0:
             out[cat] = {"b": b2, "c": c2, "chi2": 0.0, "p": 1.0, "sig": False, "n": len(items)}
@@ -735,7 +733,7 @@ def generate_charts(metrics: dict, ablation: dict, timing: dict, results: list[d
     ax.set_title("Accuracy / Precision / Recall / F1 по уровням системы", fontsize=12, fontweight="bold")
     ax.legend(fontsize=9, loc="upper left")
     ax.set_ylim(0, 1.05)
-    for i, (a, p, r, f) in enumerate(zip(accuracies, precisions, recalls, f1s)):
+    for i, (a, _p, _r, f) in enumerate(zip(accuracies, precisions, recalls, f1s, strict=False)):
         ax.text(i - 1.5*w, a + 0.01, f"{a:.2f}", ha="center", va="bottom", fontsize=7)
         ax.text(i + 1.5*w, f + 0.01, f"{f:.2f}", ha="center", va="bottom", fontsize=7, fontweight="bold")
     ax.grid(axis="y", alpha=0.3)
@@ -751,7 +749,7 @@ def generate_charts(metrics: dict, ablation: dict, timing: dict, results: list[d
     vals = list(comp.values())
     colors = ["#95a5a6", "#3498db", "#2ecc71", "#27ae60", "#e74c3c"]
     bars = ax.bar(names, vals, color=colors, edgecolor="white", linewidth=0.5)
-    for bar, v in zip(bars, vals):
+    for bar, v in zip(bars, vals, strict=False):
         ax.text(bar.get_x() + bar.get_width()/2, v + 0.005, f"{v:.3f}",
                 ha="center", va="bottom", fontsize=10, fontweight="bold")
     ax.set_ylabel("F1 Score")
@@ -776,7 +774,7 @@ def generate_charts(metrics: dict, ablation: dict, timing: dict, results: list[d
     ax.set_title("Зависимость F1 от веса cosine в ансамбле", fontsize=12, fontweight="bold")
     ax.legend(fontsize=9)
     ax.grid(alpha=0.3)
-    for w, f in zip(ws, f1s):
+    for w, f in zip(ws, f1s, strict=False):
         ax.annotate(f"{f:.3f}", (w, f), textcoords="offset points", xytext=(0, 8), ha="center", fontsize=9)
     fig.tight_layout()
     fig.savefig(DATA_DIR / "chart_weight_sweep.png", dpi=150)
@@ -803,10 +801,10 @@ def generate_charts(metrics: dict, ablation: dict, timing: dict, results: list[d
     # Chart 5: Confusion matrix (L4)
     l4_preds = [1 if r["L4"]["match"] else 0 for r in results]
     y_true = [r["label"] for r in results]
-    tp = sum(1 for t, p in zip(y_true, l4_preds) if t == 1 and p == 1)
-    fp = sum(1 for t, p in zip(y_true, l4_preds) if t == 0 and p == 1)
-    fn = sum(1 for t, p in zip(y_true, l4_preds) if t == 1 and p == 0)
-    tn = sum(1 for t, p in zip(y_true, l4_preds) if t == 0 and p == 0)
+    tp = sum(1 for t, p in zip(y_true, l4_preds, strict=False) if t == 1 and p == 1)
+    fp = sum(1 for t, p in zip(y_true, l4_preds, strict=False) if t == 0 and p == 1)
+    fn = sum(1 for t, p in zip(y_true, l4_preds, strict=False) if t == 1 and p == 0)
+    tn = sum(1 for t, p in zip(y_true, l4_preds, strict=False) if t == 0 and p == 0)
     cm = np.array([[tn, fp], [fn, tp]])
     fig, ax = plt.subplots(figsize=(6, 5))
     im = ax.imshow(cm, cmap="Blues")
@@ -836,7 +834,7 @@ def generate_charts(metrics: dict, ablation: dict, timing: dict, results: list[d
     names = [s[0] for s in speed_items]
     vals = [s[1] for s in speed_items]
     bars = ax.bar(names, vals, color=["#9b59b6", "#3498db", "#2ecc71"], edgecolor="white", width=0.6)
-    for bar, v in zip(bars, vals):
+    for bar, v in zip(bars, vals, strict=False):
         ax.text(bar.get_x() + bar.get_width()/2, v + 0.01, f"{v:.2f}s", ha="center", va="bottom", fontsize=11, fontweight="bold")
     ax.set_ylabel("Время (сек)")
     ax.set_title("Производительность компонентов (4618 market skills)", fontsize=12, fontweight="bold")
@@ -1057,7 +1055,7 @@ async def run_threshold_sweep(pool, prov, market_skills: dict) -> list[dict]:
 
     # Encode queries
     q_embs = prov.encode(q_texts, show_progress_bar=False)
-    q_norms = q_embs / (np.linalg.norm(q_embs, axis=1, keepdims=True) + 1e-9)
+    q_embs / (np.linalg.norm(q_embs, axis=1, keepdims=True) + 1e-9)
     print(f"  Queries encoded: {len(q_texts)}")
 
     # Compute best scores
@@ -1104,7 +1102,7 @@ def generate_threshold_chart(threshold_sweep: list[dict]):
     ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
     ax.set_ylim(0, 1.05)
-    for t, r in zip(thresholds, recalls):
+    for t, r in zip(thresholds, recalls, strict=False):
         ax.annotate(f"{r:.2f}", (t, r), textcoords="offset points", xytext=(0, 8),
                     ha="center", fontsize=8, color="#555")
     fig.tight_layout()

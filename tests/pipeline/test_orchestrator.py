@@ -23,7 +23,7 @@ class TestStageResultData:
 class TestPipelineRunElapsed:
     def test_default_started_at(self):
         import time
-        before = time.time()
+        time.time()
         run = PipelineRun()
         assert run.started_at == 0.0
 

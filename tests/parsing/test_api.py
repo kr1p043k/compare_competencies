@@ -835,7 +835,7 @@ class TestHeadHunterAPIAsyncAdditional:
         monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", SecretStr("id"))
         monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", None)
         api = HeadHunterAPIAsync()
-        with aioresponses() as m:
+        with aioresponses():
             # Запрос не должен произойти
             await api._get_app_token()
         assert api._token is None

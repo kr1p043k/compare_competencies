@@ -194,7 +194,7 @@ class SkillForecastEngine(BasePredictor):
                 skill_freqs.setdefault(skill, []).append(freq)
         # Полные наблюдаемые истории для /forecast/observed.
         self._observed = {
-            skill: sorted(zip(skill_dates[skill], skill_freqs[skill]), key=lambda p: p[0])
+            skill: sorted(zip(skill_dates[skill], skill_freqs[skill], strict=False), key=lambda p: p[0])
             for skill in skill_dates
         }
 

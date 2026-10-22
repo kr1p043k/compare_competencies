@@ -402,7 +402,7 @@ class ProfileEvaluator:
                 # Cross-level: опрашиваем ВСЕ уровневые модели (топ-2 с каждой),
                 # кандидаты с тегом уровня, микрокластеры (<MIN) отсекаются.
                 # "all" исключена сознательно (агрегат = двойной учёт).
-                req_lv = cluster_context["cluster_level"]
+                cluster_context["cluster_level"]
                 merged: list[dict] = []
                 merged_skills: dict[str, float] = {}
                 levels_polled: list[str] = []

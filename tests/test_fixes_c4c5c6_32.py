@@ -19,7 +19,7 @@ class TestC6EnhancedFlag:
         ]
         # Simulate the fixed logic: check each JSON for 'enhanced' key
         has_enh = False
-        for d in disciplines:
+        for _d in disciplines:
             # No JSON files exist in test -> flag stays False
             fake_data = {}  # Simulates JSON without 'enhanced'
             if fake_data.get("enhanced"):

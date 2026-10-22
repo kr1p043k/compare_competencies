@@ -21,6 +21,7 @@ from src.models.enums import ExperienceLevel
 from src.parsing.api.embedding_loader import get_embedding_model
 from src.parsing.skills.skill_normalizer import SkillNormalizer
 from src.utils import clip01
+import contextlib
 
 logger = structlog.get_logger(__name__)
 
@@ -138,10 +139,8 @@ class VacancyClusterer:
         # Детерминизм: порядок строк X обязан быть фиксирован, иначе KMeans++
         # при том же seed даёт другой init (вероятности зависят от порядка).
         # Источники (БД без ORDER BY, glob) порядок не гарантируют.
-        try:
+        with contextlib.suppress(Exception):
             vacancies = sorted(vacancies, key=lambda v: str(v.get("id", "")))
-        except Exception:
-            pass
 
         n_samples = len(vacancies)
         if n_samples < 10:

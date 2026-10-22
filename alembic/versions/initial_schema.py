@@ -482,7 +482,6 @@ def upgrade() -> None:
         ("trg_student_skills_upsert", "student_skills", "upsert_student_skill()"),
     ]
     for name, table, func in trigger_pairs:
-        is_before = "BEFORE INSERT OR UPDATE" if "updated" in name or "name_lower" in name else "BEFORE INSERT"
         # upsert trigger is BEFORE INSERT
         actual_mode = "BEFORE INSERT OR UPDATE" if "updated" in name or "name_lower" in name else "BEFORE INSERT"
         if "upsert" in name:

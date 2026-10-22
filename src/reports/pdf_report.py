@@ -116,7 +116,7 @@ def build_profile_pdf(profile: str, full_rec: dict, reports_dir: Path | str) -> 
             else:
                 fill = False
             max_lines = 1
-            for (cell, w) in zip(row, widths):
+            for (cell, w) in zip(row, widths, strict=False):
                 lines = pdf.multi_cell(w, 6, cell, dry_run=True, output="LINES")
                 max_lines = max(max_lines, len(lines))
             h = max(6, max_lines * 6)
@@ -125,7 +125,7 @@ def build_profile_pdf(profile: str, full_rec: dict, reports_dir: Path | str) -> 
                 pdf.add_page()
                 y0 = pdf.get_y()
             x0 = 18
-            for (cell, w) in zip(row, widths):
+            for (cell, w) in zip(row, widths, strict=False):
                 pdf.set_xy(x0, y0)
                 pdf.multi_cell(w, 6, cell, border=0, fill=fill)
                 x0 += w

@@ -18,6 +18,7 @@ from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role
 from src.api_pkg.routers.profiles import _load_self_profile, _self_profile_name
 from src.db import get_pool
+import contextlib
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["teacher"])
@@ -333,13 +334,13 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
                 "skills": c["skills"] or [],
                 "ksa": {
                     "knowledge": [
-                        {"id": str(i), "text": t} for i, t in zip(c["knowledge_ids"] or [], c["knowledge"] or [])
+                        {"id": str(i), "text": t} for i, t in zip(c["knowledge_ids"] or [], c["knowledge"] or [], strict=False)
                     ],
                     "abilities": [
-                        {"id": str(i), "text": t} for i, t in zip(c["abilities_ids"] or [], c["abilities"] or [])
+                        {"id": str(i), "text": t} for i, t in zip(c["abilities_ids"] or [], c["abilities"] or [], strict=False)
                     ],
                     "skills": [
-                        {"id": str(i), "text": t} for i, t in zip(c["prof_skills_ids"] or [], c["prof_skills"] or [])
+                        {"id": str(i), "text": t} for i, t in zip(c["prof_skills_ids"] or [], c["prof_skills"] or [], strict=False)
                     ],
                 },
             }
@@ -718,11 +719,9 @@ async def run_teacher_analysis_endpoint(
         except Exception as exc:
             logger.error("teacher_analysis_cli_error", run_id=run_id,
                          exc_type=type(exc).__name__, exc_repr=repr(exc))
-            try:
+            with contextlib.suppress(Exception):
                 await complete_pipeline_run(run_id, status="failed", error=str(exc),
                                             stats={"stage": "error", "status": "failed"})
-            except Exception:
-                pass
 
     background_tasks.add_task(_run)
     return {"status": "started", "direction": dir_code, "run_id": run_id}

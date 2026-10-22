@@ -86,7 +86,7 @@ def _load_profession_profiles() -> list[list[str]]:
         krm = json.loads(krm_path.read_text(encoding="utf-8"))
         professions = taxonomy.get("professions", {})
         seen: set[str] = set()
-        for prof_name, prof_data in professions.items():
+        for _prof_name, prof_data in professions.items():
             codes = prof_data.get("competency_codes", [])
             skills: set[str] = set()
             for code in codes:
@@ -280,7 +280,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             train_max_freq = max(
                 (frequencies.get(s, 0.0) for s in train_skills), default=max_freq,
             ) or 1.0
-            train_max_hybrid = max(
+            max(
                 (hybrid_weights.get(s, 0.0) for s in train_skills), default=max_hybrid,
             ) or 1.0
             for df in (X_train, X_val, X_test):

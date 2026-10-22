@@ -136,7 +136,7 @@ def plot_profession_coverage(results: dict[str, Any], save_path: Path | None = N
     ax.set_title("Покрытие доменов целевой профессии", pad=20)
     ax.set_ylabel("Профиль (цель)")
     ax.set_xlabel("Домен")
-    ax.set_yticklabels([f"{p} ({t})" for p, t in zip(profiles_sorted, targets)], rotation=0)
+    ax.set_yticklabels([f"{p} ({t})" for p, t in zip(profiles_sorted, targets, strict=False)], rotation=0)
 
     if save_path:
         plt.savefig(save_path, bbox_inches="tight")
@@ -165,9 +165,9 @@ def plot_domain_skill_gaps(results: dict[str, Any], save_path: Path | None = Non
     x = np.arange(len(profiles))
     width = 0.4
 
-    bars1 = ax.bar(x, strong_vals, width, label="Сильные (gap < 20%)", color="#27ae60", alpha=0.85)
-    bars2 = ax.bar(x, weak_vals, width, bottom=strong_vals, label="Слабые (gap 20-60%)", color="#f39c12", alpha=0.85)
-    bars3 = ax.bar(x, missing_vals, width, bottom=[s + w for s, w in zip(strong_vals, weak_vals)],
+    ax.bar(x, strong_vals, width, label="Сильные (gap < 20%)", color="#27ae60", alpha=0.85)
+    ax.bar(x, weak_vals, width, bottom=strong_vals, label="Слабые (gap 20-60%)", color="#f39c12", alpha=0.85)
+    ax.bar(x, missing_vals, width, bottom=[s + w for s, w in zip(strong_vals, weak_vals, strict=False)],
                    label="Отсутствуют (gap > 60%)", color="#e74c3c", alpha=0.85)
 
     ax.set_title("Распределение навыков по категориям gap'а (целевой домен)", pad=15)
@@ -176,7 +176,7 @@ def plot_domain_skill_gaps(results: dict[str, Any], save_path: Path | None = Non
     ax.set_xticklabels(profiles)
     ax.legend(loc="upper right", fontsize=11)
 
-    for i, (s, w, m) in enumerate(zip(strong_vals, weak_vals, missing_vals)):
+    for i, (s, w, m) in enumerate(zip(strong_vals, weak_vals, missing_vals, strict=False)):
         ax.text(i, s + w + m + 2, f"{s:.0f}/{w:.0f}/{m:.0f}%", ha="center", fontsize=10, fontweight="bold")
 
     if save_path:

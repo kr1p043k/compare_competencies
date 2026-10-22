@@ -24,6 +24,7 @@ from .coverage import (
 )
 from .importance import plot_ml_importance, plot_weight_distribution
 from .radar import plot_skill_comparison_radar
+import contextlib
 
 logger = structlog.get_logger(__name__)
 
@@ -35,10 +36,8 @@ def _chart_step(label: str, fn: Callable[[], None]) -> None:
     except Exception as e:
         logger.warning("chart_step_failed_nonfatal", chart=label, error=str(e)[:300])
     finally:
-        try:
+        with contextlib.suppress(Exception):
             plt.close("all")
-        except Exception:
-            pass
         gc.collect()
 
 

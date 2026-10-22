@@ -132,7 +132,7 @@ class TestRunSkillLevelError:
     def test_returns_err_on_level_weight_failure(self, runner):
         with patch(
             "src.pipeline.gap_runner.SkillLevelAnalyzer.analyze_vacancies"
-        ) as mock_analyze, patch(
+        ), patch(
             "src.pipeline.gap_runner.SkillLevelAnalyzer.get_weights_for_level",
             return_value=Err("bad level"),
         ):

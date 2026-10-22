@@ -36,7 +36,7 @@ async def main(force: bool = False) -> None:
         names = [s.name for s in skills]
         print(f"Generating {len(names)} embeddings...")
         embeddings: np.ndarray = model.encode(names, convert_to_numpy=True, show_progress_bar=True)
-        for skill, emb in zip(skills, embeddings):
+        for skill, emb in zip(skills, embeddings, strict=False):
             await session.execute(update(Skill).where(Skill.id == skill.id).values(embedding=emb.tolist()))
         await session.commit()
         print(f"Updated {len(skills)} skills")

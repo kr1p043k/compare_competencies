@@ -19,6 +19,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
+import contextlib
 
 try:  # DB-backed shared cache (parallel worker): get_cached(task, model, prompt)
     from src.services.llm_cache import (  # type: ignore
@@ -283,10 +284,8 @@ def _enhance_core(
     if use_cache:
         put_cached("recommend", ckey, llm_items, ttl_s=3600.0)
         if _DB_CACHE and text:
-            try:
+            with contextlib.suppress(Exception):
                 _db_put_cached("recommend", model, prompt, text)
-            except Exception:
-                pass
     return _wrap(base_recs, wrap, full)
 
 

@@ -6,15 +6,14 @@
 import json
 import sys
 import time
+import contextlib
 
 # Windows console defaults to cp1251: any emoji print (e.g. U+274C in stage
 # messages via console_info's 2-space indent) raises UnicodeEncodeError and
 # masks the real pipeline error. Force UTF-8 with replacement fallback.
 for _s in (sys.stdout, sys.stderr):
-    try:
+    with contextlib.suppress(Exception):
         _s.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
 del _s
 
 import structlog

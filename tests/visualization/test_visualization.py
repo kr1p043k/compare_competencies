@@ -177,7 +177,7 @@ class TestClusterInsights:
         with patch("matplotlib.pyplot.savefig"), patch("matplotlib.pyplot.close"):
             plot_cluster_insights(sample_results, tmp_path)
         # файл должен был создаться
-        save_path = tmp_path / "student1" / "cluster_insights_student1.png"
+        tmp_path / "student1" / "cluster_insights_student1.png"
         # проверяем, что savefig вызывался с этим путём (опционально)
         # главное — нет исключений
 
@@ -319,9 +319,9 @@ class TestOrchestration:
         )
         with patch("src.visualization.orchestration.plot_coverage_comparison") as mock_cov, \
              patch("src.visualization.orchestration.plot_skill_comparison_radar") as mock_radar, \
-             patch("src.visualization.orchestration.plot_ml_importance") as mock_ml, \
+             patch("src.visualization.orchestration.plot_ml_importance"), \
              patch("src.visualization.orchestration.plot_weight_distribution") as mock_w, \
-             patch("src.visualization.orchestration.plot_skill_correlation_heatmap") as mock_heat, \
+             patch("src.visualization.orchestration.plot_skill_correlation_heatmap"), \
              patch("src.visualization.orchestration.plot_skills_heatmap") as mock_sh, \
              patch("src.visualization.orchestration.plot_cluster_insights") as mock_cluster, \
              patch("src.visualization.orchestration.load_ml_recommendations", return_value=[]):
@@ -522,7 +522,7 @@ class TestExtendedCoverage:
              patch("src.visualization.orchestration.plot_skills_heatmap"), \
              patch("src.visualization.orchestration.plot_cluster_insights"), \
              patch("src.visualization.orchestration.load_ml_recommendations", return_value=[]), \
-             patch("src.visualization.orchestration.SkillCorrelationAnalyzer") as mock_analyzer:
+             patch("src.visualization.orchestration.SkillCorrelationAnalyzer"):
             save_all_charts(sample_results, tmp_path, vacancies_skills_list=[["python"]])
             mock_corr.assert_called()
 
@@ -584,7 +584,7 @@ class TestExtendedCoverage:
             patch("src.visualization.orchestration.plot_skills_heatmap"), \
             patch("src.visualization.orchestration.plot_cluster_insights"), \
             patch("src.visualization.orchestration.load_ml_recommendations", return_value=[]), \
-            patch("src.visualization.orchestration.SkillCorrelationAnalyzer", create=True) as mock_analyzer:
+            patch("src.visualization.orchestration.SkillCorrelationAnalyzer", create=True):
             save_all_charts(sample_results, tmp_path, vacancies_skills_list=[["python"]])
             mock_corr.assert_called()
 

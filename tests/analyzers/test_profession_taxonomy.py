@@ -273,7 +273,7 @@ class TestProfessionTaxonomy:
              "testing", "debugging", "pytest", "code review",
              "git", "github", "version control"],
         )
-        for code, data in result.items():
+        for _code, data in result.items():
             assert data["matched"] == data["required"]
             assert data["coverage"] == 1.0
 

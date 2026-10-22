@@ -174,20 +174,20 @@ class ClassificationMetrics:
         """Accuracy."""
         if not y_true:
             return 0.0
-        return sum(1 for t, p in zip(y_true, y_pred) if t == p) / len(y_true)
+        return sum(1 for t, p in zip(y_true, y_pred, strict=False) if t == p) / len(y_true)
 
     @staticmethod
     def precision(y_true: Sequence[int], y_pred: Sequence[int], pos_label: int = 1) -> float:
         """Precision."""
-        tp = sum(1 for t, p in zip(y_true, y_pred) if p == pos_label and t == pos_label)
-        fp = sum(1 for t, p in zip(y_true, y_pred) if p == pos_label and t != pos_label)
+        tp = sum(1 for t, p in zip(y_true, y_pred, strict=False) if p == pos_label and t == pos_label)
+        fp = sum(1 for t, p in zip(y_true, y_pred, strict=False) if p == pos_label and t != pos_label)
         return tp / (tp + fp) if (tp + fp) > 0 else 0.0
 
     @staticmethod
     def recall(y_true: Sequence[int], y_pred: Sequence[int], pos_label: int = 1) -> float:
         """Recall."""
-        tp = sum(1 for t, p in zip(y_true, y_pred) if p == pos_label and t == pos_label)
-        fn = sum(1 for t, p in zip(y_true, y_pred) if p != pos_label and t == pos_label)
+        tp = sum(1 for t, p in zip(y_true, y_pred, strict=False) if p == pos_label and t == pos_label)
+        fn = sum(1 for t, p in zip(y_true, y_pred, strict=False) if p != pos_label and t == pos_label)
         return tp / (tp + fn) if (tp + fn) > 0 else 0.0
 
     @staticmethod

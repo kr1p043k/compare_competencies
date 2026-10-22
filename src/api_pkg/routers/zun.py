@@ -1286,7 +1286,7 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
     )
     comp_map = {(str(r["discipline_id"]), r["code"]): str(r["id"]) for r in comp_rows}
 
-    inserted = skipped_dup = skipped_gap = dropped = 0
+    inserted = skipped_dup = skipped_gap = 0
     disciplines_processed = 0
     for disc_name, disc_data in sorted(disciplines_raw.items()):
         disc_id = disc_map.get(disc_name)

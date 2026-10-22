@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 import structlog
+import contextlib
 
 logger = structlog.get_logger(__name__)
 
@@ -242,7 +243,7 @@ class Vacancy:
         else:
             self.experience_level = "middle"
 
-        try:
+        with contextlib.suppress(Exception):
             logger.debug(
                 "vacancy_created",
                 vacancy_id=self.id,
@@ -250,8 +251,6 @@ class Vacancy:
                 level=self.experience_level,
                 skills_count=len(self.key_skills),
             )
-        except Exception:
-            pass
 
     @classmethod
     def from_api(cls, data: dict) -> "Vacancy":
@@ -347,7 +346,7 @@ class Vacancy:
                 raw_data=data,
             )
 
-            try:
+            with contextlib.suppress(Exception):
                 logger.debug(
                     "vacancy_parsed_from_api",
                     vacancy_id=vacancy_id,
@@ -356,8 +355,6 @@ class Vacancy:
                     has_description=bool(data.get("description")),
                     has_salary=salary is not None,
                 )
-            except Exception:
-                pass
 
             return vacancy
 

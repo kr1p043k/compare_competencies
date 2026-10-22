@@ -311,7 +311,7 @@ def _enhance_disciplines_with_gap_analysis(
                     case Ok((impacts, shap_vals, X)):
                         shap_per_skill = {}
                         if shap_vals is not None and X is not None and len(impacts) > 0:
-                            for i, (skill, score, _) in enumerate(impacts):
+                            for i, (skill, _score, _) in enumerate(impacts):
                                 if i < len(shap_vals):
                                     row_shap = {}
                                     for j, feat in enumerate(X.columns):
@@ -1214,7 +1214,7 @@ async def run_teacher_analysis(
         ax.set_xlabel("Покрытие рынка %")
         ax.set_title(f"Покрытие дисциплин — {direction['name']}", fontsize=13)
         ax.invert_yaxis()
-        for bar, v in zip(bars, dcov):
+        for bar, v in zip(bars, dcov, strict=False):
             ax.text(bar.get_width() + 0.5, bar.get_y() + bar.get_height() / 2,
                     f"{v:.1f}%", va="center", fontsize=8)
         ax.set_xlim(0, max(dcov) + 15 if dcov else 100)
@@ -1234,7 +1234,7 @@ async def run_teacher_analysis(
             ax.set_xlabel("Дисциплин с пробелом")
             ax.set_title("Сквозные пробелы (топ)", fontsize=13)
             ax.invert_yaxis()
-            for bar, v in zip(bars, gap_counts):
+            for bar, v in zip(bars, gap_counts, strict=False):
                 ax.text(bar.get_width() + 0.2, bar.get_y() + bar.get_height() / 2,
                         str(v), va="center", fontsize=8)
             fig.tight_layout()
@@ -1253,7 +1253,7 @@ async def run_teacher_analysis(
             ax.set_xlabel("Частота на рынке")
             ax.set_title("Восходящие навыки (топ)", fontsize=13)
             ax.invert_yaxis()
-            for bar, v in zip(bars, em_freq):
+            for bar, v in zip(bars, em_freq, strict=False):
                 ax.text(bar.get_width() + 0.5, bar.get_y() + bar.get_height() / 2,
                         str(v), va="center", fontsize=8)
             fig.tight_layout()
@@ -1276,7 +1276,7 @@ async def run_teacher_analysis(
             ax.set_title(f"Компетенции — {dn[:40]}", fontsize=11)
             ax.set_xticks(range(len(cnames)))
             ax.set_xticklabels(cnames, rotation=45, ha="right", fontsize=8)
-            for cb, v in zip(cbars, ccov):
+            for cb, v in zip(cbars, ccov, strict=False):
                 ax.text(cb.get_x() + cb.get_width() / 2, cb.get_height() + 0.5,
                         f"{v:.0f}%", ha="center", fontsize=7)
             fig.tight_layout()

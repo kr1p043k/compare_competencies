@@ -76,7 +76,6 @@ class TestCacheManager:
 
     def test_invalidate_failure(self, monkeypatch):
         self.cache.save("test", "val")
-        original_unlink = os.unlink
 
         def fail_unlink(*a, **kw):
             raise OSError("permission denied")

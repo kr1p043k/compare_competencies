@@ -150,7 +150,7 @@ async def get_competency_trends(
         if prev is None:
             prev = all_snaps[-1]
         prev_freq = parse_freq(prev.skill_freq)
-        snap_prev = str(prev.snapshot_date)
+        str(prev.snapshot_date)
 
         # --- Normalize cur_freq: merge linux + администрирование linux ---
         normalized_cur = dict(cur_freq)

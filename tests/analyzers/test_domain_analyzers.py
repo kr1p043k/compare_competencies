@@ -65,7 +65,7 @@ def test_init_custom_map():
 
 def test_compute_domain_coverage_empty_skills(analyzer):
     result = _unwrap(analyzer.compute_domain_coverage([]))
-    for domain_name, metrics in result.items():
+    for _domain_name, metrics in result.items():
         assert metrics.coverage == 0.0
 
 

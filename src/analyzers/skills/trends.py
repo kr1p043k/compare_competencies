@@ -19,6 +19,7 @@ from src import Err, Ok, Result, config
 from src.errors import DomainError
 from src.models.enums import TrendType
 from src.utils import extract_date_from_filename, validate_safe_path
+import contextlib
 
 logger = structlog.get_logger(__name__)
 
@@ -136,10 +137,8 @@ class TrendAnalyzer:
         Falls back to file mtime if date cannot be parsed.
         """
         meta = None
-        try:
+        with contextlib.suppress(Exception):
             meta = json.loads(filepath.read_text(encoding="utf-8")).get("_meta")
-        except Exception:
-            pass
         if meta and meta.get("snapshot_date"):
             try:
                 d = datetime.strptime(str(meta["snapshot_date"]), "%Y-%m-%d")

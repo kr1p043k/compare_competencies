@@ -41,7 +41,7 @@ class TaxonomyValidator:
             issues.append(f"Структурная ошибка {path}: {e}")
             return issues
         all_domains = set()
-        for pname, prof in validated.professions.items():
+        for _pname, prof in validated.professions.items():
             for d in prof.domains:
                 all_domains.add(d)
         return issues
