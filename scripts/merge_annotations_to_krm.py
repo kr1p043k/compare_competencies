@@ -36,7 +36,7 @@ DIR_CODES = [
     "09.03.04",
 ]
 
-COMP_RE = re.compile(r"\b(?:УК|ОПК|ПК|ВПК|UK|OPK|PK|VPK)[-\s]?\s*\d+(?:\.\d+)*")
+COMP_RE = re.compile(r"\b(?:УК|ОПК|ПК|ВПК|UK|OPK|PK|VPK)[\s\-–—−]{0,3}\s*\d+(?:\.\d+)*")
 
 RU = {"UK": "УК", "OPK": "ОПК", "PK": "ПК", "VPK": "ВПК"}
 
@@ -52,10 +52,42 @@ def normalize_comp(code: str) -> str:
 def norm_name(s: str) -> str:
     s = unicodedata.normalize("NFC", s or "")
     s = s.lower().strip()
-    s = re.sub(r"^(аннотация|анн|апп -?|а -)\s*", "", s)
+    s = re.sub(r"\.pdf$", "", s)
+    # Префиксы файлов-свалок ('Апп - ...', 'АНН_..._C1_', '09.03.02-анн ...').
+    s = re.sub(r"^(аннотация|анн|апп\s*-?|а\s*-)\s*", "", s)
+    s = re.sub(r"^анн_[^_]*_", "", s)
     s = re.sub(r"^\d{2}\.\d{2}\.\d{2}-?(анн)?\s*", "", s)
-    s = re.sub(r"\s+", " ", s).strip(" -")
+    s = re.sub(r"\s+", " ", s).strip(" -_.")
     return s
+
+
+def _strip_parens(s: str) -> str:
+    """Имя без скобочных хвостов ('ОС (Операционные системы)' -> 'ос')."""
+    return re.sub(r"\s*\([^()]*\)\s*", " ", s or "").strip()
+
+
+def ru_paren(s: str) -> str | None:
+    """Русское содержимое скобок имени файла ('X (Базы данных)' -> 'базы данных')."""
+    m = re.search(r"\(([^()]*[а-яё][^()]*)\)", s or "")
+    return m.group(1).strip() if m else None
+
+
+def _tokens(s: str) -> set[str]:
+    return {t for t in re.sub(r"[^\w]+", " ", s.lower()).split() if len(t) >= 4}
+
+
+def _lemmas(s: str) -> set[str]:
+    """Лемматизированные токены (племма ловит 'программирования' и
+    'программирование'; без неё Web-аннотация терялась, 2026-10-12)."""
+    toks = _tokens(s)
+    try:
+        from src.text.ru_morph import lemma as _lemma
+    except Exception:
+        return toks
+    try:
+        return {_lemma(t) for t in toks} or toks
+    except Exception:
+        return toks
 
 
 def extract_content(text: str) -> list[str]:
@@ -151,17 +183,39 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
     for a in anns:
         if not a.get("ok"):
             continue
-        name = norm_name(a.get("name", ""))
+        raw_title = a.get("name", "") or ""
+        raw_file = a.get("file", "") or ""
+        name = norm_name(raw_title)
         hit = None
+        how = None
         if not name or not a.get("text"):
             continue
+        # 1. Точное; 2. без скобок; 3. русское из скобок имени файла.
         if name in known:
-            hit = known[name]
-        else:
+            hit, how = known[name], "exact"
+        if not hit:
+            ns = norm_name(_strip_parens(raw_title)) or norm_name(_strip_parens(raw_file))
+            if ns and ns in known:
+                hit, how = known[ns], "noparen"
+        if not hit:
+            rp = ru_paren(raw_file) or ru_paren(raw_title)
+            if rp and norm_name(rp) in known:
+                hit, how = known[norm_name(rp)], "ruparen"
+        if not hit:
+            # 4. Токенное пересечение по леммам (вместо сырого сабстринга:
+            # 'физика' в 'физическая культура' больше не матчится, а
+            # 'программирования'/'программирование' — да; 2026-10-12).
+            atoks = _lemmas(name)
+            best, best_n = None, 0
             for kd, orig in known.items():
-                if len(name) >= 5 and len(kd) >= 5 and (kd in name or name in kd):
-                    hit = orig
-                    break
+                ktoks = _lemmas(kd)
+                if not atoks or not ktoks:
+                    continue
+                inter = len(atoks & ktoks)
+                if inter >= 2 and inter > best_n:
+                    best, best_n = orig, inter
+            if best:
+                hit, how = best, "tokens:%d" % best_n
         if not hit:
             continue
         comps = sorted({normalize_comp(c) for c in a.get("competencies", [])})
@@ -170,6 +224,10 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
             comps = disc[hit].get("competencies", [])  # остаёмся на прежних кодах
         if not comps:
             continue
+        # Дубликаты аннотаций (EN+RU версии): UNION кодов и тем, а не last-wins.
+        # build_ksa ниже сам смержит старые KSA с новыми топиками.
+        prev_comps = disc[hit].get("competencies", [])
+        comps = sorted(set(prev_comps) | set(comps))
         disc[hit]["competencies"] = comps
         old_ksa = disc[hit].get("ksa", {})
         ksa = build_ksa(comps, topics, old_ksa)

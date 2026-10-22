@@ -52,19 +52,39 @@ TARGETS: dict[str, str] = {
 }
 
 
-def _http_get(url: str, params: dict | None = None, timeout: int = 60, tries: int = 3):
-    """GET с ретраями: медленный Диск не должен ронять весь сбор."""
+def _http_get(url: str, params: dict | None = None, timeout: int = 60, tries: int = 3,
+              stream_to: Path | None = None):
+    """GET с ретраями: медленный Диск не должен ронять весь сбор.
+
+    timeout=(connect, read): короткий connect, ограниченный read. Файлы
+    аннотаций — сотни КБ, поэтому read в 300с означал 15 минут на один
+    зависший шард (2026-10-14: 39/51 PDF, каждый 220 КБ висел 300с на
+    s*klg.storage.yandex.net). Теперь 45с + 4 попытки = 3 минуты worst case.
+    """
     last_err: Exception | None = None
     for i in range(tries):
         try:
-            r = requests.get(url, params=params, timeout=timeout)
+            r = requests.get(url, params=params, timeout=(15, timeout), stream=stream_to is not None)
             if r.status_code != 200:
                 return None
+            if stream_to is not None:
+                try:
+                    tmp = stream_to.with_suffix(stream_to.suffix + ".part")
+                    with open(tmp, "wb") as fh:
+                        for chunk in r.iter_content(chunk_size=65536):
+                            fh.write(chunk)
+                    tmp.replace(stream_to)
+                except OSError as e:
+                    # Имя файла не нравится Windows (хвостовые точки/пробелы,
+                    # суррогаты и т.п.) — не роняем весь сбор, файл пропускается.
+                    print(f"STREAM-WRITE failed, skip file: {stream_to.name[:60]} ({e})")
+                    return None
+                return r
             return r
         except requests.RequestException as e:
             last_err = e
             time.sleep(2 * (i + 1))
-    print(f"GET failed after {tries} tries: {url} ({last_err})")
+    print(f"GET failed after {tries} tries: {url[:120]} ({type(last_err).__name__}: {str(last_err)[:90]})")
     return None
 
 
@@ -75,14 +95,18 @@ def yandex_list(public_key: str, path: str = "") -> dict | None:
     return r.json()
 
 
-def yandex_download(public_key: str, path: str) -> bytes | None:
+def yandex_download(public_key: str, path: str, dest: Path | None = None) -> bytes | None:
+    """Скачать файл. dest задан — стримим на диск (PDF не в памяти)."""
     r = _http_get(YAPI + "/download", params={"public_key": public_key, "path": path}, timeout=40)
     if r is None:
         return None
     href = r.json().get("href")
     if not href:
         return None
-    d = _http_get(href, timeout=300, tries=3)
+    if dest is not None:
+        d = _http_get(href, timeout=45, tries=4, stream_to=dest)
+        return dest.read_bytes() if d is not None else None
+    d = _http_get(href, timeout=45, tries=4)
     return d.content if d is not None and d.status_code == 200 else None
 
 
@@ -94,38 +118,134 @@ def extract_pdf_text(data: bytes) -> str:
         return ""
 
 
-def parse_competencies(text: str) -> list[str]:
-    """Компетенции вида УК-1, ОПК-2.1, ВПК-3, а также англ. OPK-3 / UK-1."""
-    codes = re.findall(r"\b(?:УК|ОПК|ПК|ВПК|UK|OPK|PK|VPK)[-\s]?\s*\d+(?:\.\d+)*", text)
+def parse_competencies(text: str, fname: str = "") -> list[str]:
+    """Компетенции вида УК-1, ОПК-2.1, ВПК-3, а также англ. OPK-3 / UK-1.
+
+    Реальные аннотации пишут коды по-разному (замер 2026-10-14 на 09.03.01_bim
+    и 09.03.02): 'ОПК -1' (пробел перед дефисом), 'ОПК–2' (en-dash),
+    'УК−8' (minus), и иногда код есть ТОЛЬКО в имени файла
+    ('Аннотация ВПК-8 (бакалавриат).pdf'). Старый паттерн
+    '[-\\s]?\\s*' резал всё это: −15 файлов и −24 уникальных кода.
+    """
+    # Разделитель: до 3 символов из пробелов/дефисов всех видов/минуса.
+    pat = re.compile(r"\b(?:УК|ОПК|ПК|ВПК|UK|OPK|PK|VPK)[\s\-–—−]{0,3}\s*(\d+(?:\.\d+)*)")
+    ru = {"UK": "УК", "OPK": "ОПК", "PK": "ПК", "VPK": "ВПК"}
     out: list[str] = []
     seen: set[str] = set()
-    for c in codes:
-        c = re.sub(r"[\s-]+", "-", c)
+
+    def _add(m: re.Match) -> None:
+        prefix = re.sub(r"[^A-ZА-Я]", "", m.group(0).upper())
+        prefix = ru.get(prefix, prefix)
+        c = f"{prefix}-{m.group(1)}"
         if c not in seen:
             seen.add(c)
             out.append(c)
+
+    for m in pat.finditer(text or ""):
+        _add(m)
+    # Фолбэк: код в имени файла, в тексте его нет.
+    for m in pat.finditer(fname or ""):
+        _add(m)
     return out
 
 
+_TITLE_JUNK = re.compile(
+    r"^(?:\d+[.)]?\s*)?(?:аннотация|annotation|of the course|name of the course|"
+    r"название\s+(?:дисциплины|курса)|рабочей\s+программы|work\s+program|"
+    r"course\s+description|учебной\s+дисциплины|бакалавриат)",
+    re.I,
+)
+
+#: Хвост-слова, на которых предложение обрывается — признак, что строка
+#: взята из середины фразы, а не из заголовка ('дисциплины',
+#: 'вариативной профессиональной компетенции' — 12 файлов схлопывались
+#: в один такой «заголовок», 2026-10-14).
+_FRAGMENT_TAIL = re.compile(
+    r"\b(?:в|на|и|или|с|к|для|от|по|что|как|при|относительно|в рамках)\s*$", re.I)
+
+
+def _clean_title(t: str, *, require_capital: bool = False) -> str:
+    t = re.sub(r"\s+", " ", t).strip(" .;:,«»\"'")
+    if not (3 <= len(t) < 90):
+        return ""
+    if _TITLE_JUNK.match(t) or re.match(r"^\d", t):
+        return ""
+    if _FRAGMENT_TAIL.search(t):
+        return ""
+    if require_capital and t[0].islower():
+        return ""
+    return t
+
+
 def title_from_text(text: str, fname: str) -> str:
-    """Название дисциплины из шапки аннотации («…учебной дисциплины «X»»)."""
-    patterns = [
+    """Название дисциплины из шапки аннотации.
+
+    Реальные форматы (замер 2026-10-14): RU «…рабочей программы учебной
+    дисциплины «X»» и «…рабочей программы «X»» (ГИА, без 'учебной
+    дисциплины'); EN 'Course description (annotation)\\nof the course\\nX'
+    и '1. Name of the course\\nX'; EN 'work program of the academic
+    discipline\\nX'; и файлы, где название — просто первая строка
+    ('Operating systems'). Шаблонную строку '1. Name of the course'
+    старый паттерн возвращал как название (мусор-дубликаты).
+    """
+    # 1-2) RU: рабочей программы (учебной дисциплины)? «X»
+    for p in (
         r"рабочей\s+программы\s+учебной\s+дисциплины\s*[«\"']?\s*([^»\"'\n]{3,90})",
-        r"рабочей\s+программы\s+дисциплины\s*[«\"']?\s*([^»\"'\n]{3,90})",
-        r"Course description \(annotation\)[\s\S]{0,40}?\n\s*([^\n]{3,90})",
-        r"Аннотация[\s\S]{0,40}?\n\s*([^\n]{3,90})",
-    ]
-    for p in patterns:
+        r"рабочей\s+программы\s*[«\"']?\s*([^»\"'\n]{3,90})",
+    ):
         m = re.search(p, text)
         if m:
-            t = re.sub(r"\s+", " ", m.group(1)).strip(" .;:,«»\"'")
-            if 3 <= len(t) < 90:
+            t = _clean_title(m.group(1))
+            if t:
                 return t
+    # 3) EN-шаблон: '1. Name of the course\nX'
+    m = re.search(r"Name of the course\s*:?\s*\n\s*([^\n]{3,90})", text, re.I)
+    if m:
+        t = _clean_title(m.group(1))
+        if t:
+            return t
+    # 4) EN: Course description (annotation) → первая живая строка после
+    m = re.search(r"Course\s+description\s*\(annotation\)", text, re.I)
+    if m:
+        for line in text[m.end():].splitlines()[:5]:
+            t = _clean_title(line)
+            if t:
+                return t
+    # 5) EN: work program of the academic discipline\nX
+    m = re.search(
+        r"work\s+program\s+of\s+the\s+academic\s+discipline\s*\n\s*([^\n]{3,90})", text, re.I)
+    if m:
+        t = _clean_title(m.group(1))
+        if t:
+            return t
+    # 6) первая «X» в кавычках
+    m = re.search(r"«([^»\n]{5,90})»", text)
+    if m:
+        t = _clean_title(m.group(1), require_capital=True)
+        if t:
+            return t
+    # 7) первая осмысленная строка — только если это похоже на заголовок
+    #    (с заглавной буквы: «Operating systems», «Математика»).
+    for line in (text or "").splitlines()[:12]:
+        t = _clean_title(line, require_capital=True)
+        if t:
+            return t
     return re.sub(r"\.pdf$", "", fname, flags=re.I).strip()
 
 
 def safe_cache_name(fname: str) -> str:
-    return re.sub(r"[^\w.\-]+", "_", fname)
+    """Имя файла, безопасное для Windows: без хвостовых точек/пробелов
+    (open() даёт FileNotFoundError), длина с запасом, суррогаты режем.
+    Коллизии после урезания — суффикс sha1 (2026-10-14, падение 01.03.01)."""
+    import hashlib
+
+    name = re.sub(r"[^\w.\-]+", "_", fname or "file", flags=re.UNICODE)
+    name = name.strip(" .")
+    if len(name) > 120:
+        stem, _, ext = name.rpartition(".")
+        h = hashlib.sha1(fname.encode("utf-8", "replace")).hexdigest()[:10]
+        name = f"{stem[:100]}_{h}.{ext}" if ext else f"{stem[:100]}_{h}"
+    return name or "file.pdf"
 
 
 def list_pdf_files(root: dict) -> list[str]:
@@ -163,11 +283,12 @@ def collect(public_key: str, cache_dir: Path) -> list[dict]:
             data = pdf_path.read_bytes()
         else:
             dl_path = (folder_path + "/" if folder_path else "") + fname
-            data = yandex_download(public_key, dl_path)
+            data = yandex_download(public_key, dl_path, dest=pdf_path)
             if not data:
                 anns.append({"file": fname, "ok": False})
                 continue
-            pdf_path.write_bytes(data)
+            if not pdf_path.exists():
+                pdf_path.write_bytes(data)
         text = extract_pdf_text(data)
         anns.append(
             {
@@ -175,7 +296,7 @@ def collect(public_key: str, cache_dir: Path) -> list[dict]:
                 "ok": len(text) > 100,
                 "text_len": len(text),
                 "name": title_from_text(text, fname),
-                "competencies": parse_competencies(text),
+                "competencies": parse_competencies(text, fname),
                 "text": text,
             }
         )
