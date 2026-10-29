@@ -69,16 +69,6 @@ def frozen_split(rows: list[dict], seed: int, test_size: float = 0.25):
     return roles, train_idx, test_idx
 
 
-def predict(engine, X):
-    if engine.model is not None:
-        return np.asarray(engine.model.predict(X), dtype=float)
-    models = getattr(engine, "models", None)
-    if models:
-        preds = [np.asarray(m.predict(X), dtype=float) for m in models]
-        return np.mean(preds, axis=0)
-    raise RuntimeError("artifact has neither 'model' nor 'models'")
-
-
 def per_role_metrics(y_true, scores, roles_of_row, k: int = 10) -> dict:
     ndcgs, precs, aps = [], [], []
     for role in sorted(set(roles_of_row)):
@@ -151,6 +141,7 @@ def main() -> int:
 
     results: dict[str, dict] = {}
     baseline_frame = None
+    scored: dict[str, tuple] = {}
 
     for name in ARTIFACTS:
         path = MODELS / name
@@ -163,18 +154,16 @@ def main() -> int:
             if loaded.is_err():
                 print(f"skip {name}: {loaded.unwrap_err()}")
                 continue
-            if engine.model is None and not getattr(engine, "models", None):
-                engine.models = loaded.ok().__dict__.get("models") if hasattr(loaded.ok(), "__dict__") else None
-
             market_emb = np.mean(list(engine.skill_embeddings.values()), axis=0)
             X, y, _, _, order = engine._build_ranking_frame(
                 test_idx, rows, train_core, market_emb, qid_of
             )
             X = X[engine.feature_names]
-            scores = predict(engine, X)
+            scores = engine._predict_raw(X)
             roles_of_row = [rows[j]["role"] for j in order]
             results[name] = per_role_metrics(y, scores, roles_of_row)
             results[name]["features"] = len(engine.feature_names)
+            scored[name] = (scores, roles_of_row)
             if baseline_frame is None:
                 baseline_frame = (X, y, roles_of_row)
             print(f"{name:40} {results[name]}")
@@ -193,34 +182,25 @@ def main() -> int:
         results[label] = per_role_metrics(y, scores, roles_of_row)
         print(f"{label:40} {results[label]}")
 
-    # Blend sweep on the cosine baseline vs the best artifact.
-    if "cosine_sim" in X.columns:
+    # Blend sweep on the cosine baseline vs every artifact, reusing the
+    # scores from the first pass instead of rebuilding each feature frame.
+    if "cosine_sim" in X.columns and scored:
         cos = np.asarray(X["cosine_sim"].to_numpy(), dtype=float)
-        best_name, best_w, best_ndcg = None, None, -1.0
-        for name in ARTIFACTS:
-            if name not in results:
-                continue
-            engine = LTRRecommendationEngine(model_path=MODELS / name)
-            if engine.load_model(MODELS / name).is_err():
-                continue
-            market_emb = np.mean(list(engine.skill_embeddings.values()), axis=0)
-            Xa, _, _, _, order = engine._build_ranking_frame(
-                test_idx, rows, train_core, market_emb, qid_of
-            )
-            Xa = Xa[engine.feature_names]
-            ltr = predict(engine, Xa)
-            roles_a = [rows[j]["role"] for j in order]
-            for w in [round(0.1 * i, 1) for i in range(11)]:
-                blended = (1 - w) * zscore(cos) + w * zscore(ltr)
-                m = per_role_metrics(y, blended, roles_a)
-                if m["ndcg@10"] > best_ndcg:
-                    best_name, best_w, best_ndcg = name, w, m["ndcg@10"]
+        best = max(
+            (
+                (per_role_metrics(y, (1 - w) * zscore(cos) + w * zscore(ltr), r), name, w)
+                for name, (ltr, r) in scored.items()
+                for w in (round(0.1 * i, 1) for i in range(11))
+            ),
+            key=lambda item: item[0]["ndcg@10"],
+        )
+        metrics, best_name, best_w = best
         results["best_blend"] = {
             "artifact": best_name,
             "weight_ltr": best_w,
-            "ndcg@10": best_ndcg,
+            "ndcg@10": metrics["ndcg@10"],
         }
-        print(f"\nbest blend: {best_name} with weight_ltr={best_w} (ndcg@10={best_ndcg})")
+        print(f"\nbest blend: {best_name} with weight_ltr={best_w} (ndcg@10={metrics['ndcg@10']})")
 
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     REPORT.write_text(
