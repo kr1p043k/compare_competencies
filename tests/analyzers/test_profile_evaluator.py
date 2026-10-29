@@ -1,6 +1,7 @@
 # tests/analyzers/test_profile_evaluator.py
 import json
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -1254,6 +1255,14 @@ class TestCoverageStrictWeightedPair:
         assert 0.0 <= r["coverage_weighted"] <= 100.0
 
 
+CLUSTER_DIR = Path("data/cache/clusters")
+_needs_level_models = pytest.mark.skipif(
+    not all((CLUSTER_DIR / f"vacancy_clusters_{lvl}.joblib").exists()
+            for lvl in ("junior", "middle", "senior")),
+    reason="per-level cluster models are not trained (data/ is gitignored)",
+)
+
+
 class TestLevelClusterRouting:
     """L1: каждый уровень — свой объект кластерера, last-wins запрещён."""
 
@@ -1266,6 +1275,7 @@ class TestLevelClusterRouting:
             vacancies_skills_dict=[{"skills": s} for s in vs],
             skill_weights_by_level=sw, use_clustering=False)
 
+    @_needs_level_models
     def test_distinct_objects_per_level(self):
         e = self._eval()
         objs = {id(e.get_clusterer(lvl)) for lvl in ("junior", "middle", "senior")}
@@ -1284,6 +1294,7 @@ class TestLevelClusterRouting:
         e.clusterers = {}
         assert e.get_clusterer("middle") is None
 
+    @_needs_level_models
     def test_context_carries_cluster_level(self):
         from datetime import datetime
         from unittest.mock import patch
@@ -1307,6 +1318,7 @@ class TestLevelClusterRouting:
             ctx = e._get_cluster_context(st, "middle").unwrap()
         assert ctx["cluster_level"] == "middle"
 
+    @_needs_level_models
     def test_context_polls_all_levels(self):
         """Cross-level: кандидаты с тегами уровней из нескольких моделей."""
         from datetime import datetime

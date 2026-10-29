@@ -51,8 +51,11 @@ jobs:
         run: pip install --index-url https://download.pytorch.org/whl/cpu torch
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+      # Measured on this branch: 63% (2663 passed, 94 skipped). The floor is
+      # 3 points below so normal noise does not fail the build, while a real
+      # coverage regression still does.
       - name: Tests
-        run: pytest tests -q --ignore=tests/load --cov=src --cov-report=term-missing --cov-fail-under=55
+        run: pytest tests -q --ignore=tests/load --cov=src --cov-report=term-missing --cov-fail-under=60
         env:
           DATABASE_URL: postgresql+asyncpg://user:pass@localhost:5432/test
           HH_ACCESS_TOKEN: ""

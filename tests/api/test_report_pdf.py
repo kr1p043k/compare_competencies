@@ -1,7 +1,17 @@
 """PDF report endpoint: route wiring + builder smoke on real data."""
+from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
 
 from src.api_pkg import create_app, deps
+
+# data/ is gitignored, so these payloads are absent in a fresh clone and in CI.
+# The two builder tests below read them from disk; skip instead of failing.
+SAMPLE = Path("data/result/base/full_recommendations_base.json")
+needs_sample = pytest.mark.skipif(
+    not SAMPLE.exists(), reason=f"sample payload not present: {SAMPLE}"
+)
 
 
 def test_report_route_registered():
@@ -26,6 +36,7 @@ def test_report_unknown_profile_404(monkeypatch):
         app.dependency_overrides.clear()
 
 
+@needs_sample
 def test_report_pdf_bytes_base(monkeypatch):
     import shutil
     from pathlib import Path
@@ -55,6 +66,7 @@ def test_report_pdf_bytes_base(monkeypatch):
         app.dependency_overrides.clear()
 
 
+@needs_sample
 def test_builder_cyrillic():
     import json
 
