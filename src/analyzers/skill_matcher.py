@@ -190,8 +190,12 @@ def adaptive_semantic_threshold(query: str, candidate: str, base: float = 0.55) 
 
 class SkillMatcher:
     def __init__(self, market_skills: dict[str, int] | None = None,
-                 embedding_provider: Any | None = None):
+                 embedding_provider: Any | None = None,
+                 market_weights: dict[str, float] | None = None):
         self.market_skills: dict[str, int] = self._clean_market(market_skills or {})
+        # Demand weight per skill (share of vacancies in the snapshot period).
+        # When empty, demand-weighted metrics fall back to equal weights.
+        self.market_weights: dict[str, float] = market_weights or {}
         self._embedding_provider = embedding_provider
         self._market_embeddings: np.ndarray | None = None
         self._market_names: list[str] = []
@@ -209,12 +213,15 @@ class SkillMatcher:
         self._semantic_miss = 0
         self._rebuild_fuzzy_patterns()
 
-    def set_market(self, market_skills: dict[str, int]) -> Result[None, MatchingError]:
+    def set_market(self, market_skills: dict[str, int],
+                   weights: dict[str, float] | None = None) -> Result[None, MatchingError]:
         """Загрузить навыки рынка, предвычислить эмбеддинги, сбросить кэши."""
         if not market_skills:
             logger.warning("market_skills_empty")
             return Err(MatchingError(skill_name="", message="Empty market skills map"))
         self.market_skills = dict(sorted(self._clean_market(market_skills).items(), key=lambda kv: (-kv[1], kv[0])))
+        if weights is not None:
+            self.market_weights = weights
         logger.debug("semantic_cache_stats", **{k: v for k, v in self.cache_stats().items()})
         self._semantic_cache.clear()
         self._match_cache.clear()

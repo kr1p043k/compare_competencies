@@ -479,6 +479,21 @@ async def run_teacher_analysis(
         _before = len(market_skills)
         market_skills = _fold_syn(market_skills)
         logger.info("market_synonyms_folded", before=_before, after=len(market_skills))
+
+    # Demand weights for the latest snapshot period (share of vacancies that
+    # mention the skill). Optional: without them coverage falls back to
+    # counting every skill equally.
+    market_weights: dict[str, float] = {}
+    try:
+        wrows = await pool.fetch(
+            """SELECT market_skill_name, weight
+               FROM market_skill_mappings
+               WHERE period = (SELECT max(period) FROM market_skill_mappings)"""
+        )
+        market_weights = {r["market_skill_name"]: float(r["weight"] or 0.0) for r in wrows}
+        logger.info("market_weights_loaded", count=len(market_weights))
+    except Exception as exc:
+        logger.warning("market_weights_load_failed", error=str(exc))
     if not market_skills:
         logger.warning("no_market_skills_found")
     logger.info("market_skills_loaded", count=len(market_skills), from_vacancies=vac_count)
@@ -657,7 +672,7 @@ async def run_teacher_analysis(
     matcher = SkillMatcher(market_skills, embedding_provider=EmbeddingProviderFactory.get())
     # Включаем семантический матчинг: set_market строит эмбеддинги рынка,
     # иначе _market_embeddings остаётся None и semantic-слой не работает.
-    matcher.set_market(market_skills)
+    matcher.set_market(market_skills, weights=market_weights)
     coverage_analyzer = CoverageAnalyzer(matcher, discipline_scorer=_discipline_scorer)
     trend_analyzer = SnapshotTrendAnalyzer(snapshots)
     rec_engine = CurriculumRecommender()
@@ -909,6 +924,10 @@ async def run_teacher_analysis(
                     {"skill": cr.skill_name, "frequency": cr.frequency, "discipline": cr.discipline}
                     for cr in coverage.cross_references
                 ],
+                "market_top_coverage": coverage.market_top_coverage,
+                "market_weight_coverage": coverage.market_weight_coverage,
+                "market_top_covered": coverage.market_top_covered,
+                "market_top_missing": coverage.market_top_missing,
             },
             "competencies": [
                 {"code": cc.code, "total_skills": cc.total_skills,

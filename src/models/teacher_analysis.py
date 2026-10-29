@@ -60,6 +60,16 @@ class DisciplineCoverage:
     cross_references: list[CrossReference] = field(default_factory=list)
     competencies: list[CompetencyCoverage] = field(default_factory=list)
     ksa_types: dict[str, str] = field(default_factory=dict)
+    # Доля топ-N рыночных навыков, присутствующих в дисциплине. В отличие от
+    # coverage_ratio (навыки РПД уже нормализованы к словарю рынка, поэтому там
+    # почти всегда ~100%), эта метрика показывает реальный охват спроса.
+    market_top_coverage: float = 0.0
+    market_top_covered: list[str] = field(default_factory=list)
+    market_top_missing: list[str] = field(default_factory=list)
+    # Топ-N покрытие, взвешенное спросом: доля суммарного веса (доля вакансий
+    # в периоде), которую закрывают навыки РПД. В отличие от market_top_coverage
+    # каждый навык считается не за единицу, а по своей востребованности.
+    market_weight_coverage: float = 0.0
 
 
 @dataclass

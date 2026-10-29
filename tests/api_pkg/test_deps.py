@@ -11,18 +11,35 @@ from src.api_pkg import deps
 from src.predictors.recommendation_engine import RecommendationEngine
 
 
+# pytest imports every test module during collection, before any test runs, so
+# the values captured here are the true import-time defaults. Asserting against
+# them keeps these checks independent of execution order: other modules call
+# startup code that flips deps.is_ready / deps.vacancy_load_error.
+_DEFAULT_STATE = {
+    name: getattr(deps, name)
+    for name in (
+        "evaluator",
+        "recommendation_engine",
+        "trend_analyzer",
+        "taxonomy",
+        "vacancy_load_error",
+        "is_ready",
+    )
+}
+
+
 class TestModuleLevelVariables:
     def test_evaluator_is_none_by_default(self):
-        assert deps.evaluator is None
+        assert _DEFAULT_STATE["evaluator"] is None
 
     def test_recommendation_engine_is_none_by_default(self):
-        assert deps.recommendation_engine is None
+        assert _DEFAULT_STATE["recommendation_engine"] is None
 
     def test_clusterer_is_instance(self):
         assert isinstance(deps.clusterer, VacancyClusterer)
 
     def test_trend_analyzer_is_none_by_default(self):
-        assert deps.trend_analyzer is None
+        assert _DEFAULT_STATE["trend_analyzer"] is None
 
     def test_student_profiles_is_dict(self):
         assert isinstance(deps.student_profiles, dict)
@@ -40,7 +57,7 @@ class TestModuleLevelVariables:
         assert isinstance(deps.skill_freq, dict)
 
     def test_taxonomy_is_none_by_default(self):
-        assert deps.taxonomy is None
+        assert _DEFAULT_STATE["taxonomy"] is None
 
     def test_current_skills_set_is_set(self):
         assert isinstance(deps.current_skills_set, set)
@@ -49,10 +66,10 @@ class TestModuleLevelVariables:
         assert isinstance(deps.basic_vacancies, list)
 
     def test_vacancy_load_error_is_none(self):
-        assert deps.vacancy_load_error is None
+        assert _DEFAULT_STATE["vacancy_load_error"] is None
 
     def test_is_ready_is_false(self):
-        assert deps.is_ready is False
+        assert _DEFAULT_STATE["is_ready"] is False
 
     def test_regions_cache_is_list(self):
         assert isinstance(deps._regions_cache, list)

@@ -26,6 +26,10 @@ logger = structlog.get_logger(__name__)
 
 
 MIN_MATCH_FREQ = MARKET_MIN_FREQ
+
+# Сколько самых востребованных рыночных навыков считаем «топом» при
+# измерении охвата спроса.
+MARKET_TOP_N = 100
 # A match counts as coverage only if the market skill has real demand (v29).
 # Fringe skills (1-4 vacancies, e.g. one-off listings) must not inflate coverage.
 # Single source of truth lives in skill_matcher (v36).
@@ -327,10 +331,33 @@ class CoverageAnalyzer:
         ratio = round(len(matched_list) / total, 4) if total else 0
         weighted = round(sum(m.confidence for m in matched_list) / total, 4) if total else 0.0
 
+        # Охват спроса: какая доля топ-N рыночных навыков есть в этой дисциплине.
+        # coverage_ratio для сравнения почти бесполезен, т.к. навыки РПД уже
+        # нормализованы к словарю рынка при извлечении.
+        top_market = sorted(self.matcher.market_skills.items(), key=lambda x: -x[1])[:MARKET_TOP_N]
+        top_covered = [s for s, _ in top_market if normalize_skill(s) in rpd_norm]
+        top_missing = [s for s, _ in top_market if normalize_skill(s) not in rpd_norm]
+        top_coverage = round(len(top_covered) / len(top_market), 4) if top_market else 0.0
+
+        # Demand-weighted version of top_coverage: each top-N market skill
+        # contributes its share of vacancies instead of one unit, so covering
+        # "python" weighs more than covering a niche skill.
+        weights = getattr(self.matcher, "market_weights", None) or {}
+        if weights:
+            total_weight = sum(weights.get(s, 0.0) for s, _ in top_market)
+            covered_weight = sum(weights.get(s, 0.0) for s in top_covered)
+            market_weight_coverage = (
+                round(covered_weight / total_weight, 4) if total_weight > 0 else 0.0
+            )
+        else:
+            market_weight_coverage = top_coverage
+
         logger.info("discipline_analyzed",
                      discipline=discipline_name,
                      total=total, matched=len(matched_list),
-                     gaps=len(gaps_list), coverage=ratio, weighted=weighted)
+                     gaps=len(gaps_list), coverage=ratio, weighted=weighted,
+                     market_top_coverage=top_coverage,
+                     market_weight_coverage=market_weight_coverage)
 
         # Дедуп топа по совпавшему рыночному навыку: разные формулировки
         # одного ЗУНа в РПД бьют в один навык рынка и плодят клоны.
@@ -370,6 +397,10 @@ class CoverageAnalyzer:
             top_matched=deduped_top,
             matched_market=[m.market_match for m in matched_list if m.market_match],
             ksa_types=dict(ksa_types or {}),
+            market_top_coverage=top_coverage,
+            market_weight_coverage=market_weight_coverage,
+            market_top_covered=top_covered[:20],
+            market_top_missing=top_missing[:10],
             gaps_list=deduped_gaps[:20],
             emerging=emerging_skills,
             truly_missing=truly_missing,
