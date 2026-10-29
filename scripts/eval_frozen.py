@@ -120,7 +120,7 @@ def zscore(x: np.ndarray) -> np.ndarray:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--gold", default="labeling/gold.csv")
+    parser.add_argument("--gold", default="tests/fixtures/gold_frozen.csv")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--test-size", type=float, default=0.25)
     args = parser.parse_args()

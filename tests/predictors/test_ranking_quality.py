@@ -29,7 +29,11 @@ from sklearn.model_selection import StratifiedShuffleSplit  # noqa: E402
 from src.predictors.ltr_recommendation_engine import LTRRecommendationEngine  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-GOLD = ROOT / "labeling" / "gold.csv"
+# The gate must run in CI, so the frozen split lives in the repo as a fixture
+# (role / skill / grade only, no personal data). labeling/gold.csv stays the
+# source of truth for local evaluation.
+FIXTURE = ROOT / "tests" / "fixtures" / "gold_frozen.csv"
+GOLD = FIXTURE if FIXTURE.exists() else ROOT / "labeling" / "gold.csv"
 
 # Measured with the default artifact (ltr_ranker_ensemble_human) on the frozen
 # split: NDCG@10 = 0.7455, P@10 = 0.750. Leave headroom for environment noise.

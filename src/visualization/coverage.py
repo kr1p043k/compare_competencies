@@ -176,8 +176,23 @@ def plot_domain_skill_gaps(results: dict[str, Any], save_path: Path | None = Non
     ax.set_xticklabels(profiles)
     ax.legend(loc="upper right", fontsize=11)
 
+    # Each bar is annotated twice: the total above it and, when a segment is
+    # tall enough, its own share inside it. The old "s/w/m%" string gave no clue
+    # which number belonged to which band.
     for i, (s, w, m) in enumerate(zip(strong_vals, weak_vals, missing_vals, strict=False)):
-        ax.text(i, s + w + m + 2, f"{s:.0f}/{w:.0f}/{m:.0f}%", ha="center", fontsize=10, fontweight="bold")
+        ax.text(
+            i, s + w + m + 2, f"всего {s + w + m:.0f}%",
+            ha="center", fontsize=10, fontweight="bold",
+        )
+        for value, bottom in ((s, 0.0), (w, s), (m, s + w)):
+            if value >= 5:
+                ax.text(
+                    i, bottom + value / 2, f"{value:.0f}%",
+                    ha="center", va="center", fontsize=9,
+                    color="white", fontweight="bold",
+                )
+
+    ax.set_ylim(0, 112)
 
     if save_path:
         plt.savefig(save_path, bbox_inches="tight")

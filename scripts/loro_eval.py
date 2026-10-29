@@ -41,7 +41,10 @@ def single_query_metrics(yt, scores):
 
 def main() -> None:
     import asyncio
-    gold = read_gold(ROOT / "labeling" / "gold.csv")
+    gold_path = ROOT / "tests" / "fixtures" / "gold_frozen.csv"
+    if not gold_path.exists():
+        gold_path = ROOT / "labeling" / "gold.csv"
+    gold = read_gold(gold_path)
     vacancies = asyncio.run(load_vacancies(3000))
     roles = sorted({g["role"] for g in gold})
     print("roles:", roles, "gold:", len(gold), "vac:", len(vacancies))
