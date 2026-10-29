@@ -22,6 +22,7 @@ import {
 } from "./ui/card";
 import { Search, X, Filter, Briefcase, Loader2, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, LayoutGrid, List, Database, Rocket, Globe, MapPin, ChevronDown, Download } from "lucide-react";
 import { reportError } from "./../../lib/errors";
+import { download, request, saveBlob } from "../../lib/api";
 
 const HH_REGIONS = [
   "Москва", "Санкт-Петербург", "Екатеринбург", "Новосибирск",
@@ -73,6 +74,14 @@ const HH_REGION_MAP: Record<string, number> = {
   "Салехард": 304, "Ханты-Мансийск": 147, "Горно-Алтайск": 10,
   "Улан-Удэ": 20, "Петропавловск-Камчатский": 44, "Севастополь": 130,
 };
+
+interface VacancyInfo {
+  count: number;
+  with_skills?: number;
+  file_modified: string | null;
+  date_range: { from: string; to: string } | null;
+  load_error: string | null;
+}
 
 interface Vacancy {
   id: string;
@@ -131,7 +140,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [total, setTotal] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [drawerVacancy, setDrawerVacancy] = useState<Vacancy | null>(null);
-  const [vacancyInfo, setVacancyInfo] = useState<{ count: number; with_skills?: number; file_modified: string | null; date_range: { from: string; to: string } | null; load_error: string | null } | null>(null);
+  const [vacancyInfo, setVacancyInfo] = useState<VacancyInfo | null>(null);
   const [showPipelineSetup, setShowPipelineSetup] = useState(false);
   const [, setPipelineRegion] = useState("0");
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
@@ -190,8 +199,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     setLoading(true);
     setError(null);
     try {
-      const infoR = await fetch("/api/vacancies/info");
-      if (infoR.ok) { const d = await infoR.json(); setVacancyInfo(d); }
+      setVacancyInfo(await request<VacancyInfo>("/api/vacancies/info"));
     } catch (err) { reportError("app/components/VacanciesList.tsx:194", err); }
 
     try {
@@ -224,12 +232,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         params.append("date_to", applied.date_to);
       }
 
-      const response = await fetch(`/api/vacancies?${params}`);
-      if (!response.ok) {
-        throw new Error("Ошибка загрузки вакансий");
-      }
-
-      const data: VacanciesResponse = await response.json();
+      const data = await request<VacanciesResponse>(`/api/vacancies?${params}`);
 
       let filteredItems = data.items;
 
@@ -257,16 +260,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       if (applied.months) params.append("months", applied.months.toString());
       if (applied.date_from) params.append("date_from", applied.date_from);
       if (applied.date_to) params.append("date_to", applied.date_to);
-      const response = await fetch(`/api/vacancies?${params}`);
-      if (response.ok) {
-        const data: VacanciesResponse = await response.json();
-        setVacancies(data.items);
-        setTotal(data.total);
-      }
+      const data = await request<VacanciesResponse>(`/api/vacancies?${params}`);
+      setVacancies(data.items);
+      setTotal(data.total);
     } catch (err) { reportError("app/components/VacanciesList.tsx:265", err); }
     try {
-      const r = await fetch("/api/vacancies/info");
-      if (r.ok) { const d = await r.json(); setVacancyInfo(d); }
+      setVacancyInfo(await request<VacancyInfo>("/api/vacancies/info"));
     } catch (err) { reportError("app/components/VacanciesList.tsx:269", err); }
   };
 
@@ -1075,18 +1074,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   if (applied.date_from) eq.append("date_from", applied.date_from);
                   if (applied.date_to) eq.append("date_to", applied.date_to);
                   const qs = eq.toString();
-                  const r = await fetch(`/api/teacher/export/vacancies${qs ? `?${qs}` : ""}`);
-                  if (r.ok) {
-                    const blob = await r.blob();
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `vacancies_skills_${new Date().toISOString().split("T")[0]}.xlsx`;
-                    document.body.appendChild(a);
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-                  }
+                  const { blob, filename } = await download(
+                    `/api/teacher/export/vacancies${qs ? `?${qs}` : ""}`,
+                  );
+                  saveBlob(
+                    blob,
+                    filename ?? `vacancies_skills_${new Date().toISOString().split("T")[0]}.xlsx`,
+                  );
                 } catch (e) {
                   console.error("Export failed:", e);
                 }

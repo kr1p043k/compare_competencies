@@ -27,8 +27,8 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { apiFetch } from "../../lib/auth";
 import { reportError } from "./../../lib/errors";
+import { request } from "../../lib/api";
 
 interface KrmSkill {
   text: string;
@@ -102,15 +102,7 @@ function applyOptimisticAdd(prev: KrmData, text: string): KrmData {
 }
 
 async function patchSelf(body: Record<string, unknown>): Promise<void> {
-  const r = await apiFetch("/api/profiles/self", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) {
-    const d = (await r.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(d.detail || "Не удалось сохранить");
-  }
+  await request<void>("/api/profiles/self", { method: "PATCH", body });
 }
 
 export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void }) {
@@ -134,8 +126,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
   const [mineAdded, setMineAdded] = useState<string[]>([]);
 
   useEffect(() => {
-    apiFetch("/api/krm/directions")
-      .then((r) => (r.ok ? r.json() : null))
+    request<{ directions?: Array<{ dir_code: string; name: string }> }>("/api/krm/directions")
       .then((d) => {
         if (d?.directions?.length) {
           setDirs(d.directions);
@@ -143,8 +134,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
         }
       })
       .catch((err) => reportError("app/components/StudentKrm.tsx", err));
-    apiFetch("/api/profiles")
-      .then((r) => (r.ok ? r.json() : null))
+    request<{ profiles?: string[] }>("/api/profiles")
       .then((d) => {
         if (Array.isArray(d?.profiles) && d.profiles.length) setProfiles(d.profiles);
       })
@@ -156,11 +146,11 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
     setLoading(true);
     setError(null);
     try {
-      const r = await apiFetch(
-        `/api/krm/student/competencies?direction=${encodeURIComponent(dir)}&profile=${encodeURIComponent(prof)}`
+      setData(
+        await request<KrmData>(
+          `/api/krm/student/competencies?direction=${encodeURIComponent(dir)}&profile=${encodeURIComponent(prof)}`,
+        ),
       );
-      if (!r.ok) throw new Error("Не удалось загрузить компетенции");
-      setData(await r.json());
     } catch (e: any) {
       setError(e?.message || "Ошибка загрузки");
     } finally {

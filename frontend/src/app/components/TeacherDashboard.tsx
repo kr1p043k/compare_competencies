@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../api";
-import { authHeaders } from "../../lib/auth";
 import { useTheme } from "../../lib/theme";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
 import CompetencyTrendsPanel from "./CompetencyTrendsPanel";
 import { reportError } from "./../../lib/errors";
+import { ApiError, request } from "../../lib/api";
 
 function plural(n: number, one: string, few: string, many: string): string {
   const m10 = n % 10;
@@ -358,14 +358,10 @@ export function TeacherDashboard() {
     fd.append("file", f);
     fd.append("dir_code", selectedDir);
     try {
-      const res = await fetch(`/api/teacher/rpd/upload`, {
+      const data = await request<{ run_id?: string }>("/api/teacher/rpd/upload", {
         method: "POST",
-        headers: { ...authHeaders() },
         body: fd,
       });
-      if (res.status === 429) throw new Error("Слишком частые запросы – подождите минуту и повторите");
-      const data = await res.json().catch(() => ({} as any));
-      if (!res.ok) throw new Error(data.detail || res.statusText);
       if (!data.run_id) throw new Error("Сервер не вернул ID задачи");
       try { sessionStorage.setItem("rpdRunId", data.run_id); } catch (err) { reportError("app/components/TeacherDashboard.tsx:369", err); }
       setRpdRun({ run_id: data.run_id });
@@ -388,10 +384,7 @@ export function TeacherDashboard() {
       }
       try {
         setRpdMsg("Останавливаю сбор...");
-        await fetch(`/api/teacher/rpd/cancel/${rpdRun.run_id}`, {
-          method: "POST",
-          headers: { ...authHeaders() },
-        });
+        await request<void>(`/api/teacher/rpd/cancel/${rpdRun.run_id}`, { method: "POST" });
       } catch {
         setRpdCollecting(false);
         setRpdMsg("");
@@ -400,20 +393,21 @@ export function TeacherDashboard() {
     }
     setRpdCollecting(true); setRpdMsg("Сбор аннотаций с Yandex Disk...");
     try {
-      const res = await fetch(`/api/teacher/rpd/collect`, {
-        method: "POST",
-        headers: {
-          ...authHeaders(),
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: `dir_code=${encodeURIComponent(selectedDir)}${rpdYandexUrl.trim() ? `&public_url=${encodeURIComponent(rpdYandexUrl.trim())}` : ""}`,
-      });
-      if (res.status === 429) {
-        setCollectCooldown(30);
-        throw new Error("Слишком частые запросы – кнопка заблокирована на 30 секунд");
+      const body = new URLSearchParams({ dir_code: selectedDir });
+      if (rpdYandexUrl.trim()) body.set("public_url", rpdYandexUrl.trim());
+      let data: { run_id?: string };
+      try {
+        data = await request<{ run_id?: string }>("/api/teacher/rpd/collect", {
+          method: "POST",
+          body,
+        });
+      } catch (err) {
+        if (err instanceof ApiError && err.isRateLimited) {
+          setCollectCooldown(30);
+          throw new Error("Слишком частые запросы – кнопка заблокирована на 30 секунд");
+        }
+        throw err;
       }
-      const data = await res.json().catch(() => ({} as any));
-      if (!res.ok) throw new Error(data.detail || res.statusText);
       if (!data.run_id) throw new Error("Сервер не вернул ID задачи");
       try { sessionStorage.setItem("rpdRunId", data.run_id); } catch (err) { reportError("app/components/TeacherDashboard.tsx:417", err); }
       setRpdRun({ run_id: data.run_id });

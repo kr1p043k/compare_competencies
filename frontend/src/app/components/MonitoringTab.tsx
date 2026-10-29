@@ -5,7 +5,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { BarChart3, Activity, TrendingUp, AlertCircle, RefreshCw, Server, Cpu, Bell, Newspaper, Trash2, Plus, CheckCheck, ExternalLink, Mail } from "lucide-react";
-import { apiFetch } from "../../lib/auth";
+import { request } from "../../lib/api";
 import { reportError } from "./../../lib/errors";
 
 interface MetricSample {
@@ -73,9 +73,7 @@ function MonitoringTabBase() {
 
   const loadMetrics = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/admin/monitoring");
-      if (!r.ok) throw new Error(`Не удалось загрузить метрики (HTTP ${r.status}). Попробуйте позже.`);
-      const data = await r.json();
+      const data = await request<Record<string, MetricFamily>>("/api/admin/monitoring");
       setMetrics(data);
       setError(null);
     } catch (e: any) {
@@ -84,8 +82,7 @@ function MonitoringTabBase() {
       setLoading(false);
     }
     try {
-      const r = await apiFetch("/api/admin/monitoring/summary");
-      if (r.ok) setHealth(await r.json());
+      setHealth(await request<NonNullable<typeof health>>("/api/admin/monitoring/summary"));
     } catch (err) { reportError("app/components/MonitoringTab.tsx:88", err); }
   }, []);
 
@@ -93,13 +90,7 @@ function MonitoringTabBase() {
     setSubsLoading(true);
     setSubError(null);
     try {
-      const r = await apiFetch("/api/subscriptions");
-      if (!r.ok) {
-        const text = await r.text().catch(() => "");
-        setSubError(`Ошибка загрузки подписок: ${r.status} ${text}`);
-        return;
-      }
-      const data = await r.json();
+      const data = await request<{ subscriptions?: Subscription[] }>("/api/subscriptions");
       setSubscriptions(data.subscriptions ?? []);
     } catch (e: any) {
       setSubError(e.message ?? "Ошибка сети");
@@ -113,13 +104,7 @@ function MonitoringTabBase() {
     setNotifError(null);
     try {
       const query = notifFilter === "unread" ? "/api/notifications?limit=50&unread_only=true" : "/api/notifications?limit=50";
-      const r = await apiFetch(query);
-      if (!r.ok) {
-        const text = await r.text().catch(() => "");
-        setNotifError(`Ошибка загрузки уведомлений: ${r.status} ${text}`);
-        return;
-      }
-      const data = await r.json();
+      const data = await request<{ notifications?: NotificationItem[] }>(query);
       setNotifications(data.notifications ?? []);
     } catch (e: any) {
       setNotifError(e.message ?? "Ошибка сети");
@@ -130,11 +115,8 @@ function MonitoringTabBase() {
 
   const loadUnreadCount = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/notifications/unread-count");
-      if (r.ok) {
-        const data = await r.json();
-        setUnreadCount(data.unread_count);
-      }
+      const data = await request<{ unread_count?: number }>("/api/notifications/unread-count");
+      setUnreadCount(data.unread_count ?? 0);
     } catch (err) { reportError("app/components/MonitoringTab.tsx:137", err); }
   }, []);
 
@@ -177,20 +159,14 @@ function MonitoringTabBase() {
     setCreating(true);
     setCreateError(null);
     try {
-      const r = await apiFetch("/api/subscriptions", {
+      await request<Subscription>("/api/subscriptions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           topic: newTopic.trim(),
           source: newSource,
           telegram_chat_id: newTelegramChatId.trim() || null,
-        }),
+        },
       });
-      if (!r.ok) {
-        const text = await r.text().catch(() => "");
-        setCreateError(`Ошибка создания подписки: ${r.status} ${text}`);
-        return;
-      }
       setNewTopic("");
       setNewTelegramChatId("");
       await loadSubscriptions();
@@ -203,12 +179,7 @@ function MonitoringTabBase() {
 
   const deleteSubscription = async (id: string) => {
     try {
-      const r = await apiFetch(`/api/subscriptions/${id}`, { method: "DELETE" });
-      if (!r.ok) {
-        const text = await r.text().catch(() => "");
-        setSubError(`Ошибка удаления: ${r.status} ${text}`);
-        return;
-      }
+      await request<void>(`/api/subscriptions/${id}`, { method: "DELETE" });
       setSubscriptions((prev) => prev.filter((s) => s.id !== id));
     } catch (e: any) {
       setSubError(e.message ?? "Ошибка сети");
@@ -217,11 +188,9 @@ function MonitoringTabBase() {
 
   const markRead = async (id: string) => {
     try {
-      const r = await apiFetch(`/api/notifications/${id}/read`, { method: "POST" });
-      if (r.ok) {
-        setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      }
+      await request<void>(`/api/notifications/${id}/read`, { method: "POST" });
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (err) { reportError("app/components/MonitoringTab.tsx:224", err); }
   };
 
