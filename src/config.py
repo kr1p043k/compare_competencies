@@ -153,6 +153,17 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "paraphrase-multilingual-mpnet-base-v2"
     HF_TOKEN: SecretStr | None = None
 
+    # ---------- cosine similarity scale ----------
+    # One ladder for every "are these the same thing" decision. Domain-specific
+    # cutoffs (academic gap, discipline tiers) stay next to their analyzers but
+    # must be read against these values.
+    SIM_DEDUP: float = 0.82            # near-duplicate texts (dedup clusters)
+    SIM_SKILL_MATCH: float = 0.78      # RPD skill <-> market skill
+    SIM_MARKET_MATCH_HIGH: float = 0.75
+    SIM_MARKET_MATCH_MEDIUM: float = 0.65
+    SIM_ACADEMIC_GAP: float = 0.55
+    SIM_ACADEMIC_MARKET: float = 0.45
+
     # ---------- BM25 ----------
     BM25_MAX_CORPUS_DOCS: int = 200
     BM25_MIN_SCORE: float = 0.005
@@ -376,6 +387,13 @@ HUB_TABLE_PATH = settings.HUB_TABLE_PATH
 
 EMBEDDING_MODEL = settings.EMBEDDING_MODEL
 HF_TOKEN = settings.HF_TOKEN
+
+SIM_DEDUP = settings.SIM_DEDUP
+SIM_SKILL_MATCH = settings.SIM_SKILL_MATCH
+SIM_MARKET_MATCH_HIGH = settings.SIM_MARKET_MATCH_HIGH
+SIM_MARKET_MATCH_MEDIUM = settings.SIM_MARKET_MATCH_MEDIUM
+SIM_ACADEMIC_GAP = settings.SIM_ACADEMIC_GAP
+SIM_ACADEMIC_MARKET = settings.SIM_ACADEMIC_MARKET
 
 BM25_MAX_CORPUS_DOCS = settings.BM25_MAX_CORPUS_DOCS
 BM25_MIN_SCORE = settings.BM25_MIN_SCORE

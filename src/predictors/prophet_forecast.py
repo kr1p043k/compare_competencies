@@ -35,6 +35,11 @@ except ImportError:
 
 logger = structlog.get_logger(__name__)
 
+# Prophet needs one full annual cycle before yearly seasonality can be
+# estimated; 12 monthly points is that minimum. The previous cutoff of 24
+# switched it off for the current 23-snapshot history.
+YEARLY_SEASONALITY_MIN_POINTS = 12
+
 
 def _holdout_mape(points: list[tuple[date, float]]) -> float | None:
     """Hold-out MAPE: линейный тренд на всех точках кроме последней, ошибка на последней.
@@ -389,7 +394,7 @@ class ProphetForecastEngine(BasePredictor):
         if np.any(~np.isfinite(y)) or (y.max() - y.min()) > 1e6:
             raise ValueError(f"Unstable data for Prophet: min={y.min()}, max={y.max()}, n={n_points}")
         model = Prophet(
-            yearly_seasonality=n_points >= 24,
+            yearly_seasonality=n_points >= YEARLY_SEASONALITY_MIN_POINTS,
             weekly_seasonality=False,
             daily_seasonality=False,
             seasonality_mode="additive",
