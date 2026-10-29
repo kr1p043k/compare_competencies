@@ -178,8 +178,14 @@ class Settings(BaseSettings):
     GLOBAL_RANDOM_SEED: int = 42
 
     # ---------- Параметры рекомендаций и gap-анализа ----------
-    BLEND_EVALUATOR_WEIGHT: float = 0.6
-    BLEND_LTR_WEIGHT: float = 0.4
+    # Blend of the profile evaluator (personalisation) and the LTR ranker.
+    # Frozen-split eval (scripts/eval_frozen.py, gold.csv, seed 42) gives LTR
+    # alone NDCG@10 0.7455 vs frequency 0.5227 and cosine 0.4978, so the ranker
+    # carries the majority. The evaluator keeps 0.4 because its per-student
+    # signal cannot be scored by a role-level gold set (no student profiles in
+    # the DB), and dropping it would remove personalisation entirely.
+    BLEND_EVALUATOR_WEIGHT: float = 0.4
+    BLEND_LTR_WEIGHT: float = 0.6
     DOMAIN_BONUS: float = 0.1
     DIVERSIFY_MAX_PER_CATEGORY: int = 3
     PRIORITY_HIGH_THRESHOLD: float = 0.4

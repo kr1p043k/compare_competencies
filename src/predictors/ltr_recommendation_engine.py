@@ -129,6 +129,38 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
     LTR-движок на XGBoost для персонализированного ранжирования навыков.
     """
 
+    # Canonical artifact written by fit(); when it is absent we fall back to
+    # the best-ranked pre-trained artifact that ships with the repo instead of
+    # failing to load and silently degrading to heuristics.
+    MODEL_FILENAME = "ltr_ranker_xgb_regressor.joblib"
+    # Ordered by frozen-split NDCG@10 (scripts/eval_frozen.py, gold.csv, seed 42):
+    #   ensemble_human 0.7455 | xgb_rank_human 0.7195 | canon 0.6570 |
+    #   ensemble_final 0.7087 (different feature space).
+    # ltr_ranker_xgb_rank is excluded: it was trained on the 272-skill corpus
+    # and raises KeyError('openapi') on the current feature space.
+    MODEL_CANDIDATES = (
+        "ltr_ranker_ensemble_human.joblib",
+        "ltr_ranker_xgb_rank_human.joblib",
+        "ltr_ranker_canon.joblib",
+        "ltr_ranker_ensemble_final.joblib",
+    )
+
+    @classmethod
+    def _resolve_model_path(cls) -> Path:
+        canonical = config.MODELS_DIR / cls.MODEL_FILENAME
+        if canonical.exists():
+            return canonical
+        for name in cls.MODEL_CANDIDATES:
+            candidate = config.MODELS_DIR / name
+            if candidate.exists():
+                logger.warning(
+                    "ltr_model_fallback",
+                    requested=str(canonical),
+                    using=str(candidate),
+                )
+                return candidate
+        return canonical
+
     def __init__(self, model_path: Path | None = None):
         self.vacancy_parser = VacancyParser()
         self.skill_filter = SkillFilter()
@@ -136,6 +168,8 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         self.embedding_model = get_embedding_model()
 
         self.model: xgb.XGBRegressor | xgb.XGBRanker | None = None
+        # Ensembles store a list of fitted models instead of a single one.
+        self.models: list = []
         self.feature_names: list[str] = []
         self.skill_metadata: dict[str, dict[str, Any]] = {}
         self.skill_embeddings: dict[str, np.ndarray] = {}
@@ -156,6 +190,15 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
     @property
     def name(self) -> str:
         return "LTRRanking"
+
+    def _predict_raw(self, X: pd.DataFrame) -> np.ndarray:
+        """Score rows with a single model or the mean of an ensemble."""
+        if self.model is not None:
+            return np.asarray(self.model.predict(X), dtype=float)
+        if self.models:
+            preds = [np.asarray(m.predict(X), dtype=float) for m in self.models]
+            return np.mean(preds, axis=0)
+        raise ModelError(model_name="ltr_ranker", message="No model loaded")
 
     # ------------------------------------------------------------------
     # ОБУЧЕНИЕ
@@ -782,7 +825,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         self, student_skills: list[str], missing_skills: list[str], compute_shap: bool = True,
         shap_top_k: int = 15,
     ) -> Result[tuple[list[tuple[str, float, str]], np.ndarray | None, pd.DataFrame | None], ModelError]:
-        if not self.is_fitted or self.model is None:
+        if not self.is_fitted or (self.model is None and not self.models):
             logger.warning("model_not_trained")
             return Err(ModelError(model_name="ltr_ranker", message="Model not fitted"))
 
@@ -807,7 +850,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
             return Ok(([], None, None))
 
         X = pd.DataFrame(X_rows)[self.feature_names]
-        raw_scores = self.model.predict(X)
+        raw_scores = self._predict_raw(X)
         raw_scores = np.clip(raw_scores, 0.0, 1.0)
 
         if len(raw_scores) > 1:
@@ -832,7 +875,8 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
 
         shap_values = None
         X_top: pd.DataFrame | None = None
-        if shap_n:
+        # An ensemble artifact has no single self.model to explain.
+        if shap_n and self.model is not None:
             try:
                 X_top = X.iloc[top_idx[:shap_n]]
                 explainer = shap.TreeExplainer(self.model)
@@ -1073,11 +1117,17 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 model_name="ltr_ranker_xgb_regressor",
             ))
 
-        self.model = data["model"]
+        self.model = data.get("model")
+        self.models = data.get("models") or []
+        if self.model is None and not self.models:
+            return Err(ModelError(
+                message="Артефакт LTR-модели не содержит ни 'model', ни 'models'",
+                model_name="ltr_ranker_xgb_regressor",
+            ))
         self.feature_names = data["feature_names"]
         self.skill_metadata = data["skill_metadata"]
         self.skill_embeddings = data.get("skill_embeddings", {})
-        self.total_vacancies = data["total_vacancies"]
+        self.total_vacancies = data.get("total_vacancies", 0)
         self.vacancy_skills_corpus = data.get("vacancy_skills_corpus", [])
         self.category_avg_weight = data.get("category_avg_weight", {})
         self.is_fitted = True
