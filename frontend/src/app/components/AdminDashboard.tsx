@@ -9,8 +9,9 @@ import {
   AlertCircle, RefreshCw, Users, FileText, Database,
   Upload, Brain, BookOpen, Download, Clock, Activity,
 } from "lucide-react";
-import { apiFetch, logAction } from "../../lib/auth";
+import { logAction } from "../../lib/auth";
 import { reportError } from "./../../lib/errors";
+import { ApiError, request } from "../../lib/api";
 
 export function AdminDashboard() {
   const RPD_STAGE_LABELS: Record<string, string> = {
@@ -44,10 +45,9 @@ export function AdminDashboard() {
     setHealthLoading(true);
     setHealthMsg("");
     try {
-      const r = await apiFetch("/health");
-      const d = await r.json();
+      const d = await request<Record<string, unknown>>("/health");
       setHealth(d);
-      setHealthMsg(r.ok ? "Сервис отвечает" : `Ошибка: ${d.detail || r.statusText}`);
+      setHealthMsg("Сервис отвечает");
     } catch (e: any) {
       setHealthMsg(e?.message || "Ошибка проверки");
     } finally {
@@ -57,8 +57,7 @@ export function AdminDashboard() {
   const loadSched = async () => {
     setSchedLoading(true);
     try {
-      const r = await apiFetch("/api/admin/scheduler/status");
-      const d = await r.json();
+      const d = await request<any>("/api/admin/scheduler/status");
       setSched(d);
       if (d && d.collect_interval_hours != null) setSchedInterval(String(d.collect_interval_hours));
     } catch (e: any) {
@@ -71,9 +70,7 @@ export function AdminDashboard() {
     setSchedBusy(true);
     setSchedMsg("");
     try {
-      const r = await apiFetch("/api/admin/scheduler/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || r.statusText);
+      const d = await request<any>("/api/admin/scheduler/settings", { method: "PUT", body: patch });
       setSched(d);
       if (d && d.collect_interval_hours != null) setSchedInterval(String(d.collect_interval_hours));
       setSchedMsg("Сохранено");
@@ -88,10 +85,7 @@ export function AdminDashboard() {
     setSchedBusy(true);
     setSchedMsg("");
     try {
-      const r = await apiFetch(`/api/admin/scheduler/${job}/now`, { method: "POST" });
-      const d = await r.json().catch(() => ({}));
-      if (r.status === 409) throw new Error(d.detail || "Планировщик занят");
-      if (!r.ok) throw new Error(d.detail || r.statusText);
+      await request<any>(`/api/admin/scheduler/${job}/now`, { method: "POST" });
       setSchedMsg("Запущено");
       setTimeout(loadSched, 2000);
     } catch (e: any) {
@@ -110,12 +104,10 @@ export function AdminDashboard() {
     setSugLoading(true);
     setSugMsg("");
     try {
-      const r = await apiFetch("/api/admin/skills/suggestions?status=pending");
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || r.statusText);
+      const d = await request<any>("/api/admin/skills/suggestions?status=pending");
       setSugList(d.suggestions || []);
       if (taxCats.length === 0) {
-        const t = await apiFetch("/api/taxonomy/categories").then((x) => x.json()).catch(() => null);
+        const t = await request<any>("/api/taxonomy/categories").catch(() => null);
         if (t?.categories) setTaxCats(t.categories.map((c: any) => ({ id: c.id, label: c.label })));
       }
     } catch (e: any) {
@@ -129,12 +121,10 @@ export function AdminDashboard() {
     const cat = sugCats[id] || "";
     if (approve && !cat) { setSugMsg("Выберите категорию для одобрения"); return; }
     try {
-      const r = await apiFetch(
-        `/api/admin/skills/suggestions/${id}/${approve ? "approve" : "reject"}`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category: cat }) }
-      );
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || r.statusText);
+      await request<any>(`/api/admin/skills/suggestions/${id}/${approve ? "approve" : "reject"}`, {
+        method: "POST",
+        body: { category: cat },
+      });
       setSugList((prev) => prev.filter((s) => s.id !== id));
       setSugMsg(approve ? `Принят в таксономию (${cat})` : "Отклонён");
     } catch (e: any) {
@@ -176,9 +166,9 @@ export function AdminDashboard() {
     if (!q.trim()) { setCompResults([]); return; }
     setCompLoading(true);
     try {
-      const r = await apiFetch(`/api/teacher/zun/competencies/search?q=${encodeURIComponent(q)}&dir_code=09.03.02&limit=20`);
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || r.statusText);
+      const d = await request<any>(
+        `/api/teacher/zun/competencies/search?q=${encodeURIComponent(q)}&dir_code=09.03.02&limit=20`,
+      );
       setCompResults(d.items || []);
     } catch (e: any) {
       setLinkMsg("Поиск: " + e.message);
@@ -191,13 +181,10 @@ export function AdminDashboard() {
     if (!linkSkill || !linkCompId) { setLinkMsg("Выберите компетенцию из поиска"); return; }
     setLinkSaving(true); setLinkMsg("");
     try {
-      const r = await apiFetch(`/api/teacher/zun/competencies/${linkCompId}/skills`, {
+      const d = await request<any>(`/api/teacher/zun/competencies/${linkCompId}/skills`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ skill_name: linkSkill, ksa_type: linkKsa }),
+        body: { skill_name: linkSkill, ksa_type: linkKsa },
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || r.statusText);
       setLinkMsg(`Привязано: ${d.skill_name} → explicit. Учтётся в следующем teacher-анализе.`);
       setLinkSkill(null); setCompQuery(""); setCompResults([]); setLinkCompId("");
     } catch (e: any) {
@@ -232,15 +219,11 @@ export function AdminDashboard() {
   const loadData = async () => {
     setLoading(true); setError(null);
     try {
-      const [uRes, lRes, dRes] = await Promise.all([
-        apiFetch("/api/admin/users"),
-        apiFetch("/api/admin/logs?limit=200"),
-        apiFetch("/api/admin/directions"),
+      const [uData, lData, dData] = await Promise.all([
+        request<any>("/api/admin/users"),
+        request<any>("/api/admin/logs?limit=200"),
+        request<any>("/api/admin/directions"),
       ]);
-      if (!uRes.ok || !lRes.ok || !dRes.ok) throw new Error("Не удалось загрузить данные панели. Попробуйте позже.");
-      const uData = await uRes.json();
-      const lData = await lRes.json();
-      const dData = await dRes.json();
       setUsers(uData.users || []);
       setLogs(lData.logs || []);
       setDirections(Array.isArray(dData) ? dData : []);
@@ -271,8 +254,7 @@ export function AdminDashboard() {
   }, [collectCooldown]);
 
   useEffect(() => {
-    apiFetch("/api/teacher/rpd/sources")
-      .then((r) => r.ok ? r.json() : null)
+    request<any>("/api/teacher/rpd/sources")
       .then((d) => { if (d) setRpdSources(d); })
       .catch((err) => reportError("app/components/AdminDashboard.tsx", err));
   }, []);
@@ -282,8 +264,8 @@ export function AdminDashboard() {
     let cancelled = false;
     let misses = 0;
     const poll = () => {
-      apiFetch(`/api/teacher/rpd/status/${rpdRunId}`)
-        .then((r) => r.ok ? r.json() : null)
+      request<any>(`/api/teacher/rpd/status/${rpdRunId}`)
+        .catch(() => null)
         .then((s) => {
           if (cancelled) return;
           if (!s) {
@@ -334,10 +316,10 @@ export function AdminDashboard() {
     fd.append("file", f);
     fd.append("dir_code", rpdDir);
     try {
-      const r = await apiFetch("/api/teacher/rpd/upload", { method: "POST", body: fd });
-      if (r.status === 429) throw new Error("Слишком частые запросы – подождите минуту и повторите");
-      const d = await r.json().catch(() => ({} as any));
-      if (!r.ok) throw new Error(d.detail || r.statusText);
+      const d = await request<{ run_id?: string }>("/api/teacher/rpd/upload", {
+        method: "POST",
+        body: fd,
+      });
       if (!d.run_id) throw new Error("Сервер не вернул ID задачи");
       try { sessionStorage.setItem("rpdRunId", d.run_id); } catch (err) { reportError("app/components/AdminDashboard.tsx:341", err); }
       setRpdRunId(d.run_id);
@@ -360,7 +342,7 @@ export function AdminDashboard() {
       }
       try {
         setRpdMsg("Останавливаю сбор...");
-        await apiFetch(`/api/teacher/rpd/cancel/${rpdRunId}`, { method: "POST" });
+        await request<void>(`/api/teacher/rpd/cancel/${rpdRunId}`, { method: "POST" });
       } catch {
         setRpdCollecting(false);
         setRpdMsg("");
@@ -369,17 +351,21 @@ export function AdminDashboard() {
     }
     setRpdCollecting(true); setRpdMsg("Сбор аннотаций с Yandex Disk...");
     try {
-      const r = await apiFetch("/api/teacher/rpd/collect", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `dir_code=${encodeURIComponent(rpdDir)}${rpdYandexUrl.trim() ? `&public_url=${encodeURIComponent(rpdYandexUrl.trim())}` : ""}`,
-      });
-      if (r.status === 429) {
-        setCollectCooldown(30);
-        throw new Error("Слишком частые запросы – кнопка заблокирована на 30 секунд");
+      const form = new URLSearchParams({ dir_code: rpdDir });
+      if (rpdYandexUrl.trim()) form.set("public_url", rpdYandexUrl.trim());
+      let d: { run_id?: string };
+      try {
+        d = await request<{ run_id?: string }>("/api/teacher/rpd/collect", {
+          method: "POST",
+          body: form,
+        });
+      } catch (err) {
+        if (err instanceof ApiError && err.isRateLimited) {
+          setCollectCooldown(30);
+          throw new Error("Слишком частые запросы – кнопка заблокирована на 30 секунд");
+        }
+        throw err;
       }
-      const d = await r.json().catch(() => ({} as any));
-      if (!r.ok) throw new Error(d.detail || r.statusText);
       if (!d.run_id) throw new Error("Сервер не вернул ID задачи");
       try { sessionStorage.setItem("rpdRunId", d.run_id); } catch (err) { reportError("app/components/AdminDashboard.tsx:383", err); }
       setRpdRunId(d.run_id);
@@ -395,13 +381,8 @@ export function AdminDashboard() {
   const callAction = async (url: string, body: any, setMsg: (s: string) => void, setLoad: (b: boolean) => void) => {
     setLoad(true); setMsg(""); logAction(url);
     try {
-      const r = await apiFetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const d = await r.json();
-      setMsg(d.message || d.status || "Done");
+      const d = await request<any>(url, { method: "POST", body });
+      setMsg(d?.message || d?.status || "Done");
     } catch (e: any) {
       setMsg("Error: " + e.message);
     } finally {
@@ -413,9 +394,8 @@ export function AdminDashboard() {
     logAction("/api/admin/export/db");
     setExportLoading(true); setExportMsg("");
     try {
-      const r = await apiFetch("/api/admin/export/db");
-      const d = await r.json();
-      setExportMsg(d.message || "Done");
+      const d = await request<any>("/api/admin/export/db");
+      setExportMsg(d?.message || "Done");
     } catch (e: any) { setExportMsg("Error: " + e.message); }
     finally { setExportLoading(false); }
   };
@@ -423,12 +403,16 @@ export function AdminDashboard() {
   const createUser = async () => {
     setUserCreated("");
     try {
-      const r = await apiFetch("/api/admin/users/create", {
+      const d = await request<any>("/api/admin/users/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newUserEmail, password: newUserPass, role: newUserRole, name: newUserName, directions: newUserRole === "rop" ? newUserDirs : [] }),
+        body: {
+          email: newUserEmail,
+          password: newUserPass,
+          role: newUserRole,
+          name: newUserName,
+          directions: newUserRole === "rop" ? newUserDirs : [],
+        },
       });
-      const d = await r.json();
       setUserCreated(d.status === "ok" ? `User created: ${d.email}` : "Failed");
       if (d.status === "ok") { setNewUserEmail(""); setNewUserPass(""); setNewUserName(""); setNewUserDirs([]); }
     } catch (e: any) {
@@ -445,12 +429,10 @@ export function AdminDashboard() {
   const saveDirections = async () => {
     setDirMsg("");
     try {
-      const r = await apiFetch(`/api/admin/users/${editUser}/directions`, {
+      const d = await request<any>(`/api/admin/users/${editUser}/directions`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ directions: editUserDirs }),
+        body: { directions: editUserDirs },
       });
-      const d = await r.json();
       setDirMsg(d.status === "ok" ? "Сохранено" : "Ошибка");
       loadData();
     } catch (e: any) {
@@ -462,12 +444,10 @@ export function AdminDashboard() {
     setImpMsg("");
     try {
       const data = JSON.parse(importJson);
-      const r = await apiFetch("/api/admin/students/import", {
+      const d = await request<any>("/api/admin/students/import", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: data,
       });
-      const d = await r.json();
       setImpMsg(`Imported: ${d.imported || "?"} students`);
     } catch (e: any) {
       setImpMsg("Error: " + e.message);
@@ -477,9 +457,7 @@ export function AdminDashboard() {
   const loadUncategorized = async () => {
     setUncatLoading(true); setUncatMsg("");
     try {
-      const r = await apiFetch("/api/admin/skills/uncategorized");
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || r.statusText);
+      const d = await request<any>("/api/admin/skills/uncategorized");
       setUncategorized(d.items || []);
       const sel: Record<string, string> = {};
       (d.items || []).forEach((it: any) => { sel[it.skill] = it.category; });
@@ -498,13 +476,10 @@ export function AdminDashboard() {
       category: uncatSelections[it.skill] || it.category,
     }));
     try {
-      const r = await apiFetch("/api/admin/skills/categorize", {
+      const d = await request<any>("/api/admin/skills/categorize", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignments }),
+        body: { assignments },
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || r.statusText);
       setUncatMsg(`Распределено навыков: ${d.added}`);
       await loadUncategorized();
     } catch (e: any) {
