@@ -23,11 +23,13 @@ from src.utils import clip01
 logger = structlog.get_logger(__name__)
 
 # Порог cosine-близости «навык компетенции близок теме»
-SIM_THRESHOLD = 0.6  # prodval 2026-10-12: тот же косинус и серая зона, что у
-# teacher-порога 0.6 (P/R + prod-workload); трансфер валидации, отдельный свип
-# избыточен. Ниже: topic skill со скором <0.6 считается отсутствующим.
+# prodval 2026-10-12: тот же косинус и серая зона, что у teacher-порога 0.6
+# (P/R + prod-workload); трансфер валидации, отдельный свип избыточен. Ниже:
+# topic skill со скором <0.6 считается отсутствующим. Значение живёт в config,
+# чтобы все пороги сходства читались с одной шкалы.
+SIM_THRESHOLD = config.SIM_ACADEMIC_GAP
 # Порог близости рыночного навыка к навыкам компетенции (для suggested_skills)
-COMP_MARKET_THRESHOLD = 0.45
+COMP_MARKET_THRESHOLD = config.SIM_ACADEMIC_MARKET
 # Пороги покрытия компетенции → статус
 STATUS_THRESHOLDS = {"covered": 80, "partial": 40}
 # Сколько уникальных навыков компетенций держим в памяти за раз

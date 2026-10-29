@@ -161,7 +161,7 @@ class Settings(BaseSettings):
     SIM_SKILL_MATCH: float = 0.78      # RPD skill <-> market skill
     SIM_MARKET_MATCH_HIGH: float = 0.75
     SIM_MARKET_MATCH_MEDIUM: float = 0.65
-    SIM_ACADEMIC_GAP: float = 0.55
+    SIM_ACADEMIC_GAP: float = 0.6   # prodval 2026-10-12 (teacher threshold)
     SIM_ACADEMIC_MARKET: float = 0.45
 
     # ---------- BM25 ----------
