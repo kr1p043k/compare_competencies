@@ -10,6 +10,7 @@ import {
   Upload, Brain, BookOpen, Download, Clock, Activity,
 } from "lucide-react";
 import { apiFetch, logAction } from "../../lib/auth";
+import { reportError } from "./../../lib/errors";
 
 export function AdminDashboard() {
   const RPD_STAGE_LABELS: Record<string, string> = {
@@ -255,7 +256,7 @@ export function AdminDashboard() {
   // Возобновление поллинга после переключения вкладок (табы размонтируют компонент).
   useEffect(() => {
     let stored: string | null = null;
-    try { stored = sessionStorage.getItem("rpdRunId"); } catch {}
+    try { stored = sessionStorage.getItem("rpdRunId"); } catch (err) { reportError("app/components/AdminDashboard.tsx:258", err); }
     if (stored && !rpdRunId) {
       setRpdRunId(stored);
       setRpdCollecting(true);
@@ -273,7 +274,7 @@ export function AdminDashboard() {
     apiFetch("/api/teacher/rpd/sources")
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d) setRpdSources(d); })
-      .catch(() => {});
+      .catch((err) => reportError("app/components/AdminDashboard.tsx", err));
   }, []);
 
   useEffect(() => {
@@ -303,7 +304,7 @@ export function AdminDashboard() {
           if (s.status === "completed" || s.status === "failed" || s.status === "cancelled") {
             setRpdUploading(false);
             setRpdCollecting(false);
-            try { sessionStorage.removeItem("rpdRunId"); } catch {}
+            try { sessionStorage.removeItem("rpdRunId"); } catch (err) { reportError("app/components/AdminDashboard.tsx:306", err); }
             setRpdMsg(s.status === "completed" ? "Готово" : s.status === "cancelled" ? "Отменено пользователем" : `Ошибка: ${s.error || "unknown"}`);
           } else {
             setTimeout(poll, 3000);
@@ -338,7 +339,7 @@ export function AdminDashboard() {
       const d = await r.json().catch(() => ({} as any));
       if (!r.ok) throw new Error(d.detail || r.statusText);
       if (!d.run_id) throw new Error("Сервер не вернул ID задачи");
-      try { sessionStorage.setItem("rpdRunId", d.run_id); } catch {}
+      try { sessionStorage.setItem("rpdRunId", d.run_id); } catch (err) { reportError("app/components/AdminDashboard.tsx:341", err); }
       setRpdRunId(d.run_id);
       setRpdMsg("Обработка запущена...");
       setRpdFile(null);
@@ -380,7 +381,7 @@ export function AdminDashboard() {
       const d = await r.json().catch(() => ({} as any));
       if (!r.ok) throw new Error(d.detail || r.statusText);
       if (!d.run_id) throw new Error("Сервер не вернул ID задачи");
-      try { sessionStorage.setItem("rpdRunId", d.run_id); } catch {}
+      try { sessionStorage.setItem("rpdRunId", d.run_id); } catch (err) { reportError("app/components/AdminDashboard.tsx:383", err); }
       setRpdRunId(d.run_id);
       setRpdMsg("Сбор и обработка запущены...");
     } catch (e: any) {

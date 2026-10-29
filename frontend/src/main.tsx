@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./app/App.tsx";
 import { AuthProvider, setSession } from "./lib/auth.tsx";
 import "./styles/index.css";
+import { reportError } from "./lib/errors";
 
 // React загружен (версию смотреть в package.json)
 
@@ -33,7 +34,7 @@ async function performHubSso(): Promise<void> {
       try {
         const j = await res.json();
         if (j.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
-      } catch {}
+      } catch (err) { reportError("main.tsx:36", err); }
       localStorage.removeItem("auth");
       document.cookie = "token=; path=/; max-age=0; SameSite=Lax";
       throw new Error(detail);

@@ -162,7 +162,7 @@ function LogsTabBase() {
         </div>
         <div className="flex items-center gap-3">
           <Badge variant={live ? "default" : "secondary"} className="gap-1">
-            <Radio className={`size-3 ${live ? "text-green-500 animate-pulse" : ""}`} />
+            <Radio className={`size-3 ${live ? "text-green-500 " : ""}`} />
             {live ? "Live" : fallback ? "Fallback (10с)" : "..."}
           </Badge>
           <Button variant="outline" size="sm" onClick={loadLogs} disabled={loading}>

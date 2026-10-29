@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { History, RefreshCw, AlertCircle, MapPin, Briefcase, FileText } from "lucide-react";
+import { RefreshCw, AlertCircle, MapPin, Briefcase, FileText } from "lucide-react";
 import { Button } from "./ui/button";
 import { apiFetch } from "../../lib/auth";
 import { SelfProfileEditor } from "./SelfProfileEditor";

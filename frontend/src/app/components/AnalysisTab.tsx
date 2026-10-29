@@ -3,6 +3,8 @@ import { motion } from "motion/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Badge } from "./ui/badge";
+import { PageHeader } from "./PageHeader";
+import { useApi } from "../../lib/useApi";
 import {
   Target,
   MapPin,
@@ -29,12 +31,13 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
   const [profLoading, setProfLoading] = useState(false);
   const [profError, setProfError] = useState<string | null>(null);
 
+  const professionsQuery = useApi<{ professions: { name: string }[] }>("/api/trends/professions");
+
   useEffect(() => {
-    fetch("/api/trends/professions")
-      .then((r) => r.ok ? r.json() : { professions: [] })
-      .then((d) => setProfessions(d.professions || []))
-      .catch(() => {});
-  }, []);
+    if (professionsQuery.data?.professions) {
+      setProfessions(professionsQuery.data.professions);
+    }
+  }, [professionsQuery.data]);
 
   const loadProfessionTrends = async (prof: string) => {
     setSelectedProf(prof);
@@ -59,48 +62,33 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
   return (
     <div className="space-y-6">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center space-y-4"
-      >
-        <div className="inline-flex items-center justify-center gap-3 mb-2">
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-50 dark:from-blue-950/30 to-purple-600 rounded-2xl blur-xl opacity-50 animate-pulse" />
-            <div className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 p-3 rounded-2xl shadow-2xl">
-              <Target className="size-8 text-white" />
-            </div>
-          </div>
-          <h2 className="text-4xl font-black bg-gradient-to-r from-slate-900 via-blue-800 to-purple-900 dark:from-white dark:via-blue-200 dark:to-purple-200 bg-clip-text text-transparent">
-            Анализ компетенций
-          </h2>
-        </div>
-        <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-          Полный анализ рынка труда и персональные рекомендации по развитию навыков
-        </p>
-        {(pipelineQuery || pipelineRegions) && (
-          <div className="flex flex-wrap justify-center gap-2 text-sm text-slate-500">
-            {pipelineQuery && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
-                <Briefcase className="size-3.5" />
-                Запрос: {pipelineQuery}
-              </span>
-            )}
-            {pipelineRegions && pipelineRegions !== "0" && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
-                <MapPin className="size-3.5" />
-                Города: {pipelineRegions.split(",").length}
-              </span>
-            )}
-            {pipelineRegions === "0" && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
-                <MapPin className="size-3.5" />
-                Весь рынок
-              </span>
-            )}
-          </div>
-        )}
-      </motion.div>
+      <PageHeader
+        icon={Target}
+        title="Анализ компетенций"
+        description="Сравнение навыков учебной программы с требованиями рынка труда."
+      />
+      {(pipelineQuery || pipelineRegions) && (
+      <div className="flex flex-wrap justify-center gap-2 text-sm text-slate-500">
+      {pipelineQuery && (
+      <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
+      <Briefcase className="size-3.5" />
+      Запрос: {pipelineQuery}
+      </span>
+      )}
+      {pipelineRegions && pipelineRegions !== "0" && (
+      <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
+      <MapPin className="size-3.5" />
+      Города: {pipelineRegions.split(",").length}
+      </span>
+      )}
+      {pipelineRegions === "0" && (
+      <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
+      <MapPin className="size-3.5" />
+      Весь рынок
+      </span>
+      )}
+      </div>
+      )}
 
       {/* Profession Trends */}
       <motion.div
@@ -108,7 +96,7 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
       >
-        <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+        <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-600 rounded-lg">
@@ -163,7 +151,7 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
       >
-        <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
+        <Card className="border-2 border-blue-200 dark:border-blue-800 bg-slate-50 dark:bg-slate-900">
           <CardContent className="pt-6 pb-6 text-sm text-slate-700 dark:text-slate-300">
             Подгрузка результатов, скачивание Excel и отчёта – во вкладке
             «Данные». Как считаются метрики и насколько им можно доверять – во вкладке

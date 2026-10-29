@@ -1,5 +1,4 @@
 ﻿import { useEffect, useState } from "react";
-import { motion } from "motion/react";
 import {
   Card,
   CardContent,
@@ -25,6 +24,7 @@ import {
 import { api } from "../api";
 import { AnalyticsCharts } from "./AnalyticsCharts";
 import { ShowMore } from "./ui/show-more";
+import { PageHeader } from "./PageHeader";
 
 const fmt = new Intl.NumberFormat("ru-RU");
 
@@ -43,10 +43,6 @@ type TopSkill = { skill: string; weight: number; frequency?: number };
 
 type TaxonomyCoverage = {
   coverage: Record<string, { label: string; icon: string; total: number; covered: number; percent: number }>;
-};
-
-type ProfessionsResponse = {
-  professions: { name: string; snapshot: string; date: string }[];
 };
 
 type ProfessionTrends = {
@@ -325,20 +321,11 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-4">
-        <div className="inline-flex items-center justify-center gap-3 mb-2">
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-50 dark:from-blue-950/30 to-purple-600 rounded-2xl blur-xl opacity-50 animate-pulse" />
-            <div className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 p-3 rounded-2xl shadow-2xl">
-              <Newspaper className="size-8 text-white" />
-            </div>
-          </div>
-          <div className="text-left">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-slate-100">Аналитика рынка</h2>
-            <p className="text-gray-600 dark:text-slate-400">Статистика рынка вакансий и рекомендации по развитию навыков</p>
-          </div>
-        </div>
-      </motion.div>
+      <PageHeader
+        icon={Newspaper}
+        title="Статьи рынка"
+        description="Обзоры вакансий и компетенций по разделам рынка."
+      />
 
       {/* KPI cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -350,7 +337,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
             <div>
               <p className="text-sm text-gray-500 dark:text-slate-400">Всего вакансий на рынке</p>
               {statsLoading ? (
-                <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 animate-pulse rounded mt-1" />
+                <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 rounded mt-1" />
               ) : (
                 <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
                   {stats ? fmt.format(stats.total) : "–"}
@@ -367,7 +354,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
             <div>
               <p className="text-sm text-gray-500 dark:text-slate-400">Средняя зарплата</p>
               {statsLoading ? (
-                <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 animate-pulse rounded mt-1" />
+                <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 rounded mt-1" />
               ) : (
                 <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
                   {stats ? formatSalary(stats.salary.average) : "–"}
@@ -384,7 +371,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
             <div>
               <p className="text-sm text-gray-500 dark:text-slate-400">Вакансий с указанной зарплатой</p>
               {statsLoading ? (
-                <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 animate-pulse rounded mt-1" />
+                <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 rounded mt-1" />
               ) : (
                 <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
                   {stats ? fmt.format(stats.salary.count) : "–"}
@@ -401,7 +388,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
             <div>
               <p className="text-sm text-gray-500 dark:text-slate-400">Вакансии с навыками</p>
               {analyticsLoading ? (
-                <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 animate-pulse rounded mt-1" />
+                <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 rounded mt-1" />
               ) : (
                 <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
                   {analytics

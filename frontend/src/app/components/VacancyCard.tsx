@@ -188,12 +188,12 @@ export function VacancyCard({ vacancy, onOpen }: VacancyCardProps) {
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
       className="group h-full"
     >
-      <Card className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl overflow-hidden relative h-full">
+      <Card className="border-0 shadow-lg hover:shadow-sm transition-all duration-300 bg-white/80 dark:bg-slate-900/80 overflow-hidden relative h-full">
         {/* Accent bar */}
-        <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${expLevel.color}`} />
+        <div className={`absolute top-0 left-0 right-0 h-1 ${expLevel.color}`} />
 
         {/* Hover glow effect */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-blue-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-500 pointer-events-none" />
+        <div className="absolute inset-0 hidden" />
 
         <CardHeader className="pb-4 relative">
           <div className="flex items-start justify-between gap-4">
@@ -207,7 +207,7 @@ export function VacancyCard({ vacancy, onOpen }: VacancyCardProps) {
               <div className="flex items-center gap-3 flex-wrap">
                 <Badge
                   variant={expLevel.badge as any}
-                  className={`bg-gradient-to-r ${expLevel.color} text-slate-800 dark:text-white border-0 shadow-md`}
+                  className={`${expLevel.color} text-slate-800 dark:text-white border-0 shadow-md`}
                 >
                   <Briefcase className="size-3 mr-1" />
                   {expLevel.label}
@@ -248,7 +248,7 @@ export function VacancyCard({ vacancy, onOpen }: VacancyCardProps) {
               </motion.div>
             ) : (
               <motion.div
-                className="size-16 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg flex-shrink-0"
+                className="size-16 rounded-xl bg-violet-600 flex items-center justify-center shadow-lg flex-shrink-0"
                 whileHover={{ scale: 1.05, rotate: -2 }}
               >
                 <Building2 className="size-8 text-white" />
@@ -314,7 +314,7 @@ export function VacancyCard({ vacancy, onOpen }: VacancyCardProps) {
                   >
                     <Badge
                       variant="outline"
-                      className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 border-slate-300 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all"
+                      className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 transition-colors"
                     >
                       {skill}
                     </Badge>
@@ -353,7 +353,7 @@ export function VacancyCard({ vacancy, onOpen }: VacancyCardProps) {
             >
               <Button
                 asChild
-                className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all"
+                className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 transition-colors"
               >
                 <a href={vacancy.alternate_url} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="size-4" />

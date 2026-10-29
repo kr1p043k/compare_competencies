@@ -6,6 +6,7 @@ import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { BarChart3, Activity, TrendingUp, AlertCircle, RefreshCw, Server, Cpu, Bell, Newspaper, Trash2, Plus, CheckCheck, ExternalLink, Mail } from "lucide-react";
 import { apiFetch } from "../../lib/auth";
+import { reportError } from "./../../lib/errors";
 
 interface MetricSample {
   name: string;
@@ -85,7 +86,7 @@ function MonitoringTabBase() {
     try {
       const r = await apiFetch("/api/admin/monitoring/summary");
       if (r.ok) setHealth(await r.json());
-    } catch {}
+    } catch (err) { reportError("app/components/MonitoringTab.tsx:88", err); }
   }, []);
 
   const loadSubscriptions = useCallback(async () => {
@@ -134,7 +135,7 @@ function MonitoringTabBase() {
         const data = await r.json();
         setUnreadCount(data.unread_count);
       }
-    } catch {}
+    } catch (err) { reportError("app/components/MonitoringTab.tsx:137", err); }
   }, []);
 
   useEffect(() => {
@@ -221,7 +222,7 @@ function MonitoringTabBase() {
         setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
         setUnreadCount((prev) => Math.max(0, prev - 1));
       }
-    } catch {}
+    } catch (err) { reportError("app/components/MonitoringTab.tsx:224", err); }
   };
 
   const pipelineErrors = findMetric("pipeline_errors");

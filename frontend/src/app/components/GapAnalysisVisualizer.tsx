@@ -18,8 +18,7 @@ import {
 import {
   BarChart3,
   Activity,
-  Radar,
-  Flame,
+    Flame,
   Network,
   Download,
   Maximize2,
@@ -45,7 +44,7 @@ interface ImageData {
   title: string;
   description: string;
   icon: any;
-  gradient: string;
+  solid: string;
 }
 
 const IMAGE_CONFIGS: ImageData[] = [
@@ -54,14 +53,14 @@ const IMAGE_CONFIGS: ImageData[] = [
     title: "Важность признаков ML",
     description: "Приоритизация компетенций по модели",
     icon: Activity,
-    gradient: "from-purple-50 dark:from-purple-950/30 to-pink-50 dark:to-pink-950/30",
+    solid: "bg-violet-600",
   },
   {
     type: "cluster_insights",
     title: "Кластерные инсайты",
     description: "Группировка схожих навыков",
     icon: Network,
-    gradient: "from-emerald-50 dark:from-emerald-950/30 to-teal-50 dark:to-teal-950/30",
+    solid: "bg-emerald-600",
   },
 ];
 
@@ -114,12 +113,12 @@ export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisV
   return (
     <div className="space-y-6">
       {/* Main visualization card */}
-      <Card className="border-0 shadow-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl overflow-hidden">
-        <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-br from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
+      <Card className="border-0 shadow-sm bg-white/80 dark:bg-slate-900/80 overflow-hidden">
+        <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div
-                className={`p-2.5 bg-gradient-to-br ${selectedConfig?.gradient} rounded-xl shadow-lg`}
+                className={`p-2.5 ${selectedConfig?.solid} rounded-xl shadow-lg`}
               >
                 {selectedConfig && <selectedConfig.icon className="size-5 text-white" />}
               </div>
@@ -166,7 +165,7 @@ export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisV
                   variant={selectedImage === config.type ? "default" : "outline"}
                   className={`w-full h-auto flex-col items-start p-4 ${
                     selectedImage === config.type
-                      ? `bg-gradient-to-br ${config.gradient} text-white border-0 shadow-lg`
+                      ? `${config.solid} text-white border-0 shadow-lg`
                       : "border-2 hover:border-slate-400"
                   }`}
                 >
@@ -279,21 +278,21 @@ export function GapAnalysisVisualizer({ profile, onProfileChange }: GapAnalysisV
           description="Сопоставление всех профилей"
           imageUrl={coverageUrl}
           icon={BarChart3}
-          gradient="from-blue-50 dark:from-blue-950/30 to-cyan-50 dark:to-cyan-950/30"
+          solid="bg-blue-600"
         />
         <GlobalVisualizationCard
           title="Тепловая карта навыков"
           description="Распределение компетенций"
           imageUrl={heatmapUrl}
           icon={Flame}
-          gradient="from-orange-50 dark:from-orange-950/30 to-red-50 dark:to-red-950/30"
+          solid="bg-orange-600"
         />
         <GlobalVisualizationCard
           title="Корреляция навыков"
           description="Взаимосвязь компетенций"
           imageUrl={correlationUrl}
           icon={Network}
-          gradient="from-purple-50 dark:from-purple-950/30 to-pink-50 dark:to-pink-950/30"
+          solid="bg-violet-600"
         />
       </div>
     </div>
@@ -305,7 +304,7 @@ interface GlobalVisualizationCardProps {
   description: string;
   imageUrl: string;
   icon: any;
-  gradient: string;
+  solid: string;
 }
 
 function GlobalVisualizationCard({
@@ -313,7 +312,7 @@ function GlobalVisualizationCard({
   description,
   imageUrl,
   icon: Icon,
-  gradient,
+  solid,
 }: GlobalVisualizationCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [error, setError] = useState(false);
@@ -323,10 +322,10 @@ function GlobalVisualizationCard({
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300 }}
     >
-      <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl overflow-hidden h-full">
-        <CardHeader className="pb-4 bg-gradient-to-br from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
+      <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden h-full">
+        <CardHeader className="pb-4 bg-slate-50 dark:bg-slate-900">
           <div className="flex items-center gap-3">
-            <div className={`p-2 bg-gradient-to-br ${gradient} rounded-lg shadow-md`}>
+            <div className={`p-2 ${solid} rounded-lg shadow-md`}>
               <Icon className="size-4 text-white" />
             </div>
             <div>

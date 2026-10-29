@@ -4,7 +4,7 @@ import { Heart, Sparkles } from "lucide-react";
 export function Footer() {
   return (
     <motion.footer
-      className="relative mt-20 py-12 border-t border-slate-200/50 dark:border-slate-700/50 bg-white/30 dark:bg-slate-900/30 backdrop-blur-xl"
+      className="relative mt-20 py-12 border-t border-slate-200/50 dark:border-slate-700/50 bg-white/30 dark:bg-slate-900/30"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: 0.5 }}
@@ -14,7 +14,7 @@ export function Footer() {
           {/* About */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <div className="p-2 bg-gradient-to-br from-blue-500 dark:from-blue-950/30 to-purple-600 rounded-lg">
+              <div className="p-2 bg-blue-600 rounded-lg">
                 <Sparkles className="size-5 text-white" />
               </div>
               <h3 className="text-lg font-bold text-slate-800 dark:text-white">

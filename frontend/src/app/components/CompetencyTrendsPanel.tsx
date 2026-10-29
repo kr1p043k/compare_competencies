@@ -77,7 +77,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
 
   if (loading) {
     return (
-      <div style={{ color: "#9ca3af", fontSize: 13, padding: 12 }}>
+      <div className="text-gray-400 text-[13px] p-3">
         Загрузка трендов...
       </div>
     );
@@ -85,7 +85,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
 
   if (error) {
     return (
-      <div style={{ color: "#dc2626", fontSize: 13, padding: 12 }}>
+      <div className="text-red-600 text-[13px] p-3">
         {error}
       </div>
     );
@@ -93,7 +93,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
 
   if (noData) {
     return (
-      <div style={{ color: "#9ca3af", fontSize: 13, padding: 12 }}>
+      <div className="text-gray-400 text-[13px] p-3">
         Нет данных по трендам. Запустите teacher analysis.
       </div>
     );
@@ -125,31 +125,31 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
         }}
       >
           <div style={card}>
-          <div style={{ fontSize: 12, color: dk ? "#94a3b8" : "#6b7280" }}>Компетенций</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#7c3aed" }}>
+          <div className="text-xs text-gray-500 dark:text-slate-400">Компетенций</div>
+          <div className="text-[22px] font-bold text-violet-600">
             {displayed.length}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 12, color: dk ? "#94a3b8" : "#6b7280" }}>Растут</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#059669" }}>
+          <div className="text-xs text-gray-500 dark:text-slate-400">Растут</div>
+          <div className="text-[22px] font-bold text-emerald-600">
             {rising}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 12, color: dk ? "#94a3b8" : "#6b7280" }}>Стабильно</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#d97706" }}>
+          <div className="text-xs text-gray-500 dark:text-slate-400">Стабильно</div>
+          <div className="text-[22px] font-bold text-amber-600">
             {stable}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 12, color: dk ? "#94a3b8" : "#6b7280" }}>Падают</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#dc2626" }}>
+          <div className="text-xs text-gray-500 dark:text-slate-400">Падают</div>
+          <div className="text-[22px] font-bold text-red-600">
             {falling}
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: 12, color: dk ? "#94a3b8" : "#6b7280" }}>Средний тренд</div>
+          <div className="text-xs text-gray-500 dark:text-slate-400">Средний тренд</div>
           <div
             style={{
               fontSize: 20,
@@ -243,7 +243,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                 >
                   {comp.code}
                 </span>
-                <span style={{ fontSize: 12, color: dk ? "#94a3b8" : "#6b7280" }}>
+                <span className="text-xs text-gray-500 dark:text-slate-400">
                   {comp.skill_count} навык{comp.skill_count !== 1 ? "а" : ""}
                   {comp.active_skills_count !== undefined &&
                     comp.active_skills_count !== comp.skill_count && (
@@ -295,7 +295,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                 >
                   {comp.direction}
                 </span>
-                <span style={{ fontSize: 12, color: "#9ca3af" }}>
+                <span className="text-xs text-gray-400">
                   {isOpen ? "v" : ">"}
                 </span>
               </div>
@@ -303,9 +303,9 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
 
             {/* Expanded per-skill trends */}
             {isOpen && (
-              <div style={{ padding: "8px 16px 12px" }}>
+              <div className="px-4 pt-2 pb-3">
                 {comp.skills.length === 0 && (
-                  <div style={{ color: "#9ca3af", fontSize: 12 }}>
+                  <div className="text-gray-400 text-xs">
                     Навыки не извлечены
                   </div>
                 )}
@@ -321,7 +321,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                         borderBottom: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
                       }}
                     >
-                      <span style={{ color: dk ? "#cbd5e1" : "#374151", fontWeight: 500 }}>{sk.name}</span>
+                      <span className="text-gray-700 dark:text-slate-300 font-medium">{sk.name}</span>
                       <span
                         style={{
                           color: trendColor(sk.change_pct),

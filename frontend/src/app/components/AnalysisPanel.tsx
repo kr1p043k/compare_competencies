@@ -1,8 +1,9 @@
-﻿import { useState, useEffect } from "react";
-import { apiFetch } from "../../lib/auth";
+﻿import { useState } from "react";
+import { request } from "../../lib/api";
+import { useApi, errorText } from "../../lib/useApi";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { AlertCircle, TrendingUp, TrendingDown, Lightbulb, Target, ChevronDown, ChevronRight, Undo2 } from "lucide-react";
+import { AlertCircle, TrendingDown, Target, ChevronDown, ChevronRight, Undo2 } from "lucide-react";
 import { CompetencyTree } from "./CompetencyTree";
 import { ShowMore } from "./ui/show-more";
 
@@ -48,37 +49,31 @@ interface DisciplineAnalysis {
 }
 
 export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { disciplineName: string; dirCode?: string }) {
-  const [data, setData] = useState<DisciplineAnalysis | null>(null);
-  const [loading, setLoading] = useState(true);
   const [showHidden, setShowHidden] = useState(false);
   const [expandedGaps, setExpandedGaps] = useState(false);
 
+  const query = useApi<DisciplineAnalysis>(
+    `/api/teacher/analysis/${encodeURIComponent(disciplineName)}?dir_code=${encodeURIComponent(dirCode)}`,
+    [disciplineName, dirCode],
+  );
+  const data = query.data;
+  const loading = query.loading;
+
   const reload = () => {
-    setLoading(true);
     setExpandedGaps(false);
-    apiFetch(`/api/teacher/analysis/${encodeURIComponent(disciplineName)}?dir_code=${encodeURIComponent(dirCode)}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setData(d))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
+    query.refetch();
   };
 
-  useEffect(() => {
-    reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [disciplineName, dirCode]);
-
   const markFoundational = async (skill: string) => {
-    await apiFetch("/api/teacher/krm/foundational", {
+    await request("/api/teacher/krm/foundational", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ skill }),
+      body: { skill },
     });
     reload();
   };
 
   const unmarkFoundational = async (skill: string) => {
-    await apiFetch(`/api/teacher/krm/foundational/${encodeURIComponent(skill)}`, { method: "DELETE" });
+    await request(`/api/teacher/krm/foundational/${encodeURIComponent(skill)}`, { method: "DELETE" });
     reload();
   };
 
@@ -91,6 +86,9 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
     <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
       <CardContent className="p-6 text-center text-gray-400 dark:text-slate-500 text-sm">
         <AlertCircle className="size-8 mx-auto mb-2 opacity-40" />
+        {query.error && (
+          <div className="mb-2 text-red-600 dark:text-red-400">{errorText(query.error)}</div>
+        )}
         Анализ не найден. Запустите teacher analysis через пайплайн.
         <div>
           <button

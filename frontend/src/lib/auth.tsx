@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
+import { reportError } from "./errors";
 
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
@@ -89,7 +90,7 @@ export async function apiFetch(url: string, init?: RequestInit): Promise<Respons
 export function handleUnauthorized() {
   try {
     localStorage.removeItem("auth");
-  } catch {}
+  } catch (err) { reportError("lib/auth.tsx:92", err); }
   document.cookie = "token=; path=/; max-age=0; SameSite=Lax";
   if (window.location.pathname !== "/") {
     window.location.assign("/");
@@ -105,7 +106,7 @@ function getToken(): string | null {
       const parsed = JSON.parse(stored);
       return parsed.token || null;
     }
-  } catch {}
+  } catch (err) { reportError("lib/auth.tsx:108", err); }
   return null;
 }
 
@@ -118,7 +119,7 @@ export function setSession(session: { token: string; role: string; name: string;
       name: session.name,
       username: session.username ?? null,
     }));
-  } catch {}
+  } catch (err) { reportError("lib/auth.tsx:121", err); }
 }
 
 /** Decode a base64url string (RFC 4648 §5) using browser atob(). */
@@ -134,5 +135,5 @@ export function logAction(action: string, detail?: string) {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ action, detail: detail || "" }),
-  }).catch(() => {});
+  }).catch((err) => reportError("lib/auth.tsx", err));
 }

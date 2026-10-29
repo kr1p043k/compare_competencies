@@ -51,7 +51,7 @@ export function ProfileView({ data }: ProfileViewProps) {
         ))}
       </div>
 
-      <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80">
+      <Card className="border-0 shadow-sm bg-white/80 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle className="flex items-center gap-3 text-base">
             <div className="p-2 bg-emerald-700 rounded-lg">

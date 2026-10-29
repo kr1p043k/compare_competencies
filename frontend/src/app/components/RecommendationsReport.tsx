@@ -133,7 +133,7 @@ function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
 
   return (
     <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900">
+      <div className="flex items-center justify-between px-5 py-4 bg-slate-50 dark:bg-slate-900 dark:from-slate-800 dark:to-slate-900">
         <div className="flex items-center gap-3">
           <Layers className="size-5 text-slate-600 dark:text-slate-400" />
           <h4 className="font-bold text-slate-900 dark:text-slate-100">{entry.domain || name}</h4>
@@ -273,7 +273,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
     >
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-2 border-orange-200 dark:border-orange-800 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20">
+        <Card className="border-2 border-orange-200 dark:border-orange-800 bg-slate-50 dark:bg-slate-900">
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2">
               <CheckCircle2 className="size-4" />
@@ -290,7 +290,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           </CardContent>
         </Card>
 
-        <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/20 dark:to-sky-950/20">
+        <Card className="border-2 border-blue-200 dark:border-blue-800 bg-slate-50 dark:bg-slate-900">
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2">
               <Target className="size-4" />
@@ -307,7 +307,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           </CardContent>
         </Card>
 
-        <Card className="border-2 border-green-200 dark:border-green-800 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20">
+        <Card className="border-2 border-green-200 dark:border-green-800 bg-slate-50 dark:bg-slate-900">
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2">
               <TrendingUp className="size-4" />
@@ -324,7 +324,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           </CardContent>
         </Card>
 
-        <Card className="border-2 border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-fuchsia-50 dark:from-purple-950/20 dark:to-fuchsia-950/20">
+        <Card className="border-2 border-purple-200 dark:border-purple-800 bg-slate-50 dark:bg-slate-900">
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2">
               <Award className="size-4" />
@@ -344,10 +344,10 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
       </div>
 
       {/* Closest Roles */}
-      <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
-        <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
+      <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
           <CardTitle className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-500 dark:from-blue-950/30 to-purple-600 rounded-lg">
+            <div className="p-2 bg-blue-600 rounded-lg">
               <Target className="size-5 text-white" />
             </div>
             Ближайшие роли
@@ -392,10 +392,10 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
       </Card>
 
       {/* Recommendations */}
-      <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
-        <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
+      <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
           <CardTitle className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-green-500 dark:from-green-950/30 to-emerald-600 rounded-lg">
+            <div className="p-2 bg-emerald-600 rounded-lg">
               <BookOpen className="size-5 text-white" />
             </div>
             Рекомендации по навыкам
@@ -421,7 +421,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
               >
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0">
-                    <div className="size-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                    <div className="size-10 bg-slate-700 dark:bg-slate-600 rounded-full flex items-center justify-center text-white font-bold">
                       {rec.rank}
                     </div>
                   </div>
@@ -514,10 +514,10 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
 
       {/* Domain Coverage */}
       {data.domain_coverage && Object.keys(data.domain_coverage).length > 0 && (
-        <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
-          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
+        <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
             <CardTitle className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-indigo-500 dark:from-indigo-950/30 to-blue-600 rounded-lg">
+              <div className="p-2 bg-indigo-600 rounded-lg">
                 <Layers className="size-5 text-white" />
               </div>
               Покрытие доменов
@@ -542,10 +542,10 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
 
       {/* Gaps */}
       {data.gaps && Object.keys(data.gaps).length > 0 && (
-        <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
-          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
+        <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
             <CardTitle className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-rose-500 to-pink-600 rounded-lg">
+              <div className="p-2 bg-rose-600 rounded-lg">
                 <AlertCircle className="size-5 text-white" />
               </div>
               Пробелы

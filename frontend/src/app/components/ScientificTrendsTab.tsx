@@ -8,6 +8,8 @@ import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Progress } from "./ui/progress";
 import { useAuth } from "../../lib/auth";
 import { TrendingUp, GitCompare, Search, Sparkles, Target, AlertCircle, CheckCircle2 } from "lucide-react";
+import { reportError } from "./../../lib/errors";
+import { request } from "../../lib/api";
 
 interface TrendCompetency {
   code: string;
@@ -109,7 +111,7 @@ function bearerHeaders(): Record<string, string> {
     try {
       const token = (JSON.parse(stored) as { token?: string }).token;
       if (token) return { Authorization: `Bearer ${token}` };
-    } catch {}
+    } catch (err) { reportError("app/components/ScientificTrendsTab.tsx:112", err); }
   }
   return {};
 }
@@ -119,7 +121,7 @@ interface AcademicError extends Error {
 }
 
 async function academicCall(path: string, body: unknown): Promise<unknown> {
-  const res = await fetch(path, {
+  const res = await request<Response>(path, { raw: true,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -132,7 +134,7 @@ async function academicCall(path: string, body: unknown): Promise<unknown> {
     try {
       const j = await res.json();
       if (j.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
-    } catch {}
+    } catch (err) { reportError("app/components/ScientificTrendsTab.tsx:135", err); }
     const err = new Error(detail) as AcademicError;
     err.status = res.status;
     throw err;
@@ -202,9 +204,9 @@ export function ScientificTrendsTab() {
     if (!topic.trim()) { setError("Введите тему для анализа разрыва"); return; }
     setError("");
     try {
-      const res = await fetch("/api/academic/krm-competencies", { headers: bearerHeaders() });
-      if (!res.ok) throw new Error("Не удалось получить компетенции КРМ");
-      const krm = await res.json() as { codes: string[]; count: number };
+      const krm = await request<{ codes: string[]; count: number }>(
+        "/api/academic/krm-competencies",
+      );
       setKrmCount(krm.count);
       setGapTopic(topic.trim());
       setLoading("gap");

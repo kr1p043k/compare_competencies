@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, Suspense, lazy, memo, useCallback } from "react";
 import { Label } from "./components/ui/label";
-import { Input } from "./components/ui/input";
 import {
   Card,
   CardContent,
@@ -63,8 +62,7 @@ import {
   Award,
   Briefcase,
   TrendingUp,
-  Info,
-  AlertCircle,
+    AlertCircle,
   LogOut,
   Moon,
   Sun,
@@ -80,6 +78,7 @@ import {
   LineChart,
   BookOpen,
 } from "lucide-react";
+import { reportError } from "./../lib/errors";
 
 const API = "/api";
 
@@ -183,7 +182,7 @@ interface PipelineStep {
 
 function MaintenanceScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-indigo-900 text-white p-6">
+    <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white p-6">
       <div className="text-center max-w-md">
         <div className="text-5xl mb-4">🔧</div>
         <h1 className="text-2xl font-bold mb-3">Извините, на сайте ведутся технические работы</h1>
@@ -199,6 +198,13 @@ function MaintenanceScreen() {
 export default function App() {
   useEffect(() => { initApiLogger(); loadProfiles(); }, []);
   const [backendDown, setBackendDown] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
   const [profile, setProfile] = useState("base");
   const [profilesList, setProfilesList] = useState<string[]>(["base", "dc", "top_dc"]);
 
@@ -229,7 +235,7 @@ export default function App() {
       return {};
     }
   });
-  const [analysisData, setAnalysisData] = useState<any>(null);
+  const [setAnalysisData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("vacancies");
   const [professionsList, setProfessionsList] = useState<string[]>([]);
   const [targetProfession, setTargetProfession] = useState("");
@@ -273,13 +279,13 @@ export default function App() {
     try {
       if (v) localStorage.setItem("rolePreview", v);
       else localStorage.removeItem("rolePreview");
-    } catch {}
+    } catch (err) { reportError("app/App.tsx:274", err); }
     setActiveTab("vacancies");
   };
   useEffect(() => {
     if (role !== "admin") {
       setRolePreview(null);
-      try { localStorage.removeItem("rolePreview"); } catch {}
+      try { localStorage.removeItem("rolePreview"); } catch (err) { reportError("app/App.tsx:280", err); }
     }
   }, [role]);
   useEffect(() => {
@@ -306,7 +312,7 @@ export default function App() {
     let saved: Record<string, string> | null = null;
     try {
       saved = JSON.parse(localStorage.getItem("resultLoadedAt") || "{}");
-    } catch {}
+    } catch (err) { reportError("app/App.tsx:307", err); }
     if (saved && saved[profile]) {
       autoLoadedRef.current[profile] = true;
       loadRecommendations();
@@ -394,7 +400,7 @@ export default function App() {
   const cancelPipeline = useCallback(() => {
     const taskId = pipelineTaskRef.current;
     if (!taskId) return;
-    fetch(`/api/pipeline/cancel/${taskId}`, { method: "POST" }).catch(() => {});
+    fetch(`/api/pipeline/cancel/${taskId}`, { method: "POST" }).catch((err) => reportError("app/App.tsx", err));
     if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     setPipelineStep(prev => prev ? { ...prev, status: "error", message: "Отменено" } : null);
     setPipelineLoading(false);
@@ -423,7 +429,7 @@ export default function App() {
         if (pipelineTaskRef.current !== taskId) return; // cancelled or replaced while fetching
         const step = Math.min(s.step || 1, 4);
         let subProgress = s.sub_progress ?? undefined;
-        setPipelineStep(prev => {
+        setPipelineStep(() => {
           const pct = s.status === "completed" ? 100 : Math.min(step * 25, 95);
           return {
             step,
@@ -459,10 +465,10 @@ export default function App() {
                     result_ref: JSON.stringify({ profile: prof }),
                     profile: prof,
                   }),
-                }).then(() => window.dispatchEvent(new CustomEvent("student-history-update"))).catch(() => {});
+                }).then(() => window.dispatchEvent(new CustomEvent("student-history-update"))).catch((err) => reportError("app/App.tsx", err));
               });
             }
-          }).catch(() => {});
+          }).catch((err) => reportError("app/App.tsx", err));
           setActiveTab("data");
           return;
         }
@@ -487,7 +493,7 @@ export default function App() {
                 setPipelineStep({ step: 4, total: 4, status: "completed", message: "Сервер перезапускался, но результаты готовы.", progress: 100 });
                 fetch(`/api/results/recommendations/${prof}`).then(r => r.ok && r.json()).then(d => {
                   if (d) { setAnalysisData(d); setLastResult(d); }
-                }).catch(() => {});
+                }).catch((err) => reportError("app/App.tsx", err));
                 setActiveTab("data");
               } else {
                 setPipelineStep(null);
@@ -524,7 +530,7 @@ export default function App() {
       if (detail?.profile) {
         handleProfileChange(detail.profile);
         setActiveTab("data");
-        fetch(`/api/results/recommendations/${detail.profile}`).then(r => r.ok && r.json()).then(d => { if (d) { setAnalysisData(d); setLastResult(d); } }).catch(() => {});
+        fetch(`/api/results/recommendations/${detail.profile}`).then(r => r.ok && r.json()).then(d => { if (d) { setAnalysisData(d); setLastResult(d); } }).catch((err) => reportError("app/App.tsx", err));
       }
     };
     window.addEventListener("navigate-analysis", handler);
@@ -625,7 +631,7 @@ export default function App() {
       loadRecommendations();
     } catch (e: any) {
       setGapMsg("");
-      alert(`Ошибка gap-анализа: ${e?.message || e}`);
+      setToast(`Ошибка gap-анализа: ${e?.message || e}`);
     } finally {
       setGapRunning(false);
     }
@@ -647,7 +653,7 @@ export default function App() {
           const next = { ...prev, [profile]: stamp };
           try {
             localStorage.setItem("resultLoadedAt", JSON.stringify(next));
-          } catch {}
+          } catch (err) { reportError("app/App.tsx:648", err); }
           return next;
         });
       }
@@ -669,7 +675,7 @@ export default function App() {
         document.body.removeChild(a);
       } else {
         const d = await response.json().catch(() => ({}));
-        alert(d.detail || "Ошибка формирования PDF");
+        setToast(d.detail || "Ошибка формирования PDF");
       }
     } catch (error) {
       console.error("Failed to download PDF report:", error);
@@ -699,7 +705,7 @@ export default function App() {
           setTargetProfession((prev) => prev || names[0]);
         }
       })
-      .catch(() => {});
+      .catch((err) => reportError("app/App.tsx", err));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isAuth]);
 
@@ -726,6 +732,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 dark:bg-slate-950 dark:text-slate-100">
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 max-w-sm rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950 px-4 py-3 text-sm text-red-800 dark:text-red-200 shadow-sm flex items-start gap-2">
+          <span className="flex-1">{toast}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="text-red-500 hover:text-red-700 dark:hover:text-red-300"
+            aria-label="Закрыть"
+          >
+            ×
+          </button>
+        </div>
+      )}
       {/* Header */}
       <header className="border-b border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-950">
         <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -784,7 +803,7 @@ export default function App() {
               >
                 {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => { fetch("/api/auth/logout", { method: "POST", headers: authHeaders() }).catch(() => {}); try { localStorage.removeItem("rolePreview"); } catch {} setRolePreview(null); logout(); }} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
+              <Button variant="ghost" size="sm" onClick={() => { fetch("/api/auth/logout", { method: "POST", headers: authHeaders() }).catch((err) => reportError("app/App.tsx", err)); try { localStorage.removeItem("rolePreview"); } catch (err) { reportError("app/App.tsx:785", err); } setRolePreview(null); logout(); }} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
                 <LogOut className="size-4" />
               </Button>
             </div>
@@ -1087,7 +1106,7 @@ export default function App() {
                     return (
                       <>
                         {(d as any).focus_mode && (d as any).target_profession && (
-                          <Card className="border-2 border-violet-200 dark:border-violet-800 bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 mb-4">
+                          <Card className="border-2 border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/20 mb-4">
                             <CardContent className="pt-5">
                               <div className="flex items-center gap-3 mb-3">
                                 <div className="p-2 bg-violet-600 rounded-lg">
@@ -1197,7 +1216,7 @@ export default function App() {
           {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="taxonomy">
               <Suspense fallback={<TabSpinner />}>
-                <TaxonomyBrowser showSuggest={effectiveRole !== "student"} />
+                <TaxonomyBrowser showSuggest />
               </Suspense>
             </TabsContent>
           )}

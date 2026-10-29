@@ -5,6 +5,7 @@ import { VacancyDetailPanel } from "./VacancyDetailPanel";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { PageHeader } from "./PageHeader";
 import {
   Select,
   SelectContent,
@@ -19,7 +20,8 @@ import {
   CardHeader,
   CardTitle,
 } from "./ui/card";
-import { Search, X, Filter, Briefcase, TrendingUp, Loader2, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, LayoutGrid, List, Database, Sparkles, Rocket, CheckCircle2, Globe, MapPin, ChevronDown, Download } from "lucide-react";
+import { Search, X, Filter, Briefcase, Loader2, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, LayoutGrid, List, Database, Rocket, Globe, MapPin, ChevronDown, Download } from "lucide-react";
+import { reportError } from "./../../lib/errors";
 
 const HH_REGIONS = [
   "Москва", "Санкт-Петербург", "Екатеринбург", "Новосибирск",
@@ -131,7 +133,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [drawerVacancy, setDrawerVacancy] = useState<Vacancy | null>(null);
   const [vacancyInfo, setVacancyInfo] = useState<{ count: number; with_skills?: number; file_modified: string | null; date_range: { from: string; to: string } | null; load_error: string | null } | null>(null);
   const [showPipelineSetup, setShowPipelineSetup] = useState(false);
-  const [pipelineRegion, setPipelineRegion] = useState("0");
+  const [, setPipelineRegion] = useState("0");
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [cityQuery, setCityQuery] = useState("");
   const [openLetters, setOpenLetters] = useState<Record<string, boolean>>({});
@@ -141,7 +143,6 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   const [pipelineMaxPagesLocal, setPipelineMaxPagesLocal] = useState(20);
   const [pipelinePeriodLocal, setPipelinePeriodLocal] = useState(30);
   const [showAllMarketInfo, setShowAllMarketInfo] = useState(false);
-  const [allMarketVacancyCount, setAllMarketVacancyCount] = useState(0);
   const [monthsFilter, setMonthsFilter] = useState<number | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -191,7 +192,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
     try {
       const infoR = await fetch("/api/vacancies/info");
       if (infoR.ok) { const d = await infoR.json(); setVacancyInfo(d); }
-    } catch {}
+    } catch (err) { reportError("app/components/VacanciesList.tsx:194", err); }
 
     try {
       const offset = (currentPage - 1) * itemsPerPage;
@@ -262,11 +263,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         setVacancies(data.items);
         setTotal(data.total);
       }
-    } catch {}
+    } catch (err) { reportError("app/components/VacanciesList.tsx:265", err); }
     try {
       const r = await fetch("/api/vacancies/info");
       if (r.ok) { const d = await r.json(); setVacancyInfo(d); }
-    } catch {}
+    } catch (err) { reportError("app/components/VacanciesList.tsx:269", err); }
   };
 
   const applyFilters = (over: Partial<{ search: string; experience: string; city: string; months: number | null; date_from: string; date_to: string }> = {}) => {
@@ -318,37 +319,18 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   return (
     <div className="space-y-6">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center space-y-4"
-      >
-        <div className="inline-flex items-center justify-center gap-3 mb-2">
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500 dark:from-blue-950/30 to-purple-600 rounded-2xl blur-xl opacity-30 dark:opacity-50 animate-pulse" />
-            <div className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 p-3 rounded-2xl shadow-2xl">
-              <Briefcase className="size-8 text-white" />
-            </div>
-          </div>
-          <h2 className="text-4xl font-black bg-gradient-to-r from-slate-900 via-blue-800 to-purple-900 dark:from-white dark:via-blue-200 dark:to-purple-200 bg-clip-text text-transparent">
-            Вакансии с hh.ru
-          </h2>
-        </div>
-        <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-          Найдено <span className="font-bold text-blue-600 dark:text-blue-400">{total}</span> актуальных вакансий
-        </p>
-        {vacancyInfo && (
-          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400 dark:text-slate-500">
-            {vacancyInfo.date_range && (
-              <span>Записи с {fmtDateRU(vacancyInfo.date_range.from)}</span>
-            )}
-            <span>файл: {vacancyInfo.file_modified}</span>
-            <span>{vacancyInfo.count} вакансий</span>
-            {pipelineMaxPages && <span>стр: {pipelineMaxPages}</span>}
-            {pipelinePeriod && <span>период: {pipelinePeriod} дн.</span>}
-          </div>
-        )}
-      </motion.div>
+      <PageHeader icon={Briefcase} title="Вакансии с hh.ru" />
+      {vacancyInfo && (
+      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400 dark:text-slate-500">
+      {vacancyInfo.date_range && (
+      <span>Записи с {fmtDateRU(vacancyInfo.date_range.from)}</span>
+      )}
+      <span>файл: {vacancyInfo.file_modified}</span>
+      <span>{vacancyInfo.count} вакансий</span>
+      {pipelineMaxPages && <span>стр: {pipelineMaxPages}</span>}
+      {pipelinePeriod && <span>период: {pipelinePeriod} дн.</span>}
+      </div>
+      )}
 
       {/* Pipeline trigger / settings panel */}
       {canRunPipeline && (showPipelineSetup && (!pipelineStep || pipelineStep.status !== "running") ? (
@@ -357,11 +339,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           animate={{ opacity: 1, y: 0 }}
           className="space-y-4"
         >
-          <Card className="border-0 shadow-xl bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-sky-950/20 dark:to-indigo-950/20">
+          <Card className="border-0 shadow-sm bg-slate-50 dark:bg-slate-900">
             <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gradient-to-br from-sky-500 dark:from-sky-950/30 to-indigo-600 rounded-lg shadow-md">
+                  <div className="p-2 bg-sky-600 rounded-lg">
                     <Rocket className="size-5 text-white" />
                   </div>
                   <div>
@@ -542,11 +524,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                               .sort(([a], [b]) => a.localeCompare(b, "ru"))
                               .map(([letter, cities]) => {
                                 const sel = cities.filter((c) => selectedCities.includes(c)).length;
-                                const open = openLetters[letter] ?? q.length > 0 ?? sel > 0;
+                                const open = openLetters[letter] ?? (q.length > 0 || sel > 0);
                                 return (
                                   <div key={letter}>
                                     <button
-                                      onClick={() => setOpenLetters((p) => ({ ...p, [letter]: !(p[letter] ?? q.length > 0 ?? sel > 0) }))}
+                                      onClick={() => setOpenLetters((p) => ({ ...p, [letter]: !(p[letter] ?? (q.length > 0 || sel > 0)) }))}
                                       className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-blue-800 dark:text-blue-200 hover:bg-white/60 dark:hover:bg-slate-800/60 cursor-pointer"
                                     >
                                       <ChevronDown className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
@@ -600,7 +582,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     runPipeline(regionIds);
                   }}
                   disabled={pipelineLoading}
-                  className="flex-1 h-11 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 gap-2"
+                  className="flex-1 h-11 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 gap-2"
                 >
                   {pipelineLoading ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -626,11 +608,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.07 }}
         >
-          <Card className="border-0 shadow-xl bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-sky-950/20 dark:to-indigo-950/20">
+          <Card className="border-0 shadow-sm bg-slate-50 dark:bg-slate-900">
             <CardContent className="p-4">
               <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
                 <div className="flex items-center gap-3 flex-1">
-                  <div className="p-2 bg-gradient-to-br from-sky-500 dark:from-sky-950/30 to-indigo-600 rounded-lg shrink-0">
+                  <div className="p-2 bg-sky-600 rounded-lg shrink-0">
                     <Rocket className="size-5 text-white" />
                   </div>
                   <div className="flex-1">
@@ -645,7 +627,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   onClick={() => setShowPipelineSetup(true)}
                   disabled={pipelineLoading}
-                  className="h-9 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 px-6 whitespace-nowrap"
+                  className="h-9 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 px-6 whitespace-nowrap"
                   size="sm"
                 >
                   {pipelineLoading ? (
@@ -667,8 +649,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
-        <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
-          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
+        <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-700 rounded-lg">
@@ -732,7 +714,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "tween", duration: 0.22, ease: "easeOut" }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-lg bg-white dark:bg-slate-950 border-l border-gray-200 dark:border-slate-700 shadow-2xl flex flex-col"
+              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-lg bg-white dark:bg-slate-950 border-l border-gray-200 dark:border-slate-700 shadow-sm flex flex-col"
             >
               <div className="flex items-center justify-between gap-3 p-5 border-b border-gray-200 dark:border-slate-700">
                 <div className="flex items-center gap-3">
@@ -1178,7 +1160,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     disabled={loading}
                     className={`size-10 ${
                       currentPage === pageNum
-                        ? "bg-gradient-to-r from-blue-600 to-purple-600"
+                        ? "bg-slate-900 dark:bg-slate-100"
                         : ""
                     }`}
                   >

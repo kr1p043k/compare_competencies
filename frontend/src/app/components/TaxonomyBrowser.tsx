@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { BookOpen, ChevronDown, Search, Loader2 } from "lucide-react";
 import { api } from "../api";
+import { reportError } from "./../../lib/errors";
 
 interface TaxCategory {
   id: string;
@@ -26,7 +27,7 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
 
   const loadMine = () => {
     if (!showSuggest) return;
-    api("/teacher/skills/suggestions").then((d) => setMyList(d?.suggestions || [])).catch(() => {});
+    api("/teacher/skills/suggestions").then((d) => setMyList(d?.suggestions || [])).catch((err) => reportError("app/components/TaxonomyBrowser.tsx", err));
   };
 
   const submitSuggest = async () => {

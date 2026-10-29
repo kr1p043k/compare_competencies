@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "motion/react";
 import {
-  TrendingUp, TrendingDown, BarChart3, Sparkles,
+  TrendingUp, TrendingDown, Sparkles,
   ChevronDown, ChevronUp, AlertCircle, CalendarDays,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 
@@ -184,7 +182,7 @@ export function PredictionsTab() {
             <CardContent className="p-6">
               {loading ? (
                 <div className="flex items-center justify-center py-12">
-                  <Sparkles className="size-6 text-blue-500 animate-pulse" />
+                  <Sparkles className="size-6 text-blue-500" />
                   <span className="ml-3 text-gray-600 dark:text-slate-400">Загрузка прогнозов...</span>
                 </div>
               ) : error ? (

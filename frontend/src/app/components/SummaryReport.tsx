@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Award, BarChart3, ChevronDown, ChevronUp, Target, Zap } from "lucide-react";
+import { Award, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import {
@@ -76,7 +76,7 @@ function scoreCell(v: number | undefined, isGap: boolean) {
   return <span className={`font-mono font-semibold ${scoreColor(v, isGap)}`}>{fixed}</span>;
 }
 
-function GapRow({ skill, entry }: { skill: string; entry: { gap_j?: number; importance?: number; category?: string } }) {
+function GapRow({ skill, entry }: { skill: string; entry: { skill?: string; gap_j?: number; importance?: number; category?: string } }) {
   return (
     <div className="flex items-center justify-between py-1.5 border-b border-gray-100 dark:border-slate-800 last:border-0">
       <div className="flex items-center gap-2 min-w-0">

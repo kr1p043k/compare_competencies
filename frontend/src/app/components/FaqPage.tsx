@@ -277,8 +277,6 @@ const faqData: FaqItem[] = [
   },
 ];
 
-const categories = Array.from(new Set(faqData.map((f) => f.category)));
-
 export function FaqPage() {
   const [search, setSearch] = useState("");
 

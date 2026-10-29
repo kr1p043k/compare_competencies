@@ -411,7 +411,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.96, y: 8 }}
               transition={{ type: "tween", duration: 0.15, ease: "easeOut" }}
-              className="w-full max-w-md rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 shadow-2xl p-6"
+              className="w-full max-w-md rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 shadow-sm p-6"
               onClick={(e) => e.stopPropagation()}
             >
               {drill.skill.startsWith("__coverage__") ? (

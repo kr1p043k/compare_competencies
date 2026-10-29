@@ -8,6 +8,8 @@ import {
   ExternalLink, Loader2, Briefcase,
 } from "lucide-react";
 import { sanitizeHtml, parseSkillsFromHtml } from "./VacancyCard";
+import { reportError } from "./../../lib/errors";
+import { request } from "../../lib/api";
 
 interface VacancySummary {
   id: string;
@@ -49,10 +51,9 @@ export function VacancyDetailPanel({
     if (!vacancy) return;
     setDetail(null);
     setLoading(true);
-    fetch(`/api/vacancies/${vacancy.id}`)
-      .then((r) => r.json())
+    request<VacancyDetail>(`/api/vacancies/${vacancy.id}`)
       .then((d) => setDetail(d))
-      .catch(() => {})
+      .catch((err) => reportError("app/components/VacancyDetailPanel.tsx", err))
       .finally(() => setLoading(false));
   }, [vacancy]);
 
@@ -69,11 +70,11 @@ export function VacancyDetailPanel({
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
         >
-          <Card className="border-0 shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl overflow-hidden">
-            <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-white/50 to-slate-50/50 dark:from-slate-900/50 dark:to-slate-800/50">
+          <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+            <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 bg-gradient-to-br from-blue-500 dark:from-blue-950/30 to-purple-600 rounded-lg shadow-md shrink-0">
+                  <div className="p-2 bg-blue-600 rounded-lg shadow-md shrink-0">
                     <Briefcase className="size-5 text-white" />
                   </div>
                   <div className="min-w-0">
@@ -171,7 +172,7 @@ export function VacancyDetailPanel({
                       </div>
                     )}
                     {detail?.alternate_url && (
-                      <Button asChild className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white">
+                      <Button asChild className="w-full bg-slate-900 hover:bg-slate-800 text-white">
                         <a href={detail.alternate_url} target="_blank" rel="noopener noreferrer">
                           Открыть на hh.ru
                           <ExternalLink className="size-4 ml-2" />

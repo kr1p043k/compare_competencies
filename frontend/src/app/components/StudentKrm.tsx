@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { apiFetch } from "../../lib/auth";
+import { reportError } from "./../../lib/errors";
 
 interface KrmSkill {
   text: string;
@@ -141,13 +142,13 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
           setDir(d.directions[0].dir_code);
         }
       })
-      .catch(() => {});
+      .catch((err) => reportError("app/components/StudentKrm.tsx", err));
     apiFetch("/api/profiles")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (Array.isArray(d?.profiles) && d.profiles.length) setProfiles(d.profiles);
       })
-      .catch(() => {});
+      .catch((err) => reportError("app/components/StudentKrm.tsx", err));
   }, []);
 
   const load = async () => {

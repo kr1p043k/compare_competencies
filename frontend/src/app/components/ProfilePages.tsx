@@ -92,7 +92,7 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
           {sumLoading ? (
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2" aria-label="Загрузка сводки">
               {[0, 1, 2].map((i) => (
-                <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 animate-pulse">
+                <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
                   <div className="h-6 w-12 rounded bg-slate-200 dark:bg-slate-700 mx-auto" />
                   <div className="mt-2 h-3 w-20 rounded bg-slate-200 dark:bg-slate-700 mx-auto" />
                 </div>
@@ -330,13 +330,6 @@ interface KrmData {
 
 const norm = (s: string) => s.toLowerCase().trim();
 
-function looselyMatches(a: string, b: string): boolean {
-  const x = norm(a);
-  const y = norm(b);
-  if (!x || !y) return false;
-  if (x === y) return true;
-  return x.length > 3 && y.length > 3 && (x.includes(y) || y.includes(x));
-}
 
 /** Полная страница профиля студента: identity + KPI + свои навыки + drill-down по КРМ. */
 export function StudentProfilePage({ displayName, email, onNavigate }: AccountProps & { onNavigate: (tab: string) => void }) {
@@ -751,7 +744,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
         </CardHeader>
         <CardContent>
           {selfLoading && (
-            <div className="flex items-center gap-3 animate-pulse" aria-label="Загрузка профиля">
+            <div className="flex items-center gap-3" aria-label="Загрузка профиля">
               <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700" />
               <div className="space-y-2 flex-1">
                 <div className="h-3 w-40 rounded bg-slate-200 dark:bg-slate-700" />
@@ -775,7 +768,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       {loading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2" aria-label="Загрузка показателей">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 animate-pulse">
+            <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
               <div className="h-6 w-12 rounded bg-slate-200 dark:bg-slate-700 mx-auto" />
               <div className="mt-2 h-3 w-20 rounded bg-slate-200 dark:bg-slate-700 mx-auto" />
             </div>
@@ -813,7 +806,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
         </CardHeader>
         <CardContent className="space-y-3">
           {selfLoading && (
-            <div className="flex flex-wrap gap-1.5 animate-pulse" aria-label="Загрузка навыков">
+            <div className="flex flex-wrap gap-1.5" aria-label="Загрузка навыков">
               {[0, 1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-6 w-20 rounded-md bg-slate-200 dark:bg-slate-700" />
               ))}
@@ -895,7 +888,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
         </CardHeader>
         <CardContent className="space-y-3">
           {selfLoading && (
-            <div className="flex flex-wrap gap-1.5 animate-pulse" aria-label="Загрузка технологий">
+            <div className="flex flex-wrap gap-1.5" aria-label="Загрузка технологий">
               {[0, 1, 2, 3].map((i) => (
                 <div key={i} className="h-6 w-20 rounded-md bg-slate-200 dark:bg-slate-700" />
               ))}
@@ -984,7 +977,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
         </CardHeader>
         <CardContent className="space-y-4">
           {optionsLoading && (
-            <div className="space-y-2 animate-pulse" aria-label="Загрузка опций профилей">
+            <div className="space-y-2" aria-label="Загрузка опций профилей">
               <div className="h-4 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
               <div className="h-9 rounded bg-slate-200 dark:bg-slate-700" />
             </div>
@@ -1235,7 +1228,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
           {krmLoading && (
             <div className="space-y-2" aria-label="Загрузка компетенций">
               {[0, 1, 2].map((i) => (
-                <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 animate-pulse">
+                <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
                   <div className="h-4 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
                   <div className="mt-2 flex gap-1.5">
                     <div className="h-5 w-16 rounded bg-slate-200 dark:bg-slate-700" />
