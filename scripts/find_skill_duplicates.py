@@ -1,4 +1,4 @@
-"""Find near-duplicate skills by embedding similarity (report only by default).
+﻿"""Find near-duplicate skills by embedding similarity (report only by default).
 
 String normalisation is unsafe here: stripping punctuation maps ``c``, ``c#``
 and ``c++`` onto the same key, which are three different skills. Embeddings
@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import unicodedata
 from pathlib import Path
 
 import numpy as np
@@ -58,12 +59,80 @@ def find_pairs(ids, names, unit_vectors, threshold: float, top: int) -> list[dic
 
 
 def _strict_key(name: str) -> str:
-    """Alphanumerics only, lowercased: punctuation/spacing variants collapse.
+    """Alphanumerics only, lowercased, after Unicode compatibility folding.
 
-    Morphological variants ("методология" / "методологии") stay distinct, and
-    so do different skills that only share a stem ("c" / "c#" / "c++").
+    NFKC collapses superscripts (iВІc -> i2c) and fullwidth forms; the explicit
+    replacements catch non-breaking hyphens and zero-width marks that NFKC
+    leaves alone. Punctuation and spacing variants therefore collapse, while
+    different skills sharing a stem ("c" / "c#" / "c++") and morphological
+    variants ("РјРµС‚РѕРґРѕР»РѕРіРёСЏ" / "РјРµС‚РѕРґРѕР»РѕРіРёРё") stay distinct.
     """
-    return "".join(ch for ch in name.lower() if ch.isalnum())
+    folded = unicodedata.normalize("NFKC", name).lower()
+    for ch in ("\u2010", "\u2011", "\u2013", "\u2014", "\u2212"):
+        folded = folded.replace(ch, "-")
+    for ch in ("\u200b", "\u200c", "\u200d", "\u200e", "\u200f", "\ufeff"):
+        folded = folded.replace(ch, "")
+    return "".join(ch for ch in folded if ch.isalnum())
+
+
+def _levenshtein(a: str, b: str) -> int:
+    if a == b:
+        return 0
+    if len(a) < len(b):
+        a, b = b, a
+    previous = list(range(len(b) + 1))
+    for i, ca in enumerate(a, start=1):
+        current = [i]
+        for j, cb in enumerate(b, start=1):
+            current.append(
+                min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (ca != cb))
+            )
+        previous = current
+    return previous[-1]
+
+
+def _mixed_script(name: str) -> bool:
+    """True when a single token mixes Cyrillic and Latin letters (typo signal)."""
+    for token in name.split():
+        has_cyr = any("а" <= ch.lower() <= "я" or ch.lower() == "ё" for ch in token)
+        has_lat = any("a" <= ch.lower() <= "z" for ch in token)
+        if has_cyr and has_lat:
+            return True
+    return False
+
+
+def typo_merges(pairs: list[dict], ids, names, links: dict[str, tuple[int, int]]) -> list[tuple[str, str]]:
+    """Pairs that are the same term with one character wrong.
+
+    Restricted to keys of at least 8 characters and an edit distance of exactly
+    one, because short acronyms differ by one character while meaning different
+    things (``1с:уат``/``1с:ут``, ``еспд``/``естд``, ``ida``/``jpa``).
+
+    The survivor is chosen by: no mixed Latin/Cyrillic token, then more foreign
+    key references (so the row actually used keeps its id), then the shorter
+    name (singular over plural, corrected spelling over the typo).
+    """
+    out = []
+    for p in pairs:
+        a, b = names[p["i"]], names[p["j"]]
+        ka, kb = _strict_key(a), _strict_key(b)
+        if len(ka) < 8 or len(kb) < 8:
+            continue
+        if abs(len(ka) - len(kb)) > 1:
+            continue
+        if _levenshtein(ka, kb) != 1:
+            continue
+
+        id_a, id_b = ids[p["i"]], ids[p["j"]]
+        la = sum(links.get(id_a, (0, 0)))
+        lb = sum(links.get(id_b, (0, 0)))
+        score_a = (_mixed_script(a), -la, len(a))
+        score_b = (_mixed_script(b), -lb, len(b))
+        if score_a <= score_b:
+            out.append((id_a, id_b))
+        else:
+            out.append((id_b, id_a))
+    return out
 
 
 def safe_merges(conn, pairs: list[dict], ids, names) -> list[tuple[str, str]]:
@@ -126,6 +195,7 @@ def main() -> int:
     parser.add_argument("--top", type=int, default=40)
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--apply-safe", action="store_true")
+    parser.add_argument("--apply-typos", action="store_true")
     parser.add_argument("--pair", nargs=2, metavar=("KEEP_ID", "DROP_ID"))
     args = parser.parse_args()
 
@@ -146,6 +216,29 @@ def main() -> int:
         ids, names, unit = load_skills(conn)
         pairs = find_pairs(ids, names, unit, args.threshold, args.top)
 
+        links: dict[str, tuple[int, int]] = {}
+        for row in conn.execute(
+            "select id::text, "
+            "(select count(*) from market_skill_mappings m where m.skill_id = s.id), "
+            "(select count(*) from competency_skills cs where cs.skill_id = s.id) "
+            "from skills s"
+        ).fetchall():
+            links[row[0]] = (row[1], row[2])
+
+        if args.apply_typos:
+            targets = typo_merges(pairs, ids, names, links)
+            print(f"typo merges: {len(targets)}")
+            for keep_id, drop_id in targets:
+                name = names[ids.index(drop_id)]
+                try:
+                    merge(conn, keep_id, drop_id)
+                except Exception as exc:  # keep going, report the failure
+                    conn.rollback()
+                    print(f"  FAILED {name!r}: {exc}")
+                    continue
+                print(f"  merged {name!r} -> {names[ids.index(keep_id)]!r}")
+            return 0
+
         if args.apply_safe:
             targets = safe_merges(conn, pairs, ids, names)
             print(f"safe merges: {len(targets)}")
@@ -160,14 +253,6 @@ def main() -> int:
                 print(f"  merged {name!r} -> {names[ids.index(keep_id)]!r}")
             return 0
 
-        links = {}
-        for row in conn.execute(
-            "select id::text, "
-            "(select count(*) from market_skill_mappings m where m.skill_id = s.id), "
-            "(select count(*) from competency_skills cs where cs.skill_id = s.id) "
-            "from skills s"
-        ).fetchall():
-            links[row[0]] = (row[1], row[2])
 
     print(f"skills with embeddings: {len(ids)}")
     print(f"pairs with cosine >= {args.threshold}: {len(pairs)}\n")
