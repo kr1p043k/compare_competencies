@@ -334,7 +334,12 @@ class CoverageAnalyzer:
         # Охват спроса: какая доля топ-N рыночных навыков есть в этой дисциплине.
         # coverage_ratio для сравнения почти бесполезен, т.к. навыки РПД уже
         # нормализованы к словарю рынка при извлечении.
-        top_market = sorted(self.matcher.market_skills.items(), key=lambda x: -x[1])[:MARKET_TOP_N]
+        market_items = [
+            (skill, freq)
+            for skill, freq in (self.matcher.market_skills or {}).items()
+            if isinstance(freq, (int, float))
+        ]
+        top_market = sorted(market_items, key=lambda x: -x[1])[:MARKET_TOP_N]
         top_covered = [s for s, _ in top_market if normalize_skill(s) in rpd_norm]
         top_missing = [s for s, _ in top_market if normalize_skill(s) not in rpd_norm]
         top_coverage = round(len(top_covered) / len(top_market), 4) if top_market else 0.0
@@ -342,10 +347,14 @@ class CoverageAnalyzer:
         # Demand-weighted version of top_coverage: each top-N market skill
         # contributes its share of vacancies instead of one unit, so covering
         # "python" weighs more than covering a niche skill.
-        weights = getattr(self.matcher, "market_weights", None) or {}
-        if weights:
-            total_weight = sum(weights.get(s, 0.0) for s, _ in top_market)
-            covered_weight = sum(weights.get(s, 0.0) for s in top_covered)
+        weights = getattr(self.matcher, "market_weights", None)
+        if isinstance(weights, dict) and weights:
+            def _w(skill: str) -> float:
+                value = weights.get(skill, 0.0)
+                return float(value) if isinstance(value, (int, float)) else 0.0
+
+            total_weight = sum(_w(s) for s, _ in top_market)
+            covered_weight = sum(_w(s) for s in top_covered)
             market_weight_coverage = (
                 round(covered_weight / total_weight, 4) if total_weight > 0 else 0.0
             )

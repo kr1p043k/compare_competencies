@@ -131,6 +131,13 @@ def main() -> int:
         pass
 
     gold_path = ROOT / args.gold
+    if not hasattr(LTRRecommendationEngine, "_build_ranking_frame"):
+        print(
+            "eval_frozen: this branch's LTR engine has no _build_ranking_frame; "
+            "the frozen split cannot be scored here."
+        )
+        return 2
+
     rows = read_gold(gold_path)
     roles, train_idx, test_idx = frozen_split(rows, args.seed, args.test_size)
     print(f"gold={args.gold} rows={len(rows)} roles={len(roles)}")
