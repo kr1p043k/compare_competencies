@@ -30,6 +30,8 @@ MIN_MATCH_FREQ = MARKET_MIN_FREQ
 # Сколько самых востребованных рыночных навыков считаем «топом» при
 # измерении охвата спроса.
 MARKET_TOP_N = 100
+# Ниже этого числа знаменателя процент не интерпретируется.
+MIN_RELIABLE_MARKET = 5
 # Ниже этого числа релевантных навыков сужать знаменатель нельзя: 1 из 1
 # даёт 100%, 0 из 1 - 0%.
 
@@ -455,6 +457,8 @@ class CoverageAnalyzer:
             ksa_types=dict(ksa_types or {}),
             market_top_coverage=top_coverage,
             market_weight_coverage=market_weight_coverage,
+            market_top_total=len(top_market),
+            market_top_reliable=len(top_market) >= MIN_RELIABLE_MARKET,
             market_top_covered=top_covered[:20],
             market_top_missing=top_missing[:10],
             gaps_list=deduped_gaps[:20],

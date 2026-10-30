@@ -926,6 +926,8 @@ async def run_teacher_analysis(
                 ],
                 "market_top_coverage": coverage.market_top_coverage,
                 "market_weight_coverage": coverage.market_weight_coverage,
+                "market_top_total": coverage.market_top_total,
+                "market_top_reliable": coverage.market_top_reliable,
                 "market_top_covered": coverage.market_top_covered,
                 "market_top_missing": coverage.market_top_missing,
             },
@@ -1078,6 +1080,8 @@ async def run_teacher_analysis(
              "coverage_level": r.discipline.coverage_level,
              "market_top_coverage": r.discipline.market_top_coverage,
              "market_weight_coverage": r.discipline.market_weight_coverage,
+             "market_top_total": r.discipline.market_top_total,
+             "market_top_reliable": r.discipline.market_top_reliable,
              "gaps": r.discipline.gaps, "emerging": len(r.discipline.emerging)}
             for dn, r in discipline_reports
         ],
