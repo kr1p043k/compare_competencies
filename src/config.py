@@ -91,6 +91,9 @@ class Settings(BaseSettings):
 
     HH_CLIENT_ID: SecretStr | None = None
     HH_CLIENT_SECRET: SecretStr | None = None
+    # Готовый OAuth-токен соискателя. Приоритетнее client credentials:
+    # HH закрыл /vacancies для анонимных запросов.
+    HH_ACCESS_TOKEN: SecretStr | None = None
 
     # ---------- параметры поиска ----------
     DEFAULT_AREA: int = 1
@@ -352,6 +355,7 @@ RETRY_DELAY = settings.RETRY_DELAY
 PIPELINE_RETRIES = settings.PIPELINE_RETRIES
 HH_CLIENT_ID = settings.HH_CLIENT_ID
 HH_CLIENT_SECRET = settings.HH_CLIENT_SECRET
+HH_ACCESS_TOKEN = settings.HH_ACCESS_TOKEN
 
 DEFAULT_AREA = settings.DEFAULT_AREA
 DEFAULT_PERIOD_DAYS = settings.DEFAULT_PERIOD_DAYS

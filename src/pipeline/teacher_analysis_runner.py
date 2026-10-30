@@ -673,7 +673,11 @@ async def run_teacher_analysis(
     # Включаем семантический матчинг: set_market строит эмбеддинги рынка,
     # иначе _market_embeddings остаётся None и semantic-слой не работает.
     matcher.set_market(market_skills, weights=market_weights)
-    coverage_analyzer = CoverageAnalyzer(matcher, discipline_scorer=_discipline_scorer)
+    from src.analyzers.discipline_scope import load_overrides as _load_scope_overrides
+    _scope_overrides = _load_scope_overrides()
+    coverage_analyzer = CoverageAnalyzer(
+        matcher, discipline_scorer=_discipline_scorer, scope_overrides=_scope_overrides
+    )
     trend_analyzer = SnapshotTrendAnalyzer(snapshots)
     rec_engine = CurriculumRecommender()
     optimizer = CurriculumOptimizer()
@@ -928,6 +932,7 @@ async def run_teacher_analysis(
                 "market_weight_coverage": coverage.market_weight_coverage,
                 "market_top_total": coverage.market_top_total,
                 "market_top_reliable": coverage.market_top_reliable,
+                "market_top_source": coverage.market_top_source,
                 "market_top_covered": coverage.market_top_covered,
                 "market_top_missing": coverage.market_top_missing,
             },
@@ -1082,6 +1087,7 @@ async def run_teacher_analysis(
              "market_weight_coverage": r.discipline.market_weight_coverage,
              "market_top_total": r.discipline.market_top_total,
              "market_top_reliable": r.discipline.market_top_reliable,
+             "market_top_source": r.discipline.market_top_source,
              "gaps": r.discipline.gaps, "emerging": len(r.discipline.emerging)}
             for dn, r in discipline_reports
         ],

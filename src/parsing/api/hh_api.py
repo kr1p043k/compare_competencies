@@ -55,26 +55,77 @@ class HeadHunterAPI:
         self._token_expires_at = 0
         if self.TOKEN_CACHE_FILE is None:
             self.TOKEN_CACHE_FILE = config.DATA_CACHE_DIR / ".hh_token_cache.json"
-        if config.HH_CLIENT_ID and config.HH_CLIENT_SECRET:
-            match self._load_cached_token():
-                case Ok(False):
-                    match self._get_app_token():
-                        case Ok(_):
-                            pass
-                        case Err(e):
-                            logger.warning("auto_token_refresh_failed", error=str(e))
-                case Err(_):
-                    match self._get_app_token():
-                        case Ok(_):
-                            pass
-                        case Err(e):
-                            logger.warning("auto_token_refresh_failed", error=str(e))
-                case _:
-                    pass
-        else:
-            logger.warning("hh_credentials_not_set")
+        match self._init_auth():
+            case Ok(True):
+                pass
+            case Ok(False):
+                logger.warning("hh_auth_unavailable")
+            case Err(e):
+                logger.warning("hh_auth_failed", error=str(e))
 
-        logger.info("hh_api_initialized", max_retries=config.MAX_RETRIES)
+        logger.info("hh_api_initialized", max_retries=config.MAX_RETRIES,
+                    authenticated=bool(self._token))
+
+    # -----------------------------------------------------------------------
+    def _apply_token(self, token: str, expires_at: float | None = None) -> None:
+        self._token = token
+        self._token_expires_at = expires_at or 0
+        self.session.headers.update({"Authorization": f"Bearer {token}"})
+
+    def _token_works(self) -> bool:
+        """Проверяет токен реальным запросом к /vacancies.
+
+        /me не подходит: client_credentials-токен приложения не имеет
+        пользовательского профиля, но поиск вакансий ему доступен.
+        """
+        if not self._token:
+            return False
+        try:
+            resp = self.session.get(
+                f"{self.BASE_URL_FULL}vacancies",
+                params={"text": "test", "per_page": 1},
+                timeout=15,
+            )
+            return resp.status_code == 200
+        except Exception as exc:
+            logger.warning("hh_token_check_failed", error=str(exc))
+            return False
+
+    def _init_auth(self) -> Result[bool, ApiError]:
+        """Статический токен -> кэш -> client credentials."""
+        env_token = getattr(config, "HH_ACCESS_TOKEN", None)
+        if env_token:
+            token = env_token.get_secret_value()
+            self._apply_token(token)
+            if self._token_works():
+                logger.info("hh_token_from_env", length=len(token))
+                return Ok(True)
+            logger.warning("hh_token_from_env_invalid")
+            self.session.headers.pop("Authorization", None)
+            self._token = None
+
+        match self._load_cached_token():
+            case Ok(True):
+                if self._token_works():
+                    logger.info("hh_cached_token_valid")
+                    return Ok(True)
+                logger.warning("hh_cached_token_rejected")
+                self._clear_token_cache()
+                self.session.headers.pop("Authorization", None)
+                self._token = None
+            case Err(e):
+                logger.warning("hh_cached_token_load_failed", error=str(e))
+
+        if config.HH_CLIENT_ID and config.HH_CLIENT_SECRET:
+            match self._get_app_token():
+                case Ok(_):
+                    if self._token_works():
+                        return Ok(True)
+                    logger.warning("hh_app_token_rejected")
+                case Err(e):
+                    logger.warning("auto_token_refresh_failed", error=str(e))
+
+        return Ok(False)
 
     def search_vacancies_validated(
         self, text, area, period_days=30, max_pages=20, per_page=100, industry=None, date_from=None, date_to=None

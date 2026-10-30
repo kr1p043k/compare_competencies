@@ -76,6 +76,8 @@ class DisciplineCoverage:
     # False, когда релевантных навыков слишком мало: 100% из одного навыка
     # или 0% из двух — шум, а не оценка дисциплины.
     market_top_reliable: bool = True
+    # Откуда взят знаменатель: mapping | derived | relevance
+    market_top_source: str = "relevance"
 
 
 @dataclass

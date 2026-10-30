@@ -45,9 +45,10 @@ DISCIPLINE_RELEVANCE_THRESHOLD = 0.35
 
 
 class CoverageAnalyzer:
-    def __init__(self, matcher: SkillMatcher, discipline_scorer=None):
+    def __init__(self, matcher: SkillMatcher, discipline_scorer=None, scope_overrides=None):
         self.matcher = matcher
         self._discipline_scorer = discipline_scorer
+        self._scope_overrides = scope_overrides or {}
         self._skill_emb_cache: dict[str, np.ndarray] = {}
         self._skill_emb_lock = threading.Lock()
 
@@ -355,12 +356,31 @@ class CoverageAnalyzer:
         # sat at ~9% for every discipline. Keep only the market skills relevant
         # to THIS discipline (same embedding scorer used for recommendations),
         # then measure coverage against that denominator.
-        if self._discipline_scorer is not None and top_market:
+        # Denominator: the slice of demanded top-N this discipline is
+        # responsible for. Priority: explicit mapping ("уточнение инструментов")
+        # -> neighbours of what it teaches -> discipline-embedding relevance.
+        scope, scope_source = None, "relevance"
+        try:
+            from src.analyzers.discipline_scope import resolve_scope
+
+            anchors = [m.market_match for m in matched_list if m.market_match]
+            anchors.extend(normalize_skill(s) for s in gaps_list[:40])
+            resolved = resolve_scope(self.matcher, discipline_name, anchors, self._scope_overrides)
+            if resolved:
+                scope, scope_source = resolved
+        except Exception as exc:
+            logger.warning("discipline_scope_failed", discipline=discipline_name, error=str(exc))
+
+        if scope:
+            scoped = [(s, f) for s, f in top_market if s in scope]
+            if len(scoped) >= MIN_RELIABLE_MARKET:
+                top_market = scoped
+            else:
+                scope = None
+                scope_source = "relevance"
+
+        if scope is None and self._discipline_scorer is not None and top_market:
             try:
-                # Denominator = the slice of demanded top-N this discipline is
-                # responsible for. A database course cannot cover frontend or ML
-                # demand, so comparing every discipline against the global top-100
-                # reported ~6% for all of them regardless of content.
                 scores = self._discipline_scorer.compute_relevance_batch(
                     [skill for skill, _ in top_market], discipline_name
                 ) or {}
@@ -415,6 +435,7 @@ class CoverageAnalyzer:
                      total=total, matched=len(matched_list),
                      gaps=len(gaps_list), coverage=ratio, weighted=weighted,
                      market_top_coverage=top_coverage,
+                     market_top_source=scope_source,
                      market_weight_coverage=market_weight_coverage)
 
         # Дедуп топа по совпавшему рыночному навыку: разные формулировки
@@ -459,6 +480,7 @@ class CoverageAnalyzer:
             market_weight_coverage=market_weight_coverage,
             market_top_total=len(top_market),
             market_top_reliable=len(top_market) >= MIN_RELIABLE_MARKET,
+            market_top_source=scope_source,
             market_top_covered=top_covered[:20],
             market_top_missing=top_missing[:10],
             gaps_list=deduped_gaps[:20],
