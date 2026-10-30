@@ -444,6 +444,54 @@ async def krm_delete_foundational(request: Request, skill: str):
     return {"status": "ok", "skills": skills}
 
 
+@router.get("/teacher/discipline-scope", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("60/minute")
+async def get_discipline_scope(request: Request, discipline: str | None = None):
+    """Какой участок рынка закреплён за дисциплиной и откуда он взялся.
+
+    Без аргумента отдаёт все настроенные переопределения.
+    """
+    from src.analyzers.discipline_scope import load_overrides
+
+    overrides = load_overrides()
+    if discipline is None:
+        return {"overrides": overrides}
+    return {
+        "discipline": discipline,
+        "configured": discipline in overrides,
+        "skills": (overrides.get(discipline) or {}).get("skills") or [],
+        "keywords": (overrides.get(discipline) or {}).get("keywords") or [],
+    }
+
+
+class DisciplineScopeIn(BaseModel):
+    skills: list[str] = []
+    keywords: list[str] = []
+
+
+@router.put("/teacher/discipline-scope/{discipline:path}", dependencies=[Depends(require_any_role("admin", "teacher"))])
+@limiter.limit("30/minute")
+async def put_discipline_scope(request: Request, discipline: str, body: DisciplineScopeIn):
+    """Уточнить инструменты: какие рыночные навыки закреплены за дисциплиной.
+
+    Пустой список skills и keywords удаляет переопределение и возвращает
+    автоматический маппинг по навыкам дисциплины.
+    """
+    from src.analyzers.discipline_scope import load_overrides, save_overrides
+
+    overrides = load_overrides()
+    skills = [s.strip().lower() for s in body.skills if s and s.strip()]
+    keywords = [k.strip() for k in body.keywords if k and k.strip()]
+    if skills or keywords:
+        overrides[discipline] = {"skills": skills, "keywords": keywords}
+    else:
+        overrides.pop(discipline, None)
+    save_overrides(overrides)
+    await audit_action(request, "teacher.discipline_scope.update",
+                       f"discipline={discipline} skills={len(skills)} keywords={len(keywords)}")
+    return {"status": "ok", "discipline": discipline, "skills": skills, "keywords": keywords}
+
+
 @router.post("/teacher/skills/suggest", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("10/minute")
 async def suggest_skill(request: Request):
