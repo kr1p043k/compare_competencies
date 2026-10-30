@@ -46,8 +46,9 @@ const TeacherProfilePage = lazy(() => import("./components/ProfilePages").then(m
 const StudentProfilePage = lazy(() => import("./components/ProfilePages").then(m => ({ default: m.StudentProfilePage })));
 const FaqPage = lazy(() => import("./components/FaqPage").then(m => ({ default: m.FaqPage })));
 const TaxonomyBrowser = lazy(() => import("./components/TaxonomyBrowser").then(m => ({ default: m.TaxonomyBrowser })));
-import { authHeaders, useAuth, apiFetch } from "../lib/auth";
+import { useAuth, apiFetch } from "../lib/auth";
 import { profileLabel } from "../lib/profiles";
+import { ApiError, download, request, saveBlob } from "../lib/api";
 import { useTheme } from "../lib/theme";
 import { initApiLogger } from "../lib/logger";
 import { motion, AnimatePresence } from "motion/react";
@@ -169,6 +170,11 @@ function NavGroup({
   );
 }
 
+interface PipelineActive {
+  task_id?: string;
+  status?: string;
+}
+
 interface PipelineStep {
   step: number;
   total: number;
@@ -210,9 +216,7 @@ export default function App() {
 
   async function loadProfiles(select?: string) {
     try {
-      const r = await fetch(`${API}/profiles`);
-      if (!r.ok) return;
-      const d = await r.json();
+      const d = await request<{ profiles?: string[] }>(`${API}/profiles`);
       const names = Array.isArray(d.profiles) && d.profiles.length ? d.profiles : ["base", "dc", "top_dc"];
       setProfilesList(names);
       if (select && names.includes(select)) setProfile(select);
@@ -330,9 +334,12 @@ export default function App() {
       try {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 5000);
-        const res = await fetch("/api/health", { signal: ctrl.signal });
-        clearTimeout(t);
-        fails = res.ok ? 0 : fails + 1;
+        try {
+          await request<{ status: string }>("/api/health", { signal: ctrl.signal });
+          fails = 0;
+        } finally {
+          clearTimeout(t);
+        }
       } catch {
         fails += 1;
       }
@@ -345,8 +352,8 @@ export default function App() {
 
   // reconnect to running task after page refresh
   useEffect(() => {
-    fetch("/api/pipeline/active")
-      .then(r => r.ok ? r.json() : null)
+    request<PipelineActive | null>("/api/pipeline/active")
+      .catch(() => null)
       .then(active => {
         if (active && active.task_id && active.status === "running") {
           pipelineTaskRef.current = active.task_id;
@@ -381,8 +388,7 @@ export default function App() {
     setPipelineStep({ step: 1, total: 4, status: "running", message: "Запуск сбора...", progress: 5, maxPages: mp, periodDays: pd });
     const params = new URLSearchParams({ regions: regionIds, max_pages: String(mp), period: String(pd) });
     if (profession) params.set("query", profession);
-    fetch(`/api/pipeline/full-cycle?${params}`, { method: "POST" })
-      .then(r => r.ok ? r.json() : Promise.reject("Не удалось запустить"))
+    request<{ output?: string }>(`/api/pipeline/full-cycle?${params}`, { method: "POST" })
       .then(data => {
         const m = data.output?.match(/Task ID: (\S+?)\.?\s/);
         if (!m) throw new Error("Не получен ID задачи");
@@ -400,7 +406,9 @@ export default function App() {
   const cancelPipeline = useCallback(() => {
     const taskId = pipelineTaskRef.current;
     if (!taskId) return;
-    fetch(`/api/pipeline/cancel/${taskId}`, { method: "POST" }).catch((err) => reportError("app/App.tsx", err));
+    request<void>(`/api/pipeline/cancel/${taskId}`, { method: "POST" }).catch((err) =>
+      reportError("app/App.tsx:cancel", err),
+    );
     if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     setPipelineStep(prev => prev ? { ...prev, status: "error", message: "Отменено" } : null);
     setPipelineLoading(false);
@@ -420,10 +428,18 @@ export default function App() {
   const pollPipeline = () => {
     const taskId = pipelineTaskRef.current;
     if (!taskId) { setPipelineLoading(false); pipelineLoadingRef.current = false; return; }
-    fetch(`/api/pipeline/task/${taskId}`)
-      .then(r => {
-        if (r.status === 404) throw new Error("NOT_FOUND");
-        return r.ok ? r.json() : Promise.reject("Ошибка статуса");
+    request<{
+      step?: number;
+      sub_progress?: number;
+      status?: string;
+      message?: string;
+      logs?: string[];
+      max_pages?: number;
+      period_days?: number;
+    }>(`/api/pipeline/task/${taskId}`)
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 404) throw new Error("NOT_FOUND");
+        throw err;
       })
       .then(s => {
         if (pipelineTaskRef.current !== taskId) return; // cancelled or replaced while fetching
@@ -447,12 +463,12 @@ export default function App() {
           pipelineLoadingRef.current = false;
           sessionStorage.removeItem("pipelineTaskId");
           const prof = profileRef.current;
-          fetch(`/api/results/recommendations/${prof}`).then(r => r.ok && r.json()).then(d => {
+          request<any>(`/api/results/recommendations/${prof}`).catch(() => null).then(d => {
             if (d) { setAnalysisData(d); setLastResult(d); }
             if (roleRef.current === "student" && d) {
               const q = pipelineQuery;
               const url = q ? `/api/vacancies?limit=1&search=${encodeURIComponent(q)}` : "/api/vacancies/info";
-              fetch(url).then(r => r.ok ? r.json() : { total: 0 }).then(vi => {
+              request<any>(url).catch(() => ({ total: 0 })).then(vi => {
                 const vc = vi.total || 0;
                 apiFetch("/api/student/log-action", {
                   method: "POST",
@@ -485,13 +501,13 @@ export default function App() {
         if (e?.message === "NOT_FOUND") {
           // Задача пропала из памяти (рестарт сервера): проверяем готовые
           // результаты через /api/pipeline/status, а не молча сбрасываем прогресс.
-          fetch("/api/pipeline/status")
+          request<any>("/api/pipeline/status").catch(() => null)
             .then(r => r.ok ? r.json() : null)
             .then(st => {
               const prof = profileRef.current;
               if (st?.recommendations_all_ready) {
                 setPipelineStep({ step: 4, total: 4, status: "completed", message: "Сервер перезапускался, но результаты готовы.", progress: 100 });
-                fetch(`/api/results/recommendations/${prof}`).then(r => r.ok && r.json()).then(d => {
+                request<any>(`/api/results/recommendations/${prof}`).catch(() => null).then(d => {
                   if (d) { setAnalysisData(d); setLastResult(d); }
                 }).catch((err) => reportError("app/App.tsx", err));
                 setActiveTab("data");
@@ -530,7 +546,7 @@ export default function App() {
       if (detail?.profile) {
         handleProfileChange(detail.profile);
         setActiveTab("data");
-        fetch(`/api/results/recommendations/${detail.profile}`).then(r => r.ok && r.json()).then(d => { if (d) { setAnalysisData(d); setLastResult(d); } }).catch((err) => reportError("app/App.tsx", err));
+        request<any>(`/api/results/recommendations/${detail.profile}`).catch(() => null).then(d => { if (d) { setAnalysisData(d); setLastResult(d); } }).catch((err) => reportError("app/App.tsx", err));
       }
     };
     window.addEventListener("navigate-analysis", handler);
@@ -546,18 +562,12 @@ export default function App() {
     try {
       setLoading(true);
       showStatus("info", "Выполнение...");
-      const opts: RequestInit = {
+      const data = await request<any>(`${API}${endpoint}`, {
         method,
-        headers: { "Content-Type": "application/json" },
-      };
-      if (body) opts.body = JSON.stringify(body);
-      const res = await fetch(`${API}${endpoint}`, opts);
-      const data = res.ok ? await res.json() : await res.text().then(t => { throw new Error(t || res.statusText); });
+        ...(body ? { body } : {}),
+      });
       setLastResult(data);
-      showStatus(
-        res.ok ? "success" : "error",
-        res.ok ? "✓ Готово" : "✗ Ошибка"
-      );
+      showStatus("success", "✓ Готово");
       return data;
     } catch (e: any) {
       showStatus("error", `✗ ${e.message}`);
@@ -572,7 +582,7 @@ export default function App() {
     setGapMsg("Запуск gap-анализа...");
     const checkResultsReady = async (): Promise<boolean> => {
       try {
-        const st = await fetch("/api/pipeline/status").then((x) =>
+        const st = await request<any>("/api/pipeline/status").catch(() => null).then((x) =>
           x.ok ? x.json() : null
         );
         return !!st?.recommendations_all_ready;
@@ -581,9 +591,9 @@ export default function App() {
       }
     };
     try {
-      const r = await fetch("/api/pipeline/gap-analysis", { method: "POST" });
-      if (!r.ok) throw new Error("Не удалось запустить задачу gap-анализа");
-      const data = await r.json();
+      const data = await request<{ output?: string }>("/api/pipeline/gap-analysis", {
+        method: "POST",
+      });
       const m = String(data.output || "").match(/Task ID: (\S+?)\.?\s/);
       if (!m) throw new Error("Не получен ID задачи");
       const taskId = m[1];
@@ -592,9 +602,7 @@ export default function App() {
         await new Promise((res) => setTimeout(res, 3000));
         let s: any = null;
         try {
-          s = await fetch(`/api/pipeline/task/${taskId}`).then((x) =>
-            x.ok ? x.json() : null
-          );
+          s = await request<any>(`/api/pipeline/task/${taskId}`).catch(() => null);
         } catch {
           s = null;
         }
@@ -662,21 +670,8 @@ export default function App() {
 
   async function handleDownloadPdf() {
     try {
-      const response = await fetch(`/api/results/report/${profile}`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `report_${profile}_${new Date().toISOString().split("T")[0]}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        const d = await response.json().catch(() => ({}));
-        setToast(d.detail || "Ошибка формирования PDF");
-      }
+      const { blob, filename } = await download(`/api/results/report/${profile}`);
+      saveBlob(blob, filename ?? `report_${profile}_${new Date().toISOString().split("T")[0]}.pdf`);
     } catch (error) {
       console.error("Failed to download PDF report:", error);
     }
@@ -694,7 +689,7 @@ export default function App() {
   // Список профессий таксономии — для выбора цели сравнения на вкладке «Данные».
   useEffect(() => {
     if (activeTab !== "data" || !isAuth || professionsList.length > 0) return;
-    fetch(`${API}/taxonomy/professions`)
+    request<any>(`${API}/taxonomy/professions`).catch(() => null)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         const names = ((d?.professions || []) as any[])
@@ -803,7 +798,7 @@ export default function App() {
               >
                 {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => { fetch("/api/auth/logout", { method: "POST", headers: authHeaders() }).catch((err) => reportError("app/App.tsx", err)); try { localStorage.removeItem("rolePreview"); } catch (err) { reportError("app/App.tsx:785", err); } setRolePreview(null); logout(); }} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
+              <Button variant="ghost" size="sm" onClick={() => { request<void>("/api/auth/logout", { method: "POST" }).catch((err) => reportError("app/App.tsx:logout", err)); try { localStorage.removeItem("rolePreview"); } catch (err) { reportError("app/App.tsx:785", err); } setRolePreview(null); logout(); }} className="text-gray-500 dark:text-slate-400 hover:text-red-600">
                 <LogOut className="size-4" />
               </Button>
             </div>
