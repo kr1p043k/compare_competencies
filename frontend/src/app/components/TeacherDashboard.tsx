@@ -55,7 +55,7 @@ type DirectionAnalysis = {
   top_emerging_across_all: { skill: string; frequency: number }[];
   recommendations: { type: string; priority: string; message: string }[];
   trends: { rising: any[]; declining: any[] };
-  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; market_top_coverage?: number; market_top_total?: number; market_top_reliable?: boolean }[];
+  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; market_top_coverage?: number; market_top_total?: number; market_top_reliable?: boolean; market_top_source?: string }[];
   generated_at: string;
 };
 
@@ -1077,6 +1077,17 @@ export function TeacherDashboard() {
                   <div className="text-[11px] font-semibold text-gray-500 dark:text-slate-400">
                     {covReliable ? (level || "").toUpperCase() : "мало релевантных навыков"}
                   </div>
+                  {/* Откуда знаменатель: ручная привязка, автоподбор по навыкам
+                      дисциплины или слабая оценка по названию. */}
+                  {discData?.market_top_source && (
+                    <div className="text-[10px] text-gray-400 dark:text-slate-500 mt-0.5">
+                      {discData.market_top_source === "explicit"
+                        ? "знаменатель: ручная привязка"
+                        : discData.market_top_source === "derived"
+                          ? "знаменатель: авто по навыкам"
+                          : "знаменатель: по профилю дисциплины"}
+                    </div>
+                  )}
                 </div>
                 <div style={card}>
                   <div className="text-[11px] text-gray-500 dark:text-slate-400">Gaps</div>

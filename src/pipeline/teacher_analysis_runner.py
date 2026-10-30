@@ -38,7 +38,10 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций -
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 46  # conservative coverage_level = min(ratio, weighted)
+CODE_VERSION = 47  # coverage denominator: discipline scope (mapping/derived)
+# 46 -> 47: market_top_coverage теперь считается по релевантным дисциплине
+# навыкам (mapping -> derived -> relevance), добавлены market_top_total/
+# market_top_reliable/market_top_source. Старые сводки несопоставимы.
 
 # Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
 # IT-coverage picture. Data stays in DB (nothing deleted); they are only
@@ -747,13 +750,20 @@ async def run_teacher_analysis(
             krm_file_path = config.REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
             file_unchanged = not krm_file_path.exists() or summary_mtime > krm_file_path.stat().st_mtime
 
+            # Ручное уточнение охвата (discipline_market_scope.json) меняет числа,
+            # но pipeline_run при этом не создаётся — без этой проверки правка
+            # учителя не применялась бы до ручного --force.
+            scope_path = config.REFERENCE_DIR / "discipline_market_scope.json"
+            scope_unchanged = not scope_path.exists() or summary_mtime > scope_path.stat().st_mtime
+
             try:
                 sdata = json.loads(summary_path.read_text(encoding="utf-8"))
             except Exception:
                 sdata = {}
             version_ok = sdata.get("code_version") == CODE_VERSION
 
-            if market_unchanged and krm_unchanged and file_unchanged and version_ok and not force:
+            if (market_unchanged and krm_unchanged and file_unchanged
+                    and scope_unchanged and version_ok and not force):
                 logger.info("skipping_analysis_data_unchanged", direction=dir_code)
                 try:
                     await complete_pipeline_run(
