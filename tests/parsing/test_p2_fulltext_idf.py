@@ -16,7 +16,7 @@ def test_multiword_skill_gets_weight_real_bm25():
     не матчился никогда → мультисловные навыки системно без веса."""
     ranker = BM25Ranker()
     # Три дока: одно-доковый корпус даёт отрицательный IDF в rank_bm25
-    # (артефакт формулы, не прод — там корпус 50k).
+    # (артефакт формулы, не прод - там корпус 50k).
     vacancies = [
         {"description": "machine learning and deep learning Engineer", "key_skills": [], "snippet": {}},
         {"description": "python developer with sql experience", "key_skills": [], "snippet": {}},

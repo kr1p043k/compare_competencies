@@ -395,7 +395,7 @@ class VacancyClusterer:
         for i, label in enumerate(self.labels_):
             if label == cluster_id and i < len(self.vacancy_skills):
                 skills_set.update(self.vacancy_skills[i])
-        # C7 (аудит 2026-10-14): list(set) — порядок хеш-случаен (PYTHONHASHSEED),
+        # C7 (аудит 2026-10-14): list(set) - порядок хеш-случаен (PYTHONHASHSEED),
         # «top_skills[:10]» менялся между рестартами API. Сортировка = детерминизм.
         return sorted(skills_set)
 
@@ -458,7 +458,7 @@ class VacancyClusterer:
         dominant = taxonomy.get_dominant_category(top_skills)
 
         # Проверяем, что доминирующая категория осмысленна
-        # (если other — ищем следующую по величине)
+        # (если other - ищем следующую по величине)
         if dominant == "other":
             stats = taxonomy.get_category_stats(top_skills)
             match stats:

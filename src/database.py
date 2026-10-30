@@ -32,7 +32,7 @@ def _sessionmaker():
 def async_session_factory() -> AsyncSession:
     """Return a new AsyncSession (cached engine+maker, fresh session each call).
 
-    NOT async — AsyncSession() is sync (doesn't connect until used).
+    NOT async - AsyncSession() is sync (doesn't connect until used).
     """
     return _sessionmaker()()
 

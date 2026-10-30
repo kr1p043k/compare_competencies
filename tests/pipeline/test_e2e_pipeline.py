@@ -1,4 +1,4 @@
-"""E2E integration tests for the full pipeline — orchestrator, stages, progress, events, clean, builder."""
+"""E2E integration tests for the full pipeline - orchestrator, stages, progress, events, clean, builder."""
 
 from unittest.mock import MagicMock, patch
 
@@ -56,7 +56,7 @@ def test_pipeline_runs_all_stages(mock_stage, patch_progress):
     assert run.started_at > 0
     assert run.finished_at > 0
     # NOTE: elapsed may be exactly 0.0 on coarse clocks when mocked stages
-    # finish within one tick — assert ordering/recording, not positivity.
+    # finish within one tick - assert ordering/recording, not positivity.
     assert run.finished_at >= run.started_at
     assert run.elapsed >= 0
     for st in run.stages:

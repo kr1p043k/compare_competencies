@@ -33,11 +33,11 @@ function AccountCard({ displayName, email, roleLabel }: AccountProps & { roleLab
       <CardContent className="space-y-1 text-sm text-slate-900 dark:text-slate-100">
         <p>
           <span className="text-slate-600 dark:text-slate-400">ФИО: </span>
-          {displayName || "—"}
+          {displayName || "-"}
         </p>
         <p>
           <span className="text-slate-600 dark:text-slate-400">Email: </span>
-          {email || "—"}
+          {email || "-"}
         </p>
       </CardContent>
     </Card>
@@ -85,7 +85,7 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
             Живая сводка
           </CardTitle>
           <CardDescription className="text-slate-600 dark:text-slate-400">
-            Активность, ошибки и свежесть данных — прочерк при недоступности
+            Активность, ошибки и свежесть данных - прочерк при недоступности
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -102,7 +102,7 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
               <div className="rounded-lg border border-slate-200 bg-white p-3 text-center transition-colors duration-200 dark:border-slate-700 dark:bg-slate-900">
                 <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                  {typeof sum?.sessions_active === "number" ? sum.sessions_active : "—"}
+                  {typeof sum?.sessions_active === "number" ? sum.sessions_active : "-"}
                 </div>
                 <div className="text-[11px] uppercase tracking-wide text-slate-600 dark:text-slate-400">
                   Сессии активны
@@ -110,7 +110,7 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
               </div>
               <div className="rounded-lg border border-slate-200 bg-white p-3 text-center transition-colors duration-200 dark:border-slate-700 dark:bg-slate-900">
                 <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                  {errorsTotal === null ? "—" : errorsTotal}
+                  {errorsTotal === null ? "-" : errorsTotal}
                 </div>
                 <div className="text-[11px] uppercase tracking-wide text-slate-600 dark:text-slate-400">
                   Ошибки за час
@@ -118,10 +118,10 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
               </div>
               <div className="rounded-lg border border-slate-200 bg-white p-3 text-center transition-colors duration-200 col-span-2 lg:col-span-1 dark:border-slate-700 dark:bg-slate-900">
                 <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                  {typeof sum?.freshness?.vacancies === "number" ? sum.freshness.vacancies.toLocaleString("ru-RU") : "—"}
+                  {typeof sum?.freshness?.vacancies === "number" ? sum.freshness.vacancies.toLocaleString("ru-RU") : "-"}
                 </div>
                 <div className="text-[11px] uppercase tracking-wide text-slate-600 dark:text-slate-400">
-                  Вакансии{sum?.freshness?.date_from ? ` · ${sum.freshness.date_from}–${sum.freshness.date_to ?? "…"}` : ""}
+                  Вакансии{sum?.freshness?.date_from ? ` · ${sum.freshness.date_from}-${sum.freshness.date_to ?? "…"}` : ""}
                 </div>
               </div>
             </div>
@@ -737,7 +737,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
           </CardTitle>
           {(login || self) && (
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              {login || "—"}
+              {login || "-"}
               {self ? ` · уровень ${self.target_level} · профиль ${self.profile}` : ""}
             </p>
           )}
@@ -777,10 +777,10 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           {[
-            { label: "Навыки", value: self ? String(skillsCount) : "—" },
-            { label: "Компетенции КРМ", value: krm ? String(krmTotal) : "—" },
-            { label: "Совпало", value: krm ? String(overlap) : "—" },
-            { label: "Дисциплин", value: krm ? String(discsCount) : "—" },
+            { label: "Навыки", value: self ? String(skillsCount) : "-" },
+            { label: "Компетенции КРМ", value: krm ? String(krmTotal) : "-" },
+            { label: "Совпало", value: krm ? String(overlap) : "-" },
+            { label: "Дисциплин", value: krm ? String(discsCount) : "-" },
           ].map((k) => (
             <div
               key={k.label}
@@ -801,7 +801,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
             Мои навыки{self ? ` (${skillsCount})` : ""}
           </CardTitle>
           <CardDescription className="text-slate-600 dark:text-slate-400">
-            Свои навыки хранятся в вашем профиле — добавляйте и удаляйте
+            Свои навыки хранятся в вашем профиле - добавляйте и удаляйте
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -819,7 +819,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
             <>
               {skillsCount === 0 ? (
                 <p className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 px-3 py-4 text-center text-sm text-slate-600 dark:text-slate-400">
-                  навыков пока нет — добавьте первый ниже
+                  навыков пока нет - добавьте первый ниже
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
@@ -830,7 +830,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                         key={s}
                         variant={mine ? "default" : "secondary"}
                         className="text-xs gap-1"
-                        title={mine ? "Добавлен вами — можно удалить" : "Из программы — удалить нельзя"}
+                        title={mine ? "Добавлен вами - можно удалить" : "Из программы - удалить нельзя"}
                       >
                         {s}
                         {mine && (
@@ -855,7 +855,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && newSkill.trim()) void handleAddSkill();
                   }}
-                  placeholder="Новый навык, Enter — добавить"
+                  placeholder="Новый навык, Enter - добавить"
                   aria-label="Новый навык"
                   className="h-10 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
                 />
@@ -874,7 +874,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
         </CardContent>
       </Card>
 
-      {/* Мои компетенции — drill-down */}
+      {/* Мои компетенции - drill-down */}
 
       <Card id="my-technologies" className="bg-white dark:bg-slate-950">
         <CardHeader>
@@ -898,7 +898,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
             <>
               {techList.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 px-3 py-4 text-center text-sm text-slate-600 dark:text-slate-400">
-                  Пока пусто — добавьте первую технологию ниже. Подсказки берутся из списка technologies_suggest.
+                  Пока пусто - добавьте первую технологию ниже. Подсказки берутся из списка technologies_suggest.
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
@@ -924,7 +924,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && techInput.trim()) void handleAddTech();
                   }}
-                  placeholder="Например: Docker. Enter — добавить"
+                  placeholder="Например: Docker. Enter - добавить"
                   aria-label="Новая технология"
                   list="my-tech-suggest"
                   className="h-10 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
@@ -1138,7 +1138,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
               <Textarea
                 value={draftKnowledge}
                 onChange={(e) => setDraftKnowledge(e.target.value)}
-                placeholder="Знания — по одному на строку"
+                placeholder="Знания - по одному на строку"
                 aria-label="Знания"
                 rows={3}
                 className="focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
@@ -1146,7 +1146,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
               <Textarea
                 value={draftAbilities}
                 onChange={(e) => setDraftAbilities(e.target.value)}
-                placeholder="Умения — по одному на строку"
+                placeholder="Умения - по одному на строку"
                 aria-label="Умения"
                 rows={3}
                 className="focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
@@ -1154,7 +1154,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
               <Textarea
                 value={draftSkills}
                 onChange={(e) => setDraftSkills(e.target.value)}
-                placeholder="Навыки — по одному на строку"
+                placeholder="Навыки - по одному на строку"
                 aria-label="Навыки"
                 rows={3}
                 className="focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
@@ -1256,7 +1256,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
             <>
               {krm.disciplines.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 px-3 py-4 text-center text-sm text-slate-600 dark:text-slate-400">
-                  нет данных — добавьте навыки выше
+                  нет данных - добавьте навыки выше
                 </p>
               ) : (
                 <>
@@ -1328,7 +1328,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                             <div className="space-y-2 px-3 pb-3">
                               {total === 0 && (
                                 <p className="text-xs text-slate-600 dark:text-slate-400">
-                                  нет данных — добавьте навыки выше
+                                  нет данных - добавьте навыки выше
                                 </p>
                               )}
                               {matched.length > 0 && (
@@ -1359,7 +1359,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                                     {missing.map((s, i) => (
                                       <span
                                         key={i}
-                                        title="Нет у вас — нажмите +, чтобы добавить"
+                                        title="Нет у вас - нажмите +, чтобы добавить"
                                         className="inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 transition-colors duration-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                                       >
                                         <span className="break-words">{s.text}</span>

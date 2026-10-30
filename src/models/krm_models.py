@@ -314,7 +314,7 @@ class CompetencySkill(Base):
 
     __table_args__ = (
         CheckConstraint(ksa_type.in_(["knowledge", "abilities", "skills", "flat"]), name="ck_cs_ksa_type"),
-        # 6 значений — как в живой БД (competency_skills_match_type_check);
+        # 6 значений - как в живой БД (competency_skills_match_type_check);
         # модель раньше знала 3 и ломала бы fresh-install для semantic/explicit.
         CheckConstraint(
             match_type.in_(["exact", "fuzzy", "stem", "substring", "semantic", "explicit"]),
@@ -386,7 +386,7 @@ class Recommendation(Base):
        nullable=False,
        index=True,
     )
-    # SET NULL — как в живой БД: удаление компетенции не стирает рекомендации.
+    # SET NULL - как в живой БД: удаление компетенции не стирает рекомендации.
     # CASCADE в модели терял данные на fresh-install (2026-10-12).
     competency_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("competencies.id", ondelete="SET NULL"), index=True)
     user_id: Mapped[str | None] = mapped_column(UUID, ForeignKey("users.id", ondelete="SET NULL"), index=True)

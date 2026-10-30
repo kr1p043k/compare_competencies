@@ -26,7 +26,7 @@ logger = structlog.get_logger(__name__)
 
 # Cross-level пул ролей: топ-N SIM-кандидатов с каждой уровневой модели
 # (N обязано покрывать зону бленда: DS часто 5-8-я по sim, но 1-2-я по бленду;
-# префильтр top-2 убивал её до ранжирования — баг, исправлен widening до 10).
+# префильтр top-2 убивал её до ранжирования - баг, исправлен widening до 10).
 # Кластеры меньше MIN_SIZE вакансий не кандидаты (топ-15 навыков по <30
 # объявлениям неустойчив).
 CROSS_LEVEL_TOP_K = 10
@@ -118,7 +118,7 @@ class ProfileEvaluator:
             for dom in target_domains:
                 domain_skills.update(taxonomy.get_domain_skills(dom))
             # Фильтруем metrics только до навыков целевого домена
-            # (gap_analyzer уже посчитал по всем — будем фильтровать постфактум)
+            # (gap_analyzer уже посчитал по всем - будем фильтровать постфактум)
             logger.info(
                 "domain_skills_selected",
                 target_domains=target_domains,
@@ -134,7 +134,7 @@ class ProfileEvaluator:
             case Ok(val):
                 metrics = val
 
-        # Если задана целевая профессия — фильтруем метрики до её доменов
+        # Если задана целевая профессия - фильтруем метрики до её доменов
         if domain_skills:
             metrics = {s: m for s, m in metrics.items() if s.lower().strip() in domain_skills}
             domain_skill_count = len(domain_skills)
@@ -302,8 +302,8 @@ class ProfileEvaluator:
         skill_w = rw.get("skill", config.READINESS_SKILL_WEIGHT)
         gap_penalty = rw.get("gap_penalty", config.READINESS_GAP_PENALTY_WEIGHT)
         market_div = total_market if total_market > 0 else 1
-        # Шкала 0–100 во всех слагаемых: доли strong/weak — в процентах.
-        # (До v2 здесь были сырые доли 0..1 — вклад ±0.3 балла, потолок 45.3.)
+        # Шкала 0-100 во всех слагаемых: доли strong/weak - в процентах.
+        # (До v2 здесь были сырые доли 0..1 - вклад ±0.3 балла, потолок 45.3.)
         readiness = (
             market_w * market_coverage_score
             + skill_w * (strong_count / market_div * 100)
@@ -362,7 +362,7 @@ class ProfileEvaluator:
         return Ok(result)
 
     def get_clusterer(self, level: Any) -> VacancyClusterer | None:
-        """Кластерер строго своего уровня; фолбэк — "all", затем любой загруженный."""
+        """Кластерер строго своего уровня; фолбэк - "all", затем любой загруженный."""
         lv = level.value if isinstance(level, ExperienceLevel) else str(level).lower()
         for key in (level, lv, "all"):
             for k, cl in self.clusterers.items():

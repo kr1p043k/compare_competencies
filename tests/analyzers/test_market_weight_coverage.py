@@ -39,10 +39,12 @@ def test_weights_shift_coverage_toward_demand():
     assert cov.market_weight_coverage == pytest.approx(0.7)
 
 
-def test_all_weights_zero_falls_back_to_zero_not_crash():
+def test_all_weights_zero_falls_back_to_the_unweighted_ratio():
+    # A zero denominator is not "no coverage": it means the weights do not
+    # describe these skills, so the unweighted ratio is the honest answer.
     weights = {name: 0.0 for name in MARKET}
     cov = analyzer(weights).analyze_discipline("d1", "disc", RPD).ok()
-    assert cov.market_weight_coverage == 0.0
+    assert cov.market_weight_coverage == cov.market_top_coverage
 
 
 def test_unknown_skills_have_zero_weight():

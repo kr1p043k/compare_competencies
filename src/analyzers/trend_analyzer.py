@@ -37,7 +37,7 @@ class SnapshotTrendAnalyzer:
     def _pair_for_compare(self) -> tuple[dict, dict] | None:
         """Пара снимков для честного сравнения: два СВЕЖАЙШИХ одного source
         (обычно hh_vacancies). Смежность в общем списке не требуется: между
-        рыночными лежат снимки профессий — иначе свежие данные игнорируются
+        рыночными лежат снимки профессий - иначе свежие данные игнорируются
         в пользу древней смежной пары, а сравнение идёт поперёк разрядов."""
         if len(self.snapshots) < 2:
             return None
@@ -167,7 +167,7 @@ class SnapshotTrendAnalyzer:
         for skill, prev_freq in previous.items():
             if skill not in latest and prev_freq >= 10:
                 changes.append({"skill": skill, "change_pct": -100.0, "frequency": 0})
-        # Самые падающие — первые (по возрастанию change_pct), только отрицательные.
+        # Самые падающие - первые (по возрастанию change_pct), только отрицательные.
         declining = [c for c in changes if c["change_pct"] < 0]
         result = sorted(declining, key=lambda x: x["change_pct"])[:top_n]
         logger.info("declining_skills_found", count=len(result))

@@ -231,10 +231,10 @@ class TestTopicFilterStats:
 
 
 class TestShortTokenHybrid:
-    """Гибрид H: короткие (<5) токены без категорий — шум (ккт, тсд).
+    """Гибрид H: короткие (<5) токены без категорий - шум (ккт, тсд).
 
     Детерминированный стаб эмбеддингов (без моделей): zzzq и legit имеют
-    topic-sim ~1.0, но zzzq короткий и без категорий — вылетает, legit остаётся.
+    topic-sim ~1.0, но zzzq короткий и без категорий - вылетает, legit остаётся.
     """
 
     def test_short_uncategorized_absent(self, monkeypatch):

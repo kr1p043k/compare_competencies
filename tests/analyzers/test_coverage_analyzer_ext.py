@@ -1,4 +1,4 @@
-"""Extended tests for CoverageAnalyzer — weighted coverage, cross-refs."""
+"""Extended tests for CoverageAnalyzer - weighted coverage, cross-refs."""
 from __future__ import annotations
 
 from unittest.mock import MagicMock

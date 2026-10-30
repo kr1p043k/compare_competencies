@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = (token: string, role: string, name: string) => {
     const parts = token.split(".");
-    // Токен формата payload.signature (HMAC, НЕ JWT): payload — parts[0].
+    // Токен формата payload.signature (HMAC, НЕ JWT): payload - parts[0].
     const payload = parts[0] || "";
     const decoded = JSON.parse(decodeBase64Url(payload));
     const next = { token, role, name, username: decoded.u ?? decoded.username ?? null };

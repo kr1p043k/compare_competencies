@@ -19,7 +19,7 @@ logger = structlog.get_logger(__name__)
 
 # Per-event-loop pool cache.
 # WeakKeyDictionary auto-removes entries when temporary loops (created by
-# asyncio.run() in executor threads) are garbage-collected — no leaks.
+# asyncio.run() in executor threads) are garbage-collected - no leaks.
 _loop_pools: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 
 
@@ -241,7 +241,7 @@ async def export_vacancies_from_json(
 
 async def export_history_trends_to_db() -> int:
     """Import all freq_*.json from data/history into trend_snapshots table.
-    Handles _meta format — profession snapshots get profession name as source.
+    Handles _meta format - profession snapshots get profession name as source.
     """
     total = 0
     for f in sorted(config.HISTORY_DIR.glob("freq_*.json")):

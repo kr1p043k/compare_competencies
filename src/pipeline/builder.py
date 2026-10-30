@@ -1,4 +1,4 @@
-"""PipelineBuilder — fluent builder for pipeline construction."""
+"""PipelineBuilder - fluent builder for pipeline construction."""
 
 from __future__ import annotations
 

@@ -624,7 +624,7 @@ class TestProfileEvaluatorFull:
             vacancies_skills_dict=vacancies_skills_dict,
             skill_weights_by_level=skill_weights_by_level,
         )
-        # Не передаём user_type — должен использоваться 'student'
+        # Не передаём user_type - должен использоваться 'student'
         result = evaluator.evaluate_profile(student).unwrap()
         assert result["level_weights_used"]["junior"] == pytest.approx(0.60)
         assert result["level_weights_used"]["middle"] == pytest.approx(0.30)
@@ -1234,7 +1234,7 @@ class TestReadinessFormulaV2:
 
 
 class TestCoverageStrictWeightedPair:
-    """R2: строгое и взвешенное покрытия — явной парой, без затирания."""
+    """R2: строгое и взвешенное покрытия - явной парой, без затирания."""
 
     def test_trio_present_and_consistent(self):
         from datetime import datetime
@@ -1264,7 +1264,7 @@ _needs_level_models = pytest.mark.skipif(
 
 
 class TestLevelClusterRouting:
-    """L1: каждый уровень — свой объект кластерера, last-wins запрещён."""
+    """L1: каждый уровень - свой объект кластерера, last-wins запрещён."""
 
     def _eval(self):
         from src.models.student import StudentProfile  # noqa
@@ -1349,7 +1349,7 @@ class TestLevelClusterRouting:
 
 
 class TestStage4ApiParity:
-    """Stage 4: паритет API/CLI — домены, профессия, KRM, обязательный уровень."""
+    """Stage 4: паритет API/CLI - домены, профессия, KRM, обязательный уровень."""
 
     def _eval(self, skills, domains, prof):
         from datetime import datetime

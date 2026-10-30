@@ -120,7 +120,7 @@ def atomic_write_json(data: Any, filepath: Path) -> None:
 
 def atomic_read_json(filepath: Path) -> Any:
     """
-    Безопасное чтение JSON: если файл битый — возвращает None.
+    Безопасное чтение JSON: если файл битый - возвращает None.
     """
     try:
         with open(filepath, encoding="utf-8") as f:
@@ -352,7 +352,7 @@ def _market_freq_lookup(
 def clip01(x: float) -> float:
     """Зажать cosine-similarity в [0, 1].
 
-    float32-артефакты дают 1.0000001, сырой косинус бывает отрицательным —
+    float32-артефакты дают 1.0000001, сырой косинус бывает отрицательным -
     оба случая мусор на витринах. Единая точка вместо разрозненных
     min(1.0, ...) по кодбазе.
     """

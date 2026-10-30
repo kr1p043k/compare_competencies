@@ -63,7 +63,7 @@ def _is_clean_it_skill(skill: str) -> bool:
 
     from src.parsing.skills.skill_validator import SkillValidator
 
-    # Артефакты нормализации (напр. "1С:ERP" -> "сerp") — пропускаем
+    # Артефакты нормализации (напр. "1С:ERP" -> "сerp") - пропускаем
     if re.fullmatch(r"[1сС]\s*[:]?erp", skill, re.IGNORECASE):
         return False
     validator = SkillValidator(whitelist=None)

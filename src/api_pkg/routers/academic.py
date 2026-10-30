@@ -1,9 +1,9 @@
 """Academic API (ЮФУ): SSO-вход по токену хаба + прокси get-competencies / analyze-gap.
 
 Токен с hub.sfedu.ru (JWT, payload.username) приходит в ?token=<jwt>.
-- /auth/sso — проверяет JWT через academic-api /verify-token, маппит username@sfedu.ru
+- /auth/sso - проверяет JWT через academic-api /verify-token, маппит username@sfedu.ru
   на users, создаёт локальную сессию с нашим токеном и сохраняет hub-JWT (sso_token).
-- /academic/* — проксирует запросы в academic-api с Authorization: Bearer <hub-jwt>.
+- /academic/* - проксирует запросы в academic-api с Authorization: Bearer <hub-jwt>.
 """
 
 import asyncio
@@ -25,7 +25,7 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["academic"])
 
 ACADEMIC_TIMEOUT = 60.0
-# analyze-gap — тяжёлый LLM-запрос (анализ разрыва всей КРМ), может идти минуты.
+# analyze-gap - тяжёлый LLM-запрос (анализ разрыва всей КРМ), может идти минуты.
 ACADEMIC_GAP_TIMEOUT = 300.0
 
 # academic-api (nginx/WAF) блокирует запросы от скриптов с python-httpx User-Agent (403).
@@ -105,7 +105,7 @@ def _request_token(request: Request) -> str:
 async def _get_sso_token(request: Request) -> tuple[str, str]:
     """Находит hub-JWT, сохранённый в сессии нашего токена.
 
-    Возвращает (sso_token, token_hash). Если hub-JWT уже истёк (exp <= now) —
+    Возвращает (sso_token, token_hash). Если hub-JWT уже истёк (exp <= now) -
     помечает сессию logged_out_at и кидает 419, чтобы фронт перешёл на хаб.
     """
     our_token = _request_token(request)
@@ -137,7 +137,7 @@ async def _get_sso_token(request: Request) -> tuple[str, str]:
 
 
 async def _user_direction_codes(user: dict[str, Any]) -> list[str]:
-    """Коды направлений пользователя (admin — все KRM-файлы, иначе user_directions)."""
+    """Коды направлений пользователя (admin - все KRM-файлы, иначе user_directions)."""
     role = user.get("r")
     pool = get_pool()
     if role != "admin" and pool is not None:
@@ -285,7 +285,7 @@ async def academic_krm_competencies(
     """Все коды компетенций ОП из БД (для current_competencies в analyze-gap).
 
     Параметр dir_code (опционально): фильтр по направлению.
-    Без параметра — все уникальные коды компетенций.
+    Без параметра - все уникальные коды компетенций.
     """
     pool = get_pool()
     if dir_code:
@@ -374,7 +374,7 @@ async def academic_analyze_gap_local(
     """Собственный анализ разрыва (без сервиса ЮФУ).
 
     Тема → навыки → сравнение с рынком (it_skills) и компетенциями КРМ.
-    Выполняется в фоне в потоке (эмбеддинги). Формат ответа — как у ЮФУ.
+    Выполняется в фоне в потоке (эмбеддинги). Формат ответа - как у ЮФУ.
     """
     from src.analyzers.academic_gap import AcademicGapAnalyzer
 

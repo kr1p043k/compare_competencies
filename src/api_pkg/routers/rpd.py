@@ -84,7 +84,7 @@ def _krm_path(dir_code: str) -> Path:
 def _cli_env() -> dict:
     return {
         **os.environ,
-        # Скрипты лежат в scripts/ и импортируют src.* — без этого
+        # Скрипты лежат в scripts/ и импортируют src.* - без этого
         # `python scripts/*.py` падает с ModuleNotFoundError: No module named 'src'.
         "PYTHONPATH": str(PROJECT_ROOT) + os.pathsep + os.environ.get("PYTHONPATH", ""),
     }
@@ -127,7 +127,7 @@ async def _run_cli(args: list[str], timeout: int = 1800, run_id: str | None = No
             env=_cli_env(),
         )
     except NotImplementedError:
-        # Windows SelectorEventLoop не умеет async-сабпроцессы —
+        # Windows SelectorEventLoop не умеет async-сабпроцессы -
         # уходим в worker thread с синхронным запуском.
         logger.warning("rpd_cli_thread_fallback", reason="selector_loop")
         code, out = await asyncio.to_thread(_run_cli_sync, args, timeout, run_id)
@@ -393,7 +393,7 @@ async def rpd_collect(request: Request, background_tasks: BackgroundTasks,
                       public_url: Annotated[str, Form()] = ""):
     """Сбор компетенций из загруженных РПД.
 
-    public_url — публичная ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...);
+    public_url - публичная ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...);
     позволяет собирать аннотации для направлений вне предустановленного списка YANDEX_COVERED.
     """
     _validate_dir_code(dir_code)
@@ -420,7 +420,7 @@ async def rpd_cancel(request: Request, run_id: str):
     ev = _rpd_cancel.get(run_id)
     proc = _rpd_procs.get(run_id)
     if ev is None and proc is None:
-        # Задача уже завершилась или неизвестна — смотрим БД.
+        # Задача уже завершилась или неизвестна - смотрим БД.
         from src.database import async_session_factory
         from src.models.krm_models import PipelineRun
 

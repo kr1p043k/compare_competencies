@@ -114,7 +114,7 @@ async def _flush_to_db() -> None:
                     session.add(_to_request_log(e, with_detail=True))
                 await session.commit()
         except Exception:
-            # Pre-migration DB without request_logs.detail — retry slim so rows survive.
+            # Pre-migration DB without request_logs.detail - retry slim so rows survive.
             async with async_session_factory() as session:
                 for e in entries:
                     session.add(_to_request_log(e, with_detail=False))
@@ -256,7 +256,7 @@ async def actor_from_request(request: Request) -> tuple[str, str]:
 async def audit_action(request: Request, action: str, target: str = "") -> dict[str, Any]:
     """Append an AUDIT entry: who (email/role) did what (action) to which target.
 
-    Call AFTER a successful mutation only — failed attempts stay visible via the
+    Call AFTER a successful mutation only - failed attempts stay visible via the
     regular middleware row (method/path/status) without an AUDIT row. Never raises.
     Detail format: "<action> | <target> | by <email> (<role>)".
     """
@@ -327,7 +327,7 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             from src.notifications.system import queue_system_error
             queue_system_error(
                 f"Ошибка API: {request.method} {request.url.path}",
-                f"Статус {response.status_code} за {elapsed:.0f} мс | user={user or 'anonymous'} | path={request.url.path}",  # noqa: E501 — f-string, must not split
+                f"Статус {response.status_code} за {elapsed:.0f} мс | user={user or 'anonymous'} | path={request.url.path}",  # noqa: E501 - f-string, must not split
                 severity="error" if response.status_code >= 500 else "warning",
                 article_url=f"api:{request.method} {request.url.path}",
                 dedupe=True,

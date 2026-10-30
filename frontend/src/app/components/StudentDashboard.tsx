@@ -72,18 +72,18 @@ export function StudentDashboard({ onNavigate }: { onNavigate?: (tab: string) =>
                     <td className="py-2">
                       <div className="flex items-center gap-1.5">
                         <Briefcase className="size-3.5 text-gray-400 dark:text-slate-500" />
-                        <span className="text-gray-900 dark:text-slate-100 font-medium">{h.profession || "–"}</span>
+                        <span className="text-gray-900 dark:text-slate-100 font-medium">{h.profession || "-"}</span>
                       </div>
                       {h.profile && <span className="text-xs text-gray-400 dark:text-slate-500 ml-5">профиль: {h.profile}</span>}
                     </td>
                     <td className="py-2">
                       <div className="flex items-center gap-1.5">
                         <MapPin className="size-3.5 text-gray-400 dark:text-slate-500" />
-                        <span className="text-gray-600 dark:text-slate-400">{h.region === "0" ? "Весь рынок" : h.region || "–"}</span>
+                        <span className="text-gray-600 dark:text-slate-400">{h.region === "0" ? "Весь рынок" : h.region || "-"}</span>
                       </div>
                     </td>
                     <td className="py-2 text-right">
-                      <Badge variant="secondary" className="text-xs">{h.vacancies_found > 0 ? h.vacancies_found : "–"}</Badge>
+                      <Badge variant="secondary" className="text-xs">{h.vacancies_found > 0 ? h.vacancies_found : "-"}</Badge>
                     </td>
                     <td className="py-2">
                       {h.profile ? (
@@ -95,7 +95,7 @@ export function StudentDashboard({ onNavigate }: { onNavigate?: (tab: string) =>
                           Открыть анализ
                         </button>
                       ) : (
-                        <span className="text-gray-400 dark:text-slate-500 text-xs">–</span>
+                        <span className="text-gray-400 dark:text-slate-500 text-xs">-</span>
                       )}
                     </td>
                   </tr>

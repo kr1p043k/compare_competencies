@@ -1,9 +1,9 @@
 """Общие хелперы маркет-эмбеддингов: один хэш данных, subset/merge без перекодирования.
 
 До: SkillMatcher.set_market и EmbeddingComparator.build_market_index
-кодировали одни и те же ~4000 навыков независимо (холодный старт — минуты),
+кодировали одни и те же ~4000 навыков независимо (холодный старт - минуты),
 а comparator грузил joblib вслепую. После: обе точки проверяют
-model_version + data_hash(sorted(names)); при расхождении состава —
+model_version + data_hash(sorted(names)); при расхождении состава -
 докодируют только недостающее и атомарно перезаписывают.
 
 I/O намеренно НЕ здесь: тесты мокируют joblib/ArtifactManifest
@@ -24,7 +24,7 @@ def split_cached(cached_skills, cached_embs, names):
     """Разделить запрос на имеющееся (в порядке names) и недостающее.
 
     Возвращает (ordered_names, mat_or_None, missing).
-    mat_or_None — готовый массив для имен, найденных в кэше.
+    mat_or_None - готовый массив для имен, найденных в кэше.
     """
     names = list(names)
     row_by_skill = {s: i for i, s in enumerate(cached_skills)}

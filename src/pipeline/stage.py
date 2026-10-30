@@ -1,4 +1,4 @@
-"""PipelineStage abstraction — единый интерфейс для всех этапов пайплайна."""
+"""PipelineStage abstraction - единый интерфейс для всех этапов пайплайна."""
 
 from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar

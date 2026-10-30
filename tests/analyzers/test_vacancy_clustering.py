@@ -48,7 +48,7 @@ class TestVacancyClusterer:
         assert clusterer.is_fitted is False
 
     def test_fit_few_vacancies(self):
-        """Менее 10 вакансий — пропускаем"""
+        """Менее 10 вакансий - пропускаем"""
         clusterer = VacancyClusterer()
         vacancies = [
             {"id": "1", "skills": ["python"]},
@@ -428,7 +428,7 @@ class TestVacancyClusteringFull:
         # 15 вакансий (>=10), но все с пустыми навыками
         clusterer.fit(vacancies, level="test_all_empty")
         # Должен отработать без ошибок
-        assert True  # не упал — уже хорошо
+        assert True  # не упал - уже хорошо
 
     def test_labels_is_none_initially(self):
         """Строка 138: labels_ is None при создании"""
@@ -455,7 +455,7 @@ class TestVacancyClusteringFull:
         dim = clusterer.cluster_centers.shape[1]
         zero_emb = np.zeros(dim)
         closest = clusterer.find_closest_clusters(zero_emb, top_k=2)
-        assert len(closest) >= 0  # не падает — хорошо
+        assert len(closest) >= 0  # не падает - хорошо
 
     def test_hdbscan_single_cluster_edge(self, tmp_path):
         """Строка 206: HDBSCAN возвращает 1 кластер (n_clusters < 2)"""

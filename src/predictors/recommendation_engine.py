@@ -33,24 +33,24 @@ logger = structlog.get_logger(__name__)
 
 
 _TIMEFRAME_BY_CATEGORY = {
-    "programming_languages": "оценка: ~2–4 месяца",
-    "frameworks": "оценка: ~1–3 месяца",
-    "databases": "оценка: ~1–3 месяца",
-    "data_science": "оценка: ~1–3 месяца",
-    "frontend": "оценка: ~1–3 месяца",
-    "mobile": "оценка: ~1–3 месяца",
-    "devops": "оценка: ~1–2 месяца",
-    "cloud": "оценка: ~1–2 месяца",
-    "security": "оценка: ~1–2 месяца",
-    "llm_ai": "оценка: ~1–2 месяца",
-    "embedded": "оценка: ~1–2 месяца",
-    "game_dev": "оценка: ~1–2 месяца",
-    "enterprise": "оценка: ~1–2 месяца",
-    "gis": "оценка: ~1–2 месяца",
-    "mathematics": "оценка: ~1–2 месяца",
-    "ml_advanced": "оценка: ~2–4 месяца",
-    "testing_qa": "оценка: ~1–2 месяца",
-    "methodologies_concepts": "оценка: ~2–4 недели",
+    "programming_languages": "оценка: ~2-4 месяца",
+    "frameworks": "оценка: ~1-3 месяца",
+    "databases": "оценка: ~1-3 месяца",
+    "data_science": "оценка: ~1-3 месяца",
+    "frontend": "оценка: ~1-3 месяца",
+    "mobile": "оценка: ~1-3 месяца",
+    "devops": "оценка: ~1-2 месяца",
+    "cloud": "оценка: ~1-2 месяца",
+    "security": "оценка: ~1-2 месяца",
+    "llm_ai": "оценка: ~1-2 месяца",
+    "embedded": "оценка: ~1-2 месяца",
+    "game_dev": "оценка: ~1-2 месяца",
+    "enterprise": "оценка: ~1-2 месяца",
+    "gis": "оценка: ~1-2 месяца",
+    "mathematics": "оценка: ~1-2 месяца",
+    "ml_advanced": "оценка: ~2-4 месяца",
+    "testing_qa": "оценка: ~1-2 месяца",
+    "methodologies_concepts": "оценка: ~2-4 недели",
 }
 class RecommendationEngine(RecommenderPredictor["RecommendationEngine", RecommendationResult]):
     """
@@ -107,7 +107,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         # Кешируем SkillTaxonomy
         self._taxonomy = SkillTaxonomy()
 
-        # Загружаем список hard-навыков (если файла нет — пустой fallback)
+        # Загружаем список hard-навыков (если файла нет - пустой fallback)
         hard_path = config.HARD_SKILLS_PATH
         if hard_path.exists():
             self._hard_keywords = set(json.loads(hard_path.read_text(encoding="utf-8")))
@@ -258,7 +258,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
 
             top_recs: list[tuple[str, float]] = eval_result.get("top_recommendations") or []
             # Слияние по ключу в нижнем регистре: LTR отдаёт skill.lower(),
-            # evaluator — имя рынка как есть ("PostgreSQL" vs "postgresql").
+            # evaluator - имя рынка как есть ("PostgreSQL" vs "postgresql").
             # Раньше это давало два разных навыка и теряло 40% бленда
             # (2026-10-12). display_name возвращает рыночное написание.
             display_name: dict[str, str] = {}
@@ -316,7 +316,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                         for hot in self._always_hot:
                             if hot not in tb:
                                 tb[hot] = config.TREND_ALWAYS_HOT_BONUS
-                        # Ключи трендов — сырые имена снапшотов (k8s), проверка ниже —
+                        # Ключи трендов - сырые имена снапшотов (k8s), проверка ниже -
                         # по нормализованным. Нормализуем здесь, дубли склеиваем по max.
                         normed: dict[str, float] = {}
                         for _k, _v in tb.items():
@@ -432,7 +432,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                         explanation += " 📈 Стабильно востребован."
                     elif skill.lower() in trend_bonuses:
                         _tb = trend_bonuses[skill.lower()]
-                        # Бонус зарезан капом 0.3 — честно показываем «и более», иначе
+                        # Бонус зарезан капом 0.3 - честно показываем «и более», иначе
                         # все быстрорастущие навыки выглядят с одинаковым +30%.
                         _tb_txt = "+30% и более" if _tb >= 0.3 else f"+{_tb * 100:.0f}%"
                         explanation += f" 📈 Топ роста ({_tb_txt})."
@@ -544,7 +544,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
     # ------------------------------------------------------------------
 
     # Веса бленда ранга ролей: геометрия доминирует, цель корректирует.
-    # Обоснование — замер A/B на base/dc/top_dc (см. отчёт стадии 2).
+    # Обоснование - замер A/B на base/dc/top_dc (см. отчёт стадии 2).
     ROLE_SIM_WEIGHT = 0.6
     ROLE_TARGET_WEIGHT = 0.4
 
@@ -592,7 +592,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 dom_cat = self._taxonomy.get_dominant_category(ranked[:15]) if ranked else "other"
                 if dom_cat == "other" and ranked:
                     # То же правило, что в именах кластеров: other не категория,
-                    # берём следующую с count>=2 — иначе дедап пропускает дубли.
+                    # берём следующую с count>=2 - иначе дедап пропускает дубли.
                     match self._taxonomy.get_category_stats(ranked[:15]):
                         case Ok(stats):
                             for _cat, _cnt in stats.items():
@@ -638,7 +638,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
                 }
             )
         # Сорт по бленду + дедап доминантной категории, берём 3.
-        # "other" не дедапится: недоказанная одинаковость — не одинаковость.
+        # "other" не дедапится: недоказанная одинаковость - не одинаковость.
         candidates.sort(key=lambda r: r["rank_score"], reverse=True)
         roles, seen_cats = [], set()
         for cand in candidates:
@@ -665,7 +665,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         return priority + leftover
 
     def _get_role_outcome(self, skill: str, closest_roles: list[dict], skill_relevant: bool = False) -> str:
-        # Ожидаемый результат — только для навыков, релевантных роли:
+        # Ожидаемый результат - только для навыков, релевантных роли:
         # без флага или вне ядра кластера молчим, иначе хвостовым навыкам
         # приписывается чужой coverage-прирост.
         if not closest_roles or not skill_relevant:
@@ -708,7 +708,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         except Exception:
             skill_cat = "технический"
 
-        suffix = " У вас уже есть базовое понимание — углубите его." if category == SkillCategory.WEAK else ""
+        suffix = " У вас уже есть базовое понимание - углубите его." if category == SkillCategory.WEAK else ""
 
         if skill_relevant and top_cluster_name:
             return (
@@ -722,7 +722,7 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         if score > 0.6:
             return (
                 f"🔴 Высокий рыночный спрос.\n"
-                f"   '{skill}' ({skill_cat}) — один из самых востребованных навыков "
+                f"   '{skill}' ({skill_cat}) - один из самых востребованных навыков "
                 f"на рынке. Работодатели часто указывают его в требованиях."
                 f"{suffix}"
             )
@@ -810,10 +810,10 @@ class RecommendationEngine(RecommenderPredictor["RecommendationEngine", Recommen
         estimate = _TIMEFRAME_BY_CATEGORY.get(cat) if cat else None
         if estimate:
             return estimate
-        return "оценка: ~1–2 месяца"
+        return "оценка: ~1-2 месяца"
 
     # ------------------------------------------------------------------
-    # LLM (YandexGPT) — вспомогательный, необязательный
+    # LLM (YandexGPT) - вспомогательный, необязательный
     # ------------------------------------------------------------------
 
     def _llm_explain_with_retry(

@@ -20,7 +20,7 @@ def plot_cluster_insights(results: dict[str, Any], output_dir: Path):
             logger.info("no_cluster_context_for_profile", profile=profile_name)
             continue
 
-        # Кросс-уровневый пул даёт до 30 кандидатов — показываем топ-15,
+        # Кросс-уровневый пул даёт до 30 кандидатов - показываем топ-15,
         # иначе подписи сливаются. Горизонтальные бары: длинные имена не налезают.
         closest = (cluster_ctx.get("closest_clusters", []) or [])[:15]
         if not closest:

@@ -11,7 +11,7 @@ import { Badge } from "./ui/badge";
 
 function ValueDisplay({ value }: { value: unknown }) {
   if (value === null || value === undefined) {
-    return <span className="text-gray-400 dark:text-slate-500 italic">–</span>;
+    return <span className="text-gray-400 dark:text-slate-500 italic">-</span>;
   }
   if (typeof value === "boolean") {
     return <Badge variant={value ? "default" : "secondary"}>{String(value)}</Badge>;

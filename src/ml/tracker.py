@@ -1,4 +1,4 @@
-"""Lightweight experiment tracker — логирует метрики и параметры в JSON."""
+"""Lightweight experiment tracker - логирует метрики и параметры в JSON."""
 
 from __future__ import annotations
 

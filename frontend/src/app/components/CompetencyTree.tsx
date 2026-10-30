@@ -95,7 +95,7 @@ function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
             {matched}/{total}
           </span>
           <span className={`font-semibold text-sm tabular-nums ${coverageColor(displayCov)}`}>
-            {displayCov !== undefined ? (displayCov * 100).toFixed(0) : "–"}%
+            {displayCov !== undefined ? (displayCov * 100).toFixed(0) : "-"}%
           </span>
         </div>
       </div>

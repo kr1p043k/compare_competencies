@@ -179,7 +179,7 @@ class TestClusterInsights:
         # файл должен был создаться
         tmp_path / "student1" / "cluster_insights_student1.png"
         # проверяем, что savefig вызывался с этим путём (опционально)
-        # главное — нет исключений
+        # главное - нет исключений
 
     def test_plot_no_context(self, sample_results, tmp_path):
         results = {"stud": {"student_skills": ["py"], "cluster_context": None}}

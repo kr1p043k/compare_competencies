@@ -1,4 +1,4 @@
-"""Trends by profession — live SQL query + historical snapshots."""
+"""Trends by profession - live SQL query + historical snapshots."""
 from __future__ import annotations
 
 import json

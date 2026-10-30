@@ -1,4 +1,4 @@
-"""Tests for domain port interfaces — Protocol structural subtyping."""
+"""Tests for domain port interfaces - Protocol structural subtyping."""
 from typing import Any
 
 from src import Ok, Result

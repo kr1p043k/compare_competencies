@@ -32,9 +32,9 @@ def test_date_range():
     assert clause.count("published_at") == 2
     assert "$1" in clause and "$2" in clause and "$3" not in clause
     assert params[0].strftime("%Y-%m-%d") == "2026-05-01"
-    assert params[1].strftime("%Y-%m-%d") == "2026-07-01"  # до — не включительно
+    assert params[1].strftime("%Y-%m-%d") == "2026-07-01"  # до - не включительно
     from datetime import timedelta
-    assert params[0].utcoffset() == timedelta(hours=3)  # границы — московские
+    assert params[0].utcoffset() == timedelta(hours=3)  # границы - московские
 
 
 def test_date_garbage_ignored():

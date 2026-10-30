@@ -1,4 +1,4 @@
-"""Shared pipeline progress — writes to pipeline_progress.json for frontend polling."""
+"""Shared pipeline progress - writes to pipeline_progress.json for frontend polling."""
 
 import json
 import time

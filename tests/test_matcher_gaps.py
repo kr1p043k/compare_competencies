@@ -53,7 +53,7 @@ def test_testing_family_matched(matcher):
 def test_genuine_absences_stay_gaps(matcher):
     assert matcher.match(PHRASES[0]).ok()[0] is None
     assert matcher.match(PHRASES[2]).ok()[0] is None
-    # обобщённое «программирование» без объекта — ловушка ПЛК должна молчать
+    # обобщённое «программирование» без объекта - ловушка ПЛК должна молчать
     assert matcher.match(PHRASES[3]).ok()[0] is None
 
 

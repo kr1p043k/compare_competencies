@@ -57,7 +57,7 @@ def test_merged_no_duplicates(monkeypatch):
         assert counts["krm"] > 0 and counts["student"] > 0
         assert counts["merged"] == counts["krm"] + counts["student_only"]
         assert counts["overlap"] == sum(1 for m in body["merged"] if m["source"] == "both")
-        # каждый навык — один раз
+        # каждый навык - один раз
         norms = [m["skill"].strip().lower() for m in body["merged"]]
         assert len(norms) == len(set(norms))
         assert set(m["source"] for m in body["merged"]) <= {"krm", "student", "both"}

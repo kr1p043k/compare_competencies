@@ -1,7 +1,7 @@
 """SHAP top-k: строки shap_values выровнены с возвращёнными impacts.
 
 До фикса раннер индексировал shap_vals позицией в ОТСОРТИРОВАННОМ топ-15,
-а строки шли в порядке valid_missing — persisted shap_per_skill был перепутан.
+а строки шли в порядке valid_missing - persisted shap_per_skill был перепутан.
 Плюс SHAP считался на всех ~200 кандидатах вместо показанных 15.
 """
 
@@ -32,7 +32,7 @@ def test_shap_rows_align_with_returned_impacts(engine_with_mocks):  # noqa: F811
 
     def fake_shap_values(frame):
         seen["n_rows"] = len(frame)
-        # строка i помечена значением i — проверяем порядок
+        # строка i помечена значением i - проверяем порядок
         return np.array([[float(i)] * len(engine.feature_names)
                           for i in range(len(frame))])
 

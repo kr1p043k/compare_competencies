@@ -57,7 +57,7 @@ export function PredictionsTab() {
     loadForecasts("growing");
   }, []);
 
-  // Countdown Prophet-фита: пока движок trend – опрашиваем лёгкий статус.
+  // Countdown Prophet-фита: пока движок trend - опрашиваем лёгкий статус.
   useEffect(() => {
     if (engineInfo && engineInfo.engine !== "trend") return;
     let stop = false;
@@ -88,7 +88,7 @@ export function PredictionsTab() {
     setLoading(true);
     setError(null);
     try {
-      // Падающие – измеренное падение спроса за окно, а не прогноз:
+      // Падающие - измеренное падение спроса за окно, а не прогноз:
       // /forecast/observed возвращает факты по снимкам.
       const url = direction === "declining"
         ? `/api/forecast/observed?n=25&months=${effMonths}&sort=${effSort}`
@@ -146,7 +146,7 @@ export function PredictionsTab() {
                   </div>
                   <div>
                     <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">Топ растущих навыков</CardTitle>
-                    <CardDescription>Прогноз популярности · {vacanciesCount ? `${vacanciesCount} вакансий` : "–"} · {dataFrom && dataTo ? `${dataFrom}–${dataTo}` : "–"}{engineInfo?.engine ? ` · Движок: ${engineInfo.engine === "prophet" ? `Prophet (${engineInfo.prophet_models} моделей)` : "Trend (Prophet ещё считается)"}` : ""}</CardDescription>
+                    <CardDescription>Прогноз популярности · {vacanciesCount ? `${vacanciesCount} вакансий` : "-"} · {dataFrom && dataTo ? `${dataFrom}-${dataTo}` : "-"}{engineInfo?.engine ? ` · Движок: ${engineInfo.engine === "prophet" ? `Prophet (${engineInfo.prophet_models} моделей)` : "Trend (Prophet ещё считается)"}` : ""}</CardDescription>
                   </div>
                   <div className="ml-auto flex items-center gap-2">
                     <CalendarDays className="size-4 text-gray-400 dark:text-slate-500" />
@@ -192,7 +192,7 @@ export function PredictionsTab() {
               )}
               {forecasts.length === 0 && (
                 <div className="py-8 text-center text-gray-500 dark:text-slate-400 text-sm">
-                  <p>No forecasts yet – not enough history snapshots ({snapshotsCount}).</p>
+                  <p>No forecasts yet - not enough history snapshots ({snapshotsCount}).</p>
                   <p className="mt-1">Run the nightly pipeline a few times to accumulate trend snapshots.</p>
                 </div>
               )}
@@ -211,7 +211,7 @@ export function PredictionsTab() {
                 </div>
                 <div>
                   <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">Падающие навыки</CardTitle>
-                  <CardDescription>Измеренное падение спроса за период · {vacanciesCount ? `${vacanciesCount} вакансий` : "–"} · {dataFrom && dataTo ? `${dataFrom}–${dataTo}` : "–"}</CardDescription>
+                  <CardDescription>Измеренное падение спроса за период · {vacanciesCount ? `${vacanciesCount} вакансий` : "-"} · {dataFrom && dataTo ? `${dataFrom}-${dataTo}` : "-"}</CardDescription>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   <CalendarDays className="size-4 text-gray-400 dark:text-slate-500" />
@@ -238,7 +238,7 @@ export function PredictionsTab() {
               )}
               {observed.length === 0 && (
                 <div className="py-8 text-center text-gray-500 dark:text-slate-400 text-sm">
-                  <p>Нет данных: для окна нужно снимков: {observedMeta?.required_points ?? "–"}, есть максимум: {observedMeta?.max_points ?? snapshotsCount ?? "–"}.</p>
+                  <p>Нет данных: для окна нужно снимков: {observedMeta?.required_points ?? "-"}, есть максимум: {observedMeta?.max_points ?? snapshotsCount ?? "-"}.</p>
                   <p className="mt-1">Уменьшите окно или дождитесь новых снимков пайплайна.</p>
                 </div>
               )}
@@ -266,7 +266,7 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
         <span className="flex-1 font-medium text-gray-900 dark:text-slate-100">{item.skill}</span>
         <div className="flex items-center gap-2">
           <span className={`text-sm font-semibold ${insufficient ? "text-gray-400 dark:text-slate-500" : changePct > 0 ? "text-green-600" : "text-red-600"}`}>
-            {insufficient ? "–" : `${changePctSign}${changePct.toFixed(1)}%`}
+            {insufficient ? "-" : `${changePctSign}${changePct.toFixed(1)}%`}
           </span>
           <Badge className={`text-xs border-0 ${methodColors[item.method] || "bg-gray-100 dark:bg-slate-800"}`}>
             {insufficient ? "нет данных" : (item.method || "trend")}
@@ -279,8 +279,8 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
         <div className="px-3 pb-3 pt-0 border-t border-gray-100 dark:border-slate-800">
           <div className="grid grid-cols-3 gap-4 mt-3 mb-3">
             <div className="text-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg"><div className="text-xs text-gray-500 dark:text-slate-400">Сейчас</div><div className="text-lg font-semibold text-gray-900 dark:text-slate-100">{item.current_frequency.toFixed(0)}</div></div>
-            <div className="text-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg"><div className="text-xs text-gray-500 dark:text-slate-400">Через {horizon === 1 ? "месяц" : `${horizon} мес`}</div><div className="text-lg font-semibold text-gray-900 dark:text-slate-100">{insufficient ? "–" : item.next_year_frequency.toFixed(0)}</div></div>
-            <div className="text-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg"><div className="text-xs text-gray-500 dark:text-slate-400">Уверенность</div><div className="text-lg font-semibold text-gray-900 dark:text-slate-100">{insufficient ? "–" : `${confPct}%`}</div></div>
+            <div className="text-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg"><div className="text-xs text-gray-500 dark:text-slate-400">Через {horizon === 1 ? "месяц" : `${horizon} мес`}</div><div className="text-lg font-semibold text-gray-900 dark:text-slate-100">{insufficient ? "-" : item.next_year_frequency.toFixed(0)}</div></div>
+            <div className="text-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg"><div className="text-xs text-gray-500 dark:text-slate-400">Уверенность</div><div className="text-lg font-semibold text-gray-900 dark:text-slate-100">{insufficient ? "-" : `${confPct}%`}</div></div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-slate-400 mb-2">
             {item.data_points !== undefined && (
@@ -298,7 +298,7 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
           </div>
           {item.uncertainty_upper && item.uncertainty_lower && (
             <div className="text-xs text-gray-400 dark:text-slate-500 text-center mb-2">
-              Доверительный интервал 80%: [{item.uncertainty_lower.toFixed(2)} – {item.uncertainty_upper.toFixed(2)}]
+              Доверительный интервал 80%: [{item.uncertainty_lower.toFixed(2)} - {item.uncertainty_upper.toFixed(2)}]
             </div>
           )}
           {item.forecast_steps && item.forecast_steps.length > 1 && (

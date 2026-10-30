@@ -1,4 +1,4 @@
-"""Vacancies: list, detail, stats — DB-backed."""
+"""Vacancies: list, detail, stats - DB-backed."""
 
 import json
 from datetime import UTC, datetime, timedelta, timezone
@@ -83,7 +83,7 @@ MSK = timezone(timedelta(hours=3))  # Europe/Moscow без DST: всегда +03
 
 
 def _parse_day(value: str | None) -> datetime | None:
-    """Строгий разбор YYYY-MM-DD как полночь МСК (даты вакансий — московские)."""
+    """Строгий разбор YYYY-MM-DD как полночь МСК (даты вакансий - московские)."""
     if not value or not str(value).strip():
         return None
     try:
@@ -228,7 +228,7 @@ async def get_vacancies_info():
             info["with_skills"] = with_skills or 0
 
             row = await pool.fetchrow(
-                "SELECT MAX(published_at) AS max_p, MIN(published_at) AS min_p FROM vacancies WHERE published_at IS NOT NULL"  # noqa: E501 — SQL string must not be split
+                "SELECT MAX(published_at) AS max_p, MIN(published_at) AS min_p FROM vacancies WHERE published_at IS NOT NULL"  # noqa: E501 - SQL string must not be split
             )
             if row and row["min_p"]:
                 info["date_range"] = {

@@ -1,4 +1,4 @@
-"""Pipeline runner — reusable sync/async entry point for CLI and API."""
+"""Pipeline runner - reusable sync/async entry point for CLI and API."""
 
 import argparse
 import asyncio
@@ -49,7 +49,7 @@ def _run_async_safely(coro_factory, *, context: str):
 
     run_full_pipeline вызывается из executor-потока API (своего loop там нет),
     но может быть вызван и из кода с активным loop. Вместо голого
-    asyncio.run() — явный новый loop, при конфликте пропускаем
+    asyncio.run() - явный новый loop, при конфликте пропускаем
     необязательный DB/refresh сайд-эффект с варнингом.
     """
     try:
@@ -529,7 +529,7 @@ def run_full_pipeline(args) -> Result[None, str]:
         console_header("ГЕНЕРАЦИЯ ПРЕЗЕНТАЦИОННЫХ ГРАФИКОВ")
         output_viz_dir = config.REPORTS_DIR
         output_viz_dir.mkdir(parents=True, exist_ok=True)
-        # Графики — после всех данных: их падение не должно ронять прогон.
+        # Графики - после всех данных: их падение не должно ронять прогон.
         try:
             save_all_charts(evaluations, output_viz_dir, use_ml=True, vacancies_skills_list=vacancies_skills)
             _write_pipeline_progress(97, "Графики сохранены")

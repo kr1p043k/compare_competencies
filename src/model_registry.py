@@ -1,4 +1,4 @@
-"""Model Registry — version tracking for LTR, embeddings, clusters."""
+"""Model Registry - version tracking for LTR, embeddings, clusters."""
 
 import json
 from datetime import UTC, datetime

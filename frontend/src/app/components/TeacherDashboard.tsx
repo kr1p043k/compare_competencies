@@ -334,7 +334,7 @@ export function TeacherDashboard() {
         })
         .catch(() => {
           if (cancelled) return;
-          // Разовый сбой сети/рестарт сервера – ждём, а не висим молча.
+          // Разовый сбой сети/рестарт сервера - ждём, а не висим молча.
           misses += 1;
           if (misses < 10) {
             setRpdMsg(`Сервер перезапускается, жду статус... (${misses})`);
@@ -404,7 +404,7 @@ export function TeacherDashboard() {
       } catch (err) {
         if (err instanceof ApiError && err.isRateLimited) {
           setCollectCooldown(30);
-          throw new Error("Слишком частые запросы – кнопка заблокирована на 30 секунд");
+          throw new Error("Слишком частые запросы - кнопка заблокирована на 30 секунд");
         }
         throw err;
       }
@@ -656,7 +656,7 @@ export function TeacherDashboard() {
                     break;
                   }
                   setRunMsg(`Этап: пересчёт анализа (60 дисциплин)… ${spent} c`);
-                  if (i === 359) setRunMsg("Превышено ожидание – проверьте результат позже");
+                  if (i === 359) setRunMsg("Превышено ожидание - проверьте результат позже");
                 }
               } catch (e: any) {
                 setRunMsg(`Ошибка запуска: ${e?.message || e}`);
@@ -789,7 +789,7 @@ export function TeacherDashboard() {
               >
                 {rpdMsg}
                 {rpdStatus.stats?.disciplines != null && rpdStatus.status === "completed" && (
-                  <span> – {rpdStatus.stats.disciplines} дисциплин</span>
+                  <span> - {rpdStatus.stats.disciplines} дисциплин</span>
                 )}
               </div>
             )}
@@ -882,7 +882,7 @@ export function TeacherDashboard() {
                 className="text-[11px] px-2.5 py-0.5 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 cursor-pointer">
                 Снять все
               </button>
-              {metaStale && (<span className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1.5 py-0.5">данные устарели – обновите анализ</span>)}
+              {metaStale && (<span className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1.5 py-0.5">данные устарели - обновите анализ</span>)}
             </div>
           </div>
           {filtered.map((d) => {
@@ -1004,7 +1004,7 @@ export function TeacherDashboard() {
         </div>
 
         {analysisMode === "coverage" && analysis && (<>
-          {/* Суб-навигация: при выбранной дисциплине — по её разделам, иначе по сводке */}
+          {/* Суб-навигация: при выбранной дисциплине - по её разделам, иначе по сводке */}
           <div className="inline-flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-slate-900 p-1 mb-4 sticky top-0 z-10 flex-wrap">
             {(selected
               ? [
@@ -1038,7 +1038,7 @@ export function TeacherDashboard() {
           <div id="t-overview" className="text-[11px] text-gray-500 dark:text-slate-400 mb-2 scroll-mt-2">
             {selected
               ? `Дисциплина: ${selected.name} (направление ${selectedDir})`
-              : `Направление ${selectedDir} – сводка по всем ${analysis.total_disciplines} дисциплинам, ни одна дисциплина не выбрана`}
+              : `Направление ${selectedDir} - сводка по всем ${analysis.total_disciplines} дисциплинам, ни одна дисциплина не выбрана`}
           </div>
           {/* When a discipline is selected, show its coverage instead of direction average */}
           {(() => {
@@ -1076,7 +1076,7 @@ export function TeacherDashboard() {
               </div>
           </>)})()}
 
-              {/* Общие блоки направления – только пока дисциплина не выбрана.
+              {/* Общие блоки направления - только пока дисциплина не выбрана.
                   При выбранной дисциплине её детали ниже (AnalysisPanel). */}
               {!selected && (<>
               {/* Direction-level recommendations */}
@@ -1259,7 +1259,7 @@ export function TeacherDashboard() {
                     <button onClick={() => setCompForm(false)}
                       className="text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
                   </div>
-                  <div className="text-[11px] text-gray-400 dark:text-slate-500">ЗУН и инструменты дописываются после создания: +ЗУН у компетенции, инструменты – через Администрирование → Навыки.</div>
+                  <div className="text-[11px] text-gray-400 dark:text-slate-500">ЗУН и инструменты дописываются после создания: +ЗУН у компетенции, инструменты - через Администрирование → Навыки.</div>
                 </div>
               )}
             </div>

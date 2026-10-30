@@ -356,7 +356,7 @@ class TestForecastOffLoop:
         assert fc._top_cache_get(key) is None
         fc._top_cache_set(key, ["cached"])
         assert fc._top_cache_get(key) == ["cached"]
-        # протухшая запись — miss
+        # протухшая запись - miss
         fc._TOP_CACHE[key] = (time.monotonic() - fc._TOP_CACHE_TTL - 1, ["old"])
         assert fc._top_cache_get(key) is None
         fc._TOP_CACHE.pop(key, None)
@@ -498,7 +498,7 @@ class TestPipelineDataFixes:
         assert SkillNormalizer.normalize("crm").ok() == "crm"
 
     def test_no_double_api_prefix_in_routers(self):
-        # Роутеры монтируются с prefix="/api" — пути вида "/api/..." дают /api/api/*.
+        # Роутеры монтируются с prefix="/api" - пути вида "/api/..." дают /api/api/*.
         # Исключение: health_router монтируется без префикса.
         import pathlib
         import re

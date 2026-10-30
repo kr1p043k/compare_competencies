@@ -1,4 +1,4 @@
-"""Extended tests for HybridWeightCalculator — covers all uncovered paths."""
+"""Extended tests for HybridWeightCalculator - covers all uncovered paths."""
 from unittest.mock import PropertyMock, patch
 
 import numpy as np
@@ -33,7 +33,7 @@ class TestNorm:
 
 
 # ============================================================================
-# calculate — BM25 error / empty
+# calculate - BM25 error / empty
 # ============================================================================
 
 class TestCalculateBm25Errors:
@@ -53,7 +53,7 @@ class TestCalculateBm25Errors:
 
 
 # ============================================================================
-# calculate — fallback paths (no full hybrid)
+# calculate - fallback paths (no full hybrid)
 # ============================================================================
 
 class TestCalculateFallback:
@@ -88,7 +88,7 @@ class TestCalculateFallback:
 
 
 # ============================================================================
-# calculate — PCA paths
+# calculate - PCA paths
 # ============================================================================
 
 class TestCalculatePca:
@@ -152,7 +152,7 @@ class TestCalculatePca:
 
 
 # ============================================================================
-# calculate — full hybrid computation
+# calculate - full hybrid computation
 # ============================================================================
 
 class TestCalculateHybrid:

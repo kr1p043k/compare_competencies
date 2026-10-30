@@ -236,7 +236,7 @@ class TestHeadHunterAPISync:
             mock_get_token.assert_called_once()
 
     def test_ensure_token_valid(self):
-        """Строки 99-100: токен валиден — не обновляется"""
+        """Строки 99-100: токен валиден - не обновляется"""
         api = HeadHunterAPI()
         api._token = "valid_token"
         api._token_expires_at = time.time() + 3600
@@ -560,7 +560,7 @@ class TestHeadHunterAPIAsyncToken:
 
     @pytest.mark.asyncio
     async def test_get_app_token_403_fallback(self, monkeypatch):
-        """Строки 87-91: 403 при получении токена — без авторизации"""
+        """Строки 87-91: 403 при получении токена - без авторизации"""
         monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_ID", SecretStr("test_id"))
         monkeypatch.setattr("src.parsing.api.hh_api_async.config.HH_CLIENT_SECRET", SecretStr("test_secret"))
 
@@ -822,7 +822,7 @@ class TestHeadHunterAPITokenMethods:
 class TestHeadHunterAPIAsyncAdditional:
     @pytest.mark.asyncio
     async def test_ensure_token_skip_when_already_valid(self):
-        """Строки 48-52: токен валиден — не обновляем"""
+        """Строки 48-52: токен валиден - не обновляем"""
         api = HeadHunterAPIAsync(token="valid", token_expires_at=time.time() + 1000)
         with patch.object(api, "_get_app_token", new_callable=AsyncMock) as mock_token:
             result = await api._ensure_token()

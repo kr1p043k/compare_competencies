@@ -1,7 +1,7 @@
 """Centralized retry policy with exponential backoff.
 
-Sync `execute()` — для синхронных контекстов (CLI, thread pool).
-Async `execute_async()` — для async-контекстов (API endpoints).
+Sync `execute()` - для синхронных контекстов (CLI, thread pool).
+Async `execute_async()` - для async-контекстов (API endpoints).
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ class RetryPolicy:
         self.retryable_exceptions = retryable_exceptions or (Exception,)
 
     def execute(self, fn: Callable[..., Result[T, DomainError]], *args: Any, **kwargs: Any) -> Result[T, DomainError]:
-        """Sync retry with time.sleep — для синхронных контекстов (CLI, thread pool).
+        """Sync retry with time.sleep - для синхронных контекстов (CLI, thread pool).
         
         Для async-контекстов используйте `execute_async()`.
         """
@@ -79,7 +79,7 @@ class RetryPolicy:
     async def execute_async(
         self, fn: Callable[..., Result[T, DomainError]], *args: Any, **kwargs: Any
     ) -> Result[T, DomainError]:
-        """Async retry with await asyncio.sleep — не блокирует event loop."""
+        """Async retry with await asyncio.sleep - не блокирует event loop."""
         last_error: DomainError | None = None
         for attempt in range(self.max_retries + 1):
             try:

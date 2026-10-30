@@ -1,4 +1,4 @@
-"""P-length: 2-символьные whitelist-навыки минуют TOO_SHORT; 1-символьные — нет."""
+"""P-length: 2-символьные whitelist-навыки минуют TOO_SHORT; 1-символьные - нет."""
 
 from src.parsing.skills.skill_validator import SkillValidator
 

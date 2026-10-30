@@ -1,4 +1,4 @@
-"""LLM Phase 2 tests — offline (no network, no Ollama endpoint).
+"""LLM Phase 2 tests - offline (no network, no Ollama endpoint).
 
 Binds REAL implementations:
   src.services.llm_extract._validate / extract_skills
@@ -85,7 +85,7 @@ class TestExtractValidator:
 
 
 # ---------------------------------------------------------------------------
-# (b) cache — REAL Postgres tables (cleaned up)
+# (b) cache - REAL Postgres tables (cleaned up)
 # ---------------------------------------------------------------------------
 class TestCache:
     TASK = "phase2-test"

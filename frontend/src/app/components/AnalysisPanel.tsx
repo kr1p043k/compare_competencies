@@ -170,14 +170,14 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                     </Badge>
                     <span className="text-xs text-gray-500 dark:text-slate-400">{r.type}</span>
                     {r.llm_reason && (
-                      <Badge className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-700 text-xs" title="Есть обоснование языковой модели — см. ниже">
+                      <Badge className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-700 text-xs" title="Есть обоснование языковой модели - см. ниже">
                         LLM
                       </Badge>
                     )}
                     {r.skill && r.type === "review_content" && (
                       <button
                         onClick={() => markFoundational(r.skill as string)}
-                        title="Пометить фундаментальным – убрать со страницы"
+                        title="Пометить фундаментальным - убрать со страницы"
                         className="ml-auto text-[11px] px-2 py-0.5 rounded border border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:border-gray-400 dark:hover:border-slate-500 bg-transparent cursor-pointer transition-colors"
                       >
                         в фундаментальные

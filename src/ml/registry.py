@@ -1,4 +1,4 @@
-"""Lightweight model registry — хранит метаданные о версиях моделей."""
+"""Lightweight model registry - хранит метаданные о версиях моделей."""
 
 from __future__ import annotations
 

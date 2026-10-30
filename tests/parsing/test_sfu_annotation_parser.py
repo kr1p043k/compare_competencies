@@ -20,8 +20,8 @@ class TestParseCompetencies:
         assert sfu.parse_competencies("компетенций: ОПК -1: способность") == ["ОПК-1"]
 
     def test_en_dash(self):
-        # «Компьютерные сети»: 'ОПК–2 Способен...'
-        assert sfu.parse_competencies("компетенций: ОПК–2 Способен") == ["ОПК-2"]
+        # «Компьютерные сети»: 'ОПК-2 Способен...'
+        assert sfu.parse_competencies("компетенций: ОПК-2 Способен") == ["ОПК-2"]
 
     def test_minus_sign(self):
         assert sfu.parse_competencies("УК−8 в скобках") == ["УК-8"]
@@ -42,7 +42,7 @@ class TestParseCompetencies:
         assert sfu.parse_competencies("текст без кодов", "Аннотация ВПК-8 (бакалавриат).pdf") == ["ВПК-8"]
 
     def test_fname_no_false_positive_on_curriculum_code(self):
-        # 'Б1.О.2.15' и '09.03.01УКД' — не компетенции.
+        # 'Б1.О.2.15' и '09.03.01УКД' - не компетенции.
         assert sfu.parse_competencies(
             "Дисциплина Б1.О.2.15 «X»", "АНН 09.03.01УКД Архитектура.pdf") == []
 
@@ -62,7 +62,7 @@ class TestSafeCacheName:
         assert name.endswith(".pdf")
 
     def test_discipline_placeholder_junk(self):
-        # «Дисциплины»-заглушка из шаблона — не заголовок (x15/x9/x3 дупов).
+        # «Дисциплины»-заглушка из шаблона - не заголовок (x15/x9/x3 дупов).
         text = 'РАБОЧАЯ ПРОГРАММА ДИСЦИПЛИНЫ «Дисциплины»'
         assert sfu.title_from_text(text, 'Operating Systems.pdf') not in ('Дисциплины',)
 
@@ -107,6 +107,6 @@ class TestTitleFromText:
         assert sfu.title_from_text(t, "x.pdf") == "Mathematics"
 
     def test_fallback_to_filename(self):
-        # Все строки-заглушки отфильтрованы — остаётся имя файла.
+        # Все строки-заглушки отфильтрованы - остаётся имя файла.
         t = "Course description (annotation)\n1. Total labor intensity\n2. Department"
         assert sfu.title_from_text(t, "Web-программирование.pdf") == "Web-программирование"

@@ -46,7 +46,7 @@ def _sync_new_to_db(new_names: list[str]) -> None:
     """Upsert новых навыков в skills(source='it_skills'), чтобы JSON и БД
     не расходились (prodval 2026-10-11: было 1204 vs 892). Только полностью
     отсутствующие имена (unique lower(name)); чужие source не трогаем.
-    БД недоступна — только warning, JSON уже сохранён."""
+    БД недоступна - только warning, JSON уже сохранён."""
     if not new_names:
         return
     try:

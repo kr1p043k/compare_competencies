@@ -1,4 +1,4 @@
-"""RecommendationRunner — генерирует персональные рекомендации."""
+"""RecommendationRunner - генерирует персональные рекомендации."""
 
 import structlog
 from tqdm import tqdm

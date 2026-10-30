@@ -1,4 +1,4 @@
-"""Dataset versioning — хеширование и метаданные для датасетов."""
+"""Dataset versioning - хеширование и метаданные для датасетов."""
 
 from __future__ import annotations
 

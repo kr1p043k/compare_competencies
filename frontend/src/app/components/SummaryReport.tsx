@@ -24,14 +24,14 @@ const METRICS: MetricDef[] = [
   { key: "domain_coverage_score", label: "Покрытие доменов", hint: "Охват профессиональных доменов" },
   { key: "profession_coverage", label: "Покрытие профессии", hint: "Совпадение с целевой профессией" },
   { key: "market_skill_coverage", label: "Покрытие (строгое)", hint: "Бинарное пересечение со спросом" },
-  { key: "coverage_weighted", label: "Покрытие (взвешенное, API)", hint: "То же, что «взвеш.» выше — поле API" },
+  { key: "coverage_weighted", label: "Покрытие (взвешенное, API)", hint: "То же, что «взвеш.» выше - поле API" },
   { key: "avg_gap", label: "Средний разрыв", hint: "Разрыв между текущим и требуемым уровнем" },
 ];
 
 function rowVisible(key: string, evals: Record<string, EvalEntry>, profiles: string[]): boolean {
   const vals = profiles.map((p) => evals[p]?.[key as keyof EvalEntry]);
   if (vals.every((v) => v === undefined || v === null)) return false;
-  // profession_coverage без фокуса всегда 0 — строку не показываем.
+  // profession_coverage без фокуса всегда 0 - строку не показываем.
   if (key === "profession_coverage" && vals.every((v) => v === 0)) return false;
   return true;
 }
@@ -70,8 +70,8 @@ function scoreColor(v: number, isGap = false) {
 }
 
 function scoreCell(v: number | undefined, isGap: boolean) {
-  if (v === undefined || v === null) return <span className="text-gray-400 dark:text-slate-500">–</span>;
-  // avg_gap уже в процентах 0–100 (бэкенд), gap_j в GapRow — доля 0..1.
+  if (v === undefined || v === null) return <span className="text-gray-400 dark:text-slate-500">-</span>;
+  // avg_gap уже в процентах 0-100 (бэкенд), gap_j в GapRow - доля 0..1.
   const fixed = `${v.toFixed(1)}%`;
   return <span className={`font-mono font-semibold ${scoreColor(v, isGap)}`}>{fixed}</span>;
 }
@@ -113,14 +113,14 @@ function ProfileDetails({ name, ev }: { name: string; ev: EvalEntry }) {
           <div>
             <div className="font-bold text-gray-900 dark:text-slate-100">{name}</div>
             <div className="text-xs text-gray-500 dark:text-slate-400">
-              {ev.target_profession || "–"}
+              {ev.target_profession || "-"}
               {ev.dominant_domain_name ? ` · ${ev.dominant_domain_name}` : ""}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-4">
           <span className={`font-mono font-bold text-lg ${scoreColor(ev.market_coverage_score ?? 0)}`}>
-            {ev.market_coverage_score !== undefined ? `${ev.market_coverage_score.toFixed(1)}%` : "–"}
+            {ev.market_coverage_score !== undefined ? `${ev.market_coverage_score.toFixed(1)}%` : "-"}
           </span>
           {open ? <ChevronUp className="size-4 text-gray-400 dark:text-slate-500" /> : <ChevronDown className="size-4 text-gray-400 dark:text-slate-500" />}
         </div>

@@ -1,4 +1,4 @@
-"""WeightCleaner — очищает hybrid_weights."""
+"""WeightCleaner - очищает hybrid_weights."""
 
 import json
 

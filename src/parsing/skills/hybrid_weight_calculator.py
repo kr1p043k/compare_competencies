@@ -30,7 +30,7 @@ class HybridWeightCalculator:
             return Ok({})
 
         if self.cache.model is None:
-            logger.warning("Эмбеддинги недоступны — только BM25")
+            logger.warning("Эмбеддинги недоступны - только BM25")
             return Ok(self._norm(bm25_weights))
 
         try:
@@ -67,8 +67,8 @@ class HybridWeightCalculator:
 
         # NOTE (2026-10-12, measured): эта половина тянет в редкость
         # (specific = важно), а BM25-половина и все потребители
-        # (weighted_coverage, LTR, фолбэки) — в спрос (frequent = важно).
-        # Живой артефакт skill_weights.json — чистый спрос (corr 1.0),
+        # (weighted_coverage, LTR, фолбэки) - в спрос (frequent = важно).
+        # Живой артефакт skill_weights.json - чистый спрос (corr 1.0),
         # т.е. противоречие сегодня не кусается. Полный редизайн
         # (demand-only + LTR-retrain) отложен осознанно; не трогать
         # без A/B вторичных метрик + реtrain LTR на labeling/gold.csv.

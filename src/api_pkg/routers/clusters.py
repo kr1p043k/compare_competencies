@@ -59,7 +59,7 @@ async def get_clusters(
 ):
     """Кластеры вакансий заданного уровня."""
     # Грузим запрошенный уровень явно: глобал после boot = senior (last-wins),
-    # читать из него под видом `level` — stale-read. Локальный объект дешевле гонки.
+    # читать из него под видом `level` - stale-read. Локальный объект дешевле гонки.
     local = VacancyClusterer()
     local.load_model(level)
     if not local.is_fitted:

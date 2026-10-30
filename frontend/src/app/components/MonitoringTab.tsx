@@ -237,7 +237,7 @@ function MonitoringTabBase() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                   <div>
                     <div className="text-xs text-gray-500 dark:text-slate-400">Сессий активно</div>
-                    <div className="text-2xl font-bold">{health.sessions_active ?? "–"}</div>
+                    <div className="text-2xl font-bold">{health.sessions_active ?? "-"}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500 dark:text-slate-400">Ошибки 4xx / 5xx (час)</div>
@@ -252,7 +252,7 @@ function MonitoringTabBase() {
                     <div className="text-2xl font-bold">
                       {(health.freshness?.vacancies ?? 0).toLocaleString("ru-RU")}{" "}
                       <span className="text-xs font-normal text-gray-500 dark:text-slate-400">
-                        {health.freshness?.date_from || "–"} — {health.freshness?.date_to || "–"}
+                        {health.freshness?.date_from || "-"} - {health.freshness?.date_to || "-"}
                       </span>
                     </div>
                   </div>
@@ -263,7 +263,7 @@ function MonitoringTabBase() {
                     {Object.entries(health.latency_p95_by_endpoint || {}).map(([ep, v]) => (
                       <div key={ep} className="flex items-center gap-2 text-xs py-0.5">
                         <span className="font-mono truncate flex-1 text-gray-700 dark:text-slate-300">{ep}</span>
-                        <span className="font-mono font-semibold">{v === null ? "–" : v.toFixed(3)}</span>
+                        <span className="font-mono font-semibold">{v === null ? "-" : v.toFixed(3)}</span>
                       </div>
                     ))}
                   </div>
@@ -279,7 +279,7 @@ function MonitoringTabBase() {
                           </Badge>
                           <span className="font-mono text-gray-700 dark:text-slate-300">{run.action}</span>
                           <span className="text-gray-400 dark:text-slate-500 ml-auto">
-                            {run.started_at ? new Date(run.started_at).toLocaleString("ru-RU") : "–"}
+                            {run.started_at ? new Date(run.started_at).toLocaleString("ru-RU") : "-"}
                           </span>
                         </div>
                       ))}

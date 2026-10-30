@@ -90,8 +90,8 @@ def _apply_foundational_filter(
     """Убрать фундаментальное из выдачи (pure, тестируется).
 
     Скрывается: помеченное вручную (любой тип) + авто-foundational.
-    Подписей "foundational" на странице нет — всё лежит в скрытом списке.
-    Возвращает (visible, hidden); hidden-элементы — копии с флагом manual.
+    Подписей "foundational" на странице нет - всё лежит в скрытом списке.
+    Возвращает (visible, hidden); hidden-элементы - копии с флагом manual.
     Реки без skill не трогаем.
     """
     flag_set = set(flags or [])
@@ -921,7 +921,7 @@ async def get_analysis_meta(dir_code: str = "09.03.02"):
             "current_vac_hash": current_hash}
 
 # ---------- Students skills view (teacher/rop/admin) ----------
-# NOTE: placed here, not in admin.py — the admin router guard is
+# NOTE: placed here, not in admin.py - the admin router guard is
 # admin+teacher only, while these endpoints must also serve rop.
 # Existing /admin/students and /admin/users guards are untouched.
 

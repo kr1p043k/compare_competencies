@@ -119,7 +119,7 @@ const GAP_STATUS_RU: Record<string, { label: string; cls: string }> = {
 function GapStatusBadge({ category }: { category: string }) {
   const key = (category || "").toLowerCase();
   const meta = GAP_STATUS_RU[key] || {
-    label: category || "–",
+    label: category || "-",
     cls: "bg-slate-100 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600",
   };
   return <Badge className={`${meta.cls} border text-xs`}>{meta.label}</Badge>;
@@ -143,7 +143,7 @@ function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
             <span className="text-slate-600 dark:text-slate-400">ваши <span className={`font-semibold ${entry.user_has > 0 ? "text-green-600" : "text-red-500"}`}>{entry.user_has}</span></span>
             <span className="text-slate-400"> из {entry.total_required}</span>
           </span>
-          <span title="Покрытие домена: <20% критическое, 20–40% частичное, ≥40% уверенное" className={`font-semibold ${entry.coverage >= 0.4 ? "text-green-600 dark:text-green-400" : entry.coverage >= 0.2 ? "text-orange-500 dark:text-orange-400" : "text-red-500 dark:text-red-400"}`}>
+          <span title="Покрытие домена: <20% критическое, 20-40% частичное, ≥40% уверенное" className={`font-semibold ${entry.coverage >= 0.4 ? "text-green-600 dark:text-green-400" : entry.coverage >= 0.2 ? "text-orange-500 dark:text-orange-400" : "text-red-500 dark:text-red-400"}`}>
             {(entry.coverage * 100).toFixed(1)}%
           </span>
         </div>
@@ -176,7 +176,7 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
   const gapAvg = (entry.gap_j + entry.gap_m + entry.gap_s) / 3;
   const demandAvg = (entry.demand_j + entry.demand_m + entry.demand_s) / 3;
   // Для незнакомых навыков спрос == разрыву по построению (demand = вес рынка,
-  // gap = вес − 0) — не показываем дубль, чтобы не вводить в заблуждение.
+  // gap = вес − 0) - не показываем дубль, чтобы не вводить в заблуждение.
   const showDemand = Math.abs(gapAvg - demandAvg) > 0.005;
   const gapColor = gapAvg > 0.7 ? "text-red-600" : gapAvg > 0.4 ? "text-orange-500" : "text-yellow-600";
 
@@ -197,8 +197,8 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
       {expanded && (
         <div className="mt-3 space-y-2">
           <p className="text-xs text-slate-500 italic">
-              разрыв – насколько навыка не хватает до требуемого (0% = нет разрыва),
-              спрос – востребованность навыка на рынке. Ниже – детали по уровням.
+              разрыв - насколько навыка не хватает до требуемого (0% = нет разрыва),
+              спрос - востребованность навыка на рынке. Ниже - детали по уровням.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600 dark:text-slate-400">
             <div title="Разрыв на уровне Junior">gap_j: {(entry.gap_j * 100).toFixed(0)}%</div>
@@ -229,7 +229,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
   if (!data || !data.summary) {
     return (
       <div className="py-8 text-center text-gray-500 dark:text-slate-400 text-sm">
-        <p>Пока нет рекомендаций — запустите анализ.</p>
+        <p>Пока нет рекомендаций - запустите анализ.</p>
       </div>
     );
   }
@@ -277,7 +277,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2">
               <CheckCircle2 className="size-4" />
-                <span title="Композитный индекс 0–100. Readiness = 0.45 × market + 0.30 × strong% − 0.25 × weak%: покрытие рынка, доля сильных и слабых навыков">Готовность</span>
+                <span title="Композитный индекс 0-100. Readiness = 0.45 × market + 0.30 × strong% − 0.25 × weak%: покрытие рынка, доля сильных и слабых навыков">Готовность</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -328,12 +328,12 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
           <CardHeader className="pb-3">
             <CardDescription className="flex items-center gap-2">
               <Award className="size-4" />
-                <span title="Строгое: доля навыков студента среди рыночных (бинарно, без весов). Взвешенное ниже — с учётом спроса, может быть выше строгого">Навыки профиля (строго)</span>
+                <span title="Строгое: доля навыков студента среди рыночных (бинарно, без весов). Взвешенное ниже - с учётом спроса, может быть выше строгого">Навыки профиля (строго)</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className={`text-3xl font-bold ${data.summary.coverage_strict === undefined ? "text-slate-400" : getScoreColor(data.summary.coverage_strict)}`}>
-              {data.summary.coverage_strict === undefined ? "–" : `${data.summary.coverage_strict.toFixed(1)}%`}
+              {data.summary.coverage_strict === undefined ? "-" : `${data.summary.coverage_strict.toFixed(1)}%`}
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
               Взвешенное по спросу: {(data.summary.coverage_weighted ?? data.summary.skill_coverage).toFixed(1)}%
@@ -353,7 +353,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
             Ближайшие роли
           </CardTitle>
           <CardDescription>
-            Роли, которые лучше всего соответствуют вашему профилю. Сходство – похожесть навыков на требования вакансий; полного соответствия не гарантирует.
+            Роли, которые лучше всего соответствуют вашему профилю. Сходство - похожесть навыков на требования вакансий; полного соответствия не гарантирует.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
@@ -444,7 +444,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                         )}
                         {rec.llm_reason && (
                           <Badge
-                            title="Есть обоснование языковой модели — см. ниже"
+                            title="Есть обоснование языковой модели - см. ниже"
                             className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-700"
                           >
                             LLM

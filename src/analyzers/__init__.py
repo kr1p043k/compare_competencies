@@ -1,9 +1,9 @@
 """
 Подпакеты анализа:
-- comparison  — CompetencyComparator, EmbeddingComparator, DomainAnalyzer
-- gap         — GapAnalyzer, ProfileEvaluator
-- skills      — SkillFilter, SkillLevelAnalyzer, SkillTaxonomy, SkillCorrelationAnalyzer, TrendAnalyzer
-- clustering  — VacancyClusterer
+- comparison  - CompetencyComparator, EmbeddingComparator, DomainAnalyzer
+- gap         - GapAnalyzer, ProfileEvaluator
+- skills      - SkillFilter, SkillLevelAnalyzer, SkillTaxonomy, SkillCorrelationAnalyzer, TrendAnalyzer
+- clustering  - VacancyClusterer
 """
 
 from .clustering.vacancy_clustering import VacancyClusterer

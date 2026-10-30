@@ -25,7 +25,7 @@ class SkillNormalizer:
         "go": ["golang", "go lang"],
         "csharp": ["c#", "c sharp"],
         # Каноника строго 'c++' (не 'cpp'): whitelist/таксономия/тесты держат
-        # 'c++'; 'cpp' — лишь вариант. Было наоборот — ломало early-exact
+        # 'c++'; 'cpp' - лишь вариант. Было наоборот - ломало early-exact
         # после lower-нормализации ключей (2026-10-12).
         "c++": ["cpp", "c plus plus", "С++", "C++"],
         "rust": ["rustlang"],
@@ -237,8 +237,8 @@ class SkillNormalizer:
         r"^умение\s+(работать\s+)?(с\s+)?",
         r"^навык(и)?\s+(работы\s+)?(с\s+)?",
         r"^понимание\s+",
-        # Ниже — только обёртки («знаю/умею X»), НЕ смысловые глаголы.
-        # разработка/управление/создание/построение/внедрение и т.п. —
+        # Ниже - только обёртки («знаю/умею X»), НЕ смысловые глаголы.
+        # разработка/управление/создание/построение/внедрение и т.п. -
         # контент, их снос тихо теряет навыки (разработка бэкенда -> бэкенда).
         r"^работа\s+с\s+",
         r"^(уверенный|senior|middle|junior)\s+",
@@ -260,7 +260,7 @@ class SkillNormalizer:
         r"\s+или\s+подобных\s+языках?",
         r"\s+и\s+(принципов|основ|т\.д\.|т\.п\.|др\.)",
         r"\s+или\s+(аналогичных|подобных)\s+(языков|технологий)?",
-        # NB: НЕТ правила r"\s+(и|или)\s+\w+$" — оно молча съедало второй
+        # NB: НЕТ правила r"\s+(и|или)\s+\w+$" - оно молча съедало второй
         # навык ("java или kotlin" -> "java"). Лучше честный гэп, чем потеря.
         r"\s+(хорошее|отличное|базовое)\s+(знание|понимание|умение)?$",
         r"\s+или\s+аналогичных\s+(языков|языках)",
@@ -389,7 +389,7 @@ class SkillNormalizer:
             original = skill.strip()
             text = original.lower()
 
-            # Прецедент 1С: токен с префиксом 1с/1c разбираем отдельно —
+            # Прецедент 1С: токен с префиксом 1с/1c разбираем отдельно -
             # хвост fuzzy-матчим к известным продуктам (порог 90), иначе
             # stripping убивает форму. Каноника: "1c" / "1c <продукт>".
             _onec = SkillNormalizer.ONEC_RE.match(text)
@@ -397,7 +397,7 @@ class SkillNormalizer:
                 _tail = re.sub(r"\s+", " ", _onec.group(1)).strip(" :-")
                 if not _tail or re.fullmatch(r"[vв]?\d+(\.\d+)*", _tail):
                     return Ok("1c")
-                # Хвост может быть латинизирован дедупом (yт вместо ут) —
+                # Хвост может быть латинизирован дедупом (yт вместо ут) -
                 # возвращаем кириллицу перед fuzzy. Но чистую латиницу (erp)
                 # рестор портит (erp -> ерр), поэтому сначала пробуем оригинал.
                 _m = process.extractOne(
@@ -411,14 +411,14 @@ class SkillNormalizer:
                     return Ok(f"1c {_m[0]}")
                 return Ok("1c")
 
-            # Раннее точное попадание в карту синонимов — ДО version/prefix stripping,
+            # Раннее точное попадание в карту синонимов - ДО version/prefix stripping,
             # который кромсает значимые символы (1С:УТ -> сут, C# -> c).
             # Проверка через membership: self-mapped ключи возвращают то же значение.
             _canon = SkillNormalizer._get_canonical_map()
             if text in _canon:
                 return Ok(_canon[text].lower())
             # Хомоглиф-варианты (с++ кириллицей): свернуть тем же маппингом,
-            # что парсер, и поискать свёртку. Deferred import — skill_parser
+            # что парсер, и поискать свёртку. Deferred import - skill_parser
             # импортирует этот модуль (цикл на верхнем уровне).
             try:
                 from src.parsing.skills.skill_parser import (
@@ -443,7 +443,7 @@ class SkillNormalizer:
             _restored = text.translate(SkillNormalizer._LAT_TO_CYR_LOOKALIKES)
             _restored_ok = _restored != text and _restored in _canon
             if _restored_ok:
-                # Каноника уже чистая — дальше stripping её только покромсает.
+                # Каноника уже чистая - дальше stripping её только покромсает.
                 return Ok(_canon[_restored].lower())
 
             # Early rejection of junk text
@@ -499,7 +499,7 @@ class SkillNormalizer:
             # Token pre-filter: only compare against whitelist entries sharing tokens
             if re.search(r"\s+(и|или)\s+\w", text):
                 # Альтернация ("java или kotlin"): fuzzy ниже выбрал бы одну
-                # сторону и тихо потерял вторую. Возвращаем как есть —
+                # сторону и тихо потерял вторую. Возвращаем как есть -
                 # честный гэп лучше скрытой потери (парсер местами сплитит
                 # сам, skill_parser.py:418).
                 logger.debug("alternation_kept", original=original)

@@ -1,9 +1,9 @@
 """KRM Teacher: доступ преподавателей и РОП к KRM-данным своих направлений.
 
 Права:
-- admin  — все направления (полный доступ).
-- rop    — только направления, привязанные через user_directions.
-- teacher— направления из user_directions; если привязок нет — все (fallback,
+- admin  - все направления (полный доступ).
+- rop    - только направления, привязанные через user_directions.
+- teacher- направления из user_directions; если привязок нет - все (fallback,
            чтобы не потерять доступ для существующих преподавателей без привязки).
 
 Роуты монтируются под /api/krm/teacher/*.
@@ -75,7 +75,7 @@ def _list_all_dirs() -> list[dict]:
 async def _user_directions(user: dict[str, Any]) -> list[str]:
     """Коды направлений, доступные пользователю.
 
-    admin — все; rop/teacher — из user_directions; teacher без привязок — все.
+    admin - все; rop/teacher - из user_directions; teacher без привязок - все.
     """
     role = user.get("r")
     if role == "admin":

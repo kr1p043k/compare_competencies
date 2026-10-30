@@ -290,7 +290,7 @@ class HeadHunterAPI:
 
     # -----------------------------------------------------------------------
     def _get_result(self, url, params=None, retry_count=0, _is_retry_after_401=False) -> Result[dict, ApiError]:
-        """GET-запрос с явным Result[T, E] — все ошибки типизированы."""
+        """GET-запрос с явным Result[T, E] - все ошибки типизированы."""
         if not _is_retry_after_401:
             self._ensure_token()
         try:

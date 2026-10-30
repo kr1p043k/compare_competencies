@@ -57,7 +57,7 @@ class TestPersistence:
         monkeypatch.setattr(t, "_foundational_path", lambda: tmp_path / "flags.json")
         assert t._load_foundational() == []
         t._save_foundational(["a", "b", "a"])
-        # _save не дедуплицирует, _load — да
+        # _save не дедуплицирует, _load - да
         assert t._load_foundational() == ["a", "b"]
 
     def test_load_legacy_list_format(self, tmp_path, monkeypatch):

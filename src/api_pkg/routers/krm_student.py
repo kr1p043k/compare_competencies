@@ -2,8 +2,8 @@
 
 Студент выбирает направление -> видит дисциплины/компетенции КРМ с отметками
 что у него уже есть + свои навыки вне КРМ. Совпадения считаются один раз
-(source: krm|student|both). Матчинг: нормализация + вхождение (тексты КРМ —
-развёрнутые описания, навыки студента — короткие каноники).
+(source: krm|student|both). Матчинг: нормализация + вхождение (тексты КРМ -
+развёрнутые описания, навыки студента - короткие каноники).
 """
 
 import structlog
@@ -54,7 +54,7 @@ async def krm_student_competencies(
     profile: str = Query(..., description="Профиль студента (base/dc/top_dc/кастом)"),
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
-    """Сводка: компетенции КРМ направления + компетенции студента, дубли — один раз."""
+    """Сводка: компетенции КРМ направления + компетенции студента, дубли - один раз."""
     _validate_dir_code(direction)
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")

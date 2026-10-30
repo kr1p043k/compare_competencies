@@ -100,11 +100,11 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
         skill,
         frequency: info?.frequency ?? 0,
         weight: info?.weight ?? 0,
-        category: info?.category ?? "–",
+        category: info?.category ?? "-",
         has,
       });
     } catch {
-      setDrill({ skill, frequency: 0, weight: 0, category: "–", has });
+      setDrill({ skill, frequency: 0, weight: 0, category: "-", has });
     } finally {
       setDrillLoading(false);
     }

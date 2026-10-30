@@ -1,4 +1,4 @@
-"""RPD document loader — extract competencies and KSA from discipline PDFs.
+"""RPD document loader - extract competencies and KSA from discipline PDFs.
 
 Usage:
     loader = RPDLoader("temp/rpd_pdfs")
@@ -229,7 +229,7 @@ def extract_ksa_skills(text: str) -> dict:
         if not line:
             continue
 
-        # Код компетенции — только ЗАГОЛОВОК строки (после буллета).
+        # Код компетенции - только ЗАГОЛОВОК строки (после буллета).
         # Внутри фразы KSA ('применять подходы УК-4 к решению задач') это
         # контент: прежний search() переключал парсер на фантомную
         # компетенцию и терял остаток секции (P-ksa, 2026-10-14).
@@ -344,7 +344,7 @@ def find_section_text(text: str, sec_matches: list) -> str | None:
             if comp_in_sec and ksa_in_sec >= 3:
                 return section_text
 
-            # TOC section — scan forward for actual content
+            # TOC section - scan forward for actual content
             # Find the next section with actual competency content
             for i, m in enumerate(sec_matches):
                 if m.start() < best_start:
@@ -542,7 +542,7 @@ class RPDLoader:
         if not comp_ksa:
             return None
 
-        # Dedup до merge — иначе после слияния все дети удаляются (P1, 2026-10-14).
+        # Dedup до merge - иначе после слияния все дети удаляются (P1, 2026-10-14).
         comp_ksa = dedup_children(comp_ksa)
         if not comp_ksa:
             return None
@@ -584,7 +584,7 @@ class RPDLoader:
         if ratio >= 0.25:
             return text
 
-        # Low Cyrillic — try OCR only for English-named PDFs with content
+        # Low Cyrillic - try OCR only for English-named PDFs with content
         if use_ocr and any(c.isascii() and c.isalpha() for c in text[:200]):
             print(f"    Low Cyrillic ({ratio:.1%}), trying OCR...")
             ocr_text = extract_text_ocr(fpath)
@@ -683,7 +683,7 @@ class RPDLoader:
                 fn_lat = any("a" <= c <= "z" for c in fn)
                 fn_cyr = any("а" <= c <= "я" for c in fn)
                 if fn_cyr and not fn_lat:
-                    # Russian-only filename — check if related
+                    # Russian-only filename - check if related
                     name_words = set(re.sub(r"[()]", "", name).lower().split())
                     fn_words = set(re.sub(r"[()]", "", fn).lower().split())
                     common = name_words & fn_words

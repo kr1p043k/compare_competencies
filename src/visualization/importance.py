@@ -38,7 +38,7 @@ def plot_ml_importance(profile: str, top_n: int = 10, save_path: Path | None = N
     fig, ax = plt.subplots()
     bars = ax.barh(skills[::-1], scores[::-1], color=sns.color_palette("viridis", len(skills)))
 
-    ax.set_title(f"ТОП важных навыков (LTR XGBoost) — {profile}", pad=20)
+    ax.set_title(f"ТОП важных навыков (LTR XGBoost) - {profile}", pad=20)
     ax.set_xlabel("Важность навыка (%)")
     ax.set_xlim(0, 105)
 

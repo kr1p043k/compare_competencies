@@ -434,7 +434,7 @@ def test_validate_safe_path_inside(tmp_path):
 
 
 def test_validate_safe_path_outside(tmp_path):
-    """Путь выходит за пределы – ошибка"""
+    """Путь выходит за пределы - ошибка"""
     base = tmp_path
     user_path = "../outside.txt"
     with pytest.raises(ValueError, match="выходит за пределы"):

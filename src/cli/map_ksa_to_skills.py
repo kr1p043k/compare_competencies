@@ -31,15 +31,15 @@ SEMANTIC_THRESHOLD = 0.6  # prodval 2026-10-10: 0.45 flood ~1/3 junk links; 0.6 
 MIN_SUBSTRING_LEN = 3  # исторический минимум; tier2 дополнительно режет <=3 (ниже)
 
 #: Короткие навыки-исключения для tier2: истинные гипонимы даже как сабстринг
-#: ('sql' в 'postgresql'/'mysql' — правда). Остальное длиной <=3 — сабстринг-мусор
+#: ('sql' в 'postgresql'/'mysql' - правда). Остальное длиной <=3 - сабстринг-мусор
 #: ('vue' в 'review', 'ros' в 'вопрос', 'ml' в 'html', 'r'/'c' в любом слове).
 #: Word-boundary вместо этого НЕ вводим: убил бы истинные флексии
-#: ('transformers', 'обработки данных') — замерено 2026-10-12, n=155.
+#: ('transformers', 'обработки данных') - замерено 2026-10-12, n=155.
 _SUBSTRING_SHORT_ALLOW = frozenset({"sql"})
 
-#: Языковые дисциплины: их KSA — иноязычная проза, mention != teach.
-#: Сабстринг-тир ловит ловушки ('vue' в 'review'), семантика — упоминания
-#: софта в примерах. Связи для них — ложные гэпы (prodval 2026-10-11:
+#: Языковые дисциплины: их KSA - иноязычная проза, mention != teach.
+#: Сабстринг-тир ловит ловушки ('vue' в 'review'), семантика - упоминания
+#: софта в примерах. Связи для них - ложные гэпы (prodval 2026-10-11:
 #: С1 gaps 4->27/34 дважды). Из DB-merge исключены; старые связи снесены.
 EXCLUDE_MERGE_DISCS = frozenset({
     "Иностранный язык (англ. яз., уровень С1)",
@@ -147,7 +147,7 @@ async def tier_substring(session, disciplines, disc_map, comp_map):
             # Per-text split (prodval 2026-10-11): per-comp join creates giant
             # blobs; strict phrase filters then starve prose discs (Web-disc:
             # 177 ksa -> 1 target). Splitting each text keeps coherent phrases.
-            # Фолбэк целым текстом — только для текстов без маркеров мусора
+            # Фолбэк целым текстом - только для текстов без маркеров мусора
             # и длиной <=200 (иначе 500-символьные блобы шьют короткие навыки).
             phrases: list[str] = []
             for kt in ("knowledge", "abilities", "skills"):
@@ -268,7 +268,7 @@ async def tier_semantic(session, disciplines, disc_map, comp_map):
                 continue
             # Per-text split (prodval 2026-10-11): per-comp join creates giant
             # blobs; strict phrase filters then starve prose discs.
-            # Фолбэк целым текстом — только без маркеров мусора и <=200 симв.
+            # Фолбэк целым текстом - только без маркеров мусора и <=200 симв.
             for kt in ("knowledge", "abilities", "skills"):
                 for t in ksa.get(kt, []):
                     t = (t or "").lower()
@@ -311,9 +311,9 @@ async def tier_semantic(session, disciplines, disc_map, comp_map):
                 # Hub-gate (безусловный в tier3, prodval 2026-10-11): режем хаб-мусор
                 # (kill if hub>=200 AND morph<0.2; P=0.80-0.97, ноль истинных
                 # убитых в mapping-аудите n=38; 2 известных FP-типа на 128 парах
-                # fit-сета — переводы к хаб-фразам; цена принята осознанно).
+                # fit-сета - переводы к хаб-фразам; цена принята осознанно).
                 # Без гейта будущие прогоны воскрешали бы отфильтрованный мусор
-                # (existing-guard его не видит — он не был добавлен).
+                # (existing-guard его не видит - он не был добавлен).
                 from src.analyzers.comparison.hub_gate import veto_match
 
                 if veto_match(chunk[row_idx][1], it_names[idx], float(sims[idx])):
@@ -376,7 +376,7 @@ async def run_mapping(json_map_path: Path | None = None, dir_code: str = "09.03.
         # 32/60 discs of 09.03.02 missing from JSON, incl. 15 teacher-analyzed
         # IT discs with zero links). Tiers match against it_skills only, so
         # non-IT prose yields ~zero links; added links are audited per-disc.
-        # NOTE: membership is checked against the frozen JSON key set — the
+        # NOTE: membership is checked against the frozen JSON key set - the
         # merged dict grows during the loop (2026-10-11: checking `in
         # disciplines_data` silently capped every merged disc at 1 text).
         json_names = set(disciplines_data)

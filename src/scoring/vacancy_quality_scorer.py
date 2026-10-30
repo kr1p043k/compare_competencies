@@ -1,5 +1,5 @@
 """
-VacancyQualityScorer — quality scoring and spam filtering for vacancies.
+VacancyQualityScorer - quality scoring and spam filtering for vacancies.
 """
 
 import re

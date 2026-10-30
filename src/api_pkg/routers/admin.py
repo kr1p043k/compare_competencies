@@ -385,7 +385,7 @@ class UserDirectionsBody(BaseModel):
 
 
 def _validate_uuid(value: str, label: str = "id") -> str:
-    """Проверяет, что value — валидный UUID; иначе 400."""
+    """Проверяет, что value - валидный UUID; иначе 400."""
     try:
         from uuid import UUID
 
@@ -528,7 +528,7 @@ async def admin_monitoring_summary(request: Request):
 async def admin_logs(request: Request, user: str | None = None, limit: int = 100, action: str | None = None):
     """Логи запросов. AUDIT-строки несут detail 'action | target | by email (role)'.
 
-    action — префикс-фильтр по audit-действию, напр. action=krm.recommendation.add.
+    action - префикс-фильтр по audit-действию, напр. action=krm.recommendation.add.
     """
     if user and user == "all":
         user = None
@@ -562,7 +562,7 @@ async def admin_logs_file(request: Request, lines: int = 300, level: str = "all"
     except Exception:
         return {"file": str(LOG_FILE), "lines": [], "total": 0}
 
-    # Последняя строка может быть неполной (пишется на лету) — берём хвост целиком
+    # Последняя строка может быть неполной (пишется на лету) - берём хвост целиком
     wanted = raw_lines[-max(lines, 1):]
     if level in ("error", "warning", "info", "debug"):
         wanted = [l for l in wanted if f"level={level}" in l or l.startswith(f"{level.upper()} ")]
@@ -874,7 +874,7 @@ async def frontend_log(request: Request, body: FrontendLogRequest):
 
 # ---------- Real-time system log streaming (WebSocket) ----------
 # Отдельный роутер БЕЗ dependencies (require_any_role ждёт HTTP Request,
-# а у WebSocket нет Request) — авторизация выполняется вручную в эндпоинте.
+# а у WebSocket нет Request) - авторизация выполняется вручную в эндпоинте.
 
 ws_log_router = APIRouter(tags=["logs-ws"])
 
@@ -964,7 +964,7 @@ async def admin_logs_ws(websocket: WebSocket, token: str = ""):
             try:
                 await asyncio.wait_for(websocket.receive_text(), timeout=30)
             except TimeoutError:
-                # Клиент жив — просто keepalive-пауза
+                # Клиент жив - просто keepalive-пауза
                 continue
             except Exception:
                 break

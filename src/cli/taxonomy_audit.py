@@ -25,7 +25,7 @@ logger = structlog.get_logger(__name__)
 TAXONOMY_PATH = config.SKILL_TAXONOMY_PATH
 IT_SKILLS_PATH = config.IT_SKILLS_PATH
 DEFAULT_THRESHOLD = 0.55
-# Для авто-категоризации новых навыков (extend) — чуть ниже, т.к. nearest-neighbor
+# Для авто-категоризации новых навыков (extend) - чуть ниже, т.к. nearest-neighbor
 # даёт меньшие absolute scores, но при < 0.50 навык оставляем в "other" (неоднозначно).
 EXTEND_THRESHOLD = 0.50
 
@@ -372,7 +372,7 @@ def taxonomy_skill_set(taxonomy: dict) -> set[str]:
 def build_prototypes(taxonomy: dict) -> dict[str, np.ndarray]:
     """Возвращает {cat_id: (n_cat × d) матрица нормализованных векторов навыков}.
 
-    Каждая категория представлена матрицей эталонных навыков — сходство
+    Каждая категория представлена матрицей эталонных навыков - сходство
     кандидата = максимальное косинусное сходство с ближайшим эталоном.
     """
     from src.parsing.api.embedding_loader import get_embedding_model
@@ -393,7 +393,7 @@ def build_prototypes(taxonomy: dict) -> dict[str, np.ndarray]:
 
 
 def suggest_categories(skills: list[str], prototypes: dict[str, np.ndarray]) -> dict[str, tuple[str, float]]:
-    """skill → (category_id, score). Ручные оверрайды приоритетны; остальное — эмбеддинг.
+    """skill → (category_id, score). Ручные оверрайды приоритетны; остальное - эмбеддинг.
 
     Сходство с категорией = максимальное косинусное сходство кандидата
     с любым эталонным навыком категории (nearest-neighbor).
@@ -457,9 +457,9 @@ def categorize_new_skills(skills: list[str]) -> dict[str, str]:
 
 
 def categorize_new_skills_with_score(skills: list[str]) -> dict[str, tuple[str, float]]:
-    """Возвращает {skill: (category_id, score)} — с порогом EXTEND_THRESHOLD.
+    """Возвращает {skill: (category_id, score)} - с порогом EXTEND_THRESHOLD.
 
-    "other" + 0.0 — для неоднозначных/ниже порога.
+    "other" + 0.0 - для неоднозначных/ниже порога.
     """
     if not skills:
         return {}

@@ -873,7 +873,7 @@ class TestHHResponses:
     # parse_response
     # ----------------------------------------------------------------
     def test_parse_response_success(self):
-        data = {"id": "1", "name": "Test", "area": {"id": 1, "name": "M"}}  # id – строка
+        data = {"id": "1", "name": "Test", "area": {"id": 1, "name": "M"}}  # id - строка
         result = parse_response(data, VacancyDetailResponse)
         assert isinstance(result, VacancyDetailResponse)
         assert result.id == "1"

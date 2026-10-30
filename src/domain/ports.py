@@ -1,4 +1,4 @@
-"""Domain port interfaces — абстракции для внешних зависимостей."""
+"""Domain port interfaces - абстракции для внешних зависимостей."""
 
 from __future__ import annotations
 

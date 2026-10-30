@@ -4,7 +4,7 @@ Verification accounts (created here, deleted after):
   student: test.student@compare-competencies.local / Student_Test_123
   viewer:  test.teacher.view@compare-competencies.local / Teacher_View_123
 Password hashes are generated per-row with pgcrypto
-crypt(<pw>, gen_salt('bf', 6)) ($2a$06$ — same scheme as existing rows);
+crypt(<pw>, gen_salt('bf', 6)) ($2a$06$ - same scheme as existing rows);
 no hash is copied or reused.
 Cleanup: sessions + user rows deleted, self files unlinked.
 """

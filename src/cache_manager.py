@@ -44,7 +44,7 @@ class CacheManager:
         path = self._path(key)
         try:
             # Атомарно: tmp + os.replace. Прямая запись оставляла обрезанный
-            # pickle при падении/гонке — кэш потом читался как Err навсегда.
+            # pickle при падении/гонке - кэш потом читался как Err навсегда.
             import os
             import tempfile
 

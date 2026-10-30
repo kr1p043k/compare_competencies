@@ -1,7 +1,7 @@
 """Очередь предложений навыков от преподавателей (модерация админа).
 
 Файловое хранилище data/skill_suggestions.json: [{'id','skill','category_hint',
-'status','created_by','created_at','decided_at'}]. Без миграций — по скорости
+'status','created_by','created_at','decided_at'}]. Без миграций - по скорости
 как manual_foundational_skills.json. Нормализация: lower+trim.
 """
 

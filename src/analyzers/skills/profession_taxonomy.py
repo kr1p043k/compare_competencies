@@ -338,7 +338,7 @@ class ProfessionTaxonomy:
         self, profession_name: str, user_skills: list[str], domain_weights: dict[str, float] | None = None
     ) -> tuple[float, dict[str, float]]:
         """Средневзвешенное покрытие по всем доменам профессии.
-        Если domain_weights не заданы — равные веса."""
+        Если domain_weights не заданы - равные веса."""
         coverages = self.compute_domain_coverage_for_profession(profession_name, user_skills)
         if not coverages:
             logger.warning("no_coverages_for_profession", profession=profession_name)

@@ -22,7 +22,7 @@ FLUSH_BATCH = 50
 VALID_SEVERITIES = ("info", "warning", "error")
 
 API_SIGNATURE_PREFIX = "api:"
-API_RESOLVE_WINDOW = 30.0  # seconds — троттлинг повторного резолва одного пути
+API_RESOLVE_WINDOW = 30.0  # seconds - троттлинг повторного резолва одного пути
 
 _error_buffer: deque[dict] = deque(maxlen=MAX_BUFFER)
 _resolve_buffer: deque[dict] = deque(maxlen=MAX_BUFFER)
@@ -92,7 +92,7 @@ def queue_system_error(
     через flush_system_errors_sync().
 
     dedupe=True: если в ленте уже есть непрочитанное уведомление с таким же
-    (title, article_url), повторная запись не создаётся — ошибки не заваливают ленту.
+    (title, article_url), повторная запись не создаётся - ошибки не заваливают ленту.
     """
     _error_buffer.append({
         "title": title,
@@ -105,13 +105,13 @@ def queue_system_error(
 
 
 def queue_pipeline_stage_resolved(stage_name: str) -> None:
-    """Этап пайплайна успешно выполнился — снять «Ошибка этапа пайплайна: {stage_name}»."""
+    """Этап пайплайна успешно выполнился - снять «Ошибка этапа пайплайна: {stage_name}»."""
     _resolve_buffer.append({"type": "stage", "stage_name": stage_name})
     _schedule_flush()
 
 
 def queue_pipeline_run_resolved() -> None:
-    """Пайплайн успешно завершился — снять «Пайплайн не завершился»."""
+    """Пайплайн успешно завершился - снять «Пайплайн не завершился»."""
     _resolve_buffer.append({"type": "pipeline_failed"})
     _schedule_flush()
 
@@ -119,7 +119,7 @@ def queue_pipeline_run_resolved() -> None:
 async def resolve_warmup_failure(component: str) -> int:
     """Удалить системные предупреждения о неудачной загрузке компонента.
 
-    Вызывается при успешной повторной инициализации компонента — если warning
+    Вызывается при успешной повторной инициализации компонента - если warning
     больше не актуален, он исчезает из ленты уведомлений.
     """
     from sqlalchemy import delete
@@ -142,7 +142,7 @@ async def resolve_warmup_failure(component: str) -> int:
 
 
 async def resolve_pipeline_stage_errors(stage_name: str) -> int:
-    """Удалить «Ошибка этапа пайплайна: {stage_name}» — этап снова отработал успешно."""
+    """Удалить «Ошибка этапа пайплайна: {stage_name}» - этап снова отработал успешно."""
     from sqlalchemy import delete
 
     from src.database import async_session_factory
@@ -163,7 +163,7 @@ async def resolve_pipeline_stage_errors(stage_name: str) -> int:
 
 
 async def resolve_pipeline_failed() -> int:
-    """Удалить «Пайплайн не завершился» — последний прогон прошёл успешно."""
+    """Удалить «Пайплайн не завершился» - последний прогон прошёл успешно."""
     from sqlalchemy import delete
 
     from src.database import async_session_factory
@@ -205,11 +205,11 @@ async def _has_unread_duplicate(title: str, article_url: str) -> bool:
 async def resolve_api_errors(method: str, path: str) -> int:
     """Удалить системные уведомления об API-ошибках на этом пути.
 
-    Вызывается при успешном ответе (код < 500) — «ошибка починилась»,
+    Вызывается при успешном ответе (код < 500) - «ошибка починилась»,
     и уведомление о ней больше не актуально, оно исчезает из ленты.
     Снимает и legacy-уведомления (article_url пуст):
-      - «Ошибка API: {METHOD} {path}» — по title;
-      - «Необработанная ошибка API: ...» — по префиксу body "{METHOD} {path} |".
+      - «Ошибка API: {METHOD} {path}» - по title;
+      - «Необработанная ошибка API: ...» - по префиксу body "{METHOD} {path} |".
     """
     from sqlalchemy import and_, delete, or_
 
@@ -279,7 +279,7 @@ async def _flush_to_db() -> None:
                 await resolve_pipeline_failed()
     except Exception as exc:
         logger.warning("system_notify_flush_failed", error=str(exc))
-        # не теряем данные — кладём обратно с ограничением размера
+        # не теряем данные - кладём обратно с ограничением размера
         for e in reversed(entries):
             _error_buffer.appendleft(e)
         for r in reversed(resolves):
@@ -311,7 +311,7 @@ def flush_system_errors_sync() -> None:
         return
     try:
         asyncio.get_running_loop()
-        return  # loop уже запущен — сброс произойдёт через create_task
+        return  # loop уже запущен - сброс произойдёт через create_task
     except RuntimeError:
         pass
     asyncio.run(_flush_to_db())

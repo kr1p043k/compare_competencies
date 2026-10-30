@@ -17,7 +17,7 @@ export interface QueryState<T> {
 /**
  * GET-запрос с состоянием загрузки.
  *
- * `deps` — зависимости, при изменении которых запрос повторяется.
+ * `deps` - зависимости, при изменении которых запрос повторяется.
  * Если `path` равен `null`, запрос не выполняется (условная загрузка).
  */
 export function useApi<T>(path: string | null, deps: unknown[] = []): QueryState<T> {

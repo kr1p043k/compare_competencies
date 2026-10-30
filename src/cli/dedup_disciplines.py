@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Delete duplicate discipline: 'Operating Systems (Операционные системы)' — cascade deletes its competencies/links."""
+"""Delete duplicate discipline: 'Operating Systems (Операционные системы)' - cascade deletes its competencies/links."""
 from __future__ import annotations
 
 import asyncio

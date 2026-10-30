@@ -2,10 +2,10 @@
 
 Проверяет пары (запрос -> совпадение) из косинусной серой зоны [0.6, 0.75):
 истинный перевод/синоним или эмбеддинг-хаб. Вердикты только записываются,
-совпадения НЕ фильтруются (судья не валидирован — фильтровать рано).
+совпадения НЕ фильтруются (судья не валидирован - фильтровать рано).
 
 Подключение: env LLM_JUDGE_URL / LLM_JUDGE_API_KEY / LLM_JUDGE_MODEL,
-затем LLM_JUDGE_ENABLED=true. Без подключения — тихий skip без падения.
+затем LLM_JUDGE_ENABLED=true. Без подключения - тихий skip без падения.
 """
 
 from __future__ import annotations
@@ -25,9 +25,9 @@ GRAY_HI = 0.75
 def gray_pairs_for_judge(comp, disc_skills: list[str], matches: list[dict]) -> list[tuple[str, str, float]]:
     """Пары серой зоны с восстановленным запросом (argmax по эмбеддингам).
 
-    `matches` — из compare_student_to_market (навык маркета + similarity,
+    `matches` - из compare_student_to_market (навык маркета + similarity,
     запрос потерян). Возвращает [(query, market, sim)] для sim в [0.6, 0.75),
-    но не более config.LLM_JUDGE_MAX_PAIRS. Ошибки кодирования — пусто.
+    но не более config.LLM_JUDGE_MAX_PAIRS. Ошибки кодирования - пусто.
     """
     gray = [m for m in matches
             if GRAY_LO <= float(m.get("similarity", 0)) < GRAY_HI]
@@ -87,7 +87,7 @@ def judge_pairs(
 
 
 def _parse_verdicts(text: str, pairs: list[tuple[str, str, float]]) -> dict[tuple[str, str], bool | None]:
-    """Строгий парсинг JSON-вердиктов; нераспознанное — None (воздержался)."""
+    """Строгий парсинг JSON-вердиктов; нераспознанное - None (воздержался)."""
     verdicts: dict[tuple[str, str], bool | None] = {}
     try:
         start, end = text.find("{"), text.rfind("}")

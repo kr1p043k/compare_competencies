@@ -142,14 +142,14 @@ export function StudentsTab() {
                     } ${selected === r.email ? (dk ? "bg-slate-800" : "bg-blue-50") : ""}`}
                   >
                     <td className="py-2">
-                      <div className={`font-medium ${heading}`}>{r.full_name || "—"}</div>
+                      <div className={`font-medium ${heading}`}>{r.full_name || "-"}</div>
                       <div className={`text-xs ${muted}`}>{r.email}</div>
                     </td>
-                    <td className={`py-2 text-right ${heading}`}>{r.has_profile ? r.skills_count : "—"}</td>
+                    <td className={`py-2 text-right ${heading}`}>{r.has_profile ? r.skills_count : "-"}</td>
                     <td className={`py-2 text-right ${heading}`}>
-                      {r.has_profile ? r.competencies_count : "—"}
+                      {r.has_profile ? r.competencies_count : "-"}
                     </td>
-                    <td className={`py-2 text-xs ${muted}`}>{r.target_level || "—"}</td>
+                    <td className={`py-2 text-xs ${muted}`}>{r.target_level || "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -170,7 +170,7 @@ export function StudentsTab() {
             <div>
               <div className={`font-medium ${heading}`}>{detail.full_name || detail.email}</div>
               <div className={`text-xs ${muted}`}>
-                {detail.email} · уровень: {detail.target_level || "—"}
+                {detail.email} · уровень: {detail.target_level || "-"}
                 {detail.updated_at ? ` · обновлён: ${new Date(detail.updated_at).toLocaleString("ru-RU")}` : ""}
               </div>
             </div>

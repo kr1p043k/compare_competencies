@@ -64,7 +64,7 @@ class TestExtendItSkills:
         """Фильтрация по минимальной частоте"""
         from scripts.extend_it_skills import extract_all_skills
 
-        # Частота ≥ 10 — ничего не должно вернуться
+        # Частота ≥ 10 - ничего не должно вернуться
         skills = extract_all_skills(sample_vacancies, min_frequency=10)
         assert len(skills) == 0
 
@@ -519,7 +519,7 @@ class TestExtendItSkills:
         assert "Белый список актуален" in captured.out
 
     def test_interactive_confirm_cancel(self, monkeypatch):
-        """Строки 360-369: интерактивный режим — выход"""
+        """Строки 360-369: интерактивный режим - выход"""
         from scripts.extend_it_skills import interactive_confirm
 
         new_skills = {"skill_a": 5, "skill_b": 3}

@@ -32,8 +32,8 @@ export function ProfileView({ data }: ProfileViewProps) {
     >
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { icon: Briefcase, label: "Профиль", value: data.profile_name || "–" },
-          { icon: GraduationCap, label: "Уровень", value: LEVEL_RU[data.target_level || ""] || data.target_level || "–" },
+          { icon: Briefcase, label: "Профиль", value: data.profile_name || "-" },
+          { icon: GraduationCap, label: "Уровень", value: LEVEL_RU[data.target_level || ""] || data.target_level || "-" },
           { icon: Award, label: "Навыков", value: String(data.skills_count ?? skills.length) },
           { icon: BarChart3, label: "Компетенций", value: String(data.competencies_count ?? (data.competencies || []).length) },
         ].map((s, i) => (
@@ -61,7 +61,7 @@ export function ProfileView({ data }: ProfileViewProps) {
           </CardTitle>
           <CardDescription>
             {skills.length > show.length
-              ? `Первые ${show.length} из ${skills.length} — полный список в gap-анализе`
+              ? `Первые ${show.length} из ${skills.length} - полный список в gap-анализе`
               : `Всего: ${skills.length}`}
           </CardDescription>
         </CardHeader>

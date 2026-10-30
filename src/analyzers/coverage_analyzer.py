@@ -30,9 +30,12 @@ MIN_MATCH_FREQ = MARKET_MIN_FREQ
 # Сколько самых востребованных рыночных навыков считаем «топом» при
 # измерении охвата спроса.
 MARKET_TOP_N = 100
+# Ниже этого числа релевантных навыков сужать знаменатель нельзя: 1 из 1
+# даёт 100%, 0 из 1 - 0%.
+MIN_RELEVANT_MARKET = 10
 
 # Насколько рыночный навык должен быть близок к дисциплине, чтобы попасть в
-# знаменатель охвата. 0.35 = RELATED_THRESHOLD в discipline_relevance: ниже —
+# знаменатель охвата. 0.35 = RELATED_THRESHOLD в discipline_relevance: ниже -
 # навык относится к другой области и дисциплина за него не отвечает.
 DISCIPLINE_RELEVANCE_THRESHOLD = 0.35
 # A match counts as coverage only if the market skill has real demand (v29).
@@ -108,7 +111,7 @@ class CoverageAnalyzer:
             with self._skill_emb_lock:
                 self._skill_emb_cache.update(disk)
 
-        # Общий стор: векторы маркета уже закодированы матчером (тоже L2) —
+        # Общий стор: векторы маркета уже закодированы матчером (тоже L2) -
         # забираем без повторного encode.
         _mn = list(getattr(self.matcher, "_market_names", []) or [])
         _me = getattr(self.matcher, "_market_embeddings", None)
@@ -163,7 +166,7 @@ class CoverageAnalyzer:
             for s in skills:
                 match_result = self.matcher.match(s)
                 if match_result.is_err():
-                    # Ошибка матчинга — не гэп и не denominator: исключаем из
+                    # Ошибка матчинга - не гэп и не denominator: исключаем из
                     # обеих проходок одинаково (2026-10-12: раньше висела в n,
                     # занижая coverage молча, а дисциплина её отбрасывала).
                     logger.warning("skill_match_failed", skill=s)
@@ -204,7 +207,7 @@ class CoverageAnalyzer:
                     total = sum(c.total_skills for c in children)
                     matched = sum(c.matched_skills for c in children)
                     # Честное взвешенное: сумма conf по детям / всего навыков.
-                    # Было sum(matched_c * w_c)/matched — раздувало родителей
+                    # Было sum(matched_c * w_c)/matched - раздувало родителей
                     # с низкопокрытыми детьми (2026-10-12: 0.826 вместо 0.495
                     # на примере 1/10 + 10/10).
                     weighted = sum(
@@ -353,16 +356,25 @@ class CoverageAnalyzer:
         # then measure coverage against that denominator.
         if self._discipline_scorer is not None and top_market:
             try:
-                rel = self._discipline_scorer.compute_relevance_batch(
+                # Denominator = the part of the demanded top-N this discipline is
+                # responsible for. Scoring the global top-100 with the discipline
+                # embedding is what makes the number meaningful; the previous
+                # exact-string check reported ~6% for every discipline.
+                scores = self._discipline_scorer.compute_relevance_batch(
                     [skill for skill, _ in top_market], discipline_name
-                )
-                if rel:
-                    relevant = {
-                        skill for skill, score in rel.items()
-                        if score >= DISCIPLINE_RELEVANCE_THRESHOLD
-                    }
-                    if relevant:
-                        top_market = [(s, f) for s, f in top_market if s in relevant]
+                ) or {}
+                if scores:
+                    ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+                    picked = [sk for sk, sc in ranked if sc >= DISCIPLINE_RELEVANCE_THRESHOLD]
+                    if len(picked) < MIN_RELEVANT_MARKET:
+                        # Too few clear matches to narrow by threshold: keep the
+                        # closest MIN_RELEVANT_MARKET so the denominator cannot
+                        # collapse to one or two skills.
+                        picked = [sk for sk, _ in ranked[:MIN_RELEVANT_MARKET]]
+                    keep = set(picked)
+                    filtered = [(s, f) for s, f in top_market if s in keep]
+                    if filtered:
+                        top_market = filtered
             except Exception as exc:
                 logger.warning("discipline_relevance_failed", discipline=discipline_name, error=str(exc))
 
@@ -394,9 +406,12 @@ class CoverageAnalyzer:
 
             total_weight = sum(_w(s) for s, _ in top_market)
             covered_weight = sum(_w(s) for s in top_covered)
-            market_weight_coverage = (
-                round(covered_weight / total_weight, 4) if total_weight > 0 else 0.0
-            )
+            if total_weight > 0:
+                market_weight_coverage = round(covered_weight / total_weight, 4)
+            else:
+                # Weights exist but none of the top skills are in them: fall
+                # back to the unweighted ratio rather than reporting 0%.
+                market_weight_coverage = top_coverage
         else:
             market_weight_coverage = top_coverage
 

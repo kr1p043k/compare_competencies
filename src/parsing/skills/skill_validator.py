@@ -79,7 +79,7 @@ class SkillValidator:
     ):
         """
         Args:
-            blacklist: Набор запрещённых терминов (если None — загружается из data/reference/skill_blacklist.json)
+            blacklist: Набор запрещённых терминов (если None - загружается из data/reference/skill_blacklist.json)
             whitelist: Набор разрешённых навыков (если None, используется load_it_skills())
             min_length: Минимальная длина навыка (символов)
             max_length: Максимальная длина навыка (символов)
@@ -159,7 +159,7 @@ class SkillValidator:
             # blacklist-подстроки ('автоматизация' в 'автоматизация тестирования')
             # и generic-ярлыки. Структурные проверки (длина/слова/цифры) действуют.
             # P-length: 2-символьные whitelist-навыки (qa/ui/ux/go/1c) минуют
-            # TOO_SHORT — явная санкция сильнее эвристики длины.
+            # TOO_SHORT - явная санкция сильнее эвристики длины.
             # 1-символьные ('r') всё равно режем: ненадёжный токен.
             skill_nospace = skill_lower.replace(" ", "").replace("-", "").replace("_", "")
             wl_norm = {
@@ -215,7 +215,7 @@ class SkillValidator:
                 skill_normalized = _wl_norm(skill_lower)
                 wl_norm = {_wl_norm(w) for w in self.whitelist}
                 if skill_normalized not in wl_norm:
-                    # Проза с вкраплением навыка — не навык ('i love python...').
+                    # Проза с вкраплением навыка - не навык ('i love python...').
                     # Короткие кандидаты (<=3 слов): сабстринг в обе стороны +
                     # слово целиком (дешёво и покрывает легитимные 'machine
                     # learning', 'nodejs'). Длинные: доля слов, покрытых
@@ -234,7 +234,7 @@ class SkillValidator:
                             except Exception:
                                 _lemma = lambda w: w  # noqa: E731
                             self.__dict__["_wl_lemmatize"] = _lemma
-                            # Фразы — по словам ( _wl_norm целиком склеил бы
+                            # Фразы - по словам ( _wl_norm целиком склеил бы
                             # 'автоматизация тестирования' в один токен).
                             self.__dict__["_wl_phrases"] = [
                                 tuple(_lemma(_wl_norm(w)) for w in str(x).split())

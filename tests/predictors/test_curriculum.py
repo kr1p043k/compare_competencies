@@ -172,7 +172,7 @@ class TestCurriculumRecommender:
         assert msgs and "точный спрос: 3 вакансий" in msgs[0]
 
     def test_exact_demand_empty_input_no_db(self):
-        """Пустой вход — пустой выход без обращения к БД."""
+        """Пустой вход - пустой выход без обращения к БД."""
         from src.predictors.curriculum_recommender import _exact_demand
         assert _exact_demand([]) == ({}, {})
 

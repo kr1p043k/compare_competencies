@@ -343,7 +343,7 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
         conn = await asyncpg.connect(db_url)
         try:
             last_run = await conn.fetchval(
-                "SELECT MAX(started_at) FROM pipeline_runs WHERE action IN ('full-cycle','data-collection') AND status='completed'"  # noqa: E501 — SQL string must not be split
+                "SELECT MAX(started_at) FROM pipeline_runs WHERE action IN ('full-cycle','data-collection') AND status='completed'"  # noqa: E501 - SQL string must not be split
             )
             before = await conn.fetchval("SELECT COUNT(*) FROM vacancies") or 0
             after = before
@@ -438,7 +438,7 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
         logger.info("collect_no_new_vacancies")
         return "collected-empty", 0
 
-    # Save to JSON (async I/O — не блокируем event loop на 453 МБ файле)
+    # Save to JSON (async I/O - не блокируем event loop на 453 МБ файле)
     detailed_path = config.DATA_PROCESSED_DIR / "hh_vacancies_detailed.json"
     try:
         import json as j
@@ -535,7 +535,7 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
                             )
                             parsed_count += 1
                         else:
-                            # No skills parsed — check if vacancy is actually IT
+                            # No skills parsed - check if vacancy is actually IT
                             desc = v.get("description", "") or ""
                             key_skills = [s.get("name", "") for s in v.get("key_skills", []) if s.get("name")]
                             has_it = bool(key_skills)

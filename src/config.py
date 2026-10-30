@@ -126,9 +126,9 @@ class Settings(BaseSettings):
 
     # ---------- LLM semantic judge (opt-in stub, default off) ----------
     # Судья семантического хвоста: проверяет пары (запрос -> совпадение)
-    # из косинусной серой зоны. Только слоты подключения — впиши URL/ключ
+    # из косинусной серой зоны. Только слоты подключения - впиши URL/ключ
     # через env (LLM_JUDGE_URL / LLM_JUDGE_API_KEY / LLM_JUDGE_MODEL),
-    # затем включи LLM_JUDGE_ENABLED. Без подключения — тихий skip.
+    # затем включи LLM_JUDGE_ENABLED. Без подключения - тихий skip.
     LLM_JUDGE_ENABLED: bool = False
     LLM_JUDGE_URL: str | None = None
     LLM_JUDGE_API_KEY: SecretStr | None = None
@@ -214,10 +214,10 @@ class Settings(BaseSettings):
     TQDM_DISABLE: bool = False
     PYDANTIC_VALIDATION_ENABLED: bool = True
 
-    # фоновый сбор вакансий (legacy seed; интервал и вкл/выкл — SCHEDULER_* и админка)
+    # фоновый сбор вакансий (legacy seed; интервал и вкл/выкл - SCHEDULER_* и админка)
     BACKGROUND_COLLECTOR_ENABLED: bool = False
     # планировщик фоновых задач: seed для data/settings/scheduler.json;
-    # рантайм-управление (вкл/выкл, интервал) — через админку, не через env
+    # рантайм-управление (вкл/выкл, интервал) - через админку, не через env
     SCHEDULER_COLLECT_INTERVAL_HOURS: int = 12
     SCHEDULER_DAILY_GAP_ENABLED: bool = False
 
@@ -343,7 +343,7 @@ KRM_DISCIPLINES_PATH = settings.KRM_DISCIPLINES_PATH
 TEACHER_RECOMMENDATIONS_PATH = settings.TEACHER_RECOMMENDATIONS_PATH
 @functools.lru_cache
 def get_secret_key() -> str:
-    """Lazy-load SECRET_KEY — не падает при импорте если .env отсутствует."""
+    """Lazy-load SECRET_KEY - не падает при импорте если .env отсутствует."""
     return str(settings.SECRET_KEY.get_secret_value()) if settings.SECRET_KEY else ""
 HH_USER_AGENT = settings.HH_USER_AGENT
 REQUEST_DELAY = settings.REQUEST_DELAY

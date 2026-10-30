@@ -53,7 +53,7 @@ export function PipelineProgress({ currentStep, onCancel, onRestart, showLogs = 
     return `~${Math.floor(remaining / 60)} мин ${Math.round(remaining % 60)} сек`;
   }, [elapsed, effectivePct]);
 
-  // Журнал — чистый вывод из currentStep.logs: тик elapsed (1с) не
+  // Журнал - чистый вывод из currentStep.logs: тик elapsed (1с) не
   // пересоздаёт строки терминала, они пересобираются только при новых логах.
   const logLines = useMemo(
     () =>

@@ -25,7 +25,7 @@ class TestCheckClusters:
         from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
 
         c = VacancyClusterer()
-        # Модели нет — load_model вернёт False
+        # Модели нет - load_model вернёт False
         assert c.load_model("junior") is False
 
     def test_load_model_middle(self, tmp_path, monkeypatch):

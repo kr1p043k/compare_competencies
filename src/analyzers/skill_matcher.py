@@ -26,7 +26,7 @@ _MARKET_SINGLE_ALLOW = frozenset({"r", "c"})
 # fringe token 'документация'/1 hijacked 'отчетная документация' via fuzzy
 # and blocked the mapped hit 'техническая документация'/63).
 MARKET_MIN_FREQ = 5
-# Свертка визуально неразличимой кириллицы в латиницу — ТОЛЬКО для сравнения.
+# Свертка визуально неразличимой кириллицы в латиницу - ТОЛЬКО для сравнения.
 # normalize() намеренно не трогаем: леммы/семантика работают на исходном скрипте
 # (свертка до лемматизации ломает pymorphy: 'oтлаживать' уже не слово).
 _SCRIPT_FOLD = str.maketrans({
@@ -35,7 +35,7 @@ _SCRIPT_FOLD = str.maketrans({
     "А": "A", "В": "B", "С": "C", "Е": "E", "Ё": "E", "Н": "H", "К": "K",
     "М": "M", "О": "O", "Р": "P", "Т": "T", "Х": "X", "У": "Y",
 })
-# Стоп-токены для лемма-якоря (совпадение только по ним — шум).
+# Стоп-токены для лемма-якоря (совпадение только по ним - шум).
 _STOP_TOKENS = frozenset({
     "на", "в", "с", "к", "о", "и", "для", "по", "от", "из", "у", "же", "ли",
     "бы", "как", "что", "это", "не", "ни", "или", "а", "но", "при", "над",
@@ -52,7 +52,7 @@ def fold_script(s: str) -> str:
 def sig_lemmas(text: str) -> frozenset[str]:
     """Значимые леммы текста для якоря: стоп/слова-мусор выкинуты, свертка последней.
 
-    Порядок важен: лемматизация — на исходном скрипте, свертка — после.
+    Порядок важен: лемматизация - на исходном скрипте, свертка - после.
     Без pymorphy деградирует до свернутых сырых токенов (C++/C# ловятся и так).
     """
     try:
@@ -168,10 +168,10 @@ def _word_pattern(word: str) -> re.Pattern[str]:
 def adaptive_semantic_threshold(query: str, candidate: str, base: float = 0.55) -> float:
     """Адаптивный порог (Exp1: фикс. 0.78 режет recall вдвое; Exp2-парафразы,
     163 пары canonical-vs-raw, mpnet short-vs-short: F1 пик на 0.45 (0.859),
-    0.50 (0.842); recall@0.70 лишь 0.44, @0.55 — 0.69 при prec 0.91).
+    0.50 (0.842); recall@0.70 лишь 0.44, @0.55 - 0.69 при prec 0.91).
 
     Base 0.55; -0.05 cross-script; -0.05 long query; +0.10 very short query.
-    Clamped to [0.45, 0.75]. Точность страхует каскад: semantic — последняя
+    Clamped to [0.45, 0.75]. Точность страхует каскад: semantic - последняя
     стадия после exact/fuzzy, сюда доходят только несхваченные пары.
     """
     t = base
@@ -358,7 +358,7 @@ class SkillMatcher:
     def _clean_market(market_skills: dict[str, int]) -> dict[str, int]:
         """Drop falsy and single-char junk tokens (v28: market contained 'я').
 
-        Allowlist проверяется после script-fold: кириллическое 'с' — тот же
+        Allowlist проверяется после script-fold: кириллическое 'с' - тот же
         навык, что латинское 'c' (2026-10-12).
         """
         def _keep(k: str) -> bool:
@@ -390,7 +390,7 @@ class SkillMatcher:
             fk = fold_script(normalize(name))
             if fk and fk not in self._fold_map:
                 self._fold_map[fk] = name
-        # Лемма-подписи навыков для якоря (строятся один раз, запрос — за матч).
+        # Лемма-подписи навыков для якоря (строятся один раз, запрос - за матч).
         # Per-skill guard: одна кривая подпись не должна гасить весь индекс.
         self._market_siglemmas: dict[str, frozenset[str]] = {}
         for name in self.market_skills:
@@ -414,7 +414,7 @@ class SkillMatcher:
         except Exception:
             self._market_lemma_pats = []
         # Нормализованный exact-индекс: чинит case-mismatch ('python' vs 'Python').
-        # Ключи сырые, запрос нормализован — без карты exact падает во fuzzy/lemma.
+        # Ключи сырые, запрос нормализован - без карты exact падает во fuzzy/lemma.
         self._exact_norm_map: dict[str, str] = {}
         for name in self.market_skills:
             nk = normalize(name)
@@ -448,7 +448,7 @@ class SkillMatcher:
 
         Ловит 'С/С++'->c/c++, 'тестирование по' в 'способ ... тестирования ...'.
         Не ловит 'программирование плк' для 'создавать программный код'
-        ('плк' отсутствует в запросе) — защита от ложной точности.
+        ('плк' отсутствует в запросе) - защита от ложной точности.
         Fringe-навыки (freq < 5) отбрасываются как везде.
         """
         if not self._market_siglemmas:
@@ -470,10 +470,10 @@ class SkillMatcher:
         return best
 
     def closest_hint(self, skill_name: str) -> tuple[str, int] | None:
-        """Ближайший рыночный навык по пересечению лемм — для честных сообщений.
+        """Ближайший рыночный навык по пересечению лемм - для честных сообщений.
 
         Возвращает (market_skill, shared_count) или None. Только свидетельство,
-        не матчинг: fringe-фильтра нет, порог — хотя бы одна значимая общая лемма.
+        не матчинг: fringe-фильтра нет, порог - хотя бы одна значимая общая лемма.
         """
         if not self._market_siglemmas:
             return None
@@ -633,7 +633,7 @@ class SkillMatcher:
                     logger.debug("skill_lemma_match", rpd_skill=n, market_skill=lm)
                     return Ok((lm, "lemma", 0.5))
 
-        # Якорь — после mapped/lemma: ловит то, что whole-word и лемма-фразы
+        # Якорь - после mapped/lemma: ловит то, что whole-word и лемма-фразы
         # пропустили из-за словоизменения ('тестирования' vs 'тестирование'),
         # но не перебивает закрепленные решения (mapped action->tool, lemma).
         # Fringe-guard внутри.
@@ -663,7 +663,7 @@ class SkillMatcher:
         # сматченные через folded exact/anchor, всё равно всплывают в emerging.
         rpd_folded = {fold_script(r) for r in rpd_normalized} if rpd_normalized else set()
         rpd_fold_pats = [_word_pattern(f) for f in rpd_folded]
-        # also_exclude — это тождества уже покрытых навыков (из реальных матчей),
+        # also_exclude - это тождества уже покрытых навыков (из реальных матчей),
         # а не текстовые вхождения: только exact + свернутый exact.
         # Word-паттерны здесь давили бы соседей ('c++' убивал бы 'arduino c++',
         # хотя это другой навык и честный гэп).

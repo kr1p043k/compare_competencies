@@ -21,7 +21,7 @@ def main(direction: str = "09.03.02", discipline: str | None = None,
     if isinstance(result, Ok):
         d = result.unwrap()
         cov = f"{d['average_coverage']:.1%}"
-        print(f"OK — {d['direction']}: {d['total_disciplines']} disciplines, "
+        print(f"OK - {d['direction']}: {d['total_disciplines']} disciplines, "
               f"coverage {cov}, gaps {d['total_gaps_across_all']}")
     else:
         print(f"ERROR: {result.err()}", file=sys.stderr)

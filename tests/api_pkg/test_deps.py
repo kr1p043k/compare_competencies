@@ -1,4 +1,4 @@
-"""Тесты для src.api_pkg.deps — глобальное состояние и фабрики."""
+"""Тесты для src.api_pkg.deps - глобальное состояние и фабрики."""
 
 import pytest
 from fastapi import HTTPException

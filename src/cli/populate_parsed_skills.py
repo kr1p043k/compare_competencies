@@ -116,7 +116,7 @@ async def _populate(run_id: str, force_all: bool) -> None:
 
                     updates.append((json.dumps(normed, ensure_ascii=False), r.id))
                 except Exception as exc:
-                    # Never wipe a good row with [] on transient failure —
+                    # Never wipe a good row with [] on transient failure -
                     # skip it, it will be retried on the next run.
                     print(f"  SKIP vacancy {r.id}: {exc}")
 

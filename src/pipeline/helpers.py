@@ -31,7 +31,7 @@ def get_load_mode(total_vacancies: int, args, log) -> tuple:
     if not args.use_async:
         return False, 0, "async_disabled_by_user"
     if total_vacancies > threshold:
-        msg = f"⚠️  Ожидается {total_vacancies} вакансий — переключение на синхронную загрузку"
+        msg = f"⚠️  Ожидается {total_vacancies} вакансий - переключение на синхронную загрузку"
         print(f"  {msg}")
         log.warning("rate_limit_protection_activated", expected=total_vacancies, threshold=threshold)
         return False, 0, "sync_mode_large_volume"

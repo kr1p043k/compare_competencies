@@ -1,4 +1,4 @@
-"""SkillExtractor — извлекает навыки из вакансий или загружает из кэша."""
+"""SkillExtractor - извлекает навыки из вакансий или загружает из кэша."""
 
 import json
 from pathlib import Path
@@ -22,7 +22,7 @@ from src.utils import load_competency_mapping
 logger = structlog.get_logger("skill_extractor")
 
 #: Файлы, чьё изменение обязано инвалидировать кэш парсинга.
-#: Ключ кэша — хеш СЫРОГО файла вакансий; правки парсера/справочников
+#: Ключ кэша - хеш СЫРОГО файла вакансий; правки парсера/справочников
 #: его не трогают, и старый результат молча переиспользуется (2026-10-14:
 #: тот же класс, что у teacher-кэша). Дешёвый отпечаток: mtime+size.
 _PARSER_DEPS = (
@@ -80,7 +80,7 @@ class SkillExtractor:
                         pass
 
             if cached_result:
-                # Протухший кэш (частоты есть, hybrid пуст) — игнорируем, считаем заново,
+                # Протухший кэш (частоты есть, hybrid пуст) - игнорируем, считаем заново,
                 # иначе WeightCleaning получит пустой вход и gap-analysis упадёт.
                 if not cached_result.get("hybrid_weights"):
                     logger.warning("parse_cache_stale_hybrid_empty_recompute")

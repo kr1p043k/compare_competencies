@@ -2,7 +2,7 @@
  * Единая точка обращения к API.
  *
  * Раньше по проекту было разбросано 61 вызов `fetch` с ручной проверкой
- * `res.ok`, ручным парсингом JSON и собственным форматом ошибок — в каждом
+ * `res.ok`, ручным парсингом JSON и собственным форматом ошибок - в каждом
  * файле свой. Здесь: типизированный `request`, класс `ApiError` с
  * человекочитаемым `message` и набор эндпоинтов по доменам.
  */
@@ -21,12 +21,12 @@ export class ApiError extends Error {
     this.url = url;
   }
 
-  /** 401/403 — сессия истекла или нет прав. */
+  /** 401/403 - сессия истекла или нет прав. */
   get isAuthError(): boolean {
     return this.status === 401 || this.status === 403;
   }
 
-  /** 429 — сработал rate-limit, имеет смысл повторить позже. */
+  /** 429 - сработал rate-limit, имеет смысл повторить позже. */
   get isRateLimited(): boolean {
     return this.status === 429;
   }
@@ -73,7 +73,7 @@ const STATUS_TEXT: Record<number, string> = {
 
 /**
  * Выполняет запрос и возвращает разобранный JSON.
- * Бросает `ApiError` при любом не-2xx ответе — вызывающий код не должен
+ * Бросает `ApiError` при любом не-2xx ответе - вызывающий код не должен
  * проверять `res.ok` вручную.
  */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {

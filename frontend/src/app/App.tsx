@@ -84,7 +84,7 @@ import { reportError } from "./../lib/errors";
 const API = "/api";
 
 // Fallback для ЛОКАЛЬНОГО Suspense одной вкладки: маленький инлайн-спиннер.
-// Грузится только переключаемая вкладка — вся область контента больше не гасится.
+// Грузится только переключаемая вкладка - вся область контента больше не гасится.
 function TabSpinner() {
   return (
     <div
@@ -307,8 +307,8 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveRole]);
 
-  // Дата подгрузки переживает перезагрузку (localStorage), а сами результаты – нет.
-  // Если штамп есть, а результата в памяти нет – подтягиваем автоматически.
+  // Дата подгрузки переживает перезагрузку (localStorage), а сами результаты - нет.
+  // Если штамп есть, а результата в памяти нет - подтягиваем автоматически.
   const autoLoadedRef = useRef<Record<string, boolean>>({});
   useEffect(() => {
     if (!isAuth) return;
@@ -325,7 +325,7 @@ export default function App() {
   }, [isAuth, profile]);
 
   // Показываем экран техработ, если backend недоступен (пересборка/рестарт).
-  // Один упавший poll – ещё не даун: тяжёлый запрос (прогнозы) может на
+  // Один упавший poll - ещё не даун: тяжёлый запрос (прогнозы) может на
   // секунды занять event loop. Maintenance только после 3 фейлов подряд.
   useEffect(() => {
     let cancelled = false;
@@ -686,7 +686,7 @@ export default function App() {
     apiCall("/market-competencies");
   }
 
-  // Список профессий таксономии — для выбора цели сравнения на вкладке «Данные».
+  // Список профессий таксономии - для выбора цели сравнения на вкладке «Данные».
   useEffect(() => {
     if (activeTab !== "data" || !isAuth || professionsList.length > 0) return;
     request<any>(`${API}/taxonomy/professions`).catch(() => null)
@@ -722,7 +722,7 @@ export default function App() {
   }
 
   const roleIcon = role === "admin" ? <Shield className="size-4" /> : (role === "teacher" || role === "rop") ? <UserCheck className="size-4" /> : <GraduationCap className="size-4" />;
-  const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "rop" ? "Руководитель ОП" : role === "student" ? "Студент" : "—";
+  const roleLabel = role === "admin" ? "Администратор" : role === "teacher" ? "Преподаватель" : role === "rop" ? "Руководитель ОП" : role === "student" ? "Студент" : "-";
   const isStudent = effectiveRole === "student";
 
   return (
@@ -809,7 +809,7 @@ export default function App() {
         <div className="bg-amber-100 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-800">
           <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-3">
             <p className="text-xs text-amber-800 dark:text-amber-200">
-              Предпросмотр интерфейса роли «{rolePreview}». API-права не меняются — данные чужих ролей могут быть недоступны.
+              Предпросмотр интерфейса роли «{rolePreview}». API-права не меняются - данные чужих ролей могут быть недоступны.
             </p>
             <Button variant="ghost" size="sm" onClick={() => setPreview(null)} className="h-7 text-xs text-amber-800 dark:text-amber-200">
               Сбросить
@@ -1123,7 +1123,7 @@ export default function App() {
                                 </div>
                                 <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
                                   <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{Number((d as any).coverage_strict ?? (d as any).skill_coverage ?? 0).toFixed(1)}%</div>
-                                  <div className="text-xs text-gray-500 dark:text-slate-400">навыки: {(d as any).skill_strict_has ?? "–"} из {(d as any).skill_strict_total ?? "–"}</div>
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">навыки: {(d as any).skill_strict_has ?? "-"} из {(d as any).skill_strict_total ?? "-"}</div>
                                 </div>
                                 <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
                                   <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{Number((d as any).readiness_score || 0).toFixed(1)}%</div>

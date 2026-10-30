@@ -59,7 +59,7 @@ async def compare_profiles(
     prof_taxonomy = ProfessionTaxonomy()
     evaluations = {}
     for pname, student in profiles.items():
-        # Stage 4: паритет с CLI — фильтруем по целевым доменам профиля.
+        # Stage 4: паритет с CLI - фильтруем по целевым доменам профиля.
         cfg = prof_taxonomy.get_profile_target(pname) or {}
         domains = cfg.get("target_domains", [])
         if domains and not student.target_profession:
@@ -415,8 +415,8 @@ async def get_profile_profession_evaluation(
     profession: str | None = Query(None),
     engine: Any = Depends(deps.get_recommendation_engine),
 ):
-    """Оценка профиля под профессию. Без ?profession= — фиксированная цель профиля
-    (краткий ответ). С ?profession=<имя> — полный фокус-режим: строгие метрики,
+    """Оценка профиля под профессию. Без ?profession= - фиксированная цель профиля
+    (краткий ответ). С ?profession=<имя> - полный фокус-режим: строгие метрики,
     KRM по выбранной профессии и Топ-10, пересчитанный движком под её домены."""
     if profile not in deps.student_profiles:
         raise HTTPException(status_code=404, detail=f"Profile '{profile}' not found")
@@ -483,13 +483,13 @@ async def _build_focused_profession_view(
     base: dict,
 ) -> dict:
     """Полный фокус-режим под выбранную профессию: строгие метрики, KRM по ней
-    и Топ-10, пересчитанный движком. Тяжёлая часть — в thread pool, не блокируем loop."""
+    и Топ-10, пересчитанный движком. Тяжёлая часть - в thread pool, не блокируем loop."""
     profession = profile_config.get("target_profession", "")
     domains = profile_config.get("target_domains", [])
 
     # 1. Строгое покрытие: пересечение навыков профиля с навыками профессии.
     # Штатный skill_coverage считает взвешенно по demand и засчитывает
-    # нулевые веса как «покрыто» (отсюда 91.57 при profession 0) — здесь честно.
+    # нулевые веса как «покрыто» (отсюда 91.57 при profession 0) - здесь честно.
     prof_skills = {s.lower().strip() for s in taxonomy.get_profession_skills(profession)}
     user_set = {s.lower().strip() for s in (student.skills or [])}
     strict_has = sorted(prof_skills & user_set)
@@ -497,7 +497,7 @@ async def _build_focused_profession_view(
     strict_cov = round(len(strict_has) / strict_total * 100, 2) if strict_total else 0.0
 
     # 2. KRM по ВЫБРАННОЙ профессии (evaluator считает по своей цели профиля).
-    # KRM-маппинг в таксономии есть не для всех профессий — тогда честно говорим.
+    # KRM-маппинг в таксономии есть не для всех профессий - тогда честно говорим.
     krm_cov: dict = {}
     try:
         krm_cov = taxonomy.compute_krm_coverage(profession, student.skills or []) or {}
@@ -507,7 +507,7 @@ async def _build_focused_profession_view(
     krm_note = (
         ""
         if krm_available
-        else f"KRM-маппинг в таксономии есть только для части профессий — для «{profession}» данных нет"
+        else f"KRM-маппинг в таксономии есть только для части профессий - для «{profession}» данных нет"
     )
 
     # 3. Полный пересчёт Топ-10 движком под домены профессии.
@@ -542,7 +542,7 @@ async def _build_focused_profession_view(
     payload = rec_result.model_dump()
 
     # Подменяем сводку фокусными цифрами, старые оставляем для прозрачности.
-    # R2: строгое — в coverage_strict (scope profession), взвешенное не затираем.
+    # R2: строгое - в coverage_strict (scope profession), взвешенное не затираем.
     summary = payload.get("summary", {}) or {}
     summary["skill_coverage"] = strict_cov
     summary["skill_coverage_market"] = base.get("skill_coverage", 0)
@@ -755,7 +755,7 @@ class SelfProfilePatch(BaseModel):
 @router.patch("/profiles/self", response_model=dict)
 @limiter.limit("30/minute")
 async def patch_self_profile(request: Request, body: SelfProfilePatch):
-    """Свой профиль: смена уровня + добавление своих навыков; удаление —
+    """Свой профиль: смена уровня + добавление своих навыков; удаление -
     только собою добавленных. Чужие профили недоступны по построению."""
     from src.api_pkg.routers.auth import get_current_user
 
@@ -850,7 +850,7 @@ async def get_profile(
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
     """Профиль студента по имени. По умолчанию первые 50 навыков (для UI),
-    ?full=true — полный список (для графиков покрытия)."""
+    ?full=true - полный список (для графиков покрытия)."""
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
     student = profiles[profile]

@@ -107,7 +107,7 @@ async def _resolve_warmup_failure(component: str) -> None:
 async def _resolve_pipeline_errors_if_ready() -> None:
     """Если пайплайн уже успешно собрал артефакты, чистим устаревшие
     уведомления об ошибках этапов («Ошибка этапа пайплайна: ...»,
-    «Пайплайн не завершился») — проблема устранена, они исчезают из ленты."""
+    «Пайплайн не завершился») - проблема устранена, они исчезают из ленты."""
     try:
         clusters_ok = all(
             (config.VACANCY_CLUSTERS_CACHE_DIR / f"vacancy_clusters_{lvl}.joblib").exists()
@@ -242,7 +242,7 @@ async def run_startup(app):
     else:
         deps.vacancy_load_error = None
     if not basic_vacancies:
-        logger.warning("Нет данных в файле вакансий — режим ожидания")
+        logger.warning("Нет данных в файле вакансий - режим ожидания")
         await _set_waiting_mode()
         return
 
@@ -260,12 +260,12 @@ async def run_startup(app):
         deps.is_ready = True
     logger.info("API готов к работе (фоновая инициализация продолжается)")
 
-    # 5. фоновая инициализация — навыки + тяжёлые движки
+    # 5. фоновая инициализация - навыки + тяжёлые движки
     asyncio.create_task(_warmup_background(basic_vacancies, raw_file))
 
     # 6. фоновый сбор вакансий (инкрементально, каждые 6 часов)
     # планировщик фоновых задач: сбор каждые N часов + ночной gap цепочкой.
-    # Сам решает по data/settings/scheduler.json (админка); env — только seed.
+    # Сам решает по data/settings/scheduler.json (админка); env - только seed.
     from src.pipeline.background_collector import start_background_collector
     await start_background_collector()
 
@@ -383,7 +383,7 @@ async def _warmup_background(basic_vacancies, raw_file):
                     pass
 
             # Пересчитываем ТОЛЬКО если кэш не совпадает с файлом вакансий.
-            # Валидный кэш (даже с пустым результатом) не пересчитываем —
+            # Валидный кэш (даже с пустым результатом) не пересчитываем -
             # иначе каждый старт уходит в многочасовой парсинг пустых данных.
             if cache_hit:
                 return skill_freq_local, hybrid_weights_local

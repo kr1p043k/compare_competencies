@@ -38,8 +38,8 @@ from src.predictors.models import SkillImpact
 logger = structlog.get_logger(__name__)
 
 #: Кодировка категории навыка: имя -> код (единственный источник для train,
-#: для category_avg_weight и для _extract_features; 2026-10-12 — раньше карта
-#: жила локально, и predict-path считал среднее по имени, а train — по коду).
+#: для category_avg_weight и для _extract_features; 2026-10-12 - раньше карта
+#: жила локально, и predict-path считал среднее по имени, а train - по коду).
 CATEGORY_ENCODING_NAME: dict[str, int] = {
     "programming_languages": 5,
     "frameworks": 4,
@@ -178,7 +178,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         self.total_vacancies = 0
         self.is_fitted = False
 
-        # SkillTaxonomy — синглтон, кешируем ссылку один раз, не создаём на каждый навык
+        # SkillTaxonomy - синглтон, кешируем ссылку один раз, не создаём на каждый навык
         self._taxonomy = None
 
         if model_path is None:
@@ -327,7 +327,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 (hybrid_weights.get(s, 0.0) for s in train_skills), default=max_hybrid,
             ) or 1.0
             for df in (X_train, X_val, X_test):
-                # Имя колонки — ровно как её эмитит _extract_features.
+                # Имя колонки - ровно как её эмитит _extract_features.
                 # Раньше проверялось 'freq_normalized' (такого столбца нет),
                 # тело было мёртвым: нормализация делалась по полному
                 # корпусу, т.е. тест видел max_freq из train (2026-10-12).
@@ -354,7 +354,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         # Update category_avg_weight column in all splits with train-only values
         # category_avg_weight: train-среднее по НАЗВАНИЯМ категорий.
         # Раньше здесь стояла карта id->одно каноническое имя, а предсказание
-        # читало .get(category_name) — фича получала чужие значения (devops
+        # читало .get(category_name) - фича получала чужие значения (devops
         # получал среднее frameworks или 0.0; 2026-10-12).
         cat_name_by_enc: dict[int, list[str]] = {}
         for enc, names in CATEGORY_ENCODING.items():
@@ -471,9 +471,9 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         """Настоящий Learning-to-Rank: query=роль, документы=навыки.
 
         Отличия от fit() (суррогат):
-        - таргет — человеческие оценки gold (0/1/2), а не synthetic relevance;
-        - модель — XGBRanker (rank:ndcg) с qid-группами по ролям;
-        - признаковое пространство и формат артефакта — ТЕ ЖЕ, что у fit(),
+        - таргет - человеческие оценки gold (0/1/2), а не synthetic relevance;
+        - модель - XGBRanker (rank:ndcg) с qid-группами по ролям;
+        - признаковое пространство и формат артефакта - ТЕ ЖЕ, что у fit(),
           поэтому инференс (predict_skill_impact_with_shap) и SHAP работают
           без изменений; продовая регрессор-модель не трогается.
 
@@ -482,7 +482,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
           строки валится LOO (сама строка исключена из профиля);
         - сплит стратифицирован по оценкам внутри каждой роли;
         - category_avg_weight считается по рыночным данным без меток
-          (лейблы в него не входят) — утечки меток нет.
+          (лейблы в него не входят) - утечки меток нет.
         """
         rows = [
             {"role": str(r["role"]), "skill": str(r["skill"]), "grade": int(r["grade"])}
@@ -553,9 +553,9 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
                 test_idx.extend(idx[cut:])
         logger.info("ranker_split", train=len(train_idx), test=len(test_idx))
 
-        # category_avg_weight — только по train-навыкам (честная оценка):
+        # category_avg_weight - только по train-навыкам (честная оценка):
         # средние категории из test-распределения не должны попадать в признаки.
-        # NOTE: level_analyzer/корпус/эмбеддинги посчитаны на полном корпусе —
+        # NOTE: level_analyzer/корпус/эмбеддинги посчитаны на полном корпусе -
         # это unsupervised-статистики (не метки); принято как ограничение, см. docs.
         train_skill_set = {rows[i]["skill"] for i in train_idx}
         cat_buckets: dict[str, list[float]] = {}
@@ -605,7 +605,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         X_test, y_test, g_test, test_order = build_frame(test_idx)
         self.feature_names = X_train.columns.tolist()
 
-        # val для early stopping — стратифицированный кусок train с группами
+        # val для early stopping - стратифицированный кусок train с группами
         val_idx, _ = train_test_split(
             np.arange(len(X_train)), test_size=0.2, random_state=seed,
             stratify=y_train if len(set(y_train.tolist())) > 1 else None,
@@ -616,7 +616,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         for c in g_train:
             train_qids.extend([pos] * 0)  # placeholder, replaced below
             pos += 1
-        # Проще: qid каждой строки train известен — восстанавливаем из групп.
+        # Проще: qid каждой строки train известен - восстанавливаем из групп.
         qids_train: list[int] = []
         for qi, c in enumerate(g_train):
             qids_train.extend([qi] * c)
@@ -740,7 +740,7 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         row_indices: np.ndarray,
         k: int = 10,
     ) -> float:
-        """NDCG@k по каждому «запросу» (студенческому профилю) — корректный формат LTR.
+        """NDCG@k по каждому «запросу» (студенческому профилю) - корректный формат LTR.
 
         sklearn.ndcg_score ожидает 2D-массив (запрос × документы). Здесь документы
         группируются по профилю и каждый профиль оценивается отдельно, затем метрика
@@ -861,10 +861,10 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
 
         # Ранжируем ВСЕХ кандидатов дешёвым predict, дорогой SHAP считаем
         # только для показанного топа (Exp-профиль: ~2.2с/дисц. на 200 строк).
-        # Возвращаемый тройной контракт: impacts — топ-15 по score,
+        # Возвращаемый тройной контракт: impacts - топ-15 по score,
         # shap_values[i] и X.iloc[i] соответствуют impacts[i] (раньше строки
         # SHAP шли в порядке valid_missing и не совпадали с отсортированными
-        # impacts — persisted shap_per_skill в раннере был перепутан).
+        # impacts - persisted shap_per_skill в раннере был перепутан).
         ranked_idx = list(np.argsort(-scores, kind="stable"))
         # Защита от рассогласования predict/X (кривые моки/кастомные модели):
         # индексы обязаны существовать и в scores, и в X.

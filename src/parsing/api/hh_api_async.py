@@ -163,7 +163,7 @@ class HeadHunterAPIAsync:
         retries: int = 0,
         max_retries: int = 5,
     ) -> Result[dict, ApiError]:
-        """Асинхронный GET с Result[T, E] — все ошибки типизированы."""
+        """Асинхронный GET с Result[T, E] - все ошибки типизированы."""
         async with self.semaphore:
             await self._throttle()
 

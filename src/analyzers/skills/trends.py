@@ -88,7 +88,7 @@ class TrendAnalyzer:
             prefix = "freq_market" if source_type == "full_market" else "freq_profession"
             if prefix == "freq_profession" and not profession:
                 # Защита от мусорных freq_profession_2026-09.json: targeted без
-                # профессии — это фактически весь рынок, пишем как full_market.
+                # профессии - это фактически весь рынок, пишем как full_market.
                 logger.warning("snapshot_profession_missing_fallback_market")
                 prefix = "freq_market"
             suffix = f"_{profession}" if profession else ""
@@ -171,8 +171,8 @@ class TrendAnalyzer:
     ) -> Result[list[tuple[datetime, Path, dict[str, float]]], DomainError]:
         """
         Возвращает список снимков для анализа:
-        - Если n=None — все доступные снимки
-        - Если n указано — последние n снимков
+        - Если n=None - все доступные снимки
+        - Если n указано - последние n снимков
         """
         result = self.load_all_snapshots()
         if result.is_err():
@@ -195,13 +195,13 @@ class TrendAnalyzer:
     ) -> Result[dict[str, list[dict]], DomainError]:
         """
         Сравнивает текущий снимок с предыдущим (переданным или историческим).
-        min_frequency — минимальная частота навыка в предыдущем снимке (фильтр шума).
+        min_frequency - минимальная частота навыка в предыдущем снимке (фильтр шума).
 
         Честность сравнения: память (self.current) и файлы snapshots могут быть
         посчитаны разными прогонами/методиками (сырые counts против нормализованных
-        весов) — прямое сравнение давало фантомные «-96% по всем». Поэтому при
+        весов) - прямое сравнение давало фантомные «-96% по всем». Поэтому при
         наличии 2+ файлов сравниваем ПОСЛЕДНИЕ ДВА ФАЙЛА между собой и только
-        в ДОЛЯХ (share от итога файла) — объёмы выборок по месяцам различаются.
+        в ДОЛЯХ (share от итога файла) - объёмы выборок по месяцам различаются.
         """
         if previous_snapshot is not None:
             prev_data = previous_snapshot
@@ -241,7 +241,7 @@ class TrendAnalyzer:
             prev_freq = prev_data.get(skill, 0)
             if prev_freq < min_frequency:
                 # Нового навыка (prev ниже шумового пола) не бывает в rising
-                # по построению — ведём отдельным списком emerging, иначе
+                # по построению - ведём отдельным списком emerging, иначе
                 # rust 0→400 тихо пропадал. Порог абсолютный: значимость,
                 # а не доля.
                 if current_freq >= EMERGING_MIN_FREQ:
@@ -465,7 +465,7 @@ if __name__ == "__main__":
         "-n",
         type=int,
         default=None,
-        help="Количество последних снимков для анализа (если не указано — все)",
+        help="Количество последних снимков для анализа (если не указано - все)",
     )
     parser.add_argument("--no-save", action="store_true", help="Не сохранять новый снимок")
     parser.add_argument("--top", type=int, default=10, help="Количество выводимых навыков (default 10)")

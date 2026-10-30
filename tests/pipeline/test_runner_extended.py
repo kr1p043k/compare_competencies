@@ -1,4 +1,4 @@
-"""Extended tests for pipeline runner — uncovered code paths."""
+"""Extended tests for pipeline runner - uncovered code paths."""
 
 import contextlib
 from unittest.mock import MagicMock, call, patch
@@ -25,7 +25,7 @@ def _make_path_mock(exists=True, mtime=100.0):
 # ── build_profiles (competency_mapping non-empty) ──────────────────────
 
 class TestBuildProfilesExtended:
-    """Additional build_profiles tests — competency_mapping non-empty paths."""
+    """Additional build_profiles tests - competency_mapping non-empty paths."""
 
     @patch("src.pipeline.runner.SkillNormalizer.normalize")
     def test_mapping_maps_codes_to_skills(self, mock_norm):
@@ -76,7 +76,7 @@ class TestBuildProfilesExtended:
 # ── print_recommendations (coverage_explanation) ─────────────────────
 
 class TestPrintRecommendationsExtended:
-    """Additional print_recommendations tests — coverage_explanation."""
+    """Additional print_recommendations tests - coverage_explanation."""
 
     def test_first_role_coverage_explanation_printed(self, capsys):
         profiles = {"base": MagicMock()}
@@ -132,7 +132,7 @@ class TestPrintRecommendationsExtended:
 # ── show_status (working manifest) ───────────────────────────────────
 
 class TestShowStatusExtended:
-    """Additional show_status tests — existing ltr model + working manifest."""
+    """Additional show_status tests - existing ltr model + working manifest."""
 
     def test_working_manifest_displays_r2(self, tmp_path):
         models = tmp_path / "models"

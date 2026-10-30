@@ -35,7 +35,7 @@ OUTPUT = Path(__file__).resolve().parent.parent.parent / "data" / "result" / "te
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 
-# Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций —
+# Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций -
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
 CODE_VERSION = 46  # conservative coverage_level = min(ratio, weighted)
@@ -199,7 +199,7 @@ def _enhance_disciplines_with_gap_analysis(
         print("TEACHER-ANALYSIS STAGE-SKIP: gap_enhance (no market skills)", file=sys.stderr, flush=True)
         return dir_summary
 
-    # — 1. Build EmbeddingComparator with market skills —
+    # - 1. Build EmbeddingComparator with market skills -
     try:
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
         from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
@@ -212,7 +212,7 @@ def _enhance_disciplines_with_gap_analysis(
         print(f"TEACHER-ANALYSIS STAGE-SKIP: gap_enhance build failed: {exc}", file=sys.stderr, flush=True)
         return dir_summary
 
-    # — 2. Load LTR model for SHAP —
+    # - 2. Load LTR model for SHAP -
     ltr_engine = None
     ltr_model_path = MODELS_DIR / "ltr_ranker_xgb_regressor.joblib"
     if ltr_model_path.exists():
@@ -230,7 +230,7 @@ def _enhance_disciplines_with_gap_analysis(
             logger.warning("ltr_model_load_failed", error=str(exc))
             ltr_engine = None
 
-    # — 3. Per-discipline enhancement —
+    # - 3. Per-discipline enhancement -
     enhanced_total = 0
     for dname, disc_data in disciplines.items():
         disc_skills: list[str] = []
@@ -241,7 +241,7 @@ def _enhance_disciplines_with_gap_analysis(
             continue
 
         try:
-            # — embedding coverage —
+            # - embedding coverage -
             match comp.compare_student_to_market(disc_skills):
                 case Ok(embed_result):
                     embed_coverage = {
@@ -289,7 +289,7 @@ def _enhance_disciplines_with_gap_analysis(
             logger.warning("embed_coverage_failed", discipline=dname, error=str(exc))
             embed_coverage = {}
 
-        # — LTR scores + SHAP —
+        # - LTR scores + SHAP -
         ltr_shap = {}
         if ltr_engine is not None and ltr_engine.is_fitted:
             try:
@@ -328,7 +328,7 @@ def _enhance_disciplines_with_gap_analysis(
             except Exception as exc:
                 logger.warning("ltr_shap_error", discipline=dname, error=str(exc))
 
-        # — 4. Merge enhanced data into existing JSON —
+        # - 4. Merge enhanced data into existing JSON -
         disc_dir = output_dir / _safe_filename(dname)
         json_file = disc_dir / (_safe_filename(dname) + ".json")
         if json_file.exists():
@@ -345,7 +345,7 @@ def _enhance_disciplines_with_gap_analysis(
 
     logger.info("gap_enhance_done", enhanced=enhanced_total, total=len(disciplines))
 
-    # — 5. Update direction summary with enhanced data —
+    # - 5. Update direction summary with enhanced data -
     if dir_summary and "disciplines" in dir_summary:
         for d in dir_summary["disciplines"]:
             disc_dir = output_dir / _safe_filename(d["name"])
@@ -389,19 +389,19 @@ async def run_teacher_analysis(
     """Полный teacher analysis направления: покрытие, гэпы, рекомендации, графики."""
     logger.info("analysis_started", direction=direction_code, discipline=discipline_filter)
 
-    # — DB connection —
+    # - DB connection -
     await create_pool()
     pool = get_pool()
     if not pool:
         logger.error("no_db_pool")
         return Err(AnalysisRunnerError(stage="db", message="Failed to create database pool"))
 
-    # — create pipeline run —
+    # - create pipeline run -
     from src.pipeline.db_writer import complete_pipeline_run, create_pipeline_run, save_to_analysis_results
 
     run_id = await create_pipeline_run("teacher-analysis")
 
-    # — load market skills from vacancies (real frequencies) + it_skills taxonomy —
+    # - load market skills from vacancies (real frequencies) + it_skills taxonomy -
     market_skills: dict[str, int] = {}
     vac_count = 0
 
@@ -412,7 +412,7 @@ async def run_teacher_analysis(
     _cache_dir = config.DATA_CACHE_DIR
     _cache_mgr = CacheManager(_cache_dir)
     # Хэш по СОДЕРЖИМОМУ parsed_skills + whitelist, а не по MAX(created_at):
-    # перепарсинг меняет parsed_skills на месте и created_at не двигает —
+    # перепарсинг меняет parsed_skills на месте и created_at не двигает -
     # кэш от 25.09 пережил репарсинг 10.10 (замерено: 22319 кэш vs 3462 live).
     # Стоимость ~0.25с на 41k вакансий, хэш стабилен между прогонами.
     _vac_hash = await pool.fetchval(
@@ -513,7 +513,7 @@ async def run_teacher_analysis(
     if _cooc is None:
         try:
             _vrows = await pool.fetch(
-                "SELECT parsed_skills FROM vacancies WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0 ORDER BY id"  # noqa: E501 — SQL string must not be split
+                "SELECT parsed_skills FROM vacancies WHERE parsed_skills IS NOT NULL AND jsonb_array_length(parsed_skills) > 0 ORDER BY id"  # noqa: E501 - SQL string must not be split
             )
             import json as _json
             _vocab = {s for s, _ in sorted(market_skills.items(), key=lambda x: (-x[1], x[0]))[:500]}
@@ -533,7 +533,7 @@ async def run_teacher_analysis(
             logger.warning("cooc_build_failed", error=str(exc))
             _cooc = None
 
-    # — load disciplines —
+    # - load disciplines -
     dir_filter = ""
     params: list = []
     if direction_code:
@@ -579,7 +579,7 @@ async def run_teacher_analysis(
         ))
     logger.info("disciplines_loaded", count=len(disciplines))
 
-    # — load raw KSA descriptions from JSON (source of truth for requirements) —
+    # - load raw KSA descriptions from JSON (source of truth for requirements) -
     raw_ksa: dict[str, dict[str, dict[str, list[str]]]] = {}  # {disc: {comp: {type: [texts]}}}
     try:
         if direction_code:
@@ -596,7 +596,7 @@ async def run_teacher_analysis(
     except Exception as exc:
         logger.warning("raw_ksa_load_failed", error=str(exc))
 
-    # — merge raw KSA into disciplines (separate from skills) —
+    # - merge raw KSA into disciplines (separate from skills) -
     for dname, disc_data in disciplines.items():
         disc_data["ksa"] = {}  # {comp_code: [raw KSA texts]}
         krm_disc = raw_ksa.get(dname, {})
@@ -608,7 +608,7 @@ async def run_teacher_analysis(
             if ksa_texts:
                 disc_data["ksa"][comp_code] = ksa_texts
 
-    # — load direction meta —
+    # - load direction meta -
     try:
         if direction_code:
             rows = await pool.fetch(
@@ -639,7 +639,7 @@ async def run_teacher_analysis(
             message=f"Direction '{direction_code}' not found",
         ))
 
-    # — load trend snapshots —
+    # - load trend snapshots -
     try:
         srows = await pool.fetch(
             "SELECT snapshot_date, skill_freq FROM trend_snapshots ORDER BY snapshot_date ASC"
@@ -664,7 +664,7 @@ async def run_teacher_analysis(
 
     logger.info("snapshots_loaded", count=len(snapshots))
 
-    # — init services —
+    # - init services -
     from src.analyzers.comparison.embedding_provider import EmbeddingProviderFactory
     from src.analyzers.discipline_relevance import DisciplineAwareScorer
     _discipline_scorer = DisciplineAwareScorer()
@@ -800,7 +800,7 @@ async def run_teacher_analysis(
             return None
         coverage = cov_result.unwrap()
 
-        # — KSA context analysis: check which market skills are mentioned in raw KSA —
+        # - KSA context analysis: check which market skills are mentioned in raw KSA -
         # Optimized: only check top 500 market skills (by frequency) for speed
         ksa_context: dict[str, dict] = {}  # {comp_code: {mentioned: [...], missing: [...]}}
         top_market_skills = {s for s, _ in sorted(market_skills.items(), key=lambda x: (-x[1], x[0]))[:500]}
@@ -839,7 +839,7 @@ async def run_teacher_analysis(
             logger.warning("relevance_batch_skipped", discipline=dname, error=str(exc))
         filtered: list = []
         scorer_ok = bool(rel_map)
-        # Навыки, буквально упомянутые в KSA дисциплины — якорь релевантности.
+        # Навыки, буквально упомянутые в KSA дисциплины - якорь релевантности.
         mentioned_all: set[str] = set()
         for _ctx in ksa_context.values():
             mentioned_all.update(m.lower() for m in _ctx.get("mentioned_in_ksa", []))
@@ -852,12 +852,12 @@ async def run_teacher_analysis(
             drop_thr = 0.30 if strict_profile else 0.15
             unrelated = scorer_ok and rel_map.get(skill, 0.0) < drop_thr
             if unrelated and r.type in ("add_new_content", "cross_reference"):
-                # Семантически чужой навык (напр. linux для БЖД) — не предлагаем вовсе.
+                # Семантически чужой навык (напр. linux для БЖД) - не предлагаем вовсе.
                 logger.info("rec_dropped_unrelated", discipline=dname, skill=skill, type=r.type)
                 continue
             if r.type == "cross_reference" and skill.lower() not in mentioned_all \
                     and rel_map.get(skill, 0.0) < 0.30:
-                # Ссылка на чужую дисциплину без связи со своей программой — шум.
+                # Ссылка на чужую дисциплину без связи со своей программой - шум.
                 logger.info("rec_dropped_crossref", discipline=dname, skill=skill)
                 continue
             # UNRELATED == combined < 0.15 (см. DisciplineRelevance)
@@ -875,16 +875,16 @@ async def run_teacher_analysis(
                         if r.type != "add_new_content" or id(r) in keep_ids]
         recs = filtered
 
-        # — KSA-based recommendations: skills in KSA but not on market —
+        # - KSA-based recommendations: skills in KSA but not on market -
         # (обратное направление "топ рынка в каждую компетенцию" убрано:
-        # глобальный топ без семантической привязки — это спам вида linux в БЖД)
+        # глобальный топ без семантической привязки - это спам вида linux в БЖД)
         from src.models.teacher_analysis import Recommendation
         for comp_code, ctx in ksa_context.items():
             for skill in ctx.get("ksa_not_on_market", []):
                 recs.append(Recommendation(
                     type="ksa_context", priority="medium",
                     skill_name=skill,
-                    message=f"Навык «{skill}» упомянут в KSA компетенции {comp_code}, но не обнаружен на рынке. Рекомендуется проверить актуальность.",  # noqa: E501 — f-string, must not split
+                    message=f"Навык «{skill}» упомянут в KSA компетенции {comp_code}, но не обнаружен на рынке. Рекомендуется проверить актуальность.",  # noqa: E501 - f-string, must not split
                 ))
 
         with _discipline_lock:
@@ -957,7 +957,7 @@ async def run_teacher_analysis(
 
     with ThreadPoolExecutor(max_workers=min(os.cpu_count() or 4, 8)) as executor:  # F12 fix: adaptive workers
         # Добиваем векторы релевантности живыми KSA-текстами (батч, один encode).
-        # KRM-карта покрывает ~26/60 — без этого остальные получали пустой rel_map.
+        # KRM-карта покрывает ~26/60 - без этого остальные получали пустой rel_map.
         try:
             _prime_map: dict[str, list[str]] = {}
             for _dn, _dd in disciplines.items():
@@ -991,7 +991,7 @@ async def run_teacher_analysis(
                     file=sys.stderr, flush=True
                 )
 
-    # — enhanced gap analysis (embedding + LTR/SHAP) —
+    # - enhanced gap analysis (embedding + LTR/SHAP) -
     try:
         market_skill_names_for_enhance = list(market_skills.keys())
         skill_weights_path = DATA_DIR / "processed" / "skill_weights.json"
@@ -1113,7 +1113,7 @@ async def run_teacher_analysis(
         "average_quality_coverage": avg_quality,
         "average_strong_coverage": avg_strong,
         # Охват спроса: сколько топ-N рыночных навыков реально закрыто.
-        # average_coverage для этого непригоден — навыки РПД уже нормализованы
+        # average_coverage для этого непригоден - навыки РПД уже нормализованы
         # к словарю рынка, поэтому он почти всегда высокий.
         "average_market_top_coverage": avg_market_top,
         "average_market_weight_coverage": avg_market_weight,
@@ -1135,7 +1135,7 @@ async def run_teacher_analysis(
         "generated_at": datetime.now().isoformat(),
     }
 
-    # — merge enhanced data from per-discipline JSONs into summary —
+    # - merge enhanced data from per-discipline JSONs into summary -
     for d in dir_summary.get("disciplines", []):
         d_file = out_dir / _safe_filename(d["name"]) / (_safe_filename(d["name"]) + ".json")
         if d_file.exists():
@@ -1164,7 +1164,7 @@ async def run_teacher_analysis(
     dir_summary["has_enhanced_gap"] = _has_enh
 
     # Частичный прогон (фильтр по дисциплине) не должен затирать сводку
-    # направления частичными данными — было: summary на 1 дисциплину.
+    # направления частичными данными - было: summary на 1 дисциплину.
     # Ран закрываем здесь же, иначе run_id навсегда зависнет в running
     # (complete_pipeline_run ниже по потоку для partial недостижим).
     # Charts/summary/meta/coverage-вставки осознанно пропускаем: это
@@ -1226,7 +1226,7 @@ async def run_teacher_analysis(
     except Exception as exc:
         logger.warning("report_meta_write_failed", error=str(exc))
 
-    # — charts —
+    # - charts -
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -1244,7 +1244,7 @@ async def run_teacher_analysis(
         ax.set_yticks(range(len(dnames)))
         ax.set_yticklabels(dnames, fontsize=8)
         ax.set_xlabel("Покрытие рынка %")
-        ax.set_title(f"Покрытие дисциплин — {direction['name']}", fontsize=13)
+        ax.set_title(f"Покрытие дисциплин - {direction['name']}", fontsize=13)
         ax.invert_yaxis()
         for bar, v in zip(bars, dcov, strict=False):
             ax.text(bar.get_width() + 0.5, bar.get_y() + bar.get_height() / 2,
@@ -1305,7 +1305,7 @@ async def run_teacher_analysis(
             ccolors = ["#2ecc71" if v >= 50 else "#f39c12" if v >= 20 else "#e74c3c" for v in ccov]
             cbars = ax.bar(range(len(cnames)), ccov, color=ccolors, width=0.6)
             ax.set_ylabel("Покрытие %")
-            ax.set_title(f"Компетенции — {dn[:40]}", fontsize=11)
+            ax.set_title(f"Компетенции - {dn[:40]}", fontsize=11)
             ax.set_xticks(range(len(cnames)))
             ax.set_xticklabels(cnames, rotation=45, ha="right", fontsize=8)
             for cb, v in zip(cbars, ccov, strict=False):
@@ -1319,7 +1319,7 @@ async def run_teacher_analysis(
     except Exception as exc:
         logger.warning("teacher_chart_failed", error=str(exc))
 
-    # — save to coverage_analyses —
+    # - save to coverage_analyses -
     try:
         for _, result in discipline_reports:
             dc = result.discipline
@@ -1341,7 +1341,7 @@ async def run_teacher_analysis(
     except Exception as exc:
         logger.warning("coverage_analyses_save_failed", error=str(exc))
 
-    # — save to pipeline_runs + analysis_results —
+    # - save to pipeline_runs + analysis_results -
     try:
         params = {"direction": dir_code, "discipline_filter": discipline_filter, "disciplines": len(disciplines)}
         stats = {**params, "avg_coverage": avg_cov, "total_disciplines": len(discipline_reports)}

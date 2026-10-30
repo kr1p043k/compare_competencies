@@ -9,16 +9,16 @@
 # Получить ключ: настроить в .env N8N_API_KEY
 # (генерируется при старте, если не задан)
 #
-# Rate limit: большинство эндпоинтов — 20-60 запросов/мин.
-# Если нужно больше — настрой slowapi в config.
+# Rate limit: большинство эндпоинтов - 20-60 запросов/мин.
+# Если нужно больше - настрой slowapi в config.
 #
-# WebSocket: /api/pipeline/ws — real-time pipeline progress
+# WebSocket: /api/pipeline/ws - real-time pipeline progress
 
 # ──────────────────────────────────────────────
 # 2. ALL ENDPOINTS (52 HTTP + 1 WebSocket)
 # ──────────────────────────────────────────────
 # Legend:
-#   M — Method, P — Path, RL — Rate Limit, Q — Query params, B — Body
+#   M - Method, P - Path, RL - Rate Limit, Q - Query params, B - Body
 
 N8N_ENDPOINTS: dict[str, list[dict]] = {
     "01_monitoring": [
@@ -248,18 +248,18 @@ N8N_ENDPOINTS: dict[str, list[dict]] = {
 # Files are in: src/n8n/workflows/
 
 N8N_WORKFLOWS: dict[str, str] = {
-    "nightly_pipeline":      "nightly_pipeline.json    — Еженочный пайплайн: сбор → анализ → графики",
-    "profile_monitor":       "profile_monitor.json     — Мониторинг профилей: изменения ко дню",
-    "trend_alert":           "trend_alert.json         — Оповещение о скачках трендов навыков",
-    "student_onboarding":    "student_onboarding.json  — Приём нового студента через webhook",
-    "weekly_report":         "weekly_report.json       — Еженедельный отчёт: LLM + TG + Email + Postgres",
-    "gap_analysis_watch":    "gap_analysis_watch.json  — Запуск gap-анализа по расписанию",
+    "nightly_pipeline":      "nightly_pipeline.json    - Еженочный пайплайн: сбор → анализ → графики",
+    "profile_monitor":       "profile_monitor.json     - Мониторинг профилей: изменения ко дню",
+    "trend_alert":           "trend_alert.json         - Оповещение о скачках трендов навыков",
+    "student_onboarding":    "student_onboarding.json  - Приём нового студента через webhook",
+    "weekly_report":         "weekly_report.json       - Еженедельный отчёт: LLM + TG + Email + Postgres",
+    "gap_analysis_watch":    "gap_analysis_watch.json  - Запуск gap-анализа по расписанию",
 }
 
 # ──────────────────────────────────────────────
 # 4. n8n WEBHOOK ENDPOINTS (receive from n8n)
 # ──────────────────────────────────────────────
-# POST /api/n8n/webhook/<name> — принимает callback/trigger от n8n
+# POST /api/n8n/webhook/<name> - принимает callback/trigger от n8n
 # Список зарегистрированных вебхуков:
 N8N_WEBHOOKS: dict[str, dict] = {
     "student-created": {

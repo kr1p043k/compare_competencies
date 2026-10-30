@@ -29,7 +29,7 @@ import { PageHeader } from "./PageHeader";
 const fmt = new Intl.NumberFormat("ru-RU");
 
 function formatSalary(value: number): string {
-  if (!value) return "–";
+  if (!value) return "-";
   return `${fmt.format(Math.round(value))} ₽`;
 }
 
@@ -340,7 +340,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
                 <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 rounded mt-1" />
               ) : (
                 <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
-                  {stats ? fmt.format(stats.total) : "–"}
+                  {stats ? fmt.format(stats.total) : "-"}
                 </p>
               )}
             </div>
@@ -357,7 +357,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
                 <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 rounded mt-1" />
               ) : (
                 <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
-                  {stats ? formatSalary(stats.salary.average) : "–"}
+                  {stats ? formatSalary(stats.salary.average) : "-"}
                 </p>
               )}
             </div>
@@ -374,7 +374,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
                 <div className="h-7 w-28 bg-gray-200 dark:bg-slate-700 rounded mt-1" />
               ) : (
                 <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
-                  {stats ? fmt.format(stats.salary.count) : "–"}
+                  {stats ? fmt.format(stats.salary.count) : "-"}
                 </p>
               )}
             </div>
@@ -393,7 +393,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
                 <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tabular-nums">
                   {analytics
                     ? fmt.format(analytics.skills.with_skills)
-                    : "–"}
+                    : "-"}
                 </p>
               )}
               {!analyticsLoading && analytics && (
@@ -589,7 +589,7 @@ export function ArticlesPage({ onStartGapAnalysis }: { onStartGapAnalysis?: () =
         <BlockCard
           icon={TrendingUp}
           title="Топ востребованных навыков"
-          description="Число упоминаний навыка в вакансиях (вес — нормализованная метрика)"
+          description="Число упоминаний навыка в вакансиях (вес - нормализованная метрика)"
           loading={skillsLoading}
           error={skillsError}
           onRetry={loadTopSkills}

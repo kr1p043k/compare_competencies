@@ -83,6 +83,69 @@ def _is_word_char(c: str) -> bool:
     return c.isalnum() or c == "_"
 
 
+# Soft skills: их не бывает в it_skills.json (там только технологии), поэтому
+# «коммуникативные навыки» и подобные требования из описания терялись.
+# Канон -> список триггерных формулировок (ищутся по границе слова).
+SOFT_SKILLS: dict[str, tuple[str, ...]] = {
+    "коммуникация": (
+        "коммуникативные навыки", "коммуникабельность", "коммуникация",
+        "навыки коммуникации", "эффективная коммуникация", "умеет общаться",
+        "грамотная речь", "грамотная письменная речь", "письменная речь",
+        "устная речь", "навыки деловой переписки", "деловая переписка",
+    ),
+    "работа в команде": (
+        "работа в команде", "работать в команде", "командная работа",
+        "командообразование", "team player", "тимворк",
+    ),
+    "клиентоориентированность": (
+        "клиентоориентированность", "клиентоориентированный",
+        "ориентация на клиента", "работа с клиентами",
+    ),
+    "внимательность": (
+        "внимательность", "внимательность к деталям", "усидчивость",
+    ),
+    "стрессоустойчивость": (
+        "стрессоустойчивость", "стрессоустойчивый", "работа под давлением",
+    ),
+    "самоорганизация": (
+        "самоорганизация", "самостоятельность", "тайм-менеджмент",
+        "управление временем", "умение планировать",
+    ),
+    "аналитическое мышление": (
+        "аналитическое мышление", "аналитические навыки", "системное мышление",
+        "критическое мышление",
+    ),
+    "многозадачность": (
+        "многозадачность", "большим объёмом информации", "большим объемом информации",
+        "большим объёмом данных", "большим объемом данных",
+    ),
+    "обучаемость": (
+        "обучаемость", "быстро обучаем", "готовность к обучению",
+    ),
+    "инициативность": (
+        "инициативность", "проактивность",
+    ),
+    "ответственность": (
+        "ответственность", "исполнительность", "пунктуальность",
+    ),
+    "презентационные навыки": (
+        "презентационные навыки", "навыки презентации", "публичные выступления",
+    ),
+    "переговоры": (
+        "навыки переговоров", "ведение переговоров", "переговоры",
+    ),
+    "наставничество": (
+        "наставничество", "менторство", "обучение сотрудников",
+    ),
+}
+
+# Одно слово -> канон, для быстрого поиска
+_SOFT_INDEX: dict[str, str] = {}
+for _canon, _phrases in SOFT_SKILLS.items():
+    for _ph in _phrases:
+        _SOFT_INDEX[_ph] = _canon
+
+
 def _load_it_skills() -> set[str]:
     """Load skill list from it_skills.json, normalized for matching."""
     from src import config as _cfg
@@ -153,11 +216,11 @@ class SkillParser:
     # populated in __init__ from it_skills.json; kept as fallback
     TECH_SKILLS: set[str] = set()
 
-    # (frozenset_of_skills, index) — index: first-char -> skills, cached once
+    # (frozenset_of_skills, index) - index: first-char -> skills, cached once
     _DIRECT_INDEX: tuple[frozenset, dict] | None = None
 
     # Скомпилированный alternation-паттерн маркеров (1110 термов собирать
-    # на каждую вакансию дорого) — пересборка при смене TECH_SKILLS.
+    # на каждую вакансию дорого) - пересборка при смене TECH_SKILLS.
     _MARKER_PATTERN: tuple[frozenset, re.Pattern] | None = None
 
     SKILL_MARKERS = [
@@ -216,13 +279,19 @@ class SkillParser:
                     case Err(e):
                         logger.debug("text_extract_failed", source=source, error=str(e))
 
+                match self._extract_soft_skills(text, source=source):
+                    case Ok(soft):
+                        skills.extend(soft)
+                    case Err(e):
+                        logger.debug("soft_skill_extract_failed", source=source, error=str(e))
+
             self.stats.total_extracted += len(skills)
 
             # Normalize cyrillic homoglyphs and deduplicate (case-insensitive)
             # _HOMOGLYPH_MAP now module-level (F6 fix).
             # Пустые имена отбрасываем здесь, чтобы "" не оседали в parsed_skills
             # и не рисовались пустыми бейджами в карточках.
-            # Дедуп — по свёрнутому ключу, но ХРАНИМ ОРИГИНАЛ: свёртка необратима
+            # Дедуп - по свёрнутому ключу, но ХРАНИМ ОРИГИНАЛ: свёртка необратима
             # (несколько кириллических букв → одна латинская), запись norm в text
             # портила parsed_skills в БД смешанно-алфавитной кашей.
             deduped = []
@@ -244,7 +313,7 @@ class SkillParser:
         """Извлекает из официального поля key_skills.
 
         Структурный фильтр мусора (цифры/пунктуация/1 символ): whitelist-гейт
-        здесь НЕ ставим — key_skills главный источник discovery новых навыков.
+        здесь НЕ ставим - key_skills главный источник discovery новых навыков.
         Исключение/allowlist как в SkillMatcher._MARKET_SINGLE_ALLOW: языки
         R и C односимвольны, но реальны.
         """
@@ -378,11 +447,50 @@ class SkillParser:
             return end
         return None
 
+    def _extract_soft_skills(
+        self, text: str, source: SkillSource
+    ) -> Result[list[ExtractedSkill], DomainError]:
+        """Soft skills по словарю формулировок.
+
+        Технический whitelist их не содержит, поэтому без этого прохода
+        требования вроде «коммуникативные навыки» не попадали в parsed_skills
+        и не показывались в карточке вакансии.
+        """
+        try:
+            if not text:
+                return Ok([])
+
+            text_norm = _normalize_for_matching(re.sub(r"<[^>]+>", " ", text))
+            found: list[ExtractedSkill] = []
+            seen: set[str] = set()
+
+            for phrase, canon in _SOFT_INDEX.items():
+                if canon in seen:
+                    continue
+                phrase_norm = _normalize_for_matching(phrase)
+                if len(phrase_norm) < 4:
+                    continue
+                if re.search(
+                    r"(?<!\w)" + re.escape(phrase_norm) + r"(?!\w)", text_norm
+                ):
+                    seen.add(canon)
+                    found.append(
+                        ExtractedSkill(
+                            text=canon,
+                            source=source,
+                            raw_match=phrase,
+                            confidence=0.7,
+                        )
+                    )
+            return Ok(found)
+        except Exception as e:
+            return Err(DomainError(message=str(e), detail="_extract_soft_skills"))
+
     def _marker_search(self, text: str, source: SkillSource) -> Result[list[ExtractedSkill], DomainError]:
         """Поиск навыков после маркеров.
 
         P0: один проход alternation longest-first С границами слов
-        (было `tech in line` — 'go' срабатывал внутри 'django').
+        (было `tech in line` - 'go' срабатывал внутри 'django').
         Односимвольные навыки пропускаем: в маркерных строках это шум.
         P5: negation-контекст ±50 как в _direct_search.
         """
@@ -486,7 +594,7 @@ class SkillParser:
                                         pass
                                     case _:
                                         continue
-                                # P5: отрицание рядом — не навык
+                                # P5: отрицание рядом - не навык
                                 start = max(0, m.start() - 50)
                                 context = text_norm[start:m.end() + 50]
                                 if any(neg in context for neg in _negation_norms):

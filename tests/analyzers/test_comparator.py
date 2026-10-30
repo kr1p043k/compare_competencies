@@ -82,7 +82,7 @@ class TestCompetencyComparatorExtended:
         comparator = CompetencyComparator(use_embeddings=False)
         student_skills = ["python", "sql"]
         weights = {"python": 0.9, "sql": 0.5, "docker": 0.3}
-        # Без эмбеддингов — точное совпадение
+        # Без эмбеддингов - точное совпадение
         coverage = comparator.weighted_coverage(student_skills, weights)
         assert coverage > 0
 
@@ -230,7 +230,7 @@ class TestEmbeddingComparatorFull:
         assert result["weighted_coverage"] == 0.0
 
     def test_compare_student_to_market_no_weights(self, comparator):
-        """Строка 136: skill_weights пусты — fallback"""
+        """Строка 136: skill_weights пусты - fallback"""
         with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
             comparator.build_market_index(["python", "java", "c++"], level="test")
         comparator.skill_weights = {}
@@ -322,7 +322,7 @@ class TestEmbeddingComparatorFull:
         assert 0.0 <= result["hybrid_score"] <= 1.0
 
     def test_hybrid_compare_no_clusters(self, comparator):
-        """Строка 236-253: без кластеров — hybrid_score = global_score"""
+        """Строка 236-253: без кластеров - hybrid_score = global_score"""
         with patch("src.analyzers.comparison.embedding_comparator.joblib.dump", return_value=None):
             comparator.build_market_index(["python", "java"], level="test")
         result = comparator.hybrid_compare(["python"], {"python": 0.9})
@@ -344,7 +344,7 @@ class TestEmbeddingComparatorFull:
 class TestCompetencyComparatorFull:
     def test_compare_embeddings_no_weights_is_err(self):
         """Embeddings без весов: ensemble blend удалён (2026-10-11),
-        compare требует skill_weights — явная ошибка вместо тихого нуля."""
+        compare требует skill_weights - явная ошибка вместо тихого нуля."""
         comparator = CompetencyComparator(use_embeddings=True)
         comparator.fitted = True
         result = comparator.compare(["python"])
@@ -484,7 +484,7 @@ class TestCompetencyComparatorFull:
         cache_path = comp._get_cache_path("market_embeddings", "middle")
         joblib.dump({"embeddings": fake_emb, "skills": fake_skills}, cache_path)
 
-        # Манифест пусть будет совместим – подменим его
+        # Манифест пусть будет совместим - подменим его
         with patch("src.analyzers.comparison.embedding_comparator.ArtifactManifest") as MockManifest:
             mock_manifest = MockManifest.load.return_value
             from src import Ok; mock_manifest.is_compatible.return_value = Ok(True)

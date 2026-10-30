@@ -368,7 +368,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   disabled={!cityMode}
                   className="h-10"
                 />
-                <p className="text-xs text-slate-400">{!cityMode ? "Весь рынок – поиск по всем IT-профессиям" : "Оставьте пустым для поиска по всем профессиям"}</p>
+                <p className="text-xs text-slate-400">{!cityMode ? "Весь рынок - поиск по всем IT-профессиям" : "Оставьте пустым для поиска по всем профессиям"}</p>
               </div>
 
               {/* Search params */}
@@ -399,7 +399,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     onChange={(e) => setPipelinePeriodLocal(Math.max(1, Math.min(365, Number(e.target.value) || 30)))}
                     className="h-10"
                   />
-                  <p className="text-xs text-slate-400">1–365, по умолч. 30</p>
+                  <p className="text-xs text-slate-400">1-365, по умолч. 30</p>
                 </div>
               </div>
 
@@ -843,7 +843,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     className="h-10 rounded-lg dark:[color-scheme:dark]"
                     aria-label="Дата от"
                   />
-                  <span className="text-sm text-slate-400">—</span>
+                  <span className="text-sm text-slate-400">-</span>
                   <Input
                     type="date"
                     value={dateTo}
@@ -911,7 +911,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     className="cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600"
                     onClick={() => { setDateFrom(""); setDateTo(""); applyFilters({ date_from: "", date_to: "" }); }}
                   >
-                    {applied.date_from ? fmtDateRU(applied.date_from) : "…"} — {applied.date_to ? fmtDateRU(applied.date_to) : "…"} ✕
+                    {applied.date_from ? fmtDateRU(applied.date_from) : "…"} - {applied.date_to ? fmtDateRU(applied.date_to) : "…"} ✕
                   </Badge>
                 )}
               </div>
@@ -977,7 +977,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     <strong>Файл вакансий повреждён.</strong> Файл существует (<code className="text-xs bg-orange-100 dark:bg-orange-950/30 px-1 rounded">{vacancyInfo.file_modified ?? "неизвестно"}</code>), но не может быть прочитан.
                   </p>
                   <p className="text-xs text-orange-700 dark:text-orange-300 mt-2">
-                    Попробуйте запустить повторный сбор вакансий – файлы будут перезаписаны.
+                    Попробуйте запустить повторный сбор вакансий - файлы будут перезаписаны.
                   </p>
                 </div>
               ) : !vacancyInfo?.file_modified ? (
@@ -987,7 +987,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     <strong>Вакансии не собраны.</strong> Нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
                   </p>
                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
-                    После сбора вакансий данные кэшируются. Если вы уже запускали сбор – проверьте, что бэкенд запущен.
+                    После сбора вакансий данные кэшируются. Если вы уже запускали сбор - проверьте, что бэкенд запущен.
                   </p>
                 </div>
               ) : (
@@ -1032,7 +1032,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-left max-w-lg mx-auto">
                 <p className="text-sm text-blue-800 dark:text-blue-200">
                   <Database className="size-4 inline mr-1" />
-                  <strong>Если вакансии ещё не собраны</strong> – нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
+                  <strong>Если вакансии ещё не собраны</strong> - нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
                 </p>
                 <ul className="mt-2 text-xs text-blue-700 dark:text-blue-300 space-y-1 list-disc list-inside">
                   <li>После нажатия запустится полный цикл сбора (10-15 минут)</li>

@@ -51,7 +51,7 @@ def _has_latin_word(s: str) -> bool:
 
 
 def _is_strict_prefix_trap(query: str, candidate: str) -> bool:
-    """True, если запрос — собственный префикс кандидата БЕЗ границы слова.
+    """True, если запрос - собственный префикс кандидата БЕЗ границы слова.
 
     e.g. "java" vs "javascript": prefix + next char 's' is alnum -> trap.
     e.g. "react" vs "react native": next char is space -> NOT a trap.
@@ -159,7 +159,7 @@ class HybridMatcher:
     def _match_uncached(
         self, original: str, n: str
     ) -> Result[tuple[str | None, str, float], MatchingError]:
-        """Пайплайн без кэша. `n` — нормализованный запрос."""
+        """Пайплайн без кэша. `n` - нормализованный запрос."""
         # Stage 1: exact
         if n in self.market_skills:
             return Ok((n, "exact", 1.0))
@@ -169,7 +169,7 @@ class HybridMatcher:
 
         # Stage 2: hybrid fuzzy = RapidFuzz AND boundary guard.
         # normalize(mn) считается один раз на кандидата (без смены семантики:
-        # никаких length/bigram-предикатов — они резали легитимные пары
+        # никаких length/bigram-предикатов - они резали легитимные пары
         # 'длинный запрос vs короткий навык', напр. '... тестирования программ'
         # vs 'тестирование по' 78).
         best_hf: tuple[str | None, float] = (None, 0.0)

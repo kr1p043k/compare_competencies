@@ -56,7 +56,7 @@ async def taxonomy_coverage(    request: Request,
                 )
         if not cat_skills:
             # Категории-пустышки (только aliases, без skills: methodologies,
-            # business_tools, abstract_concepts) — не навыки, в покрытие не идут,
+            # business_tools, abstract_concepts) - не навыки, в покрытие не идут,
             # иначе рисуют фантомные «0.0%».
             continue
         covered = cat_skills & deps.current_skills_set

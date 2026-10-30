@@ -2,7 +2,7 @@
 
 Не зависит от сервиса ЮФУ: тема → навыки → сравнение с рынком (it_skills)
 и с компетенциями КРМ (эмбеддинги). Формат ответа совместим с
-/academic/analyze-gap (GapResponse) — фронт не меняется.
+/academic/analyze-gap (GapResponse) - фронт не меняется.
 
 Только чтение: использует диск-кэш эмбеддингов, не пишет в БД.
 """
@@ -105,7 +105,7 @@ class AcademicGapAnalyzer:
 
     def _get_taxonomy_cats(self):
         """Доступ к cats_of из curriculum recommender (категории таксономии
-        для второго рубежа topic-фильтра). None при недоступности —
+        для второго рубежа topic-фильтра). None при недоступности -
         тогда работает только sim-гейт."""
         return self._curr
 
@@ -113,7 +113,7 @@ class AcademicGapAnalyzer:
         if self._comparator is None:
             from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
 
-            self._comparator = EmbeddingComparator(similarity_threshold=0.6)  # prodval 2026-10-10: 0.6 один в один с валидацией; SIM_THRESHOLD ниже — только для topic-гейта
+            self._comparator = EmbeddingComparator(similarity_threshold=0.6)  # prodval 2026-10-10: 0.6 один в один с валидацией; SIM_THRESHOLD ниже - только для topic-гейта
         return self._comparator
 
     # ── шаг 1: тема → навыки ──────────────────────────────────────────────
@@ -170,7 +170,7 @@ class AcademicGapAnalyzer:
             market_embs = comp.embed_skills(market)
             sims = cosine_similarity(topic_emb, market_embs)[0]
             order = np.argsort(sims)[::-1]
-            # Гибрид H: короткие (<5 символов) токены без категорий таксономии —
+            # Гибрид H: короткие (<5 символов) токены без категорий таксономии -
             # почти всегда шум (ккт, тсд, еспд, скд). Легитимные короткие
             # навыки (sql, go, r) категории имеют и не страдают.
             # Фильтруем ДО среза топ-15, чтобы их место заняли лучше.
@@ -276,7 +276,7 @@ class AcademicGapAnalyzer:
 
             skills_lower = {s.lower() for s in skills}
 
-            # для каждого навыка компетенции — макс. близость к любому навыку темы
+            # для каждого навыка компетенции - макс. близость к любому навыку темы
             sims = cosine_similarity(skill_embs, topic_embs)  # (n_skills, n_topic)
             per_skill = sims.max(axis=1)
             coverage = round(float(per_skill.mean()) * 100)
@@ -335,10 +335,10 @@ class AcademicGapAnalyzer:
                     })
                 # рыночные навыки, близкие к теме, которых нет в компетенции.
                 # Фильтр релевантности: навык должен быть близок не только теме,
-                # но и ЭТОЙ компетенции (market_best — макс. sim к её навыкам).
+                # но и ЭТОЙ компетенции (market_best - макс. sim к её навыкам).
                 # Без него глобальный топ темы paste'ится во все компетенции
-                # подряд (напр. zustand — в математику). Порог тот же, что у
-                # competency-ветки выше. Число — comp-sim (честнее в разрезе
+                # подряд (напр. zustand - в математику). Порог тот же, что у
+                # competency-ветки выше. Число - comp-sim (честнее в разрезе
                 # компетенции, чем глобальный topic-sim).
                 midx = {mm.lower(): i for i, mm in enumerate(market)}
                 curr = self._get_taxonomy_cats()
@@ -380,7 +380,7 @@ class AcademicGapAnalyzer:
                                      "gate": "category"})
                             continue
                     elif curr is not None:
-                        # passthrough: uncategorized either side — still kept,
+                        # passthrough: uncategorized either side - still kept,
                         # so passthrough ⊆ kept in the counters below.
                         logger.info("cat_passthrough", code=code,
                                     skill=m["skill"])

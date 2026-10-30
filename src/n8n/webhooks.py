@@ -1,4 +1,4 @@
-"""n8n webhook router — приём callback'ов от n8n."""
+"""n8n webhook router - приём callback'ов от n8n."""
 
 import hmac
 from datetime import datetime

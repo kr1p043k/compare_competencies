@@ -1,4 +1,4 @@
-"""Tests for PipelineBuilder — mostly standalone, needs mocks for PipelineOrchestrator."""
+"""Tests for PipelineBuilder - mostly standalone, needs mocks for PipelineOrchestrator."""
 from unittest.mock import MagicMock, patch
 
 from src import Ok

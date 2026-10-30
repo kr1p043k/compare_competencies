@@ -272,7 +272,7 @@ class TestHardSkillDetection:
     def test_is_hard_skill_true(self, mock_profile_evaluator, mock_skill_filter):
         engine = RecommendationEngine(profile_evaluator=mock_profile_evaluator)
         engine.skill_filter = mock_skill_filter
-        # docker – обычно в taxonomy hard, но у нас замокана пустая, поэтому проверка по _hard_keywords
+        # docker - обычно в taxonomy hard, но у нас замокана пустая, поэтому проверка по _hard_keywords
         engine._hard_keywords = {"docker"}
         assert engine._is_hard_skill("docker") is True
 
@@ -648,7 +648,7 @@ class TestRoleCoreGate:
         mock_profile_evaluator.clusterer = MagicMock()
         mock_profile_evaluator.clusterer.get_top_skills_in_cluster.return_value = [
             f"s{i:02d}" for i in range(50)]
-        # L1: движок идёт через get_clusterer(level) — мок отдаёт тот же кластерер.
+        # L1: движок идёт через get_clusterer(level) - мок отдаёт тот же кластерер.
         mock_profile_evaluator.get_clusterer.return_value = mock_profile_evaluator.clusterer
         roles = engine._build_closest_roles(
             [{"id": 0, "name": "R", "similarity": 0.9}], {}, set())

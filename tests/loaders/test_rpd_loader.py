@@ -32,7 +32,7 @@ class TestRPDLoader:
         assert "ОПК-2.2" in result  # kept (not subset)
 
     def test_sub_competency_survives_load_order(self):
-        """P1 (2026-10-14): merge-then-dedup удалял ВСЕ дочерние коды —
+        """P1 (2026-10-14): merge-then-dedup удалял ВСЕ дочерние коды -
         после merge child ⊆ parent по построению. Порядок исправлен:
         dedup СНАЧАЛА, merge потом. Уникальный ребёнок выживает."""
         from src.loaders.rpd_loader import dedup_children
@@ -54,7 +54,7 @@ class TestRPDLoader:
     def test_cross_reference_does_not_hijack_parser(self):
         """P-ksa (2026-10-14): код компетенции внутри буллета KSA
         ('применять подходы УК-4 к...') переключал парсер на фантомную
-        компетенцию и терял навыки. Теперь код — только заголовок строки."""
+        компетенцию и терял навыки. Теперь код - только заголовок строки."""
         from src.loaders.rpd_loader import RPDLoader
 
         text = (

@@ -1,4 +1,4 @@
-"""GET /api/vacancies/by-skill — список вакансий с указанным навыком."""
+"""GET /api/vacancies/by-skill - список вакансий с указанным навыком."""
 import json
 
 from fastapi import APIRouter, Query

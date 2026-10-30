@@ -46,7 +46,7 @@ def _holdout_mape(points: list[tuple[date, float]]) -> float | None:
 
     Возвращает MAPE (0 = идеально, 1 = 100% ошибка). При стабильных данных близко к 0.
     None = посчитать нельзя (<2 точек, вырожденный ряд, actual < 1).
-    Раньше возвращал 0.0 («идеально») при отсутствии данных — враньё:
+    Раньше возвращал 0.0 («идеально») при отсутствии данных - враньё:
     UI прячет бейдж только при mape<=0, и 0.0 выглядел как отличный прогноз.
     """
     import numpy as np
@@ -104,7 +104,7 @@ def anchor_monthly_counts(
 
 
 def _has_mixed_token(skill: str) -> bool:
-    """Внутритокеновый микс скриптов ('cиcтeмнoe') — артефакт раскладки.
+    """Внутритокеновый микс скриптов ('cиcтeмнoe') - артефакт раскладки.
 
     Легитимный микс ('a/b тестирование', 'c++', '1c предприятие') идёт по
     разным токенам и не задевается. Однобуквенные токены игнорим.
@@ -126,7 +126,7 @@ def _has_mixed_token(skill: str) -> bool:
 
 
 def _is_blocked(name: str, blocked) -> bool:
-    """Blacklist-семантика как в валидаторе: =xxx — точное, иначе подстрока."""
+    """Blacklist-семантика как в валидаторе: =xxx - точное, иначе подстрока."""
     low = (name or "").lower()
     for bad in blocked or ():
         b = str(bad).lower()
@@ -146,8 +146,8 @@ def merge_supplement_rows(
     """Схлопнуть сырые DB-навыки для supplement: чистка + fold-merge.
 
     - пустоты отбрасываются;
-    - уже покрытое файлами (по fold-ключу) пропускается — без двойного счёта;
-    - гомоглиф-дубли ('aнaлиз дaнныx' + 'анализ данных') сливаются, дисплей —
+    - уже покрытое файлами (по fold-ключу) пропускается - без двойного счёта;
+    - гомоглиф-дубли ('aнaлиз дaнныx' + 'анализ данных') сливаются, дисплей -
       самое частое ЧИСТОЕ написание;
     - fold-группы без чистого написания (остаточный мусор) дропаются целиком;
     - blocked (blacklist справочника): вендоры и мусор, вычищенные из файлов,
@@ -286,7 +286,7 @@ async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], Doma
             totals[m] = int(row.total or 0)
 
         # Convert DB data into snapshot format (объём-нормализованные,
-        # см. anchor_monthly_counts — иначе рост коллекции = "рост спроса")
+        # см. anchor_monthly_counts - иначе рост коллекции = "рост спроса")
         for m, data in anchor_monthly_counts(db_monthly, totals).items():
             file_snapshots.append((m, data))
     except Exception:
@@ -305,7 +305,7 @@ def _interpolate_missing_months(snapshots: list[tuple[date, dict[str, float]]]) 
     """Заполняет пропущенные календарные месяцы линейной интерполяцией.
 
     Нерегулярные снимки (напр. апр, май, июн, авг) дают Prophet'у разрозненные
-    точки без июля — интерполяция восстанавливает ежемесячный ряд.
+    точки без июля - интерполяция восстанавливает ежемесячный ряд.
     """
     if len(snapshots) < 2:
         return snapshots
@@ -420,7 +420,7 @@ class ProphetForecastEngine(BasePredictor):
 
         self._n_snapshots = len(snapshots)
         history = self._gather_history(snapshots)
-        # Полные наблюдаемые истории — для вкладки измеренных падений
+        # Полные наблюдаемые истории - для вкладки измеренных падений
         # (/forecast/observed): факты по снимкам, без экстраполяции.
         self._observed = {s: list(pts) for s, pts in history.items()}
 
@@ -486,7 +486,7 @@ class ProphetForecastEngine(BasePredictor):
             model = self._models[skill]
             n_pts = len(model.history) if hasattr(model, "history") and model.history is not None else 3
             # Limit forecast horizon based on data points, but be more generous:
-            # 3 pts -> 3m, 6 pts -> 6m, 12+ pts -> 12m (was n_pts//2 — too conservative).
+            # 3 pts -> 3m, 6 pts -> 6m, 12+ pts -> 12m (was n_pts//2 - too conservative).
             max_months = max(1, min(n_pts, 12))
             if months > max_months:
                 logger.warning(

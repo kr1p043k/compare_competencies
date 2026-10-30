@@ -19,13 +19,13 @@ interface MarketViewProps {
 }
 
 function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "–";
+  if (!iso) return "-";
   const p = iso.slice(0, 10).split("-");
   return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
 }
 
 function fmtNum(n: number | null | undefined): string {
-  if (n === null || n === undefined) return "–";
+  if (n === null || n === undefined) return "-";
   return n.toLocaleString("ru-RU");
 }
 
@@ -44,9 +44,9 @@ export function MarketView({ data }: MarketViewProps) {
     {
       icon: CalendarDays,
       label: "Период данных",
-      value: data.date_from || data.date_to ? `${fmtDate(data.date_from)} — ${fmtDate(data.date_to)}` : "–",
+      value: data.date_from || data.date_to ? `${fmtDate(data.date_from)} - ${fmtDate(data.date_to)}` : "-",
     },
-    { icon: Trophy, label: "Топ-навык", value: leader ? leader.skill : "–" },
+    { icon: Trophy, label: "Топ-навык", value: leader ? leader.skill : "-" },
   ];
 
   return (
@@ -80,7 +80,7 @@ export function MarketView({ data }: MarketViewProps) {
             Топ-15 навыков рынка
           </CardTitle>
           <CardDescription>
-            Вес — нормализованная метрика спроса (частота с учётом BM25 и эмбеддингов), а не число вакансий
+            Вес - нормализованная метрика спроса (частота с учётом BM25 и эмбеддингов), а не число вакансий
           </CardDescription>
         </CardHeader>
         <CardContent>

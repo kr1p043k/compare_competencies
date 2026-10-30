@@ -25,7 +25,7 @@ def _engine_info(engine) -> dict:
     """Чем посчитано: имя движка + состояние Prophet (диагностика 'почему trend').
 
     trend на все запросы = Prophet не дофитился на старте (долгий fit сотен
-    моделей) или упал — это видно здесь, а не гадается по бейджам.
+    моделей) или упал - это видно здесь, а не гадается по бейджам.
     """
     prophet_fitted = bool(
         getattr(deps, "prophet_engine", None) is not None
@@ -39,7 +39,7 @@ def _engine_info(engine) -> dict:
         }
     return {"engine": "trend", "prophet_fitted": prophet_fitted, "prophet_models": 0}
 
-# Кэш топов: fit происходит на старте/пайплайне, а compute — сотни Prophet-
+# Кэш топов: fit происходит на старте/пайплайне, а compute - сотни Prophet-
 # predict'ов (десятки секунд GIL). Без кэша каждое переключение горизонта
 # в UI вешает event loop и роняет health-checks.
 _TOP_CACHE: dict[tuple, tuple[float, tuple]] = {}
@@ -66,7 +66,7 @@ def _top_cache_set(key: tuple, value: tuple) -> None:
 
 
 def _compute_top(engine, direction: str, months: int, want: int, sort: str):
-    """Синхронный подсчёт топа (стартует в to_thread — НЕ в event loop).
+    """Синхронный подсчёт топа (стартует в to_thread - НЕ в event loop).
 
     Возвращает (Result[list[ForecastResult]], method).
     """
@@ -199,7 +199,7 @@ def _serialize(r: ForecastResult, direction: str | None = None, method: str = "t
         "forecast_months": getattr(r, "forecast_months", 0),
         "trend_direction": direction or ("growing" if r.predicted_growth > 0 else "declining"),
         # F6 (аудит 2026-10-14): фронтенд ждал uncertainty_*, бэкенд не эмитил.
-        # Prophet — реальные 80%%-границы; trend — нет (None).
+        # Prophet - реальные 80%%-границы; trend - нет (None).
         "uncertainty_lower": (
             round(r.uncertainty_lower, 4)
             if getattr(r, "uncertainty_lower", None) is not None else None
@@ -227,10 +227,10 @@ def _record_forecast_accuracy(engine, forecasts) -> None:
         from src.monitoring.metrics import forecast_accuracy
 
         def _mape_for(skill: str) -> float | None:
-            # F3 (аудит 2026-10-14): для Prophet-навыка engine._models[skill] —
+            # F3 (аудит 2026-10-14): для Prophet-навыка engine._models[skill] -
             # объект Prophet (не dict), и код падал в fallback с ЧУЖОЙ метрикой
             # (in-sample RMSE по другому ряду). Честный holdout-MAPE лежит
-            # в engine._skill_mape — берём его первым.
+            # в engine._skill_mape - берём его первым.
             skill_mape = getattr(engine, "_skill_mape", None)
             if isinstance(skill_mape, dict) and skill_mape.get(skill) is not None:
                 return float(skill_mape[skill])
@@ -265,8 +265,8 @@ def _is_usable_forecast(r, min_freq: float = 0) -> bool:
 
 
 def _select_observed_direction(items: list[dict], direction: str) -> list[dict]:
-    """Знак измеренного изменения: declining — только падения, growing — только
-    рост, all — всё. Ноль — ни то ни другое (плоский шум в топ не идёт)."""
+    """Знак измеренного изменения: declining - только падения, growing - только
+    рост, all - всё. Ноль - ни то ни другое (плоский шум в топ не идёт)."""
     if direction == "declining":
         return [r for r in items if r["observed_change_pct"] < 0]
     if direction == "growing":
@@ -317,7 +317,7 @@ async def get_top_forecasts(
 ):
     """Топ навыков: sort=growth (по росту, умолчанию) или popular (по текущей частоте).
 
-    Строки без горизонта прогноза (forecast_months == 0 — flat/insufficient)
+    Строки без горизонта прогноза (forecast_months == 0 - flat/insufficient)
     из топа исключаются: это не прогнозы. min_freq=50 по умолчанию режет
     мелочь с накрученными процентами (порог осмысленной частоты).
     """
@@ -416,12 +416,12 @@ async def get_observed_drops(
     min_freq: float = Query(50, ge=0),
     direction: str = Query("declining", regex="^(declining|growing|all)$"),
 ):
-    """Измеренное изменение спроса за окно — факт, не прогноз.
+    """Измеренное изменение спроса за окно - факт, не прогноз.
 
     months ∈ {1, 3, 6, 12}: нужно 2/3/6/12 снимков соответственно,
-    иначе навык пропускается (в мете max_points — сколько есть максимум).
-    direction режет по знаку: declining — только падения (< 0),
-    growing — только рост (> 0), all — всё подряд. Ноль — ни то ни другое.
+    иначе навык пропускается (в мете max_points - сколько есть максимум).
+    direction режет по знаку: declining - только падения (< 0),
+    growing - только рост (> 0), all - всё подряд. Ноль - ни то ни другое.
     """
     from src.predictors.skill_forecast import OBSERVED_MONTHS, compute_observed_drops
 

@@ -126,9 +126,9 @@ class TestCoverageAnalyzer:
         assert coverage_level(1.0) == "high"
 
     def test_level_conservative_min_ratio_weighted(self):
-        """Уровень — от min(ratio, weighted), а не от ratio.
+        """Уровень - от min(ratio, weighted), а не от ratio.
 
-        Мультимедиа-кейс: ratio 0.55 при weighted 0.33 — V0 давал лживый
+        Мультимедиа-кейс: ratio 0.55 при weighted 0.33 - V0 давал лживый
         HIGH. Мок матчера: 2 fuzzy-совпадения conf 0.4 + 2 промаха
         (ratio 0.5, weighted 0.2) → medium.
         """

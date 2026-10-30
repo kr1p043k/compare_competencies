@@ -1,4 +1,4 @@
-"""Dependency injection — DI-контейнер + глобальное состояние для роутеров."""
+"""Dependency injection - DI-контейнер + глобальное состояние для роутеров."""
 
 import asyncio
 
@@ -14,7 +14,7 @@ from src.predictors.prophet_forecast import ProphetForecastEngine
 from src.predictors.recommendation_engine import RecommendationEngine
 from src.predictors.skill_forecast import SkillForecastEngine
 
-# Module-level globals — устанавливаются в startup.py, read-only после инициализации.
+# Module-level globals - устанавливаются в startup.py, read-only после инициализации.
 # Защищены блокировкой для избежания race condition при параллельных запросах во время startup.
 init_lock = asyncio.Lock()
 

@@ -257,7 +257,7 @@ async def seed_recommendations(session) -> None:
     count = 0
     for rec in recs:
         # P4 (2026-10-14): файл содержит discipline_id/competency_id/
-        # suggestion_type; прежний код читал discipline/competency/type —
+        # suggestion_type; прежний код читал discipline/competency/type -
         # все 110 записей молча пропускались (recommendations = 0).
         disc_name = rec.get("discipline") or rec.get("discipline_id", "")
         result = await session.execute(

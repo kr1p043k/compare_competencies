@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import dialect as PG
 
 
 def test_pipeline_run_action_list_matches_code():
-    """reparse/rpd-import/cancelled пишет код — CHECK в модели обязан их пускать."""
+    """reparse/rpd-import/cancelled пишет код - CHECK в модели обязан их пускать."""
     from sqlalchemy.schema import CreateTable
 
     from src.models.krm_models import Base, PipelineRun
@@ -53,7 +53,7 @@ def test_category_encoding_reverse_map_complete():
 
 
 def test_blend_merges_case_variants():
-    """Evaluator отдаёт 'PostgreSQL', LTR — 'postgresql'; раньше это были
+    """Evaluator отдаёт 'PostgreSQL', LTR - 'postgresql'; раньше это были
     две записи и 40% бленда терялись."""
     ev = {"PostgreSQL": 0.8}
     ltr = {"postgresql": 0.9}

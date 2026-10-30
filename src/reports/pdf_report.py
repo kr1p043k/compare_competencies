@@ -1,8 +1,8 @@
 """PDF-отчёт по профилю: editorial-вёрстка (impeccable restrained + theme-factory discipline).
 
 Тема: светлый папирусный фон запрещён (AI-слоп); берём чистый белый,
-чернила off-black, один акцент — фирменный синий приложения (#1D4ED8),
-воздух и иерархия вместо рамок везде. Кириллица — DejaVu из matplotlib.
+чернила off-black, один акцент - фирменный синий приложения (#1D4ED8),
+воздух и иерархия вместо рамок везде. Кириллица - DejaVu из matplotlib.
 """
 import os
 from datetime import UTC, datetime
@@ -141,16 +141,16 @@ def build_profile_pdf(profile: str, full_rec: dict, reports_dir: Path | str) -> 
     pdf.set_font("DejaVu", "", 8)
     pdf.set_text_color(*MUTED)
     pdf.multi_cell(0, 5, "Readiness = 0.45 × рынок + 0.30 × сильные% − 0.25 × слабые%. "
-                         "Строгое — бинарное пересечение со спросом; взвешенное — с учётом спроса.")
+                         "Строгое - бинарное пересечение со спросом; взвешенное - с учётом спроса.")
     pdf.ln(2)
 
     alerts: list[tuple[str, str]] = []
     if summary.get("readiness_score", 100) < 30:
-        alerts.append(("Критично", "готовность ниже 30 — программе не хватает базового покрытия"))
+        alerts.append(("Критично", "готовность ниже 30 - программе не хватает базового покрытия"))
     if summary.get("coverage_strict", summary.get("market_skill_coverage", 100)) < 20:
-        alerts.append(("Внимание", "строгое покрытие ниже 20 — язык программы расходится с рынком"))
+        alerts.append(("Внимание", "строгое покрытие ниже 20 - язык программы расходится с рынком"))
     if summary.get("avg_gap", 0) > 40:
-        alerts.append(("Внимание", "средний разрыв выше 40 — много слабых навыков"))
+        alerts.append(("Внимание", "средний разрыв выше 40 - много слабых навыков"))
     if alerts:
         pdf.set_font("DejaVu", "B", 12)
         pdf.set_text_color(*INK)
@@ -195,7 +195,7 @@ def build_profile_pdf(profile: str, full_rec: dict, reports_dir: Path | str) -> 
     pdf.set_font("DejaVu", "", 8)
     pdf.set_text_color(*MUTED)
     pdf.multi_cell(
-        0, 5, "Важность — композитный балл (blend gap-анализа и ML + бонусы тренда, домена, роли), а не доля вакансий."
+        0, 5, "Важность - композитный балл (blend gap-анализа и ML + бонусы тренда, домена, роли), а не доля вакансий."
     )
 
     reports = Path(reports_dir)

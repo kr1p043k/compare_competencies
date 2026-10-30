@@ -1,4 +1,4 @@
-"""Concrete pipeline stages — адаптеры для существующих классов."""
+"""Concrete pipeline stages - адаптеры для существующих классов."""
 
 import json
 from typing import Any
@@ -156,7 +156,7 @@ class SkillExtractionStage(PipelineStage):
                                 case Err(_):
                                     texts = []
                             v.raw_data["extracted_skills"] = texts
-                            # LevelBuilder читает атрибут vac.extracted_skills — дублируем туда же,
+                            # LevelBuilder читает атрибут vac.extracted_skills - дублируем туда же,
                             # иначе level_data/vacancies_skills всегда пустые на кэш-файлах без key_skills.
                             v.extracted_skills = texts
                         elif isinstance(v, dict):

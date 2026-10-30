@@ -144,8 +144,8 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
         </Card>
       </motion.div>
 
-      {/* Результаты переехали: метрики и рекомендации – во вкладке «Данные»,
-          формулы и оценка качества – в «Помощь» → «Анализ компетенций». */}
+      {/* Результаты переехали: метрики и рекомендации - во вкладке «Данные»,
+          формулы и оценка качества - в «Помощь» → «Анализ компетенций». */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -153,8 +153,8 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
       >
         <Card className="border-2 border-blue-200 dark:border-blue-800 bg-slate-50 dark:bg-slate-900">
           <CardContent className="pt-6 pb-6 text-sm text-slate-700 dark:text-slate-300">
-            Подгрузка результатов, скачивание Excel и отчёта – во вкладке
-            «Данные». Как считаются метрики и насколько им можно доверять – во вкладке
+            Подгрузка результатов, скачивание Excel и отчёта - во вкладке
+            «Данные». Как считаются метрики и насколько им можно доверять - во вкладке
             «Помощь», раздел «Анализ компетенций».
           </CardContent>
         </Card>

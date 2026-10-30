@@ -1,4 +1,4 @@
-"""PipelineOrchestrator — управление последовательностью этапов с retry, timing и прогрессом."""
+"""PipelineOrchestrator - управление последовательностью этапов с retry, timing и прогрессом."""
 
 import time
 from dataclasses import dataclass, field

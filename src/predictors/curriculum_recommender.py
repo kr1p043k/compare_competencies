@@ -131,7 +131,7 @@ def _exact_demand(skills: list[str]) -> tuple[dict[str, int], dict[str, str]]:
 
     Вокабуляр частот урезан топ-N, поэтому редкие (k-means: 5 вакансий),
     но реальные навыки выглядят «несопоставленными». Один запрос на всех.
-    Без БД — пусто (старое поведение). Возвращает (counts, normalized_form).
+    Без БД - пусто (старое поведение). Возвращает (counts, normalized_form).
     """
     out: dict[str, int] = {}
     norms: dict[str, str] = {}
@@ -171,10 +171,10 @@ def _exact_demand(skills: list[str]) -> tuple[dict[str, int], dict[str, str]]:
 
 
 def _gap_hints(gaps: list[str], truly_missing) -> dict[str, tuple[str, int, int]]:
-    """Ближайший рыночный навык для каждого гэпа — свидетельство, не матчинг.
+    """Ближайший рыночный навык для каждого гэпа - свидетельство, не матчинг.
 
     Возвращает {gap: (market_skill, shared_lemmas, frequency)}.
-    Пулы — truly_missing (рынок вне дисциплины). Порог — хотя бы одна общая
+    Пулы - truly_missing (рынок вне дисциплины). Порог - хотя бы одна общая
     значимая лемма; дальше решает человек (сообщение так и говорит).
     """
     try:
@@ -250,9 +250,9 @@ class CurriculumRecommender:
         return self._cats_of(skill_name)
 
     def _cats_of(self, skill_name: str) -> set[str]:
-        """Области таксономии навыка: короткие эталоны — только по границам слов.
+        """Области таксономии навыка: короткие эталоны - только по границам слов.
 
-        Иначе «erp» матчится в «enterprise», «go» — в «django», и глобальный
+        Иначе «erp» матчится в «enterprise», «go» - в «django», и глобальный
         топ пролезает в чужие дисциплины.
         """
         sn = (skill_name or "").lower().strip()
@@ -292,7 +292,7 @@ class CurriculumRecommender:
             codes = comp_of.get((skill or "").lower().strip(), [])[:3]
             return (" (" + ", ".join(codes) + ")") if codes else ""
 
-        # Gaps: RPD skills not found on market — one per skill.
+        # Gaps: RPD skills not found on market - one per skill.
         # Сообщения честные: бездоказательное «пересмотрите актуальность» заменено
         # на «не сопоставлено автоматически + ближайшее свидетельство + проверьте вручную».
         # Типы/приоритеты не меняем (контракт тестов): academic->foundational/low,
@@ -319,27 +319,27 @@ class CurriculumRecommender:
             _trans_n = _demand.get(_nm, 0) if _nm and _nm != _sl else 0
             if _trans_n:
                 head_txt = (
-                    f" — на рынке встречается как «{_nm}» "
+                    f" - на рынке встречается как «{_nm}» "
                     f"(вакансий: {_trans_n})."
                 )
             elif _exact_n:
                 head_txt = (
-                    f" — нишевый навык (точный спрос: {_exact_n} вакансий)."
+                    f" - нишевый навык (точный спрос: {_exact_n} вакансий)."
                 )
             elif hint:
                 head_txt = (
-                    f" — не сопоставлено с рынком автоматически "
+                    f" - не сопоставлено с рынком автоматически "
                     f"(ближайшее на рынке: «{hint[0]}», вакансий: {hint[2]})."
                 )
             else:
                 head_txt = (
-                    " — не сопоставлено с рынком автоматически "
+                    " - не сопоставлено с рынком автоматически "
                     "(ничего близкого на рынке нет)."
                 )
             if cls == "academic":
                 recs.append(Recommendation(
                     type="foundational", priority="low", skill_name=s,
-                    message=f"«{s}» — фундаментальный навык.{head_txt} "
+                    message=f"«{s}» - фундаментальный навык.{head_txt} "
                             f"Не требует замены.",
                 ))
             else:
@@ -356,7 +356,7 @@ class CurriculumRecommender:
                 if suffix and suffix not in r.message:
                     r.message = r.message.rstrip() + suffix
 
-        # Truly missing: market skills not in ANY discipline — только из тех же
+        # Truly missing: market skills not in ANY discipline - только из тех же
         # областей таксономии, что уже покрытые навыки дисциплины (семантика
         # через области, а не глобальный топ: linux в БЖД сюда не попадает).
         if coverage.truly_missing:
@@ -422,7 +422,7 @@ class CurriculumRecommender:
                     type="cross_reference", priority="low", skill_name=cr.skill_name,
                     message=(
                         f"Навык «{cr.skill_name}» ({cr.frequency}) преподаётся "
-                        f"в дисциплине «{cr.discipline}» — в рамках текущей дисциплины "
+                        f"в дисциплине «{cr.discipline}» - в рамках текущей дисциплины "
                         f"достаточно упомянуть или сослаться."
                     ),
                 ))
@@ -449,12 +449,12 @@ class CurriculumRecommender:
                     skill_name=cc.code,
                     message=(
                         f"Компетенция «{cc.code}» пуста: в РПД нет извлечённых пунктов. "
-                        f"Добавьте знания/умения/навыки кнопкой +ЗУН в карточке компетенции — "
+                        f"Добавьте знания/умения/навыки кнопкой +ЗУН в карточке компетенции - "
                         f"иначе её нечем сопоставлять с рынком."
                     ),
                 ))
 
-        # Zero-coverage competencies — one per competency
+        # Zero-coverage competencies - one per competency
         for cc in coverage.competencies:
             if cc.coverage == 0 and cc.total_skills > 0:
                 recs.append(Recommendation(
@@ -463,7 +463,7 @@ class CurriculumRecommender:
                     skill_name=cc.code,
                     message=(
                         f"Компетенция «{cc.code}» имеет 0% покрытие рынком"
-                        f" — рекомендуется наполнить её востребованными навыками."
+                        f" - рекомендуется наполнить её востребованными навыками."
                     ),
                 ))
 
@@ -483,7 +483,7 @@ class CurriculumRecommender:
                         priority="medium",
                         skill_name=cc.code,
                         message=(
-                            f"Компетенция <{cc.code}>: покрытие {cc.coverage:.0%} — "
+                            f"Компетенция <{cc.code}>: покрытие {cc.coverage:.0%} - "
                             f"точечно добрать: {', '.join(_top)}{_rest}."
                         ),
                     ))

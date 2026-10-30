@@ -210,7 +210,7 @@ def _load_tasks():
                 t = PipelineTaskStatus.model_validate(tdata)
                 status = getattr(t, "status", "")
                 if status == "running":
-                    # Воркер погиб вместе с процессом — возобновить нельзя,
+                    # Воркер погиб вместе с процессом - возобновить нельзя,
                     # иначе задача навсегда висит как "running" без исполнения.
                     t.status = "failed"
                     t.message = "Прерван перезапуском сервера"
@@ -504,7 +504,7 @@ async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
     task_id, duplicate = await _register_task(PipelineAction.REBUILD.value, idem_key)
     if duplicate:
         return PipelineResponse(
-            status="started", message="Duplicate request — returning existing task",
+            status="started", message="Duplicate request - returning existing task",
             command="rebuild",
             output=f"Task ID: {task_id}. Check /api/pipeline/task/{task_id} for status",
         )
@@ -613,7 +613,7 @@ async def run_pipeline_action_sync(
         if duplicate:
             return PipelineResponse(
                 status="started",
-                message="Duplicate request — returning existing task",
+                message="Duplicate request - returning existing task",
                 exit_code=None,
                 output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
             )
@@ -652,14 +652,14 @@ async def run_pipeline_action_sync(
     elif action == PipelineAction.GAP_ANALYSIS:
         from src.pipeline.background_collector import is_scheduler_busy
         if is_scheduler_busy():
-            raise HTTPException(status_code=409, detail="Идёт плановый прогон планировщика — дождитесь его завершения")
+            raise HTTPException(status_code=409, detail="Идёт плановый прогон планировщика - дождитесь его завершения")
         req_id = getattr(request.state, "request_id", "unknown")
         idem_key = _idempotency_key_from_request(request)
         task_id, duplicate = await _register_task(action.value, idem_key)
         if duplicate:
             return PipelineResponse(
                 status="started",
-                message="Duplicate request — returning existing task",
+                message="Duplicate request - returning existing task",
                 exit_code=None,
                 output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
             )
@@ -681,14 +681,14 @@ async def run_pipeline_action_sync(
     elif action == PipelineAction.FULL_CYCLE:
         from src.pipeline.background_collector import is_scheduler_busy
         if is_scheduler_busy():
-            raise HTTPException(status_code=409, detail="Идёт плановый прогон планировщика — дождитесь его завершения")
+            raise HTTPException(status_code=409, detail="Идёт плановый прогон планировщика - дождитесь его завершения")
         req_id = getattr(request.state, "request_id", "unknown")
         idem_key = _idempotency_key_from_request(request)
         task_id, duplicate = await _register_task(action.value, idem_key)
         if duplicate:
             return PipelineResponse(
                 status="started",
-                message="Duplicate request — returning existing task",
+                message="Duplicate request - returning existing task",
                 exit_code=None,
                 output=f"Task ID: {task_id}. Use /api/pipeline/task/{task_id} to check status",
             )
@@ -855,10 +855,10 @@ _ws_clients: set[WebSocket] = set()
 
 @router.websocket("/pipeline/ws")
 async def pipeline_ws(websocket: WebSocket, token: str = ""):
-    # JWT проверка перед accept — переиспользуем auth._decode_token
+    # JWT проверка перед accept - переиспользуем auth._decode_token
     try:
         if not token:
-            # slowapi не покрывает WS — фиксируем попытку без токена
+            # slowapi не покрывает WS - фиксируем попытку без токена
             logger.warning("pipeline_ws_no_token")
             await websocket.close(code=4001, reason="Unauthorized")
             return

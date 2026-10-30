@@ -1,4 +1,4 @@
-"""Evaluation framework — единый Evaluator ABC для всех типов анализа."""
+"""Evaluation framework - единый Evaluator ABC для всех типов анализа."""
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field

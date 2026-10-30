@@ -37,7 +37,7 @@ def effective_in_scope(name: str, overrides: dict[str, bool] | None = None) -> b
 
 
 def scope_source(name: str, overrides: dict[str, bool] | None = None) -> str:
-    """"custom" | "methodology" | "default" — for UI badges."""
+    """"custom" | "methodology" | "default" - for UI badges."""
     if overrides and name in overrides:
         return "custom"
     excluded, predicate = _methodology()

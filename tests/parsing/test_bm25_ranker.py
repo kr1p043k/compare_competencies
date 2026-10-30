@@ -13,7 +13,7 @@ def identity_normalize(x):
 
 @pytest.fixture(autouse=True)
 def mock_global_whitelist():
-    """Глобальный мок для load_it_skills – используется по умолчанию."""
+    """Глобальный мок для load_it_skills - используется по умолчанию."""
     with patch("src.parsing.skills.bm25_ranker.load_it_skills",
                return_value={"python", "sql", "machine learning", "deep learning", "java"}):
         yield

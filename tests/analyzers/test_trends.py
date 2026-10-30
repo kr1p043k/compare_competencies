@@ -101,7 +101,7 @@ class TestTrendAnalyzer:
         assert trends.ok() == {"rising": [], "falling": [], "emerging": []}
 
     def test_get_trending_skills_emerging_path(self, tmp_path):
-        """Новый навык (prev ниже шумового пола, cur значимый) — в emerging,
+        """Новый навык (prev ниже шумового пола, cur значимый) - в emerging,
         а не потерян: rust 0 -> 400."""
         analyzer = TrendAnalyzer({"rust": 400, "python": 50}, historical_dir=tmp_path)
         trends = analyzer.get_trending_skills(
@@ -614,7 +614,7 @@ class TestTrendAnalyzerPlots:
     def test_get_trending_skills_rising_edge(self, tmp_path):
         # Totals held constant (1000) so share change == raw change.
         # 111 vs 100 = +11%: just over the 10% threshold (exactly +10.0%
-        # is flaky — float gives 9.999... which the unrounded comparison
+        # is flaky - float gives 9.999... which the unrounded comparison
         # in trends.py:243 rejects).
         current = {"python": 111, "anchor": 889}
         prev = {"python": 100, "anchor": 900}

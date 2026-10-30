@@ -1,4 +1,4 @@
-"""Pipeline event bus — publish/subscribe для этапов pipeline."""
+"""Pipeline event bus - publish/subscribe для этапов pipeline."""
 
 from __future__ import annotations
 

@@ -134,10 +134,10 @@ def require_any_role(*roles: str):
 
 
 async def user_error_detail(request: Request | None, technical: str, user_msg: str) -> str:
-    """Внутренности — только админу.
+    """Внутренности - только админу.
 
     Технические детали (тексты исключений, пути) показываем только роли admin;
-    остальным — безопасное сообщение. request=None (нет контекста запроса) —
+    остальным - безопасное сообщение. request=None (нет контекста запроса) -
     всегда безопасное. Ошибка уже должна быть залогирована вызывающей стороной.
     """
     try:
@@ -161,7 +161,7 @@ async def login(body: LoginRequest, request: Request):
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     try:
         row = await pool.fetchrow(
-            "SELECT id, email, role, full_name, password_hash = crypt($2, password_hash) AS pw_match FROM users WHERE email = $1 AND is_active = true",  # noqa: E501 — SQL string must not be split
+            "SELECT id, email, role, full_name, password_hash = crypt($2, password_hash) AS pw_match FROM users WHERE email = $1 AND is_active = true",  # noqa: E501 - SQL string must not be split
             body.email, body.password,
         )
         if row is None or not row["pw_match"]:

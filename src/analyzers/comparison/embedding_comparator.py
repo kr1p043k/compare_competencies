@@ -1,5 +1,5 @@
 """
-Embedding Comparator — семантическое сравнение навыков через эмбеддинги.
+Embedding Comparator - семантическое сравнение навыков через эмбеддинги.
 Атомарная запись кэша эмбеддингов + восстановление при порче.
 """
 
@@ -192,7 +192,7 @@ class EmbeddingComparator:
         self._save_market_index(cache_path, self.market_skills, self.market_embeddings)
 
     def _save_market_index(self, cache_path, skills, embs) -> None:
-        """Атомарная запись индекса + манифест с data_hash (ошибки манифеста — мимо)."""
+        """Атомарная запись индекса + манифест с data_hash (ошибки манифеста - мимо)."""
         from src.analyzers.comparison.market_embedding_store import market_data_hash
 
         fd, tmp_path = tempfile.mkstemp(dir=cache_path.parent, suffix=".joblib.tmp")
@@ -261,7 +261,7 @@ class EmbeddingComparator:
         if skills_list is None:
             skills_list = [self.market_skills[i] for i in range(len(values))]
 
-        # Порог наконец работает: ниже similarity_threshold — не совпадение.
+        # Порог наконец работает: ниже similarity_threshold - не совпадение.
         # Stable-сортировка: при равных скорах порядок детерминирован.
         mask = values >= self.similarity_threshold
         eligible = np.flatnonzero(mask)

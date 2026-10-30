@@ -1,4 +1,4 @@
-"""DataSource — загружает вакансии из кэша или через API hh.ru."""
+"""DataSource - загружает вакансии из кэша или через API hh.ru."""
 
 from datetime import datetime
 from typing import Protocol

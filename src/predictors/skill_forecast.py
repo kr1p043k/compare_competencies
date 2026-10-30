@@ -23,7 +23,7 @@ def drop_broken_snapshots(
     snapshots: list[tuple[date, dict[str, float]]],
 ) -> list[tuple[date, dict[str, float]]]:
     """Карантин битых коллекций: снимок, в котором навыков меньше половины
-    медианы, — это оборванный сбор, а не обвал спроса. Такие точки рисуют
+    медианы, - это оборванный сбор, а не обвал спроса. Такие точки рисуют
     ложную V (крах + восстановление) и отравляют все тренды.
 
     Последний снимок удерживаем всегда: он задаёт current_frequency.
@@ -52,7 +52,7 @@ def drop_broken_snapshots(
 
 
 # Наблюдаемое падение: сколько точек истории нужно на окно (месяцев).
-# Точек меньше — честное "нет данных", а не экстраполяция.
+# Точек меньше - честное "нет данных", а не экстраполяция.
 # F1 (аудит 2026-10-14): N точек = N-1 месячных интервалов, поэтому окну
 # в M месяцев нужно M+1 точек. Прежние {3:3, 6:6, 12:12} мерили 2/5/11
 # месяцев под вывеской 3/6/12 (недооценка сложного роста ~12пп на 3 мес).
@@ -65,10 +65,10 @@ def compute_observed_drops(
     months: int,
     min_freq: float = 0,
 ) -> list[dict]:
-    """Измеренное падение спроса за окно — факт по снимкам, не прогноз.
+    """Измеренное падение спроса за окно - факт по снимкам, не прогноз.
 
     Берутся последние REQUIRED[months] точек; изменение =
-    (last - first) / first. Точек меньше — навык пропускается
+    (last - first) / first. Точек меньше - навык пропускается
     (UI пишет "нет данных", см. max_points в мете).
     """
     need = OBSERVED_REQUIRED.get(months)
@@ -182,7 +182,7 @@ class SkillForecastEngine(BasePredictor):
         snapshots = drop_broken_snapshots(snapshots)
         # F10 (аудит 2026-10-14): порядок был filename-sorted; при расхождении
         # snapshot_date с именем файла last_freq брал последний ФАЙЛ, а не
-        # последнюю ДАТУ (Prophet-движок сортирует — трендовый нет).
+        # последнюю ДАТУ (Prophet-движок сортирует - трендовый нет).
         snapshots.sort(key=lambda x: x[0])
 
         # Build per-skill time series
@@ -264,7 +264,7 @@ class SkillForecastEngine(BasePredictor):
         predicted = last_freq + model["slope"] * days_ahead
         predicted = max(predicted, 0.0)
 
-        # Навык, ушедший в ноль (last_freq == 0), — это -100%, а не 0%:
+        # Навык, ушедший в ноль (last_freq == 0), - это -100%, а не 0%:
         # max(last_freq, 1.0) давал рост 0.0, и упавший навык попадал
         # в «стабильные» вместо «падающих» (2026-10-12).
         if last_freq <= 0 and predicted <= 0.0:
@@ -290,7 +290,7 @@ class SkillForecastEngine(BasePredictor):
         ))
 
     def forecast(self, skill: str, months: int = 12) -> Result[ForecastResult, DomainError]:
-        """Alias for predict() — used by ProphetForecastEngine."""
+        """Alias for predict() - used by ProphetForecastEngine."""
         return self.predict(skill, months)
 
     def forecast_all(self, months: int = 12) -> Result[list[ForecastResult], DomainError]:
@@ -307,7 +307,7 @@ class SkillForecastEngine(BasePredictor):
         match self.forecast_all(months):
             case Ok(results):
                 # Flats остаются в выдаче (контракт тестов), но маркированы:
-                # mape=None + forecast_months=0 + data_points<2. Сортировка —
+                # mape=None + forecast_months=0 + data_points<2. Сортировка -
                 # сначала валидные тренды, затем flats.
                 results = [r for r in results if r.current_frequency >= self.MIN_FREQ]
                 results.sort(

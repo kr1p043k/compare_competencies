@@ -4,7 +4,7 @@ Usage:
     jaccard = JaccardEngine()
     result = jaccard.compare(["python dev"], ["python developer"])
 
-NOTE (2026-10-11): the prod ensemble blend is removed — no safe design
+NOTE (2026-10-11): the prod ensemble blend is removed - no safe design
 survived prod validation. These engines are used by
 scripts/benchmark_matching.py for measurements only.
 """
@@ -38,7 +38,7 @@ class SimilarityEngine(Protocol):
 class JaccardEngine:
     """Fuzzy string similarity via rapidfuzz token_sort_ratio.
 
-    No embedding model needed — pure string matching.
+    No embedding model needed - pure string matching.
     Catches typos and different word order ("python dev" vs "dev python").
     """
 

@@ -8,8 +8,8 @@
 - exact/fuzzy совпадения не трогаем: вето только для sim в [lo, hi),
   лексически очевидное (morph>=M) выживает.
 
-Хаб-таблица: data/reference/market_hubs.json (пересборка — см. _meta).
-Нет таблицы — вето не работает (warning, не падение).
+Хаб-таблица: data/reference/market_hubs.json (пересборка - см. _meta).
+Нет таблицы - вето не работает (warning, не падение).
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ def _morph_overlap(a: str, b: str) -> float:
 
             _MORPH = pymorphy3.MorphAnalyzer()
         from src.analyzers.skill_matcher import fold_script
-        # Токен живёт если есть хоть один alnum-символ: '1c'/'c++'/'c#' —
+        # Токен живёт если есть хоть один alnum-символ: '1c'/'c++'/'c#' -
         # легитимные символьные навыки (2026-10-12: isalpha() их убивал,
         # morph=0.0 ложно выполнял оба условия вето).
         # Fold обеих сторон: кросс-скрипт 'разработка 1с' vs '1c' (2026-10-12).
@@ -71,7 +71,7 @@ def _morph_overlap(a: str, b: str) -> float:
 
 
 def veto_match(query: str, market_skill: str, similarity: float) -> bool:
-    """True — отбросить совпадение (мусор с P~97%).
+    """True - отбросить совпадение (мусор с P~97%).
 
     Два непересекающихся правила (prodval 2026-10-11, n=128):
     - gray: sim в [lo, hi), hub>=T, morph<M (P=0.971, 2 известных FP);
@@ -97,7 +97,7 @@ def filter_matches(
     comp=None,
 ) -> tuple[list[dict], list[dict]]:
     """Разделить matches на (kept, vetoed). Нужны запросы: восстанавливаем
-    argmax по эмбеддингам через comp (как semantic_judge); без comp —
+    argmax по эмбеддингам через comp (как semantic_judge); без comp -
     запрос неизвестен, вето не применяем (возвращаем всё как kept)."""
     if not config.HUB_GATE_ENABLED or comp is None:
         return matches, []

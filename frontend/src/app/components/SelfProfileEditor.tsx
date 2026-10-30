@@ -74,7 +74,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
         </CardTitle>
         {(displayName || email) && (
           <p className="text-sm text-gray-600 dark:text-slate-400">
-            {displayName || "–"}
+            {displayName || "-"}
             {email && displayName !== email ? ` · ${email}` : ""}
           </p>
         )}
@@ -132,7 +132,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
                       key={s}
                       variant={mine ? "default" : "secondary"}
                       className="text-xs gap-1"
-                      title={mine ? "Добавлен вами — можно удалить" : "Из программы — удалить нельзя"}
+                      title={mine ? "Добавлен вами - можно удалить" : "Из программы - удалить нельзя"}
                     >
                       {s}
                       {mine && (
@@ -150,7 +150,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
                 })}
                 {data.skills.length === 0 && (
                   <span className="text-sm text-gray-400 dark:text-slate-500">
-                    Пока пусто — добавьте свои навыки ниже.
+                    Пока пусто - добавьте свои навыки ниже.
                   </span>
                 )}
               </div>
@@ -166,7 +166,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
                     setNewSkill("");
                   }
                 }}
-                placeholder="Новый навык, Enter — добавить"
+                placeholder="Новый навык, Enter - добавить"
                 className="h-10"
               />
               <Button

@@ -1,4 +1,4 @@
-"""MetricComputer — оценивает профили студентов."""
+"""MetricComputer - оценивает профили студентов."""
 
 import structlog
 from tqdm import tqdm

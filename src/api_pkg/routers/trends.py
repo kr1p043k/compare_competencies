@@ -1,4 +1,4 @@
-"""Trends analysis — per-competency aggregate + per-skill trends from trend_snapshots."""
+"""Trends analysis - per-competency aggregate + per-skill trends from trend_snapshots."""
 from __future__ import annotations
 
 import json

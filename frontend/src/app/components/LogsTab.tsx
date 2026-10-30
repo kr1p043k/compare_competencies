@@ -142,7 +142,7 @@ function LogsTabBase() {
     [lines, search]
   );
 
-  // Тяжёлый список (до 500 строк) — мемоизируем вывод: тик авто-скролла и
+  // Тяжёлый список (до 500 строк) - мемоизируем вывод: тик авто-скролла и
   // прочие ререндеры не пересоздают 500 DOM-узлов заново.
   const logRows = useMemo(
     () => filtered.map((line, i) => <div key={i} className={levelColor(line)}>{line}</div>),
@@ -207,7 +207,7 @@ function LogsTabBase() {
             </div>
           </div>
           <CardDescription>
-            Последние записи системного журнала бэкенда – обновляются в реальном времени
+            Последние записи системного журнала бэкенда - обновляются в реальном времени
             {fallback ? " (WebSocket недоступен, автообновление раз в 10 секунд)" : ""}
           </CardDescription>
         </CardHeader>
@@ -229,7 +229,7 @@ function LogsTabBase() {
   );
 }
 
-// Чистая функция без доступа к стейту — вынесена на уровень модуля,
+// Чистая функция без доступа к стейту - вынесена на уровень модуля,
 // чтобы useMemo по filtered не зависел от рекреации на каждом рендере.
 function levelColor(line: string) {
   if (line.includes("level=error") || line.startsWith("ERROR ")) return "text-red-600";

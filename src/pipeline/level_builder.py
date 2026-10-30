@@ -1,4 +1,4 @@
-"""LevelBuilder — готовит level_vacancies_data и vacancies_skills."""
+"""LevelBuilder - готовит level_vacancies_data и vacancies_skills."""
 
 import structlog
 from tqdm import tqdm

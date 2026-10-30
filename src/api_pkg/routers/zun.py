@@ -1,4 +1,4 @@
-"""ZUN (знать/уметь/навыки) teacher analysis API — read + write over existing schema.
+"""ZUN (знать/уметь/навыки) teacher analysis API - read + write over existing schema.
 
 Endpoints:
     GET  /teacher/zun/directions
@@ -21,7 +21,7 @@ Endpoints:
     POST /teacher/zun/import/{dir_code}
 
 All read endpoints are SELECT-only. Write endpoints (G1-G3, H1, H5) use the same
-schema constraints as src/cli/fix_rpd_data.py and src/pipeline/db_writer.py —
+schema constraints as src/cli/fix_rpd_data.py and src/pipeline/db_writer.py -
 no migrations are required.
 """
 
@@ -123,7 +123,7 @@ async def _latest_coverage_subq(pool, dir_ids: list[str]) -> dict[str, dict]:
 
 def _coverage_level(ratio: float | None, weighted: float | None = None) -> str | None:
     """Консервативный уровень: min(ratio, weighted), как в teacher reports.
-    Без weighted (старые строки) — по ratio."""
+    Без weighted (старые строки) - по ratio."""
     if ratio is None:
         return None
     base = min(ratio, weighted) if weighted is not None else ratio
@@ -672,7 +672,7 @@ async def zun_search_semantic(
         if len(matches) >= limit:
             break
     if not matches and ksa_type:
-        # filtered everything out — return fallback to be helpful
+        # filtered everything out - return fallback to be helpful
         return {
             "mode": "fallback_substring",
             "matches": await _fallback_semantic(pool, q, dir_code, ksa_type, limit),
@@ -1300,7 +1300,7 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
                 continue
             for kt in ("knowledge", "abilities", "skills"):
                 texts = sections.get(kt, []) or []
-                # gap-fill: if category already has entries for this competency in DB — skip
+                # gap-fill: if category already has entries for this competency in DB - skip
                 existing_type = await pool.fetchval(
                     "SELECT EXISTS (SELECT 1 FROM ksa_entries WHERE competency_id=$1 AND ksa_type=$2::ksa_type)",
                     comp_id, kt,

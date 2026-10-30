@@ -1,7 +1,7 @@
-// NOTE: student-only block — renders inside StudentDashboard for students only.
+// NOTE: student-only block - renders inside StudentDashboard for students only.
 // All writes go to the viewer's own profile via PATCH /api/profiles/self
 // (add_skills). No taxonomy endpoint is called here and no taxonomy
-// category names are rendered — only KRM program data (disciplines,
+// category names are rendered - only KRM program data (disciplines,
 // competency codes, skill texts) from /api/krm/student/competencies.
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
@@ -64,7 +64,7 @@ type MatchFilter = "all" | "matched" | "missing";
 
 const norm = (s: string) => s.toLowerCase().trim();
 
-/** Client-side approximation of the server matcher — optimistic UI only. */
+/** Client-side approximation of the server matcher - optimistic UI only. */
 function looselyMatches(a: string, b: string): boolean {
   const x = norm(a);
   const y = norm(b);
@@ -186,7 +186,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
     });
   }, [data, discQuery, matchFilter]);
 
-  /** Program base items not yet owned — source for the competency picker. */
+  /** Program base items not yet owned - source for the competency picker. */
   const missingSkills = useMemo<MissingSkill[]>(() => {
     if (!data) return [];
     const out: MissingSkill[] = [];
@@ -217,7 +217,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
     try {
       await patchSelf({ add_skills: [text] });
       rememberMine(text);
-      setAddMsg(`«${text}» — добавлено в ваши навыки`);
+      setAddMsg(`«${text}» - добавлено в ваши навыки`);
       await load();
     } catch (e: any) {
       if (backup) setData(backup);
@@ -240,7 +240,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
       await patchSelf({ add_skills: [text] });
       rememberMine(text);
       setCompPick("");
-      setAddMsg(`«${text}» — добавлено в ваши навыки`);
+      setAddMsg(`«${text}» - добавлено в ваши навыки`);
       await load();
     } catch (e: any) {
       if (backup) setData(backup);
@@ -276,7 +276,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
           Мои компетенции: программа и я
         </CardTitle>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Сравнение программы с вашими навыками — компактный вид по дисциплинам
+          Сравнение программы с вашими навыками - компактный вид по дисциплинам
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -380,13 +380,13 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
 
               {data.disciplines.length === 0 && (
                 <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                  нет данных — добавьте навыки ниже
+                  нет данных - добавьте навыки ниже
                 </p>
               )}
 
               {data.disciplines.length > 0 && filtered.length === 0 && (
                 <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                  По фильтру ничего не найдено — измените запрос или сбросьте фильтр
+                  По фильтру ничего не найдено - измените запрос или сбросьте фильтр
                 </p>
               )}
 
@@ -417,7 +417,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                         <div className="space-y-2 px-3 pb-3">
                           {total === 0 && (
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                              нет данных — добавьте навыки ниже
+                              нет данных - добавьте навыки ниже
                             </p>
                           )}
                           {d.competencies.map((c) => {
@@ -456,7 +456,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                                       ) : (
                                         <span
                                           key={i}
-                                          title="Нет у вас — нажмите +, чтобы добавить"
+                                          title="Нет у вас - нажмите +, чтобы добавить"
                                           className="inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 transition-colors duration-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                                         >
                                           <span className="break-words">{s.text}</span>
@@ -517,7 +517,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && newSkill.trim()) void handleAddSkill();
                 }}
-                placeholder="Новый навык, Enter — добавить"
+                placeholder="Новый навык, Enter - добавить"
                 aria-label="Новый навык"
                 className="h-9"
               />

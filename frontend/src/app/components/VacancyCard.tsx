@@ -33,11 +33,11 @@ interface Vacancy {
 interface VacancyCardProps {
   vacancy: Vacancy;
   onOpen?: (vacancy: Vacancy) => void;
-  /** "grid" — карточка в две колонки, "list" — компактная строка. */
+  /** "grid" - карточка в две колонки, "list" - компактная строка. */
   variant?: "grid" | "list";
 }
 
-// Уровень — это смысловой бейдж, а не украшение: цвет точки и подложки
+// Уровень - это смысловой бейдж, а не украшение: цвет точки и подложки
 // кодирует грейд, поэтому Junior/Middle/Senior нельзя рисовать одним серым.
 const experienceLevels = {
   junior: {
@@ -173,7 +173,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
       if (vacancy.salary_from === vacancy.salary_to) {
         return `${format(vacancy.salary_from)} ${currency}`;
       }
-      return `${format(vacancy.salary_from)} – ${format(vacancy.salary_to)} ${currency}`;
+      return `${format(vacancy.salary_from)} - ${format(vacancy.salary_to)} ${currency}`;
     }
     if (vacancy.salary_from) return `от ${format(vacancy.salary_from)} ${currency}`;
     return `до ${format(vacancy.salary_to!)} ${currency}`;

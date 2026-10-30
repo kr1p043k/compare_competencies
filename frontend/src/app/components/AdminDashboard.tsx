@@ -132,9 +132,9 @@ export function AdminDashboard() {
     }
   };
   const fmtTs = (ts: any) => {
-    if (ts == null) return "–";
+    if (ts == null) return "-";
     const d = new Date(Number(ts) * 1000);
-    return isNaN(d.getTime()) ? "–" : d.toLocaleString("ru-RU");
+    return isNaN(d.getTime()) ? "-" : d.toLocaleString("ru-RU");
   };
   const [logFilter, setLogFilter] = useState("all");
   const [seedLoading, setSeedLoading] = useState(false);
@@ -269,7 +269,7 @@ export function AdminDashboard() {
         .then((s) => {
           if (cancelled) return;
           if (!s) {
-            // Разовый сбой сети/рестарт сервера – не умираем молча, ждём.
+            // Разовый сбой сети/рестарт сервера - не умираем молча, ждём.
             misses += 1;
             if (misses < 10) {
               setRpdMsg(`Сервер перезапускается, жду статус... (${misses})`);
@@ -362,7 +362,7 @@ export function AdminDashboard() {
       } catch (err) {
         if (err instanceof ApiError && err.isRateLimited) {
           setCollectCooldown(30);
-          throw new Error("Слишком частые запросы – кнопка заблокирована на 30 секунд");
+          throw new Error("Слишком частые запросы - кнопка заблокирована на 30 секунд");
         }
         throw err;
       }
@@ -566,7 +566,7 @@ export function AdminDashboard() {
                               </button>
                             </span>
                           ) : (
-                            <span className="text-gray-400 dark:text-slate-500">–</span>
+                            <span className="text-gray-400 dark:text-slate-500">-</span>
                           )}
                         </td>
                         <td className="py-2 text-right text-gray-600 dark:text-slate-400">{u.total_requests}</td>
@@ -1049,7 +1049,7 @@ export function AdminDashboard() {
               </div>
               {sched && (
                 <div className="text-sm text-gray-600 dark:text-slate-400 space-y-1">
-                  <div>Последний сбор: {fmtTs(sched.last_collect_ts)} · Последний gap: {sched.last_gap_date || "–"}</div>
+                  <div>Последний сбор: {fmtTs(sched.last_collect_ts)} · Последний gap: {sched.last_gap_date || "-"}</div>
                   <div>Следующий сбор: {fmtTs(sched.next_collect_ts)} · Занят: {sched.busy || "нет"} · Конвейер активен: {sched.pipeline_running ? "да" : "нет"}</div>
                 </div>
               )}

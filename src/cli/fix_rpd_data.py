@@ -44,7 +44,7 @@ async def get_or_create_parse_version(session: AsyncSession, direction_id: int) 
     result = await session.execute(
         select(ParseVersion).where(
             ParseVersion.direction_id == direction_id,
-            ParseVersion.notes == "fix_rpd_data — clean KSA import",
+            ParseVersion.notes == "fix_rpd_data - clean KSA import",
         )
     )
     pv = result.scalar_one_or_none()
@@ -55,7 +55,7 @@ async def get_or_create_parse_version(session: AsyncSession, direction_id: int) 
             direction_id=direction_id,
             version=datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S"),
             opop_year=2025,
-            notes="fix_rpd_data — clean KSA import",
+            notes="fix_rpd_data - clean KSA import",
         )
         session.add(pv)
         await session.flush()
@@ -160,7 +160,7 @@ async def populate_ksa_entries(
         for v in batch:
             await pool.execute(
                 """INSERT INTO ksa_entries (id, competency_id, ksa_type, original_text, cleaned_text, sort_order, parse_version_id, created_at)
-                   VALUES ($1::uuid, $2::uuid, $3::ksa_type, $4, NULL, $5, $6::uuid, NOW())""",  # noqa: E501 — SQL string must not be split
+                   VALUES ($1::uuid, $2::uuid, $3::ksa_type, $4, NULL, $5, $6::uuid, NOW())""",  # noqa: E501 - SQL string must not be split
                 str(uuid.uuid4()), v['comp_id'], v['ksa_type'], v['text'], v['sort'], v['pv_id'],
             )
 
@@ -314,7 +314,7 @@ async def main():
             {"pv_id": pv.id},
         )
         # P6 (2026-10-14): populate_ksa_entries вставляет через ОТДЕЛЬНЫЙ
-        # asyncpg-пул, который не видит незакоммиченный ParseVersion —
+        # asyncpg-пул, который не видит незакоммиченный ParseVersion -
         # FK violation на чистой БД. Коммитим ДО переключения на пул.
         await session.commit()
         ksa_count = await populate_ksa_entries(
@@ -323,7 +323,7 @@ async def main():
 
         # 5) Delete old competency_skills and rematch
         print("\n[5/5] Rematching competencies to it_skills...")
-        # P5 (2026-10-14): NULL никогда не матчится с IN — 3314 из 3810
+        # P5 (2026-10-14): NULL никогда не матчится с IN - 3314 из 3810
         # связей (87%%) были недостижимы для пересборки. Скоуп: NULL-pv
         # связи ТЕКУЩЕГО направления (join по discipline).
         await session.execute(

@@ -262,7 +262,7 @@ def test_aggregate_to_dataframe_with_quality_report_spam(parser_with_mocks):
     assert df.loc[0, "Спам"] == "Да"
 
 def test_aggregate_to_dataframe_with_quality_report_clean(parser_with_mocks):
-    """Чистая вакансия в quality_report — колонка 'Спам' = 'Нет'"""
+    """Чистая вакансия в quality_report - колонка 'Спам' = 'Нет'"""
     parser_with_mocks.skill_parser.parse_vacancy.return_value = Ok([])
     vac = {
         "id": "1",

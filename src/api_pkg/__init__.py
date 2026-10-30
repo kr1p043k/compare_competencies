@@ -1,4 +1,4 @@
-"""API package — фабрика FastAPI приложения."""
+"""API package - фабрика FastAPI приложения."""
 
 import time
 import uuid

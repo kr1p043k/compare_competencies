@@ -67,7 +67,7 @@ class RecommendationContext(BaseModel):
 
 # ─── PipelineContext (обёртка для обратной совместимости) ─────────────
 class PipelineContext(RecommendationContext):
-    """Legacy-обёртка — унаследована от RecommendationContext.
+    """Legacy-обёртка - унаследована от RecommendationContext.
     Используется в GapRunner / RecommendationRunner для обратной совместимости.
     """
     pass
