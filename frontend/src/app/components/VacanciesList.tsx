@@ -1046,11 +1046,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
       ) : (
         <>
           {/* Count + Export */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center justify-between"
-          >
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Найдено <span className="font-semibold text-slate-700 dark:text-slate-300">{total}</span> вакансий
               {vacancies.length < total && (
@@ -1082,37 +1078,29 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   console.error("Export failed:", e);
                 }
               }}
-              className={`border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50 gap-2 ${
-                canRunPipeline === false ? "hidden" : ""
-              }`}
+              className={`gap-2 ${canRunPipeline === false ? "hidden" : ""}`}
             >
               <Download className="size-4" />
               Excel
             </Button>
-          </motion.div>
+          </div>
 
-          <motion.div
+          <div
             className={
               viewMode === "grid"
-                ? "grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch"
-                : "grid grid-cols-1 gap-6"
+                ? "grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2"
+                : "flex flex-col gap-2"
             }
           >
-            <AnimatePresence mode="popLayout">
-              {vacancies.map((vacancy, index) => (
-                <motion.div
-                  key={vacancy.id}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="h-full"
-                >
-                  <VacancyCard vacancy={vacancy} onOpen={(v) => setDrawerVacancy(v)} />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </motion.div>
+            {vacancies.map((vacancy) => (
+              <VacancyCard
+                key={vacancy.id}
+                vacancy={vacancy}
+                variant={viewMode === "list" ? "list" : "grid"}
+                onOpen={(v) => setDrawerVacancy(v)}
+              />
+            ))}
+          </div>
 
           <VacancyDetailPanel vacancy={drawerVacancy} onClose={() => setDrawerVacancy(null)} />
 

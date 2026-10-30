@@ -81,11 +81,11 @@ export function VacancyDetailPanel({
             onClick={(e) => e.stopPropagation()}
           >
           <Card className="border-0 bg-white dark:bg-slate-900 overflow-hidden rounded-none">
-            <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
+            <CardHeader className="border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 bg-blue-600 rounded-lg shadow-md shrink-0">
-                    <Briefcase className="size-5 text-white" />
+                  <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-slate-100 dark:bg-slate-800">
+                    <Briefcase className="size-5 text-slate-500 dark:text-slate-400" />
                   </div>
                   <div className="min-w-0">
                     <CardTitle className="text-lg leading-snug">
@@ -124,14 +124,14 @@ export function VacancyDetailPanel({
                   <Loader2 className="size-6 animate-spin text-slate-400" />
                 </div>
               ) : (
-                <div className="grid gap-6 lg:grid-cols-2">
+                <div className="space-y-5">
                   <div className="space-y-2 min-w-0">
                     <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                       <FileText className="size-3" />
                       Описание вакансии
                     </div>
                     {detail?.description ? (
-                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700 max-h-96 overflow-y-auto">
+                      <div className="max-h-[420px] overflow-y-auto pr-1">
                         <div className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
                           {sanitizeHtml(detail.description)}
                         </div>
@@ -154,7 +154,7 @@ export function VacancyDetailPanel({
                               <Badge
                                 key={typeof ks === "string" ? ks : ks.name}
                                 variant="secondary"
-                                className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800"
+                                className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                               >
                                 {typeof ks === "string" ? ks : ks.name}
                               </Badge>
@@ -173,7 +173,7 @@ export function VacancyDetailPanel({
                             <Badge
                               key={skill}
                               variant="outline"
-                              className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                              className="border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                             >
                               {skill}
                             </Badge>
@@ -182,7 +182,7 @@ export function VacancyDetailPanel({
                       </div>
                     )}
                     {detail?.alternate_url && (
-                      <Button asChild className="w-full bg-slate-900 hover:bg-slate-800 text-white">
+                      <Button asChild className="w-full bg-slate-900 text-white hover:bg-slate-800">
                         <a href={detail.alternate_url} target="_blank" rel="noopener noreferrer">
                           Открыть на hh.ru
                           <ExternalLink className="size-4 ml-2" />
