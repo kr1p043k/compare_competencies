@@ -66,7 +66,11 @@ def live():
 
         async def _setup():
             if _dbmod.pool is not None:
-                await _dbmod.close_pool()
+                # Пул мог быть создан в другом (уже закрытом) event loop -
+                # close_pool() тогда падает с RuntimeError, а не освобождает.
+                with contextlib.suppress(Exception):
+                    await _dbmod.close_pool()
+                _dbmod.pool = None
             pool = await _dbmod.create_pool()
             await _make_user(pool, STUDENT_EMAIL, STUDENT_PW, "student", STUDENT_NAME)
             await _make_user(pool, TEACHER_EMAIL, TEACHER_PW, "teacher", TEACHER_NAME)

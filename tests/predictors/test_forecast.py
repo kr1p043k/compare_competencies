@@ -2,11 +2,37 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date
+
+import pytest
 
 from src import Err, Ok
 from src.predictors.prophet_forecast import ProphetForecastEngine, Snapshot
 from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
+
+
+def _prophet_usable() -> bool:
+    """Prophet может быть установлен, но неработоспособен (сломан stan backend).
+
+    В таком окружении движок штатно уходит в трендовый фолбэк, поэтому тесты,
+    проверяющие именно модели Prophet, пропускаются, а не падают.
+    """
+    try:
+        logging.getLogger("cmdstanpy").setLevel(logging.ERROR)
+        from prophet import Prophet
+
+        Prophet()
+    except Exception:
+        return False
+    return True
+
+
+PROPHET_OK = _prophet_usable()
+requires_prophet = pytest.mark.skipif(
+    not PROPHET_OK,
+    reason="Prophet недоступен (сломан stan backend), движок работает на фолбэке",
+)
 
 
 def test_forecast_engine_creation():
@@ -88,6 +114,7 @@ def test_prophet_engine_creation():
     assert engine.name == "ProphetForecast"
 
 
+@requires_prophet
 def test_prophet_engine_fit_returns_ok():
     snapshots = [
         Snapshot(date(2025, 1, 1), {"python": 50, "sql": 40}),
@@ -102,6 +129,7 @@ def test_prophet_engine_fit_returns_ok():
     assert "python" in engine._models
 
 
+@requires_prophet
 def test_prophet_engine_predict():
     snapshots = [
         Snapshot(date(2025, 1, 1), {"python": 50}),
@@ -149,6 +177,7 @@ def test_prophet_engine_empty_snapshots():
     assert isinstance(result, Err)
 
 
+@requires_prophet
 def test_prophet_engine_forecast_all():
     snapshots = [
         Snapshot(date(2025, 1, 1), {"python": 50, "sql": 40}),
@@ -164,6 +193,7 @@ def test_prophet_engine_forecast_all():
     assert all(isinstance(r, ForecastResult) for r in forecasts)
 
 
+@requires_prophet
 def test_prophet_engine_top_growing():
     snapshots = [
         Snapshot(date(2025, 1, 1), {"python": 50, "sql": 40, "java": 30}),
