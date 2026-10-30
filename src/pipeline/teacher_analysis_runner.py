@@ -1019,6 +1019,12 @@ async def run_teacher_analysis(
             message="No disciplines were successfully analyzed",
         ))
 
+    avg_market_top = round(
+        sum(r.discipline.market_top_coverage for _, r in discipline_reports) / len(discipline_reports), 4
+    ) if discipline_reports else 0
+    avg_market_weight = round(
+        sum(r.discipline.market_weight_coverage for _, r in discipline_reports) / len(discipline_reports), 4
+    ) if discipline_reports else 0
     avg_cov = round(
         sum(r.discipline.coverage_ratio for _, r in discipline_reports) / len(discipline_reports), 4
     ) if discipline_reports else 0
@@ -1070,6 +1076,8 @@ async def run_teacher_analysis(
              "weighted_coverage": r.discipline.weighted_coverage,
              "strong_coverage": r.discipline.strong_coverage,
              "coverage_level": r.discipline.coverage_level,
+             "market_top_coverage": r.discipline.market_top_coverage,
+             "market_weight_coverage": r.discipline.market_weight_coverage,
              "gaps": r.discipline.gaps, "emerging": len(r.discipline.emerging)}
             for dn, r in discipline_reports
         ],
@@ -1104,6 +1112,11 @@ async def run_teacher_analysis(
         "average_coverage": summary.average_coverage,
         "average_quality_coverage": avg_quality,
         "average_strong_coverage": avg_strong,
+        # Охват спроса: сколько топ-N рыночных навыков реально закрыто.
+        # average_coverage для этого непригоден — навыки РПД уже нормализованы
+        # к словарю рынка, поэтому он почти всегда высокий.
+        "average_market_top_coverage": avg_market_top,
+        "average_market_weight_coverage": avg_market_weight,
         # Консервативно: уровень по худшей из двух средних (см. выше).
         "coverage_level": _dir_level,
         "total_gaps_across_all": summary.total_gaps,

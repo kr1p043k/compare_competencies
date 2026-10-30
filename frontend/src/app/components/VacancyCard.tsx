@@ -1,21 +1,12 @@
-import { motion } from "motion/react";
-import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from "./ui/card";
+import { Card } from "./ui/card";
 import {
   Building2,
   MapPin,
   Calendar,
   ExternalLink,
-  Briefcase,
-  Star,
   AlertTriangle,
-  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 interface Vacancy {
@@ -42,25 +33,38 @@ interface Vacancy {
 interface VacancyCardProps {
   vacancy: Vacancy;
   onOpen?: (vacancy: Vacancy) => void;
+  /** "grid" — карточка в две колонки, "list" — компактная строка. */
+  variant?: "grid" | "list";
 }
 
+// Уровень — это смысловой бейдж, а не украшение: цвет точки и подложки
+// кодирует грейд, поэтому Junior/Middle/Senior нельзя рисовать одним серым.
 const experienceLevels = {
   junior: {
     label: "Junior",
-    strip: "bg-sky-500",
-    badge: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-100 border-0",
+    dot: "bg-sky-500",
+    badge:
+      "bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/25",
   },
   middle: {
     label: "Middle",
-    strip: "bg-violet-500",
-    badge: "bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-100 border-0",
+    dot: "bg-violet-500",
+    badge:
+      "bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/25",
   },
   senior: {
     label: "Senior",
-    strip: "bg-amber-500",
-    badge: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-100 border-0",
+    dot: "bg-amber-500",
+    badge:
+      "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/25",
   },
-};
+  unknown: {
+    label: "Уровень не указан",
+    dot: "bg-slate-400",
+    badge:
+      "bg-slate-50 text-slate-500 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700",
+  },
+} as const;
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   "RUR": "₽", "RUB": "₽", "USD": "$", "EUR": "€", "GBP": "£",
@@ -152,223 +156,205 @@ export function parseSkillsFromHtml(html: string): string[] {
   return Array.from(found).sort();
 }
 
-export function VacancyCard({ vacancy, onOpen }: VacancyCardProps) {
-  const expLevel = experienceLevels[vacancy.experience as keyof typeof experienceLevels] || experienceLevels.middle;
+export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardProps) {
+  // Неизвестный уровень показываем честно, а не как "Middle": молчаливый
+  // фолбэк врал в карточке (hh отдаёт между1и3 / более6 / без опыта).
+  const expLevel =
+    experienceLevels[vacancy.experience as keyof typeof experienceLevels] ??
+    experienceLevels.unknown;
 
   const formatSalary = () => {
     if (!vacancy.salary_from && !vacancy.salary_to) return null;
 
-    const format = (num: number) => {
-      return new Intl.NumberFormat("ru-RU").format(num);
-    };
-
+    const format = (num: number) => new Intl.NumberFormat("ru-RU").format(num);
     const currency = currencySymbol(vacancy.salary_currency);
 
     if (vacancy.salary_from && vacancy.salary_to) {
       if (vacancy.salary_from === vacancy.salary_to) {
         return `${format(vacancy.salary_from)} ${currency}`;
       }
-      return `${format(vacancy.salary_from)} - ${format(vacancy.salary_to)} ${currency}`;
-    } else if (vacancy.salary_from) {
-      return `от ${format(vacancy.salary_from)} ${currency}`;
-    } else {
-      return `до ${format(vacancy.salary_to!)} ${currency}`;
+      return `${format(vacancy.salary_from)} – ${format(vacancy.salary_to)} ${currency}`;
     }
+    if (vacancy.salary_from) return `от ${format(vacancy.salary_from)} ${currency}`;
+    return `до ${format(vacancy.salary_to!)} ${currency}`;
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 1) return "Сегодня";
-    if (diffDays === 2) return "Вчера";
+    const diffDays = Math.ceil(
+      Math.abs(new Date().getTime() - date.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    if (diffDays === 1) return "сегодня";
+    if (diffDays === 2) return "вчера";
     if (diffDays <= 4) return `${diffDays} дня назад`;
     if (diffDays <= 7) return `${diffDays} дней назад`;
-    return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+    return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
   };
 
   const salary = formatSalary();
-  const salarySymbol = currencySymbol(vacancy.salary_currency);
+  const skills = (vacancy.skills || []).filter((s) => (s || "").trim());
+  const snippet = vacancy.snippet?.requirement || vacancy.snippet?.responsibility;
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      whileHover={{ y: -4, transition: { duration: 0.2 } }}
-      className="group h-full"
+  const Logo = (
+    <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+      {vacancy.employer_logo ? (
+        <img
+          src={vacancy.employer_logo}
+          alt={vacancy.employer_name}
+          className="size-full object-contain p-1.5"
+          loading="lazy"
+        />
+      ) : (
+        <Building2 className="size-5 text-slate-400 dark:text-slate-500" />
+      )}
+    </div>
+  );
+
+  const LevelChip = (
+    <span
+      title={`Уровень: ${expLevel.label}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${expLevel.badge}`}
     >
-      <Card className="border-0 shadow-lg hover:shadow-sm transition-all duration-300 bg-white/80 dark:bg-slate-900/80 overflow-hidden relative h-full">
-        {/* Accent bar */}
-        <div className={`absolute top-0 left-0 right-0 h-1 ${expLevel.strip}`} />
+      <span className={`size-1.5 rounded-full ${expLevel.dot}`} aria-hidden />
+      {expLevel.label}
+    </span>
+  );
 
-        <CardHeader className="pb-4 relative">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <motion.h3
-                className="text-xl font-bold text-slate-900 dark:text-white mb-2 line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors cursor-pointer"
-                whileHover={{ x: 2 }}
-              >
-                {vacancy.name}
-              </motion.h3>
-              <div className="flex items-center gap-3 flex-wrap">
-                <Badge className={expLevel.badge}>
-                  <Briefcase className="size-3 mr-1" />
-                  {expLevel.label}
-                </Badge>
-                {vacancy.is_spam && (
-                  <Badge
-                    variant="destructive"
-                    className="bg-red-500/90 text-white border-0 shadow-md"
-                    title={vacancy.spam_reason || ""}
-                  >
-                    <AlertTriangle className="size-3 mr-1" />
-                    Спам
-                  </Badge>
-                )}
-                {salary && (
-                  <motion.div
-                    className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-lg"
-                    whileHover={{ scale: 1.05 }}
-                  >
-                    <span className="text-lg font-bold leading-none" style={{ fontFamily: "'Segoe UI', Tahoma, sans-serif" }}>{salarySymbol}</span>
-                    {salary}
-                  </motion.div>
-                )}
-              </div>
-            </div>
+  const SpamChip = vacancy.is_spam ? (
+    <span
+      title={vacancy.spam_reason || ""}
+      className="inline-flex items-center gap-1 rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300"
+    >
+      <AlertTriangle className="size-3" />
+      Спам
+    </span>
+  ) : null;
 
-            {/* Company logo */}
-            {vacancy.employer_logo ? (
-              <motion.div
-                className="size-16 rounded-xl overflow-hidden bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 shadow-md flex-shrink-0"
-                whileHover={{ scale: 1.05, rotate: 2 }}
-              >
-                <img
-                  src={vacancy.employer_logo}
-                  alt={vacancy.employer_name}
-                  className="size-full object-contain p-2"
-                />
-              </motion.div>
-            ) : (
-              <motion.div
-                className="size-16 rounded-xl bg-violet-600 flex items-center justify-center shadow-lg flex-shrink-0"
-                whileHover={{ scale: 1.05, rotate: -2 }}
-              >
-                <Building2 className="size-8 text-white" />
-              </motion.div>
-            )}
+  const SkillChips = skills.length > 0 && (
+    <div className="flex flex-wrap gap-1">
+      {skills.slice(0, 7).map((skill) => (
+        <span
+          key={skill}
+          className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+        >
+          {skill}
+        </span>
+      ))}
+      {skills.length > 7 && (
+        <span className="rounded px-1.5 py-0.5 text-[11px] text-slate-400">
+          +{skills.length - 7}
+        </span>
+      )}
+    </div>
+  );
+
+  const Actions = (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        className="flex-1 justify-center"
+        onClick={() => onOpen?.(vacancy)}
+      >
+        Подробнее
+        <ChevronRight className="ml-1 size-3.5" />
+      </Button>
+      <Button variant="ghost" size="icon" className="size-8 shrink-0" asChild>
+        <a
+          href={vacancy.alternate_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Открыть на hh.ru"
+        >
+          <ExternalLink className="size-3.5" />
+        </a>
+      </Button>
+    </div>
+  );
+
+  // ---------------------------------------------------------------- list
+  if (variant === "list") {
+    return (
+      <Card className="flex flex-row items-start gap-4 gap-y-0 rounded-lg border border-slate-200 bg-white p-4 shadow-none transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
+        {Logo}
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="truncate text-[15px] font-semibold text-slate-900 dark:text-slate-100">
+              {vacancy.name}
+            </h3>
+            {LevelChip}
+            {SpamChip}
           </div>
-        </CardHeader>
-
-        <CardContent className="space-y-4 relative">
-          {/* Company and location */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Building2 className="size-4 text-blue-600 dark:text-blue-400" />
-              </div>
-              <span className="font-medium">{vacancy.employer_name}</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm">
-              <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                <MapPin className="size-4 text-purple-600 dark:text-purple-400" />
-              </div>
-              <span>{vacancy.area}</span>
-              <span className="text-slate-400">•</span>
-              <Calendar className="size-4" />
-              <span>{formatDate(vacancy.published_at)}</span>
-            </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+            <span className="truncate">{vacancy.employer_name}</span>
+            <span aria-hidden>·</span>
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="size-3" />
+              {vacancy.area}
+            </span>
+            <span aria-hidden>·</span>
+            <span className="inline-flex items-center gap-1">
+              <Calendar className="size-3" />
+              {formatDate(vacancy.published_at)}
+            </span>
           </div>
-
-          {/* Snippet */}
-          {vacancy.snippet && (vacancy.snippet.requirement || vacancy.snippet.responsibility) && (
-            <div className="space-y-2">
-              {vacancy.snippet.requirement && (
-                <div className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">Требования:</span>{" "}
-                  <span>{sanitizeHtml(vacancy.snippet.requirement)}</span>
-                </div>
-              )}
-              {vacancy.snippet.responsibility && (
-                <div className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">Обязанности:</span>{" "}
-                  <span>{sanitizeHtml(vacancy.snippet.responsibility)}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Skills */}
-          {(() => {
-            const shownSkills = (vacancy.skills || []).filter((s) => (s || "").trim());
-            return shownSkills.length > 0 ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                <Star className="size-3" />
-                Ключевые навыки
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {shownSkills.slice(0, 8).map((skill, index) => (
-                  <motion.div
-                    key={skill}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
-                    <Badge
-                      variant="outline"
-                      className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 transition-colors"
-                    >
-                      {skill}
-                    </Badge>
-                  </motion.div>
-                ))}
-                {shownSkills.length > 8 && (
-                  <Badge variant="secondary" className="bg-slate-200 dark:bg-slate-700">
-                    +{shownSkills.length - 8}
-                  </Badge>
-                )}
-              </div>
-            </div>
-            ) : null;
-          })()}
-        </CardContent>
-
-        <CardFooter className="pt-4 border-t border-slate-200/50 dark:border-slate-700/50 relative mt-auto">
-          <div className="flex gap-2 w-full">
-            <motion.div
-              className="flex-1"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Button
-                variant="outline"
-                className="w-full border-2 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-all group/btn"
-                onClick={() => onOpen?.(vacancy)}
-              >
-                <ChevronDown className="mr-2 size-4 -rotate-90" />
-                Подробнее
-              </Button>
-            </motion.div>
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Button
-                asChild
-                className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 transition-colors"
-              >
-                <a href={vacancy.alternate_url} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="size-4" />
-                </a>
-              </Button>
-            </motion.div>
-          </div>
-        </CardFooter>
+          {SkillChips}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <span className="whitespace-nowrap text-sm font-semibold text-slate-900 dark:text-slate-100">
+            {salary ?? <span className="font-normal text-slate-400">не указана</span>}
+          </span>
+          <div className="w-[150px]">{Actions}</div>
+        </div>
       </Card>
-    </motion.div>
+    );
+  }
+
+  // ---------------------------------------------------------------- grid
+  return (
+    <Card className="flex h-full flex-col gap-0 rounded-lg border border-slate-200 bg-white p-4 shadow-none transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
+      <div className="flex items-start gap-3">
+        {Logo}
+        <div className="min-w-0 flex-1">
+          <h3 className="line-clamp-2 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100">
+            {vacancy.name}
+          </h3>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+            <span className="truncate">{vacancy.employer_name}</span>
+            <span aria-hidden>·</span>
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="size-3" />
+              {vacancy.area}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {LevelChip}
+        {SpamChip}
+        <span className="ml-auto text-sm font-semibold text-slate-900 dark:text-slate-100">
+          {salary ?? <span className="font-normal text-slate-400">з/п не указана</span>}
+        </span>
+      </div>
+
+      {snippet && (
+        <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+          {sanitizeHtml(snippet)}
+        </p>
+      )}
+
+      {skills.length > 0 && <div className="mt-3">{SkillChips}</div>}
+
+      <div className="mt-auto pt-3">
+        <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400">
+          <span className="inline-flex items-center gap-1">
+            <Calendar className="size-3" />
+            {formatDate(vacancy.published_at)}
+          </span>
+        </div>
+        <div className="mt-2">{Actions}</div>
+      </div>
+    </Card>
   );
 }

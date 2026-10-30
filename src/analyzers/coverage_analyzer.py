@@ -30,6 +30,11 @@ MIN_MATCH_FREQ = MARKET_MIN_FREQ
 # Сколько самых востребованных рыночных навыков считаем «топом» при
 # измерении охвата спроса.
 MARKET_TOP_N = 100
+
+# Насколько рыночный навык должен быть близок к дисциплине, чтобы попасть в
+# знаменатель охвата. 0.35 = RELATED_THRESHOLD в discipline_relevance: ниже —
+# навык относится к другой области и дисциплина за него не отвечает.
+DISCIPLINE_RELEVANCE_THRESHOLD = 0.35
 # A match counts as coverage only if the market skill has real demand (v29).
 # Fringe skills (1-4 vacancies, e.g. one-off listings) must not inflate coverage.
 # Single source of truth lives in skill_matcher (v36).
@@ -340,8 +345,42 @@ class CoverageAnalyzer:
             if isinstance(freq, (int, float))
         ]
         top_market = sorted(market_items, key=lambda x: -x[1])[:MARKET_TOP_N]
-        top_covered = [s for s, _ in top_market if normalize_skill(s) in rpd_norm]
-        top_missing = [s for s, _ in top_market if normalize_skill(s) not in rpd_norm]
+
+        # Comparing one discipline against the global IT top-100 is meaningless:
+        # a database course cannot cover frontend or ML demand, so the ceiling
+        # sat at ~9% for every discipline. Keep only the market skills relevant
+        # to THIS discipline (same embedding scorer used for recommendations),
+        # then measure coverage against that denominator.
+        if self._discipline_scorer is not None and top_market:
+            try:
+                rel = self._discipline_scorer.compute_relevance_batch(
+                    [skill for skill, _ in top_market], discipline_name
+                )
+                if rel:
+                    relevant = {
+                        skill for skill, score in rel.items()
+                        if score >= DISCIPLINE_RELEVANCE_THRESHOLD
+                    }
+                    if relevant:
+                        top_market = [(s, f) for s, f in top_market if s in relevant]
+            except Exception as exc:
+                logger.warning("discipline_relevance_failed", discipline=discipline_name, error=str(exc))
+
+        # Coverage must count semantic matches, not just identical strings: the
+        # RPD writes "машинное обучение" while the market says "machine learning",
+        # and an exact-substring check reported 6% coverage on a discipline that
+        # actually covers a third of the demand. matched_list already holds the
+        # market canonical name for every RPD skill that matched, so reuse it.
+        covered_market = {
+            normalize_skill(m.market_match)
+            for m in matched_list
+            if m.market_match
+        }
+        top_covered = [
+            skill for skill, _ in top_market
+            if normalize_skill(skill) in covered_market or normalize_skill(skill) in rpd_norm
+        ]
+        top_missing = [skill for skill, _ in top_market if skill not in top_covered]
         top_coverage = round(len(top_covered) / len(top_market), 4) if top_market else 0.0
 
         # Demand-weighted version of top_coverage: each top-N market skill

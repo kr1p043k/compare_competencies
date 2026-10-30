@@ -250,7 +250,8 @@ async def krm_directions(request: Request):
     ]
 
 
-@router.get("/teacher/krm/disciplines")
+@router.get("/teacher/krm/disciplines",
+            dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
 async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
     """Дисциплины направления."""
@@ -469,7 +470,8 @@ async def suggest_skill(request: Request):
     return {"status": "ok", "suggestion": entry}
 
 
-@router.get("/teacher/skills/suggestions")
+@router.get("/teacher/skills/suggestions",
+            dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
 async def list_own_suggestions(request: Request):
     """Мои предложения (по токену)."""
