@@ -8,6 +8,7 @@ import { Badge } from "./ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { request } from "../../lib/api";
+import { PageHeader } from "./PageHeader";
 
 interface ForecastItem {
   skill: string;
@@ -125,6 +126,11 @@ export function PredictionsTab() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        icon={TrendingUp}
+        title="Прогнозы навыков"
+        description="Что будет востребовано на рынке через 1, 3 и 6 месяцев."
+      />
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="inline-flex h-12 items-center justify-center rounded-lg bg-gray-100 dark:bg-slate-800 p-1">
           <TabsTrigger value="growing" className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:text-slate-100">

@@ -7,11 +7,12 @@ import { Input } from "./ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import {
   AlertCircle, RefreshCw, Users, FileText, Database,
-  Upload, Brain, BookOpen, Download, Clock, Activity,
+  Upload, Brain, BookOpen, Download, Clock, Activity, Shield,
 } from "lucide-react";
 import { logAction } from "../../lib/auth";
 import { reportError } from "./../../lib/errors";
 import { ApiError, request } from "../../lib/api";
+import { PageHeader } from "./PageHeader";
 
 export function AdminDashboard() {
   const RPD_STAGE_LABELS: Record<string, string> = {
@@ -489,9 +490,13 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        icon={Shield}
+        title="Администрирование"
+        description="Пользователи, планировщик, импорт данных и категории навыков."
+      />
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Администрирование</h2>
           <p className="text-sm text-gray-500 dark:text-slate-400">Управление системой</p>
         </div>
         <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>

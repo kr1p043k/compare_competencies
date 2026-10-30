@@ -6,6 +6,7 @@ import { Input } from "./ui/input";
 import { FileText, RefreshCw, AlertCircle, Search, Radio } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { request } from "../../lib/api";
+import { PageHeader } from "./PageHeader";
 
 const MAX_LINES = 500;
 
@@ -151,9 +152,13 @@ function LogsTabBase() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        icon={FileText}
+        title="Логи"
+        description="Серверные логи в реальном времени с фильтром по уровню."
+      />
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Логи</h2>
           <p className="text-sm text-gray-500 dark:text-slate-400">Системный лог бэкенда (logs/backend.log)</p>
         </div>
         <div className="flex items-center gap-3">

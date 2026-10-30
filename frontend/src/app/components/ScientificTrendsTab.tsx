@@ -7,9 +7,10 @@ import { Badge } from "./ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Progress } from "./ui/progress";
 import { useAuth } from "../../lib/auth";
-import { TrendingUp, GitCompare, Search, Sparkles, Target, AlertCircle, CheckCircle2 } from "lucide-react";
+import { FlaskConical, TrendingUp, GitCompare, Search, Sparkles, Target, AlertCircle, CheckCircle2 } from "lucide-react";
 import { reportError } from "./../../lib/errors";
 import { request } from "../../lib/api";
+import { PageHeader } from "./PageHeader";
 
 interface TrendCompetency {
   code: string;
@@ -228,6 +229,11 @@ export function ScientificTrendsTab() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        icon={FlaskConical}
+        title="Научные тренды"
+        description="Навыки и компетенции из научных публикаций и исследовательских вакансий."
+      />
       {/* Запрос */}
       <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
         <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">

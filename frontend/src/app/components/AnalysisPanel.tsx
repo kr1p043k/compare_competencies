@@ -109,7 +109,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
 
   return (
     <div className="space-y-4 mt-6" id="d-panel">
-      <Card id="d-cover" className="border border-gray-200 dark:border-slate-700 shadow-sm" style={{ scrollMarginTop: 8 }}>
+      <Card id="d-cover" className="border border-gray-200 dark:border-slate-700 shadow-sm scroll-mt-2" >
         <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 py-3">
           <div className="flex items-center gap-2">
             <Target className="size-4 text-blue-600" />
@@ -155,7 +155,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
           </div>
 
           {recommendations.length > 0 && (
-            <div className="space-y-2 mb-4" id="d-recs" style={{ scrollMarginTop: 8 }}>
+            <div className="space-y-2 mb-4 scroll-mt-2" id="d-recs" >
               <div className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Рекомендации</div>
               {data.llm_enhanced && (
                 <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300" title="Часть рекомендаций дополнена языковой моделью">
@@ -235,7 +235,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
           )}
 
           {metrics.top_market_matched_skills.length > 0 && (
-            <div className="mb-4" id="d-top" style={{ scrollMarginTop: 8 }}>
+            <div className="mb-4 scroll-mt-2" id="d-top" >
               <div className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider mb-2">Топ совпадений с рынком</div>
               <div className="flex flex-wrap gap-1.5">
                 {metrics.top_market_matched_skills.map((s, i) => {
@@ -257,7 +257,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
           )}
 
           {metrics.gaps_in_curriculum.length > 0 && (
-            <div className="mb-4" id="d-gaps" style={{ scrollMarginTop: 8 }}>
+            <div className="mb-4 scroll-mt-2" id="d-gaps" >
               <div className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider mb-2">
                 <TrendingDown className="inline size-3 mr-1 text-red-600" />
                 Навыки РПД без спроса на рынке
@@ -275,7 +275,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
           )}
 
           {competencies.length > 0 && (
-            <div id="d-comps" style={{ scrollMarginTop: 8 }}>
+            <div id="d-comps" className="scroll-mt-2">
               <div className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider mb-2">Покрытие по компетенциям</div>
               <CompetencyTree competencies={competencies} />
             </div>

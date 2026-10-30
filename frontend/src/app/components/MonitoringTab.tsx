@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { BarChart3, Activity, TrendingUp, AlertCircle, RefreshCw, Server, Cpu, Bell, Newspaper, Trash2, Plus, CheckCheck, ExternalLink, Mail } from "lucide-react";
 import { request } from "../../lib/api";
 import { reportError } from "./../../lib/errors";
+import { PageHeader } from "./PageHeader";
 
 interface MetricSample {
   name: string;
@@ -201,9 +202,13 @@ function MonitoringTabBase() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        icon={Activity}
+        title="Мониторинг"
+        description="Состояние сервисов, подписки и уведомления."
+      />
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Мониторинг</h2>
           <p className="text-sm text-gray-500 dark:text-slate-400">Метрики системы, подписки на источники и уведомления</p>
         </div>
         <div className="flex items-center gap-3">

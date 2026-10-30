@@ -237,11 +237,11 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
               <CardTitle className="text-base">Радар: профиль vs рынок (топ-{axesCount} навыков)</CardTitle>
               <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-slate-400">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-2.5 rounded-full" style={{ background: "#8b5cf6" }} />
+                  <span className="size-2.5 rounded-full bg-violet-500"  />
                   Рынок
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-2.5 rounded-full" style={{ background: "#2563eb" }} />
+                  <span className="size-2.5 rounded-full bg-blue-600"  />
                   Профиль
                 </span>
               </div>
@@ -250,7 +250,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
           <CardContent>
             <div className="h-[480px]">
               <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={radarData} outerRadius="80%" style={{ outline: "none" }}>
+                  <RadarChart data={radarData} outerRadius="80%" className="outline-none">
                   <PolarGrid stroke={grid} />
                   <PolarAngleAxis dataKey="skill" tick={{ fill: tick, fontSize: 11 }} />
                   {/* Шкала 0..1 фиксирована; цифры скрыты, чтобы не липнуть к подписям осей */}

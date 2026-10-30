@@ -36,10 +36,10 @@ function trendArrow(pct: number): string {
   return "→";
 }
 
-function trendColor(pct: number): string {
-  if (pct > 5) return "#059669";
-  if (pct < -5) return "#dc2626";
-  return "#d97706";
+function trendTextClass(pct: number): string {
+  if (pct > 5) return "text-emerald-600";
+  if (pct < -5) return "text-red-600";
+  return "text-amber-600";
 }
 
 export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Props) {
@@ -117,12 +117,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
     <div>
       {/* Summary bar */}
       <div
-        style={{
-          display: "flex",
-          gap: 12,
-          marginBottom: 16,
-          flexWrap: "wrap",
-        }}
+        className="flex flex-wrap gap-3 mb-4"
       >
           <div style={card}>
           <div className="text-xs text-gray-500 dark:text-slate-400">Компетенций</div>
@@ -151,11 +146,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
         <div style={card}>
           <div className="text-xs text-gray-500 dark:text-slate-400">Средний тренд</div>
           <div
-            style={{
-              fontSize: 20,
-              fontWeight: 700,
-              color: trendColor(avgTrend),
-            }}
+            className={`text-xl font-bold ${trendTextClass(avgTrend)}`}
           >
             {avgTrend > 0 ? "+" : ""}
             {avgTrend.toFixed(1)}%
@@ -165,12 +156,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
 
       {/* Filter */}
       <div
-        style={{
-          display: "flex",
-          gap: 6,
-          marginBottom: 12,
-          flexWrap: "wrap",
-        }}
+        className="flex flex-wrap gap-1.5 mb-3"
       >
         {[
           { key: null as string | null, label: `Все (${displayed.length})` },
@@ -209,37 +195,17 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
         return (
           <div
             key={comp.code}
-            style={{
-              marginBottom: 8,
-              border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
-              borderRadius: 8,
-              overflow: "hidden",
-            }}
+            className="mb-2 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700"
           >
             <div
               onClick={() => setExpanded(isOpen ? null : comp.code)}
-              style={{
-                padding: "10px 16px",
-                background: dk ? "#1e293b" : "#f9fafb",
-                cursor: "pointer",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
+              className="flex cursor-pointer items-center justify-between bg-slate-50 px-4 py-2.5 dark:bg-slate-800"
             >
               <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  alignItems: "center",
-                }}
+                className="flex items-center gap-2.5"
               >
                 <span
-                  style={{
-                    fontWeight: 600,
-                    color: "#7c3aed",
-                    fontSize: 14,
-                  }}
+                  className="text-sm font-semibold text-violet-600"
                 >
                   {comp.code}
                 </span>
@@ -248,11 +214,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                   {comp.active_skills_count !== undefined &&
                     comp.active_skills_count !== comp.skill_count && (
                       <span
-                        style={{
-                          fontSize: 11,
-                          color: "#9ca3af",
-                          marginLeft: 4,
-                        }}
+                        className="ml-1 text-[11px] text-slate-400"
                       >
                         ({comp.active_skills_count} в тренде)
                       </span>
@@ -260,18 +222,10 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                 </span>
               </div>
               <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                }}
+                className="flex items-center gap-2"
               >
                 <span
-                  style={{
-                    fontWeight: 700,
-                    fontSize: 15,
-                    color: clsColor,
-                  }}
+                  className={`text-[15px] font-bold ${clsColor}`}
                 >
                   {trendArrow(comp.change_pct)}{" "}
                   {comp.change_pct > 0 ? "+" : ""}
@@ -312,33 +266,17 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                 {comp.skills.map((sk, i) => (
                   <div key={i}>
                     <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "6px 0",
-                        fontSize: 13,
-                        borderBottom: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
-                      }}
+                      className="flex items-center justify-between border-b border-slate-200 py-1.5 text-[13px] dark:border-slate-700"
                     >
                       <span className="text-gray-700 dark:text-slate-300 font-medium">{sk.name}</span>
                       <span
-                        style={{
-                          color: trendColor(sk.change_pct),
-                          fontWeight: 600,
-                          fontSize: 13,
-                        }}
+                        className={`text-[13px] font-semibold ${trendTextClass(sk.change_pct)}`}
                       >
                         {trendArrow(sk.change_pct)}{" "}
                         {sk.change_pct > 0 ? "+" : ""}
                         {sk.change_pct}%
                         <span
-                          style={{
-                            color: "#9ca3af",
-                            fontWeight: 400,
-                            marginLeft: 6,
-                            fontSize: 12,
-                          }}
+                          className="ml-1.5 text-xs font-normal text-slate-400"
                         >
                           (freq: {sk.frequency})
                         </span>
@@ -347,20 +285,10 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                     {/* History chart */}
                     {sk.history && sk.history.length > 1 && (
                       <div
-                        style={{
-                          padding: "12px 0 16px",
-                          fontSize: 11,
-                          color: dk ? "#94a3b8" : "#6b7280",
-                        }}
+                        className="pb-4 pt-3 text-[11px] text-slate-500 dark:text-slate-400"
                       >
                         <div
-                          style={{
-                            display: "flex",
-                            alignItems: "flex-end",
-                            gap: 6,
-                            height: 60,
-                            padding: "4px 0",
-                          }}
+                          className="flex h-[60px] items-end gap-1.5 py-1"
                         >
                           {[...sk.history].reverse().map((h, hi) => {
                             const maxFreq = Math.max(
@@ -371,22 +299,10 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                             return (
                               <div
                                 key={hi}
-                                style={{
-                                  flex: 1,
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  alignItems: "center",
-                                  justifyContent: "flex-end",
-                                  height: "100%",
-                                }}
+                                className="flex h-full flex-1 flex-col items-center justify-end"
                               >
                                 <span
-                                  style={{
-                                    fontSize: 10,
-                                    fontWeight: 600,
-                                    color: dk ? "#94a3b8" : "#4b5563",
-                                    marginBottom: 2,
-                                  }}
+                                  className="mb-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-400"
                                 >
                                   {h.freq}
                                 </span>
@@ -402,11 +318,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                                   }}
                                 />
                                 <span
-                                  style={{
-                                    fontSize: 10,
-                                    color: dk ? "#94a3b8" : "#6b7280",
-                                    marginTop: 2,
-                                  }}
+                                  className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400"
                                 >
                                   {h.date.slice(5)}
                                 </span>
