@@ -32,7 +32,6 @@ MIN_MATCH_FREQ = MARKET_MIN_FREQ
 MARKET_TOP_N = 100
 # Ниже этого числа релевантных навыков сужать знаменатель нельзя: 1 из 1
 # даёт 100%, 0 из 1 - 0%.
-MIN_RELEVANT_MARKET = 10
 
 # Насколько рыночный навык должен быть близок к дисциплине, чтобы попасть в
 # знаменатель охвата. 0.35 = RELATED_THRESHOLD в discipline_relevance: ниже -
@@ -356,25 +355,19 @@ class CoverageAnalyzer:
         # then measure coverage against that denominator.
         if self._discipline_scorer is not None and top_market:
             try:
-                # Denominator = the part of the demanded top-N this discipline is
-                # responsible for. Scoring the global top-100 with the discipline
-                # embedding is what makes the number meaningful; the previous
-                # exact-string check reported ~6% for every discipline.
+                # Denominator = the slice of demanded top-N this discipline is
+                # responsible for. A database course cannot cover frontend or ML
+                # demand, so comparing every discipline against the global top-100
+                # reported ~6% for all of them regardless of content.
                 scores = self._discipline_scorer.compute_relevance_batch(
                     [skill for skill, _ in top_market], discipline_name
                 ) or {}
-                if scores:
-                    ranked = sorted(scores.items(), key=lambda kv: -kv[1])
-                    picked = [sk for sk, sc in ranked if sc >= DISCIPLINE_RELEVANCE_THRESHOLD]
-                    if len(picked) < MIN_RELEVANT_MARKET:
-                        # Too few clear matches to narrow by threshold: keep the
-                        # closest MIN_RELEVANT_MARKET so the denominator cannot
-                        # collapse to one or two skills.
-                        picked = [sk for sk, _ in ranked[:MIN_RELEVANT_MARKET]]
-                    keep = set(picked)
-                    filtered = [(s, f) for s, f in top_market if s in keep]
-                    if filtered:
-                        top_market = filtered
+                relevant = {
+                    skill for skill, score in scores.items()
+                    if score >= DISCIPLINE_RELEVANCE_THRESHOLD
+                }
+                if relevant:
+                    top_market = [(s, f) for s, f in top_market if s in relevant]
             except Exception as exc:
                 logger.warning("discipline_relevance_failed", discipline=discipline_name, error=str(exc))
 
