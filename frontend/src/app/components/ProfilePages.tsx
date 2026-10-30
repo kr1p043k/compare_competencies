@@ -19,7 +19,13 @@ import {
   Database,
   AlertCircle,
 } from "lucide-react";
-import { apiFetch, useAuth } from "../../lib/auth"; import { Label } from "./ui/label"; import { Textarea } from "./ui/textarea"; import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { useAuth } from "../../lib/auth";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { request } from "../../lib/api";
+import { reportError } from "../../lib/errors";
+import { PageHeader } from "./PageHeader";
 
 type AccountProps = { displayName?: string; email?: string };
 
@@ -57,10 +63,8 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
     let cancelled = false;
     (async () => {
       try {
-        const r = await apiFetch("/api/admin/monitoring/summary");
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const d = await r.json();
-        if (!cancelled) setSum(d);
+        const d = await request<Record<string, unknown>>("/api/admin/monitoring/summary");
+        if (!cancelled) setSum(d as never);
       } catch {
         if (!cancelled) setSum(null);
       } finally {
@@ -77,6 +81,11 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        icon={Shield}
+        title="Мой профиль"
+        description="Учётная запись, дисциплины и уведомления администратора."
+      />
       <AccountCard displayName={displayName} email={email} roleLabel="Администратор" />
       <Card className="bg-white dark:bg-slate-950">
         <CardHeader>
@@ -170,11 +179,7 @@ export function TeacherProfilePage({ displayName, email, onNavigate }: AccountPr
 
   useEffect(() => {
     let cancelled = false;
-    apiFetch("/api/teacher/krm/disciplines?dir_code=09.03.02")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
+    request<DisciplineRow[]>("/api/teacher/krm/disciplines?dir_code=09.03.02")
       .then((d) => { if (!cancelled) setDiscs(Array.isArray(d) ? d : []); })
       .catch((e: any) => { if (!cancelled) setError(e?.message || "Не удалось загрузить дисциплины"); });
     return () => { cancelled = true; };
@@ -182,6 +187,11 @@ export function TeacherProfilePage({ displayName, email, onNavigate }: AccountPr
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        icon={GraduationCap}
+        title="Мой профиль"
+        description="Учётная запись, дисциплины и уведомления преподавателя."
+      />
       <AccountCard displayName={displayName} email={email} roleLabel="Преподаватель" />
       <Card className="bg-white dark:bg-slate-950">
         <CardHeader>
@@ -401,9 +411,10 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
     let cancelled = false;
     (async () => {
       try {
-        const r = await apiFetch("/api/profiles/custom/options");
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        const d = await r.json();
+        const d = await request<{
+          competencies?: CustomOptionCompetency[];
+          technologies_suggest?: string[];
+        }>("/api/profiles/custom/options");
         if (cancelled) return;
         setCustomOptions({
           competencies: Array.isArray(d.competencies) ? d.competencies : [],
@@ -415,12 +426,12 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
         if (!cancelled) setOptionsLoading(false);
       }
       try {
-        const r = await apiFetch("/api/profiles");
-        if (r.ok) {
-          const d = await r.json();
-          if (!cancelled && Array.isArray(d?.profiles) && d.profiles.length > 0) setBaseProfiles(d.profiles);
+        const d = await request<{ profiles?: string[] }>("/api/profiles");
+        if (!cancelled && Array.isArray(d?.profiles) && d.profiles.length > 0) {
+          setBaseProfiles(d.profiles);
         }
-      } catch {
+      } catch (err) {
+        reportError("ProfilePages:baseProfiles", err);
       }
     })();
     return () => {
@@ -429,17 +440,11 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
   }, []);
 
   const patchTechnologies = async (body: { add_technologies?: string[]; remove_technologies?: string[] }): Promise<string[] | null> => {
-    const r = await apiFetch("/api/profiles/self", {
+    const updated = await request<{ technologies?: string[] }>("/api/profiles/self", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body,
     });
-    if (!r.ok) {
-      const d = await r.json().catch(() => ({}));
-      throw new Error((d as any).detail || "Не удалось сохранить технологии");
-    }
-    const updated = await r.json();
-    return Array.isArray((updated as any).technologies) ? (updated as any).technologies : null;
+    return Array.isArray(updated.technologies) ? updated.technologies : null;
   };
 
   const handleAddTech = async (rawTech?: string) => {
@@ -537,16 +542,14 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
       technologies: cpTechList,
     };
     try {
-      const r = await apiFetch("/api/profiles/custom", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!r.ok) {
-        const d = await r.json().catch(() => ({}));
-        throw new Error((d as any).detail || "Не удалось создать профиль (HTTP " + r.status + ")");
-      }
-      const d = await r.json();
+      const d = await request<{
+        profile?: string;
+        name?: string;
+        target_level?: string;
+        competencies_count?: number;
+        new_competencies_count?: number;
+        technologies_count?: number;
+      }>("/api/profiles/custom", { method: "POST", body: payload });
       setCreatedProfiles((prev) => [
         ...prev,
         {
@@ -576,11 +579,9 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
     setKrmLoading(true);
     setKrmError(null);
     try {
-      const r = await apiFetch(
-        `/api/krm/student/competencies?direction=${encodeURIComponent(dir)}&profile=${encodeURIComponent(profileName)}`
+      const d = await request<KrmData>(
+        `/api/krm/student/competencies?direction=${encodeURIComponent(dir)}&profile=${encodeURIComponent(profileName)}`,
       );
-      if (!r.ok) throw new Error(`Не удалось загрузить компетенции (HTTP ${r.status})`);
-      const d = (await r.json()) as KrmData;
       setKrm(d);
     } catch (e: any) {
       setKrmError(e?.message || "Ошибка загрузки компетенций");
@@ -596,20 +597,17 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
     setKrmLoading(true);
     setKrmError(null);
     try {
-      const r = await apiFetch("/api/profiles/self");
-      if (!r.ok) throw new Error(`Не удалось загрузить профиль (HTTP ${r.status})`);
-      const d = (await r.json()) as SelfData;
+      const d = await request<SelfData>("/api/profiles/self");
       setSelf(d);
       const profileName = d.profile || "base";
       let dir = "09.03.02";
       try {
-        const rd = await apiFetch("/api/krm/directions");
-        if (rd.ok) {
-          const dd = await rd.json();
-          const first = dd?.directions?.[0]?.dir_code;
-          if (typeof first === "string" && first) dir = first;
-        }
-      } catch { /* keep fallback */ }
+        const dd = await request<{ directions?: { dir_code?: string }[] }>("/api/krm/directions");
+        const first = dd?.directions?.[0]?.dir_code;
+        if (typeof first === "string" && first) dir = first;
+      } catch (err) {
+        reportError("ProfilePages:krmDirections", err);
+      }
       setDirCode(dir);
       await loadKrm(profileName, dir);
     } catch (e: any) {
@@ -631,16 +629,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
   }, []);
 
   const patchSelf = async (body: Record<string, unknown>): Promise<SelfData> => {
-    const r = await apiFetch("/api/profiles/self", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!r.ok) {
-      const d = await r.json().catch(() => ({}));
-      throw new Error((d as any).detail || "Не удалось сохранить");
-    }
-    return (await r.json()) as SelfData;
+    return request<SelfData>("/api/profiles/self", { method: "PATCH", body });
   };
 
   const handleAddSkill = async (raw?: string) => {
@@ -728,6 +717,11 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        icon={User}
+        title="Мой профиль"
+        description="Учётная запись, навыки и свои профили для сравнения с рынком."
+      />
       {/* Identity header */}
       <Card className="bg-white dark:bg-slate-950">
         <CardHeader>

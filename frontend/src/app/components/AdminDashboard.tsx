@@ -586,9 +586,9 @@ export function AdminDashboard() {
           <Card>
             <CardHeader><CardTitle className="text-lg">Создать пользователя</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <Input placeholder="Email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} />
-              <Input placeholder="Password" type="password" value={newUserPass} onChange={(e) => setNewUserPass(e.target.value)} />
-              <Input placeholder="Full name" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
+              <Input placeholder="Электронная почта" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} />
+              <Input placeholder="Пароль" type="password" value={newUserPass} onChange={(e) => setNewUserPass(e.target.value)} />
+              <Input placeholder="ФИО" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
               <select value={newUserRole} onChange={(e) => { setNewUserRole(e.target.value); setNewUserDirs([]); }}
                 className="w-full h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-sm">
                 <option value="teacher">Преподаватель</option>

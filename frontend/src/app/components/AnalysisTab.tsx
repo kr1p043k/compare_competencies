@@ -11,6 +11,7 @@ import {
   Briefcase,
   Users,
 } from "lucide-react";
+import { request } from "../../lib/api";
 
 interface AnalysisTabProps {
   selectedProfile: string;
@@ -45,12 +46,9 @@ export function AnalysisTab({ pipelineQuery, pipelineRegions }: AnalysisTabProps
     setProfLoading(true);
     setProfError(null);
     try {
-      const r = await fetch(`/api/trends/by-profession?profession=${encodeURIComponent(prof)}&limit=30`);
-      if (!r.ok) {
-        const d = await r.json().catch(() => null);
-        throw new Error((d && d.detail) || "Не удалось загрузить тренды профессии. Попробуйте позже.");
-      }
-      const d = await r.json();
+      const d = await request<{ skills?: typeof profSkills }>(
+        `/api/trends/by-profession?profession=${encodeURIComponent(prof)}&limit=30`,
+      );
       setProfSkills(d.skills || []);
     } catch (e: any) {
       setProfError(e?.message || "Не удалось загрузить тренды профессии. Попробуйте позже.");

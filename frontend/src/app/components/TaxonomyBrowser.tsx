@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/
 import { BookOpen, ChevronDown, Search, Loader2 } from "lucide-react";
 import { api } from "../api";
 import { reportError } from "./../../lib/errors";
+import { PageHeader } from "./PageHeader";
 
 interface TaxCategory {
   id: string;
@@ -90,7 +91,14 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
   );
 
   return (
-    <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+    <div className="space-y-6">
+      <PageHeader
+        icon={BookOpen}
+        title="Таксономия навыков"
+        description="Категории навыков и предложения по их добавлению."
+      />
+      <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+
       <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-9 h-9 bg-violet-600 rounded-lg shrink-0">
@@ -222,5 +230,6 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }

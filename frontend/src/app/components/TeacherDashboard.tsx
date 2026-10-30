@@ -44,6 +44,8 @@ type DirectionAnalysis = {
   profile: string;
   total_disciplines: number;
   average_coverage: number;
+  /** Охват спроса: доля релевантных рынку навыков, реально закрытых. */
+  average_market_top_coverage?: number;
   average_quality_coverage?: number;
   coverage_level: string;
   total_gaps_across_all: number;
@@ -51,7 +53,7 @@ type DirectionAnalysis = {
   top_emerging_across_all: { skill: string; frequency: number }[];
   recommendations: { type: string; priority: string; message: string }[];
   trends: { rising: any[]; declining: any[] };
-  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number }[];
+  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; market_top_coverage?: number; market_top_total?: number }[];
   generated_at: string;
 };
 
@@ -834,14 +836,19 @@ export function TeacherDashboard() {
               }}
             >
               <div className="flex justify-between">
-                <span className="text-violet-600 font-semibold">Анализ</span>
-                <span className={`font-bold ${covTextClass(analysis.average_coverage)}`}>
-                  {(analysis.average_coverage * 100).toFixed(1)}%
-                  {analysis.average_quality_coverage != null && (
-                    <span className={`block text-xs mt-0.5 ${covTextClass(analysis.average_quality_coverage)}`}>
-                      Качество: {(analysis.average_quality_coverage * 100).toFixed(1)}%
-                    </span>
-                  )}
+                {/* Показываем охват спроса, а не coverage_ratio: второй почти
+                    всегда ~100%, потому что навыки РПД уже нормализованы к
+                    словарю рынка, и читается как «всё покрыто». */}
+                <span className="text-violet-600 font-semibold">Охват рынка</span>
+                <span
+                  className={`font-bold ${covTextClass(
+                    analysis.average_market_top_coverage ?? analysis.average_coverage,
+                  )}`}
+                >
+                  {((analysis.average_market_top_coverage ?? analysis.average_coverage) * 100).toFixed(1)}%
+                  <span className="block text-xs mt-0.5 font-normal text-gray-500 dark:text-slate-400">
+                    релевантных навыков рынка
+                  </span>
                 </span>
               </div>
               <div className="text-gray-500 dark:text-slate-400 mt-0.5">
@@ -1045,14 +1052,19 @@ export function TeacherDashboard() {
             const discData = selected && analysis.disciplines
               ? analysis.disciplines.find((d: any) => d.name === selected.name)
               : null;
-            const cov = discData ? discData.coverage_ratio : analysis.average_coverage;
+            // Охват рынка вместо coverage_ratio (см. комментарий в KPI выше).
+            const cov = discData
+              ? discData.market_top_coverage ?? discData.coverage_ratio
+              : analysis.average_market_top_coverage ?? analysis.average_coverage;
+            const covTotal = discData?.market_top_total;
             const gaps = discData ? discData.gaps : analysis.total_gaps_across_all;
             const level = discData ? discData.coverage_level : analysis.coverage_level;
           return (<>
           <div className="flex gap-3 mb-4 flex-wrap">
             <div style={card}>
               <div className="text-[11px] text-gray-500 dark:text-slate-400">
-                {discData ? `Покрытие: ${selected?.name ?? ""}` : "Среднее покрытие"}
+                {discData ? `Охват рынка: ${selected?.name ?? ""}` : "Средний охват рынка"}
+                {covTotal ? ` (из ${covTotal})` : ""}
               </div>
                   <div className={`text-2xl font-bold ${covTextClass(cov)}`}>
                     {(cov * 100).toFixed(1)}%
@@ -1442,15 +1454,15 @@ export function TeacherDashboard() {
                       onChange={(e) => { setRecType(e.target.value); setSelectedCompetency(""); }}
                       className="h-9 px-2 text-sm bg-white dark:bg-slate-950 border border-gray-300 dark:border-slate-600 rounded-lg outline-none text-gray-900 dark:text-slate-100"
                     >
-                      <option value="modify">Modify</option>
-                      <option value="add">Add</option>
-                      <option value="remove">Remove</option>
+                      <option value="modify">Изменить</option>
+                      <option value="add">Добавить</option>
+                      <option value="remove">Удалить</option>
                     </select>
                     <button
                       onClick={() => { addRec(); setShowAddForm(false); setSelectedCompetency(""); }}
                       className="h-9 px-4 text-sm bg-violet-600 text-white border-0 rounded-lg cursor-pointer hover:bg-violet-700 transition-colors"
                     >
-                      Send
+                      Отправить
                     </button>
                   </div>
                 </div>

@@ -1,20 +1,21 @@
-import { authHeaders } from "../lib/auth";
+/**
+ * Тонкая обёртка над `lib/api.ts` для вызовов вида `api("/path")`.
+ *
+ * Раньше здесь был отдельный fetch с ручной проверкой `res.ok`, который
+ * бросал сырой текст ответа. Теперь вся обработка (разбор detail, ApiError,
+ * 401 -> logout) живёт в одном месте.
+ */
+import { request } from "../lib/api";
 
 const API_BASE = "/api";
 
-export async function api(endpoint: string, options?: RequestInit) {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...authHeaders(),
-    ...(options?.headers as Record<string, string> | undefined),
-  };
-  const res = await fetch(`${API_BASE}${endpoint}`, {
+export function api<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  return request<T>(`${API_BASE}${endpoint}`, {
     ...options,
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      ...((options.headers as Record<string, string>) ?? {}),
+    },
+    body: options.body as BodyInit | undefined,
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || res.statusText);
-  }
-  return res.json();
 }

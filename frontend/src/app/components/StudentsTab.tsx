@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useTheme } from "../../lib/theme";
+import { GraduationCap } from "lucide-react";
+import { PageHeader } from "./PageHeader";
 
 type StudentRow = {
   email: string;
@@ -89,21 +91,22 @@ export function StudentsTab() {
   const owned = new Set((detail?.user_added || []).map((s) => s.toLowerCase()));
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div className={card}>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className={`text-lg font-semibold ${heading}`}>Студенты</h2>
+    <div className="space-y-6">
+      <PageHeader
+        icon={GraduationCap}
+        title="Студенты"
+        description="Навыки студентов из загруженных профилей и сравнение с требованиями рынка."
+        actions={
           <button
             onClick={loadList}
-            className={`text-xs px-3 py-1.5 rounded-md border cursor-pointer ${
-              dk
-                ? "border-slate-600 text-slate-200 hover:bg-slate-800"
-                : "border-gray-300 text-gray-700 hover:bg-gray-50"
-            }`}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Обновить
           </button>
-        </div>
+        }
+      />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className={card}>
         {state === "loading" && <p className={`text-sm ${muted}`}>Загрузка списка студентов…</p>}
         {state === "error" && (
           <div className="text-sm text-red-600 dark:text-red-300">
@@ -216,6 +219,7 @@ export function StudentsTab() {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

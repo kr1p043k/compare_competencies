@@ -144,7 +144,7 @@ export function parseSkillsFromHtml(html: string): string[] {
 
   const parts = text.split(/[,;•\n\r]+/).map(s => s.trim()).filter(Boolean);
   for (const part of parts) {
-    const clean = part.replace(/^[\s\-—–•*.:;]+/, "").replace(/[\s\-—–•*.:;]+$/, "");
+    const clean = part.replace(/^[\s\-*.:;]+/, "").replace(/[\s\-*.:;]+$/, "");
     if (!isValidSkill(clean)) continue;
     const ws = clean.split(/\s+/);
     const capWords = ws.filter(w => /^[A-ZА-Я]/.test(w));
