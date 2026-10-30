@@ -65,12 +65,22 @@ export function VacancyDetailPanel({
     <AnimatePresence>
       {vacancy && (
         <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -12 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 flex justify-end bg-slate-900/30 dark:bg-black/50"
+          onClick={onClose}
         >
-          <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+          <motion.div
+            initial={{ x: 32 }}
+            animate={{ x: 0 }}
+            exit={{ x: 32 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="h-full w-full max-w-2xl overflow-y-auto bg-white shadow-xl dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+          <Card className="border-0 bg-white dark:bg-slate-900 overflow-hidden rounded-none">
             <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -184,6 +194,7 @@ export function VacancyDetailPanel({
               )}
             </CardContent>
           </Card>
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>

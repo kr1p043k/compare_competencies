@@ -45,9 +45,21 @@ interface VacancyCardProps {
 }
 
 const experienceLevels = {
-  junior: { label: "Junior", color: "from-blue-50 dark:from-blue-950/30 to-cyan-50 dark:to-cyan-950/30", badge: "secondary" },
-  middle: { label: "Middle", color: "from-purple-50 dark:from-purple-950/30 to-pink-50 dark:to-pink-950/30", badge: "default" },
-  senior: { label: "Senior", color: "from-orange-50 dark:from-orange-950/30 to-red-50 dark:to-red-950/30", badge: "destructive" },
+  junior: {
+    label: "Junior",
+    strip: "bg-sky-500",
+    badge: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-100 border-0",
+  },
+  middle: {
+    label: "Middle",
+    strip: "bg-violet-500",
+    badge: "bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-100 border-0",
+  },
+  senior: {
+    label: "Senior",
+    strip: "bg-amber-500",
+    badge: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-100 border-0",
+  },
 };
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -190,10 +202,7 @@ export function VacancyCard({ vacancy, onOpen }: VacancyCardProps) {
     >
       <Card className="border-0 shadow-lg hover:shadow-sm transition-all duration-300 bg-white/80 dark:bg-slate-900/80 overflow-hidden relative h-full">
         {/* Accent bar */}
-        <div className={`absolute top-0 left-0 right-0 h-1 ${expLevel.color}`} />
-
-        {/* Hover glow effect */}
-        <div className="absolute inset-0 hidden" />
+        <div className={`absolute top-0 left-0 right-0 h-1 ${expLevel.strip}`} />
 
         <CardHeader className="pb-4 relative">
           <div className="flex items-start justify-between gap-4">
@@ -205,10 +214,7 @@ export function VacancyCard({ vacancy, onOpen }: VacancyCardProps) {
                 {vacancy.name}
               </motion.h3>
               <div className="flex items-center gap-3 flex-wrap">
-                <Badge
-                  variant={expLevel.badge as any}
-                  className={`${expLevel.color} text-slate-800 dark:text-white border-0 shadow-md`}
-                >
+                <Badge className={expLevel.badge}>
                   <Briefcase className="size-3 mr-1" />
                   {expLevel.label}
                 </Badge>

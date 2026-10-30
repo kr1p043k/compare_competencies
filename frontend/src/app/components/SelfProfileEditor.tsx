@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Loader2, Plus, User, X } from "lucide-react";
-import { apiFetch } from "../../lib/auth";
+import { request } from "../../lib/api";
 
 interface SelfData {
   profile: string;
@@ -39,9 +39,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
     setLoading(true);
     setError(null);
     try {
-      const r = await apiFetch("/api/profiles/self");
-      if (!r.ok) throw new Error("Не удалось загрузить профиль");
-      setData(await r.json());
+      setData(await request<SelfData>("/api/profiles/self"));
     } catch (e: any) {
       setError(e?.message || "Ошибка загрузки");
     } finally {
@@ -57,16 +55,7 @@ export function SelfProfileEditor({ displayName, email }: { displayName?: string
     setSaving(true);
     setError(null);
     try {
-      const r = await apiFetch("/api/profiles/self", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) {
-        const d = await r.json().catch(() => ({}));
-        throw new Error(d.detail || "Не удалось сохранить");
-      }
-      setData(await r.json());
+      setData(await request<SelfData>("/api/profiles/self", { method: "PATCH", body }));
     } catch (e: any) {
       setError(e?.message || "Ошибка сохранения");
     } finally {

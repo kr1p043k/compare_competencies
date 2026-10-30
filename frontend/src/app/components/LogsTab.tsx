@@ -4,7 +4,8 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { FileText, RefreshCw, AlertCircle, Search, Radio } from "lucide-react";
-import { apiFetch, useAuth } from "../../lib/auth";
+import { useAuth } from "../../lib/auth";
+import { request } from "../../lib/api";
 
 const MAX_LINES = 500;
 
@@ -40,12 +41,7 @@ function LogsTabBase() {
     setError(null);
     try {
       const q = level === "all" ? "?lines=400" : `?lines=400&level=${level}`;
-      const r = await apiFetch(`/api/admin/logs/file${q}`);
-      if (!r.ok) {
-        setError(`Ошибка загрузки логов: ${r.status}`);
-        return;
-      }
-      const data = await r.json();
+      const data = await request<{ lines?: string[] }>(`/api/admin/logs/file${q}`);
       setLines(data.lines ?? []);
     } catch (e: any) {
       setError(e.message ?? "Ошибка сети");

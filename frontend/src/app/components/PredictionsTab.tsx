@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/
 import { Badge } from "./ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
+import { request } from "../../lib/api";
 
 interface ForecastItem {
   skill: string;
@@ -62,9 +63,9 @@ export function PredictionsTab() {
     let stop = false;
     const poll = async () => {
       try {
-        const res = await fetch("/api/forecast/engine");
-        if (!res.ok || stop) return;
-        const data = await res.json();
+        if (stop) return;
+        const data = await request<any>("/api/forecast/engine").catch(() => null);
+        if (!data || stop) return;
         setFitStatus({ state: data.state, done: data.done, total: data.total, eta_seconds: data.eta_seconds });
         if (data.engine === "prophet" || data.state === "ready" || data.state === "failed") {
           setEngineInfo({ engine: data.engine, prophet_models: data.prophet_models ?? 0 });
@@ -92,15 +93,7 @@ export function PredictionsTab() {
       const url = direction === "declining"
         ? `/api/forecast/observed?n=25&months=${effMonths}&sort=${effSort}`
         : `/api/forecast/top?n=25&months=${effMonths}&direction=${direction}&sort=${effSort}`;
-      const res = await fetch(url, { signal: ctrl.signal });
-      if (!res.ok) {
-        if (res.status === 400) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error((err as any).detail || "Не удалось загрузить прогнозы. Попробуйте позже.");
-        }
-        throw new Error("Не удалось загрузить прогнозы. Попробуйте позже.");
-      }
-      const data = await res.json();
+      const data = await request<any>(url, { signal: ctrl.signal });
       if (direction === "declining") {
         setObserved((data.forecasts || []).filter((f: ObservedItem) => (f.skill || "").trim()));
         setObservedMeta({ required_points: data.required_points, max_points: data.max_points });

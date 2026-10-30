@@ -52,7 +52,7 @@ function ArrayViewer({ data }: { data: unknown[] }) {
     data.forEach((obj) => Object.keys(obj as object).forEach((k) => keys.add(k)));
     const keyArr = Array.from(keys).slice(0, 8);
     return (
-      <div className="border rounded-md overflow-hidden">
+      <div className="border rounded-md overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

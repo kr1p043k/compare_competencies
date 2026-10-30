@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { request } from "../../lib/api";
 
 export function LoginPage({ onLogin }: { onLogin: (token: string, role: string, name: string) => void }) {
   const [username, setUsername] = useState("");
@@ -15,20 +16,10 @@ export function LoginPage({ onLogin }: { onLogin: (token: string, role: string, 
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: username, password }),
-      });
-      if (!res.ok) {
-        if (res.status >= 500) {
-          setError("Сервер временно недоступен. Попробуйте позже.");
-        } else {
-          setError("Неверный логин или пароль");
-        }
-        return;
-      }
-      const data = await res.json();
+      const data = await request<{ token: string; role: string; name: string }>(
+        "/api/auth/login",
+        { method: "POST", body: { email: username, password }, anonymous: true },
+      );
       onLogin(data.token, data.role, data.name);
     } catch {
       setError("Ошибка подключения к серверу");

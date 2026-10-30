@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { RefreshCw, AlertCircle, MapPin, Briefcase, FileText } from "lucide-react";
 import { Button } from "./ui/button";
-import { apiFetch } from "../../lib/auth";
 import { SelfProfileEditor } from "./SelfProfileEditor";
 import { StudentKrm } from "./StudentKrm";
+import { request } from "../../lib/api";
+import { reportError } from "../../lib/errors";
 
 export function StudentDashboard({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const [history, setHistory] = useState<any[]>([]);
@@ -14,11 +15,11 @@ export function StudentDashboard({ onNavigate }: { onNavigate?: (tab: string) =>
   const loadHistory = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch("/api/student/history?limit=50");
-      if (!res.ok) throw new Error("Не удалось загрузить историю. Попробуйте позже.");
-      const data = await res.json();
+      const data = await request<{ history?: unknown[] }>("/api/student/history?limit=50");
       setHistory(data.history || []);
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch (err) {
+      reportError("StudentDashboard:history", err);
+    } finally { setLoading(false); }
   };
 
   useEffect(() => {

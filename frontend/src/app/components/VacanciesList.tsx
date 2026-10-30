@@ -1045,8 +1045,6 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         </motion.div>
       ) : (
         <>
-          <VacancyDetailPanel vacancy={drawerVacancy} onClose={() => setDrawerVacancy(null)} />
-
           {/* Count + Export */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -1062,7 +1060,6 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <Button
               variant="outline"
               size="sm"
-              style={canRunPipeline === false ? { display: "none" } : undefined}
               title={canRunPipeline === false ? "Экспорт доступен преподавателям" : undefined}
               onClick={async () => {
                 try {
@@ -1085,7 +1082,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   console.error("Export failed:", e);
                 }
               }}
-              className="border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50 gap-2"
+              className={`border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50 gap-2 ${
+                canRunPipeline === false ? "hidden" : ""
+              }`}
             >
               <Download className="size-4" />
               Excel
@@ -1093,11 +1092,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           </motion.div>
 
           <motion.div
-            className={`gap-6 ${
+            className={
               viewMode === "grid"
-                ? "columns-1 lg:columns-2 [&>*]:mb-6"
-                : "columns-1"
-            }`}
+                ? "grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch"
+                : "grid grid-cols-1 gap-6"
+            }
           >
             <AnimatePresence mode="popLayout">
               {vacancies.map((vacancy, index) => (
@@ -1107,13 +1106,15 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ delay: index * 0.05 }}
-                  className="h-full break-inside-avoid"
+                  className="h-full"
                 >
                   <VacancyCard vacancy={vacancy} onOpen={(v) => setDrawerVacancy(v)} />
                 </motion.div>
               ))}
             </AnimatePresence>
           </motion.div>
+
+          <VacancyDetailPanel vacancy={drawerVacancy} onClose={() => setDrawerVacancy(null)} />
 
           {/* Pagination */}
           {totalPages > 1 && (
