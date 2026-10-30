@@ -46,6 +46,8 @@ type DirectionAnalysis = {
   average_coverage: number;
   /** Охват спроса: доля релевантных рынку навыков, реально закрытых. */
   average_market_top_coverage?: number;
+  /** False, когда релевантных навыков слишком мало для процента. */
+  average_market_top_reliable?: boolean;
   average_quality_coverage?: number;
   coverage_level: string;
   total_gaps_across_all: number;
@@ -53,7 +55,7 @@ type DirectionAnalysis = {
   top_emerging_across_all: { skill: string; frequency: number }[];
   recommendations: { type: string; priority: string; message: string }[];
   trends: { rising: any[]; declining: any[] };
-  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; market_top_coverage?: number; market_top_total?: number }[];
+  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; market_top_coverage?: number; market_top_total?: number; market_top_reliable?: boolean }[];
   generated_at: string;
 };
 
@@ -1057,6 +1059,9 @@ export function TeacherDashboard() {
               ? discData.market_top_coverage ?? discData.coverage_ratio
               : analysis.average_market_top_coverage ?? analysis.average_coverage;
             const covTotal = discData?.market_top_total;
+            const covReliable = discData
+              ? discData.market_top_reliable !== false
+              : analysis.average_market_top_reliable !== false;
             const gaps = discData ? discData.gaps : analysis.total_gaps_across_all;
             const level = discData ? discData.coverage_level : analysis.coverage_level;
           return (<>
@@ -1066,11 +1071,11 @@ export function TeacherDashboard() {
                 {discData ? `Охват рынка: ${selected?.name ?? ""}` : "Средний охват рынка"}
                 {covTotal ? ` (из ${covTotal})` : ""}
               </div>
-                  <div className={`text-2xl font-bold ${covTextClass(cov)}`}>
-                    {(cov * 100).toFixed(1)}%
+                  <div className={`text-2xl font-bold ${covReliable ? covTextClass(cov) : "text-gray-400"}`}>
+                    {covReliable ? `${(cov * 100).toFixed(1)}%` : "н/д"}
                   </div>
-                  <div className={`text-[11px] font-semibold ${covTextClass(cov)}`}>
-                    {(level || "").toUpperCase()}
+                  <div className="text-[11px] font-semibold text-gray-500 dark:text-slate-400">
+                    {covReliable ? (level || "").toUpperCase() : "мало релевантных навыков"}
                   </div>
                 </div>
                 <div style={card}>

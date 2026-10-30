@@ -46,7 +46,7 @@ const TeacherProfilePage = lazy(() => import("./components/ProfilePages").then(m
 const StudentProfilePage = lazy(() => import("./components/ProfilePages").then(m => ({ default: m.StudentProfilePage })));
 const FaqPage = lazy(() => import("./components/FaqPage").then(m => ({ default: m.FaqPage })));
 const TaxonomyBrowser = lazy(() => import("./components/TaxonomyBrowser").then(m => ({ default: m.TaxonomyBrowser })));
-import { useAuth, apiFetch } from "../lib/auth";
+import { useAuth } from "../lib/auth";
 import { profileLabel } from "../lib/profiles";
 import { ApiError, download, request, saveBlob } from "../lib/api";
 import { useTheme } from "../lib/theme";
@@ -470,17 +470,16 @@ export default function App() {
               const url = q ? `/api/vacancies?limit=1&search=${encodeURIComponent(q)}` : "/api/vacancies/info";
               request<any>(url).catch(() => ({ total: 0 })).then(vi => {
                 const vc = vi.total || 0;
-                apiFetch("/api/student/log-action", {
+                request("/api/student/log-action", {
                   method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
+                  body: {
                     action_type: "analysis",
                     profession: q,
                     region: pipelineRegions,
                     vacancies_found: vc,
                     result_ref: JSON.stringify({ profile: prof }),
                     profile: prof,
-                  }),
+                  },
                 }).then(() => window.dispatchEvent(new CustomEvent("student-history-update"))).catch((err) => reportError("app/App.tsx", err));
               });
             }
