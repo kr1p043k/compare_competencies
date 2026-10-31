@@ -27,15 +27,61 @@ DEFAULT_DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competenc
 # Их отсутствие в БД — не дефект данных, а осознанное сужение анализа.
 NON_ANALYTICAL_MARKERS = (
     "иностранный язык",
-    "физическая культура",
-    "дисциплины по физической культуре",
+    "академический курс иностранного",
+    "физическ",  # ловит "физическая культура" и "...физической культуре"
     "практика",
     "подготовка к процедуре защиты",
+    "безопасность жизнедеятельности",
+    "история россии",
+    "основы российской государственности",
+    "философия",
+    "логика и теория аргументации",
+    "письмо и мышление",
+    "воображение, изображение",
+    "принципы естественнонаучного познания",
+    "цифровая культура",
+    "общественн",
+    "основы проектной деятельности",
+    "психологи",
+    "стрессоустойчив",
+    "эмоциональный интеллект",
+    "экономико-правов",
+    "экономическ",
+    "экономика инженерии",
+    "маркетинг",
+    "междисциплинарный проект",
 )
 
 
+# БД хранит сокращения, официальный перечень — полные названия
+# ("Генеративный ИИ и МО" против "Генеративный искусственный интеллект и
+# машинное обучение"). Раскрываем ТОЛЬКО заглавные токены: строчное "по" в
+# "Практикум по математике" — предлог, его трогать нельзя.
+ABBREV = {
+    "ИИ": "искусственный интеллект",
+    "ПО": "программное обеспечение",
+    "МО": "машинное обучение",
+    "ИС": "информационные системы",
+    "БД": "базы данных",
+    "ПК": "программный комплекс",
+    "АСУ": "автоматизированные системы управления",
+}
+
+
+def expand_abbrev(name: str) -> str:
+    out = []
+    for token in (name or "").split():
+        bare = token.strip(".,;:()\u00ab\u00bb\"'").upper()
+        if bare in ABBREV:
+            out.append(ABBREV[bare])
+        else:
+            out.append(token)
+    return " ".join(out)
+
+
 def norm(name: str) -> str:
-    return "".join(ch for ch in (name or "").lower() if ch.isalnum())
+    expanded = expand_abbrev(name or "")
+    return "".join(ch for ch in expanded.lower() if ch.isalnum())
 
 
 def strip_parens(name: str) -> str:
@@ -47,8 +93,10 @@ def strip_parens(name: str) -> str:
     return name
 
 
-def load_official(direction: str) -> dict:
-    path = REFERENCE / f"official_curriculum_{direction}.json"
+def load_official(direction: str, year: int) -> dict:
+    path = REFERENCE / f"official_curriculum_{direction}_{year}.json"
+    if not path.exists():
+        path = REFERENCE / f"official_curriculum_{direction}.json"
     if not path.exists():
         raise SystemExit(f"нет официального перечня: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
@@ -126,6 +174,8 @@ def is_analytical(name: str) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--direction", default="09.03.02")
+    parser.add_argument("--year", type=int, default=2025,
+                        help="год набора: файл official_curriculum_<код>_<год>.json")
     parser.add_argument("--dsn", default=DEFAULT_DSN)
     parser.add_argument("--json", dest="json_path", default=None)
     args = parser.parse_args()
@@ -135,12 +185,13 @@ def main() -> int:
     except Exception:
         pass
 
-    official_doc = load_official(args.direction)
+    official_doc = load_official(args.direction, args.year)
     official = official_doc["disciplines"]
     db_names = load_db_disciplines(args.dsn, args.direction)
     krm_names = load_krm_disciplines(args.direction)
 
-    print(f"{official_doc['direction_code']} {official_doc['direction_name']}")
+    print(f"{official_doc['direction_code']} {official_doc['direction_name']} "
+          f"(набор {official_doc.get('year')})")
     print(f"источник: {official_doc['source_url']}")
     print(f"официальный перечень: {len(official)}")
     print(f"БД: {len(db_names)}  KRM-файл: {len(krm_names)}\n")
