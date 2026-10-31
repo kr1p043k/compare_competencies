@@ -105,7 +105,7 @@ class HeadHunterAPIAsync:
 
             return await self._get_app_token()
 
-    async def _get_app_token(self) -> Result[bool, ApiError]:
+    async def _get_app_token(self, attempt: int = 0) -> Result[bool, ApiError]:
         url = "https://api.hh.ru/token"
         client_id = config.HH_CLIENT_ID.get_secret_value() if config.HH_CLIENT_ID else None
         client_secret = config.HH_CLIENT_SECRET.get_secret_value() if config.HH_CLIENT_SECRET else None
@@ -120,25 +120,37 @@ class HeadHunterAPIAsync:
         headers = {"User-Agent": config.HH_USER_AGENT, "Content-Type": "application/x-www-form-urlencoded"}
 
         try:
-            timeout = aiohttp.ClientTimeout(total=10)
-            async with (
-                aiohttp.ClientSession(timeout=timeout) as session,
-                session.post(url, data=payload, headers=headers) as resp,
-            ):
+            async with aiohttp.ClientSession() as session, session.post(
+                url, data=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
                 if resp.status == 200:
                     token_data = await resp.json()
                     self._token = token_data.get("access_token")
-                    expires_in = token_data.get("expires_in", 86400)
+                    expires_in = token_data.get("expires_in", 3600)
                     self._token_expires_at = time.time() + expires_in - 60
-                    logger.info("app_token_obtained_async")
+                    logger.info("app_token_obtained_async", expires_in=expires_in)
                     return Ok(True)
-                else:
-                    text = await resp.text()
-                    return Err(ApiError(
-                        message=f"Token request failed: {resp.status}",
-                        status_code=resp.status, endpoint="token", detail=text[:200]
-                    ))
+
+                text = (await resp.text())[:200]
+                # HH троттлит /token: повторная выдача сразу после первой
+                # отдаёт 403. Без ретрая это убивало весь сбор в середине.
+                if resp.status in (403, 429) and attempt < 4:
+                    wait = min(30 * (attempt + 1), 120)
+                    logger.warning(
+                        "token_request_throttled_async",
+                        status=resp.status, attempt=attempt + 1, wait=wait, detail=text,
+                    )
+                    await asyncio.sleep(wait)
+                    return await self._get_app_token(attempt + 1)
+
+                return Err(ApiError(
+                    message=f"Token request failed: {resp.status}",
+                    status_code=resp.status, endpoint="token", detail=text
+                ))
         except Exception as e:
+            if attempt < 4:
+                await asyncio.sleep(min(15 * (attempt + 1), 60))
+                return await self._get_app_token(attempt + 1)
             return Err(ApiError(message=f"Token request exception: {e}", endpoint="token"))
 
     def _get_headers(self) -> dict[str, str]:

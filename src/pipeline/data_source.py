@@ -97,6 +97,16 @@ class HhDataSource(DataSourceProtocol):
         hh_api = HeadHunterAPI()
         parser = VacancyParser()
 
+        # main.py не объявляет --interactive/--queries/--area-ids, но стадия
+        # обращается к ним напрямую: без этих значений падал любой запуск
+        # с AttributeError 'Namespace' object has no attribute 'interactive'.
+        if not hasattr(self.args, "interactive"):
+            self.args.interactive = False
+        if not hasattr(self.args, "queries"):
+            self.args.queries = [self.args.query]
+        if not hasattr(self.args, "area_ids"):
+            self.args.area_ids = [self.args.area_id]
+
         use_multiple = (
             self.args.interactive
             or self.args.queries_file is not None

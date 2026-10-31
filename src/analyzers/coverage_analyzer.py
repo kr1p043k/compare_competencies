@@ -365,7 +365,9 @@ class CoverageAnalyzer:
 
             anchors = [m.market_match for m in matched_list if m.market_match]
             anchors.extend(normalize_skill(s) for s in gaps_list[:40])
-            resolved = resolve_scope(self.matcher, discipline_name, anchors, self._scope_overrides)
+            resolved = resolve_scope(
+                self.matcher, discipline_name, anchors, self._scope_overrides
+            )
             if resolved:
                 scope, scope_source = resolved
         except Exception as exc:

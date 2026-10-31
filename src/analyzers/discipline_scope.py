@@ -30,6 +30,8 @@ OVERRIDES_PATH = config.REFERENCE_DIR / "discipline_market_scope.json"
 # Neighbour expansion for the derived scope.
 NEIGHBOURS_PER_ANCHOR = 12
 MIN_NEIGHBOUR_SIM = 0.55
+# Ниже этого размера scope считается тонким и берётся другой источник.
+MIN_RELIABLE_SCOPE = 15
 
 
 def load_overrides(path: Path | None = None) -> dict[str, dict]:
@@ -92,6 +94,7 @@ def resolve_scope(
     discipline_name: str,
     anchors: list[str],
     overrides: dict[str, dict] | None = None,
+    rpd_text: str | None = None,
 ) -> tuple[set[str], str] | None:
     """Return (market skills this discipline is responsible for, source)."""
     overrides = overrides or {}
@@ -111,9 +114,17 @@ def resolve_scope(
     derived: set[str] = set()
     for anchor in anchors:
         derived.update(neighbours(matcher, anchor))
-    if derived:
+    if len(derived) >= MIN_RELIABLE_SCOPE:
         return derived, "derived"
-    return None
+
+    # Few skills on the discipline: lean on the RPD text, which describes it
+    # far better than its name.
+    if rpd_text:
+        from_text = scope_from_text(matcher, rpd_text)
+        if len(from_text) >= MIN_RELIABLE_SCOPE:
+            return from_text, "rpd_text"
+
+    return (derived, "derived") if derived else None
 
 
 def describe(matcher, discipline_name: str, anchors: list[str],
@@ -129,3 +140,82 @@ def describe(matcher, discipline_name: str, anchors: list[str],
         "skills": sorted(entry.get("skills") or []),
         "keywords": list(entry.get("keywords") or []),
     }
+
+# --- RPD full text as a discipline profile -------------------------------
+# data/reference/sfu_annotations_all.json holds the parsed RPD files (source:
+# the university disk). The full text describes the discipline far better than
+# its name, so it is used as an anchor when the skill-derived scope is thin.
+ANNOTATIONS_PATH = config.REFERENCE_DIR / "sfu_annotations_all.json"
+TEXT_SCOPE_LIMIT = 60
+TEXT_SCOPE_MIN_SIM = 0.45
+
+
+def _norm_name(name: str) -> str:
+    return "".join(ch for ch in (name or "").lower() if ch.isalnum())
+
+
+def load_rpd_texts(path: Path | None = None) -> dict[str, str]:
+    """Map normalized discipline name -> RPD text, across every direction."""
+    p = Path(path or ANNOTATIONS_PATH)
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    out: dict[str, str] = {}
+    if not isinstance(data, dict):
+        return out
+    for entries in data.values():
+        if not isinstance(entries, list):
+            continue
+        for item in entries:
+            if not isinstance(item, dict):
+                continue
+            name, text = item.get("name"), item.get("text")
+            if not name or not text:
+                continue
+            key = _norm_name(name)
+            # Keep the longest text per name: some RPDs repeat with truncation.
+            if len(text) > len(out.get(key, "")):
+                out[key] = text
+    return out
+
+
+def find_rpd_text(name: str, texts: dict[str, str]) -> str | None:
+    """Exact normalized match first, then a close-enough name match."""
+    key = _norm_name(name)
+    if not key:
+        return None
+    if key in texts:
+        return texts[key]
+    import difflib
+
+    close = difflib.get_close_matches(key, list(texts), n=1, cutoff=0.86)
+    return texts[close[0]] if close else None
+
+
+def scope_from_text(matcher, text: str,
+                    limit: int = TEXT_SCOPE_LIMIT,
+                    min_sim: float = TEXT_SCOPE_MIN_SIM) -> set[str]:
+    """Nearest market skills to the embedding of a discipline's RPD text."""
+    embeddings = getattr(matcher, "_market_embeddings", None)
+    names = getattr(matcher, "_market_names", None)
+    provider = getattr(matcher, "_embedding_provider", None)
+    if embeddings is None or not names or provider is None or not text:
+        return set()
+    try:
+        vector = provider.encode([text[:4000]], show_progress_bar=False)[0]
+    except Exception:
+        return set()
+    norm = float(np.linalg.norm(vector))
+    if norm == 0:
+        return set()
+    sims = embeddings @ (vector / norm)
+    order = np.argsort(-sims)[: limit * 3]
+    out: set[str] = set()
+    for idx in order:
+        if float(sims[int(idx)]) < min_sim:
+            break
+        out.add(names[int(idx)])
+        if len(out) >= limit:
+            break
+    return out
