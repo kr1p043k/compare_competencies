@@ -4,6 +4,7 @@ import { BookOpen, ChevronDown, Search, Loader2 } from "lucide-react";
 import { api } from "../api";
 import { reportError } from "./../../lib/errors";
 import { PageHeader } from "./PageHeader";
+import { EmptyState } from "./EmptyState";
 
 interface TaxCategory {
   id: string;
@@ -191,9 +192,7 @@ export function TaxonomyBrowser({ showSuggest = false }: { showSuggest?: boolean
         ) : error ? (
           <p className="text-sm text-red-600 text-center py-6">{error}</p>
         ) : filtered.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-6">
-            Ничего не найдено
-          </p>
+          <EmptyState icon={Search} title="Ничего не найдено" description="Попробуйте другой запрос." />
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
             {filtered.map((c) => {

@@ -7,6 +7,7 @@ import { FileText, RefreshCw, AlertCircle, Search, Radio } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { request } from "../../lib/api";
 import { PageHeader } from "./PageHeader";
+import { EmptyState } from "./EmptyState";
 
 const MAX_LINES = 500;
 
@@ -219,7 +220,11 @@ function LogsTabBase() {
         <CardContent>
           {loading && <p className="text-sm text-gray-500 dark:text-slate-400">Загрузка...</p>}
           {!loading && filtered.length === 0 && (
-            <p className="text-sm text-gray-400 dark:text-slate-500 py-8 text-center">Записей не найдено</p>
+            <EmptyState
+              icon={FileText}
+              title="Записей не найдено"
+              description="Измените фильтр по уровню или обновите список."
+            />
           )}
           <pre
             ref={scrollRef}

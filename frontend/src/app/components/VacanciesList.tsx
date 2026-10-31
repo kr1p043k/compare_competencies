@@ -23,6 +23,7 @@ import {
 import { Search, X, Filter, Briefcase, Loader2, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, LayoutGrid, List, Database, Rocket, Globe, MapPin, ChevronDown, Download } from "lucide-react";
 import { reportError } from "./../../lib/errors";
 import { download, request, saveBlob } from "../../lib/api";
+import { EmptyState } from "./EmptyState";
 
 const HH_REGIONS = [
   "Москва", "Санкт-Петербург", "Екатеринбург", "Новосибирск",
@@ -517,7 +518,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                               groups.get(letter)!.push(c);
                             }
                             if (filtered.length === 0) {
-                              return <p className="p-3 text-xs text-blue-500">Ничего не найдено</p>;
+                              return <EmptyState size="compact" icon={Search} title="Ничего не найдено" />;
                             }
                             return [...groups.entries()]
                               .sort(([a], [b]) => a.localeCompare(b, "ru"))
@@ -1022,13 +1023,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         >
           <Card className="border-2 border-slate-200 dark:border-slate-700">
             <CardContent className="pt-6 text-center py-20">
-              <Database className="size-16 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                Вакансии не найдены
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400 mb-4">
-                По вашему запросу ничего не найдено
-              </p>
+              <EmptyState
+                icon={Database}
+                title="Вакансии не найдены"
+                description="По вашему запросу ничего не найдено. Измените фильтры или запустите сбор заново."
+              />
               <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-left max-w-lg mx-auto">
                 <p className="text-sm text-blue-800 dark:text-blue-200">
                   <Database className="size-4 inline mr-1" />
