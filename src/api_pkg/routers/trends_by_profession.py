@@ -5,14 +5,15 @@ import json
 import re
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.routers.auth import require_authenticated
 
 logger = structlog.get_logger(__name__)
-router = APIRouter(tags=["trends"])
+router = APIRouter(tags=["trends"], dependencies=[Depends(require_authenticated())])
 limiter = Limiter(key_func=get_remote_address)
 
 

@@ -67,19 +67,16 @@ def _hash_token(token: str) -> str:
 
 
 def _request_token(request: Request) -> str:
+    """Только заголовок Authorization или cookie.
+
+    Раньше токен принимался ещё и из ?token= - он утекает в логи, Referer и
+    историю браузера. Ни фронтенд, ни n8n так не ходят (проверено), поэтому
+    параметр убран.
+    """
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         return auth[7:]
-    cookie_token = request.cookies.get("token", "")
-    if cookie_token:
-        return cookie_token
-    query_token = request.query_params.get("token", "")
-    if query_token:
-        logger.warning(
-            "auth_token_via_query_deprecated",
-            path=request.url.path,
-        )
-    return query_token
+    return request.cookies.get("token", "")
 
 
 async def get_current_user(request: Request) -> dict[str, Any] | None:
@@ -129,6 +126,20 @@ def require_any_role(*roles: str):
             raise HTTPException(status_code=401, detail="Unauthorized")
         if user.get("r") != "admin" and user.get("r") not in roles:
             raise HTTPException(status_code=403, detail="Forbidden")
+        return user
+    return dependency
+
+
+def require_authenticated():
+    """Любой залогиненный пользователь, роль не важна.
+
+    Для read-эндпоинтов (прогнозы, вакансии, таксономия, кластеры), которые
+    раньше отдавались анонимно - как выгрузка датасета в аудите gigachess.
+    """
+    async def dependency(request: Request):
+        user = await get_current_user(request)
+        if user is None:
+            raise HTTPException(status_code=401, detail="Unauthorized")
         return user
     return dependency
 

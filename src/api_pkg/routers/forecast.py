@@ -4,20 +4,20 @@ from datetime import date
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import text
 
 import src.api_pkg.deps as deps
 from src import DomainError, Err, Ok, Result, config
-from src.api_pkg.routers.auth import user_error_detail
+from src.api_pkg.routers.auth import require_authenticated, user_error_detail
 from src.predictors.prophet_forecast import ProphetForecastEngine
 from src.predictors.skill_forecast import ForecastResult, SkillForecastEngine
 from src.utils import safe_read_json
 
 logger = structlog.get_logger(__name__)
-router = APIRouter(tags=["forecast"])
+router = APIRouter(tags=["forecast"], dependencies=[Depends(require_authenticated())])
 limiter = Limiter(key_func=get_remote_address)
 
 

@@ -4,11 +4,12 @@ import json
 from datetime import UTC, datetime, timedelta, timezone
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src.api_pkg import deps
+from src.api_pkg.routers.auth import require_authenticated
 from src.models.api_responses import (
     VacanciesResponse,
     VacancyDetailResponse,
@@ -17,7 +18,7 @@ from src.models.api_responses import (
 
 logger = structlog.get_logger("api")
 
-router = APIRouter(tags=["vacancies"])
+router = APIRouter(tags=["vacancies"], dependencies=[Depends(require_authenticated())])
 limiter = Limiter(key_func=get_remote_address)
 
 

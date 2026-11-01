@@ -1,12 +1,13 @@
 """GET /api/vacancies/by-skill - список вакансий с указанным навыком."""
 import json
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 
+from src.api_pkg.routers.auth import require_authenticated
 from src.database import async_session_factory
 
-router = APIRouter(tags=["vacancies"])
+router = APIRouter(tags=["vacancies"], dependencies=[Depends(require_authenticated())])
 
 
 @router.get("/vacancies/by-skill")

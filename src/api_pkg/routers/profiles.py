@@ -1,6 +1,7 @@
 """Profile, recommendation, profession evaluation endpoints."""
 
 import asyncio
+import contextlib
 from typing import Any
 
 import numpy as np
@@ -24,7 +25,6 @@ from src.models.enums import ExperienceLevel
 from src.models.student import StudentProfile
 from src.parsing.skills.skill_validator import SkillValidator
 from src.predictors.recommendation_engine import RecommendationEngine
-import contextlib
 
 logger = structlog.get_logger("api")
 
@@ -84,7 +84,7 @@ async def compare_profiles(
     return {"profiles": evaluations}
 
 
-@router.get("/profiles")
+@router.get("/profiles", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
 @limiter.limit("60/minute")
 async def list_profiles(request: Request):
     """Profile names available in memory (built-ins + custom created via POST /profiles/custom)."""
@@ -158,7 +158,7 @@ def _clean_str_list(items: Any, *, max_len: int, field: str) -> list[str]:
     return out
 
 
-@router.get("/profiles/custom/options")
+@router.get("/profiles/custom/options", dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))])
 @limiter.limit("60/minute")
 async def custom_profile_options(request: Request):
     """Picker data: competencies union (memory profiles + files) + top-30 market technologies. Read-only."""

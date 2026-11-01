@@ -229,12 +229,13 @@ def domain_analyzer():
 
 
 def open_all_gates(app, role="admin"):
-    """Stub every require_any_role gate on the app (deterministic auth for
-    endpoint-logic tests; auth itself is covered by dedicated security tests)."""
+    """Stub every require_any_role / require_authenticated gate on the app
+    (deterministic auth for endpoint-logic tests; auth itself is covered by
+    dedicated security tests)."""
     for route in app.routes:
         dep = getattr(route, "dependant", None)
         for sub in (getattr(dep, "dependencies", None) or []):
             fn = sub.call
-            if getattr(fn, "__qualname__", "").startswith("require_any_role"):
+            if getattr(fn, "__qualname__", "").startswith(("require_any_role", "require_authenticated")):
                 app.dependency_overrides[fn] = lambda: {"u": "test", "r": role}
     return app

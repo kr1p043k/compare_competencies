@@ -111,6 +111,28 @@ def create_app() -> FastAPI:
         )
         return response
 
+    @app.middleware("http")
+    async def add_security_headers_middleware(request: Request, call_next):
+        """Заголовки безопасности на все ответы API.
+
+        До этого отдавали только X-Request-ID/X-Process-Time: как и в аудите
+        gigachess, не было ни HSTS, ни X-Frame-Options, ни nosniff, ни
+        Referrer-Policy. CSP не ставим: /docs рендерит Swagger с инлайн-скриптами,
+        а фронтенд раздаётся отдельным сервером - ломать его нам нечем.
+        """
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault(
+            "Permissions-Policy", "geolocation=(), microphone=(), camera=()"
+        )
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+        response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
         request_id = getattr(request.state, "request_id", "unknown")

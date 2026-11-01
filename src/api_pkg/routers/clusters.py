@@ -1,17 +1,18 @@
 """Clusters summary and detail."""
 
 import structlog
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
+from src.api_pkg.routers.auth import require_authenticated
 from src.models.api_responses import ClustersByLevelResponse, ClusterSummaryResponse
 from src.models.enums import ExperienceLevel
 
 logger = structlog.get_logger("api")
 
-router = APIRouter(tags=["clusters"])
+router = APIRouter(tags=["clusters"], dependencies=[Depends(require_authenticated())])
 limiter = Limiter(key_func=get_remote_address)
 
 

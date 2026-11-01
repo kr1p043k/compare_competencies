@@ -8,7 +8,7 @@ from slowapi.util import get_remote_address
 from src import Err, Ok
 from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
 from src.api_pkg import deps
-from src.api_pkg.routers.auth import user_error_detail
+from src.api_pkg.routers.auth import require_authenticated, user_error_detail
 from src.models.api_responses import (
     KRMCoverageResponse,
     ProfessionDetailResponse,
@@ -18,7 +18,7 @@ from src.models.api_responses import (
 
 logger = structlog.get_logger("api")
 
-router = APIRouter(tags=["taxonomy"])
+router = APIRouter(tags=["taxonomy"], dependencies=[Depends(require_authenticated())])
 limiter = Limiter(key_func=get_remote_address)
 
 

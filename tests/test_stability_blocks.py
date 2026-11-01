@@ -79,10 +79,12 @@ class TestAuthTokenPriority:
         r = _req(query=b"token=Q", cookies="token=C")
         assert _request_token(r) == "C"
 
-    def test_query_still_works_soft(self):
+    def test_query_token_ignored(self):
+        """Токен в ?token= больше не принимается: он утекает в логи, Referer и
+        историю браузера. Ни фронтенд, ни n8n так не ходят."""
         from src.api_pkg.routers.auth import _request_token
 
-        assert _request_token(_req(query=b"token=Q")) == "Q"
+        assert _request_token(_req(query=b"token=Q")) == ""
         assert _request_token(_req()) == ""
 
 
