@@ -2,7 +2,7 @@
 
 ## Обзор
 
-Competency Gap Analyzer — система анализа соответствия учебных компетенций студентов требованиям IT-рынка. Собирает вакансии с hh.ru, нормализует навыки, выполняет gap-анализ и формирует персонализированные рекомендации.
+Competency Gap Analyzer - система анализа соответствия учебных компетенций студентов требованиям IT-рынка. Собирает вакансии с hh.ru, нормализует навыки, выполняет gap-анализ и формирует персонализированные рекомендации.
 
 ## Pipeline
 
@@ -35,25 +35,25 @@ Stage 5: Gap Analysis         → gap_runner.py
 
 ```
 CompetencyComparator
-  ├── TF-IDF mode (legacy) — TfidfVectorizer + cosine_similarity
+  ├── TF-IDF mode (legacy) - TfidfVectorizer + cosine_similarity
   └── Embedding mode
         └── EmbeddingComparator
-              ├── cosine_similarity (sklearn) — основной движок
+              ├── cosine_similarity (sklearn) - основной движок
               │     SentenceTransformer → эмбеддинги 768d
               │     Атомарный кэш через joblib + ArtifactManifest
               │
               └── Extra engines (опционально, через Protocol)
                     ├── JaccardEngine
                     │     rapidfuzz.token_sort_ratio
-                    │     Не требует модели — чисто строки
+                    │     Не требует модели - чисто строки
                     └── EnsembleEngine
                           Взвешенная композиция движков
                           {cosine: 0.7, jaccard: 0.3}
 
 SimilarityEngine (Protocol)
   │
-  ├── JaccardEngine        — fuzzy string, без модели
-  ├── EnsembleEngine       — взвешенная композиция
+  ├── JaccardEngine        - fuzzy string, без модели
+  ├── EnsembleEngine       - взвешенная композиция
   └── (любой кастомный движок, реализующий Protocol)
 ```
 
@@ -75,7 +75,7 @@ SimilarityEngine (Protocol)
 Оценка соответствия навыков студента доменам целевой профессии. Средневзвешенное покрытие по всем доменам профессии (Backend, Data Science, DevOps и т.д.) с детализацией по каждому домену.
 
 ### ML-ранжирование навыков (LTR + XGBoost)
-Обучение на собранных вакансиях, предсказание важности недостающих навыков (0–100%), генерация объяснений с помощью SHAP (всегда включён, fallback на частотный/уровневый анализ при ошибке SHAP). Персонализированные признаки: семантическая близость к профилю, категория навыка, уровень. Кросс-доменные объяснения: если навык относится к неосновному для студента домену (например, Docker для Data Science), в why_important добавляется пояснение про частоту запроса навыка в другом домене.
+Обучение на собранных вакансиях, предсказание важности недостающих навыков (0-100%), генерация объяснений с помощью SHAP (всегда включён, fallback на частотный/уровневый анализ при ошибке SHAP). Персонализированные признаки: семантическая близость к профилю, категория навыка, уровень. Кросс-доменные объяснения: если навык относится к неосновному для студента домену (например, Docker для Data Science), в why_important добавляется пояснение про частоту запроса навыка в другом домене.
 
 ### Кластеризация вакансий
 KMeans/HDBSCAN с автоопределением числа кластеров по silhouette score. Определение профессиональных ролей с человекочитаемыми именами на основе таксономии. Ближайшие роли показываются вместе с семантической близостью и покрытием навыков.
@@ -90,18 +90,18 @@ KMeans/HDBSCAN с автоопределением числа кластеров
 Строгие Pydantic-модели для данных между этапами пайплайна вместо сырых dict. Явные поля, валидация на лету, поддержка IDE-автодополнения.
 
 ### Result[T, E] pattern
-Явная обработка ошибок без исключений. Ok(value) / Err(error) с методами unwrap, unwrap_or, ok, err — замена try/except в бизнес-логике.
+Явная обработка ошибок без исключений. Ok(value) / Err(error) с методами unwrap, unwrap_or, ok, err - замена try/except в бизнес-логике.
 
-### monitoring/metrics.py — Prometheus-метрики
+### monitoring/metrics.py - Prometheus-метрики
 Histogram для длительности стадий/запросов, Counter для ошибок/рекомендаций, Gauge для состояния пайплайна. Экспорт через `/metrics` (text/plain) и `/api/admin/monitoring` (JSON).
 
 **LLM-метрики:**
-- `llm_requests_total{model, status}` — количество запросов к Ollama (ok/error)
-- `llm_request_duration_seconds{model}` — длительность запросов (гистограмма)
+- `llm_requests_total{model, status}` - количество запросов к Ollama (ok/error)
+- `llm_request_duration_seconds{model}` - длительность запросов (гистограмма)
 
-**cAdvisor** — метрики Docker-контейнеров (CPU, RAM, Network, Disk): `container_cpu_usage_seconds_total`, `container_memory_usage_bytes`
+**cAdvisor** - метрики Docker-контейнеров (CPU, RAM, Network, Disk): `container_cpu_usage_seconds_total`, `container_memory_usage_bytes`
 
-### vector_search/faiss_index.py — FAISS-индексы
+### vector_search/faiss_index.py - FAISS-индексы
 Обёртка над FAISS. FlatIP (точное косинусное сходство) и HNSW (приближённое для >10k векторов). Сохранение/загрузка через `.faiss` + `.pkl` (метаданные).
 
 ### REST API (api_pkg)
@@ -109,19 +109,19 @@ Histogram для длительности стадий/запросов, Counter
 
 ### n8n интеграция
 Внешний оркестратор n8n запускает воркфлоу по расписанию и через webhook'и. Документация: `src/n8n/n8n_guide.md`. Доступные воркфлоу:
-- `nightly_pipeline.json` — еженочный пайплайн + Telegram
-- `trend_alert.json` — алёрт при скачке тренда
-- `student_onboarding.json` — приём студента
-- `weekly_report.json` — еженедельный отчёт (LLM + Telegram + Email + Postgres)
+- `nightly_pipeline.json` - еженочный пайплайн + Telegram
+- `trend_alert.json` - алёрт при скачке тренда
+- `student_onboarding.json` - приём студента
+- `weekly_report.json` - еженедельный отчёт (LLM + Telegram + Email + Postgres)
 
 ### Pydantic API response models
 FastAPI-эндпоинты возвращают строго типизированные Pydantic-схемы (30+ моделей). Документация /docs и /openapi.json генерируется автоматически.
 
 ### Mypy strict checking
-Весь проект проверяется mypy --strict. Типизация Generics, Literal, Union — отлов ошибок на этапе CI.
+Весь проект проверяется mypy --strict. Типизация Generics, Literal, Union - отлов ошибок на этапе CI.
 
 ### Мониторинг (Prometheus + `/metrics`)
-Модуль `src/monitoring/metrics.py` — Prometheus-метрики (Histogram, Counter, Gauge) для:
+Модуль `src/monitoring/metrics.py` - Prometheus-метрики (Histogram, Counter, Gauge) для:
 - Pipeline: количество запусков, ошибок, длительность по стадиям
 - API: количество запросов, длительность, статусы
 - LTR-модель: количество рекомендаций, ошибки SHAP
@@ -132,14 +132,14 @@ FastAPI-эндпоинт `GET /metrics` для сбора Prometheus-серве�
 Instrumentation пайплайна: `DataCollectionStage`, `ModelTrainingStage`, `GapAnalysisStage` обёрнуты в `@track_pipeline_stage`.
 
 **Grafana дашборды:**
-- **Server Monitoring** — CPU, RAM, Disk, Network, Docker containers, PostgreSQL, Backend health
-- **Application Monitoring** — Backend requests/response time, PostgreSQL transactions/cache
-- **LLM & AI Monitoring** — LLM requests, error rate, duration percentiles (P50/P90/P95/P99), Docker container CPU/RAM, PostgreSQL cache hit ratio
+- **Server Monitoring** - CPU, RAM, Disk, Network, Docker containers, PostgreSQL, Backend health
+- **Application Monitoring** - Backend requests/response time, PostgreSQL transactions/cache
+- **LLM & AI Monitoring** - LLM requests, error rate, duration percentiles (P50/P90/P95/P99), Docker container CPU/RAM, PostgreSQL cache hit ratio
 
 **cAdvisor** собирает метрики Docker-контейнеров и доступен через Prometheus (job: `cadvisor`). Позволяет видеть per-container CPU, memory, network, disk.
 
 ### Векторный поиск (FAISS)
-Модуль `src/vector_search/faiss_index.py` — обёртка над FAISS (FlatIP / HNSW). `build`/`search`/`save`/`load`. Экспортируется через `create_faiss_index()`. Готов к интеграции в `EmbeddingComparator` / `BM25Ranker` при росте объёма векторов (>1000).
+Модуль `src/vector_search/faiss_index.py` - обёртка над FAISS (FlatIP / HNSW). `build`/`search`/`save`/`load`. Экспортируется через `create_faiss_index()`. Готов к интеграции в `EmbeddingComparator` / `BM25Ranker` при росте объёма векторов (>1000).
 
 ### Вспомогательные скрипты
 Расширение белого списка навыков (`scripts/extend_it_skills.py`). Проверка кластеров (`scripts/check_clusters.py`). Обучение кластеров (`scripts/train_clusters.py`). Полная пересборка проекта (`scripts/full_rebuild.py`).
@@ -150,27 +150,27 @@ SPA с корневым состоянием в `App.tsx`, 12+ компонен�
 ## Ключевые модули
 
 ### Пайплайн (`src/pipeline/`)
-- **orchestrator.py** — PipelineOrchestrator: запуск стадий, прогресс, event bus
-- **stages.py** — 8 конкретных этапов (DataCollection, ClusterTraining, ModelTraining, GapAnalysis и др.)
-- **progress.py** — SSE-прогресс через progress.json
-- **clean.py** — очистка чистых отчётов и промежуточных данных
+- **orchestrator.py** - PipelineOrchestrator: запуск стадий, прогресс, event bus
+- **stages.py** - 8 конкретных этапов (DataCollection, ClusterTraining, ModelTraining, GapAnalysis и др.)
+- **progress.py** - SSE-прогресс через progress.json
+- **clean.py** - очистка чистых отчётов и промежуточных данных
 - Инструментирование: стадии DataCollection, ModelTraining, GapAnalysis обёрнуты в `@track_pipeline_stage`
 
 ### Парсинг (`src/parsing/`)
-- **hh_api.py** — синхронный клиент hh.ru с кэшированием токена
-- **bm25_ranker.py** — BM25Okapi с лемматизацией и minmax-нормализацией
-- **hybrid_weight_calculator.py** — BM25 + SentenceTransformer + PCA
-- **skill_normalizer.py** — синонимы, fuzzy-матчинг, приведение к канону
+- **hh_api.py** - синхронный клиент hh.ru с кэшированием токена
+- **bm25_ranker.py** - BM25Okapi с лемматизацией и minmax-нормализацией
+- **hybrid_weight_calculator.py** - BM25 + SentenceTransformer + PCA
+- **skill_normalizer.py** - синонимы, fuzzy-матчинг, приведение к канону
 
 ### Анализ (`src/analyzers/`)
-- **profile_evaluator.py** — центральный модуль: считает покрытие, готовность, gap
-- **profession_taxonomy.py** — таксономия профессий: домены, покрытие
-- **skill_taxonomy.py** — 19 категорий навыков (Singleton)
-- **vacancy_clustering.py** — KMeans/HDBSCAN с автоопределением k
+- **profile_evaluator.py** - центральный модуль: считает покрытие, готовность, gap
+- **profession_taxonomy.py** - таксономия профессий: домены, покрытие
+- **skill_taxonomy.py** - 19 категорий навыков (Singleton)
+- **vacancy_clustering.py** - KMeans/HDBSCAN с автоопределением k
 
 ### Рекомендации (`src/predictors/`)
-- **recommendation_engine.py** — смешивание evaluator + LTR + тренды + домены
-- **ltr_recommendation_engine.py** — XGBoost + SHAP
+- **recommendation_engine.py** - смешивание evaluator + LTR + тренды + домены
+- **ltr_recommendation_engine.py** - XGBoost + SHAP
 
 ### API (`src/api_pkg/`)
 FastAPI-сервер: middleware (request_id, body limit, CORS), rate limiting, роутеры для рекомендаций, pipeline, статуса. Эндпоинт `GET /metrics` для Prometheus, `GET /api/admin/monitoring` для фронтенда.
@@ -187,17 +187,17 @@ FAISS-обёртка: `FaissIndex` с поддержкой FlatIP и HNSW. Ме�
 **Критерии спама (каждый снижает score):**
 | Флаг | Условие | Вычет |
 |------|---------|-------|
-| `NO_DESCRIPTION` | Описание отсутствует | –0.25 |
-| `TOO_SHORT_DESCRIPTION` | Описание < 100 символов | –0.15 |
-| `NO_SKILLS` | Нет key_skills | –0.20 |
-| `TOO_FEW_SKILLS` | Меньше 2 key_skills | –0.10 |
-| `SUSPICIOUS_EMPLOYER` | Работодатель — кадровое агентство / рекрутинг / аутсорс | –0.30 |
-| `GENERIC_NAME` | Название общее ("вакансия", "работа", "водитель") | –0.30 |
-| `PROMO_DESCRIPTION` | Рекламный текст ("самая высокая зарплата") | –0.20 |
-| `EXCESSIVE_URLS` | > 3 ссылок в описании | –0.15 |
-| `SALARY_ANOMALY` | Зарплата > 1 млн | –0.20 |
+| `NO_DESCRIPTION` | Описание отсутствует | -0.25 |
+| `TOO_SHORT_DESCRIPTION` | Описание < 100 символов | -0.15 |
+| `NO_SKILLS` | Нет key_skills | -0.20 |
+| `TOO_FEW_SKILLS` | Меньше 2 key_skills | -0.10 |
+| `SUSPICIOUS_EMPLOYER` | Работодатель - кадровое агентство / рекрутинг / аутсорс | -0.30 |
+| `GENERIC_NAME` | Название общее ("вакансия", "работа", "водитель") | -0.30 |
+| `PROMO_DESCRIPTION` | Рекламный текст ("самая высокая зарплата") | -0.20 |
+| `EXCESSIVE_URLS` | > 3 ссылок в описании | -0.15 |
+| `SALARY_ANOMALY` | Зарплата > 1 млн | -0.20 |
 
-Итоговый `score = max(0, 1 - сумма_вычетов)`. Если `score < 0.5` — вакансия помечается спамом.
+Итоговый `score = max(0, 1 - сумма_вычетов)`. Если `score < 0.5` - вакансия помечается спамом.
 
 **Интеграция:** результат `filter_vacancies()` передаётся в `VacancyParser.aggregate_to_dataframe()`, который добавляет в Excel колонки «Спам» и «Причина спама».
 
@@ -233,7 +233,7 @@ FAISS-обёртка: `FaissIndex` с поддержкой FlatIP и HNSW. Ме�
                        ↓
               EmbeddingComparator
                 └── cosine_similarity (sklearn), порог 0.6
-              (Jaccard/BM25/Ensemble — только lab/sweep-инструменты в
+              (Jaccard/BM25/Ensemble - только lab/sweep-инструменты в
               scripts/benchmark_matching.py, в прод-пути не используются)
 
               Метрики + рекомендации → data/result/
@@ -241,9 +241,9 @@ FAISS-обёртка: `FaissIndex` с поддержкой FlatIP и HNSW. Ме�
 
 ## Профили студентов
 
-- **base** — базовый набор компетенций (Junior Data Scientist)
-- **dc** — дополнительный набор (Middle Data Scientist)
-- **top_dc** — углублённый набор (Senior Data Scientist)
+- **base** - базовый набор компетенций (Junior Data Scientist)
+- **dc** - дополнительный набор (Middle Data Scientist)
+- **top_dc** - углублённый набор (Senior Data Scientist)
 
 ## Справочники (`data/reference/`)
 
@@ -263,21 +263,21 @@ rapidfuzz (JaccardEngine), joblib (сериализация вместо pickle)
 ## Развёртывание (Deployment)
 
 ### Docker-сервер (`compareserver`, Tailscale 100.81.51.120)
-- **backend** (`:8000`) — FastAPI, доступен через Tailscale Funnel: `https://compareserver.tailb909df.ts.net/`
-- **frontend** (`:8080`) — Vite SPA, nginx с `try_files` для SPA-роутинга, прокси `/api/ → backend:8000`
-- **ollama-qwen** (`:11434`) — LLM для генерации
-- **postgres** (`:5432`) — основная БД
-- **grafana** (`:3001`), **prometheus** (`:9090`), **cadvisor** (`:9100`), **postgres-exporter** (`:9187`) — мониторинг
+- **backend** (`:8000`) - FastAPI, доступен через Tailscale Funnel: `https://compareserver.tailb909df.ts.net/`
+- **frontend** (`:8080`) - Vite SPA, nginx с `try_files` для SPA-роутинга, прокси `/api/ → backend:8000`
+- **ollama-qwen** (`:11434`) - LLM для генерации
+- **postgres** (`:5432`) - основная БД
+- **grafana** (`:3001`), **prometheus** (`:9090`), **cadvisor** (`:9100`), **postgres-exporter** (`:9187`) - мониторинг
 
 ### Публичный сервер (`AdminVPS`, 5.253.61.76, ISPmanager)
-- **laconiait.ru** — SPA (Vite build, `frontend/dist/`), заливается по FTP
-- **nginx** управляется ISPmanager — нет прямого доступа к конфигу; `try_files` для SPA-роутинга не поддерживается без Semantic URL
-- **PHP-прокси (`/api.php?target=...`)** — обходное решение: PHP-скрипт на корне сайта проксирует запросы к бэкенду через Tailscale Funnel (`compareserver.tailb909df.ts.net`). Все `/api/` вызовы в скомпилированном JS заменены на `/api.php?target=/`
+- **laconiait.ru** - SPA (Vite build, `frontend/dist/`), заливается по FTP
+- **nginx** управляется ISPmanager - нет прямого доступа к конфигу; `try_files` для SPA-роутинга не поддерживается без Semantic URL
+- **PHP-прокси (`/api.php?target=...`)** - обходное решение: PHP-скрипт на корне сайта проксирует запросы к бэкенду через Tailscale Funnel (`compareserver.tailb909df.ts.net`). Все `/api/` вызовы в скомпилированном JS заменены на `/api.php?target=/`
 
 ### Скрипты деплоя
-- **`update-deployment.sh`** — полный цикл: бэкап volumes + БД → git pull → compose down → build → up → health check → rollback при ошибке
-- **`backup-volumes.sh`** — бэкап всех Docker volumes и дампа PostgreSQL
-- **`seed_users.py`** + **`users.json`** — наполнение пользователей (admin/teacher/student) через `asyncpg`
+- **`update-deployment.sh`** - полный цикл: бэкап volumes + БД → git pull → compose down → build → up → health check → rollback при ошибке
+- **`backup-volumes.sh`** - бэкап всех Docker volumes и дампа PostgreSQL
+- **`seed_users.py`** + **`users.json`** - наполнение пользователей (admin/teacher/student) через `asyncpg`
 
 ### CI/CD (GitHub Actions)
 - Пуш в `main` → Tailscale authkey → appleboy/ssh-action → `update-deployment.sh` на compareserver
@@ -285,4 +285,4 @@ rapidfuzz (JaccardEngine), joblib (сериализация вместо pickle)
 
 ## Планируемые улучшения
 
-*(список закрыт — приоритеты пересмотрены)*
+*(список закрыт - приоритеты пересмотрены)*

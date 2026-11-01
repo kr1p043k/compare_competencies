@@ -114,7 +114,7 @@ async def build_test_set(pool) -> list[dict]:
     print("  B exact_noisy: 30")
 
     # ── Category C: paraphrase easy (40) ──
-    # From competency_skills where match_type is fuzzy/stem — already matched by fuzzy
+    # From competency_skills where match_type is fuzzy/stem - already matched by fuzzy
     rows = await pool.fetch("""
         SELECT s.name AS skill, cs.source_text
         FROM competency_skills cs
@@ -129,7 +129,7 @@ async def build_test_set(pool) -> list[dict]:
         idx += 1
     print(f"  C paraphrase_easy: {len(rows)}")
 
-    # ── Category D: long phrase (40) — HARD for fuzzy, requires semantic ──
+    # ── Category D: long phrase (40) - HARD for fuzzy, requires semantic ──
     # KSA >40 chars matched to market skill via competency_skills
     rows = await pool.fetch("""
         SELECT k.original_text, s.name
@@ -147,7 +147,7 @@ async def build_test_set(pool) -> list[dict]:
         idx += 1
     print(f"  D long_phrase: {len(rows)}")
 
-    # ── Category E: cross-language (30) — RU KSA → EN skill ──
+    # ── Category E: cross-language (30) - RU KSA → EN skill ──
     rows = await pool.fetch("""
         SELECT s.name AS skill, k.original_text AS ru_text
         FROM competency_skills cs
@@ -165,7 +165,7 @@ async def build_test_set(pool) -> list[dict]:
     print(f"  E cross_language: {len(rows)}")
 
     # ── Category F: hard synonyms (20) ──
-    # Non-trivial synonyms from normalizer map — pairs where normalizer DOESN'T match exact
+    # Non-trivial synonyms from normalizer map - pairs where normalizer DOESN'T match exact
     hard_synonyms = [
         ("REST API", "api"), ("GraphQL API", "api"), ("микросервис", "microservice"),
         ("контейнеризация", "containerization"), ("сеть", "network"),
@@ -184,7 +184,7 @@ async def build_test_set(pool) -> list[dict]:
         idx += 1
     print("  F hard_synonyms: 20")
 
-    # ── Category G: negative same-domain (80) — HARD, traps fuzzy ──
+    # ── Category G: negative same-domain (80) - HARD, traps fuzzy ──
     # Same competency, semantically different skills
     rows = await pool.fetch("""
         SELECT s1.name AS skill1, s2.name AS skill2, c1.code AS comp1
@@ -206,8 +206,8 @@ async def build_test_set(pool) -> list[dict]:
         idx += 1
     print(f"  G negative_same_domain: {len(rows)}")
 
-    # ── Category H: negative adversarial (30) — substring traps, cross-domain ──
-    # Substring trap: "python" vs "python for data science" — partial_ratio succeeds
+    # ── Category H: negative adversarial (30) - substring traps, cross-domain ──
+    # Substring trap: "python" vs "python for data science" - partial_ratio succeeds
     substring_traps = [
         ("python", "python for data science"),
         ("java", "javascript"),
@@ -258,7 +258,7 @@ async def build_test_set(pool) -> list[dict]:
         idx += 1
     print("  I noise: 30")
 
-    # ── Category J: no-exact-match (30) — KSA without competency_skills ──
+    # ── Category J: no-exact-match (30) - KSA without competency_skills ──
     rows = await pool.fetch("""
         SELECT k.original_text
         FROM ksa_entries k
@@ -359,7 +359,7 @@ async def run_predictions(pool, test_set: list[dict]) -> list[dict]:
             except Exception:
                 pass
 
-        # L4: ensemble score (simplified — use cosine as proxy for full ensemble)
+        # L4: ensemble score (simplified - use cosine as proxy for full ensemble)
 
         # BM25: term-frequency similarity
         bm25_match = False
@@ -495,7 +495,7 @@ def compute_category_metrics(results: list[dict]) -> dict:
 def compute_fuzzy_error_analysis(results: list[dict]) -> dict:
     """Fuzzy false positive / false negative breakdown by category.
 
-    Article use: demonstrates LIMITS of word-containment fuzzy —
+    Article use: demonstrates LIMITS of word-containment fuzzy -
     which categories produce FPs (substring traps, same-domain)
     vs FNs (typos it misses, cross-language).
     """
@@ -742,7 +742,7 @@ def generate_charts(metrics: dict, ablation: dict, timing: dict, results: list[d
     plt.close(fig)
     print("  Saved: chart_accuracy_by_level.png")
 
-    # Chart 2: Ablation — component contribution
+    # Chart 2: Ablation - component contribution
     fig, ax = plt.subplots(figsize=(10, 5))
     comp = ablation["components"]
     names = list(comp.keys())

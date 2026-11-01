@@ -2,20 +2,20 @@
 
 Анализ соответствия учебных компетенций студентов требованиям IT-рынка (hh.ru).
 
-Собирает вакансии, нормализует навыки, выполняет gap-анализ, формирует персонализированные рекомендации через ML (XGBoost + SHAP) с Prometheus/Grafana-мониторингом, n8n-автоматизацией и LLM-интеграцией (внешняя Ollama — `qwen3.6:latest`, 36B, сервер университета).
+Собирает вакансии, нормализует навыки, выполняет gap-анализ, формирует персонализированные рекомендации через ML (XGBoost + SHAP) с Prometheus/Grafana-мониторингом, n8n-автоматизацией и LLM-интеграцией (внешняя Ollama - `qwen3.6:latest`, 36B, сервер университета).
 
 ## Возможности
 
-- **Сбор вакансий** — hh.ru API, синхронный и асинхронный клиенты, 2000 вакансий на запрос
-- **Нормализация навыков** — синонимы, fuzzy-матчинг, BM25 + SentenceTransformer + PCA
-- **Таксономия** — 19 категорий навыков + профессии с привязкой к доменам
-- **Gap-анализ** — дефициты по уровням junior/middle/senior, приоритеты, готовность
-- **ML-ранжирование** — XGBoost ranking-регрессия на суррогатных метках + SHAP (подробности и ограничения — в `docs/methodology.md`)
-- **Кластеризация** — KMeans/HDBSCAN + авто k по silhouette, человекочитаемые имена
-- **Тренды** — динамика спроса по историческим снимкам, временные ряды топ-10
-- **Мониторинг** — Prometheus-метрики пайплайна, API, LTR, LLM; Grafana-дашборды (Server, Application, LLM & AI Monitoring); cAdvisor (Docker-контейнеры); административная панель во фронтенде
-- **Автоматизация** — n8n-воркфлоу: nightly pipeline, student onboarding, trend alerts, weekly reports
-- **Визуализация** — радары, тепловые карты, покрытие, профессии (300 DPI)
+- **Сбор вакансий** - hh.ru API, синхронный и асинхронный клиенты, 2000 вакансий на запрос
+- **Нормализация навыков** - синонимы, fuzzy-матчинг, BM25 + SentenceTransformer + PCA
+- **Таксономия** - 19 категорий навыков + профессии с привязкой к доменам
+- **Gap-анализ** - дефициты по уровням junior/middle/senior, приоритеты, готовность
+- **ML-ранжирование** - XGBoost ranking-регрессия на суррогатных метках + SHAP (подробности и ограничения - в `docs/methodology.md`)
+- **Кластеризация** - KMeans/HDBSCAN + авто k по silhouette, человекочитаемые имена
+- **Тренды** - динамика спроса по историческим снимкам, временные ряды топ-10
+- **Мониторинг** - Prometheus-метрики пайплайна, API, LTR, LLM; Grafana-дашборды (Server, Application, LLM & AI Monitoring); cAdvisor (Docker-контейнеры); административная панель во фронтенде
+- **Автоматизация** - n8n-воркфлоу: nightly pipeline, student onboarding, trend alerts, weekly reports
+- **Визуализация** - радары, тепловые карты, покрытие, профессии (300 DPI)
 
 ## Структура проекта
 
@@ -34,7 +34,7 @@
 │   │   └── 📄 .hh_token_cache.json     # Кэш токена hh.ru API
 │   ├── 📁 history/                     # Снимки частот навыков по датам
 │   │   ├── 📄 freq_latest.json         # Текущий срез
-│   │   └── 📄 freq_2026-*.json         # Исторические (апрель–май 2026, ~40 шт.)
+│   │   └── 📄 freq_2026-*.json         # Исторические (апрель-май 2026, ~40 шт.)
 │   ├── 📁 last_uploaded/               # Последняя загруженная матрица
 │   │   └── 📄 competency_matrix.csv
 │   ├── 📁 models/                      # ML-модели
@@ -367,7 +367,7 @@ cd frontend && npm install && npx vite
 ### Предварительные требования
 
 - Установленный [Docker](https://docs.docker.com/get-docker/) и Docker Compose
-- Файл `.env` — скопировать из `.env.example` и заполнить:
+- Файл `.env` - скопировать из `.env.example` и заполнить:
   ```bash
   cp .env.example .env
   ```
@@ -403,7 +403,7 @@ docker compose up -d backend frontend prometheus grafana postgres-exporter node-
 | `competency-postgres` | Основная БД (pgvector) | `:5432` |
 | `open-webui` | Веб-чат с внешней Ollama (`qwen3.6:latest`) | `:3000` |
 | `n8n` | Автоматизация воркфлоу | `:5678` |
-| `n8n-postgres` | БД n8n | — |
+| `n8n-postgres` | БД n8n | - |
 | `prometheus` | Сбор метрик (30 дней хранения) | `:9090` |
 | `grafana` | Визуализация метрик (admin / 2JQeA2nD7Ndsj1kr) | `:3001` |
 | `postgres-exporter` | Метрики PostgreSQL | `:9187` |
@@ -418,7 +418,7 @@ docker compose up -d backend frontend prometheus grafana postgres-exporter node-
 | http://localhost:8000/docs | Swagger-документация API |
 | http://localhost:8000/metrics | Prometheus-метрики (raw) |
 | http://localhost:8000/api/admin/monitoring | JSON-дашборд мониторинга |
-| http://localhost:3001 | Grafana (admin / 2JQeA2nD7Ndsj1kr) — дашборды: Server, Application, LLM & AI Monitoring |
+| http://localhost:3001 | Grafana (admin / 2JQeA2nD7Ndsj1kr) - дашборды: Server, Application, LLM & AI Monitoring |
 | http://localhost:9090 | Prometheus Web UI |
 | http://localhost:5678 | n8n |
 | http://localhost:3000 | Open WebUI (чат с Qwen 3.6) |
@@ -444,14 +444,14 @@ docker compose build --no-cache
 
 ### Возможные проблемы
 
-1. **Open WebUI не видит модель** — проверьте, что внешняя Ollama доступна: `docker exec openwebui curl -s http://ollama8.r61.net:11434/api/tags`
-2. **Frontend пустая страница** — убедитесь, что `frontend/dist/` существует. Если нет — соберите вручную:
+1. **Open WebUI не видит модель** - проверьте, что внешняя Ollama доступна: `docker exec openwebui curl -s http://ollama8.r61.net:11434/api/tags`
+2. **Frontend пустая страница** - убедитесь, что `frontend/dist/` существует. Если нет - соберите вручную:
    ```bash
    cd frontend && npm install && npm run build
    ```
-3. **Backend не стартует** — проверьте `.env` и что PostgreSQL доступен (он стартует дольше всех).
-4. **Метрики пустые** — выполните pipeline через API (POST `/api/pipeline/full-cycle`) или CLI (`python main.py --it-sector --excel`).
-5. **cAdvisor не видит контейнеры** — проверьте `docker logs cadvisor`. Требуются монтирования `/var/lib/docker/` и `/sys/`.
+3. **Backend не стартует** - проверьте `.env` и что PostgreSQL доступен (он стартует дольше всех).
+4. **Метрики пустые** - выполните pipeline через API (POST `/api/pipeline/full-cycle`) или CLI (`python main.py --it-sector --excel`).
+5. **cAdvisor не видит контейнеры** - проверьте `docker logs cadvisor`. Требуются монтирования `/var/lib/docker/` и `/sys/`.
 
 ## Зависимости
 
@@ -465,10 +465,10 @@ docker compose build --no-cache
 Доля навыков РПД, найденных на рынке хоть как-нибудь: `matched / N`.
 Отвечает на вопрос «сколько есть», но не «насколько точно».
 
-### Quality — качество покрытия (weighted_coverage / average_quality_coverage)
+### Quality - качество покрытия (weighted_coverage / average_quality_coverage)
 Средняя уверенность совпадений. Каждый найденный навык даёт не 1,
 а свой `conf` от матчера (0..1): точное совпадение ≈ 1.0,
-нечёткое/семантическое — 0.5–0.7.
+нечёткое/семантическое - 0.5-0.7.
 
 ```
 Quality дисциплины = Σ conf(найденных навыков) / N навыков РПД
@@ -483,17 +483,17 @@ Quality направления = среднее Quality дисциплин
 
 ### Составные метрики профиля (эвристические индексы)
 
-> Веса ниже — экспертные, не откалиброванные статистически.
+> Веса ниже - экспертные, не откалиброванные статистически.
 > Индексы предназначены для сравнения и ранжирования, а не как точные
-> вероятности. Обоснование и проверка устойчивости — в `docs/methodology.md`.
+> вероятности. Обоснование и проверка устойчивости - в `docs/methodology.md`.
 ```
 Market Coverage = 0.60 × skill_coverage + 0.40 × domain_coverage
 Readiness = 0.45 × market + 0.30 × (сильные / все навыки рынка)
             − 0.25 × (слабые / все навыки рынка), clamp 0..100
 Match Score = (skill_coverage + market_coverage + readiness) / 3
 ```
-Сильный навык — разрыв ниже порога strong (вес 1.0),
-слабый — между strong и weak (вес 0.5), иначе — пробел (вес 0).
+Сильный навык - разрыв ниже порога strong (вес 1.0),
+слабый - между strong и weak (вес 0.5), иначе - пробел (вес 0).
 
 ## Тестирование
 
@@ -515,15 +515,15 @@ python main.py --interactive
 
 ## Мониторинг и инфраструктура
 
-Все сервисы мониторинга разворачиваются через Docker — см. раздел [Запуск через Docker](#запуск-через-docker).
+Все сервисы мониторинга разворачиваются через Docker - см. раздел [Запуск через Docker](#запуск-через-docker).
 
-- **Prometheus** — сбор метрик с backend, postgres-exporter, node-exporter, cAdvisor
-- **Grafana** — визуализация метрик, дашборды: Server Monitoring, Application Monitoring, LLM & AI Monitoring
-- **LLM метрики** — `llm_requests_total` (status: ok/error, model), `llm_request_duration_seconds` (гистограмма)
-- **cAdvisor** — метрики Docker-контейнеров (CPU, RAM, Network, Disk для каждого контейнера)
-- **n8n** — автоматизация: nightly pipeline, student onboarding, trend alerts, weekly report
-- **Ollama** — внешняя LLM (сервер университета, `http://ollama8.r61.net:11434`, модель `qwen3.6:latest`, 36B)
-- **PostgreSQL / pgvector** — основная БД с поддержкой векторного поиска
+- **Prometheus** - сбор метрик с backend, postgres-exporter, node-exporter, cAdvisor
+- **Grafana** - визуализация метрик, дашборды: Server Monitoring, Application Monitoring, LLM & AI Monitoring
+- **LLM метрики** - `llm_requests_total` (status: ok/error, model), `llm_request_duration_seconds` (гистограмма)
+- **cAdvisor** - метрики Docker-контейнеров (CPU, RAM, Network, Disk для каждого контейнера)
+- **n8n** - автоматизация: nightly pipeline, student onboarding, trend alerts, weekly report
+- **Ollama** - внешняя LLM (сервер университета, `http://ollama8.r61.net:11434`, модель `qwen3.6:latest`, 36B)
+- **PostgreSQL / pgvector** - основная БД с поддержкой векторного поиска
 
 ## Скрипты (корень проекта)
 
@@ -538,6 +538,6 @@ python main.py --interactive
 
 ## Документация
 
-- `docs/ARCHITECTURE.md` — архитектура системы
-- `docs/user_manual.md` — полное руководство пользователя
-- `src/n8n/n8n_guide.md` — интеграция с n8n (workflows, credentials, деплой)
+- `docs/ARCHITECTURE.md` - архитектура системы
+- `docs/user_manual.md` - полное руководство пользователя
+- `src/n8n/n8n_guide.md` - интеграция с n8n (workflows, credentials, деплой)

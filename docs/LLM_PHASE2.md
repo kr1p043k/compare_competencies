@@ -1,4 +1,4 @@
-# LLM Phase 2 — сопровождение
+# LLM Phase 2 - сопровождение
 
 ## Env vars
 
@@ -32,7 +32,7 @@ router (/llm/chat, student/teacher wiring) -> LLMClient -> [cache] -> Ollama /v1
 `'extract'`), `src/services/llm_recommend.py` (`enhance_student_recs`,
 `enhance_teacher_recs`, задача `'recommend'`).
 Врезки: `routers/profiles.py:get_recommendations` (студент),
-`routers/teacher.py:get_analysis_discipline` (преподаватель) — обе за флагами,
+`routers/teacher.py:get_analysis_discipline` (преподаватель) - обе за флагами,
 любая ошибка LLM = silent fallback на base.
 
 ## Cache ops
@@ -43,10 +43,10 @@ router (/llm/chat, student/teacher wiring) -> LLMClient -> [cache] -> Ollama /v1
   и `skill_embedding_cache(skill_key PK, model, embedding vector(768))`.
   Модуль: `src/services/llm_cache.py` (`get_cached/put_cached/get_embedding/
   put_embedding`; любая ошибка БД = warning + None, raise нет).
-- NB: в БД есть старая таблица `llm_recommendations` (`sql/004`) — это другой
+- NB: в БД есть старая таблица `llm_recommendations` (`sql/004`) - это другой
   (существовавший ранее) механизм, Phase 2 его не использует.
 - NB: цепочка alembic фрагментирована (8 heads, в БД штамп несуществующей
-  `merge_for_nikita_main`) — таблицы созданы прямым SQL (обратимо через DROP);
+  `merge_for_nikita_main`) - таблицы созданы прямым SQL (обратимо через DROP);
   файл миграции лежит для будущего ремонта цепочки.
 - Осмотр: `SELECT task, model, created_at FROM llm_cache
   ORDER BY created_at DESC LIMIT 20;`
@@ -74,10 +74,10 @@ LLM_ENABLED=1 LLM_EXTRACT=1          # только извлечение ски�
 
 Снять саб-флаги (`LLM_ENHANCE_*=0`, `LLM_EXTRACT=0`): код идёт по старым путям,
 LLM не вызывается. Таблицы `llm_cache`/`skill_embedding_cache` аддитивны,
-откат кода их не требует (пурж/удаление — прямым SQL).
+откат кода их не требует (пурж/удаление - прямым SQL).
 
 ## Тесты
 
-`tests/api/test_llm_phase2.py` — 14 тестов на РЕАЛЬНЫХ биндингах (без шимов):
+`tests/api/test_llm_phase2.py` - 14 тестов на РЕАЛЬНЫХ биндингах (без шимов):
 FAKE chat-клиент (протокол `.chat`), real Postgres `llm_cache` (строки чистятся),
 ассерты дефолтов флагов. Без сети и без Ollama.

@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "ZUN API — преподавательский анализ (знать/уметь/навык)",
+    "title": "ZUN API - преподавательский анализ (знать/уметь/навык)",
     "version": "1.0.0",
-    "description": "Чтение и запись ЗУН (ksa_entries) по направлениям обучения: метаданные, сводки, дерево дисциплин (компетенция → индикаторы → ЗУН), поиск (подстрока + семантический через эмбеддинги), фильтры, связь компетенций с рыночными навыками (competency_skills), покрытие (coverage_analyses), CRUD записей ЗУН, запуск преподавательского анализа и чтение его результатов, импорт ЗУН из KRM JSON (идемпотентно).\n\nВсё построено поверх существующей схемы БД без миграций. Авторизация — JWT-токен (заголовок Authorization: Bearer <token> или cookie token). Доступны роли: admin, teacher, rop. dir_code валидируется регулярным выражением ^\\d{2}\\.\\d{2}\\.\\d{2}(?:_\\w+)?$.",
+    "description": "Чтение и запись ЗУН (ksa_entries) по направлениям обучения: метаданные, сводки, дерево дисциплин (компетенция → индикаторы → ЗУН), поиск (подстрока + семантический через эмбеддинги), фильтры, связь компетенций с рыночными навыками (competency_skills), покрытие (coverage_analyses), CRUD записей ЗУН, запуск преподавательского анализа и чтение его результатов, импорт ЗУН из KRM JSON (идемпотентно).\n\nВсё построено поверх существующей схемы БД без миграций. Авторизация - JWT-токен (заголовок Authorization: Bearer <token> или cookie token). Доступны роли: admin, teacher, rop. dir_code валидируется регулярным выражением ^\\d{2}\\.\\d{2}\\.\\d{2}(?:_\\w+)?$.",
     "contact": {
       "name": "compare_competencies",
       "url": "https://github.com/kr1p043k/compare_competencies"
@@ -16,7 +16,7 @@
     { "bearerAuth": [] }
   ],
   "tags": [
-    { "name": "zun", "description": "ЗУН (знать/уметь/навык) — преподавательский анализ" }
+    { "name": "zun", "description": "ЗУН (знать/уметь/навык) - преподавательский анализ" }
   ],
   "components": {
     "securitySchemes": {
@@ -104,7 +104,7 @@
           "ksa_id": { "type": "string", "format": "uuid" },
           "ksa_type": { "type": "string", "enum": ["knowledge", "abilities", "skills"] },
           "original_text": { "type": "string" },
-          "cleaned_text": { "type": "string", "nullable": true, "description": "Очищенный текст; если NULL — равен original_text" },
+          "cleaned_text": { "type": "string", "nullable": true, "description": "Очищенный текст; если NULL - равен original_text" },
           "competence_id": { "type": "string", "format": "uuid" },
           "competence_code": { "type": "string", "description": "Код компетенции/индикатора, например ОПК-2 или ОПК-2.1" },
           "is_indicator": { "type": "boolean", "description": "true, если запись лежит на индикаторе (parent_id NOT NULL)" },
@@ -301,7 +301,7 @@
         "operationId": "zun_directions",
         "tags": ["zun"],
         "summary": "Направления с наличием ЗУН",
-        "description": "Возвращает все направления обучения с количеством дисциплин и записей ЗУН. Агрегируется по (code, profile): если код встречается с несколькими профилями (например 09.03.01), каждая пара — отдельная строка. Источник: directions → disciplines → competencies → ksa_entries.",
+        "description": "Возвращает все направления обучения с количеством дисциплин и записей ЗУН. Агрегируется по (code, profile): если код встречается с несколькими профилями (например 09.03.01), каждая пара - отдельная строка. Источник: directions → disciplines → competencies → ksa_entries.",
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
@@ -326,7 +326,7 @@
         "operationId": "zun_my_directions",
         "tags": ["zun"],
         "summary": "Направления текущего пользователя",
-        "description": "Для роли rop возвращает направления из таблицы user_directions, привязанные к текущему пользователю (по uid из токена). Для admin/teacher — все направления (тот же ответ, что /teacher/zun/directions).",
+        "description": "Для роли rop возвращает направления из таблицы user_directions, привязанные к текущему пользователю (по uid из токена). Для admin/teacher - все направления (тот же ответ, что /teacher/zun/directions).",
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
@@ -359,7 +359,7 @@
         "operationId": "zun_stats",
         "tags": ["zun"],
         "summary": "Сводка по направлению",
-        "description": "Статистика по направлению: число дисциплин, корневых компетенций и индикаторов, количество ЗУН по типам (knowledge/abilities/skills), число компетенций и дисциплин, имеющих ЗУН, число связей с рыночными навыками, а также покрытие рынка по последнему анализу (coverage_analyses). Если код направления встречается с несколькими профилями — данные агрегируются по всем.",
+        "description": "Статистика по направлению: число дисциплин, корневых компетенций и индикаторов, количество ЗУН по типам (knowledge/abilities/skills), число компетенций и дисциплин, имеющих ЗУН, число связей с рыночными навыками, а также покрытие рынка по последнему анализу (coverage_analyses). Если код направления встречается с несколькими профилями - данные агрегируются по всем.",
         "parameters": [
           {
             "name": "dir_code",
@@ -484,7 +484,7 @@
         "operationId": "zun_discipline_by_name",
         "tags": ["zun"],
         "summary": "Дерево дисциплины по имени",
-        "description": "Резолвит дисциплину по имени в рамках направления (точное совпадение, затем fuzzy: без пробелов и регистра). Ответ — тот же контракт, что у дерева по id.",
+        "description": "Резолвит дисциплину по имени в рамках направления (точное совпадение, затем fuzzy: без пробелов и регистра). Ответ - тот же контракт, что у дерева по id.",
         "parameters": [
           { "name": "discipline_name", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Имя дисциплины (URL-encoded)" },
           { "name": "dir_code", "in": "query", "required": false, "schema": { "type": "string", "default": "09.03.02" } }
@@ -539,7 +539,7 @@
         "operationId": "zun_search_semantic",
         "tags": ["zun"],
         "summary": "Семантический поиск по тексту ЗУН",
-        "description": "Векторный поиск по тексту ЗУН. Запрос кодируется эмбеддинг-моделью (EmbeddingProviderFactory, как в map_ksa_to_skills), сравнивается косинусной близостью с in-memory кэшем эмбеддингов всех ЗУН направления (пересчитывается по MAX(created_at) и TTL 600 с). Возвращает top-N с similarity. Если эмбеддинги недоступны — переключается в режим fallback_substring (обычный ILIKE) и возвращает mode='fallback_substring'.",
+        "description": "Векторный поиск по тексту ЗУН. Запрос кодируется эмбеддинг-моделью (EmbeddingProviderFactory, как в map_ksa_to_skills), сравнивается косинусной близостью с in-memory кэшем эмбеддингов всех ЗУН направления (пересчитывается по MAX(created_at) и TTL 600 с). Возвращает top-N с similarity. Если эмбеддинги недоступны - переключается в режим fallback_substring (обычный ILIKE) и возвращает mode='fallback_substring'.",
         "parameters": [
           { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 2 } },
           { "name": "dir_code", "in": "query", "required": false, "schema": { "type": "string", "default": "09.03.02" } },
@@ -581,7 +581,7 @@
         "operationId": "zun_filter",
         "tags": ["zun"],
         "summary": "Фильтр компетенций",
-        "description": "Компетенции направления по фильтрам: категория (УК/ОПК/ПК/ППК/ИП/ВПК), префикс кода (например ПК-10 → ILIKE 'ПК-10%'), либо точный UUID компетенции. Возвращает компактный список с числом ЗУН. Полные ЗУН — через дерево дисциплины.",
+        "description": "Компетенции направления по фильтрам: категория (УК/ОПК/ПК/ППК/ИП/ВПК), префикс кода (например ПК-10 → ILIKE 'ПК-10%'), либо точный UUID компетенции. Возвращает компактный список с числом ЗУН. Полные ЗУН - через дерево дисциплины.",
         "parameters": [
           { "name": "dir_code", "in": "query", "required": false, "schema": { "type": "string", "default": "09.03.02" } },
           { "name": "category", "in": "query", "required": false, "schema": { "type": "string", "enum": ["УК", "ОПК", "ПК", "ППК", "ИП", "ВПК"] } },
@@ -629,7 +629,7 @@
         "operationId": "zun_competency_skills",
         "tags": ["zun"],
         "summary": "Рыночные навыки компетенции",
-        "description": "Навыки, связанные с компетенцией через competency_skills → skills. Опциональный фильтр по match_type (exact/fuzzy/stem/substring/semantic/explicit — полный список значений, допустимых CHECK-ограничением БД).",
+        "description": "Навыки, связанные с компетенцией через competency_skills → skills. Опциональный фильтр по match_type (exact/fuzzy/stem/substring/semantic/explicit - полный список значений, допустимых CHECK-ограничением БД).",
         "parameters": [
           { "name": "competency_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
           { "name": "match_type", "in": "query", "required": false, "schema": { "type": "string", "enum": ["exact", "fuzzy", "stem", "substring", "semantic", "explicit"] } }
@@ -659,7 +659,7 @@
         "operationId": "zun_competency_coverage",
         "tags": ["zun"],
         "summary": "Покрытие компетенции",
-        "description": "Покрытие рынка для компетенции. В БД coverage_analyses хранит покрытие по дисциплине (competency_id всегда NULL), поэтому возвращается последняя запись покрытия дисциплины, к которой относится компетенция. Если записи нет — coverage: null.",
+        "description": "Покрытие рынка для компетенции. В БД coverage_analyses хранит покрытие по дисциплине (competency_id всегда NULL), поэтому возвращается последняя запись покрытия дисциплины, к которой относится компетенция. Если записи нет - coverage: null.",
         "parameters": [
           { "name": "competency_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
         ],
@@ -691,7 +691,7 @@
         "operationId": "zun_analyze_results",
         "tags": ["zun"],
         "summary": "Результаты преподавательского анализа",
-        "description": "Чтение результатов анализа с диска (data/result/teacher/{dir_code}/): без discipline_id — _summary.json; с discipline_id — файл дисциплины (путь строится через safe-имя, защита от path traversal). Чистое чтение, ничего не пишет.",
+        "description": "Чтение результатов анализа с диска (data/result/teacher/{dir_code}/): без discipline_id - _summary.json; с discipline_id - файл дисциплины (путь строится через safe-имя, защита от path traversal). Чистое чтение, ничего не пишет.",
         "parameters": [
           { "name": "dir_code", "in": "query", "required": false, "schema": { "type": "string", "default": "09.03.02" } },
           { "name": "discipline_id", "in": "query", "required": false, "schema": { "type": "string", "format": "uuid" }, "description": "UUID дисциплины. Без него возвращается _summary.json." }
@@ -733,7 +733,7 @@
         "operationId": "zun_add_entry",
         "tags": ["zun"],
         "summary": "Добавить запись ЗУН",
-        "description": "Добавляет новую запись ЗУН на компетенцию или индикатор. Вставка: original_text = cleaned_text = text, sort_order = MAX(sort_order)+1 по компетенции, parse_version_id = NULL (не создаёт новую parse-версию). Повторная вставка той же (competency_id, ksa_type, original_text) — 409 Conflict.",
+        "description": "Добавляет новую запись ЗУН на компетенцию или индикатор. Вставка: original_text = cleaned_text = text, sort_order = MAX(sort_order)+1 по компетенции, parse_version_id = NULL (не создаёт новую parse-версию). Повторная вставка той же (competency_id, ksa_type, original_text) - 409 Conflict.",
         "parameters": [
           { "name": "competency_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
         ],
@@ -884,7 +884,7 @@
         "operationId": "zun_import",
         "tags": ["zun"],
         "summary": "Импорт ЗУН из KRM JSON",
-        "description": "Импортирует ЗУН из data/reference/krm_disciplines_{dir_code}.json в ksa_entries. Идемпотентно: перед вставкой проверяется наличие (competency_id, ksa_type, original_text) — дубли пропускаются. Gap-fill: если категория (ksa_type) у компетенции уже заполнена в БД — весь блок пропускается (skipped_gap). parse_version_id = NULL. При dry_run=true ничего не записывает, только считает.",
+        "description": "Импортирует ЗУН из data/reference/krm_disciplines_{dir_code}.json в ksa_entries. Идемпотентно: перед вставкой проверяется наличие (competency_id, ksa_type, original_text) - дубли пропускаются. Gap-fill: если категория (ksa_type) у компетенции уже заполнена в БД - весь блок пропускается (skipped_gap). parse_version_id = NULL. При dry_run=true ничего не записывает, только считает.",
         "parameters": [
           { "name": "dir_code", "in": "path", "required": true, "schema": { "type": "string" } },
           { "name": "dry_run", "in": "query", "required": false, "schema": { "type": "boolean", "default": false }, "description": "Только посчитать, без записи" }

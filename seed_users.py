@@ -18,7 +18,7 @@ async def main():
         for email, info in users.items():
             row = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
             if row:
-                print(f"  SKIP {email} — already exists")
+                print(f"  SKIP {email} - already exists")
                 continue
             pw_hash = await conn.fetchval("SELECT crypt($1, gen_salt('bf'))", info["password"])
             await conn.execute(

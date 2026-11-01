@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-main.py — CLI entry point. Thin wrapper around src.pipeline.runner.
+main.py - CLI entry point. Thin wrapper around src.pipeline.runner.
 """
 
 import argparse

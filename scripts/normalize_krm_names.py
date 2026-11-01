@@ -135,7 +135,7 @@ def normalize_name(name: str, use_llm: bool) -> str:
 
     if not lat_in_outside:
         return name
-    # Уже русское название (с англицизмом, напр. "Low-code прототипирование") — не трогаем.
+    # Уже русское название (с англицизмом, напр. "Low-code прототипирование") - не трогаем.
     if ru_in_outside:
         return name
 

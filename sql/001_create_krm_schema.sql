@@ -1,5 +1,5 @@
 -- =============================================================================
--- Main Schema — PostgreSQL
+-- Main Schema - PostgreSQL
 -- Проект: compare_competencies (Направление 09.03.02)
 -- Содержит: направления, дисциплины, компетенции, навыки, студентов, рынок, анализ
 --
@@ -514,7 +514,7 @@ CREATE TABLE IF NOT EXISTS llm_recommendations (
 CREATE INDEX idx_llm_req_hash ON llm_recommendations(request_hash);
 
 COMMENT ON TABLE llm_recommendations IS
-    'Кэш и аудит запросов к LLM. request_hash — для dedup повторных запросов.';
+    'Кэш и аудит запросов к LLM. request_hash - для dedup повторных запросов.';
 COMMENT ON COLUMN llm_recommendations.model_used IS
     'Какая модель ответила: qwen3.6/gemma4 на H100 или qwen_local/deepseek_local (fallback)';
 COMMENT ON COLUMN llm_recommendations.response_json IS

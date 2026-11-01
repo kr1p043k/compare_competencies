@@ -57,7 +57,7 @@ def _http_get(url: str, params: dict | None = None, timeout: int = 60, tries: in
     """GET с ретраями: медленный Диск не должен ронять весь сбор.
 
     timeout=(connect, read): короткий connect, ограниченный read. Файлы
-    аннотаций — сотни КБ, поэтому read в 300с означал 15 минут на один
+    аннотаций - сотни КБ, поэтому read в 300с означал 15 минут на один
     зависший шард (2026-10-14: 39/51 PDF, каждый 220 КБ висел 300с на
     s*klg.storage.yandex.net). Теперь 45с + 4 попытки = 3 минуты worst case.
     """
@@ -76,7 +76,7 @@ def _http_get(url: str, params: dict | None = None, timeout: int = 60, tries: in
                     tmp.replace(stream_to)
                 except OSError as e:
                     # Имя файла не нравится Windows (хвостовые точки/пробелы,
-                    # суррогаты и т.п.) — не роняем весь сбор, файл пропускается.
+                    # суррогаты и т.п.) - не роняем весь сбор, файл пропускается.
                     print(f"STREAM-WRITE failed, skip file: {stream_to.name[:60]} ({e})")
                     return None
                 return r
@@ -96,7 +96,7 @@ def yandex_list(public_key: str, path: str = "") -> dict | None:
 
 
 def yandex_download(public_key: str, path: str, dest: Path | None = None) -> bytes | None:
-    """Скачать файл. dest задан — стримим на диск (PDF не в памяти)."""
+    """Скачать файл. dest задан - стримим на диск (PDF не в памяти)."""
     r = _http_get(YAPI + "/download", params={"public_key": public_key, "path": path}, timeout=40)
     if r is None:
         return None
@@ -122,7 +122,7 @@ def parse_competencies(text: str, fname: str = "") -> list[str]:
     """Компетенции вида УК-1, ОПК-2.1, ВПК-3, а также англ. OPK-3 / UK-1.
 
     Реальные аннотации пишут коды по-разному (замер 2026-10-14 на 09.03.01_bim
-    и 09.03.02): 'ОПК -1' (пробел перед дефисом), 'ОПК–2' (en-dash),
+    и 09.03.02): 'ОПК -1' (пробел перед дефисом), 'ОПК-2' (en-dash),
     'УК−8' (minus), и иногда код есть ТОЛЬКО в имени файла
     ('Аннотация ВПК-8 (бакалавриат).pdf'). Старый паттерн
     '[-\\s]?\\s*' резал всё это: −15 файлов и −24 уникальных кода.
@@ -160,9 +160,9 @@ _TITLE_JUNK = re.compile(
     re.I,
 )
 
-#: Хвост-слова, на которых предложение обрывается — признак, что строка
+#: Хвост-слова, на которых предложение обрывается - признак, что строка
 #: взята из середины фразы, а не из заголовка ('дисциплины',
-#: 'вариативной профессиональной компетенции' — 12 файлов схлопывались
+#: 'вариативной профессиональной компетенции' - 12 файлов схлопывались
 #: в один такой «заголовок», 2026-10-14).
 _FRAGMENT_TAIL = re.compile(
     r"\b(?:в|на|и|или|с|к|для|от|по|что|как|при|относительно|в рамках)\s*$", re.I)
@@ -188,7 +188,7 @@ def title_from_text(text: str, fname: str) -> str:
     дисциплины «X»» и «…рабочей программы «X»» (ГИА, без 'учебной
     дисциплины'); EN 'Course description (annotation)\\nof the course\\nX'
     и '1. Name of the course\\nX'; EN 'work program of the academic
-    discipline\\nX'; и файлы, где название — просто первая строка
+    discipline\\nX'; и файлы, где название - просто первая строка
     ('Operating systems'). Шаблонную строку '1. Name of the course'
     старый паттерн возвращал как название (мусор-дубликаты).
     """
@@ -228,7 +228,7 @@ def title_from_text(text: str, fname: str) -> str:
         t = _clean_title(m.group(1), require_capital=True)
         if t:
             return t
-    # 7) первая осмысленная строка — только если это похоже на заголовок
+    # 7) первая осмысленная строка - только если это похоже на заголовок
     #    (с заглавной буквы: «Operating systems», «Математика»).
     for line in (text or "").splitlines()[:12]:
         t = _clean_title(line, require_capital=True)
@@ -240,7 +240,7 @@ def title_from_text(text: str, fname: str) -> str:
 def safe_cache_name(fname: str) -> str:
     """Имя файла, безопасное для Windows: без хвостовых точек/пробелов
     (open() даёт FileNotFoundError), длина с запасом, суррогаты режем.
-    Коллизии после урезания — суффикс sha1 (2026-10-14, падение 01.03.01)."""
+    Коллизии после урезания - суффикс sha1 (2026-10-14, падение 01.03.01)."""
     import hashlib
 
     name = re.sub(r"[^\w.\-]+", "_", fname or "file", flags=re.UNICODE)
@@ -278,7 +278,7 @@ def collect(public_key: str, cache_dir: Path) -> list[dict]:
             return []
         files = list_pdf_files(listing)
     else:
-        # Ссылка может вести прямо на папку с PDF — берём корень.
+        # Ссылка может вести прямо на папку с PDF - берём корень.
         files = list_pdf_files(root)
     anns: list[dict] = []
     for fname in files:

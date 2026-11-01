@@ -1,4 +1,4 @@
-# ZUN API — руководство для пользователя
+# ZUN API - руководство для пользователя
 
 Преподавательский анализ «знать / уметь / навык» (ЗУН): просмотр, поиск и редактирование ЗУН по направлениям обучения, связь с рыночными навыками и покрытием.
 
@@ -66,13 +66,13 @@ $h = @{ Authorization = "Bearer $token" }
 | GET | `/teacher/zun/analyze/status/{run_id}` | Статус запуска анализа |
 | POST | `/teacher/zun/import/{dir_code}` | Импорт ЗУН из KRM JSON (идемпотентно) |
 
-`dir_code` по умолчанию — `09.03.02`. Пагинация: `limit` (до 500, дефолт 100) + `offset`.
+`dir_code` по умолчанию - `09.03.02`. Пагинация: `limit` (до 500, дефолт 100) + `offset`.
 
 ---
 
 ## 4. Примеры запросов
 
-Базовый URL опущен — подставляй адрес из раздела 1.
+Базовый URL опущен - подставляй адрес из раздела 1.
 
 ### Сводка по направлению
 
@@ -105,7 +105,7 @@ Invoke-RestMethod -Uri "http://localhost:8000/api/teacher/zun/search?q=python&di
 Invoke-RestMethod -Uri "http://localhost:8000/api/teacher/zun/search/semantic?q=машинное%20обучение&limit=10" -Headers $h
 ```
 
-Ответ: `{"mode":"semantic","matches":[{"original_text":"...","similarity":0.89,...}]}`. Если эмбеддинги недоступны — `"mode":"fallback_substring"`.
+Ответ: `{"mode":"semantic","matches":[{"original_text":"...","similarity":0.89,...}]}`. Если эмбеддинги недоступны - `"mode":"fallback_substring"`.
 
 ### Добавить ЗУН
 
