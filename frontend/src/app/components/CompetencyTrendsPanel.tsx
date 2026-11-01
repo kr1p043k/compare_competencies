@@ -167,16 +167,11 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
           <button
             key={f.key || "all"}
             onClick={() => setFilter(f.key)}
-            style={{
-              padding: "4px 12px",
-              border: "none",
-              borderRadius: 4,
-              cursor: "pointer",
-              fontSize: 12,
-              fontWeight: filter === f.key ? 700 : 400,
-              background: filter === f.key ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
-              color: filter === f.key ? "#fff" : "#7c3aed",
-            }}
+            className={`cursor-pointer rounded px-3 py-1 text-xs ${
+              filter === f.key
+                ? "bg-violet-600 font-bold text-white"
+                : "bg-slate-50 font-normal text-violet-600 dark:bg-slate-800"
+            }`}
           >
             {f.label}
           </button>
@@ -232,20 +227,13 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                   {comp.change_pct}%
                 </span>
                 <span
-                  style={{
-                    display: "inline-block",
-                    padding: "2px 8px",
-                    borderRadius: 4,
-                    fontSize: 12,
-                    background:
-                      comp.direction === "rising"
-                        ? dk ? "#0e2e25" : "#d1fae5"
-                        : comp.direction === "falling"
-                          ? dk ? "#3b1d1d" : "#fee2e2"
-                          : dk ? "#453a17" : "#fef3c7",
-                    color: clsColor,
-                    fontWeight: 600,
-                  }}
+                  className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${clsColor} ${
+                    comp.direction === "rising"
+                      ? "bg-emerald-100 dark:bg-emerald-950/40"
+                      : comp.direction === "falling"
+                        ? "bg-red-100 dark:bg-red-950/40"
+                        : "bg-amber-100 dark:bg-amber-950/40"
+                  }`}
                 >
                   {comp.direction}
                 </span>
@@ -308,13 +296,10 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                                 </span>
                                 <div
                                   title={`${h.date}: ${h.freq}`}
+                                  className="w-full rounded-t-sm bg-violet-600 opacity-90"
                                   style={{
-                                    width: "100%",
                                     height: `${Math.max(pct, 2)}%`,
-                                    background: "#7c3aed",
-                                    borderRadius: "3px 3px 0 0",
                                     minWidth: 16,
-                                    opacity: 0.7 + 0.3 * (pct / 100),
                                   }}
                                 />
                                 <span

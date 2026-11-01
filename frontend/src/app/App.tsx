@@ -51,6 +51,7 @@ import { profileLabel } from "../lib/profiles";
 import { ApiError, download, request, saveBlob } from "../lib/api";
 import { useTheme } from "../lib/theme";
 import { initApiLogger } from "../lib/logger";
+import { useTabRoute } from "../lib/router";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Database,
@@ -240,7 +241,8 @@ export default function App() {
     }
   });
   const [setAnalysisData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState("vacancies");
+  // Вкладка синхронизирована с адресом: #/teacher и т.п. (deep links + история).
+  const [activeTab, setActiveTab] = useTabRoute("vacancies");
   const [professionsList, setProfessionsList] = useState<string[]>([]);
   const [targetProfession, setTargetProfession] = useState("");
 

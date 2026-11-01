@@ -609,17 +609,12 @@ export function TeacherDashboard() {
           <select
             value={selectedDir}
             onChange={(e) => setSelectedDir(e.target.value)}
-            style={{
-              width: "100%",
-              marginTop: 10,
-              padding: "6px 8px",
-              background: dk ? "#0f172a" : "#fff",
-              border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
-              borderRadius: 6,
-              color: dk ? "#f1f5f9" : "#111827",
-              fontSize: 12,
-              outline: "none",
-            }}
+            className="w-full mt-2.5 px-2 py-1.5 rounded-md text-xs" style={{
+    background: dk ? "#0f172a" : "#fff",
+    border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
+    color: dk ? "#f1f5f9" : "#111827",
+    outline: "none",
+  }}
           >
             {directions.map((d, idx) => (
               <option key={`${d.dir_code}-${idx}`} value={d.dir_code}>{d.dir_code} - {d.name}</option>
@@ -669,18 +664,11 @@ export function TeacherDashboard() {
               }
             }}
             disabled={runLoading}
-            style={{
-              width: "100%",
-              marginTop: 10,
-              padding: "8px 12px",
-              background: runLoading ? "#9ca3af" : "#7c3aed",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              cursor: runLoading ? "default" : "pointer",
-              fontSize: 12,
-              fontWeight: 600,
-            }}
+            className="w-full mt-2.5 px-3 py-2 border-0 rounded-md text-xs font-semibold" style={{
+    background: runLoading ? "#9ca3af" : "#7c3aed",
+    color: "#fff",
+    cursor: runLoading ? "default" : "pointer",
+  }}
           >
             {runLoading ? "Анализ запущен..." : "Запустить анализ"}
           </button>
@@ -690,13 +678,10 @@ export function TeacherDashboard() {
 
           {/* RPD upload block */}
           <div
-            style={{
-              marginTop: 12,
-              padding: "10px 12px",
-              background: dk ? "#2a230f" : "#fffbeb",
-              border: "1px solid " + (dk ? "#57481c" : "#fde68a"),
-              borderRadius: 6,
-            }}
+            className="mt-3 px-3 py-2.5 rounded-md" style={{
+    background: dk ? "#2a230f" : "#fffbeb",
+    border: "1px solid " + (dk ? "#57481c" : "#fde68a"),
+  }}
           >
             <div className="text-xs font-bold text-amber-800 mb-2">
               Подгрузка РПД
@@ -716,17 +701,11 @@ export function TeacherDashboard() {
             <button
               onClick={() => rpdInputRef.current?.click()}
               disabled={rpdUploading}
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                background: rpdUploading ? "#9ca3af" : "#7c3aed",
-                color: "#fff",
-                border: "none",
-                borderRadius: 6,
-                cursor: rpdUploading ? "default" : "pointer",
-                fontSize: 12,
-                fontWeight: 600,
-              }}
+              className="w-full px-3 py-2 border-0 rounded-md text-xs font-semibold" style={{
+    background: rpdUploading ? "#9ca3af" : "#7c3aed",
+    color: "#fff",
+    cursor: rpdUploading ? "default" : "pointer",
+  }}
             >
               {rpdUploading ? "Обработка..." : "Загрузить PDF и обработать"}
             </button>
@@ -734,18 +713,11 @@ export function TeacherDashboard() {
               <button
                 onClick={collectRpd}
                 disabled={collectCooldown > 0}
-                style={{
-                  width: "100%",
-                  marginTop: 8,
-                  padding: "8px 12px",
-                  background: rpdCollecting ? "#dc2626" : collectCooldown > 0 ? "#9ca3af" : "#7c3aed",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: collectCooldown > 0 ? "default" : "pointer",
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
+                className="w-full mt-2 px-3 py-2 border-0 rounded-md text-xs font-semibold" style={{
+    background: rpdCollecting ? "#dc2626" : collectCooldown > 0 ? "#9ca3af" : "#7c3aed",
+    color: "#fff",
+    cursor: collectCooldown > 0 ? "default" : "pointer",
+  }}
               >
                 {rpdCollecting ? "Отмена" : collectCooldown > 0 ? `Подождите ${collectCooldown} сек` : "Собрать с Yandex Disk"}
               </button>
@@ -756,40 +728,27 @@ export function TeacherDashboard() {
                 value={rpdYandexUrl}
                 onChange={(e) => setRpdYandexUrl(e.target.value)}
                 placeholder="Ссылка на папку Yandex Disk (https://disk.360.yandex.ru/d/...)"
-                style={{
-                  width: "100%",
-                  padding: "8px 10px",
-                  border: "1px solid " + (dk ? "#57481c" : "#fde68a"),
-                  borderRadius: 6,
-                  fontSize: 12,
-                  boxSizing: "border-box",
-                }}
+                className="w-full px-2.5 py-2 rounded-md text-xs box-border" style={{
+    border: "1px solid " + (dk ? "#57481c" : "#fde68a"),
+  }}
               />
               <button
                 onClick={collectRpd}
                 disabled={rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim()}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  background: rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim() ? "#9ca3af" : "#0d9488",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim() ? "default" : "pointer",
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
+                className="w-full px-3 py-2 border-0 rounded-md text-xs font-semibold" style={{
+    background: rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim() ? "#9ca3af" : "#0d9488",
+    color: "#fff",
+    cursor: rpdCollecting || collectCooldown > 0 || !rpdYandexUrl.trim() ? "default" : "pointer",
+  }}
               >
                 {rpdCollecting ? "Сбор..." : "Загрузить по ссылке"}
               </button>
             </div>
             {rpdStatus && (rpdStatus.status === "completed" || rpdStatus.status === "failed") && (
               <div
-                style={{
-                  marginTop: 8,
-                  fontSize: 11,
-                  color: rpdStatus.status === "completed" ? "#15803d" : "#b91c1c",
-                }}
+                className="mt-2 text-xs" style={{
+    color: rpdStatus.status === "completed" ? "#15803d" : "#b91c1c",
+  }}
               >
                 {rpdMsg}
                 {rpdStatus.stats?.disciplines != null && rpdStatus.status === "completed" && (
@@ -800,20 +759,14 @@ export function TeacherDashboard() {
             {(rpdUploading || rpdCollecting) && rpdStatus && (rpdStatus.status === "running" || rpdStatus.status === "started") && (
               <div className="mt-2.5">
                 <div
-                  style={{
-                    height: 8,
-                    background: dk ? "#57481c" : "#fde68a",
-                    borderRadius: 4,
-                    overflow: "hidden",
-                  }}
+                  className="h-2 rounded overflow-hidden" style={{
+    background: dk ? "#57481c" : "#fde68a",
+  }}
                 >
                   <div
-                    style={{
-                      height: "100%",
-                      width: `${rpdStatus.stats?.progress ?? 10}%`,
-                      background: "#0d9488",
-                      transition: "width 0.5s ease",
-                    }}
+                    className="h-full bg-teal-600 transition-[width] duration-500" style={{
+    width: `${rpdStatus.stats?.progress ?? 10}%`,
+  }}
                   />
                 </div>
                 <div className="mt-1.5 text-xs text-amber-800">
@@ -827,15 +780,10 @@ export function TeacherDashboard() {
           {analysis && (
             <div
               onClick={() => setShowAnalysis(!showAnalysis)}
-              style={{
-                marginTop: 10,
-                padding: "8px 12px",
-                background: dk ? "#1e293b" : "#f9fafb",
-                border: `1px solid ${covColor(analysis.average_coverage)}`,
-                borderRadius: 6,
-                cursor: "pointer",
-                fontSize: 12,
-              }}
+              className="mt-2.5 px-3 py-2 rounded-md cursor-pointer text-xs" style={{
+    background: dk ? "#1e293b" : "#f9fafb",
+    border: `1px solid ${covColor(analysis.average_coverage)}`,
+  }}
             >
               <div className="flex justify-between">
                 {/* Показываем охват спроса, а не coverage_ratio: второй почти
@@ -864,18 +812,12 @@ export function TeacherDashboard() {
             aria-label="Поиск дисциплины"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{
-              width: "100%",
-              marginTop: 10,
-              padding: "8px 12px",
-              background: dk ? "#0f172a" : "#fff",
-              border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
-              borderRadius: 6,
-              color: dk ? "#f1f5f9" : "#111827",
-              fontSize: 13,
-              outline: "none",
-              boxSizing: "border-box",
-            }}
+            className="w-full mt-2.5 px-3 py-2 rounded-md text-[13px] box-border" style={{
+    background: dk ? "#0f172a" : "#fff",
+    border: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
+    color: dk ? "#f1f5f9" : "#111827",
+    outline: "none",
+  }}
           />
         </div>
         <div className="flex-1 overflow-auto">
@@ -903,17 +845,11 @@ export function TeacherDashboard() {
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => { if (e.key === "Enter") loadDiscipline(d.name); }}
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "flex-start",
-                  padding: "10px 12px 10px 8px",
-                  cursor: "pointer",
-                  borderBottom: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
-                  background:
-                    selected?.name === d.name ? dk ? "#1d2440" : "#eef2ff" : "transparent",
-                  opacity: (d.in_scope ?? true) ? 1 : 0.55,
-                }}
+                className="flex gap-2 items-start py-2.5 pl-2 pr-3 cursor-pointer" style={{
+    borderBottom: "1px solid " + (dk ? "#334155" : "#e5e7eb"),
+    background: selected?.name === d.name ? dk ? "#1d2440" : "#eef2ff" : "transparent",
+    opacity: (d.in_scope ?? true) ? 1 : 0.55,
+  }}
               >
                 <input
                   type="checkbox"
@@ -967,46 +903,31 @@ export function TeacherDashboard() {
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => setAnalysisMode("coverage")}
-            style={{
-              padding: "6px 14px",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontSize: 12,
-              fontWeight: analysisMode === "coverage" ? 700 : 400,
-              background: analysisMode === "coverage" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
-              color: analysisMode === "coverage" ? "#fff" : "#7c3aed",
-            }}
+            className="px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs" style={{
+    fontWeight: analysisMode === "coverage" ? 700 : 400,
+    background: analysisMode === "coverage" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
+    color: analysisMode === "coverage" ? "#fff" : "#7c3aed",
+  }}
           >
             Покрытие
           </button>
             <button
               onClick={() => setAnalysisMode("trends")}
-              style={{
-                padding: "6px 14px",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: analysisMode === "trends" ? 700 : 400,
-                background: analysisMode === "trends" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
-                color: analysisMode === "trends" ? "#fff" : "#7c3aed",
-              }}
+              className="px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs" style={{
+    fontWeight: analysisMode === "trends" ? 700 : 400,
+    background: analysisMode === "trends" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
+    color: analysisMode === "trends" ? "#fff" : "#7c3aed",
+  }}
             >
               Тренды компетенций
             </button>
             <button
               onClick={() => setAnalysisMode("taxonomy")}
-              style={{
-                padding: "6px 14px",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: analysisMode === "taxonomy" ? 700 : 400,
-                background: analysisMode === "taxonomy" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
-                color: analysisMode === "taxonomy" ? "#fff" : "#7c3aed",
-              }}
+              className="px-3.5 py-1.5 border-0 rounded-md cursor-pointer text-xs" style={{
+    fontWeight: analysisMode === "taxonomy" ? 700 : 400,
+    background: analysisMode === "taxonomy" ? "#7c3aed" : dk ? "#1e293b" : "#f9fafb",
+    color: analysisMode === "taxonomy" ? "#fff" : "#7c3aed",
+  }}
             >
               Таксономия
             </button>
@@ -1114,7 +1035,16 @@ export function TeacherDashboard() {
                     Рекомендации
                   </div>
                   {(analysis.recommendations || []).map((r, i) => (
-                    <div key={i} style={{ padding: "8px 10px", marginBottom: 6, borderRadius: 6, fontSize: 12, background: r.priority === "high" ? dk ? "#3b1d1d" : "#fef2f2" : r.priority === "medium" ? dk ? "#2a230f" : "#fffbeb" : dk ? "#1d2440" : "#eff6ff", border: `1px solid ${r.priority === "high" ? dk ? "#7f2d2d" : "#fecaca" : r.priority === "medium" ? dk ? "#57481c" : "#fde68a" : dk ? "#2c4a7c" : "#bfdbfe"}` }}>
+                    <div
+                      key={i}
+                      className={`mb-1.5 rounded-md border px-2.5 py-2 text-xs ${
+                        r.priority === "high"
+                          ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/40"
+                          : r.priority === "medium"
+                            ? "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40"
+                            : "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40"
+                      }`}
+                    >
                       <div className="flex gap-1.5 items-center mb-1">
                         <span
                           className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
@@ -1503,10 +1433,7 @@ export function TeacherDashboard() {
                   .map((r, i) => (
                     <div
                       key={i}
-                      className="rounded-lg p-3 mb-2 text-sm"
-                      style={{
-                        border: "1px solid #ddd6fe", background: dk ? "#1e1b2e" : "#faf9ff",
-                      }}
+                      className="mb-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3 text-sm dark:border-violet-900 dark:bg-violet-950/20"
                     >
                       <div className="text-gray-400 dark:text-slate-500 mb-1 text-xs">
                         [{r.suggestion_type}] {r.competency_id}
