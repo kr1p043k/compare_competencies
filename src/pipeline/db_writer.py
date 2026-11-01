@@ -11,7 +11,7 @@ from pathlib import Path
 import asyncpg
 import structlog
 
-from src import config
+from src import Ok, config
 from src.db import DATABASE_URL, DB_POOL_MAX, DB_POOL_MIN, get_pool
 from src.utils import extract_date_from_filename
 
@@ -153,9 +153,52 @@ async def save_trend_snapshot(
     )
 
 
+def _ensure_extracted_skills(vacancies: list[dict]) -> int:
+    """Дозаполнить `extracted_skills` парсингом для вакансий, где его нет.
+
+    Все пути записи в БД идут через save_vacancies_batch, но навыки доезжают
+    только оттуда, где их успели посчитать (коллектор, детальный JSON). Вакансия
+    из сырой выдачи (basic) приходит без description и key_skills, поэтому
+    parsed_skills оставался NULL до ручного populate-parsed-skills. Здесь
+    закрываем дырку в единой точке: если есть текст, но нет extracted_skills -
+    парсим. Где текста нет (не догружены детали) - честно остаётся пусто.
+
+    Синхронная и CPU-bound: вызывать через asyncio.to_thread.
+    """
+    from src.models.vacancy import Vacancy as VacModel
+    from src.parsing.skills.vacancy_parser import VacancyParser
+
+    parser = VacancyParser()
+    filled = 0
+    for v in vacancies:
+        if v.get("extracted_skills") or (v.get("raw_data") or {}).get("extracted_skills"):
+            continue
+        if not (v.get("description") or v.get("key_skills")):
+            continue  # нечего парсить: детали не догружены
+        try:
+            vac = VacModel.from_api(v)
+            match parser.skill_parser.parse_vacancy(vac):
+                case Ok(skills):
+                    texts = list(dict.fromkeys(s.text for s in skills if s.text))
+                case _:
+                    texts = []
+        except Exception as exc:
+            logger.debug("inline_parse_skill_failed", id=v.get("id"), error=str(exc))
+            continue
+        if texts:
+            v["extracted_skills"] = texts
+            filled += 1
+    if filled:
+        logger.info("inline_parsed_skills", filled=filled, total=len(vacancies))
+    return filled
+
+
 async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None) -> int:
     """Upsert vacancies from raw dicts into the vacancies table (batch)."""
     pool = await _pool()
+    # Парсинг в потоке: правило навыков не должно зависеть от того, кто зовёт
+    # (коллектор/импорт JSON), и не должно блокировать event loop.
+    await asyncio.to_thread(_ensure_extracted_skills, vacancies)
     rows = []
     for v in vacancies:
         try:
@@ -253,10 +296,7 @@ async def export_history_trends_to_db() -> int:
             profession = meta.get("profession")
 
             # source identifies the snapshot type
-            if profession:
-                source = f"profession_{profession}"
-            else:
-                source = "hh_vacancies"
+            source = f"profession_{profession}" if profession else "hh_vacancies"
 
             d = extract_date_from_filename(f)
             if d is None and meta.get("snapshot_date"):

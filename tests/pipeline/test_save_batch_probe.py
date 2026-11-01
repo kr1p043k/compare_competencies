@@ -29,3 +29,31 @@ async def test_save_batch_persists_extracted_skills():
             "SELECT COUNT(*) FROM vacancies WHERE hh_id = $1", FAKE_HH)
         assert left == 0
         await con.close()
+
+
+async def test_save_batch_parses_skills_when_absent():
+    """Без extracted_skills, но с описанием - навыки парсятся прямо в БД."""
+    from src.pipeline.db_writer import save_vacancies_batch
+    v = {
+        "id": str(FAKE_HH), "name": "TEST INLINE PARSE", "experience": {},
+        "salary": {}, "employer": {}, "area": {}, "snippet": {},
+        "key_skills": [{"name": "Python"}, {"name": "SQL"}],
+        "description": "Ищем разработчика. Требуется Python и SQL, опыт с Git.",
+        "published_at": None, "alternate_url": None,
+    }
+    n = await save_vacancies_batch([v])
+    assert n == 1
+    con = await asyncpg.connect(DSN)
+    try:
+        val = await con.fetchrow(
+            "SELECT parsed_skills FROM vacancies WHERE hh_id = $1", FAKE_HH)
+        val = val["parsed_skills"]
+        if isinstance(val, str):
+            import json as _json
+            val = _json.loads(val)
+        assert val, "parsed_skills должен заполниться парсером"
+        lowered = [s.lower() for s in val]
+        assert any("python" in s for s in lowered)
+    finally:
+        await con.execute("DELETE FROM vacancies WHERE hh_id = $1", FAKE_HH)
+        await con.close()
