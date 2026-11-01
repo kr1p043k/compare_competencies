@@ -8,7 +8,7 @@ import structlog
 
 # Suppress cmdstanpy BEFORE any imports that might trigger Prophet
 from cmdstanpy.utils.logging import disable_logging as _disable_cmdstan
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
@@ -23,6 +23,10 @@ _disable_cmdstan().__enter__()
 from src.api_pkg import deps as deps  # noqa: F401
 
 logger = structlog.get_logger("api")
+
+
+class _BodyTooLargeError(Exception):
+    """Тело превысило лимит при стриминге (без Content-Length)."""
 
 
 def _rate_limit_key(request: Request) -> str:
@@ -81,11 +85,37 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def limit_body_size_middleware(request: Request, call_next):
+        limit = config.MAX_REQUEST_SIZE
         content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > config.MAX_REQUEST_SIZE:
-            logger.warning("request_body_too_large", size=int(content_length))
+        if content_length:
+            try:
+                if int(content_length) > limit:
+                    logger.warning("request_body_too_large", size=int(content_length))
+                    return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+            except ValueError:
+                return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length"})
+
+        # Chunked/стриминговое тело приходит БЕЗ Content-Length - заголовочная
+        # проверка выше его не ловит. Оборачиваем приём и рвём, как только тело
+        # перевалило лимит, иначе клиент шлёт мегабайты мимо проверки.
+        received = 0
+        original_receive = request._receive
+
+        async def _limited_receive():
+            nonlocal received
+            message = await original_receive()
+            if message.get("type") == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    raise _BodyTooLargeError
+            return message
+
+        request._receive = _limited_receive
+        try:
+            return await call_next(request)
+        except _BodyTooLargeError:
+            logger.warning("request_body_too_large_streaming", size=received)
             return JSONResponse(status_code=413, content={"detail": "Request body too large"})
-        return await call_next(request)
 
     @app.middleware("http")
     async def add_request_id_middleware(request: Request, call_next):
@@ -235,7 +265,9 @@ def create_app() -> FastAPI:
 
     app.add_middleware(N8NAuthMiddleware)
 
-    @app.get("/metrics")
+    from src.api_pkg.routers.auth import require_any_role
+
+    @app.get("/metrics", dependencies=[Depends(require_any_role("admin"))])
     async def metrics():
         data, content_type = get_metrics()
         from fastapi.responses import Response

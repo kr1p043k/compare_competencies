@@ -275,15 +275,24 @@ class Settings(BaseSettings):
     @field_validator("SECRET_KEY", mode="after")
     @classmethod
     def validate_secret_key(cls, v: SecretStr | None) -> SecretStr:
+        hint = "SECRET_KEY=$(openssl rand -hex 32)"
         if v is None or not v.get_secret_value():
-            raise ValueError(
-                "SECRET_KEY не задан. Укажите его в .env: "
-                "SECRET_KEY=$(openssl rand -hex 32)"
+            raise ValueError(f"SECRET_KEY не задан. Укажите его в .env: {hint}")
+        key = v.get_secret_value()
+        # Ключом подписываются сессионные токены: слабый/дефолтный ключ = подделка
+        # чужих токенов. Ловим и заглушки, и просто короткие значения.
+        low = key.lower()
+        looks_placeholder = (
+            low.startswith(("dev-", "dev_"))
+            or any(
+                x in low
+                for x in ("change", "changeme", "placeholder", "insecure", "default", "example")
             )
-        if v.get_secret_value() in ("change-me-to-random-string", "change_me", "change_me_please"):
+        )
+        if looks_placeholder or len(key) < 32:
             raise ValueError(
-                "SECRET_KEY имеет значение-заглушку. Замените на случайную строку: "
-                "SECRET_KEY=$(openssl rand -hex 32)"
+                "SECRET_KEY слабый или значение-заглушка (нужно ≥32 случайных символов, "
+                f"без 'dev'/'change'/'insecure' и т.п.). Замените: {hint}"
             )
         return v
 

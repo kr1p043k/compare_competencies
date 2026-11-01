@@ -86,7 +86,7 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
         return None
     data = _decode_token(token)
     if data is None:
-        logger.warning("get_current_user_invalid_token", path=request.url.path, token_prefix=token[:20])
+        logger.warning("get_current_user_invalid_token", path=request.url.path, token_sha=_hash_token(token)[:16])
         return None
     pool = get_pool()
     if pool is None:
@@ -107,7 +107,7 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
         logger.error("get_current_user_db_error", path=request.url.path, exc_info=True)
         return None
     if session is None:
-        logger.warning("get_current_user_session_not_found", path=request.url.path, token_prefix=token[:20])
+        logger.warning("get_current_user_session_not_found", path=request.url.path, token_sha=_hash_token(token)[:16])
         return None
     if not session["is_active"]:
         logger.warning("get_current_user_inactive", path=request.url.path, uid=str(session["id"]))
@@ -195,7 +195,9 @@ async def login(body: LoginRequest, request: Request):
 
         token_hash = _hash_token(token)
         forwarded = request.headers.get("X-Forwarded-For", "")
-        ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+        # Право-крайний хоп: левые значения контролирует клиент (подделка IP),
+        # их дописывает только доверенный прокси.
+        ip = forwarded.split(",")[-1].strip() if forwarded else (request.client.host if request.client else "unknown")
         ua = request.headers.get("User-Agent", "")
         await pool.execute(
             """INSERT INTO sessions (user_id, token_hash, ip_address, user_agent)

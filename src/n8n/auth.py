@@ -1,5 +1,7 @@
 """n8n API key auth middleware."""
 
+import hmac
+
 import structlog
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -26,7 +28,11 @@ class N8NAuthMiddleware(BaseHTTPMiddleware):
                         status_code=503, content={"detail": "n8n integration is not configured"}
                     )
                 auth = request.headers.get("Authorization", "")
-                if not auth.startswith("Bearer ") or auth[7:] != api_key.get_secret_value():
+                provided = auth[7:] if auth.startswith("Bearer ") else ""
+                # constant-time: обычное != даёт timing side-channel на угадывание ключа
+                if not auth.startswith("Bearer ") or not hmac.compare_digest(
+                    provided, api_key.get_secret_value()
+                ):
                     logger.warning(
                         "n8n_auth_failed", path=request.url.path,
                         client=request.client.host if request.client else "unknown"
