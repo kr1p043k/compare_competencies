@@ -288,7 +288,7 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
             <div className="text-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg"><div className="text-xs text-gray-500 dark:text-slate-400">Через {horizon === 1 ? "месяц" : `${horizon} мес`}</div><div className="text-lg font-semibold text-gray-900 dark:text-slate-100">{insufficient ? "-" : item.next_year_frequency.toFixed(0)}</div></div>
             <div className="text-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg"><div className="text-xs text-gray-500 dark:text-slate-400">Уверенность</div><div className="text-lg font-semibold text-gray-900 dark:text-slate-100">{insufficient ? "-" : `${confPct}%`}</div></div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-slate-400 mb-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-slate-400 mb-2">
             {item.data_points !== undefined && (
               <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800">точек истории: {item.data_points}</span>
             )}
@@ -325,7 +325,7 @@ function ObservedRow({ item, rank }: { item: ObservedItem; rank: number }) {
         <span className="text-sm font-semibold text-red-600">
           {item.observed_change_pct.toFixed(1)}%
         </span>
-        <span className="text-[11px] text-gray-500 dark:text-slate-400 tabular-nums">
+        <span className="text-xs text-gray-500 dark:text-slate-400 tabular-nums">
           {item.first_frequency.toFixed(0)} → {item.last_frequency.toFixed(0)} · точек: {item.points}
         </span>
       </div>

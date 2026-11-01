@@ -158,7 +158,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
             <div className="space-y-2 mb-4 scroll-mt-2" id="d-recs" >
               <div className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Рекомендации</div>
               {data.llm_enhanced && (
-                <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300" title="Часть рекомендаций дополнена языковой моделью">
+                <div className="text-xs font-medium text-amber-700 dark:text-amber-300" title="Часть рекомендаций дополнена языковой моделью">
                   Дополнено LLM
                 </div>
               )}
@@ -178,7 +178,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                       <button
                         onClick={() => markFoundational(r.skill as string)}
                         title="Пометить фундаментальным - убрать со страницы"
-                        className="ml-auto text-[11px] px-2 py-0.5 rounded border border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:border-gray-400 dark:hover:border-slate-500 bg-transparent cursor-pointer transition-colors"
+                        className="ml-auto text-xs px-2 py-0.5 rounded border border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:border-gray-400 dark:hover:border-slate-500 bg-transparent cursor-pointer transition-colors"
                       >
                         в фундаментальные
                       </button>
@@ -206,7 +206,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                       ? <ChevronDown className="size-3.5 shrink-0" />
                       : <ChevronRight className="size-3.5 shrink-0" />}
                     <span className="font-medium">Скрытые</span>
-                    <span className="px-1.5 py-px rounded-full bg-gray-100 dark:bg-slate-800 text-[11px] tabular-nums">
+                    <span className="px-1.5 py-px rounded-full bg-gray-100 dark:bg-slate-800 text-xs tabular-nums">
                       {data.hidden_foundational!.length}
                     </span>
                   </button>
@@ -219,7 +219,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                             <button
                               onClick={() => unmarkFoundational(h.skill)}
                               title="Вернуть в рекомендации"
-                              className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] text-gray-500 dark:text-slate-400 hover:text-violet-700 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40 bg-transparent border-0 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                              className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-gray-500 dark:text-slate-400 hover:text-violet-700 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40 bg-transparent border-0 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
                             >
                               <Undo2 className="size-3" />
                               Вернуть
@@ -248,7 +248,7 @@ export function AnalysisPanel({ disciplineName, dirCode = "09.03.02" }: { discip
                   return (
                     <Badge key={i} variant="outline" className={`${cls} border text-xs`}>
                       {s.skill}
-                      <span className="text-[10px] opacity-50">{s.match_type}</span>
+                      <span className="text-xs opacity-50">{s.match_type}</span>
                     </Badge>
                   );
                 })}

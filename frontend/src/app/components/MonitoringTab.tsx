@@ -279,7 +279,7 @@ function MonitoringTabBase() {
                     <div className="space-y-1">
                       {(health.recent_runs || []).slice(0, 5).map((run, i) => (
                         <div key={i} className="flex items-center gap-2 text-xs">
-                          <Badge variant={run.status === "completed" ? "default" : "destructive"} className="text-[10px]">
+                          <Badge variant={run.status === "completed" ? "default" : "destructive"} className="text-xs">
                             {run.status}
                           </Badge>
                           <span className="font-mono text-gray-700 dark:text-slate-300">{run.action}</span>

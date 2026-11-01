@@ -749,10 +749,10 @@ export default function App() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
-                  Competency Gap Analyzer
+                  Карта компетенций
                 </h1>
                 <p className="text-sm text-gray-600 dark:text-slate-400">
-                  AI-powered competency analysis platform
+                  Сопоставление учебных программ с требованиями рынка труда
                 </p>
               </div>
             </div>

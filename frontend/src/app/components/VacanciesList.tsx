@@ -671,7 +671,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   <Filter className="size-4" />
                   Фильтры
                   {activeFilterCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-[11px] font-semibold">
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-xs font-semibold">
                       {activeFilterCount}
                     </span>
                   )}

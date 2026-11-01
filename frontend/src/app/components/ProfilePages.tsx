@@ -113,7 +113,7 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
                 <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                   {typeof sum?.sessions_active === "number" ? sum.sessions_active : "-"}
                 </div>
-                <div className="text-[11px] uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                <div className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">
                   Сессии активны
                 </div>
               </div>
@@ -121,7 +121,7 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
                 <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                   {errorsTotal === null ? "-" : errorsTotal}
                 </div>
-                <div className="text-[11px] uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                <div className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">
                   Ошибки за час
                 </div>
               </div>
@@ -129,7 +129,7 @@ export function AdminProfilePage({ displayName, email, onNavigate }: AccountProp
                 <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                   {typeof sum?.freshness?.vacancies === "number" ? sum.freshness.vacancies.toLocaleString("ru-RU") : "-"}
                 </div>
-                <div className="text-[11px] uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                <div className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">
                   Вакансии{sum?.freshness?.date_from ? ` · ${sum.freshness.date_from}-${sum.freshness.date_to ?? "…"}` : ""}
                 </div>
               </div>
@@ -781,7 +781,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
               className="rounded-lg border border-slate-200 bg-white p-3 text-center transition-colors duration-200 dark:border-slate-700 dark:bg-slate-900"
             >
               <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{k.value}</div>
-              <div className="text-[11px] uppercase tracking-wide text-slate-600 dark:text-slate-400">{k.label}</div>
+              <div className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">{k.label}</div>
             </div>
           ))}
         </div>
@@ -997,13 +997,13 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                     {cp.name}
                   </span>
                   <span className="flex flex-wrap gap-1.5">
-                    <Badge variant="secondary" className="text-[11px]">{cp.target_level}</Badge>
-                    <Badge variant="secondary" className="text-[11px]">компетенций: {cp.competencies}</Badge>
+                    <Badge variant="secondary" className="text-xs">{cp.target_level}</Badge>
+                    <Badge variant="secondary" className="text-xs">компетенций: {cp.competencies}</Badge>
                     {cp.created_new > 0 && (
-                      <Badge variant="secondary" className="text-[11px]">новых: {cp.created_new}</Badge>
+                      <Badge variant="secondary" className="text-xs">новых: {cp.created_new}</Badge>
                     )}
                     {cp.technologies > 0 && (
-                      <Badge variant="secondary" className="text-[11px]">технологий: {cp.technologies}</Badge>
+                      <Badge variant="secondary" className="text-xs">технологий: {cp.technologies}</Badge>
                     )}
                   </span>
                 </div>
@@ -1060,7 +1060,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
           <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
             <div className="flex items-center justify-between gap-2">
               <Label>Компетенции</Label>
-              <Badge variant="secondary" className="text-[11px]">выбрано: {compCodes.length}</Badge>
+              <Badge variant="secondary" className="text-xs">выбрано: {compCodes.length}</Badge>
             </div>
 
             <div className="relative">
@@ -1098,7 +1098,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                           ) : null}
                         </span>
                         {typeof c.skills_count === "number" ? (
-                          <Badge variant="secondary" className="shrink-0 text-[11px]">
+                          <Badge variant="secondary" className="shrink-0 text-xs">
                             {c.skills_count}
                           </Badge>
                         ) : null}
@@ -1263,7 +1263,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                         {topGaps.map((g) => (
                           <li key={g.name} className="flex items-center justify-between gap-2">
                             <span className="truncate">{g.name}</span>
-                            <Badge variant="secondary" className="text-[11px] shrink-0">
+                            <Badge variant="secondary" className="text-xs shrink-0">
                               не хватает {g.missing}/{g.total}
                             </Badge>
                           </li>
@@ -1312,7 +1312,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                               {d.discipline}
                             </span>
                             <span className="flex shrink-0 items-center gap-2">
-                              <Badge variant={has > 0 ? "default" : "secondary"} className="text-[11px]">
+                              <Badge variant={has > 0 ? "default" : "secondary"} className="text-xs">
                                 {has}/{total}
                               </Badge>
                               <ChevronDown className={`size-4 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
@@ -1327,7 +1327,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                               )}
                               {matched.length > 0 && (
                                 <div>
-                                  <div className="mb-1 text-[11px] uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                                  <div className="mb-1 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">
                                     Совпало ({matched.length})
                                   </div>
                                   <div className="flex flex-wrap gap-1.5">
@@ -1346,7 +1346,7 @@ export function StudentProfilePage({ displayName, email, onNavigate }: AccountPr
                               )}
                               {missing.length > 0 && (
                                 <div>
-                                  <div className="mb-1 text-[11px] uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                                  <div className="mb-1 text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">
                                     Не хватает ({missing.length})
                                   </div>
                                   <div className="flex flex-wrap gap-1.5">

@@ -82,7 +82,7 @@ function GapRow({ skill, entry }: { skill: string; entry: { skill?: string; gap_
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{entry.skill || skill}</span>
         {entry.category && (
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{entry.category}</Badge>
+          <Badge variant="outline" className="text-xs px-1.5 py-0">{entry.category}</Badge>
         )}
       </div>
       <div className="flex items-center gap-4 text-sm shrink-0">

@@ -326,7 +326,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                     <div className="truncate text-lg font-bold text-slate-900 dark:text-slate-100">
                       {s.value}
                     </div>
-                    <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       {s.label}
                     </div>
                   </div>
@@ -407,7 +407,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                           {d.discipline}
                         </span>
                         <span className="flex shrink-0 items-center gap-2">
-                          <Badge variant={has > 0 ? "default" : "secondary"} className="text-[11px]">
+                          <Badge variant={has > 0 ? "default" : "secondary"} className="text-xs">
                             {has}/{total}
                           </Badge>
                           <ChevronDown className={`size-4 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
@@ -435,7 +435,7 @@ export function StudentKrm({ onNavigate }: { onNavigate?: (tab: string) => void 
                                     {c.code}
                                   </span>
                                   <span className="flex shrink-0 items-center gap-1.5">
-                                    <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                    <span className="text-xs text-slate-400 dark:text-slate-500">
                                       {cHas}/{c.skills.length}
                                     </span>
                                     <ChevronDown className={`size-3.5 text-slate-400 transition-transform duration-200 ${codeOpen ? "rotate-180" : ""}`} />

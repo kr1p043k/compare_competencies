@@ -393,12 +393,12 @@ export function ScientificTrendsTab() {
                           {c.disciplines && c.disciplines.length > 0 && (
                             <div className="flex items-center gap-1.5 flex-wrap mt-1">
                               {c.disciplines.slice(0, 3).map((d) => (
-                                <span key={d} className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400">
+                                <span key={d} className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400">
                                   {d}
                                 </span>
                               ))}
                               {c.disciplines.length > 3 && (
-                                <span className="text-[11px] text-gray-400 dark:text-slate-500">+{c.disciplines.length - 3}</span>
+                                <span className="text-xs text-gray-400 dark:text-slate-500">+{c.disciplines.length - 3}</span>
                               )}
                             </div>
                           )}
@@ -408,7 +408,7 @@ export function ScientificTrendsTab() {
                               {c.near_skills.map((n) => (
                                 <span
                                   key={n.skill}
-                                  className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-950/30"
+                                  className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-950/30"
                                 >
                                   {n.skill.length > 40 ? n.skill.slice(0, 40) + "…" : n.skill} ({n.similarity.toFixed(2)})
                                 </span>
@@ -421,7 +421,7 @@ export function ScientificTrendsTab() {
                               {c.missing_topic_skills.map((m) => (
                                 <span
                                   key={m}
-                                  className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-950/30"
+                                  className="text-xs px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-950/30"
                                 >
                                   {m.length > 40 ? m.slice(0, 40) + "…" : m}
                                 </span>
@@ -531,12 +531,12 @@ export function ScientificTrendsTab() {
                       <div className="flex items-center gap-1.5 flex-wrap mt-2">
                         <span className="text-xs text-gray-400 dark:text-slate-500">Дисциплины:</span>
                         {item.disciplines.slice(0, 3).map((d) => (
-                          <span key={d} className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400">
+                          <span key={d} className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400">
                             {d}
                           </span>
                         ))}
                         {item.disciplines.length > 3 && (
-                          <span className="text-[11px] text-gray-400 dark:text-slate-500">+{item.disciplines.length - 3}</span>
+                          <span className="text-xs text-gray-400 dark:text-slate-500">+{item.disciplines.length - 3}</span>
                         )}
                       </div>
                     )}
@@ -547,7 +547,7 @@ export function ScientificTrendsTab() {
                       <div className="flex items-center gap-1.5 flex-wrap mt-2">
                         <span className="text-xs text-gray-400 dark:text-slate-500">Близкие к теме:</span>
                         {item.near_skills.map((n) => (
-                          <span key={n.skill} className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-950/30">
+                          <span key={n.skill} className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-950/30">
                             {n.skill.length > 40 ? n.skill.slice(0, 40) + "…" : n.skill} ({n.similarity.toFixed(2)})
                           </span>
                         ))}
@@ -558,7 +558,7 @@ export function ScientificTrendsTab() {
                       <div className="flex items-center gap-1.5 flex-wrap mt-2">
                         <span className="text-xs text-gray-400 dark:text-slate-500">Чего не хватает:</span>
                         {item.missing_topic_skills.map((m) => (
-                          <span key={m} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-950/30">
+                          <span key={m} className="text-xs px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-950/30">
                             {m.length > 40 ? m.slice(0, 40) + "…" : m}
                           </span>
                         ))}

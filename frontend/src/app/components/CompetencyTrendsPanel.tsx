@@ -214,7 +214,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                   {comp.active_skills_count !== undefined &&
                     comp.active_skills_count !== comp.skill_count && (
                       <span
-                        className="ml-1 text-[11px] text-slate-400"
+                        className="ml-1 text-xs text-slate-400"
                       >
                         ({comp.active_skills_count} в тренде)
                       </span>
@@ -285,7 +285,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                     {/* History chart */}
                     {sk.history && sk.history.length > 1 && (
                       <div
-                        className="pb-4 pt-3 text-[11px] text-slate-500 dark:text-slate-400"
+                        className="pb-4 pt-3 text-xs text-slate-500 dark:text-slate-400"
                       >
                         <div
                           className="flex h-[60px] items-end gap-1.5 py-1"
@@ -302,7 +302,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                                 className="flex h-full flex-1 flex-col items-center justify-end"
                               >
                                 <span
-                                  className="mb-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-400"
+                                  className="mb-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400"
                                 >
                                   {h.freq}
                                 </span>
@@ -318,7 +318,7 @@ export default function CompetencyTrendsPanel({ dirCode, competencyCodes }: Prop
                                   }}
                                 />
                                 <span
-                                  className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400"
+                                  className="mt-0.5 text-xs text-slate-500 dark:text-slate-400"
                                 >
                                   {h.date.slice(5)}
                                 </span>

@@ -597,7 +597,7 @@ export function TeacherDashboard() {
                 KRM Teacher
               </h1>
               {stats && (
-                  <div className="text-[11px] text-gray-500 dark:text-slate-400 text-right">
+                  <div className="text-xs text-gray-500 dark:text-slate-400 text-right">
                     <div>{(() => { const n = (stats as any).total_disciplines ?? (stats as any).total_reports ?? 0; return `${n} ${plural(n, "дисциплина", "дисциплины", "дисциплин")}`; })()}</div>
                     <div>{(() => { const n = (stats as any).total_competencies ?? Object.keys((stats as any).by_profession || {}).length; return `${n} ${plural(n, "компетенция", "компетенции", "компетенций")}`; })()}</div>
                     <div>{(() => { const n = (stats as any).total_skills ?? 0; return `${n.toLocaleString()} ${plural(n, "навык", "навыка", "навыков")}`; })()}</div>
@@ -816,7 +816,7 @@ export function TeacherDashboard() {
                     }}
                   />
                 </div>
-                <div className="mt-1.5 text-[11px] text-amber-800">
+                <div className="mt-1.5 text-xs text-amber-800">
                   Этап: {rpdStageLabel(rpdStatus.stats?.stage)} · {rpdStatus.stats?.progress ?? 10}%
                 </div>
               </div>
@@ -879,19 +879,19 @@ export function TeacherDashboard() {
           />
         </div>
         <div className="flex-1 overflow-auto">
-          <div className="px-4 py-1.5 text-[11px] text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-slate-700">
+          <div className="px-4 py-1.5 text-xs text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-slate-700">
             В учёте: {disciplines.filter((x) => x.in_scope ?? true).length} из {disciplines.length}
             {scopeMsg && (<div className="text-amber-800 mt-0.5">{scopeMsg}</div>)}
             <div className="flex gap-1.5 mt-1 items-center flex-wrap">
               <button onClick={() => saveScopeBulk(true)} disabled={scopeSaving !== null}
-                className="text-[11px] px-2.5 py-0.5 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 cursor-pointer">
+                className="text-xs px-2.5 py-0.5 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 cursor-pointer">
                 Выбрать все
               </button>
               <button onClick={() => saveScopeBulk(false)} disabled={scopeSaving !== null}
-                className="text-[11px] px-2.5 py-0.5 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 cursor-pointer">
+                className="text-xs px-2.5 py-0.5 rounded border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 cursor-pointer">
                 Снять все
               </button>
-              {metaStale && (<span className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1.5 py-0.5">данные устарели - обновите анализ</span>)}
+              {metaStale && (<span className="text-xs text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1.5 py-0.5">данные устарели - обновите анализ</span>)}
             </div>
           </div>
           {filtered.map((d) => {
@@ -931,17 +931,17 @@ export function TeacherDashboard() {
                     {d.name}
                   </div>
                   {discAnalysis && (
-                    <span className={`text-[11px] font-bold ${covTextClass(discAnalysis.coverage_ratio)}`}>
+                    <span className={`text-xs font-bold ${covTextClass(discAnalysis.coverage_ratio)}`}>
                       {(discAnalysis.coverage_ratio * 100).toFixed(0)}%
                     </span>
                   )}
                 </div>
-                <div className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">
+                <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
                     {d.scope_source === "methodology" && (
-                      <span className="mr-1.5 text-[10px] text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950 rounded px-1 py-0.5">методология</span>
+                      <span className="mr-1.5 text-xs text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950 rounded px-1 py-0.5">методология</span>
                     )}
                     {d.scope_source === "custom" && (
-                      <span className="mr-1.5 text-[10px] text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1 py-0.5">вручную</span>
+                      <span className="mr-1.5 text-xs text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1 py-0.5">вручную</span>
                     )}
                   {d.course != null && `${d.course} курс · `}
                   {d.competencies_count} {plural(d.competencies_count, "комп.", "комп.", "комп.")} · {d.skills_count} {plural(d.skills_count, "навык", "навыка", "навыков")}
@@ -1044,7 +1044,7 @@ export function TeacherDashboard() {
               </button>
             ))}
           </div>
-          <div id="t-overview" className="text-[11px] text-gray-500 dark:text-slate-400 mb-2 scroll-mt-2">
+          <div id="t-overview" className="text-xs text-gray-500 dark:text-slate-400 mb-2 scroll-mt-2">
             {selected
               ? `Дисциплина: ${selected.name} (направление ${selectedDir})`
               : `Направление ${selectedDir} - сводка по всем ${analysis.total_disciplines} дисциплинам, ни одна дисциплина не выбрана`}
@@ -1067,20 +1067,20 @@ export function TeacherDashboard() {
           return (<>
           <div className="flex gap-3 mb-4 flex-wrap">
             <div style={card}>
-              <div className="text-[11px] text-gray-500 dark:text-slate-400">
+              <div className="text-xs text-gray-500 dark:text-slate-400">
                 {discData ? `Охват рынка: ${selected?.name ?? ""}` : "Средний охват рынка"}
                 {covTotal ? ` (из ${covTotal})` : ""}
               </div>
                   <div className={`text-2xl font-bold ${covReliable ? covTextClass(cov) : "text-gray-400"}`}>
                     {covReliable ? `${(cov * 100).toFixed(1)}%` : "н/д"}
                   </div>
-                  <div className="text-[11px] font-semibold text-gray-500 dark:text-slate-400">
+                  <div className="text-xs font-semibold text-gray-500 dark:text-slate-400">
                     {covReliable ? (level || "").toUpperCase() : "мало релевантных навыков"}
                   </div>
                   {/* Откуда знаменатель: ручная привязка, автоподбор по навыкам
                       дисциплины или слабая оценка по названию. */}
                   {discData?.market_top_source && (
-                    <div className="text-[10px] text-gray-400 dark:text-slate-500 mt-0.5">
+                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
                       {discData.market_top_source === "explicit"
                         ? "знаменатель: ручная привязка"
                         : discData.market_top_source === "derived"
@@ -1090,13 +1090,13 @@ export function TeacherDashboard() {
                   )}
                 </div>
                 <div style={card}>
-                  <div className="text-[11px] text-gray-500 dark:text-slate-400">Gaps</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400">Gaps</div>
                   <div className="text-2xl font-bold text-red-300">
                     {gaps}
                   </div>
                 </div>
                 <div style={card}>
-                  <div className="text-[11px] text-gray-500 dark:text-slate-400">Disciplines</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400">Disciplines</div>
                   <div className="text-2xl font-bold text-blue-300">
                     {analysis.total_disciplines}
                   </div>
@@ -1116,8 +1116,18 @@ export function TeacherDashboard() {
                   {(analysis.recommendations || []).map((r, i) => (
                     <div key={i} style={{ padding: "8px 10px", marginBottom: 6, borderRadius: 6, fontSize: 12, background: r.priority === "high" ? dk ? "#3b1d1d" : "#fef2f2" : r.priority === "medium" ? dk ? "#2a230f" : "#fffbeb" : dk ? "#1d2440" : "#eff6ff", border: `1px solid ${r.priority === "high" ? dk ? "#7f2d2d" : "#fecaca" : r.priority === "medium" ? dk ? "#57481c" : "#fde68a" : dk ? "#2c4a7c" : "#bfdbfe"}` }}>
                       <div className="flex gap-1.5 items-center mb-1">
-                        <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: 11, background: r.priority === "high" ? dk ? "#3b1d1d" : "#fee2e2" : r.priority === "medium" ? dk ? "#453a17" : "#fef3c7" : dk ? "#1e3a5f" : "#dbeafe", color: r.priority === "high" ? "#dc2626" : r.priority === "medium" ? "#92400e" : "#1d4ed8", fontWeight: 600 }}>{r.priority === "high" ? "высокий" : r.priority === "medium" ? "средний" : "низкий"}</span>
-                        <span className="text-[11px] text-gray-500 dark:text-slate-400">{r.type}</span>
+                        <span
+                          className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
+                            r.priority === "high"
+                              ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                              : r.priority === "medium"
+                                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                                : "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                          }`}
+                        >
+                          {r.priority}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-slate-400">{r.type}</span>
                       </div>
                       <div className="text-gray-700 dark:text-slate-300 leading-snug">{r.message}</div>
                     </div>
@@ -1139,7 +1149,7 @@ export function TeacherDashboard() {
                 <div className="text-xs font-semibold text-violet-600 mb-2">Востребованные навыки рынка</div>
                 <div className="flex gap-1 flex-wrap">
                   {((analysis.top_emerging_across_all || []) as any[]).map((s: any, i: number) => (
-                    <span key={i} className="inline-block px-2 py-0.5 rounded text-[11px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 m-0.5">
+                    <span key={i} className="inline-block px-2 py-0.5 rounded text-xs bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 m-0.5">
                       {s.skill}
                     </span>
                   ))}
@@ -1152,7 +1162,7 @@ export function TeacherDashboard() {
                     <div className={`${card} flex-1 min-w-[200px]`}>
                       <div className="text-xs font-semibold text-emerald-600 mb-2">Растущие навыки</div>
                       {analysis.trends.rising.map((t, i) => (
-                        <div key={i} className="text-[11px] py-0.5 text-gray-600 dark:text-slate-400">
+                        <div key={i} className="text-xs py-0.5 text-gray-600 dark:text-slate-400">
                           {t.skill} <span className="text-emerald-600">{t.change_pct > 0 ? "+" : ""}{t.change_pct}%</span>
                         </div>
                       ))}
@@ -1162,7 +1172,7 @@ export function TeacherDashboard() {
                     <div className={`${card} flex-1 min-w-[200px]`}>
                       <div className="text-xs font-semibold text-red-600 mb-2">Падающие навыки</div>
                       {analysis.trends.declining.map((t, i) => (
-                        <div key={i} className="text-[11px] py-0.5 text-gray-600 dark:text-slate-400">
+                        <div key={i} className="text-xs py-0.5 text-gray-600 dark:text-slate-400">
                           {t.skill} <span className="text-red-600">{t.change_pct}%</span>
                         </div>
                       ))}
@@ -1183,7 +1193,7 @@ export function TeacherDashboard() {
                   }));
                   const inN = rows.filter((r) => r.inScope).length;
                   return (<>
-                    <div className="text-[11px] text-gray-500 dark:text-slate-400 mb-1.5">
+                    <div className="text-xs text-gray-500 dark:text-slate-400 mb-1.5">
                       В учёте: {inN} из {rows.length}
                       {scopeMsg && (<span className="ml-2 text-amber-800">{scopeMsg}</span>)}
                     </div>
@@ -1205,23 +1215,23 @@ export function TeacherDashboard() {
                       >
                         {r.name}
                         {r.src === "methodology" && (
-                          <span className="ml-1.5 text-[10px] text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950 rounded px-1 py-0.5">методология</span>
+                          <span className="ml-1.5 text-xs text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950 rounded px-1 py-0.5">методология</span>
                         )}
                         {r.src === "custom" && (
-                          <span className="ml-1.5 text-[10px] text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1 py-0.5">вручную</span>
+                          <span className="ml-1.5 text-xs text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1 py-0.5">вручную</span>
                         )}
                       </span>
                       {r.a ? (
                         <div className="flex gap-3">
                           <span className={`font-semibold ${covTextClass(r.a.coverage_ratio)}`}>{(r.a.coverage_ratio * 100).toFixed(1)}%</span>
                           {r.a.weighted_coverage != null && (
-                            <span className={`text-[11px] ${covTextClass(r.a.weighted_coverage)}`} title="Взвешенное покрытие (качество)">Кач.:{(r.a.weighted_coverage * 100).toFixed(0)}%</span>
+                            <span className={`text-xs ${covTextClass(r.a.weighted_coverage)}`} title="Взвешенное покрытие (качество)">Кач.:{(r.a.weighted_coverage * 100).toFixed(0)}%</span>
                           )}
                           <span className="text-red-600" title="Пробелов">{r.a.gaps} пр.</span>
                           <span className="text-blue-600" title="Новые навыки рынка">{r.a.emerging} нов.</span>
                         </div>
                       ) : (
-                        <span className="text-[11px] text-gray-400">вне учёта</span>
+                        <span className="text-xs text-gray-400">вне учёта</span>
                       )}
                     </div>
                     ))}
@@ -1268,14 +1278,14 @@ export function TeacherDashboard() {
                         placeholder="Код: ПК-2.1"
                         aria-label="Код компетенции"
                         className={`h-9 w-full px-2 rounded border bg-white dark:bg-slate-950 text-xs ${compErr.code ? "border-red-400" : "border-gray-300 dark:border-slate-600"}`} />
-                      {compErr.code && <div className="text-[11px] text-red-600 mt-1">{compErr.code}</div>}
+                      {compErr.code && <div className="text-xs text-red-600 mt-1">{compErr.code}</div>}
                     </div>
                     <div>
                       <input value={compName} onChange={(e) => setCompName(e.target.value)}
                         placeholder="Название (необязательно)"
                         aria-label="Название компетенции"
                         className={`h-9 w-full px-2 rounded border bg-white dark:bg-slate-950 text-xs ${compErr.name ? "border-red-400" : "border-gray-300 dark:border-slate-600"}`} />
-                      {compErr.name && <div className="text-[11px] text-red-600 mt-1">{compErr.name}</div>}
+                      {compErr.name && <div className="text-xs text-red-600 mt-1">{compErr.name}</div>}
                     </div>
                   </div>
                   {compErr.msg && <div className="text-xs text-red-600">{compErr.msg}</div>}
@@ -1287,7 +1297,7 @@ export function TeacherDashboard() {
                     <button onClick={() => setCompForm(false)}
                       className="text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 border-0 bg-transparent cursor-pointer">Отмена</button>
                   </div>
-                  <div className="text-[11px] text-gray-400 dark:text-slate-500">ЗУН и инструменты дописываются после создания: +ЗУН у компетенции, инструменты - через Администрирование → Навыки.</div>
+                  <div className="text-xs text-gray-400 dark:text-slate-500">ЗУН и инструменты дописываются после создания: +ЗУН у компетенции, инструменты - через Администрирование → Навыки.</div>
                 </div>
               )}
             </div>
@@ -1371,7 +1381,7 @@ export function TeacherDashboard() {
                       </button>
                       {zunMsg && <span className="text-xs text-gray-600 dark:text-slate-400">{zunMsg}</span>}
                     </div>
-                    <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">Пункт попадёт в анализ при следующем пересчёте.</div>
+                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-1">Пункт попадёт в анализ при следующем пересчёте.</div>
                   </div>
                 )}
                   {total === 0 ? (
@@ -1379,7 +1389,7 @@ export function TeacherDashboard() {
                   ) : hasGroups ? (
                     groups.map((g) => g.items.length > 0 && (
                       <div key={g.title} className="mb-2 last:mb-0">
-                        <div className="text-[11px] font-semibold text-violet-500 uppercase tracking-wide mt-1.5 mb-1">
+                        <div className="text-xs font-semibold text-violet-500 uppercase tracking-wide mt-1.5 mb-1">
                           {g.title} ({g.items.length})
                         </div>
                         {g.items.map((sk) => (

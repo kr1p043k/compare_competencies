@@ -933,7 +933,7 @@ export function AdminDashboard() {
                           <tr key={it.skill} className="border-b border-gray-100 dark:border-slate-800">
                             <td className="px-3 py-1.5 font-mono text-xs text-gray-700 dark:text-slate-300">
                               {it.skill}
-                              {it.manual && <Badge variant="outline" className="ml-2 text-[10px]">manual</Badge>}
+                              {it.manual && <Badge variant="outline" className="ml-2 text-xs">manual</Badge>}
                             </td>
                             <td className="px-3 py-1.5">
                               <select

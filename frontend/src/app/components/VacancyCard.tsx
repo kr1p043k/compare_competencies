@@ -220,7 +220,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
   const LevelChip = (
     <span
       title={`Уровень: ${expLevel.label}`}
-      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${expLevel.badge}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${expLevel.badge}`}
     >
       <span className={`size-1.5 rounded-full ${expLevel.dot}`} aria-hidden />
       {expLevel.label}
@@ -230,7 +230,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
   const SpamChip = vacancy.is_spam ? (
     <span
       title={vacancy.spam_reason || ""}
-      className="inline-flex items-center gap-1 rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300"
+      className="inline-flex items-center gap-1 rounded bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300"
     >
       <AlertTriangle className="size-3" />
       Спам
@@ -242,13 +242,13 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
       {skills.slice(0, 7).map((skill) => (
         <span
           key={skill}
-          className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+          className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300"
         >
           {skill}
         </span>
       ))}
       {skills.length > 7 && (
-        <span className="rounded px-1.5 py-0.5 text-[11px] text-slate-400">
+        <span className="rounded px-1.5 py-0.5 text-xs text-slate-400">
           +{skills.length - 7}
         </span>
       )}
@@ -354,7 +354,7 @@ export function VacancyCard({ vacancy, onOpen, variant = "grid" }: VacancyCardPr
       {skills.length > 0 && <div className="mt-3">{SkillChips}</div>}
 
       <div className="mt-auto pt-3">
-        <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400">
+        <div className="flex items-center justify-between gap-2 text-xs text-slate-400">
           <span className="inline-flex items-center gap-1">
             <Calendar className="size-3" />
             {formatDate(vacancy.published_at)}

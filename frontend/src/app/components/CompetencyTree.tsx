@@ -109,17 +109,17 @@ function TreeNode({ node, depth }: { node: CompetencyNode; depth: number }) {
       {open && hasSkills && (
         <div className="flex flex-wrap gap-1 px-3 py-2" style={{ marginLeft: depth * 16 + 20 }}>
           {matchedList.slice(0, 8).map((s, i) => (
-            <span key={"m" + i} title={s} className="text-[11px] px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800">
+            <span key={"m" + i} title={s} className="text-xs px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800">
               {shortSkill(s)}
             </span>
           ))}
           {gapList.slice(0, 8).map((s, i) => (
-            <span key={"g" + i} title={s} className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
+            <span key={"g" + i} title={s} className="text-xs px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
               {shortSkill(s)}
             </span>
           ))}
           {(matchedList.length > 8 || gapList.length > 8) && (
-            <span className="text-[11px] px-2 py-0.5 text-gray-400 dark:text-slate-500">
+            <span className="text-xs px-2 py-0.5 text-gray-400 dark:text-slate-500">
               +{Math.max(0, matchedList.length - 8) + Math.max(0, gapList.length - 8)} more
             </span>
           )}
