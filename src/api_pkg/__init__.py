@@ -76,6 +76,10 @@ def create_app() -> FastAPI:
     allowed_origins = (
         config.ALLOWED_ORIGINS.split(",") if config.ALLOWED_ORIGINS != "*" else ["*"]
     )
+    if allowed_origins == ["*"]:
+        # Не запрещаем старт (может быть осознанный кейс), но громко предупреждаем:
+        # открытый CORS - идея плохая, особенно если появятся cookie-сессии.
+        logger.warning("cors_allow_all_origins", hint="задайте ALLOWED_ORIGINS списком доменов")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
