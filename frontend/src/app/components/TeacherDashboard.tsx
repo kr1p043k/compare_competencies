@@ -55,7 +55,7 @@ type DirectionAnalysis = {
   top_emerging_across_all: { skill: string; frequency: number }[];
   recommendations: { type: string; priority: string; message: string }[];
   trends: { rising: any[]; declining: any[] };
-  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; market_top_coverage?: number; market_top_total?: number; market_top_reliable?: boolean; market_top_source?: string }[];
+  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; market_top_coverage?: number; market_top_total?: number; market_top_reliable?: boolean; market_top_source?: string; years?: number[] }[];
   generated_at: string;
 };
 
@@ -115,6 +115,8 @@ export function TeacherDashboard() {
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [selected, setSelected] = useState<DisciplineDetail | null>(null);
   const [scopeSaving, setScopeSaving] = useState<string | null>(null);
+  // Фильтр по году набора: дисциплина может быть только в одном плане.
+  const [yearFilter, setYearFilter] = useState<0 | 2024 | 2025>(0);
   const [metaStale, setMetaStale] = useState(false);
   const [scopeMsg, setScopeMsg] = useState("");
 
@@ -541,9 +543,13 @@ export function TeacherDashboard() {
     );
   }
 
-  const filtered = disciplines.filter((d) =>
-    d.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const analysisByName = new Map((analysis?.disciplines ?? []).map((a) => [a.name, a]));
+  const filtered = disciplines.filter((d) => {
+    if (!d.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (yearFilter === 0) return true;
+    const years = analysisByName.get(d.name)?.years;
+    return Array.isArray(years) && years.includes(yearFilter);
+  });
 
   const containerStyle: React.CSSProperties = {
     display: "flex",
@@ -836,6 +842,22 @@ export function TeacherDashboard() {
               {metaStale && (<span className="text-xs text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950 rounded px-1.5 py-0.5">данные устарели - обновите анализ</span>)}
             </div>
           </div>
+          <div className="flex gap-1.5 px-2 pb-2">
+            {([0, 2024, 2025] as const).map((y) => (
+              <button
+                key={y}
+                onClick={() => setYearFilter(y)}
+                className={
+                  "text-xs px-2 py-0.5 rounded border cursor-pointer " +
+                  (yearFilter === y
+                    ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
+                    : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                }
+              >
+                {y === 0 ? "Все годы" : y}
+              </button>
+            ))}
+          </div>
           {filtered.map((d) => {
             const discAnalysis = analysis?.disciplines.find((a) => a.name === d.name);
             return (
@@ -865,6 +887,26 @@ export function TeacherDashboard() {
                 <div className="flex justify-between flex-1 min-w-0">
                   <div className="text-[13px] font-semibold text-violet-600 truncate flex-1 min-w-0">
                     {d.name}
+                    {(() => {
+                      const years = analysisByName.get(d.name)?.years;
+                      if (!years || years.length === 0) return null;
+                      const only = years.length === 1 ? years[0] : null;
+                      return (
+                        <span
+                          title={only ? `Только в наборе ${only}` : `В наборах ${years.join(" и ")}`}
+                          className={
+                            "ml-1.5 align-middle text-[10px] font-medium rounded px-1.5 py-0.5 whitespace-nowrap " +
+                            (only === 2024
+                              ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                              : only === 2025
+                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                : "bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400")
+                          }
+                        >
+                          {only ?? years.join("/")}
+                        </span>
+                      );
+                    })()}
                   </div>
                   {discAnalysis && (
                     <span className={`text-xs font-bold ${covTextClass(discAnalysis.coverage_ratio)}`}>

@@ -98,6 +98,32 @@ def main() -> int:
     for c in only_2025:
         print(f"    · только 2025: {c}")
 
+    # Карта для фронтенда: имя дисциплины в БД -> годы набора. Матчинг тот же,
+    # что в аудите (аббревиатуры, скобки, омоглифы), иначе половина дисциплин
+    # не сопоставится: в БД "Иностранный язык (англ. яз., уровень А1)".
+    try:
+        db_names = audit.load_db_disciplines(audit.DEFAULT_DSN, args.direction)
+    except Exception:
+        db_names = []
+    by_db: dict[str, list[int]] = {}
+    for year in years:
+        doc = json.loads(files[year].read_text(encoding="utf-8"))
+        pairs, _missing, _extra = audit.match(doc["disciplines"], db_names)
+        for off, db_name in pairs.items():
+            by_db.setdefault(db_name, [])
+            if year not in by_db[db_name]:
+                by_db[db_name].append(year)
+    for name in by_db:
+        by_db[name] = sorted(by_db[name])
+    db_path = REFERENCE / f"discipline_years_{args.direction}.json"
+    db_path.write_text(
+        json.dumps({"direction": args.direction, "years": years,
+                    "disciplines": dict(sorted(by_db.items()))},
+                   ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(f"карта по именам БД: {db_path} ({len(by_db)} дисциплин)")
+
     payload = {
         "direction": args.direction,
         "years": years,

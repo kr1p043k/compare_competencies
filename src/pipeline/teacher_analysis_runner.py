@@ -61,6 +61,20 @@ SCOPE_EXCLUDED: frozenset = frozenset({
 SCOPE_ENGLISH_KEEP_LEVEL = "уровень с1"
 
 
+def _load_discipline_years(dir_code: str) -> dict[str, list[int]]:
+    """Имя дисциплины -> годы набора, в которых она встречается.
+
+    Файл строит scripts/curriculum_years.py: он сверяет официальные перечни
+    годов с именами в БД через ту же нормализацию, что и аудит.
+    """
+    path = config.REFERENCE_DIR / f"discipline_years_{dir_code}.json"
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    return {k: list(v) for k, v in (doc.get("disciplines") or {}).items()}
+
+
 def discipline_in_scope(name: str) -> bool:
     # Pure scope predicate (unit-tested).
     if not name:
@@ -1077,6 +1091,7 @@ async def run_teacher_analysis(
             for s, f, _ in direction_emerging_result.unwrap()
         ]
 
+    _years = _load_discipline_years(dir_code)
     summary = DirectionSummary(
         direction_code=dir_code,
         direction_name=direction["name"],
@@ -1098,6 +1113,7 @@ async def run_teacher_analysis(
              "market_top_total": r.discipline.market_top_total,
              "market_top_reliable": r.discipline.market_top_reliable,
              "market_top_source": r.discipline.market_top_source,
+             "years": _years.get(dn) or [],
              "gaps": r.discipline.gaps, "emerging": len(r.discipline.emerging)}
             for dn, r in discipline_reports
         ],
