@@ -1,0 +1,501 @@
+﻿role;skill;grade
+Data Scientist;deep learning;2
+Data Scientist;конвейеры данных;2
+Data Scientist;инфраструктура данных;2
+Data Scientist;mysql;1
+Data Scientist;дашборды;1
+Data Scientist;grafana;1
+Data Scientist;администрирование windows server;0
+Data Scientist;apache;1
+Data Scientist;consul;0
+Data Scientist;vault;0
+Data Scientist;tailwind;0
+Data Scientist;dom;0
+Data Scientist;svelte;0
+Data Scientist;zustand;0
+Data Scientist;balsamiq;0
+Data Scientist;инженерия подсказок;1
+Data Scientist;gpt;2
+Data Scientist;nltk;1
+Data Scientist;составление запросов к llm;2
+Data Scientist;question answering;1
+Data Scientist;долгосрочные эффекты;1
+Data Scientist;эффективное общение;1
+Data Scientist;рефлексивная практика;1
+Data Scientist;анализ поведения ии;1
+Data Scientist;этика разработки;1
+Data Scientist;neo4j;1
+Data Scientist;trino;1
+Data Scientist;oracle db;1
+Data Scientist;database design;1
+Data Scientist;hadoop hdfs;1
+Data Scientist;защита информации;1
+Data Scientist;cpp;0
+Data Scientist;обеспечение качества;1
+Data Scientist;нефункциональные требования;0
+Data Scientist;сетевое взаимодействие;0
+Data Scientist;защищённый ии;1
+Data Scientist;responsible ai;1
+Data Scientist;этика ии;1
+Data Scientist;этические риски;1
+Data Scientist;oidc;0
+Data Scientist;c++ embedded;0
+Data Scientist;c++;0
+Data Scientist;esp32;0
+Data Scientist;ros;0
+Data Scientist;встроенное по c++;0
+Data Scientist;arcgis;0
+Data Scientist;гис;0
+Data Scientist;postgis;0
+Data Scientist;qgis;0
+Data Scientist;дзз;0
+Data Scientist;uml;0
+Data Scientist;интеграция 1с с другими системами;0
+Data Scientist;1c розница;0
+Data Scientist;программирование 1с;0
+Data Scientist;администрирование 1с;0
+Data Scientist;bayesian regression;2
+Data Scientist;апостериорное распределение;2
+Data Scientist;теория вероятностей;2
+Data Scientist;статистический вывод;2
+Data Scientist;байесовская оптимизация гиперпараметров;2
+Data Scientist;логическое программирование;0
+Data Scientist;reactive programming;0
+Data Scientist;обработка естественного языка;2
+Data Scientist;параллельное программирование;1
+Data Scientist;data analysis;2
+Data Scientist;react native;0
+Data Scientist;swiftui;0
+Data Scientist;ios;0
+Data Scientist;android;0
+Data Scientist;cocoapods;0
+Data Scientist;firebase;0
+Data Scientist;gcp;1
+Data Scientist;serverless framework;0
+Data Scientist;directus;0
+Data Scientist;netlify;0
+Data Scientist;машинное обучение python;2
+Data Scientist;аугментация данных;2
+Data Scientist;градиентный бустинг;2
+Data Scientist;подбор гиперпараметров;2
+Data Scientist;тонкая настройка;2
+Data Scientist;unreal engine;0
+Data Scientist;разработка игр;0
+Data Scientist;unity;0
+Data Scientist;webgl;0
+Data Scientist;opengl;0
+Data Scientist;сквозное тестирование;0
+Data Scientist;a/b тестирование;2
+Data Scientist;vitest;0
+Data Scientist;mocha;0
+Data Scientist;модульное тестирование;1
+Data Scientist;atlassian confluence;1
+Data Scientist;определение метрик успеха;2
+Data Scientist;соблюдение архитектуры;1
+Data Scientist;ведение бэклога;1
+Data Scientist;системный анализ;1
+Data Scientist;ktor;0
+Data Scientist;apollo graphql;0
+Data Scientist;testng;0
+Data Scientist;junit;0
+Data Scientist;tailwind css;0
+Data Scientist;solidity;0
+Data Scientist;c++ разработка;0
+Data Scientist;lua;0
+Data Scientist;elixir;0
+Data Scientist;typescript;0
+Data Scientist;устойчивость к атакам;1
+Data Scientist;feature preprocessing;2
+Data Scientist;управление проектами ии;1
+Data Scientist;многослойный перцептрон;2
+Data Scientist;data engineering;1
+Data Scientist;обучение нейросетей;2
+Data Scientist;язык запросов graphql;0
+Data Scientist;power automate;0
+Data Scientist;воплощённый ии;0
+Data Scientist;кодирование категорий;2
+Data Scientist;веб-аналитика;1
+Data Scientist;инженерная документация;1
+Data Scientist;fine-tuning;2
+Data Scientist;randomizedsearchcv;2
+Data Scientist;hadoop java;0
+Data Scientist;rspec;0
+Data Scientist;cot;1
+Data Scientist;conversational ai;1
+Data Scientist;интеграция компонентов;1
+Data Scientist;теория алгоритмов;1
+Backend-разработчик;data science python;0
+Backend-разработчик;flink;1
+Backend-разработчик;t-sne;0
+Backend-разработчик;feature importance;0
+Backend-разработчик;streamlit;0
+Backend-разработчик;контейнеризация python;1
+Backend-разработчик;kibana;1
+Backend-разработчик;grafana;1
+Backend-разработчик;cmake;0
+Backend-разработчик;apache;1
+Backend-разработчик;angular;0
+Backend-разработчик;figma;0
+Backend-разработчик;webgl;0
+Backend-разработчик;storybook;0
+Backend-разработчик;framer motion;0
+Backend-разработчик;эффективные промпты;0
+Backend-разработчик;llm-as-a-judge;0
+Backend-разработчик;визуально-языковые модели;0
+Backend-разработчик;agents;1
+Backend-разработчик;question answering;0
+Backend-разработчик;рефлексивная практика;1
+Backend-разработчик;работа в команде;1
+Backend-разработчик;коллаборация;1
+Backend-разработчик;кросс-функциональное взаимодействие;1
+Backend-разработчик;метарефлексия;0
+Backend-разработчик;ms sql server;1
+Backend-разработчик;timescaledb;1
+Backend-разработчик;amazon redshift;1
+Backend-разработчик;big data;1
+Backend-разработчик;presto;1
+Backend-разработчик;c;1
+Backend-разработчик;информационная безопасность;1
+Backend-разработчик;программные средства;1
+Backend-разработчик;программная документация;1
+Backend-разработчик;оценка трудоемкости;1
+Backend-разработчик;справедливый алгоритм;0
+Backend-разработчик;ai safety;0
+Backend-разработчик;валидация модели;0
+Backend-разработчик;explainable ai;0
+Backend-разработчик;trustworthy ai;0
+Backend-разработчик;esp32;0
+Backend-разработчик;c++ embedded;0
+Backend-разработчик;c++;1
+Backend-разработчик;разработка драйверов;0
+Backend-разработчик;rust;1
+Backend-разработчик;qgis;0
+Backend-разработчик;postgis;0
+Backend-разработчик;arcgis;0
+Backend-разработчик;гис;0
+Backend-разработчик;дзз;0
+Backend-разработчик;ms project;0
+Backend-разработчик;1c бухгалтерия;0
+Backend-разработчик;sap (модули);0
+Backend-разработчик;uml;1
+Backend-разработчик;администрирование 1с;0
+Backend-разработчик;теорема байеса;0
+Backend-разработчик;непараметрические тесты;0
+Backend-разработчик;bayesian regression;0
+Backend-разработчик;условная вероятность;0
+Backend-разработчик;сетевой анализ;0
+Backend-разработчик;спецификации (openapi);2
+Backend-разработчик;микросервисы python;2
+Backend-разработчик;проектирование restful api;2
+Backend-разработчик;domain-driven design;2
+Backend-разработчик;микросервисная архитектура;2
+Backend-разработчик;разработка мобильных приложений;0
+Backend-разработчик;ios;0
+Backend-разработчик;swiftui;0
+Backend-разработчик;core data;0
+Backend-разработчик;objective-c;0
+Backend-разработчик;azure;1
+Backend-разработчик;firebase;1
+Backend-разработчик;supabase;1
+Backend-разработчик;netlify;0
+Backend-разработчик;gnn;0
+Backend-разработчик;мультиагентные системы;0
+Backend-разработчик;adversarial training;0
+Backend-разработчик;model selection;0
+Backend-разработчик;graph neural networks;0
+Backend-разработчик;разработка игр;0
+Backend-разработчик;opengl;0
+Backend-разработчик;unreal engine;0
+Backend-разработчик;unity;0
+Backend-разработчик;appium;0
+Backend-разработчик;юзабилити-тестирование;0
+Backend-разработчик;тестирование безопасности;1
+Backend-разработчик;jest;0
+Backend-разработчик;mocha;0
+Backend-разработчик;определение метрик успеха;1
+Backend-разработчик;управление знаниями;1
+Backend-разработчик;проектирование ии-решений;0
+Backend-разработчик;jira;1
+Backend-разработчик;управление ит-проектами;1
+Backend-разработчик;orm (prisma, sequelize);2
+Backend-разработчик;xgboost;0
+Backend-разработчик;windows forms;0
+Backend-разработчик;flux;1
+Backend-разработчик;lightgbm;0
+Backend-разработчик;swift;0
+Backend-разработчик;современный c++;1
+Backend-разработчик;системное программирование;1
+Backend-разработчик;c++ разработка;1
+Backend-разработчик;язык запросов graphql;2
+Backend-разработчик;неструктурированные данные;1
+Backend-разработчик;стохастическая оптимизация;0
+Backend-разработчик;identity server;2
+Backend-разработчик;gan;0
+Backend-разработчик;риск-менеджмент;0
+Backend-разработчик;парсинг данных;1
+Backend-разработчик;графическое представление данных;0
+Backend-разработчик;управление рисками ии;0
+Backend-разработчик;teamcity;1
+Backend-разработчик;openapi;2
+Backend-разработчик;постановка задач разработчикам;1
+Backend-разработчик;когнитивные искажения;0
+Backend-разработчик;adversarial defense;0
+Backend-разработчик;eslint;0
+Backend-разработчик;material-ui;0
+Backend-разработчик;blazor;1
+Backend-разработчик;вариационный вывод;0
+Backend-разработчик;кластеры данных;0
+Backend-разработчик;jpa;2
+Backend-разработчик;коллективный интеллект;0
+Backend-разработчик;дискриминация данных;0
+DevOps-инженер;data processing;1
+DevOps-инженер;power automate;0
+DevOps-инженер;feature store;1
+DevOps-инженер;анализ данных на python;0
+DevOps-инженер;пакетная обработка;1
+DevOps-инженер;jenkins;2
+DevOps-инженер;teamcity;2
+DevOps-инженер;openshift;2
+DevOps-инженер;автоматизация развёртывания;2
+DevOps-инженер;chef;2
+DevOps-инженер;flux;2
+DevOps-инженер;d3.js;0
+DevOps-инженер;sketch;0
+DevOps-инженер;next.js;0
+DevOps-инженер;zustand;0
+DevOps-инженер;улучшение промптов;0
+DevOps-инженер;prompt engineering;0
+DevOps-инженер;составление запросов к llm;0
+DevOps-инженер;gpt;0
+DevOps-инженер;agents;0
+DevOps-инженер;учёт компетенций коллег;1
+DevOps-инженер;неопределенность;0
+DevOps-инженер;коммуникация;1
+DevOps-инженер;рефлексивная практика;1
+DevOps-инженер;перенос методов;0
+DevOps-инженер;работа с базами данных;1
+DevOps-инженер;nosql;1
+DevOps-инженер;amazon redshift;1
+DevOps-инженер;arenadata db;1
+DevOps-инженер;data vault;0
+DevOps-инженер;наладка программного обеспечения;1
+DevOps-инженер;программные средства;1
+DevOps-инженер;резервное копирование;2
+DevOps-инженер;программная документация;1
+DevOps-инженер;мультимедиа;0
+DevOps-инженер;ai safety;0
+DevOps-инженер;этика ии;0
+DevOps-инженер;этический аудит;0
+DevOps-инженер;безопасность алгоритмов;0
+DevOps-инженер;identity server;1
+DevOps-инженер;c++ embedded;0
+DevOps-инженер;микроконтроллеры c++;0
+DevOps-инженер;fpga;0
+DevOps-инженер;встроенное по c++;0
+DevOps-инженер;c++;0
+DevOps-инженер;arcgis;0
+DevOps-инженер;дзз;0
+DevOps-инженер;postgis;0
+DevOps-инженер;qgis;0
+DevOps-инженер;гис;0
+DevOps-инженер;1c розница;0
+DevOps-инженер;uml;0
+DevOps-инженер;интеграция 1с с другими системами;0
+DevOps-инженер;программирование 1с;0
+DevOps-инженер;1c предприятие;0
+DevOps-инженер;проверка гипотез;0
+DevOps-инженер;байесовские модели;0
+DevOps-инженер;байесовская оптимизация;0
+DevOps-инженер;теорема байеса;0
+DevOps-инженер;теория случайных процессов;0
+DevOps-инженер;computer vision;0
+DevOps-инженер;data analysis;0
+DevOps-инженер;togaf;1
+DevOps-инженер;mlops;1
+DevOps-инженер;restful;1
+DevOps-инженер;swift;0
+DevOps-инженер;kotlin;0
+DevOps-инженер;android;0
+DevOps-инженер;swiftui;0
+DevOps-инженер;flutter;0
+DevOps-инженер;gcp;2
+DevOps-инженер;cloudformation;2
+DevOps-инженер;azure;2
+DevOps-инженер;directus;0
+DevOps-инженер;serverless framework;2
+DevOps-инженер;робототехника;0
+DevOps-инженер;vae;0
+DevOps-инженер;apriori;0
+DevOps-инженер;распределённый градиентный спуск;0
+DevOps-инженер;статистическая значимость;0
+DevOps-инженер;unity;0
+DevOps-инженер;opengl;0
+DevOps-инженер;webgl;0
+DevOps-инженер;разработка игр;0
+DevOps-инженер;unreal engine;0
+DevOps-инженер;swagger;1
+DevOps-инженер;selenium;1
+DevOps-инженер;тестирование безопасности;1
+DevOps-инженер;тестирование по;1
+DevOps-инженер;a/b тестирование;0
+DevOps-инженер;системное проектирование;1
+DevOps-инженер;анализ бизнес-проблем;0
+DevOps-инженер;архитектура ии;0
+DevOps-инженер;ведение бэклога;1
+DevOps-инженер;управление конфигурациями;2
+DevOps-инженер;hibernate;0
+DevOps-инженер;quarkus;0
+DevOps-инженер;rspec;0
+DevOps-инженер;babel;0
+DevOps-инженер;gradle;1
+DevOps-инженер;c++ разработка;0
+DevOps-инженер;typescript;1
+DevOps-инженер;scss;0
+DevOps-инженер;protobuf;1
+DevOps-инженер;xslt;0
+DevOps-инженер;устойчивость к атакам;1
+DevOps-инженер;hadoop java;1
+DevOps-инженер;оценка распределений;0
+DevOps-инженер;байесовская статистика;0
+DevOps-инженер;развёртывание nlp;1
+DevOps-инженер;глубокое обучение с подкреплением;0
+DevOps-инженер;теория категорий;0
+DevOps-инженер;оценка трудоемкости;1
+DevOps-инженер;matplotlib;0
+DevOps-инженер;ado.net;0
+DevOps-инженер;r;0
+DevOps-инженер;администрирование систем;2
+DevOps-инженер;веб-аналитика;0
+DevOps-инженер;parameter-efficient fine-tuning;0
+DevOps-инженер;transformer;0
+DevOps-инженер;параметрическая настройка;1
+DevOps-инженер;учет ролевых особенностей;0
+DevOps-инженер;видео-языковые модели;0
+DevOps-инженер;статистическое моделирование;0
+DevOps-инженер;приватность;1
+Системный аналитик;sas;0
+Системный аналитик;ssrs;0
+Системный аналитик;feature selection;0
+Системный аналитик;обработка выбросов;0
+Системный аналитик;feature engineering;0
+Системный аналитик;powershell;1
+Системный аналитик;администрирование windows server;0
+Системный аналитик;vault;0
+Системный аналитик;vagrant;0
+Системный аналитик;kibana;0
+Системный аналитик;scss;0
+Системный аналитик;tailwind css;0
+Системный аналитик;gatsby;0
+Системный аналитик;redwoodjs;0
+Системный аналитик;storybook;0
+Системный аналитик;structured outputs;0
+Системный аналитик;multimodal;0
+Системный аналитик;nltk;0
+Системный аналитик;fine-tuning;0
+Системный аналитик;отладка промптов;0
+Системный аналитик;soft skills;2
+Системный аналитик;этика разработки;1
+Системный аналитик;критический анализ ии;1
+Системный аналитик;работа в команде;2
+Системный аналитик;когнитивная предвзятость;1
+Системный аналитик;greenplum;0
+Системный аналитик;big data;1
+Системный аналитик;data vault;1
+Системный аналитик;amazon redshift;0
+Системный аналитик;trino;0
+Системный аналитик;технологический стек;2
+Системный аналитик;нефункциональные требования;2
+Системный аналитик;программно-аппаратные комплексы;1
+Системный аналитик;технические средства;1
+Системный аналитик;межсетевой экран;1
+Системный аналитик;безопасность алгоритмов;0
+Системный аналитик;соответствие стандартам;2
+Системный аналитик;регуляторика ии;1
+Системный аналитик;справедливый алгоритм;0
+Системный аналитик;оценка рисков ии;1
+Системный аналитик;fpga;0
+Системный аналитик;микроконтроллеры c++;0
+Системный аналитик;rust;0
+Системный аналитик;встроенное по c++;0
+Системный аналитик;c++;0
+Системный аналитик;arcgis;0
+Системный аналитик;дзз;0
+Системный аналитик;гис;0
+Системный аналитик;qgis;0
+Системный аналитик;postgis;0
+Системный аналитик;enterprise java;1
+Системный аналитик;uml;2
+Системный аналитик;ms project;1
+Системный аналитик;erp;2
+Системный аналитик;1c программирование;0
+Системный аналитик;байесовские методы;0
+Системный аналитик;гауссовские процессы;0
+Системный аналитик;байесовский подход;0
+Системный аналитик;байесовская оптимизация гиперпараметров;0
+Системный аналитик;hyperopt;0
+Системный аналитик;микросервисная архитектура;2
+Системный аналитик;web application development;1
+Системный аналитик;jamstack;0
+Системный аналитик;data mining;0
+Системный аналитик;etl;1
+Системный аналитик;разработка мобильных приложений;0
+Системный аналитик;swiftui;0
+Системный аналитик;swift;0
+Системный аналитик;objective-c;0
+Системный аналитик;kotlin;0
+Системный аналитик;headless cms;1
+Системный аналитик;gcp;1
+Системный аналитик;firebase;0
+Системный аналитик;cloudformation;0
+Системный аналитик;azure;1
+Системный аналитик;градиентный бустинг;0
+Системный аналитик;деревья решений;0
+Системный аналитик;knn;0
+Системный аналитик;подбор гиперпараметров;0
+Системный аналитик;нейросетевые инновации;0
+Системный аналитик;opengl;0
+Системный аналитик;webgl;0
+Системный аналитик;unity;0
+Системный аналитик;разработка игр;0
+Системный аналитик;unreal engine;0
+Системный аналитик;тестирование по;2
+Системный аналитик;тестирование безопасности;1
+Системный аналитик;playwright;0
+Системный аналитик;a/b тестирование;1
+Системный аналитик;testng;0
+Системный аналитик;atlassian confluence;2
+Системный аналитик;управление проектами ии;1
+Системный аналитик;системное проектирование;2
+Системный аналитик;task management;1
+Системный аналитик;разработка технических заданий;2
+Системный аналитик;kafka streams;1
+Системный аналитик;webpack;0
+Системный аналитик;three.js;0
+Системный аналитик;quarkus;0
+Системный аналитик;socket.io;1
+Системный аналитик;typescript;0
+Системный аналитик;llvm;0
+Системный аналитик;shell script;0
+Системный аналитик;современный c++;0
+Системный аналитик;xpath;1
+Системный аналитик;мета-обучение;0
+Системный аналитик;1c документооборот;1
+Системный аналитик;openai api;0
+Системный аналитик;presto;0
+Системный аналитик;deep learning research;0
+Системный аналитик;robot framework;0
+Системный аналитик;dom;0
+Системный аналитик;механизм внимания;0
+Системный аналитик;диффузионные модели;0
+Системный аналитик;jdbc;0
+Системный аналитик;remix;0
+Системный аналитик;спецификации (openapi);2
+Системный аналитик;net core;1
+Системный аналитик;визуально-языковые модели;0
+Системный аналитик;generative ai;1
+Системный аналитик;командная работа;2
+Системный аналитик;ассоциативные правила;0
+Системный аналитик;оптимизация sql-запросов;1
+Системный аналитик;мультимодальные llm;0
+Системный аналитик;анализ данных;1
+Backend-разработчик;1c erp;0

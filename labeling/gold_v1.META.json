@@ -1,0 +1,23 @@
+{
+  "kind": "weak-v1, NOT human",
+  "labelers": {
+    "l1": "taxonomy (2=in role core, 1=in other role core, 0=else)",
+    "l2": "market frequency top-quartile(>=321.25) -> 1 else 0",
+    "l3": "cosine to role-core centroid, per-role tertiles -> 2/1/0"
+  },
+  "adjudication": "majority; all-differ -> 1",
+  "pairs": 360,
+  "roles": [
+    "Backend Developer",
+    "Frontend Developer",
+    "Data Scientist",
+    "DevOps Engineer",
+    "QA Engineer",
+    "Android Developer"
+  ],
+  "marginals": {
+    "0": 219,
+    "1": 90,
+    "2": 51
+  }
+}

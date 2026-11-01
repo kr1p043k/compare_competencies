@@ -1,0 +1,87 @@
+{
+  "platt": {
+    "log_loss": 13.2348,
+    "brier": 0.3672,
+    "reliability": [
+      {
+        "mean_pred": 0.0,
+        "frac_pos": 0.372,
+        "n": 86
+      },
+      {
+        "mean_pred": 1.0,
+        "frac_pos": 0.643,
+        "n": 42
+      }
+    ]
+  },
+  "isotonic": {
+    "log_loss": 0.7674,
+    "brier": 0.238,
+    "reliability": [
+      {
+        "mean_pred": 0.157,
+        "frac_pos": 0.267,
+        "n": 15
+      },
+      {
+        "mean_pred": 0.291,
+        "frac_pos": 0.357,
+        "n": 56
+      },
+      {
+        "mean_pred": 0.386,
+        "frac_pos": 0.476,
+        "n": 21
+      },
+      {
+        "mean_pred": 0.681,
+        "frac_pos": 0.694,
+        "n": 36
+      }
+    ]
+  },
+  "raw_minmax": {
+    "log_loss": 0.7138,
+    "brier": 0.2539
+  },
+  "oof_platt": {
+    "log_loss": 12.39,
+    "brier": 0.3438,
+    "reliability": [
+      {
+        "mean_pred": 0.0,
+        "frac_pos": 0.363,
+        "n": 91
+      },
+      {
+        "mean_pred": 1.0,
+        "frac_pos": 0.703,
+        "n": 37
+      }
+    ]
+  },
+  "oof_isotonic": {
+    "log_loss": 0.642,
+    "brier": 0.226,
+    "reliability": [
+      {
+        "mean_pred": 0.335,
+        "frac_pos": 0.269,
+        "n": 26
+      },
+      {
+        "mean_pred": 0.468,
+        "frac_pos": 0.257,
+        "n": 35
+      },
+      {
+        "mean_pred": 0.53,
+        "frac_pos": 0.642,
+        "n": 67
+      }
+    ]
+  },
+  "winner": "oof_isotonic",
+  "caveat": "oof_* variants: fit on role-OOF z-scores (no train reuse), eval on untouched test split; serving = per-query z-norm then map"
+}
