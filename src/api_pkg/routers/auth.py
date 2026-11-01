@@ -94,8 +94,13 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
         return None
     try:
         token_hash = _hash_token(token)
+        # Роль и активность берём из БД, а не из payload токена: иначе
+        # деактивация (is_active=false) или понижение в правах не действуют до
+        # истечения токена - а TTL у нас 7 дней. Сессия проверяется по хешу.
         session = await pool.fetchrow(
-            "SELECT logged_out_at FROM sessions WHERE token_hash = $1 AND logged_out_at IS NULL",
+            """SELECT u.id, u.email, u.role, u.is_active
+               FROM sessions s JOIN users u ON u.id = s.user_id
+               WHERE s.token_hash = $1 AND s.logged_out_at IS NULL""",
             token_hash,
         )
     except Exception:
@@ -104,7 +109,15 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
     if session is None:
         logger.warning("get_current_user_session_not_found", path=request.url.path, token_prefix=token[:20])
         return None
-    return data
+    if not session["is_active"]:
+        logger.warning("get_current_user_inactive", path=request.url.path, uid=str(session["id"]))
+        return None
+    return {
+        "uid": str(session["id"]),
+        "u": session["email"],
+        "r": session["role"],
+        "t": data.get("t"),
+    }
 
 
 def require_role(role: str):
