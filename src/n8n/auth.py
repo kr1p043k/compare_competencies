@@ -1,8 +1,9 @@
 """n8n API key auth middleware."""
 
 import structlog
-from fastapi import HTTPException, Request
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 logger = structlog.get_logger("n8n_auth")
 
@@ -17,14 +18,19 @@ class N8NAuthMiddleware(BaseHTTPMiddleware):
 
                 api_key = config.N8N_API_KEY
                 if api_key is None:
+                    # 503, а не 500: интеграция не настроена - это не сбой сервера.
+                    # Из middleware нельзя поднимать HTTPException - он уходил «сырым»
+                    # 500 с трейсбеком; возвращаем JSONResponse.
                     logger.error("n8n_auth_not_configured", path=request.url.path)
-                    raise HTTPException(status_code=500, detail="N8N_API_KEY not configured")
+                    return JSONResponse(
+                        status_code=503, content={"detail": "n8n integration is not configured"}
+                    )
                 auth = request.headers.get("Authorization", "")
                 if not auth.startswith("Bearer ") or auth[7:] != api_key.get_secret_value():
                     logger.warning(
                         "n8n_auth_failed", path=request.url.path,
                         client=request.client.host if request.client else "unknown"
                     )
-                    raise HTTPException(status_code=401, detail="Invalid n8n API key")
+                    return JSONResponse(status_code=401, content={"detail": "Invalid n8n API key"})
                 break
         return await call_next(request)
