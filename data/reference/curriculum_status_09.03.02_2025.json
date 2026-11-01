@@ -5,9 +5,9 @@
   "rpd_repository": "https://disk.360.yandex.ru/d/-5D0p0XfTwL5Qg",
   "counts": {
     "official": 83,
-    "in_db": 52,
-    "in_krm": 52,
-    "needs_rpd": 3
+    "in_db": 65,
+    "in_krm": 65,
+    "needs_rpd": 2
   },
   "disciplines": [
     {
@@ -94,8 +94,8 @@
       "discipline": "Алгоритмы, технологии и инструментальные средства обработки изображений и видеопоследовательностей",
       "in_db": true,
       "in_krm": true,
-      "db_name": "Алгоритмы технологии и инструментальные средства обработки изображений и видеопоследовательностей",
-      "krm_name": "Алгоритмы технологии и инструментальные средства обработки изображений и видеопоследовательностей",
+      "db_name": "Алгоритмы, технологии и инструментальные средства обработки изображений и видеопоследовательностей",
+      "krm_name": "Алгоритмы, технологии и инструментальные средства обработки изображений и видеопоследовательностей",
       "needs_rpd": false
     },
     {
@@ -124,10 +124,10 @@
     },
     {
       "discipline": "Безопасность жизнедеятельности",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Безопасность жизнедеятельности",
+      "krm_name": "Безопасность жизнедеятельности",
       "needs_rpd": false
     },
     {
@@ -188,82 +188,82 @@
     },
     {
       "discipline": "Иностранный язык (английский язык, уровень A1, часть 1)",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Иностранный язык (англ. яз., уровень А1)",
+      "krm_name": "Иностранный язык (англ. яз., уровень А1)",
       "needs_rpd": false
     },
     {
       "discipline": "Иностранный язык (английский язык, уровень A1, часть 2)",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Иностранный язык (англ. яз., уровень А1)",
+      "krm_name": "Иностранный язык (англ. яз., уровень А1)",
       "needs_rpd": false
     },
     {
       "discipline": "Иностранный язык (английский язык, уровень A2, часть 1)",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Иностранный язык (англ. яз., уровень А2)",
+      "krm_name": "Иностранный язык (англ. яз., уровень А2)",
       "needs_rpd": false
     },
     {
       "discipline": "Иностранный язык (английский язык, уровень A2, часть 2)",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Иностранный язык (англ. яз., уровень А2)",
+      "krm_name": "Иностранный язык (англ. яз., уровень А2)",
       "needs_rpd": false
     },
     {
       "discipline": "Иностранный язык (английский язык, уровень B1, часть 1)",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Иностранный язык (англ. яз., уровень В1)",
+      "krm_name": "Иностранный язык (англ. яз., уровень В1)",
       "needs_rpd": false
     },
     {
       "discipline": "Иностранный язык (английский язык, уровень B1, часть 2)",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Иностранный язык (англ. яз., уровень В1)",
+      "krm_name": "Иностранный язык (англ. яз., уровень В1)",
       "needs_rpd": false
     },
     {
       "discipline": "Иностранный язык (английский язык, уровень B2, часть 1)",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Иностранный язык (англ. яз., уровень В2)",
+      "krm_name": "Иностранный язык (англ. яз., уровень В2)",
       "needs_rpd": false
     },
     {
       "discipline": "Иностранный язык (английский язык, уровень B2, часть 2)",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Иностранный язык (англ. яз., уровень В2)",
+      "krm_name": "Иностранный язык (англ. яз., уровень В2)",
       "needs_rpd": false
     },
     {
       "discipline": "Иностранный язык (английский язык, уровень C1, часть 1)",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Иностранный язык (англ. яз., уровень C1)",
+      "krm_name": "Иностранный язык (англ. яз., уровень C1)",
       "needs_rpd": false
     },
     {
       "discipline": "Иностранный язык (английский язык, уровень C1, часть 2)",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Иностранный язык (англ. яз., уровень C1)",
+      "krm_name": "Иностранный язык (англ. яз., уровень C1)",
       "needs_rpd": false
     },
     {
@@ -286,8 +286,8 @@
       "discipline": "Инструменты и инженерные практики разработки систем искусственного интеллекта",
       "in_db": true,
       "in_krm": true,
-      "db_name": "Инструменты и инженерные практики  разработки систем ИИ",
-      "krm_name": "Инструменты и инженерные практики  разработки систем ИИ",
+      "db_name": "Инструменты и инженерные практики разработки систем искусственного интеллекта",
+      "krm_name": "Инструменты и инженерные практики разработки систем искусственного интеллекта",
       "needs_rpd": false
     },
     {
@@ -308,10 +308,10 @@
     },
     {
       "discipline": "История России",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "История России",
+      "krm_name": "История России",
       "needs_rpd": false
     },
     {
@@ -468,11 +468,11 @@
     },
     {
       "discipline": "Практикум по подготовке инженерной документации",
-      "in_db": false,
-      "in_krm": false,
-      "db_name": null,
-      "krm_name": null,
-      "needs_rpd": true
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Практикум по подготовке инженерной документации",
+      "krm_name": "Практикум по подготовке инженерной документации",
+      "needs_rpd": false
     },
     {
       "discipline": "Прикладные архитектуры глубоких нейронных сетей",

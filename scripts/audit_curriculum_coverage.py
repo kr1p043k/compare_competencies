@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -81,7 +82,16 @@ def expand_abbrev(name: str) -> str:
 
 def norm(name: str) -> str:
     expanded = expand_abbrev(name or "")
-    return "".join(ch for ch in expanded.lower() if ch.isalnum())
+    low = expanded.lower()
+    # "Иностранный язык (англ. яз., уровень А1)" против официального
+    # "(английский язык, уровень A1, часть 1)" - один предмет, разные записи.
+    low = re.sub(r"англ\.?\s*яз\.?", "английский язык", low)
+    low = re.sub(r"часть\s*\d+", "", low)
+    # Уровни записаны латиницей в перечне и кириллицей в БД: "A1" против "А1".
+    # Приводим кириллические омоглифы к латинице — ключ сравнения, не отображение.
+    homoglyphs = str.maketrans("авесорхукмт", "abecopxykmt")
+    low = low.translate(homoglyphs)
+    return "".join(ch for ch in low if ch.isalnum())
 
 
 def strip_parens(name: str) -> str:

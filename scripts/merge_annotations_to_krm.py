@@ -155,7 +155,24 @@ def discipline_from_file(raw_file: str) -> str | None:
     return name or None
 
 
-def add_missing(dir_code: str, anns: list[dict]) -> list[str]:
+def _official_names(path: Path) -> set[str]:
+    """Нормализованные названия из официального перечня года."""
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+    names: set[str] = set()
+    for d in doc.get("disciplines", []):
+        names.add(norm_name(d))
+        names.add(norm_name(_strip_parens(d)))
+        rp = ru_paren(d)
+        if rp:
+            names.add(norm_name(rp))
+    return names
+
+
+def add_missing(dir_code: str, anns: list[dict],
+                official: set[str] | None = None) -> list[str]:
     """Добавить в KRM дисциплины, которых там нет, но аннотации есть.
 
     Существующий enrich только обогащает записи; дисциплины, не заведённые в
@@ -168,14 +185,35 @@ def add_missing(dir_code: str, anns: list[dict]) -> list[str]:
     sub = next(iter(data.values()))
     disc = sub.setdefault("disciplines", {})
     known = {norm_name(d) for d in disc}
+    # Уже существующие под другим написанием: 'Operating Systems (Операционные
+    # системы)' и 'Операционные системы' - одна дисциплина.
+    def _is_known(name: str) -> bool:
+        cands = {norm_name(name), norm_name(_strip_parens(name))}
+        rp = ru_paren(name)
+        if rp:
+            cands.add(norm_name(rp))
+        return any(c and c in known for c in cands)
 
     added: list[str] = []
+    skipped_unlisted: list[str] = []
     for a in anns:
         if not a.get("ok") or not a.get("text"):
             continue
         name = discipline_from_file(a.get("file", "") or "")
-        if not name or norm_name(name) in known:
+        if not name or _is_known(name):
             continue
+        # Дисциплины, которых нет в официальном перечне этого года, — это либо
+        # имена прошлого набора, либо шум распознавания: не добавляем, иначе
+        # в KRM появятся дубли вроде "Интеллектуальные системы и технологии"
+        # рядом с "Технологии искусственного интеллекта".
+        if official is not None:
+            cands = {norm_name(name), norm_name(_strip_parens(name))}
+            rp = ru_paren(name)
+            if rp:
+                cands.add(norm_name(rp))
+            if not any(c and c in official for c in cands):
+                skipped_unlisted.append(name)
+                continue
         comps = sorted({normalize_comp(c) for c in a.get("competencies", [])})
         if not comps:
             continue  # без компетенций запись бесполезна
@@ -188,6 +226,10 @@ def add_missing(dir_code: str, anns: list[dict]) -> list[str]:
         known.add(norm_name(name))
         added.append(name)
 
+    if skipped_unlisted:
+        print(f"{dir_code}: пропущено вне перечня года: {len(skipped_unlisted)}")
+        for n in skipped_unlisted:
+            print(f"    ~ {n}")
     if added:
         krm_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return added
@@ -314,6 +356,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dir", default=str(REFERENCE_DIR))
     parser.add_argument("--only", default=None, help="dir_code; все если не указан")
+    parser.add_argument("--official", default=None,
+                        help="official_curriculum_<код>_<год>.json; добавлять только дисциплины оттуда")
     parser.add_argument("--add-missing", action="store_true",
                         help="добавить дисциплины, которых нет в KRM, из аннотаций")
     parser.add_argument("--ann", default=None,
@@ -330,7 +374,8 @@ def main() -> None:
     codes = ([args.only] if args.only else DIR_CODES)
     for code in codes:
         if args.add_missing:
-            added = add_missing(code, anns_all.get(code, []))
+            official = _official_names(Path(args.official)) if args.official else None
+            added = add_missing(code, anns_all.get(code, []), official)
             for name in added:
                 print(f"{code}: + добавлена {name}")
             print(f"{code}: добавлено {len(added)}")
