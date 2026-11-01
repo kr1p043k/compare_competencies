@@ -2,7 +2,7 @@
 
 Каждый файл data/reference/krm_disciplines_<dir_code>.json соответствует одному
 направлению, где dir_code = имя файла без префикса (напр. 02.03.02_och).
-Внутри файла верхний ключ может отличаться (напр. 02.03.02) — используем имя
+Внутри файла верхний ключ может отличаться (напр. 02.03.02) - используем имя
 файла как Direction.code, а данные берём из первого значения.
 
 Использование:
@@ -174,18 +174,28 @@ async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path
                 await session.flush()
                 comp_count += 1
 
+            # Уникальный индекс uq_ksa_uniq — (competency_id, ksa_type,
+            # original_text, source), без sort_order. Проверка с sort_order
+            # пропускала одинаковый текст на разных позициях, и вставка падала
+            # UniqueViolation. Держим набор ключей и по БД, и по текущему батчу
+            # (autflush срабатывает только на flush, внутри цикла дубль не виден).
+            seen_ksa: set[tuple] = set()
             for kt in ("knowledge", "abilities", "skills"):
                 for idx, ksa_text in enumerate(ksa_data.get(comp_code, {}).get(kt, [])):
+                    key = (str(comp.id), kt, ksa_text)
+                    if key in seen_ksa:
+                        continue
                     existing_ksa = await session.execute(
                         select(KSAEntry).where(
                             KSAEntry.competency_id == comp.id,
                             KSAEntry.ksa_type == kt,
-                            KSAEntry.sort_order == idx,
                             KSAEntry.original_text == ksa_text,
                         )
                     )
                     if existing_ksa.scalar_one_or_none():
+                        seen_ksa.add(key)
                         continue
+                    seen_ksa.add(key)
                     session.add(KSAEntry(competency_id=comp.id, ksa_type=kt, original_text=ksa_text, sort_order=idx, parse_version_id=pv.id))
                     ksa_count += 1
 

@@ -2,9 +2,9 @@
 
 Для каждого направления из TARGETS: для каждой дисциплины, которой найдена
 аннотация на Yandex Disk, заменяем у неё:
-  - competencies  — реальные коды (УК/ОПК/ПК/ВПК) из текста аннотации;
-  - ksa           — содержание (темы) аннотации → knowledge;
-  - skills        — оставляем старые (связь competency_skills не используется,
+  - competencies  - реальные коды (УК/ОПК/ПК/ВПК) из текста аннотации;
+  - ksa           - содержание (темы) аннотации → knowledge;
+  - skills        - оставляем старые (связь competency_skills не используется,
                     покрытие считается по ksa_entries).
 
 Файлы перезаписываются (non-clean krm_disciplines_<code>.json).
@@ -56,6 +56,8 @@ def norm_name(s: str) -> str:
     # Префиксы файлов-свалок ('Апп - ...', 'АНН_..._C1_', '09.03.02-анн ...').
     s = re.sub(r"^(аннотация|анн|апп\s*-?|а\s*-)\s*", "", s)
     s = re.sub(r"^анн_[^_]*_", "", s)
+    # Префиксы файлов РПД: 'РПД_Практикум ...', 'ФОС_Алгоритмизация ...'.
+    s = re.sub(r"^(рпд|фос|рпп|ким|гна|опоп)[_\s-]+", "", s)
     s = re.sub(r"^\d{2}\.\d{2}\.\d{2}-?(анн)?\s*", "", s)
     s = re.sub(r"\s+", " ", s).strip(" -_.")
     return s
@@ -135,6 +137,62 @@ def build_ksa(comp_codes: list[str], topics: list[str], old_ksa: dict) -> dict:
     return ksa
 
 
+ANN_RPD_PREFIX = re.compile(r"^аннотация\s+рпд\s+", re.I)
+
+
+def discipline_from_file(raw_file: str) -> str | None:
+    """'Аннотация РПД Практикум по подготовке инженерной документации.pdf'
+    -> 'Практикум по подготовке инженерной документации'.
+
+    Поле "name" в разобранных аннотациях — первый заголовок из PDF ("SYLLABUS",
+    "Об образовании в Российской Федерации"), поэтому имя дисциплины берём из
+    имени файла.
+    """
+    if not raw_file or not ANN_RPD_PREFIX.match(raw_file.strip()):
+        return None
+    name = re.sub(r"\.pdf$", "", raw_file.strip(), flags=re.I)
+    name = ANN_RPD_PREFIX.sub("", name).strip(" _-")
+    return name or None
+
+
+def add_missing(dir_code: str, anns: list[dict]) -> list[str]:
+    """Добавить в KRM дисциплины, которых там нет, но аннотации есть.
+
+    Существующий enrich только обогащает записи; дисциплины, не заведённые в
+    БД/KRM, не появлялись никогда, хотя файл лежит на диске.
+    """
+    krm_path = REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
+    if not krm_path.exists():
+        return []
+    data = json.loads(krm_path.read_text(encoding="utf-8"))
+    sub = next(iter(data.values()))
+    disc = sub.setdefault("disciplines", {})
+    known = {norm_name(d) for d in disc}
+
+    added: list[str] = []
+    for a in anns:
+        if not a.get("ok") or not a.get("text"):
+            continue
+        name = discipline_from_file(a.get("file", "") or "")
+        if not name or norm_name(name) in known:
+            continue
+        comps = sorted({normalize_comp(c) for c in a.get("competencies", [])})
+        if not comps:
+            continue  # без компетенций запись бесполезна
+        topics = extract_content(a.get("text", ""))
+        disc[name] = {
+            "competencies": comps,
+            "ksa": build_ksa(comps, topics, {}),
+            "skills": {},
+        }
+        known.add(norm_name(name))
+        added.append(name)
+
+    if added:
+        krm_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return added
+
+
 def _scaffold_krm(dir_code: str, anns: dict) -> bool:
     """Создать минимальный KRM из аннотаций, если файла нет."""
     discs: dict[str, dict] = {}
@@ -165,7 +223,7 @@ def _scaffold_krm(dir_code: str, anns: dict) -> bool:
 def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
     krm_path = REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
     if not krm_path.exists():
-        # Каркаса нет (новое направление) — строим из аннотаций:
+        # Каркаса нет (новое направление) - строим из аннотаций:
         # дисциплины + коды + темы как knowledge.
         if not _scaffold_krm(dir_code, anns):
             print(f"{dir_code}: KRM-файл не найден и скаффолд пуст, пропуск")
@@ -201,9 +259,16 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
             if rp and norm_name(rp) in known:
                 hit, _how = known[norm_name(rp)], "ruparen"
         if not hit:
+            # 5. Имя из файла. Поле "name" — это первый заголовок из PDF
+            # ("SYLLABUS", "Кузнечик", "Об образовании в Российской Федерации"),
+            # дисциплина же надёжно определяется только именем файла.
+            fn = norm_name(raw_file)
+            if fn and fn in known:
+                hit, _how = known[fn], "filename"
+        if not hit:
             # 4. Токенное пересечение по леммам (вместо сырого сабстринга:
             # 'физика' в 'физическая культура' больше не матчится, а
-            # 'программирования'/'программирование' — да; 2026-10-12).
+            # 'программирования'/'программирование' - да; 2026-10-12).
             atoks = _lemmas(name)
             best, best_n = None, 0
             for kd, orig in known.items():
@@ -249,12 +314,26 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dir", default=str(REFERENCE_DIR))
     parser.add_argument("--only", default=None, help="dir_code; все если не указан")
+    parser.add_argument("--add-missing", action="store_true",
+                        help="добавить дисциплины, которых нет в KRM, из аннотаций")
+    parser.add_argument("--ann", default=None,
+                        help="файл аннотаций; список (один год) или словарь по кодам")
     args = parser.parse_args()
     REFERENCE_DIR = Path(args.dir)
 
-    anns_all = json.loads(ANN_ALL_PATH.read_text(encoding="utf-8"))
+    ann_path = Path(args.ann) if args.ann else ANN_ALL_PATH
+    anns_all = json.loads(ann_path.read_text(encoding="utf-8"))
+    if isinstance(anns_all, list):
+        if not args.only:
+            raise SystemExit("--ann со списком требует --only <dir_code>")
+        anns_all = {args.only: anns_all}
     codes = ([args.only] if args.only else DIR_CODES)
     for code in codes:
+        if args.add_missing:
+            added = add_missing(code, anns_all.get(code, []))
+            for name in added:
+                print(f"{code}: + добавлена {name}")
+            print(f"{code}: добавлено {len(added)}")
         enrich_direction(code, anns_all.get(code, []))
 
 
