@@ -37,7 +37,8 @@ def _rate_limit_key(request: Request) -> str:
         if email:
             return f"user:{email}"
     forwarded = request.headers.get("X-Forwarded-For", "")
-    client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    # Право-крайний хоп (как и в auth.login): левые элементы контролирует клиент.
+    client_ip = forwarded.split(",")[-1].strip() if forwarded else (request.client.host if request.client else "unknown")
     return f"ip:{client_ip}"
 
 
@@ -99,9 +100,11 @@ def create_app() -> FastAPI:
             except ValueError:
                 return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length"})
 
-        # Chunked/стриминговое тело приходит БЕЗ Content-Length - заголовочная
-        # проверка выше его не ловит. Оборачиваем приём и рвём, как только тело
-        # перевалило лимит, иначе клиент шлёт мегабайты мимо проверки.
+        # Chunked/стриминговое тело приходит БЕЗ Content-Length - проверка выше
+        # его не ловит. Оборачиваем приём и рвём соединение, как только тело
+        # перевалило лимит: иначе клиент шлёт мегабайты мимо проверки (память).
+        # Эндпоинты с моделью тела на обрыв ответят 400 «error parsing the body»;
+        # если тело читается без валидирующей модели - отдаём 413 ниже.
         received = 0
         original_receive = request._receive
 
@@ -115,8 +118,22 @@ def create_app() -> FastAPI:
             return message
 
         request._receive = _limited_receive
+
+        def _contains_too_large(exc: BaseException) -> bool:
+            if isinstance(exc, _BodyTooLargeError):
+                return True
+            subs = getattr(exc, "exceptions", None)
+            return bool(subs) and any(_contains_too_large(e) for e in subs)
+
         try:
             return await call_next(request)
+        except BaseExceptionGroup as eg:
+            # BaseHTTPMiddleware прогоняет эндпоинт в task-group: наше исключение
+            # прилетает завёрнутым в BaseExceptionGroup, поэтому ловим и его.
+            if _contains_too_large(eg):
+                logger.warning("request_body_too_large_streaming", size=received)
+                return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+            raise
         except _BodyTooLargeError:
             logger.warning("request_body_too_large_streaming", size=received)
             return JSONResponse(status_code=413, content={"detail": "Request body too large"})

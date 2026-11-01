@@ -79,45 +79,45 @@ def _request_token(request: Request) -> str:
     return request.cookies.get("token", "")
 
 
+async def resolve_session(token: str) -> dict[str, Any] | None:
+    """Проверить токен И активную сессию в БД; вернуть данные пользователя.
+
+    Общий помощник для HTTP (get_current_user) и WebSocket-хендшейков: WS раньше
+    проверял только подпись токена, поэтому logout/деактивация/понижение в правах
+    не действовали на открытом сокете до истечения токена.
+    """
+    if not token:
+        return None
+    data = _decode_token(token)
+    if data is None:
+        return None
+    pool = get_pool()
+    if pool is None:
+        return None
+    try:
+        row = await pool.fetchrow(
+            """SELECT u.id, u.email, u.role, u.is_active
+               FROM sessions s JOIN users u ON u.id = s.user_id
+               WHERE s.token_hash = $1 AND s.logged_out_at IS NULL""",
+            _hash_token(token),
+        )
+    except Exception:
+        logger.error("resolve_session_db_error", exc_info=True)
+        return None
+    if row is None or not row["is_active"]:
+        return None
+    return {"uid": str(row["id"]), "u": row["email"], "r": row["role"], "t": data.get("t")}
+
+
 async def get_current_user(request: Request) -> dict[str, Any] | None:
     token = _request_token(request)
     if not token:
         logger.warning("get_current_user_no_token", path=request.url.path)
         return None
-    data = _decode_token(token)
-    if data is None:
-        logger.warning("get_current_user_invalid_token", path=request.url.path, token_sha=_hash_token(token)[:16])
-        return None
-    pool = get_pool()
-    if pool is None:
-        logger.error("get_current_user_no_pool", path=request.url.path)
-        return None
-    try:
-        token_hash = _hash_token(token)
-        # Роль и активность берём из БД, а не из payload токена: иначе
-        # деактивация (is_active=false) или понижение в правах не действуют до
-        # истечения токена - а TTL у нас 7 дней. Сессия проверяется по хешу.
-        session = await pool.fetchrow(
-            """SELECT u.id, u.email, u.role, u.is_active
-               FROM sessions s JOIN users u ON u.id = s.user_id
-               WHERE s.token_hash = $1 AND s.logged_out_at IS NULL""",
-            token_hash,
-        )
-    except Exception:
-        logger.error("get_current_user_db_error", path=request.url.path, exc_info=True)
-        return None
-    if session is None:
-        logger.warning("get_current_user_session_not_found", path=request.url.path, token_sha=_hash_token(token)[:16])
-        return None
-    if not session["is_active"]:
-        logger.warning("get_current_user_inactive", path=request.url.path, uid=str(session["id"]))
-        return None
-    return {
-        "uid": str(session["id"]),
-        "u": session["email"],
-        "r": session["role"],
-        "t": data.get("t"),
-    }
+    user = await resolve_session(token)
+    if user is None:
+        logger.warning("get_current_user_rejected", path=request.url.path, token_sha=_hash_token(token)[:16])
+    return user
 
 
 def require_role(role: str):

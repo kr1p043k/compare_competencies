@@ -29,10 +29,13 @@ class N8NAuthMiddleware(BaseHTTPMiddleware):
                     )
                 auth = request.headers.get("Authorization", "")
                 provided = auth[7:] if auth.startswith("Bearer ") else ""
-                # constant-time: обычное != даёт timing side-channel на угадывание ключа
-                if not auth.startswith("Bearer ") or not hmac.compare_digest(
-                    provided, api_key.get_secret_value()
-                ):
+                # compare_digest по байтам: сравнение строк падает TypeError на
+                # не-ASCII (дало бы 500 вместо 401), плюс это constant-time.
+                ok = auth.startswith("Bearer ") and hmac.compare_digest(
+                    provided.encode("utf-8", "ignore"),
+                    api_key.get_secret_value().encode("utf-8", "ignore"),
+                )
+                if not ok:
                     logger.warning(
                         "n8n_auth_failed", path=request.url.path,
                         client=request.client.host if request.client else "unknown"

@@ -851,17 +851,24 @@ _ws_clients: set[WebSocket] = set()
 
 @router.websocket("/pipeline/ws")
 async def pipeline_ws(websocket: WebSocket, token: str = ""):
-    # JWT проверка перед accept - переиспользуем auth._decode_token
+    # Авторизация ДО accept. Токен можно передать cookie/заголовком (как в
+    # HTTP); query оставлен для совместимости. Проверяем не только подпись, но и
+    # активную сессию в БД (resolve_session): иначе logout/деактивация не
+    # действуют на открытом сокете до истечения токена.
     try:
-        if not token:
+        from src.api_pkg.routers.auth import resolve_session
+
+        eff_token = (
+            token
+            or websocket.cookies.get("token", "")
+            or websocket.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        )
+        if not eff_token:
             # slowapi не покрывает WS - фиксируем попытку без токена
             logger.warning("pipeline_ws_no_token")
             await websocket.close(code=4001, reason="Unauthorized")
             return
-        from src.api_pkg.routers.auth import _decode_token as _auth_decode
-
-        token_data = _auth_decode(token)
-        if token_data is None:
+        if await resolve_session(eff_token) is None:
             await websocket.close(code=4001, reason="Invalid or expired token")
             return
     except Exception:
