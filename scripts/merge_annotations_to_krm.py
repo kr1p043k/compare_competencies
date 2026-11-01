@@ -318,7 +318,13 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
                 if not atoks or not ktoks:
                     continue
                 inter = len(atoks & ktoks)
-                if inter >= 2 and inter > best_n:
+                # Двух общих слов мало: "Машинное обучение в задачах
+                # компьютерного зрения" и "Распознавание образов, классификация
+                # и машинное обучение" делят "машинное"/"обучение" и раньше
+                # склеивались, подставляя чужой KSA. Требуем, чтобы меньшее
+                # название почти целиком содержалось в большем.
+                smaller = min(len(atoks), len(ktoks))
+                if inter >= 2 and smaller and inter / smaller >= 0.6 and inter > best_n:
                     best, best_n = orig, inter
             if best:
                 hit, _how = best, "tokens:%d" % best_n
