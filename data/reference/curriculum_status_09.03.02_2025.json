@@ -1,0 +1,678 @@
+{
+  "direction": "09.03.02",
+  "year": 2025,
+  "source": "https://sfedu.ru/s7/educational-program/30259",
+  "rpd_repository": "https://disk.360.yandex.ru/d/-5D0p0XfTwL5Qg",
+  "counts": {
+    "official": 83,
+    "in_db": 52,
+    "in_krm": 52,
+    "needs_rpd": 3
+  },
+  "disciplines": [
+    {
+      "discipline": "Algorithmization and Programming (Алгоритмизация и программирование)",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Алгоритмизация и программирование",
+      "krm_name": "Алгоритмизация и программирование",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Databases and DBMS (Базы данных и СУБД)",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Базы данных и СУБД",
+      "krm_name": "Базы данных и СУБД",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Discrete Mathematics (Дискретная математика)",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Дискретная математика",
+      "krm_name": "Дискретная математика",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Higher Mathematics (Высшая математика)",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Высшая математика",
+      "krm_name": "Высшая математика",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Information Technology Security (Безопасность информационных технологий)",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Безопасность информационных технологий",
+      "krm_name": "Безопасность информационных технологий",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Operating systems (Операционные системы)",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Операционные системы",
+      "krm_name": "Операционные системы",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Python для научных вычислений и машинного обучения",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Python для научных вычислений и машинного обучения",
+      "krm_name": "Python для научных вычислений и машинного обучения",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Special Topics in Mathematics (Специальные разделы математики)",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Специальные разделы математики",
+      "krm_name": "Специальные разделы математики",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Академический курс иностранного языка",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Алгоритмизация и программирование",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Алгоритмизация и программирование",
+      "krm_name": "Алгоритмизация и программирование",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Алгоритмы, технологии и инструментальные средства обработки изображений и видеопоследовательностей",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Алгоритмы технологии и инструментальные средства обработки изображений и видеопоследовательностей",
+      "krm_name": "Алгоритмы технологии и инструментальные средства обработки изображений и видеопоследовательностей",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Архитектура, технологии и инструментальные средства разработки программного обеспечения с поддержкой искусственного интеллекта",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Архитектура, технологии и инструментальные средства разработки ПО с поддержкой ИИ",
+      "krm_name": "Архитектура, технологии и инструментальные средства разработки ПО с поддержкой ИИ",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Базы данных и СУБД",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Базы данных и СУБД",
+      "krm_name": "Базы данных и СУБД",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Байесовские и генеративные модели в искусственном интеллекте",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Байесовские и генеративные модели в искусственном интеллекте",
+      "krm_name": "Байесовские и генеративные модели в искусственном интеллекте",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Безопасность жизнедеятельности",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Безопасность информационных технологий",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Безопасность информационных технологий",
+      "krm_name": "Безопасность информационных технологий",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Внедрение, эксплуатация и управление качеством информационных систем",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Внедрение, эксплуатация и управление качеством информационных систем",
+      "krm_name": "Внедрение, эксплуатация и управление качеством информационных систем",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Воображение, изображение, реальность",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Высшая математика",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Высшая математика",
+      "krm_name": "Высшая математика",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Генеративный искусственный интеллект и машинное обучение",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Генеративный ИИ и МО",
+      "krm_name": "Генеративный ИИ и МО",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Дискретная математика",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Дискретная математика",
+      "krm_name": "Дискретная математика",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Дисциплины по физической культуре и спорту",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Иностранный язык (английский язык, уровень A1, часть 1)",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Иностранный язык (английский язык, уровень A1, часть 2)",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Иностранный язык (английский язык, уровень A2, часть 1)",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Иностранный язык (английский язык, уровень A2, часть 2)",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Иностранный язык (английский язык, уровень B1, часть 1)",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Иностранный язык (английский язык, уровень B1, часть 2)",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Иностранный язык (английский язык, уровень B2, часть 1)",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Иностранный язык (английский язык, уровень B2, часть 2)",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Иностранный язык (английский язык, уровень C1, часть 1)",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Иностранный язык (английский язык, уровень C1, часть 2)",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Иностранный язык (русский язык)",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Иностранный язык для деловой коммуникации",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Инструменты и инженерные практики разработки систем искусственного интеллекта",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Инструменты и инженерные практики  разработки систем ИИ",
+      "krm_name": "Инструменты и инженерные практики  разработки систем ИИ",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Инфраструктура распределенных баз данных",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Инфраструктура распределённых баз данных",
+      "krm_name": "Инфраструктура распределённых баз данных",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Искусственный интеллект и анализ данных",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Искусственный интеллект и анализ данных",
+      "krm_name": "Искусственный интеллект и анализ данных",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "История России",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Компьютерные сети",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Компьютерные сети",
+      "krm_name": "Компьютерные сети",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Логика и теория аргументации",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Машинное обучение в задачах компьютерного зрения",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Машинное обучение в задачах компьютерного зрения",
+      "krm_name": "Машинное обучение в задачах компьютерного зрения",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Междисциплинарный проект 1",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Междисциплинарный проект 1",
+      "krm_name": "Междисциплинарный проект 1",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Междисциплинарный проект 2",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Междисциплинарный проект 2",
+      "krm_name": "Междисциплинарный проект 2",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Методы и средства проектирования информационных систем и технологий",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": true
+    },
+    {
+      "discipline": "Методы оптимизации",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Методы оптимизации",
+      "krm_name": "Методы оптимизации",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Моделирование информационных систем",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Моделирование информационных систем",
+      "krm_name": "Моделирование информационных систем",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Общественный проект \"Обучение служением\"",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Объектно-ориентированное программирование",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Объектно-ориентированное программирование",
+      "krm_name": "Объектно-ориентированное программирование",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Операционные системы",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Операционные системы",
+      "krm_name": "Операционные системы",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Основы Python",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Основы Python",
+      "krm_name": "Основы Python",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Основы информационных технологий, процессов и систем",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Основы информационных технологий, процессов и систем",
+      "krm_name": "Основы информационных технологий, процессов и систем",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Основы проектной деятельности",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Основы российской государственности",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Письмо и мышление",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Подготовка к процедуре защиты и защита выпускной квалификационной работы",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Практикум по математике",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Практикум по математике",
+      "krm_name": "Практикум по математике",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Практикум по основам программирования",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Практикум по основам программирования",
+      "krm_name": "Практикум по основам программирования",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Практикум по подготовке инженерной документации",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": true
+    },
+    {
+      "discipline": "Прикладные архитектуры глубоких нейронных сетей",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Прикладные архитектуры глубоких нейронных сетей",
+      "krm_name": "Прикладные архитектуры глубоких нейронных сетей",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Принципы естественнонаучного познания",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Проектирование и поддержка архитектур AI/ML-систем",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Проектирование и поддержка архитектур AI_ML-систем",
+      "krm_name": "Проектирование и поддержка архитектур AI_ML-систем",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Производственная практика, преддипломная практика",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Производственная практика, технологическая практика",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Психология профессионального саморазвития",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Психология профессионального саморазвития",
+      "krm_name": "Психология профессионального саморазвития",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Сбор и подготовка данных для задач искусственного интеллекта",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Сбор и подготовка данных для задач искусственного интеллекта",
+      "krm_name": "Сбор и подготовка данных для задач искусственного интеллекта",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Специальные разделы математики",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Специальные разделы математики",
+      "krm_name": "Специальные разделы математики",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Стрессоустойчивость и личная эффективность",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Стрессоустойчивость и личная эффективность",
+      "krm_name": "Стрессоустойчивость и личная эффективность",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Творческий проект",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Творческий проект",
+      "krm_name": "Творческий проект",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Технологии и фронтиры науки о данных",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Технологии и фронтиры науки о данных",
+      "krm_name": "Технологии и фронтиры науки о данных",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Технологии искусственного интеллекта",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Технологии искусственного интеллекта",
+      "krm_name": "Технологии искусственного интеллекта",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Технологии программирования, Web- и Back-End разработки",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Технологии программирования, Web- и Back-End разработки",
+      "krm_name": "Технологии программирования, Web- и Back-End разработки",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Технологии разработки веб-приложений с использованием Java",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Технологии разработки веб-приложений с использованием Java",
+      "krm_name": "Технологии разработки веб-приложений с использованием Java",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Технологии разработки и проектирования ИИ-приложений на Java",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Технологии разработки и проектирования ИИ-приложений на Java",
+      "krm_name": "Технологии разработки и проектирования ИИ-приложений на Java",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Технологии разработки и управления жизненным циклом клиентской части веб-приложений с поддержкой искусственного интеллекта",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Технологии разработки и управления жизненным циклом клиентской части веб-приложений с поддержкой ИИ",
+      "krm_name": "Технологии разработки и управления жизненным циклом клиентской части веб-приложений с поддержкой ИИ",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Технологии разработки и управления жизненным циклом серверной части веб-приложений с поддержкой искусственного интеллекта",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Технологии разработки и управления жизненным циклом серверной части веб-приложений с поддержкой ИИ",
+      "krm_name": "Технологии разработки и управления жизненным циклом серверной части веб-приложений с поддержкой ИИ",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Технологии расширенной реальности",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": true
+    },
+    {
+      "discipline": "Технологии хранения и обработки больших данных",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Технологии хранения и обработки больших данных",
+      "krm_name": "Технологии хранения и обработки больших данных",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Учебная практика, ознакомительная практика",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Физическая культура и спорт",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Физическая культура и спорт",
+      "krm_name": "Физическая культура и спорт",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Философия",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Философия",
+      "krm_name": "Философия",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Цифровая культура",
+      "in_db": false,
+      "in_krm": false,
+      "db_name": null,
+      "krm_name": null,
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Экономико-правовое обеспечение инженерной деятельности",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Экономико-правовое обеспечение инженерной деятельности_очная",
+      "krm_name": "Экономико-правовое обеспечение инженерной деятельности_очная",
+      "needs_rpd": false
+    },
+    {
+      "discipline": "Эмоциональный интеллект и критическое мышление инженера",
+      "in_db": true,
+      "in_krm": true,
+      "db_name": "Эмоциональный интеллект и критическое мышление инженера",
+      "krm_name": "Эмоциональный интеллект и критическое мышление инженера",
+      "needs_rpd": false
+    }
+  ]
+}

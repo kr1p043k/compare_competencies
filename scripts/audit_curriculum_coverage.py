@@ -178,6 +178,8 @@ def main() -> int:
                         help="год набора: файл official_curriculum_<код>_<год>.json")
     parser.add_argument("--dsn", default=DEFAULT_DSN)
     parser.add_argument("--json", dest="json_path", default=None)
+    parser.add_argument("--status", dest="status_path", default=None,
+                        help="записать статус каждой дисциплины перечня (БД/KRM/переименование)")
     args = parser.parse_args()
 
     try:
@@ -224,6 +226,39 @@ def main() -> int:
             "extra": extra,
             "pairs": pairs,
         }
+
+    if args.status_path:
+        db_pairs = report.get("БД", {}).get("pairs", {})
+        krm_pairs = report.get("KRM", {}).get("pairs", {})
+        status = []
+        for off in official:
+            status.append({
+                "discipline": off,
+                "in_db": off in db_pairs,
+                "in_krm": off in krm_pairs,
+                "db_name": db_pairs.get(off),
+                "krm_name": krm_pairs.get(off),
+                "needs_rpd": off not in db_pairs and is_analytical(off),
+            })
+        payload = {
+            "direction": args.direction,
+            "year": official_doc.get("year"),
+            "source": official_doc["source_url"],
+            "rpd_repository": official_doc.get("rpd_repository"),
+            "counts": {
+                "official": len(official),
+                "in_db": sum(1 for x in status if x["in_db"]),
+                "in_krm": sum(1 for x in status if x["in_krm"]),
+                "needs_rpd": sum(1 for x in status if x["needs_rpd"]),
+            },
+            "disciplines": status,
+        }
+        Path(args.status_path).write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print(f"\nстатус: {args.status_path} "
+              f"(в БД {payload['counts']['in_db']}, в KRM {payload['counts']['in_krm']}, "
+              f"нужны РПД {payload['counts']['needs_rpd']})")
 
     if args.json_path:
         Path(args.json_path).write_text(
