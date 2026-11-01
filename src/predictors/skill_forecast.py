@@ -142,32 +142,39 @@ class SkillForecastEngine(BasePredictor):
     def fit(
         self,
         skill_frequencies: dict[str, float] | None = None,
+        snapshots: list[tuple[date, dict]] | None = None,
         **kwargs,
     ) -> Result[SkillForecastEngine, Exception]:
         """Fit linear trends from historical snapshot data.
 
-        Reads freq_market_*.json files from data/history/ to build
-        time series per skill. If unavailable, falls back to flat forecast.
+        Снимки можно передать готовыми (`snapshots=...`) - тогда используется
+        общий с Prophet-движком ряд (файлы + БД + trend_snapshots). Иначе ряд
+        собирается только из data/history/freq_market_*.json, а их может быть
+        всего пара - линейная экстраполяция по двум точкам даёт мусор.
         """
-        history_dir = config.HISTORY_DIR
-        snapshots: list[tuple[date, dict]] = []
+        from_files = snapshots is None
+        if from_files:
+            history_dir = config.HISTORY_DIR
+            snapshots = []
 
-        for f in sorted(history_dir.glob("freq_market_*.json")):
-            try:
-                raw = json.loads(f.read_text(encoding="utf-8"))
-                meta = raw.pop("_meta", {})
-                data = raw
-                sd = meta.get("snapshot_date", "")
+            for f in sorted(history_dir.glob("freq_market_*.json")):
                 try:
-                    dt = datetime.strptime(sd, "%Y-%m-%d").date()
-                except ValueError:
+                    raw = json.loads(f.read_text(encoding="utf-8"))
+                    meta = raw.pop("_meta", {})
+                    data = raw
+                    sd = meta.get("snapshot_date", "")
                     try:
-                        dt = datetime.strptime(sd, "%Y-%m").date()
+                        dt = datetime.strptime(sd, "%Y-%m-%d").date()
                     except ValueError:
-                        continue
-                snapshots.append((dt, data))
-            except Exception:
-                continue
+                        try:
+                            dt = datetime.strptime(sd, "%Y-%m").date()
+                        except ValueError:
+                            continue
+                    snapshots.append((dt, data))
+                except Exception:
+                    continue
+        else:
+            snapshots = list(snapshots)
 
         if len(snapshots) < 2:
             logger.warning("trend_fallback_insufficient_data", snapshots=len(snapshots))
@@ -179,7 +186,10 @@ class SkillForecastEngine(BasePredictor):
             self._is_fitted = True
             return Ok(self)
 
-        snapshots = drop_broken_snapshots(snapshots)
+        # Файловые снимки бывают битыми (частичный сбор) - чистим. Готовый ряд
+        # от Prophet-движка уже нормализован по месяцам, его не трогаем.
+        if from_files:
+            snapshots = drop_broken_snapshots(snapshots)
         # F10 (аудит 2026-10-14): порядок был filename-sorted; при расхождении
         # snapshot_date с именем файла last_freq брал последний ФАЙЛ, а не
         # последнюю ДАТУ (Prophet-движок сортирует - трендовый нет).

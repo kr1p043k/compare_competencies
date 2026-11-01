@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -20,7 +21,6 @@ from src.predictors.skill_forecast import (
     SkillForecastEngine,
     drop_broken_snapshots,
 )
-import contextlib
 
 # Статус фонового фита Prophet (для countdown в UI): обновляется по ходу
 # ThreadPool-фита; читается endpoint'ом /forecast/engine без блокировок.
@@ -100,6 +100,41 @@ def anchor_monthly_counts(
     for m in months:
         k = v_last / totals[m]
         out[m] = {s: round(c * k, 1) for s, c in monthly[m].items()}
+    return out
+
+
+def anchor_snapshot_shares(
+    snapshots: list[tuple[date, dict[str, float]]],
+) -> dict[date, dict[str, float]]:
+    """Свернуть снимки к помесячным долям и вернуть в единицах последнего снимка.
+
+    Объём сбора между снимками гуляет в разы (6 221 и 65 615 навыко-счётчиков на
+    соседних датах), поэтому сырые counts рисуют ложные скачки. Делим каждый
+    снимок на его сумму и умножаем на сумму последнего: уровень последнего месяца
+    честен (k=1), а форма ряда - динамика долей. Несколько снимков одного месяца
+    усредняются по долям.
+    """
+    ordered = sorted(snapshots, key=lambda x: x[0])
+    if not ordered:
+        return {}
+    ref = sum(ordered[-1][1].values())
+    if ref <= 0:
+        return {}
+    by_month: dict[date, list[dict[str, float]]] = {}
+    for d, data in ordered:
+        total = sum(data.values())
+        if total <= 0:
+            continue
+        month = date(d.year, d.month, 1)
+        by_month.setdefault(month, []).append({k: v / total for k, v in data.items()})
+    out: dict[date, dict[str, float]] = {}
+    for month, shares in by_month.items():
+        acc: dict[str, float] = {}
+        for share in shares:
+            for k, v in share.items():
+                acc[k] = acc.get(k, 0.0) + v
+        n = len(shares)
+        out[month] = {k: round(v / n * ref, 1) for k, v in acc.items()}
     return out
 
 
@@ -185,6 +220,41 @@ def merge_supplement_rows(
             out.setdefault(m, Counter())[display] += c
     if dropped_groups:
         logger.info("supplement_junk_summary", groups=dropped_groups, freq=dropped_freq)
+    return out
+
+
+async def _load_trend_snapshots(session: AsyncSession) -> list[tuple[date, dict[str, float]]]:
+    """Снимки рынка из trend_snapshots (source='hh_vacancies').
+
+    Таблица - канонический стор снимков: её же читает вкладка «Тренды», и в ней
+    вдесятеро больше дат, чем в data/history/freq_market_*.json. Файловые снимки
+    там тоже лежат (импортируются из freq_*.json), поэтому источник избыточен,
+    а не конфликтен - он лишь продлевает ряд.
+    """
+    rows = await session.execute(text("""
+        SELECT snapshot_date, skill_freq
+        FROM trend_snapshots
+        WHERE source = 'hh_vacancies' AND skill_freq IS NOT NULL
+        ORDER BY snapshot_date
+    """))
+    out: list[tuple[date, dict[str, float]]] = []
+    for row in rows:
+        raw = row.skill_freq
+        if not isinstance(raw, dict):
+            continue
+        d = row.snapshot_date
+        d = d if isinstance(d, date) else d.date()
+        clean: dict[str, float] = {}
+        for key, value in raw.items():
+            try:
+                freq = float(value)
+            except (TypeError, ValueError):
+                continue
+            name = (key or "").strip()
+            if name and freq > 0:
+                clean[name] = freq
+        if clean:
+            out.append((d, clean))
     return out
 
 
@@ -295,7 +365,26 @@ async def load_time_series(session: AsyncSession) -> Result[list[Snapshot], Doma
     if not file_snapshots:
         return Err(DomainError("No snapshot data available"))
 
-    # 3. Sort by date
+    # 4. Канонический стор снимков (trend_snapshots) как основа ряда. В
+    # data/history всего два файла freq_market, поэтому их навыки (sql, python,
+    # linux...) имели две точки и выпадали из прогноза как insufficient_data.
+    # Снимки дают им полную месячную историю; значения файлов/DB на своих
+    # месяцах остаются приоритетными (снимки их и содержат).
+    ts_snapshots = await _load_trend_snapshots(session)
+    if ts_snapshots:
+        merged: dict[date, dict[str, float]] = {
+            m: dict(v) for m, v in anchor_snapshot_shares(ts_snapshots).items()
+        }
+        for d, data in file_snapshots:
+            merged.setdefault(date(d.year, d.month, 1), {}).update(data)
+        file_snapshots = sorted(merged.items())
+        logger.info(
+            "forecast_history_merged",
+            months=len(file_snapshots),
+            snapshot_days=len(ts_snapshots),
+        )
+
+    # 5. Sort by date
     file_snapshots.sort(key=lambda x: x[0])
     file_snapshots = _interpolate_missing_months(file_snapshots)
     return Ok([Snapshot(m, data) for m, data in file_snapshots])
@@ -347,6 +436,9 @@ class ProphetForecastEngine(BasePredictor):
     MAX_GROWTH_CAP = 2.0
     # Top-prediction display: only show skills with meaningful frequency
     TOP_DISPLAY_MIN_FREQ = 50
+    # Потолок числа Prophet-моделей: фит тяжёлый (~секунды на модель), а топа на
+    # показ нужно десятки. Остальные навыки обслуживает trend-fallback.
+    MAX_PROPHET_MODELS = 60
 
     def __init__(self):
         self._models: dict[str, Prophet] = {}
@@ -437,6 +529,22 @@ class ProphetForecastEngine(BasePredictor):
             else:
                 self._skill_history[skill] = points
 
+        # Дорогой фит ограничиваем топом по последней частоте: с полной историей
+        # снимков кандидатов сотни, и без потолка старт висел бы часами. Остальные
+        # получают дешёвый прогноз через trend-fallback-движок.
+        if len(prophet_candidates) > self.MAX_PROPHET_MODELS:
+            prophet_candidates.sort(
+                key=lambda c: self._last_actual_freq.get(c[0], 0.0), reverse=True
+            )
+            for skill, points in prophet_candidates[self.MAX_PROPHET_MODELS:]:
+                self._skill_history[skill] = points
+            prophet_candidates = prophet_candidates[: self.MAX_PROPHET_MODELS]
+            logger.info(
+                "prophet_candidates_capped",
+                cap=self.MAX_PROPHET_MODELS,
+                fallback_skills=len(self._skill_history),
+            )
+
         # Parallel Prophet fitting
         if prophet_candidates:
             import time as _time
@@ -464,7 +572,11 @@ class ProphetForecastEngine(BasePredictor):
 
         if fallback_freqs:
             gen = SkillForecastEngine()
-            match gen.fit(fallback_freqs):
+            # Тот же ряд, что у Prophet (файлы + БД + trend_snapshots): иначе
+            # трендовый fallback строился по двум файлам и выдавал экстраполяции
+            # в потолок +150%.
+            trend_snapshots = [(s.date, s.frequencies) for s in snapshots]
+            match gen.fit(fallback_freqs, snapshots=trend_snapshots):
                 case Ok(_):
                     self._fallback_engine = gen
                 case Err(e):

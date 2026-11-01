@@ -9,6 +9,7 @@ from src.predictors.prophet_forecast import (
     Snapshot,
     _has_mixed_token,
     anchor_monthly_counts,
+    anchor_snapshot_shares,
     drop_broken_snapshots,
     merge_supplement_rows,
 )
@@ -77,6 +78,43 @@ class TestAnchorMonthlyCounts:
             {self.APR: 100, self.AUG: 200},
         )
         assert out[self.AUG] == {"a": 20}
+
+
+class TestAnchorSnapshotShares:
+    """Снимки разного объёма не должны рисовать ложные скачки спроса."""
+
+    def test_volume_difference_flattened(self):
+        # один и тот же share (50%), но сбор вырос в 10 раз
+        snaps = [
+            (date(2026, 5, 11), {"python": 5, "sql": 5}),
+            (date(2026, 6, 5), {"python": 50, "sql": 50}),
+        ]
+        out = anchor_snapshot_shares(snaps)
+        assert out[date(2026, 5, 1)] == {"python": 50.0, "sql": 50.0}
+        assert out[date(2026, 6, 1)] == {"python": 50.0, "sql": 50.0}
+
+    def test_real_share_shift_preserved(self):
+        snaps = [
+            (date(2026, 5, 11), {"python": 2, "sql": 8}),
+            (date(2026, 6, 5), {"python": 40, "sql": 60}),
+        ]
+        out = anchor_snapshot_shares(snaps)
+        assert out[date(2026, 5, 1)]["python"] == 20.0
+        assert out[date(2026, 6, 1)]["python"] == 40.0
+
+    def test_same_month_averaged(self):
+        snaps = [
+            (date(2026, 6, 5), {"python": 10, "sql": 90}),
+            (date(2026, 6, 26), {"python": 30, "sql": 70}),
+        ]
+        out = anchor_snapshot_shares(snaps)
+        assert out[date(2026, 6, 1)]["python"] == 20.0
+        assert out[date(2026, 6, 1)]["sql"] == 80.0
+
+    def test_empty_and_zero_snapshots(self):
+        assert anchor_snapshot_shares([]) == {}
+        assert anchor_snapshot_shares([(date(2026, 5, 1), {})]) == {}
+        assert anchor_snapshot_shares([(date(2026, 5, 1), {"a": 0.0})]) == {}
 
 
 class TestMixedToken:

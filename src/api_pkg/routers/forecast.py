@@ -183,6 +183,10 @@ async def _get_vacancy_meta() -> dict:
 
 def _serialize(r: ForecastResult, direction: str | None = None, method: str = "trend") -> dict:
     change_pct = round(r.predicted_growth * 100, 2)
+    # method - фактически применённый движок строки (prophet/trend/insufficient_
+    # data), а не метод всего батча: иначе в топе Prophet-движка бейдж показывал
+    # "prophet" и для trend-строк.
+    effective_method = getattr(r, "engine_used", None) or method
     return {
         "skill": r.skill,
         "current_frequency": round(r.current_frequency, 4),
@@ -190,7 +194,7 @@ def _serialize(r: ForecastResult, direction: str | None = None, method: str = "t
         "predicted_change_pct": change_pct,
         "confidence": round(r.confidence, 4),
         "next_year_frequency": round(r.next_year_frequency, 4),
-        "method": method,
+        "method": effective_method,
         "engine_used": getattr(r, "engine_used", method),
         "data_points": getattr(r, "data_points", 0),
         "mape": (
