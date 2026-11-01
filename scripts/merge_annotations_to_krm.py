@@ -152,6 +152,9 @@ def discipline_from_file(raw_file: str) -> str | None:
         return None
     name = re.sub(r"\.pdf$", "", raw_file.strip(), flags=re.I)
     name = ANN_RPD_PREFIX.sub("", name).strip(" _-")
+    # Двойной пробел в имени файла ("практики  разработки") создавал дубль
+    # рядом с официальным названием.
+    name = re.sub(r"\s+", " ", name)
     return name or None
 
 
@@ -345,8 +348,10 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
         # shifted"). Аннотация обогащает KSA, но не меняет состав компетенций;
         # если пересечения нет, остаёмся на прежних кодах.
         if prev_comps:
-            common = sorted(set(prev_comps) & set(comps))
-            comps = common or sorted(prev_comps)
+            # Состав компетенций НЕ меняем: аннотация обогащает KSA, но не
+            # переписывает коды. Пересечение выкидывало коды, которых нет в
+            # аннотации (ПК-18), и test_iter4_gap падал с "KRM codes shifted".
+            comps = sorted(prev_comps)
         else:
             comps = sorted(set(comps))
         disc[hit]["competencies"] = comps
