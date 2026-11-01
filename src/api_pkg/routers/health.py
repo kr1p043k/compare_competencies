@@ -4,6 +4,7 @@ import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 import structlog
 from fastapi import APIRouter, Request
@@ -49,7 +50,9 @@ async def root():
 
 
 class LogEntry(BaseModel):
-    level: str = "info"
+    # level - только известные значения: иначе в лог можно писать произвольные
+    # строки (мусор/подделка уровней). json.dumps ниже экранирует переводы строк.
+    level: Literal["debug", "info", "warning", "error"] = "info"
     message: str = Field(max_length=2000)
     data: dict | None = None
     timestamp: str | None = None
@@ -81,7 +84,7 @@ def _write_log_sync(entry: LogEntry) -> None:
 
 
 @router.post("/api/log")
-@limiter.limit("60/minute")
+@limiter.limit("20/minute")
 async def write_log(request: Request, entry: LogEntry):
     """Запись клиентского лога."""
     try:
