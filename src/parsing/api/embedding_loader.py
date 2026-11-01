@@ -4,6 +4,12 @@ import structlog
 
 from src import config
 
+# ML-инференс в API-процессе не должен захватывать все ядра: потоки torch/OMP
+# делят GIL с event loop, и сервер перестаёт отвечать на /health, пока считаются
+# эмбеддинги и модели. Ставим ДО импорта torch (env читается при импорте).
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+
 logger = structlog.get_logger(__name__)
 
 _embedding_model = None
@@ -26,7 +32,15 @@ def get_embedding_model(model_name: str = None):
 
         import sentence_transformers
         logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
-        SentenceTransformer = sentence_transformers.SentenceTransformer
+        sentence_transformer = sentence_transformers.SentenceTransformer
+
+        # Однопоточный CPU-инференс: иначе один encode выедает loop на секунды.
+        try:
+            import torch
+
+            torch.set_num_threads(1)
+        except Exception:  # pragma: no cover - torch всегда есть рядом с ST
+            logger.debug("torch_threads_not_set")
 
         for _attempt, endpoint in enumerate([None, HF_MIRROR]):
             try:
@@ -36,7 +50,7 @@ def get_embedding_model(model_name: str = None):
                 else:
                     logger.info("loading_embedding_model", model=model_name)
 
-                _embedding_model = SentenceTransformer(
+                _embedding_model = sentence_transformer(
                     model_name,
                     device="cpu",
                     model_kwargs={"low_cpu_mem_usage": True},

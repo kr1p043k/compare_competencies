@@ -555,19 +555,27 @@ async def _warmup_background(basic_vacancies, raw_file):
 
     # ProfileEvaluator и RecommendationEngine
     try:
-        deps.evaluator = ProfileEvaluator(
-            skill_weights=deps.skill_weights,
-            vacancies_skills=vacancies_skills,
-            vacancies_skills_dict=level_vacancies_data,
-            hybrid_weights=hybrid_weights,
-            skill_weights_by_level=skill_weights_by_level,
+        def _build_recommendation_engines():
+            ev = ProfileEvaluator(
+                skill_weights=deps.skill_weights,
+                vacancies_skills=vacancies_skills,
+                vacancies_skills_dict=level_vacancies_data,
+                hybrid_weights=hybrid_weights,
+                skill_weights_by_level=skill_weights_by_level,
+            )
+            rec = RecommendationEngine(
+                use_ltr=True, use_llm=False, use_reranker=True,
+                profile_evaluator=ev,
+            )
+            return ev, rec
+
+        # Конструкторы грузят кластеры и LTR/реранкер-модели. Синхронно на
+        # event loop это давало ~23 с полной недоступности API (в логе - молчание
+        # между cluster_models_loaded и loading_embedding_model), поэтому строим
+        # движки в потоке.
+        deps.evaluator, deps.recommendation_engine = await asyncio.to_thread(
+            _build_recommendation_engines
         )
-        deps.recommendation_engine = RecommendationEngine(
-            use_ltr=True, use_llm=False, use_reranker=True,
-            profile_evaluator=deps.evaluator
-        )
-        # NB: comparator 0.80 тут был мёртвым оверрайдом (compare() никем не
-        # вызывается; fit идёт на конструкторе движка). Удалён 2026-10-12.
         match await asyncio.to_thread(
             deps.recommendation_engine.fit, vacancies_skills, skill_weights=hybrid_weights
         ):
@@ -603,9 +611,9 @@ async def _warmup_background(basic_vacancies, raw_file):
             match await load_time_series(session):
                 case Ok(snapshots):
                     prophet = ProphetForecastEngine()
-                    match await asyncio.to_thread(
-                        prophet.fit, snapshots, fallback_freqs=deps.skill_freq
-                    ):
+                    # fit_async фитит модели по одной, отдавая управление loop:
+                    # параллельный fit держал /health в таймауте на время работы.
+                    match await prophet.fit_async(snapshots, fallback_freqs=deps.skill_freq):
                         case Ok(_):
                             deps.prophet_engine = prophet
                             logger.info("prophet_engine_ready",

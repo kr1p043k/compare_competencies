@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -439,6 +440,9 @@ class ProphetForecastEngine(BasePredictor):
     # Потолок числа Prophet-моделей: фит тяжёлый (~секунды на модель), а топа на
     # показ нужно десятки. Остальные навыки обслуживает trend-fallback.
     MAX_PROPHET_MODELS = 60
+    # Воркеры синхронного fit (тесты/CLI). В API используется fit_async: он
+    # фитит по одной модели, чтобы не держать event loop.
+    FIT_WORKERS = 4
 
     def __init__(self):
         self._models: dict[str, Prophet] = {}
@@ -494,21 +498,20 @@ class ProphetForecastEngine(BasePredictor):
             changepoint_prior_scale=0.05 if n_points < 6 else (0.5 if n_points < 12 else 0.05),
         )
         with disable_logging():
-            model.fit(df, iter=1000)
+            # 300 итераций хватает для коротких месячных рядов; 1000 растягивал
+            # каждый фит и на это время отбирал GIL у event loop сервера.
+            model.fit(df, iter=300)
         return model
 
-    def fit(
+    def _prepare_fit(
         self,
         snapshots: list[Snapshot],
-        fallback_freqs: dict[str, float] | None = None,
-    ) -> Result[ProphetForecastEngine, DomainError]:
+        fallback_freqs: dict[str, float] | None,
+    ) -> list[tuple[str, list[tuple[date, float]]]]:
+        """Общая часть fit/fit_async: истории, раскладка кандидатов, fallback."""
         import logging
         logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
         logging.getLogger("prophet").setLevel(logging.WARNING)
-
-        if not snapshots:
-            FIT_STATUS.update(state="failed")
-            return Err(DomainError("No snapshots provided to Prophet engine"))
 
         self._n_snapshots = len(snapshots)
         history = self._gather_history(snapshots)
@@ -545,13 +548,50 @@ class ProphetForecastEngine(BasePredictor):
                 fallback_skills=len(self._skill_history),
             )
 
-        # Parallel Prophet fitting
+        if fallback_freqs:
+            gen = SkillForecastEngine()
+            # Тот же ряд, что у Prophet (файлы + БД + trend_snapshots): иначе
+            # трендовый fallback строился по двум файлам и выдавал экстраполяции
+            # в потолок +150%.
+            match gen.fit(fallback_freqs, snapshots=[(s.date, s.frequencies) for s in snapshots]):
+                case Ok(_):
+                    self._fallback_engine = gen
+                case Err(e):
+                    logger.warning("prophet_fallback_engine_fit_failed", error=str(e))
+
+        return prophet_candidates
+
+    def _finalize_fit(self) -> Result[ProphetForecastEngine, DomainError]:
+        logger.info(
+            "prophet_fitted",
+            prophet_skills=len(self._models),
+            fallback_skills=len(self._skill_history),
+            snapshots=self._n_snapshots,
+        )
+        if not self._models and not self._fallback_engine:
+            FIT_STATUS.update(state="failed")
+            return Err(DomainError("No skills could be fitted by Prophet or fallback"))
+        self._is_fitted = True
+        FIT_STATUS.update(state="ready")
+        return Ok(self)
+
+    def fit(
+        self,
+        snapshots: list[Snapshot],
+        fallback_freqs: dict[str, float] | None = None,
+    ) -> Result[ProphetForecastEngine, DomainError]:
+        if not snapshots:
+            FIT_STATUS.update(state="failed")
+            return Err(DomainError("No snapshots provided to Prophet engine"))
+
+        prophet_candidates = self._prepare_fit(snapshots, fallback_freqs)
+
         if prophet_candidates:
             import time as _time
 
             FIT_STATUS.update(state="fitting", done=0, total=len(prophet_candidates),
                               started_at=_time.monotonic())
-            with ThreadPoolExecutor(max_workers=4) as pool:
+            with ThreadPoolExecutor(max_workers=self.FIT_WORKERS) as pool:
                 futures = {pool.submit(self._fit_prophet_for_skill, s, p): s for s, p in prophet_candidates}
                 for future in as_completed(futures):
                     skill = futures[future]
@@ -561,34 +601,41 @@ class ProphetForecastEngine(BasePredictor):
                         logger.warning("prophet_skill_fit_failed", skill=skill, error=str(e))
                     FIT_STATUS["done"] = FIT_STATUS.get("done", 0) + 1
 
-        prophet_skills = len(self._models)
-        fallback_skills = len(self._skill_history)
-        logger.info(
-            "prophet_fitted",
-            prophet_skills=prophet_skills,
-            fallback_skills=fallback_skills,
-            snapshots=len(snapshots),
-        )
+        return self._finalize_fit()
 
-        if fallback_freqs:
-            gen = SkillForecastEngine()
-            # Тот же ряд, что у Prophet (файлы + БД + trend_snapshots): иначе
-            # трендовый fallback строился по двум файлам и выдавал экстраполяции
-            # в потолок +150%.
-            trend_snapshots = [(s.date, s.frequencies) for s in snapshots]
-            match gen.fit(fallback_freqs, snapshots=trend_snapshots):
-                case Ok(_):
-                    self._fallback_engine = gen
-                case Err(e):
-                    logger.warning("prophet_fallback_engine_fit_failed", error=str(e))
+    async def fit_async(
+        self,
+        snapshots: list[Snapshot],
+        fallback_freqs: dict[str, float] | None = None,
+    ) -> Result[ProphetForecastEngine, DomainError]:
+        """Как fit(), но модели фитятся по одной с возвратом управления loop.
 
-        if not self._models and not self._fallback_engine:
+        Параллельный фит держит GIL и роняет отзывчивость API на всё время
+        работы (в замерах /health таймаутил ~13 с). Здесь между моделями
+        отдаём управление - health отвечает, фит идёт фоном.
+        """
+        if not snapshots:
             FIT_STATUS.update(state="failed")
-            return Err(DomainError("No skills could be fitted by Prophet or fallback"))
+            return Err(DomainError("No snapshots provided to Prophet engine"))
 
-        self._is_fitted = True
-        FIT_STATUS.update(state="ready")
-        return Ok(self)
+        prophet_candidates = self._prepare_fit(snapshots, fallback_freqs)
+
+        if prophet_candidates:
+            import time as _time
+
+            FIT_STATUS.update(state="fitting", done=0, total=len(prophet_candidates),
+                              started_at=_time.monotonic())
+            for skill, points in prophet_candidates:
+                try:
+                    self._models[skill] = await asyncio.to_thread(
+                        self._fit_prophet_for_skill, skill, points
+                    )
+                except Exception as e:
+                    logger.warning("prophet_skill_fit_failed", skill=skill, error=str(e))
+                FIT_STATUS["done"] = FIT_STATUS.get("done", 0) + 1
+                await asyncio.sleep(0.01)
+
+        return self._finalize_fit()
 
     def predict(self, skill: str, months: int = 12) -> Result[ForecastResult, DomainError]:
         if months < 1 or months > 60:
