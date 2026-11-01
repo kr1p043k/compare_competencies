@@ -89,6 +89,9 @@ class VacancyParser:
                 case Ok(weights):
                     hybrid_weights = weights
                 case Err(err):
+                    # Не глотаем молча: без весов ломается взвешенная аналитика,
+                    # а причина раньше нигде не всплывала.
+                    logger.warning("hybrid_weights_calc_failed", error=str(err))
                     hybrid_weights = {}
 
             return Ok({"frequencies": dict(skill_freq), "hybrid_weights": hybrid_weights})
@@ -115,6 +118,7 @@ class VacancyParser:
                 case Ok(weights):
                     hybrid_weights = weights
                 case Err(err):
+                    logger.warning("hybrid_weights_calc_failed", error=str(err))
                     hybrid_weights = {}
 
             skill_embeddings = self.embedding_cache.get_embeddings(list(final_freq.keys()))

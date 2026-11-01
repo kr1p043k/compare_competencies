@@ -15,7 +15,8 @@ it_set = {s.strip().lower() for s in it_skills if s.strip()}
 rpd_skills_path = os.path.join(os.path.dirname(__file__), "../../data/reference/rpd_skills.json")
 rpd_set = set()
 if os.path.exists(rpd_skills_path):
-    rpd_skills = json.load(open(rpd_skills_path, encoding="utf-8"))
+    with open(rpd_skills_path, encoding="utf-8") as f:
+        rpd_skills = json.load(f)
     rpd_set = {s.strip().lower() for s in rpd_skills if s.strip()}
     print(f"it_skills: {len(it_set)}, rpd_skills: {len(rpd_set)}")
 

@@ -800,10 +800,6 @@ async def get_pipeline_status(request: Request):
     }
 
 
-async def reload_api_data():
-    await _reload_api_data()
-
-
 @router.post("/pipeline/cancel/{task_id}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("10/minute")
 async def cancel_pipeline_task(task_id: str, request: Request):
