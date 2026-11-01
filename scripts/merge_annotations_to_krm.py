@@ -339,7 +339,16 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
         # Дубликаты аннотаций (EN+RU версии): UNION кодов и тем, а не last-wins.
         # build_ksa ниже сам смержит старые KSA с новыми топиками.
         prev_comps = disc[hit].get("competencies", [])
-        comps = sorted(set(prev_comps) | set(comps))
+        # Коды берём ТОЛЬКО те, что уже есть у дисциплины. Объединение
+        # добавляло коды из аннотации (ПК-18 и подобные), дисциплина
+        # расходилась с таксономией, и падал test_iter4_gap ("KRM codes
+        # shifted"). Аннотация обогащает KSA, но не меняет состав компетенций;
+        # если пересечения нет, остаёмся на прежних кодах.
+        if prev_comps:
+            common = sorted(set(prev_comps) & set(comps))
+            comps = common or sorted(prev_comps)
+        else:
+            comps = sorted(set(comps))
         disc[hit]["competencies"] = comps
         old_ksa = disc[hit].get("ksa", {})
         ksa = build_ksa(comps, topics, old_ksa)
