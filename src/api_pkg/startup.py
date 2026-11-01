@@ -217,7 +217,22 @@ async def run_startup(app):
     # только после возврата run_startup - то есть после ~9-секундного чтения
     # файла вакансий; это окно клиенты видели как ConnectionRefused. Теперь порт
     # слушается сразу, а данные/движки догружаются в фоне (режим ожидания).
-    asyncio.create_task(_bootstrap())
+    asyncio.create_task(_run_bootstrap_safely())
+
+
+async def _run_bootstrap_safely() -> None:
+    """Обёртка над _bootstrap: не даёт фоновому таску умереть молча.
+
+    Раньше эти шаги выполнялись внутри run_startup, и ошибка валила старт
+    громко. Теперь они в background-таске: без обёртки исключение просто
+    осело бы в задаче (никто его не читает), и сервер молча остался бы без
+    данных/движков.
+    """
+    try:
+        await _bootstrap()
+    except Exception as e:
+        logger.error("bootstrap_failed", error=str(e), exc_info=True)
+        _notify_warmup_failure("bootstrap", e)
 
 
 async def _bootstrap():
