@@ -76,3 +76,6 @@ prometheus/data/
 
 # test-run artifacts (mocked paths materialize on disk)
 MagicMock/
+
+# временные артефакты инструментов (лог uvicorn, headless-профиль Chrome, скриншоты)
+.tmp_*
