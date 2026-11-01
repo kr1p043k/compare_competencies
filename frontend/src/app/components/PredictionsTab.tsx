@@ -198,8 +198,8 @@ export function PredictionsTab() {
               )}
               {forecasts.length === 0 && (
                 <div className="py-8 text-center text-gray-500 dark:text-slate-400 text-sm">
-                  <p>No forecasts yet - not enough history snapshots ({snapshotsCount}).</p>
-                  <p className="mt-1">Run the nightly pipeline a few times to accumulate trend snapshots.</p>
+                  <p>Нет прогнозов: у навыков с частотой от 50 пока не хватает истории (нужно ≥3 помесячных снимка).</p>
+                  <p className="mt-1">Загрузите помесячные снимки рынка в data/history и перезапустите пайплайн.</p>
                 </div>
               )}
               {forecasts.map((f, i) => (<ForecastRow key={f.skill} item={f} rank={i + 1} expanded={selectedSkill?.skill === f.skill} months={months} onToggle={() => setSelectedSkill(selectedSkill?.skill === f.skill ? null : f)} />))}

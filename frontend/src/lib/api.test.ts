@@ -61,6 +61,16 @@ describe("request", () => {
     expect((error as ApiError).message).toBe("Нет связи с сервером");
   });
 
+  it("rethrows AbortError instead of masking it as a network failure", async () => {
+    const abort = new DOMException("signal is aborted without reason", "AbortError");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(abort));
+
+    const error = await request("/api/x").catch((e: unknown) => e);
+
+    expect(error).toBe(abort);
+    expect((error as DOMException).name).toBe("AbortError");
+  });
+
   it("serialises object bodies and sets Content-Type", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);

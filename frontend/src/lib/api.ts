@@ -96,6 +96,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   try {
     res = await fetch(path, { ...rest, headers: finalHeaders, body: payload });
   } catch (cause) {
+    // Отмена запроса - не сетевой сбой. Пробрасываем как есть: иначе отмена
+    // (напр. при быстром переключении вкладок) превращалась бы в «Нет связи
+    // с сервером» и вызывающий код не смог бы отличить abort от обрыва.
+    if ((cause as { name?: string } | undefined)?.name === "AbortError") throw cause;
     throw new ApiError("Нет связи с сервером", 0, cause, path);
   }
 
