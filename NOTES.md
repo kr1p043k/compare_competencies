@@ -49,3 +49,30 @@
 - Сервис PostgreSQL `postgresql-x64-17` запускается только с UAC.
 - HH выдаёт один токен на приложение в час; повторный запрос к `/token` при
   живом токене → 403. `HH_ACCESS_TOKEN` в `.env` удалён (revoked).
+
+## 2026-11-01 (вечер) — координация параллельных агентов
+
+В репозитории работают два агента. Чтобы не мешать друг другу — разграничение
+путей и правила коммита.
+
+**Мой трек (эта сессия):**
+`src/api_pkg/*`, `src/pipeline/background_collector.py`, `src/pipeline/db_writer.py`,
+`src/predictors/*`, `src/parsing/*`, `src/cli/*`, `frontend/*`, `tests/*`,
+`tools/*`, `.gitignore`, `NOTES.md`.
+
+**Трек второго агента (не трогаю):**
+`data/reference/krm_disciplines_*.json`, `data/reference/curriculum_years_*.json`,
+`scripts/merge_annotations_to_krm.py`, `scripts/curriculum_years.py`,
+`src/pipeline/teacher_analysis_runner.py`, `labeling/*`,
+`scripts/*.py` (LTR/ensemble/калибровка), `Запуск Докера.md`, `Метрики.md`.
+
+**Правила (согласовано через deepseek-advisor):**
+1. Никогда `git add -A` / `git add .` — только явные пути
+   (в ветке есть плагин `auto-commit`, риск утащить чужое полуготовое).
+2. Перед коммитом — `git status` и `git diff --cached --name-only`.
+3. Чужие незакоммиченные файлы не редактировать; сообщать о них в этот раздел.
+
+Сделано (эта сессия): роутер вкладок, инлайн-стили, parsed_skills
+(50849/56997), прогнозы на trend_snapshots, AbortError, автопарсинг навыков
+при записи в БД (`save_vacancies_batch`), старт API без блокировки вармапом,
+зафиксированы labeling/скрипты и правка KRM.
