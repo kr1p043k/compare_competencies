@@ -72,20 +72,6 @@ export function authHeaders(): Record<string, string> {
   return {};
 }
 
-export async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
-  const headers = { ...authHeaders(), ...(init?.headers as Record<string, string> || {}) };
-  const token = getToken();
-  let finalUrl = url;
-  if (token && !url.includes("/api/auth/")) {
-    finalUrl = url + (url.includes("?") ? "&" : "?") + `token=${encodeURIComponent(token)}`;
-  }
-  const res = await nativeFetch(finalUrl, { ...init, headers });
-  if (res.status === 401 && token && !url.includes("/api/auth/login")) {
-    handleUnauthorized();
-  }
-  return res;
-}
-
 /** Clear stale session (invalid/expired token) and bounce back to the login screen. */
 export function handleUnauthorized() {
   try {

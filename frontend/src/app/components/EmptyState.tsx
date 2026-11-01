@@ -6,7 +6,7 @@ interface EmptyStateProps {
   title: string;
   description?: string;
   action?: ReactNode;
-  /** compact — для узких колонок и сайдбаров. */
+  /** compact - для узких колонок и сайдбаров. */
   size?: "default" | "compact";
 }
 
