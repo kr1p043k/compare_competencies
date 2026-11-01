@@ -447,6 +447,28 @@ async def _warmup_background(basic_vacancies, raw_file):
     except Exception as e:
         logger.warning("фоновая инициализация: навыки не загружены", error=str(e))
         _notify_warmup_failure("навыки и веса", e)
+
+    # Тренды
+    try:
+        whitelist_set = deps.current_skills_set or load_it_skills()
+        skill_freq_filtered = (
+            filter_skills_by_whitelist(deps.skill_freq, whitelist_set)
+            if whitelist_set else deps.skill_freq
+        )
+        deps.trend_analyzer = TrendAnalyzer(skill_freq_filtered)
+        logger.info("фоновая инициализация: trend_analyzer готов")
+        # Движок рекомендаций без trend_analyzer считает без тренд-бонусов
+        # (расхождение API vs pipeline). Привязываем постфактум.
+        try:
+            if deps.recommendation_engine is not None:
+                deps.recommendation_engine.trend_analyzer = deps.trend_analyzer
+                logger.info("recommendation_engine trend attached")
+        except Exception as e:
+            logger.warning("recommendation_engine trend attach failed", error=str(e))
+        await _resolve_warmup_failure("trend_analyzer")
+    except Exception as e:
+        logger.warning("фоновая инициализация: trend_analyzer не загружен", error=str(e))
+        _notify_warmup_failure("trend_analyzer", e)
         parser = None
         hybrid_weights = {}
 
@@ -571,28 +593,6 @@ async def _warmup_background(basic_vacancies, raw_file):
     except Exception as e:
         logger.warning("фоновая инициализация: кластеры не загружены", error=str(e))
         _notify_warmup_failure("кластеры", e)
-
-    # Тренды
-    try:
-        whitelist_set = deps.current_skills_set or load_it_skills()
-        skill_freq_filtered = (
-            filter_skills_by_whitelist(deps.skill_freq, whitelist_set)
-            if whitelist_set else deps.skill_freq
-        )
-        deps.trend_analyzer = TrendAnalyzer(skill_freq_filtered)
-        logger.info("фоновая инициализация: trend_analyzer готов")
-        # Движок рекомендаций без trend_analyzer считает без тренд-бонусов
-        # (расхождение API vs pipeline). Привязываем постфактум.
-        try:
-            if deps.recommendation_engine is not None:
-                deps.recommendation_engine.trend_analyzer = deps.trend_analyzer
-                logger.info("recommendation_engine trend attached")
-        except Exception as e:
-            logger.warning("recommendation_engine trend attach failed", error=str(e))
-        await _resolve_warmup_failure("trend_analyzer")
-    except Exception as e:
-        logger.warning("фоновая инициализация: trend_analyzer не загружен", error=str(e))
-        _notify_warmup_failure("trend_analyzer", e)
 
     # Prophet
     try:

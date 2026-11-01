@@ -76,7 +76,9 @@ class LogEntry:
         self.user_email = user_email or "anonymous"
         self.source = source
         self.detail = detail
-        self.timestamp = datetime.now(UTC).replace(tzinfo=None)
+        # tz-aware: наивный UTC в колонке timestamptz читался как локальное
+        # время и сдвигал все логи на 3 часа назад.
+        self.timestamp = datetime.now(UTC)
 
 
 _log_buffer: deque[LogEntry] = deque(maxlen=MAX_LOGS)
@@ -108,19 +110,33 @@ async def _flush_to_db() -> None:
         entries = list(_log_buffer)
         _log_buffer.clear()
 
-        try:
-            async with async_session_factory() as session:
-                for e in entries:
-                    session.add(_to_request_log(e, with_detail=True))
-                await session.commit()
-        except Exception:
-            # Pre-migration DB without request_logs.detail - retry slim so rows survive.
-            async with async_session_factory() as session:
-                for e in entries:
-                    session.add(_to_request_log(e, with_detail=False))
-                await session.commit()
+        # Крупный буфер (>~3k строк) не влезает в лимит параметров драйвера,
+        # поэтому вставляем порциями: одна большая пачка раньше убивала весь
+        # флеш и логи переставали писаться совсем.
+        flush_chunk = 200
+        remaining: list[LogEntry] = []
+        for start in range(0, len(entries), flush_chunk):
+            chunk = entries[start:start + flush_chunk]
+            try:
+                async with async_session_factory() as session:
+                    for e in chunk:
+                        session.add(_to_request_log(e, with_detail=True))
+                    await session.commit()
+            except Exception:
+                # БД без колонки detail (не применена миграция) - slim-вставка.
+                try:
+                    async with async_session_factory() as session:
+                        for e in chunk:
+                            session.add(_to_request_log(e, with_detail=False))
+                        await session.commit()
+                except Exception:
+                    remaining.extend(chunk)
+
+        if remaining:
+            for e in reversed(remaining):
+                _log_buffer.appendleft(e)
+            logger.warning("log_flush_partial_failure", failed=len(remaining), total=len(entries))
     except Exception as exc:
-        # Коммит атомарен: при провале возвращаем записи в буфер (дублей нет).
         for e in reversed(entries):
             _log_buffer.appendleft(e)
         logger.warning("log_flush_failed", error=str(exc))
