@@ -1,5 +1,10 @@
-from __future__ import annotations
-
+# ВНИМАНИЕ: намеренно НЕ ставим `from __future__ import annotations`.
+# SlowAPI-декоратор @limiter.limit оборачивает эндпоинт, и __globals__ обёртки -
+# это модуль slowapi, а не этот. С отложенными аннотациями (строки) FastAPI не
+# может резолвить модели-тела вроде DisciplineScopeIn: /openapi.json падал с
+# PydanticUserError (ForwardRef), а с ним и /docs. С обычными аннотациями типы -
+# реальные объекты, и обёртка их несёт как есть.
+import contextlib
 import json
 import re
 import sys
@@ -18,7 +23,6 @@ from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role
 from src.api_pkg.routers.profiles import _load_self_profile, _self_profile_name
 from src.db import get_pool
-import contextlib
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["teacher"])
