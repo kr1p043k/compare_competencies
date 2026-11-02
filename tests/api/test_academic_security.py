@@ -2,6 +2,8 @@
 
 Отдельный файл, потому что раньше academic-роутер не был покрыт вообще.
 """
+import contextlib
+
 from fastapi import Request
 from fastapi.testclient import TestClient
 
@@ -76,14 +78,50 @@ class TestSsoTokenAtRest:
 class TestSsoRateLimit:
     """У /auth/sso есть лимит: без него перебирают hub-JWT."""
 
-    def test_sso_has_rate_limit_decorator(self):
+    @staticmethod
+    def _reset_limiter():
+        """Сбросить счётчики slowapi.
+
+        academic.py держит свой Limiter (как и другие роутеры), поэтому
+        сбрасывать нужно именно его: in-memory хранилище общее на процесс.
+        """
         from src.api_pkg.routers import academic
 
-        fn = academic.sso_login
-        # slowapi оборачивает функцию и оставляет ссылку на исходную
-        assert hasattr(fn, "__wrapped__") or any(
-            "limit" in str(a) for a in dir(fn)
-        ), "sso_login не обёрнут лимитером"
+        with contextlib.suppress(Exception):
+            academic.limiter.reset()
+
+    def test_eleventh_request_is_429(self, monkeypatch):
+        from src import config
+        from src.api_pkg import create_app
+
+        self._reset_limiter()
+        monkeypatch.setattr(config, "ACADEMIC_SSO_ENABLED", False)
+        client = TestClient(create_app(), raise_server_exceptions=False)
+
+        codes = []
+        for _ in range(12):
+            codes.append(client.post("/api/auth/sso", json={"token": "x"}).status_code)
+
+        # Первые 10 - 503 (SSO выключен), дальше лимитер отдаёт 429.
+        assert 429 in codes, f"лимит не сработал: {codes}"
+
+    def test_429_has_retry_after(self, monkeypatch):
+        from src import config
+        from src.api_pkg import create_app
+
+        self._reset_limiter()
+        monkeypatch.setattr(config, "ACADEMIC_SSO_ENABLED", False)
+        client = TestClient(create_app(), raise_server_exceptions=False)
+
+        resp = None
+        for _ in range(12):
+            r = client.post("/api/auth/sso", json={"token": "x"})
+            if r.status_code == 429:
+                resp = r
+                break
+        assert resp is not None, "лимит не сработал"
+        assert resp.headers.get("Retry-After"), "нет Retry-After в 429"
+        assert resp.headers["Retry-After"].isdigit()
 
 
 class TestSsoDisabled:
@@ -92,8 +130,29 @@ class TestSsoDisabled:
     def test_disabled_returns_503(self, monkeypatch):
         from src import config
         from src.api_pkg import create_app
+        from src.api_pkg.routers import academic
 
+        with contextlib.suppress(Exception):
+            academic.limiter.reset()
         monkeypatch.setattr(config, "ACADEMIC_SSO_ENABLED", False)
         client = TestClient(create_app(), raise_server_exceptions=False)
         r = client.post("/api/auth/sso", json={"token": "x"})
-        assert r.status_code == 503
+        assert r.status_code == 503, r.text
+
+
+class TestAuditLogTokenSources:
+    """request_logger не должен определять пользователя по ?token=.
+
+    Иначе токен попадает в аудит дважды: в URL запроса и в колонку user.
+    """
+
+    def test_query_token_ignored_in_audit(self):
+        from src.api_pkg.request_logger import _extract_token
+
+        assert _extract_token(_req(query=b"token=SECRET")) is None
+
+    def test_bearer_and_cookie_still_work_for_audit(self):
+        from src.api_pkg.request_logger import _extract_token
+
+        assert _extract_token(_req([(b"authorization", b"Bearer T")])) == "T"
+        assert _extract_token(_req(cookies="token=C")) == "C"

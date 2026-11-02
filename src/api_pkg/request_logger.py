@@ -29,14 +29,19 @@ FLUSH_BATCH = 100    # entries
 
 
 def _extract_token(request: Request) -> str | None:
-    """Bearer → cookie → query (как _request_token, но без deprecation-спама)."""
+    """Bearer → cookie.
+
+    Query-параметр здесь опаснее, чем в auth: значение пишется в аудит
+    (`user` в request_logs). Токен в ?token= утекал бы в логи дважды - из URL
+    запроса и из колонки пользователя. Ни фронтенд, ни n8n так не ходят.
+    """
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         return auth[7:]
     cookie_token = request.cookies.get("token", "")
     if cookie_token:
         return cookie_token
-    return request.query_params.get("token", "") or None
+    return None
 
 
 def _extract_user(request: Request) -> str | None:

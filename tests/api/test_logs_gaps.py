@@ -20,7 +20,8 @@ def test_extract_token_all_sources():
     from src.api_pkg.request_logger import _extract_token
     assert _extract_token(_req(headers={"Authorization": "Bearer abc.def"})) == "abc.def"
     assert _extract_token(_req(cookies={"token": "c.t"})) == "c.t"
-    assert _extract_token(_req(query="token=q.t")) == "q.t"
+    # ?token= убран: значение писалось в аудит и утекало в логи дважды.
+    assert _extract_token(_req(query="token=q.t")) is None
     assert _extract_token(_req()) is None
     # Bearer wins over cookie
     assert _extract_token(_req(headers={"Authorization": "Bearer b.t"},
