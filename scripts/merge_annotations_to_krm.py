@@ -174,6 +174,36 @@ def _official_names(path: Path) -> set[str]:
     return names
 
 
+def _merge_whitespace_keys(discs: dict) -> dict:
+    """Слить дисциплины, различающиеся только пробелами.
+
+    'Инструменты и инженерные практики  разработки систем ИИ' и вариант с одним
+    пробелом - одна дисциплина. Удалять одну из них нельзя: _load_krm
+    (src/analyzers/academic_gap.py) строит индекс компетенций по skills, а у
+    аннотационной записи skills пуст. Удаление теряло код (ПК-18) из анализа.
+    Поэтому объединяем competencies/skills/ksa обеих записей.
+    """
+    merged: dict[str, dict] = {}
+    for name, body in discs.items():
+        key = re.sub(r"\s+", " ", name).strip()
+        if key not in merged:
+            merged[key] = body
+            continue
+        tgt = merged[key]
+        tgt["competencies"] = sorted(set(tgt.get("competencies") or [])
+                                     | set(body.get("competencies") or []))
+        for field in ("skills", "ksa"):
+            cur = tgt.setdefault(field, {}) or {}
+            tgt[field] = cur
+            for code, items in (body.get(field) or {}).items():
+                lst = list(cur.get(code) or [])
+                for it in items or []:
+                    if it not in lst:
+                        lst.append(it)
+                cur[code] = lst
+    return merged
+
+
 def add_missing(dir_code: str, anns: list[dict],
                 official: set[str] | None = None) -> list[str]:
     """Добавить в KRM дисциплины, которых там нет, но аннотации есть.
@@ -186,8 +216,10 @@ def add_missing(dir_code: str, anns: list[dict],
         return []
     data = json.loads(krm_path.read_text(encoding="utf-8"))
     sub = next(iter(data.values()))
-    disc = sub.setdefault("disciplines", {})
+    sub["disciplines"] = _merge_whitespace_keys(sub.setdefault("disciplines", {}))
+    disc = sub["disciplines"]
     known = {norm_name(d) for d in disc}
+    known |= {re.sub(r"\s+", " ", d).strip().lower() for d in disc}
     # Уже существующие под другим написанием: 'Operating Systems (Операционные
     # системы)' и 'Операционные системы' - одна дисциплина.
     def _is_known(name: str) -> bool:
@@ -221,10 +253,13 @@ def add_missing(dir_code: str, anns: list[dict],
         if not comps:
             continue  # без компетенций запись бесполезна
         topics = extract_content(a.get("text", ""))
+        # skills не пустые: _load_krm индексирует коды компетенций по skills,
+        # и при {} дисциплина не даёт ни одного кода в анализ разрыва.
+        skills = {c: list(topics) for c in comps} if topics else {}
         disc[name] = {
             "competencies": comps,
             "ksa": build_ksa(comps, topics, {}),
-            "skills": {},
+            "skills": skills,
         }
         known.add(norm_name(name))
         added.append(name)
