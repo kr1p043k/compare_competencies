@@ -559,7 +559,22 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
         # Remove vacancies that had zero IT relevance
         if empty_ids:
             logger.info("collect_removing_non_it_vacancies", count=len(empty_ids))
-            all_vacancies[:] = [v for v in all_vacancies if v.get("id") not in empty_ids]
+            # empty_ids хранит int, а у вакансий здесь id ещё СТРОКА (к int они
+            # приводятся ниже, перед записью в БД). Раньше сравнение str != int
+            # никогда не совпадало, и не-IT вакансии не удалялись вовсе.
+            def _vid(v: dict) -> int | None:
+                try:
+                    return int(v.get("id"))
+                except (TypeError, ValueError):
+                    return None
+
+            before_count = len(all_vacancies)
+            all_vacancies[:] = [v for v in all_vacancies if _vid(v) not in empty_ids]
+            logger.info(
+                "collect_pruned_non_it",
+                pruned=before_count - len(all_vacancies),
+                left=len(all_vacancies),
+            )
         logger.info("collect_parse_done", parsed=parsed_count, skipped=skip_count, total=len(all_vacancies))
     except Exception as exc:
         logger.warning("collect_parse_failed", error=str(exc), parsed=parsed_count, skipped=skip_count)

@@ -142,8 +142,25 @@ def save_detailed_vacancies(vacancies, log) -> Result[None, DomainError]:
                         else:
                             by_id[f"_{len(by_id)}"] = v
                     data = list(by_id.values())
-            except Exception:
-                pass
+            except Exception as exc:
+                # Молча продолжать нельзя: ниже файл перезаписывается, и все
+                # ранее накопленные вакансии терялись. Откладываем битый файл
+                # в сторону, чтобы данные можно было восстановить.
+                backup = file.with_suffix(file.suffix + ".corrupt")
+                try:
+                    file.replace(backup)
+                    log.warning(
+                        "detailed_vacancies_corrupt_backed_up",
+                        path=str(file),
+                        backup=str(backup),
+                        error=str(exc),
+                    )
+                except OSError as move_exc:
+                    log.error(
+                        "detailed_vacancies_corrupt_move_failed",
+                        path=str(file),
+                        error=str(move_exc),
+                    )
         with open(file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         log.info("detailed_vacancies_saved", path=str(file), count=len(data))

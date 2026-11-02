@@ -45,6 +45,26 @@ class TestSaveDetailedVacancies:
             result = save_detailed_vacancies([MagicMock()], MagicMock())
         assert result.is_err()
 
+    def test_corrupt_existing_file_is_backed_up_not_silently_lost(self, tmp_path):
+        """Битый JSON не должен молча затираться новыми данными.
+
+        Раньше ошибка разбора проглатывалась, и файл перезаписывался только
+        новой порцией - накопленные вакансии терялись без следа.
+        """
+        from src.pipeline.helpers import save_detailed_vacancies
+
+        target = tmp_path / "hh_vacancies_detailed.json"
+        target.write_text("{ это не json", encoding="utf-8")
+
+        with patch("src.pipeline.helpers.config") as cfg:
+            cfg.DATA_PROCESSED_DIR = tmp_path
+            result = save_detailed_vacancies([{"id": 1}], MagicMock())
+
+        assert result.is_ok()
+        backup = tmp_path / "hh_vacancies_detailed.json.corrupt"
+        assert backup.exists(), "битый файл должен сохраняться для восстановления"
+        assert backup.read_text(encoding="utf-8") == "{ это не json"
+
 
 class TestConsole:
     def test_console_info(self, capsys):
