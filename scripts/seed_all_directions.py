@@ -45,13 +45,26 @@ FILE_TO_DIRECTION = {
 IT_SKILLS_PATH = REFERENCE_DIR / "it_skills.json"
 RPD_SKILLS_PATH = REFERENCE_DIR / "rpd_skills.json"
 
-_COMP_CODE_RE = re.compile(r"^(УК|ОПК|ПК|ППК|ИП|ВПК)[\s-](\d+(?:\.\d+)*)$")
+_COMP_CODE_RE = re.compile(r"^(УК|ОПК|ПК|ППК|ИП|ВПК|DL|UK|OPK|PK)[\s-](\d+(?:\.\d+)*)$")
+_FALLBACK_CODE_RE = re.compile(r"^([A-Za-zА-Яа-яЁё]+)[\s-]*(\d+(?:\.\d+)*)$")
+
+# Категории, разрешённые ограничением competencies_category_check. Коды вне
+# списка (напр. legacy DL-3 из прошлого набора) пропускаем: иначе сид падает на
+# CheckViolation и не заводит оставшиеся дисциплины.
+_ALLOWED_CATEGORIES = {"УК", "ОПК", "ПК", "ППК", "ИП", "ВПК"}
 
 
 def _parse_comp_code(code: str) -> tuple[str, str]:
+    code = (code or "").strip()
     m = _COMP_CODE_RE.match(code)
     if m:
         return m.group(1), m.group(2)
+    # DL-3 и прочие вне списка: категория - буквенный префикс, а не весь код.
+    # Иначе в competencies.category уходит "DL-3" и падает
+    # competencies_category_check (было: сид обрывался, дисциплины не заводились).
+    m = _FALLBACK_CODE_RE.match(code)
+    if m:
+        return m.group(1).upper(), m.group(2)
     return code, "0"
 
 
@@ -143,6 +156,7 @@ async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path
     await session.flush()
 
     disc_count = comp_count = cs_count = ksa_count = 0
+    skipped_comp = 0
 
     result = await session.execute(
         select(Discipline).where(Discipline.direction_id == direction.id)
@@ -164,6 +178,9 @@ async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path
 
         for comp_code in competencies:
             category, number = _parse_comp_code(comp_code)
+            if category not in _ALLOWED_CATEGORIES:
+                skipped_comp += 1
+                continue
             existing_comp = await session.execute(
                 select(Competency).where(Competency.discipline_id == disc.id, Competency.code == comp_code)
             )
@@ -219,7 +236,8 @@ async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path
     pv.total_skills = cs_count
     pv.total_ksa_items = ksa_count
     await session.commit()
-    print(f"  {dir_code}: discs={disc_count} new, comps={comp_count}, links={cs_count}, ksa={ksa_count}")
+    print(f"  {dir_code}: discs={disc_count} new, comps={comp_count}, links={cs_count}, ksa={ksa_count}"
+          + (f", skipped_comp={skipped_comp}" if skipped_comp else ""))
 
 
 async def main(drop: bool = False, only: str | None = None) -> None:
