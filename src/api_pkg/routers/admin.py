@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, WebSocket
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, WebSocket
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from slowapi import Limiter
@@ -69,7 +69,7 @@ async def get_whitelist(request: Request):
     return {"skills": skills, "total": len(skills)}
 
 
-@router.post("/admin/whitelist/add")
+@router.post("/admin/whitelist/add", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("10/minute")
 async def whitelist_add(request: Request, body: WhitelistAddRequest):
     """Добавить навыки в whitelist."""
@@ -97,7 +97,7 @@ async def whitelist_add(request: Request, body: WhitelistAddRequest):
     }
 
 
-@router.post("/admin/whitelist/remove")
+@router.post("/admin/whitelist/remove", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("10/minute")
 async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
     """Убрать навыки из whitelist."""
@@ -125,7 +125,7 @@ async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
     }
 
 
-@router.post("/admin/whitelist/backup", response_model=WhitelistBackupResponse)
+@router.post("/admin/whitelist/backup", response_model=WhitelistBackupResponse, dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("5/minute")
 async def whitelist_backup(request: Request):
     """Бэкап whitelist в файл."""
@@ -189,7 +189,7 @@ class PipelineTriggerRequest(BaseModel):
     run_gap_analysis: bool = True
 
 
-@router.post("/admin/pipeline/trigger")
+@router.post("/admin/pipeline/trigger", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("2/minute")
 async def admin_trigger_pipeline(
     request: Request, body: PipelineTriggerRequest, background_tasks: BackgroundTasks
@@ -244,7 +244,7 @@ def _format_experience(exp: Any) -> str:
     return ""
 
 
-@router.get("/admin/export/excel")
+@router.get("/admin/export/excel", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("3/minute")
 async def export_excel(request: Request):
     """Экспорт вакансий в Excel."""
@@ -313,7 +313,7 @@ async def export_excel(request: Request):
     )
 
 
-@router.get("/admin/export/full-report")
+@router.get("/admin/export/full-report", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("2/minute")
 async def export_full_report(request: Request):
     """Полный отчёт (Excel/ZIP)."""
@@ -338,7 +338,7 @@ async def export_full_report(request: Request):
     )
 
 
-@router.get("/admin/users")
+@router.get("/admin/users", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def admin_users(request: Request):
     """Список пользователей."""
@@ -394,7 +394,7 @@ def _validate_uuid(value: str, label: str = "id") -> str:
         raise HTTPException(status_code=400, detail=f"Invalid {label}: not a valid UUID") from None
 
 
-@router.get("/admin/users/{user_id}/directions")
+@router.get("/admin/users/{user_id}/directions", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def admin_user_directions(request: Request, user_id: str):
     """Направления пользователя."""
@@ -411,7 +411,7 @@ async def admin_user_directions(request: Request, user_id: str):
         return {"user_id": user_id, "directions": sorted(row[0] for row in result)}
 
 
-@router.put("/admin/users/{user_id}/directions")
+@router.put("/admin/users/{user_id}/directions", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def admin_set_user_directions(request: Request, user_id: str, body: UserDirectionsBody):
     """Назначить направления пользователю."""
@@ -523,12 +523,18 @@ async def admin_monitoring_summary(request: Request):
     return out
 
 
-@router.get("/admin/logs")
+@router.get("/admin/logs", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
-async def admin_logs(request: Request, user: str | None = None, limit: int = 100, action: str | None = None):
+async def admin_logs(
+    request: Request,
+    user: str | None = None,
+    limit: int = Query(100, ge=1, le=1000),
+    action: str | None = None,
+):
     """Логи запросов. AUDIT-строки несут detail 'action | target | by email (role)'.
 
     action - префикс-фильтр по audit-действию, напр. action=krm.recommendation.add.
+    Только admin: строки содержат email пользователей, пути и коды ответов.
     """
     if user and user == "all":
         user = None
@@ -539,19 +545,25 @@ async def admin_logs(request: Request, user: str | None = None, limit: int = 100
 
 @router.get("/admin/student-actions")
 @limiter.limit("30/minute")
-async def admin_student_actions(request: Request, user: str | None = None, limit: int = 100):
+async def admin_student_actions(
+    request: Request,
+    user: str | None = None,
+    limit: int = Query(100, ge=1, le=500),
+):
     """Действия студентов (история запросов + правки профилей). Видно админу/преподавателю."""
-    import asyncio
-
     from src.api_pkg.student_actions import get_actions
 
-    entries = await asyncio.to_thread(get_actions, username=user, limit=limit)
+    entries = await get_actions(username=user, limit=limit)
     return {"actions": entries, "total": len(entries)}
 
 
-@router.get("/admin/logs/file")
+@router.get("/admin/logs/file", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
-async def admin_logs_file(request: Request, lines: int = 300, level: str = "all"):
+async def admin_logs_file(
+    request: Request,
+    lines: int = Query(300, ge=1, le=5000),
+    level: str = "all",
+):
     """Read the tail of logs/backend.log (system log file)."""
     from src.config import LOG_FILE
 
@@ -614,7 +626,7 @@ class EmbeddingsRequest(BaseModel):
     force: bool = False
 
 
-@router.post("/admin/embeddings/generate")
+@router.post("/admin/embeddings/generate", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("1/minute")
 async def admin_generate_embeddings(request: Request, body: EmbeddingsRequest, background_tasks: BackgroundTasks):
     """Generate sentence-transformers embeddings for all skills."""
@@ -637,7 +649,7 @@ class StudentImportItem(BaseModel):
     skills: str = Field(default="", max_length=10000)
 
 
-@router.post("/admin/students/import")
+@router.post("/admin/students/import", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("5/minute")
 async def admin_import_students(request: Request, body: list[StudentImportItem]):
     """Import students from JSON array."""
@@ -663,7 +675,7 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
     return {"status": "ok", "imported": len(body)}
 
 
-@router.post("/admin/skills/extend")
+@router.post("/admin/skills/extend", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("1/minute")
 async def admin_extend_skills(request: Request, background_tasks: BackgroundTasks, yes: bool = True):
     """Analyze vacancies and extend it_skills with new skills."""
@@ -718,7 +730,7 @@ async def admin_skills_uncategorized(request: Request):
     return {"total": len(items), "items": items}
 
 
-@router.post("/admin/skills/categorize")
+@router.post("/admin/skills/categorize", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def admin_skills_categorize(request: Request, body: CategorizeSkillsRequest):
     """Записать навыки в указанные категории skill_taxonomy.json."""
@@ -823,7 +835,7 @@ async def admin_skills_reject(request: Request, suggestion_id: str):
     return {"status": "ok", "suggestion": entry}
 
 
-@router.get("/admin/export/db")
+@router.get("/admin/export/db", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("2/minute")
 async def admin_export_db(request: Request, background_tasks: BackgroundTasks):
     """Export all DB tables to JSON files in data/export/."""
@@ -839,7 +851,7 @@ def _run_export() -> None:
     logger.info("db_export_completed")
 
 
-@router.post("/admin/db/backup")
+@router.post("/admin/db/backup", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("1/minute")
 async def admin_backup_db(request: Request):
     """Create a PostgreSQL dump in data/backups/."""

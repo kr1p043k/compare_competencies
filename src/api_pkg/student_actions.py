@@ -45,7 +45,16 @@ def log_action(username: str, action_type: str, profession: str = "",
     }
     _action_buffer.append(entry)
     if len(_action_buffer) >= 10:
-        asyncio.ensure_future(_flush_buffer())
+        _schedule_flush()
+
+
+def _schedule_flush() -> None:
+    """Сброс буфера только если есть работающий loop (лог можно звать и из потока)."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    asyncio.ensure_future(_flush_buffer())
 
 
 async def _flush_buffer():
@@ -69,18 +78,20 @@ async def _flush_buffer():
         _action_buffer.extend(entries)
 
 
-def get_actions(username: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+async def get_actions(username: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    """История действий: из БД, с откатом на in-memory буфер.
+
+    Раньше это была sync-функция с мостом run_coroutine_threadsafe(...).result().
+    При вызове из async-хендлера (а таких все) мост ждал результат на том же
+    работающем loop — то есть блокировал его до таймаута (2 с на pool + 5 с на
+    запрос) и всё равно возвращал только буфер. Отсюда «Internal Server Error»
+    и многократные зависания на /api/student/history и /api/admin/student-actions.
+    """
     try:
-        import asyncio
-        pool_future = asyncio.run_coroutine_threadsafe(
-            _get_pool(), asyncio.get_event_loop()
-        )
-        pool = pool_future.result(timeout=2)
+        pool = await _get_pool()
         if pool is None:
             return _get_from_buffer(username, limit)
-        coro = _query_db(username, limit)
-        future = asyncio.run_coroutine_threadsafe(coro, asyncio.get_event_loop())
-        return future.result(timeout=5)
+        return await _query_db(username, limit)
     except Exception:
         return _get_from_buffer(username, limit)
 

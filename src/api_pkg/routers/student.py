@@ -27,7 +27,7 @@ async def student_history(request: Request, limit: int = 50):
     user = getattr(request.state, "user", None)
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
-    entries = get_actions(username=user, limit=limit)
+    entries = await get_actions(username=user, limit=limit)
     return {"history": entries, "total": len(entries)}
 
 
