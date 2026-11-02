@@ -53,18 +53,33 @@ def _norm(name: str) -> str:
 
 
 def _merge(alias: dict, target: dict) -> None:
-    """Слить alias в target: union компетенций, skills и ksa по кодам."""
+    """Слить alias в target: union компетенций, skills и ksa по кодам.
+
+    skills: {код: [тексты]}, ksa: {код: {тип: [тексты]}} - структуры разные,
+    union делается по-разному (иначе ksa превращался в список и сид падал).
+    """
     target["competencies"] = sorted(set(target.get("competencies") or [])
                                     | set(alias.get("competencies") or []))
-    for field in ("skills", "ksa"):
-        cur = target.setdefault(field, {}) or {}
-        target[field] = cur
-        for code, items in (alias.get(field) or {}).items():
-            lst = list(cur.get(code) or [])
-            for it in items or []:
-                if it not in lst:
-                    lst.append(it)
-            cur[code] = lst
+    cur_sk = target.setdefault("skills", {}) or {}
+    target["skills"] = cur_sk
+    for code, items in (alias.get("skills") or {}).items():
+        lst = list(cur_sk.get(code) or [])
+        for it in items or []:
+            if it not in lst:
+                lst.append(it)
+        cur_sk[code] = lst
+    cur_ksa = target.setdefault("ksa", {}) or {}
+    target["ksa"] = cur_ksa
+    for code, types in (alias.get("ksa") or {}).items():
+        if not isinstance(types, dict):
+            continue
+        tgt_types = cur_ksa.setdefault(code, {})
+        for kt, texts in types.items():
+            lst = list(tgt_types.get(kt) or [])
+            for t in texts or []:
+                if t not in lst:
+                    lst.append(t)
+            tgt_types[kt] = lst
 
 
 def main() -> int:
@@ -131,6 +146,7 @@ def main() -> int:
                 continue
             if tgt in discs:
                 _merge(discs[alias], discs[tgt])
+                del discs[alias]
                 redirect[alias] = tgt
                 merged_n += 1
             else:

@@ -192,15 +192,26 @@ def _merge_whitespace_keys(discs: dict) -> dict:
         tgt = merged[key]
         tgt["competencies"] = sorted(set(tgt.get("competencies") or [])
                                      | set(body.get("competencies") or []))
-        for field in ("skills", "ksa"):
-            cur = tgt.setdefault(field, {}) or {}
-            tgt[field] = cur
-            for code, items in (body.get(field) or {}).items():
-                lst = list(cur.get(code) or [])
-                for it in items or []:
-                    if it not in lst:
-                        lst.append(it)
-                cur[code] = lst
+        cur_sk = tgt.setdefault("skills", {}) or {}
+        tgt["skills"] = cur_sk
+        for code, items in (body.get("skills") or {}).items():
+            lst = list(cur_sk.get(code) or [])
+            for it in items or []:
+                if it not in lst:
+                    lst.append(it)
+            cur_sk[code] = lst
+        cur_ksa = tgt.setdefault("ksa", {}) or {}
+        tgt["ksa"] = cur_ksa
+        for code, types in (body.get("ksa") or {}).items():
+            if not isinstance(types, dict):
+                continue
+            tgt_types = cur_ksa.setdefault(code, {})
+            for kt, texts in types.items():
+                lst = list(tgt_types.get(kt) or [])
+                for t in texts or []:
+                    if t not in lst:
+                        lst.append(t)
+                tgt_types[kt] = lst
     return merged
 
 
