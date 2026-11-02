@@ -575,6 +575,10 @@ class PipelineRun(Base):
     completed_at: Mapped[datetime | None]
     error_message: Mapped[str | None] = mapped_column(Text)
     stats: Mapped[dict | None] = mapped_column(sa.JSON())
+    # Кто и по какому направлению запустил: статус и отмена проверяют это,
+    # иначе любой преподаватель читал и отменял чужой запуск по run_id.
+    owner_id: Mapped[str | None] = mapped_column(UUID, nullable=True)
+    direction_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     __table_args__ = (
         CheckConstraint(

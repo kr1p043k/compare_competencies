@@ -36,7 +36,8 @@ def _extract_token(request: Request) -> str | None:
     cookie_token = request.cookies.get("token", "")
     if cookie_token:
         return cookie_token
-    return request.query_params.get("token", "") or None
+    # Только заголовок/cookie: ?token= утекает в логи и Referer.
+    return None
 
 
 def _extract_user(request: Request) -> str | None:

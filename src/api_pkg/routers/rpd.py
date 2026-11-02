@@ -22,7 +22,8 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
-from src.api_pkg.routers.auth import require_any_role
+from src.api_pkg.routers.auth import get_current_user, require_any_role
+from src.api_pkg.routers.krm_teacher import _ensure_dir_access
 import contextlib
 
 logger = structlog.get_logger(__name__)
@@ -308,6 +309,26 @@ async def _upload_pipeline(
             _rpd_procs.pop(run_id, None)
 
 
+async def _assert_run_access(request: Request, run) -> None:
+    """403 если запуск чужой: чужое направление или чужой владелец.
+
+    admin проходит всегда. Старые запуски без owner/direction не проверяем -
+    у них просто нет данных для сверки.
+    """
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if user.get("r") == "admin":
+        return
+    direction = getattr(run, "direction_code", None)
+    if direction:
+        await _ensure_dir_access(user, str(direction))
+        return
+    owner = getattr(run, "owner_id", None)
+    if owner and str(owner) != str(user.get("uid")):
+        raise HTTPException(status_code=403, detail="Это чужой запуск")
+
+
 @router.post("/teacher/rpd/upload")
 @limiter.limit("5/minute")
 async def rpd_upload(
@@ -320,6 +341,10 @@ async def rpd_upload(
 ):
     """Загрузка PDF РПД дисциплины."""
     _validate_dir_code(dir_code)
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    await _ensure_dir_access(user, dir_code)
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only .pdf files are supported")
 
@@ -356,7 +381,11 @@ async def rpd_upload(
     logger.info("rpd_pdf_saved", dir_code=dir_code, file=safe_name, bytes=total)
 
     from src.pipeline.db_writer import create_pipeline_run
-    run_id = await create_pipeline_run("rpd-import")
+    run_id = await create_pipeline_run(
+        "rpd-import",
+        owner_id=str(user.get("uid") or "") or None,
+        direction_code=dir_code,
+    )
     await _update_run(run_id, {"stage": "saved", "status": "running", "file": safe_name, "dir_code": dir_code})
     background_tasks.add_task(
         _upload_pipeline, run_id, dir_code, safe_name, direction_name or None, profile or None
@@ -451,6 +480,9 @@ async def rpd_cancel(request: Request, run_id: str):
     """Остановить сбор/загрузку РПД: флаг отмены + kill процесса."""
     from src.pipeline.db_writer import complete_pipeline_run
 
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     with _rpd_lock:
         ev = _rpd_cancel.get(run_id)
         proc = _rpd_procs.get(run_id)
@@ -463,6 +495,7 @@ async def rpd_cancel(request: Request, run_id: str):
             run = await session.get(PipelineRun, run_id)
             if not run:
                 raise HTTPException(status_code=404, detail="Run not found")
+            await _assert_run_access(request, run)
             if run.status in ("completed", "failed", "cancelled"):
                 return {"status": run.status, "message": "Задача уже завершена"}
             await complete_pipeline_run(run_id, status="cancelled", error="Отменено пользователем",
@@ -500,6 +533,7 @@ async def rpd_status(run_id: str, request: Request):
         run = await session.get(PipelineRun, run_id)
         if not run:
             raise HTTPException(status_code=404, detail="Run not found")
+        await _assert_run_access(request, run)
         return {
             "id": str(run.id),
             "action": run.action,

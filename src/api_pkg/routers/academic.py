@@ -15,9 +15,12 @@ from typing import Any
 import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from slowapi import Limiter
 
 from src import config
+from src.api_pkg.client_ip import client_ip
+from src.api_pkg.crypto import decrypt_secret, encrypt_secret
 from src.api_pkg.routers.auth import _hash_token, _make_token, get_current_user, require_any_role
 from src.db import get_pool
 
@@ -38,8 +41,17 @@ _ACADEMIC_HEADERS = {
 }
 
 
+def _sso_rate_key(request: Request) -> str:
+    return f"sso:{client_ip(request)}"
+
+
+limiter = Limiter(key_func=_sso_rate_key)
+
+
 class SsoRequest(BaseModel):
-    token: str
+    # JWT не бывает длиннее нескольких килобайт: ограничение снимает
+    # бесплатный CPU-усилитель на разборе и логировании гигантской строки.
+    token: str = Field(min_length=1, max_length=4096)
 
 
 class CompetenciesRequest(BaseModel):
@@ -99,7 +111,9 @@ def _request_token(request: Request) -> str:
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         return auth[7:]
-    return request.cookies.get("token", "") or request.query_params.get("token", "")
+    # Токен только из заголовка или cookie: query-строка попадает в логи
+    # прокси и в Referer, поэтому как транспорт не используется.
+    return request.cookies.get("token", "")
 
 
 async def _get_sso_token(request: Request) -> tuple[str, str]:
@@ -122,7 +136,12 @@ async def _get_sso_token(request: Request) -> tuple[str, str]:
             status_code=403,
             detail="Сессия не привязана к хабу ЮФУ. Войдите через hub.sfedu.ru",
         )
-    sso_token = row["sso_token"]
+    sso_token = decrypt_secret(row["sso_token"])
+    if not sso_token:
+        raise HTTPException(
+            status_code=403,
+            detail="Сессия недействительна. Войдите заново через hub.sfedu.ru",
+        )
     exp = _jwt_exp(sso_token)
     if exp is not None and exp <= time.time():
         await pool.execute(
@@ -216,8 +235,13 @@ async def _academic_post(
 
 
 @router.post("/auth/sso")
+@limiter.limit("10/minute")
 async def sso_login(body: SsoRequest, request: Request):
     """SSO-вход через академический провайдер."""
+    # Ограничение длины: JWT не бывает длиннее нескольких килобайт, а
+    # гигантская строка бессмысленно жжёт CPU на разбор и запись в лог.
+    if len(body.token) > 4096:
+        raise HTTPException(status_code=400, detail="token too long")
     if not config.ACADEMIC_SSO_ENABLED:
         raise HTTPException(status_code=503, detail="Вход через хаб ЮФУ отключён")
 
@@ -258,13 +282,12 @@ async def sso_login(body: SsoRequest, request: Request):
 
     token = _make_token(str(row["id"]), row["email"], row["role"])
     token_hash = _hash_token(token)
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    ip = client_ip(request)
     ua = request.headers.get("User-Agent", "")
     await pool.execute(
         """INSERT INTO sessions (user_id, token_hash, ip_address, user_agent, sso_token)
            VALUES ($1, $2, $3, $4, $5)""",
-        row["id"], token_hash, ip, ua, body.token,
+        row["id"], token_hash, ip, ua, encrypt_secret(body.token),
     )
 
     logger.info("sso_user_logged_in", username=username, role=row["role"])
