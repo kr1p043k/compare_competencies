@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 
 import httpx
@@ -405,13 +406,69 @@ async def test_http_client_is_reused_between_requests():
         calls.append(1)
         return _page([RAW_ITEM], page=1, num_pages=1, page_size=100)
 
-    client = HubPublicationsClient(base_url=BASE, transport=httpx.MockTransport(handler))
+    client = HubPublicationsClient(base_url=BASE, transport=httpx.MockTransport(handler), cache_ttl=0)
     await client.list_publications()
     await client.list_publications()
     assert len(calls) == 2
 
     await client.aclose()
     await client.aclose()
+    assert len(calls) == 2
+
+
+def test_client_recovers_after_event_loop_change():
+    """Общий клиент не должен переживать смену event loop (TestClient, reload)."""
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return _page([RAW_ITEM], page=1, num_pages=1, page_size=100)
+
+    client = HubPublicationsClient(base_url=BASE, transport=httpx.MockTransport(handler), cache_ttl=0)
+    asyncio.run(client.list_publications())
+    first_loop = client._loop
+
+    asyncio.run(client.list_publications())
+
+    assert client._loop is not first_loop
+    assert len(calls) == 2
+
+
+async def test_list_is_cached_within_ttl():
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return _page([RAW_ITEM], page=1, num_pages=1, page_size=100)
+
+    client = HubPublicationsClient(base_url=BASE, transport=httpx.MockTransport(handler), cache_ttl=60)
+    first = await client.list_publications()
+    second = await client.list_publications()
+    client.clear_cache()
+    await client.list_publications()
+
+    assert len(calls) == 2
+    assert first["items"][0]["id"] == second["items"][0]["id"] == 101
+
+
+async def test_cache_expires_after_ttl(monkeypatch):
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return _page([RAW_ITEM], page=1, num_pages=1, page_size=100)
+
+    clock = [1000.0]
+    monkeypatch.setattr(hub_infra.time, "monotonic", lambda: clock[0])
+
+    client = HubPublicationsClient(base_url=BASE, transport=httpx.MockTransport(handler), cache_ttl=30)
+    await client.list_publications()
+    clock[0] += 29
+    await client.list_publications()
+    assert len(calls) == 1
+
+    clock[0] += 2
+    await client.list_publications()
     assert len(calls) == 2
 
 

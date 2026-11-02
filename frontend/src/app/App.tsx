@@ -31,6 +31,7 @@ import { MarketView } from "./components/MarketView";
 import { ProfileView } from "./components/ProfileView";
 import { ArticlesPage } from "./components/ArticlesPage";
 import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
+import { PublicationsTab } from "./components/PublicationsTab";
 import { PipelineProgress } from "./components/PipelineProgress";
 import { DataViewer } from "./components/DataViewer";
 import { RecommendationsReport } from "./components/RecommendationsReport";
@@ -872,6 +873,7 @@ export default function App() {
                 { value: "predictions", label: "Прогнозы", Icon: TrendingUp },
                 { value: "articles", label: "Аналитика рынка", Icon: LineChart },
                 { value: "scientific-trends", label: "Научные тренды", Icon: FolderOpen },
+                { value: "publications", label: "Публикации ЮФУ", Icon: BookOpen },
                 ...(effectiveRole === "student"
                   ? [{ value: "data", label: "Результаты", Icon: Database }]
                   : []),
@@ -1200,6 +1202,9 @@ export default function App() {
           </TabsContent>
           <TabsContent value="scientific-trends">
             <ScientificTrendsTab />
+          </TabsContent>
+          <TabsContent value="publications">
+            <PublicationsTab />
           </TabsContent>
           <TabsContent value="help">
             <FaqPage />

@@ -14,8 +14,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import threading
+import time
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -208,7 +210,13 @@ def _exhausted(meta: dict[str, Any], page: int) -> bool:
 
 
 class HubPublicationsClient:
-    """Тонкая обёртка над hub.sfedu.ru/api/publications с общим пулом соединений."""
+    """Тонкая обёртка над hub.sfedu.ru/api/publications с общим пулом соединений.
+
+    Список и типы кэшируются на ``cache_ttl`` секунд: хаб большой и общий,
+    а страницы списка меняются медленно.
+    """
+
+    _MAX_CACHE_ENTRIES = 256
 
     def __init__(
         self,
@@ -216,15 +224,42 @@ class HubPublicationsClient:
         token: str | None = None,
         timeout: float | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
+        cache_ttl: float | None = None,
     ):
         self.base_url = (base_url or config.HUB_API_BASE).rstrip("/")
         if token is None and config.HUB_API_TOKEN is not None:
             token = config.HUB_API_TOKEN.get_secret_value()
         self.token = token or None
         self.timeout = timeout or config.HUB_API_TIMEOUT_S
+        self.cache_ttl = config.HUB_CACHE_TTL_S if cache_ttl is None else cache_ttl
         self._transport = transport
         self._client: httpx.AsyncClient | None = None
+        self._loop: Any = None
         self._closed = False
+        self._cache: dict[tuple[Any, ...], tuple[float, dict[str, Any], list[dict[str, Any]]]] = {}
+
+    def _cache_get(self, key: tuple[Any, ...]) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+        if self.cache_ttl <= 0:
+            return None
+        entry = self._cache.get(key)
+        if entry is None:
+            return None
+        expires_at, meta, items = entry
+        if expires_at <= time.monotonic():
+            self._cache.pop(key, None)
+            return None
+        return meta, items
+
+    def _cache_put(self, key: tuple[Any, ...], meta: dict[str, Any], items: list[dict[str, Any]]) -> None:
+        if self.cache_ttl <= 0:
+            return
+        if len(self._cache) >= self._MAX_CACHE_ENTRIES:
+            oldest = min(self._cache.items(), key=lambda kv: kv[1][0])[0]
+            self._cache.pop(oldest, None)
+        self._cache[key] = (time.monotonic() + self.cache_ttl, meta, items)
+
+    def clear_cache(self) -> None:
+        self._cache.clear()
 
     def _headers(self, auth: bool = False) -> dict[str, str]:
         headers = {"User-Agent": _BROWSER_UA, "Accept": "application/json"}
@@ -236,6 +271,19 @@ class HubPublicationsClient:
         return headers
 
     def _http(self) -> httpx.AsyncClient:
+        """Общий клиент, привязанный к текущему event loop.
+
+        httpx.AsyncClient нельзя переиспользовать между разными loop'ами
+        (TestClient, перезапуск lifespan): пул соединений остаётся в закрытом
+        loop и падает на ``aclose``. При смене loop создаём новый клиент.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if self._client is not None and self._loop is not loop:
+            self._client = None
+            self._closed = True
         if self._client is None or self._closed:
             self._client = httpx.AsyncClient(
                 timeout=self.timeout,
@@ -243,12 +291,15 @@ class HubPublicationsClient:
                 headers={"User-Agent": _BROWSER_UA, "Accept": "application/json"},
                 limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
             )
+            self._loop = loop
             self._closed = False
         return self._client
 
     async def aclose(self) -> None:
         if self._client is not None and not self._closed:
-            await self._client.aclose()
+            # Пул мог принадлежать уже закрытому loop — просто отпускаем ссылку.
+            with contextlib.suppress(RuntimeError):
+                await self._client.aclose()
             self._closed = True
 
     async def _get(self, path: str, params: dict[str, Any], auth: bool = False) -> httpx.Response:
@@ -318,6 +369,11 @@ class HubPublicationsClient:
         if creator_id is not None:
             params["creator"] = creator_id
 
+        cache_key = ("list", params["page"], params["page_size"], type_id, creator_id)
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         resp = await self._get("/api/publications/", params)
         self._check_status(resp, page)
         meta = {
@@ -326,7 +382,9 @@ class HubPublicationsClient:
             "page_size": _int_header(resp, "Page-Size", params["page_size"]),
             "num_pages": _int_header(resp, "Num-Pages", 0),
         }
-        return meta, self._decode(resp)
+        items = self._decode(resp)
+        self._cache_put(cache_key, meta, items)
+        return meta, items
 
     async def _scan(
         self,

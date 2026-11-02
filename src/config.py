@@ -187,6 +187,8 @@ class Settings(BaseSettings):
     # Токен нужен только для карточки /api/assets/{id}/; список публикаций открыт.
     HUB_API_TOKEN: SecretStr | None = None
     HUB_API_TIMEOUT_S: float = 30.0
+    # TTL кэша списка/типов публикаций; 0 — без кэша.
+    HUB_CACHE_TTL_S: float = 120.0
 
     # валидация путей относительно BASE_DIR
     @field_validator(
@@ -393,3 +395,4 @@ ACADEMIC_SSO_ENABLED = settings.ACADEMIC_SSO_ENABLED
 HUB_API_BASE = settings.HUB_API_BASE
 HUB_API_TOKEN = settings.HUB_API_TOKEN
 HUB_API_TIMEOUT_S = settings.HUB_API_TIMEOUT_S
+HUB_CACHE_TTL_S = settings.HUB_CACHE_TTL_S
