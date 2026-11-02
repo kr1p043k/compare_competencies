@@ -76,3 +76,28 @@
 (50849/56997), прогнозы на trend_snapshots, AbortError, автопарсинг навыков
 при записи в БД (`save_vacancies_batch`), старт API без блокировки вармапом,
 зафиксированы labeling/скрипты и правка KRM.
+
+## 2026-11-02 (ночь) — жёсткое разведение зон (после серии коллизий)
+
+Оба агента шли по одному аудиту наперегонки: CSP, `/api/log`, admin-роли
+сделаны вторым агентом раньше; я в это же время правил `admin.py`-задачи.
+Чтобы не дублироваться и не конфликтовать — фиксирую зоны. **Файл из чужой
+зоны не редактировать; заметку о нём писать сюда.**
+
+**Зона A (я):**
+`src/api_pkg/routers/{auth,forecast,clusters,taxonomy,vacancies,trends,trends_by_profession,vacancies_by_skill,pipeline}.py`,
+`src/api_pkg/__init__.py`, `src/n8n/*`, `src/config.py`, `src/predictors/*`,
+`src/pipeline/*` (кроме `teacher_analysis_runner.py`), `src/parsing/*`,
+`frontend/*`, `tests/*`, `tools/*`, `.gitignore`, `NOTES.md`, `MEMORY.md`.
+
+**Зона B (второй агент):**
+`src/api_pkg/routers/admin.py`, `src/api_pkg/routers/health.py` (логи),
+`data/reference/krm_disciplines_*.json`, `data/reference/curriculum_years_*.json`,
+`scripts/{merge_annotations_to_krm,curriculum_years}.py`,
+`src/pipeline/teacher_analysis_runner.py`, `labeling/*`, прочие `scripts/*.py`.
+
+**Пересечение по `admin.py`:** там остались незакрытые находки аудита —
+WS `/admin/logs/ws` (проверка сессии в БД; готов `auth.resolve_session`),
+WS-токен в query, `/admin/logs` и `/admin/logs/file` под ролью teacher.
+Ждём решения владельца зоны B; я в `admin.py` не лезу.
+`resolve_session` из `auth.py` можно переиспользовать там же.
