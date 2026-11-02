@@ -36,7 +36,9 @@ class TestModuleLevelVariables:
         assert _DEFAULT_STATE["recommendation_engine"] is None
 
     def test_clusterer_is_instance(self):
-        assert isinstance(deps.clusterer, VacancyClusterer)
+        # Кластерёр теперь ленивый (не импортирует sklearn при старте приложения),
+        # поэтому проверяем фабрику, а не module-level атрибут.
+        assert isinstance(deps.get_clusterer(), VacancyClusterer)
 
     def test_trend_analyzer_is_none_by_default(self):
         assert _DEFAULT_STATE["trend_analyzer"] is None
@@ -112,7 +114,10 @@ class TestGetRecommendationEngine:
 
 class TestGetClusterer:
     def test_returns_clusterer(self):
-        assert deps.get_clusterer() is deps.clusterer
+        # Кластерёр ленивый: важно, что он один на процесс (синглтон), а не
+        # создаётся заново на каждый вызов.
+        first = deps.get_clusterer()
+        assert first is deps.get_clusterer()
 
 
 class TestGetTrendAnalyzer:

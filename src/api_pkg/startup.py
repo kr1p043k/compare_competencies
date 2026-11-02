@@ -154,8 +154,8 @@ async def _set_waiting_mode():
     deps.trend_analyzer = None
     deps.student_profiles = {}
     for lvl in ExperienceLevel:
-        if not deps.clusterer.load_model(lvl):
-            deps.clusterer.load_model("all")
+        if not deps.get_clusterer().load_model(lvl):
+            deps.get_clusterer().load_model("all")
             break
     async with deps.init_lock:
         deps.is_ready = True
@@ -640,9 +640,9 @@ async def _warmup_background(basic_vacancies, raw_file):
     # Кластеры
     try:
         for lvl in ExperienceLevel:
-            loaded = await asyncio.to_thread(deps.clusterer.load_model, lvl)
+            loaded = await asyncio.to_thread(deps.get_clusterer().load_model, lvl)
             if not loaded:
-                await asyncio.to_thread(deps.clusterer.load_model, "all")
+                await asyncio.to_thread(deps.get_clusterer().load_model, "all")
                 break
         logger.info("фоновая инициализация: кластеры загружены")
         await _resolve_warmup_failure("кластеры")

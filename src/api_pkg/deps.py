@@ -1,18 +1,26 @@
 """Dependency injection - DI-контейнер + глобальное состояние для роутеров."""
 
+from __future__ import annotations
+
 import asyncio
+from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
 
-from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
-from src.analyzers.gap.profile_evaluator import ProfileEvaluator
-from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
-from src.analyzers.skills.trends import TrendAnalyzer
 from src.di import get_container
 from src.models.student import StudentProfile
-from src.predictors.prophet_forecast import ProphetForecastEngine
-from src.predictors.recommendation_engine import RecommendationEngine
-from src.predictors.skill_forecast import SkillForecastEngine
+
+if TYPE_CHECKING:
+    # Тяжёлые зависимости нужны только для аннотаций. Их импорт здесь стоил
+    # ~5 с на старте (sklearn+torch через clustering, torch через embeddings),
+    # а uvicorn начинает принимать соединения лишь после возврата импорта.
+    from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
+    from src.analyzers.gap.profile_evaluator import ProfileEvaluator
+    from src.analyzers.skills.skill_taxonomy import SkillTaxonomy
+    from src.analyzers.skills.trends import TrendAnalyzer
+    from src.predictors.prophet_forecast import ProphetForecastEngine
+    from src.predictors.recommendation_engine import RecommendationEngine
+    from src.predictors.skill_forecast import SkillForecastEngine
 
 # Module-level globals - устанавливаются в startup.py, read-only после инициализации.
 # Защищены блокировкой для избежания race condition при параллельных запросах во время startup.
@@ -20,7 +28,6 @@ init_lock = asyncio.Lock()
 
 evaluator: ProfileEvaluator | None = None
 recommendation_engine: RecommendationEngine | None = None
-clusterer: VacancyClusterer = VacancyClusterer()
 trend_analyzer: TrendAnalyzer | None = None
 student_profiles: dict[str, StudentProfile] = {}
 skill_weights: dict[str, float] = {}
@@ -37,6 +44,8 @@ skill_engine: SkillForecastEngine | None = None
 is_ready: bool = False
 _regions_cache: list[str] = []
 _regions_cache_time: float = 0
+# Ленивый кластерёр (см. get_clusterer): создаётся при первом обращении.
+_clusterer: VacancyClusterer | None = None
 
 
 def bootstrap_container():
@@ -46,7 +55,6 @@ def bootstrap_container():
         return
     c.register("profile_evaluator", lambda: evaluator)
     c.register("recommendation_engine", lambda: recommendation_engine)
-    c.register("clusterer", lambda: clusterer)
     c.register("trend_analyzer", lambda: trend_analyzer)
     c.register_instance("student_profiles", student_profiles)
     c.register_instance("skill_weights", skill_weights)
@@ -71,7 +79,17 @@ def get_recommendation_engine() -> RecommendationEngine:
 
 
 def get_clusterer() -> VacancyClusterer:
-    return clusterer
+    """Ленивый кластерёр: модуль не тянет sklearn при импорте приложения.
+
+    Экземпляр один на процесс (как раньше, module-level), но создаётся при
+    первом обращении - иначе импорт sklearn+tensorflow добавлял ~4 с к старту.
+    """
+    global _clusterer
+    if _clusterer is None:
+        from src.analyzers.clustering.vacancy_clustering import VacancyClusterer
+
+        _clusterer = VacancyClusterer()
+    return _clusterer
 
 
 def get_trend_analyzer() -> TrendAnalyzer:

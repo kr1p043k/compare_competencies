@@ -4,7 +4,6 @@ import math
 
 import numpy as np
 import structlog
-import torch
 
 from src import Err, Ok, Result, config
 from src.errors import DomainError
@@ -53,6 +52,9 @@ class HybridWeightCalculator:
             if n_comp < embs.shape[1]:
                 embs = PCA(n_components=n_comp, random_state=config.GLOBAL_RANDOM_SEED).fit_transform(embs)
                 logger.info(f"PCA: {emb_dict[skill_list[0]].shape[0]} → {n_comp}")
+
+        # torch импортируется лениво (~2 с), чтобы не удлинять старт API.
+        import torch
 
         embs_t = torch.tensor(embs)
         embs_t = torch.nn.functional.normalize(embs_t, p=2, dim=1)

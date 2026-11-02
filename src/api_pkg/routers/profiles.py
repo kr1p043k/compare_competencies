@@ -2,7 +2,11 @@
 
 import asyncio
 import contextlib
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # только для аннотаций: импорты тянут sklearn/shap
+    from src.analyzers.gap.profile_evaluator import ProfileEvaluator
+    from src.predictors.recommendation_engine import RecommendationEngine
 
 import numpy as np
 import structlog
@@ -12,7 +16,6 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import Err, Ok, config
-from src.analyzers.gap.profile_evaluator import ProfileEvaluator
 from src.api_pkg import deps
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.models.api_responses import (
@@ -24,7 +27,6 @@ from src.models.api_responses import (
 from src.models.enums import ExperienceLevel
 from src.models.student import StudentProfile
 from src.parsing.skills.skill_validator import SkillValidator
-from src.predictors.recommendation_engine import RecommendationEngine
 
 logger = structlog.get_logger("api")
 
@@ -51,7 +53,7 @@ def _json_safe(value: Any) -> Any:
 @limiter.limit("20/minute")
 async def compare_profiles(
     request: Request,
-    eval_instance: ProfileEvaluator = Depends(deps.get_evaluator),
+    eval_instance: "ProfileEvaluator" = Depends(deps.get_evaluator),
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
     """Сравнение профилей студентов."""
@@ -589,9 +591,9 @@ async def _build_focused_profession_view(
 async def get_recommendations(
     request: Request,
     profile: str,
-    engine: RecommendationEngine = Depends(deps.get_recommendation_engine),
+    engine: "RecommendationEngine" = Depends(deps.get_recommendation_engine),
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
-    eval_instance: ProfileEvaluator = Depends(deps.get_evaluator),
+    eval_instance: "ProfileEvaluator" = Depends(deps.get_evaluator),
 ):
     """Рекомендации навыков профилю."""
     if profile not in profiles:

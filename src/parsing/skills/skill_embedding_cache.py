@@ -4,7 +4,6 @@ import json
 
 import numpy as np
 import structlog
-import torch
 
 from src import config
 from src.parsing.api.embedding_loader import get_embedding_model
@@ -58,6 +57,10 @@ class SkillEmbeddingCache:
         missing = [s for s in skills if s not in cached]
         if missing:
             logger.info(f"Вычисление эмбеддингов для {len(missing)} навыков")
+            # torch импортируется лениво: на старте API он не нужен (~2 с импорта),
+            # а uvicorn принимает соединения только после загрузки приложения.
+            import torch
+
             with torch.no_grad():
                 new_embs = self.model.encode(missing, convert_to_numpy=True, show_progress_bar=True, batch_size=64)
             for skill, emb in zip(missing, new_embs, strict=False):
