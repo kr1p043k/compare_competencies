@@ -226,6 +226,10 @@ class Settings(BaseSettings):
 
     # ---------- academic-api (ЮФУ: компетенции/разрывы по научным темам) ----------
     ACADEMIC_API_BASE: str = "https://academic-api.lib.sfedu.ru"
+    # Отдельный хост для Course Trends API (предрассчитанные рекомендации и
+    # статьи по программам). Старый API остаётся для /get-competencies и
+    # /analyze-gap - переносить их на новый хост нельзя, там таких методов нет.
+    ACADEMIC_TRENDS_API_BASE: str = "https://academic-api-dev.lib.sfedu.ru"
     ACADEMIC_EMAIL_DOMAIN: str = "sfedu.ru"
     ACADEMIC_SSO_ENABLED: bool = True
 
@@ -461,5 +465,6 @@ TQDM_DISABLE = settings.TQDM_DISABLE
 PYDANTIC_VALIDATION_ENABLED = settings.PYDANTIC_VALIDATION_ENABLED
 
 ACADEMIC_API_BASE = settings.ACADEMIC_API_BASE
+ACADEMIC_TRENDS_API_BASE = settings.ACADEMIC_TRENDS_API_BASE
 ACADEMIC_EMAIL_DOMAIN = settings.ACADEMIC_EMAIL_DOMAIN
 ACADEMIC_SSO_ENABLED = settings.ACADEMIC_SSO_ENABLED
