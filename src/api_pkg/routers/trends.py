@@ -74,6 +74,22 @@ def _get_mappings():
     return mapping, inverted
 
 
+@lru_cache(maxsize=200_000)
+def _sw(name: str) -> frozenset[str]:
+    """Кэш token-множества навыка.
+
+    skill_words вызывается миллионы раз в двойных циклах /competency-trends
+    (O(навыки x навыки) + O(limit x снимки)); без кэша эндпоинт висел минутами.
+    """
+    return frozenset(skill_words(name))
+
+
+# /competency-trends считается десятки секунд (CPU): кэшируем результат, чтобы
+# повторные вызовы (переключение фильтра в UI) не пересчитывали.
+_CT_CACHE: dict[tuple, tuple[float, dict]] = {}
+_CT_CACHE_TTL = 600.0
+
+
 def _resolve_canonical_key(
     skill_name: str,
     vocab_keys: set[str],
@@ -118,6 +134,13 @@ async def get_competency_trends(
     limit: int = Query(200, ge=1, le=500),
 ):
     """Compute per-competency trends directly from trend_snapshots."""
+    import time as _time
+
+    cache_key = (direction, limit)
+    entry = _CT_CACHE.get(cache_key)
+    if entry and _time.monotonic() - entry[0] < _CT_CACHE_TTL:
+        return entry[1]
+
     async with async_session_factory() as session:
         # 1. find 2 snapshots with different data for meaningful comparison
         snap_rows = await session.execute(
@@ -152,6 +175,12 @@ async def get_competency_trends(
         prev_freq = parse_freq(prev.skill_freq)
         str(prev.snapshot_date)
 
+        # Разбираем снимки ОДИН раз: в цикле по навыкам json.loads вызывался бы
+        # O(навыки × снимки) раз (до 200 × 241).
+        parsed_snaps = [
+            (str(s.snapshot_date), parse_freq(s.skill_freq)) for s in all_snaps
+        ]
+
         # --- Normalize cur_freq: merge linux + администрирование linux ---
         normalized_cur = dict(cur_freq)
         CUR_MERGE = {"linux": ["администрирование linux"]}
@@ -166,11 +195,11 @@ async def get_competency_trends(
         for ck in normalized_cur:
             if ck in normalized_prev or len(ck) < 3:
                 continue
-            ck_words = skill_words(ck)
+            ck_words = _sw(ck)
             if not ck_words:
                 continue
             for ok in prev_freq:
-                if ok != ck and ck_words <= skill_words(ok):
+                if ok != ck and ck_words <= _sw(ok):
                     normalized_prev[ck] = prev_freq[ok]
                     break
 
@@ -237,17 +266,16 @@ async def get_competency_trends(
                     chg = 0.0
 
                 history = []
-                for snap in all_snaps:
-                    sf = parse_freq(snap.skill_freq)
+                for sdate, sf in parsed_snaps:
                     val = 0
                     if canonical and canonical in sf:
                         val = sf[canonical]
                     elif canonical and len(canonical) >= 3:
                         for ok, ov in sf.items():
-                            if ok != canonical and skill_words(canonical) <= skill_words(ok):
+                            if ok != canonical and _sw(canonical) <= _sw(ok):
                                 val = ov
                                 break
-                    history.append({"date": str(snap.snapshot_date), "freq": val})
+                    history.append({"date": sdate, "freq": val})
 
                 skill_list.append({
                     "name": sk,
@@ -295,4 +323,6 @@ async def get_competency_trends(
         if direction:
             results = [r for r in results if r["direction"] == direction]
 
-        return {"total": len(results), "trends": results[:limit]}
+        payload = {"total": len(results), "trends": results[:limit]}
+        _CT_CACHE[cache_key] = (_time.monotonic(), payload)
+        return payload
