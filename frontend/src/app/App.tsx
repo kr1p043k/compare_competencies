@@ -240,7 +240,6 @@ export default function App() {
       return {};
     }
   });
-  const [setAnalysisData] = useState<any>(null);
   // Вкладка синхронизирована с адресом: #/teacher и т.п. (deep links + история).
   const [activeTab, setActiveTab] = useTabRoute("vacancies");
   const [professionsList, setProfessionsList] = useState<string[]>([]);
@@ -249,7 +248,6 @@ export default function App() {
   const handleProfileChange = (newProfile: string) => {
     setProfile(newProfile);
     setLastResult(null);
-    setAnalysisData(null);
     delete autoLoadedRef.current[newProfile];
   };
   const [pipelineStep, setPipelineStep] = useState<PipelineStep | null>(null);
@@ -466,7 +464,7 @@ export default function App() {
           sessionStorage.removeItem("pipelineTaskId");
           const prof = profileRef.current;
           request<any>(`/api/results/recommendations/${prof}`).catch(() => null).then(d => {
-            if (d) { setAnalysisData(d); setLastResult(d); }
+            if (d) { setLastResult(d); }
             if (roleRef.current === "student" && d) {
               const q = pipelineQuery;
               const url = q ? `/api/vacancies?limit=1&search=${encodeURIComponent(q)}` : "/api/vacancies/info";
@@ -503,13 +501,12 @@ export default function App() {
           // Задача пропала из памяти (рестарт сервера): проверяем готовые
           // результаты через /api/pipeline/status, а не молча сбрасываем прогресс.
           request<any>("/api/pipeline/status").catch(() => null)
-            .then(r => r.ok ? r.json() : null)
             .then(st => {
               const prof = profileRef.current;
               if (st?.recommendations_all_ready) {
                 setPipelineStep({ step: 4, total: 4, status: "completed", message: "Сервер перезапускался, но результаты готовы.", progress: 100 });
                 request<any>(`/api/results/recommendations/${prof}`).catch(() => null).then(d => {
-                  if (d) { setAnalysisData(d); setLastResult(d); }
+                  if (d) { setLastResult(d); }
                 }).catch((err) => reportError("app/App.tsx", err));
                 setActiveTab("data");
               } else {
@@ -547,7 +544,7 @@ export default function App() {
       if (detail?.profile) {
         handleProfileChange(detail.profile);
         setActiveTab("data");
-        request<any>(`/api/results/recommendations/${detail.profile}`).catch(() => null).then(d => { if (d) { setAnalysisData(d); setLastResult(d); } }).catch((err) => reportError("app/App.tsx", err));
+        request<any>(`/api/results/recommendations/${detail.profile}`).catch(() => null).then(d => { if (d) { setLastResult(d); } }).catch((err) => reportError("app/App.tsx", err));
       }
     };
     window.addEventListener("navigate-analysis", handler);
@@ -583,9 +580,9 @@ export default function App() {
     setGapMsg("Запуск gap-анализа...");
     const checkResultsReady = async (): Promise<boolean> => {
       try {
-        const st = await request<any>("/api/pipeline/status").catch(() => null).then((x) =>
-          x.ok ? x.json() : null
-        );
+        // request() уже отдаёт распарсенный JSON: раньше здесь вызывался
+        // r.ok / r.json() и st всегда был null — проверка готовности не работала.
+        const st = await request<any>("/api/pipeline/status").catch(() => null);
         return !!st?.recommendations_all_ready;
       } catch {
         return false;
@@ -653,7 +650,6 @@ export default function App() {
   async function loadRecommendations() {
     const data = await apiCall(`/results/recommendations/${profile}`);
     if (data) {
-      setAnalysisData(data);
       const hasResults = !!(data.recommendations || data.closest_roles);
       const notFound = typeof data.message === "string" && data.message.includes("не найдены");
       if (hasResults && !notFound && typeof data.generated_at === "string") {
@@ -690,8 +686,9 @@ export default function App() {
   // Список профессий таксономии - для выбора цели сравнения на вкладке «Данные».
   useEffect(() => {
     if (activeTab !== "data" || !isAuth || professionsList.length > 0) return;
+    // request() уже возвращает распарсенный JSON (lib/api.ts): раньше здесь
+    // было r.ok ? r.json() — r.ok был undefined и список профессий не грузился.
     request<any>(`${API}/taxonomy/professions`).catch(() => null)
-      .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         const names = ((d?.professions || []) as any[])
           .map((p) => p?.name)
