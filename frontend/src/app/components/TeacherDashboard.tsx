@@ -249,6 +249,12 @@ export function TeacherDashboard() {
   const [rpdMsg, setRpdMsg] = useState("");
   const [collectCooldown, setCollectCooldown] = useState(0);
   const runAnalysisBtnRef = useRef<HTMLButtonElement | null>(null);
+  // Для поллинга run-analysis: не даём долгому циклу писать в размонтированный
+  // компонент или в чужое направление после переключения.
+  const mountedRef = useRef(true);
+  const selectedDirRef = useRef(selectedDir);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => { selectedDirRef.current = selectedDir; }, [selectedDir]);
 
   // Кнопка "Запустить анализ" из пустого состояния деталки дисциплины.
   useEffect(() => {
@@ -277,18 +283,22 @@ export function TeacherDashboard() {
 
   useEffect(() => {
     if (!selectedDir) return;
+    // При быстром переключении направлений медленный ответ старого запроса
+    // затирал данные нового. Флаг отмены отбрасывает устаревшие ответы.
+    let cancelled = false;
     api(`/teacher/krm/disciplines?dir_code=${selectedDir}`)
-      .then((d) => setDisciplines(d as Discipline[]))
-      .catch(() => setDisciplines([]));
+      .then((d) => { if (!cancelled) setDisciplines(d as Discipline[]); })
+      .catch(() => { if (!cancelled) setDisciplines([]); });
     api(`/teacher/krm/stats?dir_code=${selectedDir}`)
-      .then(setStats)
-      .catch((err) => reportError("app/components/TeacherDashboard.tsx", err));
+      .then((s) => { if (!cancelled) setStats(s); })
+      .catch((err) => { if (!cancelled) reportError("app/components/TeacherDashboard.tsx", err); });
     api(`/teacher/analysis?dir_code=${selectedDir}`)
-      .then(setAnalysis)
-      .catch(() => setAnalysis(null));
+      .then((a) => { if (!cancelled) setAnalysis(a); })
+      .catch(() => { if (!cancelled) setAnalysis(null); });
     api(`/teacher/analysis/meta?dir_code=${selectedDir}`)
-      .then((m: any) => setMetaStale(!!m?.stale))
-      .catch(() => setMetaStale(false));
+      .then((m: any) => { if (!cancelled) setMetaStale(!!m?.stale); })
+      .catch(() => { if (!cancelled) setMetaStale(false); });
+    return () => { cancelled = true; };
   }, [selectedDir]);
 
   useEffect(() => {
@@ -634,6 +644,7 @@ export function TeacherDashboard() {
               if (runLoading) return;
               setRunLoading(true);
               setRunMsg("Запуск анализа...");
+              const dirAtStart = selectedDir;
               try {
                 const started: any = await api(`/teacher/krm/run-analysis?dir_code=${selectedDir}`, { method: "POST" });
                 const runId = started?.run_id;
@@ -641,6 +652,9 @@ export function TeacherDashboard() {
                 if (!runId) throw new Error("Сервер не вернул ID задачи");
                 for (let i = 0; i < 360; i++) {
                   await new Promise((res) => setTimeout(res, 5000));
+                  // Компонент размонтирован или направление сменили - выходим,
+                  // не затирая чужое состояние.
+                  if (!mountedRef.current || selectedDirRef.current !== dirAtStart) return;
                   const spent = Math.round((Date.now() - t0) / 1000);
                   let s: any = null;
                   try {
