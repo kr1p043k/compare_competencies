@@ -27,6 +27,14 @@ def _allow_all_dirs(monkeypatch):
 
 
 
+async def _admin_user(_request):
+    return {"uid": "u-test", "u": "admin@t.local", "r": "admin"}
+
+
+async def _all_dirs(_user):
+    return ["09.03.02"]
+
+
 class FakePool:
     def __init__(self, script):
         self.script = script
@@ -64,8 +72,11 @@ def _client(pool):
         dep = getattr(route, "dependant", None)
         for sub in (getattr(dep, "dependencies", None) or []):
             app.dependency_overrides[sub.call] = lambda: {"r": "admin"}
+    import src.api_pkg.routers.krm_teacher as kt
     import src.api_pkg.routers.zun as z
     z.get_pool = lambda: pool
+    z.get_current_user = _admin_user
+    kt._user_directions = _all_dirs
     return TestClient(app)
 
 
@@ -76,6 +87,7 @@ SID = str(uuid.uuid4())
 def _pool_ok(skill_row=None, dup=None):
     return FakePool({
         "fetchrow": [
+            ("d.code AS dir_code", {"id": CID, "dir_code": "09.03.02"}),
             ("FROM competencies WHERE id", {"id": CID}),
             ("FROM skills WHERE LOWER(name)", skill_row),
             ("FROM competency_skills cs", dup),
@@ -128,7 +140,8 @@ def test_link_conflicts_and_validations():
     c2 = _client(pool2)
     # unknown competency -> 404 (competency lookup returns None)
     pool2.script["fetchrow"] = [(k, v) for k, v in pool2.script["fetchrow"]
-                                if "FROM competencies WHERE id" not in k]
+                                if "FROM competencies WHERE id" not in k
+                                and "d.code AS dir_code" not in k]
     assert c2.post(f"/api/teacher/zun/competencies/{bad}/skills",
                    json={"skill_name": "docker"}).status_code == 404
 
