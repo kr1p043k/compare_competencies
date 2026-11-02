@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from src.api_pkg.routers.auth import get_current_user
+from src.api_pkg.routers.auth import get_current_user, user_error_detail
 from src.infrastructure.hub_publications import (
     HubAuthRequiredError,
     HubNotFoundError,
@@ -27,6 +27,10 @@ from src.models.api_responses import (
 
 router = APIRouter(tags=["publications"])
 limiter = Limiter(key_func=get_remote_address)
+
+_NOT_FOUND_MSG = "Публикация не найдена в каталоге хаба"
+_UNAVAILABLE_MSG = "Сервис хаба временно недоступен. Попробуйте позже"
+_FORBIDDEN_MSG = "Хаб отклонил запрос. Попробуйте позже"
 
 
 @router.get("/publications", response_model=PublicationListResponse)
@@ -47,11 +51,20 @@ async def list_publications(
             creator_id=creator_id,
         )
     except HubNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from None
+        raise HTTPException(
+            status_code=404,
+            detail=await user_error_detail(request, str(exc), _NOT_FOUND_MSG),
+        ) from None
     except HubUnavailableError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from None
+        raise HTTPException(
+            status_code=503,
+            detail=await user_error_detail(request, str(exc), _UNAVAILABLE_MSG),
+        ) from None
     except HubAuthRequiredError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from None
+        raise HTTPException(
+            status_code=502,
+            detail=await user_error_detail(request, str(exc), _FORBIDDEN_MSG),
+        ) from None
 
 
 @router.get("/publications/search", response_model=PublicationSearchResponse)
@@ -74,9 +87,15 @@ async def search_publications(
             creator_id=creator_id,
         )
     except HubUnavailableError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from None
+        raise HTTPException(
+            status_code=503,
+            detail=await user_error_detail(request, str(exc), _UNAVAILABLE_MSG),
+        ) from None
     except HubAuthRequiredError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from None
+        raise HTTPException(
+            status_code=502,
+            detail=await user_error_detail(request, str(exc), _FORBIDDEN_MSG),
+        ) from None
     matches = result["matches"]
     return {
         "query": q,
@@ -98,9 +117,15 @@ async def list_publication_types(
     try:
         return await get_client().list_types(sample_pages=sample_pages)
     except HubUnavailableError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from None
+        raise HTTPException(
+            status_code=503,
+            detail=await user_error_detail(request, str(exc), _UNAVAILABLE_MSG),
+        ) from None
     except HubAuthRequiredError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from None
+        raise HTTPException(
+            status_code=502,
+            detail=await user_error_detail(request, str(exc), _FORBIDDEN_MSG),
+        ) from None
 
 
 @router.get("/publications/{publication_id}", response_model=PublicationOut)
@@ -123,8 +148,17 @@ async def get_publication(
             use_token=user is not None,
         )
     except HubNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from None
+        raise HTTPException(
+            status_code=404,
+            detail=await user_error_detail(request, str(exc), _NOT_FOUND_MSG),
+        ) from None
     except HubUnavailableError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from None
+        raise HTTPException(
+            status_code=503,
+            detail=await user_error_detail(request, str(exc), _UNAVAILABLE_MSG),
+        ) from None
     except HubAuthRequiredError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from None
+        raise HTTPException(
+            status_code=502,
+            detail=await user_error_detail(request, str(exc), _FORBIDDEN_MSG),
+        ) from None
