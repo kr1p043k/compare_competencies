@@ -57,30 +57,37 @@ async def compare_profiles(
     """Сравнение профилей студентов."""
     from src.analyzers.skills.profession_taxonomy import ProfessionTaxonomy
     prof_taxonomy = ProfessionTaxonomy()
-    evaluations = {}
-    for pname, student in profiles.items():
-        # Stage 4: паритет с CLI - фильтруем по целевым доменам профиля.
-        cfg = prof_taxonomy.get_profile_target(pname) or {}
-        domains = cfg.get("target_domains", [])
-        if domains and not student.target_profession:
-            with contextlib.suppress(Exception):
-                student.target_profession = cfg.get("target_profession", "")
-        match eval_instance.evaluate_profile(
-            student,
-            target_domains=domains or None,
-            taxonomy=prof_taxonomy if domains else None,
-        ):
-            case Ok(eval_result):
-                evaluations[pname] = {
-                    "market_coverage_score": eval_result.get("market_coverage_score"),
-                    "skill_coverage": eval_result.get("skill_coverage"),
-                    "domain_coverage_score": eval_result.get("domain_coverage_score"),
-                    "readiness_score": eval_result.get("readiness_score"),
-                    "real_coverage": eval_result.get("market_skill_coverage"),
-                }
-            case Err(err):
-                logger.error("Ошибка оценки профиля", profile=pname, error=str(err))
-                evaluations[pname] = {"error": str(err)}
+
+    # evaluate_profile - синхронный CPU-расчёт по всем профилям; в потоке,
+    # чтобы не держать event loop.
+    def _compute() -> dict:
+        evaluations = {}
+        for pname, student in profiles.items():
+            # Stage 4: паритет с CLI - фильтруем по целевым доменам профиля.
+            cfg = prof_taxonomy.get_profile_target(pname) or {}
+            domains = cfg.get("target_domains", [])
+            if domains and not student.target_profession:
+                with contextlib.suppress(Exception):
+                    student.target_profession = cfg.get("target_profession", "")
+            match eval_instance.evaluate_profile(
+                student,
+                target_domains=domains or None,
+                taxonomy=prof_taxonomy if domains else None,
+            ):
+                case Ok(eval_result):
+                    evaluations[pname] = {
+                        "market_coverage_score": eval_result.get("market_coverage_score"),
+                        "skill_coverage": eval_result.get("skill_coverage"),
+                        "domain_coverage_score": eval_result.get("domain_coverage_score"),
+                        "readiness_score": eval_result.get("readiness_score"),
+                        "real_coverage": eval_result.get("market_skill_coverage"),
+                    }
+                case Err(err):
+                    logger.error("Ошибка оценки профиля", profile=pname, error=str(err))
+                    evaluations[pname] = {"error": str(err)}
+        return evaluations
+
+    evaluations = await asyncio.to_thread(_compute)
     return {"profiles": evaluations}
 
 
@@ -600,25 +607,34 @@ async def get_recommendations(
             if not student.target_profession:
                 with contextlib.suppress(Exception):
                     student.target_profession = cfg.get("target_profession", "")
-            match eval_instance.evaluate_profile(
-                student, target_domains=domains, taxonomy=prof_taxonomy,
-            ):
-                case Ok(ev):
-                    precomputed = ev
-                case Err(err):
-                    logger.warning("profile_recommendations_eval_failed",
-                                   profile=profile, error=str(err))
-        match engine.generate_recommendations(
-            student,
-            precomputed_eval=precomputed,
-            taxonomy=prof_taxonomy if domains else None,
-        ):
+
+        # evaluate_profile + generate_recommendations - синхронный CPU-расчёт;
+        # считаем в потоке, чтобы не держать event loop (ср. строку 515).
+        def _compute_recs():
+            precomputed_local = None
+            if domains:
+                match eval_instance.evaluate_profile(
+                    student, target_domains=domains, taxonomy=prof_taxonomy,
+                ):
+                    case Ok(ev):
+                        precomputed_local = ev
+                    case Err(err):
+                        logger.warning("profile_recommendations_eval_failed",
+                                       profile=profile, error=str(err))
+            return engine.generate_recommendations(
+                student,
+                precomputed_eval=precomputed_local or precomputed,
+                taxonomy=prof_taxonomy if domains else None,
+            )
+
+        match await asyncio.to_thread(_compute_recs):
             case Ok(full_rec):
                 payload = _json_safe(full_rec.model_dump())
                 if config.LLM_ENABLED and config.LLM_ENHANCE_STUDENT:
                     try:
                         from src.services.llm_recommend import enhance_student_recs
-                        payload = enhance_student_recs(
+                        payload = await asyncio.to_thread(
+                            enhance_student_recs,
                             profile_summary=profile,
                             base_recs=payload,
                         )
