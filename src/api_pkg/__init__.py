@@ -240,11 +240,6 @@ def create_app() -> FastAPI:
     _mount(trends_router)
     from src.api_pkg.routers.taxonomy import router as taxonomy_router
     _mount(taxonomy_router)
-    # Статические пути монтируем ДО динамических: иначе /vacancies/{vacancy_id}
-    # из vacancies_router перехватывает /vacancies/by-skill и отдаёт 400
-    # «Invalid vacancy ID format».
-    from src.api_pkg.routers.vacancies_by_skill import router as vacancies_skill_router
-    _mount(vacancies_skill_router)
     from src.api_pkg.routers.vacancies import router as vacancies_router
     _mount(vacancies_router)
     from src.api_pkg.routers.results import router as results_router
