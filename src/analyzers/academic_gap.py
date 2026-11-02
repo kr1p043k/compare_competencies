@@ -51,9 +51,95 @@ def _load_it_skills() -> list[str]:
         return []
 
 
-def _load_krm(dir_code: str = "09.03.02") -> dict[str, dict[str, Any]]:
-    """Возвращает {comp_code: {"skills": [...], "discipline": name}} из KRM-файла."""
-    path = config.REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
+def _sync_dsn() -> str:
+    """DSN для синхронного psycopg: из настроек, без драйвера SQLAlchemy.
+
+    DATABASE_URL живёт только в settings (на уровень модуля config он не
+    экспортирован), поэтому getattr(config, "DATABASE_URL") возвращал пустую
+    строку и резолвер молча уходил в файл.
+    """
+    settings = getattr(config, "settings", None)
+    url = str(getattr(settings, "DATABASE_URL", "") or "")
+    if not url:
+        url = str(getattr(config, "DATABASE_URL", "") or "")
+    return url.replace("+asyncpg", "").replace("+psycopg", "")
+
+
+def _finalize_krm(out: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    # дедупликация и сортировка по длине (короткие ключевые фразы информативнее)
+    for entry in out.values():
+        seen: set[str] = set()
+        uniq: list[str] = []
+        for s in entry["skills"]:
+            k = s.strip().lower()
+            if k and k not in seen:
+                seen.add(k)
+                uniq.append(s.strip())
+        uniq.sort(key=len)
+        entry["skills"] = uniq
+        entry["disciplines"] = sorted(entry["disciplines"])
+    return out
+
+
+def _load_krm_from_db(dir_code: str, year: int) -> dict[str, dict[str, Any]] | None:
+    """KRM из БД. None - БД недоступна или для года не заведены навыки.
+
+    БД - единственный источник истины (решение владельца): сид, отчёты и
+    анализ читают одно и то же. Раньше анализ читал файл, а сид - БД, и
+    расхождение дважды теряло коды (ПК-18, DL-3).
+
+    None вместо пустого словаря: пустой результат означал бы "компетенций
+    нет", и анализ молча выдал бы нули. Вызывающий обязан упасть на файл.
+    """
+    dsn = _sync_dsn()
+    if not dsn:
+        return None
+    try:
+        import psycopg
+
+        with psycopg.connect(dsn, connect_timeout=10) as conn:
+            rows = conn.execute(
+                """
+                SELECT c.code, d.name AS discipline, s.name AS skill
+                  FROM competencies c
+                  JOIN disciplines d ON d.id = c.discipline_id
+                  JOIN directions dr ON dr.id = d.direction_id
+                  LEFT JOIN competency_skills cs ON cs.competency_id = c.id
+                  LEFT JOIN skills s ON s.id = cs.skill_id AND s.source != 'market'
+                 WHERE dr.code = %s AND d.year = %s
+                """,
+                (dir_code, year),
+            ).fetchall()
+    except Exception as exc:
+        logger.warning("krm_db_load_failed", error=str(exc), year=year)
+        return None
+
+    out: dict[str, dict[str, Any]] = {}
+    for code, dname, skill in rows:
+        if not code:
+            continue
+        entry = out.setdefault(code, {"skills": [], "disciplines": set()})
+        entry["disciplines"].add(dname)
+        if skill:
+            entry["skills"].append(str(skill))
+    if not any(e["skills"] for e in out.values()):
+        # Год заведён в БД, но связи competency_skills пусты (набор 2024
+        # собран из аннотаций без навыков). Сообщаем и уходим в файл.
+        logger.warning("krm_db_empty_skills", direction=dir_code, year=year,
+                       competencies=len(out))
+        return None
+    logger.info("krm_loaded_from_db", direction=dir_code, year=year, codes=len(out))
+    return _finalize_krm(out)
+
+
+def _load_krm_from_file(dir_code: str, year: int) -> dict[str, dict[str, Any]]:
+    """KRM из файла: страховка, когда в БД ещё нет навыков для года."""
+    name = f"krm_disciplines_{dir_code}.json"
+    if year != 2025:
+        year_name = f"krm_disciplines_{dir_code}_{year}.json"
+        if (config.REFERENCE_DIR / year_name).exists():
+            name = year_name
+    path = config.REFERENCE_DIR / name
     if not path.exists():
         return {}
     try:
@@ -74,26 +160,24 @@ def _load_krm(dir_code: str = "09.03.02") -> dict[str, dict[str, Any]]:
             entry = out.setdefault(code, {"skills": [], "disciplines": set()})
             entry["skills"].extend(str(s) for s in skills if s)
             entry["disciplines"].add(dname)
-    # дедупликация и сортировка по длине (короткие ключевые фразы информативнее)
-    for entry in out.values():
-        seen: set[str] = set()
-        uniq: list[str] = []
-        for s in entry["skills"]:
-            k = s.strip().lower()
-            if k and k not in seen:
-                seen.add(k)
-                uniq.append(s.strip())
-        uniq.sort(key=len)
-        entry["skills"] = uniq
-        entry["disciplines"] = sorted(entry["disciplines"])
-    return out
+    logger.info("krm_loaded_from_file", direction=dir_code, year=year, path=str(path))
+    return _finalize_krm(out)
+
+
+def _load_krm(dir_code: str = "09.03.02", year: int = 2025) -> dict[str, dict[str, Any]]:
+    """KRM: БД первым, файл - страховка. {comp_code: {"skills": [...], "disciplines": [...]}}"""
+    from_db = _load_krm_from_db(dir_code, year)
+    if from_db is not None:
+        return from_db
+    return _load_krm_from_file(dir_code, year)
 
 
 class AcademicGapAnalyzer:
     """Локальный анализ разрыва. Потокобезопасен на чтение (кэш общий)."""
 
-    def __init__(self, dir_code: str = "09.03.02"):
+    def __init__(self, dir_code: str = "09.03.02", year: int = 2025):
         self.dir_code = dir_code
+        self.year = year
         self._comparator = None
         try:
             from src.predictors.curriculum_recommender import (
@@ -205,7 +289,7 @@ class AcademicGapAnalyzer:
         self, topic_skills: list[str], market_top: list[dict], market_embs, topic_lower: str = ""
     ) -> list[dict]:
         comp = self._get_comparator()
-        krm = _load_krm(self.dir_code)
+        krm = _load_krm(self.dir_code, self.year)
         if not krm:
             return []
 
