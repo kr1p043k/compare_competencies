@@ -41,8 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (token: string, role: string, name: string) => {
     const parts = token.split(".");
     // Токен формата payload.signature (HMAC, НЕ JWT): payload - parts[0].
-    const payload = parts[0] || "";
-    const decoded = JSON.parse(decodeBase64Url(payload));
+    // Битый payload не должен ронять вход: username просто останется null.
+    let decoded: { u?: string; username?: string } = {};
+    try {
+      decoded = JSON.parse(decodeBase64Url(parts[0] || "")) ?? {};
+    } catch (err) {
+      reportError("lib/auth.tsx:login", err);
+    }
     const next = { token, role, name, username: decoded.u ?? decoded.username ?? null };
     persistState(next);
     setState(next);

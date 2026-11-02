@@ -277,7 +277,7 @@ export function AnalyticsCharts({ onStartGapAnalysis }: { onStartGapAnalysis?: (
                     fillOpacity={0.35}
                     strokeWidth={2}
                     dot={(p: any) => (
-                      <circle key={`dot-${p?.payload?.skill ?? p?.index ?? Math.random()}`} cx={p?.cx} cy={p?.cy} r={3} fill="#2563eb" strokeWidth={0} cursor="pointer"
+                      <circle key={`dot-${p?.payload?.skill ?? p?.index ?? "x"}`} cx={p?.cx} cy={p?.cy} r={3} fill="#2563eb" strokeWidth={0} cursor="pointer"
                         onClick={() => p?.payload?.skill && openDrill(p.payload.skill)} />
                     )}
                     activeDot={{

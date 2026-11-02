@@ -21,6 +21,9 @@ type StudentDetail = {
   user_added: string[];
   competencies: string[];
   updated_at: string | null;
+  // Бэкенд отдаёт признак «профиль не заполнялся»; в типе его не было, из-за
+  // чего tsc падал на проверке detail.has_profile === false.
+  has_profile?: boolean;
 };
 
 function errText(e: any): string {

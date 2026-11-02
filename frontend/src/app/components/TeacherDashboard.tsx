@@ -196,6 +196,7 @@ export function TeacherDashboard() {
     return () => obs.disconnect();
   }, [analysis, analysisMode]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [recError, setRecError] = useState("");
   const [seedMsg, setSeedMsg] = useState("");
   const [seedLoading, setSeedLoading] = useState(false);
   const [zunForm, setZunForm] = useState<{ compId: string; ksaType: string; text: string } | null>(null);
@@ -511,8 +512,8 @@ export function TeacherDashboard() {
     } catch (err) { reportError("app/components/TeacherDashboard.tsx:500", err); }
   }
 
-  async function addRec() {
-    if (!selected || !suggestion.trim()) return;
+  async function addRec(): Promise<boolean> {
+    if (!selected || !suggestion.trim()) return false;
     try {
       const compId = recType === "add" ? "" : selectedCompetency;
       const resp = await api("/teacher/krm/recommendations", {
@@ -535,7 +536,14 @@ export function TeacherDashboard() {
         },
       ]);
       setSuggestion("");
-    } catch (err) { reportError("app/components/TeacherDashboard.tsx:527", err); }
+      return true;
+    } catch (err) {
+      // Не молчим: форма закрывалась сразу после клика, и сбой сохранения
+      // был невидим пользователю.
+      reportError("app/components/TeacherDashboard.tsx:527", err);
+      setRecError(err instanceof Error ? err.message : String(err));
+      return false;
+    }
   }
 
   async function deleteRec(id: number) {
@@ -1471,12 +1479,24 @@ export function TeacherDashboard() {
                       <option value="remove">Удалить</option>
                     </select>
                     <button
-                      onClick={() => { addRec(); setShowAddForm(false); setSelectedCompetency(""); }}
+                      onClick={async () => {
+                        setRecError("");
+                        const ok = await addRec();
+                        if (ok) {
+                          setShowAddForm(false);
+                          setSelectedCompetency("");
+                        }
+                      }}
                       className="h-9 px-4 text-sm bg-violet-600 text-white border-0 rounded-lg cursor-pointer hover:bg-violet-700 transition-colors"
                     >
                       Отправить
                     </button>
                   </div>
+                  {recError && (
+                    <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                      Не удалось сохранить: {recError}
+                    </div>
+                  )}
                 </div>
               )}
               {recs.filter((r) => r.discipline_id === selected?.name).length === 0 ? (
