@@ -320,6 +320,10 @@ async def rpd_upload(
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
+    # Проверяем содержимое, а не только расширение: переименованный в .pdf
+    # произвольный файл иначе попадал на диск и в парсер.
+    if not content.lstrip()[:5].startswith(b"%PDF"):
+        raise HTTPException(status_code=400, detail="File is not a valid PDF")
     target_path.write_bytes(content)
     logger.info("rpd_pdf_saved", dir_code=dir_code, file=safe_name, bytes=len(content))
 
