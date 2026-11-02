@@ -1,5 +1,7 @@
 """Clusters summary and detail."""
 
+import asyncio
+
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from slowapi import Limiter
@@ -26,30 +28,35 @@ async def clusters_summary(
     request: Request,
 ):
     """Сводка кластеров вакансий."""
-    result = {}
-    for lvl in ExperienceLevel:
-        # Локальный объект: глобальный кластерер не мутирует (нет гонок),
-        # каждый уровень читается своей моделью (нет last-wins).
-        local = VacancyClusterer()
-        local.load_model(lvl)
-        if local.is_fitted:
-            result[lvl] = {
-                "clusters": local.n_clusters_,
-                "type": local.clusterer_type,
-                "top_clusters": [
-                    {
-                        "id": cid,
-                        "name": local._generate_cluster_name(cid),
-                        "top_skills": local.get_top_skills_in_cluster(
-                            cid, top_n=5
-                        ),
-                    }
-                    for cid in range(local.n_clusters_)
-                ],
-            }
-        else:
-            result[lvl] = {"error": "not_fitted"}
-    return result
+    # joblib.load (диск + unpickle) 4 моделей - синхронно в async это блокирует
+    # event loop; считаем в потоке.
+    def _compute() -> dict:
+        result = {}
+        for lvl in ExperienceLevel:
+            # Локальный объект: глобальный кластерер не мутирует (нет гонок),
+            # каждый уровень читается своей моделью (нет last-wins).
+            local = VacancyClusterer()
+            local.load_model(lvl)
+            if local.is_fitted:
+                result[lvl] = {
+                    "clusters": local.n_clusters_,
+                    "type": local.clusterer_type,
+                    "top_clusters": [
+                        {
+                            "id": cid,
+                            "name": local._generate_cluster_name(cid),
+                            "top_skills": local.get_top_skills_in_cluster(
+                                cid, top_n=5
+                            ),
+                        }
+                        for cid in range(local.n_clusters_)
+                    ],
+                }
+            else:
+                result[lvl] = {"error": "not_fitted"}
+        return result
+
+    return await asyncio.to_thread(_compute)
 
 
 @router.get("/clusters/{level}", response_model=ClustersByLevelResponse)
@@ -61,19 +68,22 @@ async def get_clusters(
     """Кластеры вакансий заданного уровня."""
     # Грузим запрошенный уровень явно: глобал после boot = senior (last-wins),
     # читать из него под видом `level` - stale-read. Локальный объект дешевле гонки.
-    local = VacancyClusterer()
-    local.load_model(level)
-    if not local.is_fitted:
-        raise HTTPException(status_code=503, detail="Модели кластеров не загружены")
-    clusters = []
-    for cid in range(local.n_clusters_):
-        clusters.append(
+    # load_model - синхронный диск/unpickle: считаем в потоке, чтобы не вешать loop.
+    def _compute():
+        local = VacancyClusterer()
+        local.load_model(level)
+        if not local.is_fitted:
+            return None
+        return [
             {
                 "id": cid,
                 "name": local._generate_cluster_name(cid),
-                "top_skills": local.get_top_skills_in_cluster(
-                    cid, top_n=5
-                ),
+                "top_skills": local.get_top_skills_in_cluster(cid, top_n=5),
             }
-        )
+            for cid in range(local.n_clusters_)
+        ]
+
+    clusters = await asyncio.to_thread(_compute)
+    if clusters is None:
+        raise HTTPException(status_code=503, detail="Модели кластеров не загружены")
     return {"level": level, "clusters": clusters}
