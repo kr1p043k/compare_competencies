@@ -297,25 +297,25 @@ function MonitoringTabBase() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription className="flex items-center gap-2"><Activity className="size-4" />Pipeline runs</CardDescription>
+                <CardDescription className="flex items-center gap-2"><Activity className="size-4" />Запуски пайплайна</CardDescription>
               </CardHeader>
               <CardContent><div className="text-2xl font-bold">{pipelineRunCount}</div></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription className="flex items-center gap-2"><AlertCircle className="size-4" />Pipeline errors</CardDescription>
+                <CardDescription className="flex items-center gap-2"><AlertCircle className="size-4" />Ошибки пайплайна</CardDescription>
               </CardHeader>
               <CardContent><div className="text-2xl font-bold text-red-600">{pipelineErrors.reduce((s, m) => s + m.value, 0)}</div></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription className="flex items-center gap-2"><TrendingUp className="size-4" />Recommendations</CardDescription>
+                <CardDescription className="flex items-center gap-2"><TrendingUp className="size-4" />Рекомендации</CardDescription>
               </CardHeader>
               <CardContent><div className="text-2xl font-bold text-green-600">{recsGenerated.reduce((s, m) => s + m.value, 0).toFixed(0)}</div></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription className="flex items-center gap-2"><Server className="size-4" />API requests</CardDescription>
+                <CardDescription className="flex items-center gap-2"><Server className="size-4" />Запросы API</CardDescription>
               </CardHeader>
               <CardContent><div className="text-2xl font-bold text-blue-600">{apiReqCount.reduce((s, m) => s + m.value, 0).toFixed(0)}</div></CardContent>
             </Card>
@@ -323,7 +323,7 @@ function MonitoringTabBase() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg"><BarChart3 className="size-5" />Pipeline stages</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-lg"><BarChart3 className="size-5" />Этапы пайплайна</CardTitle>
               <CardDescription>Длительность этапов пайплайна</CardDescription>
             </CardHeader>
             <CardContent>
@@ -370,7 +370,7 @@ function MonitoringTabBase() {
           {pipelineErrors.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg text-red-700 dark:text-red-300"><AlertCircle className="size-5" />Pipeline errors by stage</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg text-red-700 dark:text-red-300"><AlertCircle className="size-5" />Ошибки пайплайна по этапам</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">

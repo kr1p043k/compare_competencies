@@ -732,7 +732,7 @@ export function AdminDashboard() {
                   <Brain className="size-4 mr-2" />{embLoading ? "..." : "Сгенерировать эмбеддинги"}
                 </Button>
                 <Button variant="outline" onClick={() => callAction("/api/admin/embeddings/generate", { force: true }, setEmbMsg, setEmbLoading)} disabled={embLoading}>
-                  Force regenerate
+                  Перегенерировать принудительно
                 </Button>
                 {embMsg && <span className="text-sm text-gray-600 dark:text-slate-400">{embMsg}</span>}
               </div>

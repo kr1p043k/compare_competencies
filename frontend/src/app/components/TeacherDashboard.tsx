@@ -1467,14 +1467,14 @@ export function TeacherDashboard() {
               )}
               {recs.filter((r) => r.discipline_id === selected?.name).length === 0 ? (
                 <div className="text-xs text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-900 rounded-lg p-4 text-center">
-                  No recommendations for this discipline yet
+                  Для этой дисциплины рекомендаций пока нет
                 </div>
               ) : (
                 recs
                   .filter((r) => r.discipline_id === selected?.name)
                   .map((r, i) => (
                     <div
-                      key={i}
+                      key={r.id ?? i}
                       className="mb-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3 text-sm dark:border-violet-900 dark:bg-violet-950/20"
                     >
                       <div className="text-gray-400 dark:text-slate-500 mb-1 text-xs">

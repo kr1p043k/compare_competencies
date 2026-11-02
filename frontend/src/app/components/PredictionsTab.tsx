@@ -56,6 +56,12 @@ export function PredictionsTab() {
 
   useEffect(() => {
     loadForecasts("growing");
+    // Отменяем висящий запрос при уходе с вкладки: иначе ответ прилетает
+    // после unmount (setState в никуда) и держит соединение.
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
   }, []);
 
   // Countdown Prophet-фита: пока движок trend - опрашиваем лёгкий статус.
