@@ -30,7 +30,9 @@ jobs:
             git reset --hard origin/main
             docker compose build backend
             docker compose up -d backend --force-recreate
-            docker compose exec -T backend alembic upgrade heads || true
+            # Миграции обязаны примениться: '|| true' раньше давал поднять сервис
+            # на прошлой схеме, а ошибка терялась в логе деплоя.
+            docker compose exec -T backend alembic upgrade heads
             docker compose build frontend --no-cache
             docker compose up -d frontend --force-recreate
             docker compose up -d grafana --force-recreate
