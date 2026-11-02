@@ -172,6 +172,12 @@ pipeline_tasks: dict[str, PipelineTaskStatus] = {}
 _running_futures: dict[str, asyncio.Task] = {}
 _cancel_events: dict[str, threading.Event] = {}
 
+# Bootstrap re-entry guard: run_startup(None) каждый раз порождает новую
+# bootstrap-задачу (startup.py), которая пересоздаёт пул и перезаписывает
+# pipeline_tasks. Два конкурирующих вызова (full-cycle + reload-api) дают гонку.
+_bootstrap_lock = asyncio.Lock()
+_bootstrap_running = False
+
 
 class PipelineAction(str, Enum):
     FULL_CYCLE = "full-cycle"
@@ -316,6 +322,25 @@ def _format_task_error(prefix: str, err) -> str:
     return base
 
 
+async def _run_bootstrap_guarded() -> None:
+    """Единственная точка запуска bootstrap (full-cycle после прогона).
+
+    asyncio.Lock + флаг не дают конкурирующим вызовам породить две bootstrap-
+    задачи (startup.py), которые пересоздают пул и перезаписывают pipeline_tasks.
+    """
+    global _bootstrap_running
+    async with _bootstrap_lock:
+        if _bootstrap_running:
+            logger.info("bootstrap_skipped_already_running")
+            return
+        _bootstrap_running = True
+        try:
+            from src.api_pkg.startup import run_startup
+            await run_startup(None)
+        finally:
+            _bootstrap_running = False
+
+
 async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
     from src.pipeline import runner as pr
 
@@ -400,8 +425,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
 
             if gap:
                 try:
-                    from src.api_pkg.startup import run_startup
-                    await run_startup(None)
+                    await _run_bootstrap_guarded()
                 except Exception as reload_err:
                     logger.error("reload_after_pipeline_failed", error=str(reload_err))
 
@@ -572,11 +596,41 @@ async def reload_api(request: Request):
         )
 
 
+def _reload_tasks_preserving_running() -> None:
+    """Перечитать pipeline_tasks с диска, не сбрасывая running-задачи.
+
+    _load_tasks (старт процесса) намеренно помечает сохранённые running как
+    failed - воркер погиб вместе с сервером. При reload-api процесс жив, поэтому
+    запущенную задачу так помечать нельзя.
+    """
+    try:
+        _load_idempotency()
+        if not TASKS_STORE_FILE.exists():
+            return
+        with open(TASKS_STORE_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        for tid, tdata in data.items():
+            t = PipelineTaskStatus.model_validate(tdata)
+            if getattr(t, "status", "") == "running":
+                # Задача считается исполняемой - при живом процессе не сбрасываем.
+                continue
+            pipeline_tasks[tid] = t
+    except Exception as e:
+        logger.warning("tasks_reload_failed", error=str(e))
+
+
 async def _reload_api_data():
     logger.info("Reloading API data...")
     try:
-        from src.api_pkg.startup import run_startup
-        await run_startup(None)
+        async with _bootstrap_lock:
+            if _bootstrap_running:
+                # Полный bootstrap уже идёт - не плодим второй: он пересоздал бы
+                # пул и перезаписал pipeline_tasks, сбросив running-задачи.
+                logger.info("api_reload_skipped_bootstrap_running")
+                return
+            # Перезагружаем только данные (задачи), НЕ пересоздавая bootstrap:
+            # run_startup(None) пересоздал бы пул и сбросил живые running-задачи.
+            await asyncio.to_thread(_reload_tasks_preserving_running)
         logger.info("API data reloaded successfully")
     except Exception as e:
         logger.error("Ошибка перезагрузки API", error=str(e))
