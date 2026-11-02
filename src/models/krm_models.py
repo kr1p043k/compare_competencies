@@ -112,6 +112,9 @@ class Discipline(Base):
     hours_lab: Mapped[int | None] = mapped_column(Integer)
     hours_self: Mapped[int | None] = mapped_column(Integer)
     control_form: Mapped[str | None] = mapped_column(String(20))
+    # Год набора. server_default оставлен для согласия со схемой из миграции
+    # add_discipline_intake_year (NOT NULL DEFAULT 2025) на fresh-install.
+    year: Mapped[int] = mapped_column(Integer, nullable=False, server_default=sa.text("2025"), default=2025)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=partial(datetime.now, UTC))
     updated_at: Mapped[datetime] = mapped_column(
        sa.DateTime(timezone=True),
@@ -127,6 +130,12 @@ class Discipline(Base):
     )
     coverage_analyses: Mapped[list["CoverageAnalysis"]] = relationship(
         back_populates="discipline", cascade="all, delete-orphan"
+    )
+
+    # Дисциплина уникальна в пределах направления и года набора; должно
+    # совпадать с uq_disciplines_direction_name_year из миграции.
+    __table_args__ = (
+        UniqueConstraint("direction_id", "name", "year", name="uq_disciplines_direction_name_year"),
     )
 
 

@@ -69,7 +69,7 @@ def teacher_output_dir(dir_code: str, year: int = DEFAULT_YEAR) -> Path:
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций -
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 48  # KRM cleanup: abbreviation twins merged, legacy DL-* dropped
+CODE_VERSION = 49  # year-aware discipline loading (SQL d2.year filter)
 # 46 -> 47: market_top_coverage теперь считается по релевантным дисциплине
 # навыкам (mapping -> derived -> relevance), добавлены market_top_total/
 # market_top_reliable/market_top_source. Старые сводки несопоставимы.
@@ -78,6 +78,9 @@ CODE_VERSION = 48  # KRM cleanup: abbreviation twins merged, legacy DL-* dropped
 # AI/ML), из-за чего 55 дисциплин вместо 57; у дисциплины «Алгоритмы,
 # технологии...» удалены несуществующие коды DL-3/3.1/3.2/3.3 вместе с 145
 # общими навыками, которые завышали покрытие. Сводки версии 47 несопоставимы.
+# 48 -> 49: дисциплины грузятся по году набора (SQL d2.year), а не из единого
+# набора строк. Сводка 2024 теперь считает настоящие 2024-дисциплины, а не
+# 10 уцелевших после пост-фильтра; сводки 2024/2025 несопоставимы с версией 48.
 
 # Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
 # IT-coverage picture. Data stays in DB (nothing deleted); they are only
@@ -597,6 +600,13 @@ async def run_teacher_analysis(
     if discipline_filter:
         disc_filter = " AND d2.name ILIKE $" + str(len(params) + 1)
         params.append(f"%{discipline_filter}%")
+    # Год набора - в SQL, а не пост-фильтром: 2024 и 2025 сосуществуют в
+    # disciplines, и без этого в отчёт года N попали бы строки обоих наборов.
+    # Для дефолтного 2025 поведение прежнее (все старые строки мигрировали в 2025).
+    year_filter = ""
+    if year:
+        year_filter = " AND d2.year = $" + str(len(params) + 1)
+        params.append(year)
 
     try:
         drows = await pool.fetch(
@@ -609,8 +619,8 @@ async def run_teacher_analysis(
                 JOIN competencies c ON c.discipline_id = d2.id
                  LEFT JOIN competency_skills cs ON cs.competency_id = c.id
                  LEFT JOIN skills s ON s.id = cs.skill_id AND s.source != 'market'
-                LEFT JOIN ksa_entries k ON k.competency_id = c.id
-                WHERE 1=1{dir_filter}{disc_filter}
+                 LEFT JOIN ksa_entries k ON k.competency_id = c.id
+                WHERE 1=1{dir_filter}{disc_filter}{year_filter}
                 ORDER BY d2.name, c.code, k.sort_order NULLS LAST,
                          s.name NULLS LAST, k.original_text""",
             *params,
@@ -650,10 +660,10 @@ async def run_teacher_analysis(
     except Exception as exc:
         logger.warning("raw_ksa_load_failed", error=str(exc))
 
-    # Состав дисциплин для года, отличного от текущего, задаёт KRM этого года.
-    # В БД лежит набор текущего набора, поэтому без фильтра отчёт за 2024
-    # содержал бы дисциплины, которых в плане 2024 нет (проверено: 26 лишних),
-    # а настоящие дисциплины 2024 отсутствовали бы.
+    # Состав дисциплин для года задаёт годовая колонка (SQL d2.year выше) —
+    # это и есть основной фильтр. Пост-фильтр оставлен как страховка от
+    # рассинхрона БД и KRM: если строку года N переименовали в KRM, но не
+    # пересидировали БД, SQL её пропустит, а сверка с raw_ksa - отбросит.
     if year and year != DEFAULT_YEAR and raw_ksa:
         in_year = set(raw_ksa)
         dropped = [n for n in disciplines if n not in in_year]

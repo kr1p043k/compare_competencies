@@ -46,6 +46,12 @@ FILE_TO_DIRECTION = {
 IT_SKILLS_PATH = REFERENCE_DIR / "it_skills.json"
 RPD_SKILLS_PATH = REFERENCE_DIR / "rpd_skills.json"
 
+# Год набора по умолчанию: исторические файлы без суффикса года = набор 2025.
+DEFAULT_YEAR = 2025
+
+# <код направления>[_<суффикс>]; суффикс-четырёхзначное число = файл другого года.
+_KRM_STEM_RE = re.compile(r"^(?P<base>\d{2}\.\d{2}\.\d{2})(?:_(?P<suffix>[0-9A-Za-zА-Яа-яЁё_]+))?$")
+
 _COMP_CODE_RE = re.compile(r"^(УК|ОПК|ПК|ППК|ИП|ВПК|DL|UK|OPK|PK)[\s-](\d+(?:\.\d+)*)$")
 _FALLBACK_CODE_RE = re.compile(r"^([A-Za-zА-Яа-яЁё]+)[\s-]*(\d+(?:\.\d+)*)$")
 
@@ -71,16 +77,44 @@ def _parse_comp_code(code: str) -> tuple[str, str]:
     return code, "0"
 
 
-def list_krm_files() -> list[tuple[str, Path]]:
-    """Возвращает [(dir_code, path)] для всех non-clean KRM-файлов."""
-    result = []
+def resolve_krm_path(dir_code: str, year: int = DEFAULT_YEAR) -> Path:
+    """Файл KRM направления для года набора.
+
+    2025 (и по умолчанию) -> krm_disciplines_<код>.json (имя не менялось);
+    иной год             -> krm_disciplines_<код>_<год>.json.
+    """
+    if year == DEFAULT_YEAR:
+        return REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
+    return REFERENCE_DIR / f"krm_disciplines_{dir_code}_{year}.json"
+
+
+def list_krm_files(year: int = DEFAULT_YEAR) -> list[tuple[str, Path]]:
+    """Возвращает [(dir_code, path)] для KRM-файлов указанного года.
+
+    Для года по умолчанию (2025) - исторические файлы без суффикса года; для
+    остальных - файлы вида krm_disciplines_<код>_<год>.json. Файлы чужого года
+    и *_clean.json игнорируются. dir_code всегда канонический (без суффикса),
+    поэтому 2024-й файл не притворяется отдельным направлением.
+    """
+    result: list[tuple[str, Path]] = []
     for path in sorted(REFERENCE_DIR.glob("krm_disciplines_*.json")):
         if "_clean" in path.name:
             continue
-        dir_code = path.name[len("krm_disciplines_"):-len(".json")]
-        if not re.match(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$", dir_code):
+        stem = path.name[len("krm_disciplines_"):-len(".json")]
+        m = _KRM_STEM_RE.match(stem)
+        if not m:
             continue
-        result.append((dir_code, path))
+        base = m.group("base")
+        suffix = m.group("suffix")
+        is_year_file = bool(suffix) and suffix.isdigit() and len(suffix) == 4
+        if is_year_file:
+            if int(suffix) != year:
+                continue
+        elif year != DEFAULT_YEAR:
+            # Файл без суффикса года (и с суффиксом формы обучения) принадлежит
+            # только набору по умолчанию.
+            continue
+        result.append((base, path))
     return result
 
 
@@ -123,16 +157,18 @@ async def seed_skills(session) -> dict[str, str]:
     return skill_map
 
 
-async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path: Path) -> None:
+async def seed_direction(
+    session, skill_map: dict[str, str], dir_code: str, path: Path, year: int = DEFAULT_YEAR
+) -> None:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, dict) or not data:
-        print(f"  {dir_code}: empty file, skipped")
+        print(f"  {dir_code} [{year}]: empty file, skipped")
         return
     direction_data = next(iter(data.values()))
     disciplines_raw = direction_data.get("disciplines", {})
     if not isinstance(disciplines_raw, dict):
-        print(f"  {dir_code}: no disciplines, skipped")
+        print(f"  {dir_code} [{year}]: no disciplines, skipped")
         return
 
     result = await session.execute(select(Direction).where(Direction.code == FILE_TO_DIRECTION.get(dir_code, dir_code)))
@@ -142,16 +178,16 @@ async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path
             code=FILE_TO_DIRECTION.get(dir_code, dir_code),
             name=direction_data.get("direction_name", dir_code),
             profile=direction_data.get("profile", ""),
-            opop_year=2024,
+            opop_year=year,
         )
         session.add(direction)
         await session.flush()
-        print(f"  {dir_code}: direction created ({len(disciplines_raw)} discs)")
+        print(f"  {dir_code} [{year}]: direction created ({len(disciplines_raw)} discs)")
 
     pv = ParseVersion(
         direction_id=direction.id,
         version=datetime.now(UTC).strftime("%Y%m%d_%H%M%S"),
-        opop_year=2024,
+        opop_year=year,
         total_disciplines=len(disciplines_raw),
         notes="Seed from parsed RPD JSON (all directions)",
     )
@@ -161,15 +197,17 @@ async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path
     disc_count = comp_count = cs_count = ksa_count = 0
     skipped_comp = 0
 
+    # Матчим на (direction_id, name, year), а не только по имени: иначе сид
+    # 2024 мутировал бы одноимённые строки 2025 (и наоборот).
     result = await session.execute(
-        select(Discipline).where(Discipline.direction_id == direction.id)
+        select(Discipline).where(Discipline.direction_id == direction.id, Discipline.year == year)
     )
     existing_by_norm = {normalize_disc_name(d.name): d for d in result.scalars().all()}
 
     for disc_name, disc_data in sorted(disciplines_raw.items()):
         disc = existing_by_norm.get(normalize_disc_name(disc_name))
         if not disc:
-            disc = Discipline(direction_id=direction.id, name=disc_name)
+            disc = Discipline(direction_id=direction.id, name=disc_name, year=year)
             session.add(disc)
             await session.flush()
             existing_by_norm[normalize_disc_name(disc_name)] = disc
@@ -239,25 +277,33 @@ async def seed_direction(session, skill_map: dict[str, str], dir_code: str, path
     pv.total_skills = cs_count
     pv.total_ksa_items = ksa_count
     await session.commit()
-    print(f"  {dir_code}: discs={disc_count} new, comps={comp_count}, links={cs_count}, ksa={ksa_count}"
+    print(f"  {dir_code} [{year}]: discs={disc_count} new, comps={comp_count}, "
+          f"links={cs_count}, ksa={ksa_count}"
           + (f", skipped_comp={skipped_comp}" if skipped_comp else ""))
 
 
-async def main(drop: bool = False, only: str | None = None) -> None:
+async def main(drop: bool = False, only: str | None = None, year: int = DEFAULT_YEAR) -> None:
     print("Creating tables...")
     await create_tables(drop_first=drop)
     async with async_session_factory() as session:
         print("Seeding skills...")
         skill_map = await seed_skills(session)
-        print("Seeding directions...")
-        files = list_krm_files()
+        print(f"Seeding directions (year={year})...")
+        files = list_krm_files(year)
         if only:
             files = [f for f in files if f[0] == only]
             if not files:
-                print(f"  {only}: KRM-файл не найден, пропуск")
+                # Отсутствие KRM запрошенного года - не «пропуск по мелочи»:
+                # выходим ненулевым кодом, чтобы вызывающий не счёл сид успешным.
+                print(
+                    f"ERROR: KRM для {only} года {year} не найден "
+                    f"(ожидался {resolve_krm_path(only, year).name})",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
         for dir_code, path in files:
-            await seed_direction(session, skill_map, dir_code, path)
-    print("\nDone.")
+            await seed_direction(session, skill_map, dir_code, path, year=year)
+    print(f"\nDone (year={year}).")
 
 
 if __name__ == "__main__":
@@ -266,5 +312,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--drop", action="store_true")
     parser.add_argument("--only", default=None, help="dir_code; одно направление если указан")
+    parser.add_argument("--year", type=int, default=DEFAULT_YEAR,
+                        help="Год набора: 2025 (по умолчанию, krm_disciplines_<код>.json) "
+                             "или иной (krm_disciplines_<код>_<год>.json)")
     args = parser.parse_args()
-    asyncio.run(main(drop=args.drop, only=args.only))
+    asyncio.run(main(drop=args.drop, only=args.only, year=args.year))
