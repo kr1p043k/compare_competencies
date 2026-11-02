@@ -125,6 +125,34 @@ class TestMetricsRequiresAdmin:
         resp = client.get("/metrics")
         assert resp.status_code == 401
 
+    def test_metrics_teacher_403(self, monkeypatch):
+        """Залогиненный не-админ получает 403, а не 200.
+
+        Аноним даёт 401 на get_current_user; здесь подменяем его на teacher,
+        чтобы проверить именно проверку роли в require_any_role.
+        """
+        from src.api_pkg import create_app
+        import src.api_pkg.routers.auth as auth
+
+        async def _teacher(_request):
+            return {"uid": "u-1", "u": "teacher@example.com", "r": "teacher", "t": None}
+
+        monkeypatch.setattr(auth, "get_current_user", _teacher)
+        client = TestClient(create_app(), raise_server_exceptions=False)
+        assert client.get("/metrics", headers={"Authorization": "Bearer x"}).status_code == 403
+
+    def test_metrics_admin_200(self, monkeypatch):
+        """Админ проходит гейт (проверяем, что 403 не «всем подряд»)."""
+        from src.api_pkg import create_app
+        import src.api_pkg.routers.auth as auth
+
+        async def _admin(_request):
+            return {"uid": "u-2", "u": "admin@example.com", "r": "admin", "t": None}
+
+        monkeypatch.setattr(auth, "get_current_user", _admin)
+        client = TestClient(create_app(), raise_server_exceptions=False)
+        assert client.get("/metrics", headers={"Authorization": "Bearer x"}).status_code == 200
+
 
 class TestPipelineWsAuth:
     """WS /api/pipeline/ws без токена закрывается кодом 4001 до accept."""
@@ -137,3 +165,35 @@ class TestPipelineWsAuth:
             with client.websocket_connect("/api/pipeline/ws"):
                 pass  # соединение не должно быть принято
         assert exc_info.value.code == 4001
+
+    def test_ws_revoked_session_closed_4001(self, monkeypatch):
+        """Токен подписан верно, но сессия в БД отозвана - соединение не принимаем.
+
+        Это регресс на дыру: раньше WS проверял только подпись токена, и logout
+        не действовал на открытый сокет до истечения TTL.
+        """
+        from src.api_pkg import create_app
+        import src.api_pkg.routers.auth as auth
+
+        async def _revoked(_token):
+            return None
+
+        monkeypatch.setattr(auth, "resolve_session", _revoked)
+        client = TestClient(create_app(), raise_server_exceptions=False)
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect("/api/pipeline/ws?token=signed-but-revoked"):
+                pass
+        assert exc_info.value.code == 4001
+
+    def test_ws_valid_session_accepted(self, monkeypatch):
+        """Валидная активная сессия - соединение принимается."""
+        from src.api_pkg import create_app
+        import src.api_pkg.routers.auth as auth
+
+        async def _ok(_token):
+            return {"uid": "u-3", "u": "admin@example.com", "r": "admin", "t": None}
+
+        monkeypatch.setattr(auth, "resolve_session", _ok)
+        client = TestClient(create_app(), raise_server_exceptions=False)
+        with client.websocket_connect("/api/pipeline/ws?token=valid") as ws:
+            ws.close()
