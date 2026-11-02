@@ -5,7 +5,7 @@ import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
-import { Skeleton } from "./ui/skeleton";
+import { Skeleton } from "../../design";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, ExternalLink, FileText, Info, Loader2, RotateCcw, Search } from "lucide-react";
