@@ -38,7 +38,9 @@ _PARSER_DEPS_ROOT = Path(__file__).resolve().parent.parent.parent
 def _parser_code_version() -> str:
     import hashlib
 
-    h = hashlib.md5()
+    # usedforsecurity=False: это ключ версии кеша (mtime+size зависимостей
+    # парсера), а не криптография - bandit(B324) помечает сам факт MD5.
+    h = hashlib.md5(usedforsecurity=False)
     for rel in _PARSER_DEPS:
         p = _PARSER_DEPS_ROOT / rel
         try:
