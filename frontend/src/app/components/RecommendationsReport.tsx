@@ -1,8 +1,15 @@
 import { motion } from "motion/react";
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import {
+  Badge,
+  type BadgeTone,
+  Card,
+  CardBody,
+  CardHeader,
+  EmptyState,
+  StatCard,
+} from "../../design";
 import { ShowMore } from "./ui/show-more";
-import { Badge } from "./ui/badge";
 import {
   TrendingUp,
   Target,
@@ -110,19 +117,34 @@ function ruPriority(p: string): string {
   return m[(p || "").toUpperCase()] || p;
 }
 
-const GAP_STATUS_RU: Record<string, { label: string; cls: string }> = {
-  missing: { label: "нет", cls: "bg-red-100 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-300 dark:border-red-700" },
-  weak: { label: "слабый", cls: "bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700" },
-  strong: { label: "сильный", cls: "bg-green-100 dark:bg-green-950/30 text-green-800 dark:text-green-200 border-green-300 dark:border-green-700" },
+/** Тон метрики по качеству совпадения: ≥60 — хорошо, 30–59 — средне, ниже — плохо. */
+function scoreTone(score: number): "success" | "warning" | "danger" {
+  if (score >= 60) return "success";
+  if (score >= 30) return "warning";
+  return "danger";
+}
+
+/** Тон бейджа приоритета: высокий — опасность, средний — внимание, низкий — акцент. */
+const PRIORITY_TONE: Record<string, BadgeTone> = {
+  HIGH: "danger",
+  MEDIUM: "warning",
+  LOW: "primary",
+};
+
+function priorityTone(priority: string): BadgeTone {
+  return PRIORITY_TONE[(priority || "").toUpperCase()] ?? "neutral";
+}
+
+const GAP_STATUS_RU: Record<string, { label: string; tone: BadgeTone }> = {
+  missing: { label: "нет", tone: "danger" },
+  weak: { label: "слабый", tone: "warning" },
+  strong: { label: "сильный", tone: "success" },
 };
 
 function GapStatusBadge({ category }: { category: string }) {
   const key = (category || "").toLowerCase();
-  const meta = GAP_STATUS_RU[key] || {
-    label: category || "-",
-    cls: "bg-slate-100 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600",
-  };
-  return <Badge className={`${meta.cls} border text-xs`}>{meta.label}</Badge>;
+  const meta = GAP_STATUS_RU[key] || { label: category || "-", tone: "neutral" as BadgeTone };
+  return <Badge tone={meta.tone} className="text-xs">{meta.label}</Badge>;
 }
 
 function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
@@ -132,18 +154,18 @@ function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
   const remaining = skills.length - INITIAL_SKILLS;
 
   return (
-    <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 bg-slate-50 dark:bg-slate-900 dark:from-slate-800 dark:to-slate-900">
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 bg-muted">
         <div className="flex items-center gap-3">
-          <Layers className="size-5 text-slate-600 dark:text-slate-400" />
-          <h4 className="font-bold text-slate-900 dark:text-slate-100">{entry.domain || name}</h4>
+          <Layers className="size-5 text-muted-foreground" />
+          <h4 className="font-bold text-foreground">{entry.domain || name}</h4>
         </div>
         <div className="flex items-center gap-4 text-sm">
-          <span className="text-slate-600 dark:text-slate-400">
-            <span className="text-slate-600 dark:text-slate-400">ваши <span className={`font-semibold ${entry.user_has > 0 ? "text-green-600" : "text-red-500"}`}>{entry.user_has}</span></span>
-            <span className="text-slate-400"> из {entry.total_required}</span>
+          <span className="text-muted-foreground">
+            ваши <span className={`font-semibold ${entry.user_has > 0 ? "text-success" : "text-destructive"}`}>{entry.user_has}</span>
+            <span className="text-subtle-foreground"> из {entry.total_required}</span>
           </span>
-          <span title="Покрытие домена: <20% критическое, 20-40% частичное, ≥40% уверенное" className={`font-semibold ${entry.coverage >= 0.4 ? "text-green-600 dark:text-green-400" : entry.coverage >= 0.2 ? "text-orange-500 dark:text-orange-400" : "text-red-500 dark:text-red-400"}`}>
+          <span title="Покрытие домена: <20% критическое, 20-40% частичное, ≥40% уверенное" className={`font-semibold ${entry.coverage >= 0.4 ? "text-success" : entry.coverage >= 0.2 ? "text-warning" : "text-destructive"}`}>
             {(entry.coverage * 100).toFixed(1)}%
           </span>
         </div>
@@ -151,13 +173,13 @@ function DomainCard({ name, entry }: { name: string; entry: DomainEntry }) {
       <div className="px-5 pb-4">
         <div className="flex flex-wrap gap-1.5">
           {show.map((sk) => (
-            <Badge key={sk} variant="outline" className="text-xs bg-white dark:bg-slate-950">{sk}</Badge>
+            <Badge key={sk} tone="neutral" className="text-xs">{sk}</Badge>
           ))}
         </div>
         {remaining > 0 && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
+            className="mt-2 flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium cursor-pointer"
           >
             {expanded ? (
               <><ChevronUp className="size-3.5" />Свернуть</>
@@ -178,29 +200,29 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
   // Для незнакомых навыков спрос == разрыву по построению (demand = вес рынка,
   // gap = вес − 0) - не показываем дубль, чтобы не вводить в заблуждение.
   const showDemand = Math.abs(gapAvg - demandAvg) > 0.005;
-  const gapColor = gapAvg > 0.7 ? "text-red-600" : gapAvg > 0.4 ? "text-orange-500" : "text-yellow-600";
+  const gapColor = gapAvg > 0.7 ? "text-destructive" : "text-warning";
 
   return (
-    <div className="border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3">
+    <div className="border border-border rounded-lg px-4 py-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <span className="font-medium text-slate-900 dark:text-slate-100">{entry.skill || skill}</span>
+          <span className="font-medium text-foreground">{entry.skill || skill}</span>
             <GapStatusBadge category={entry.category} />
         </div>
         <div className="flex items-center gap-3 text-xs">
-          <span className="text-slate-500">разрыв: <span className={`font-semibold ${gapColor}`}>{(gapAvg * 100).toFixed(0)}%</span></span>
+          <span className="text-muted-foreground">разрыв: <span className={`font-semibold ${gapColor}`}>{(gapAvg * 100).toFixed(0)}%</span></span>
           {showDemand && (
-            <span className="text-slate-500">спрос: <span className="font-semibold text-blue-600">{(demandAvg * 100).toFixed(0)}%</span></span>
+            <span className="text-muted-foreground">спрос: <span className="font-semibold text-primary">{(demandAvg * 100).toFixed(0)}%</span></span>
           )}
         </div>
       </div>
       {expanded && (
         <div className="mt-3 space-y-2">
-          <p className="text-xs text-slate-500 italic">
+          <p className="text-xs text-muted-foreground italic">
               разрыв - насколько навыка не хватает до требуемого (0% = нет разрыва),
               спрос - востребованность навыка на рынке. Ниже - детали по уровням.
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600 dark:text-slate-400">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-muted-foreground">
             <div title="Разрыв на уровне Junior">gap_j: {(entry.gap_j * 100).toFixed(0)}%</div>
             <div title="Разрыв на уровне Middle">gap_m: {(entry.gap_m * 100).toFixed(0)}%</div>
             <div title="Разрыв на уровне Senior">gap_s: {(entry.gap_s * 100).toFixed(0)}%</div>
@@ -214,7 +236,7 @@ function GapsCard({ skill, entry }: { skill: string; entry: GapEntry }) {
       )}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="mt-1 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
+        className="mt-1 flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium cursor-pointer"
       >
         {expanded ? <><ChevronUp className="size-3" />свернуть</> : <><ChevronDown className="size-3" />подробнее</>}
       </button>
@@ -227,24 +249,8 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
   const [showAllRecs, setShowAllRecs] = useState(false);
   const [showAllGaps, setShowAllGaps] = useState(false);
   if (!data || !data.summary) {
-    return (
-      <div className="py-8 text-center text-gray-500 dark:text-slate-400 text-sm">
-        <p>Пока нет рекомендаций - запустите анализ.</p>
-      </div>
-    );
+    return <EmptyState title="Пока нет рекомендаций - запустите анализ." />;
   }
-  const getPriorityColor = (priority: string) => {
-    switch (priority.toUpperCase()) {
-      case "HIGH":
-        return "bg-red-100 text-red-800 dark:bg-red-950/20 dark:text-red-300 border-red-300 dark:border-red-700";
-      case "MEDIUM":
-        return "bg-orange-100 text-orange-800 dark:bg-orange-950/20 dark:text-orange-300 border-orange-300 dark:border-orange-700";
-      case "LOW":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-300 border-blue-300 dark:border-blue-700";
-      default:
-        return "bg-slate-100 text-slate-800 dark:bg-slate-950/20 dark:text-slate-300 border-slate-300 dark:border-slate-600";
-    }
-  };
 
   const getPriorityIcon = (priority: string) => {
     switch (priority.toUpperCase()) {
@@ -259,12 +265,6 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
     }
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 60) return "text-green-600 dark:text-green-400";
-    if (score >= 30) return "text-orange-600 dark:text-orange-400";
-    return "text-red-600 dark:text-red-400";
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -273,90 +273,50 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
     >
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-2 border-orange-200 dark:border-orange-800 bg-slate-50 dark:bg-slate-900">
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2">
-              <CheckCircle2 className="size-4" />
-                <span title="Композитный индекс 0-100. Readiness = 0.45 × market + 0.30 × strong% − 0.25 × weak%: покрытие рынка, доля сильных и слабых навыков">Готовность</span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-3xl font-bold ${getScoreColor(data.summary.readiness_score)}`}>
-              {data.summary.readiness_score.toFixed(1)}%
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-              Готовность к работе
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2 border-blue-200 dark:border-blue-800 bg-slate-50 dark:bg-slate-900">
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2">
-              <Target className="size-4" />
-                <span title="Средневзвешенная оценка по трём метрикам. Match Score = (Market Coverage + Skill Coverage + Readiness) / 3">Соответствие рынку</span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-3xl font-bold ${getScoreColor(data.summary.match_score)}`}>
-              {data.summary.match_score.toFixed(1)}%
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-              Общее соответствие рынку
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2 border-green-200 dark:border-green-800 bg-slate-50 dark:bg-slate-900">
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2">
-              <TrendingUp className="size-4" />
-                <span title="Доля навыков студента от всех навыков на рынке. Market Coverage = (Σ весов навыков студента) / (Σ весов всех навыков) × 100">Покрытие рынка</span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-3xl font-bold ${getScoreColor(data.summary.market_coverage_score)}`}>
-              {data.summary.market_coverage_score.toFixed(1)}%
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-              Покрытие навыков рынка
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2 border-purple-200 dark:border-purple-800 bg-slate-50 dark:bg-slate-900">
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2">
-              <Award className="size-4" />
-                <span title="Строгое: доля навыков студента среди рыночных (бинарно, без весов). Взвешенное ниже - с учётом спроса, может быть выше строгого">Навыки профиля (строго)</span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-3xl font-bold ${data.summary.coverage_strict === undefined ? "text-slate-400" : getScoreColor(data.summary.coverage_strict)}`}>
-              {data.summary.coverage_strict === undefined ? "-" : `${data.summary.coverage_strict.toFixed(1)}%`}
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-              Взвешенное по спросу: {(data.summary.coverage_weighted ?? data.summary.skill_coverage).toFixed(1)}%
-            </p>
-          </CardContent>
-        </Card>
-
+        <StatCard
+          icon={<CheckCircle2 className="size-4" />}
+          label={<span title="Композитный индекс 0-100. Readiness = 0.45 × market + 0.30 × strong% − 0.25 × weak%: покрытие рынка, доля сильных и слабых навыков">Готовность</span>}
+          value={`${data.summary.readiness_score.toFixed(1)}%`}
+          hint="Готовность к работе"
+          tone={scoreTone(data.summary.readiness_score)}
+        />
+        <StatCard
+          icon={<Target className="size-4" />}
+          label={<span title="Средневзвешенная оценка по трём метрикам. Match Score = (Market Coverage + Skill Coverage + Readiness) / 3">Соответствие рынку</span>}
+          value={`${data.summary.match_score.toFixed(1)}%`}
+          hint="Общее соответствие рынку"
+          tone={scoreTone(data.summary.match_score)}
+        />
+        <StatCard
+          icon={<TrendingUp className="size-4" />}
+          label={<span title="Доля навыков студента от всех навыков на рынке. Market Coverage = (Σ весов навыков студента) / (Σ весов всех навыков) × 100">Покрытие рынка</span>}
+          value={`${data.summary.market_coverage_score.toFixed(1)}%`}
+          hint="Покрытие навыков рынка"
+          tone={scoreTone(data.summary.market_coverage_score)}
+        />
+        <StatCard
+          icon={<Award className="size-4" />}
+          label={<span title="Строгое: доля навыков студента среди рыночных (бинарно, без весов). Взвешенное ниже - с учётом спроса, может быть выше строгого">Навыки профиля (строго)</span>}
+          value={data.summary.coverage_strict === undefined ? "-" : `${data.summary.coverage_strict.toFixed(1)}%`}
+          hint={`Взвешенное по спросу: ${(data.summary.coverage_weighted ?? data.summary.skill_coverage).toFixed(1)}%`}
+          tone={data.summary.coverage_strict === undefined ? "default" : scoreTone(data.summary.coverage_strict)}
+        />
       </div>
 
       {/* Closest Roles */}
-      <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
-          <CardTitle className="flex items-center gap-3">
-            <div className="p-2 bg-blue-600 rounded-lg">
-              <Target className="size-5 text-white" />
+      <Card>
+        <CardHeader
+          title={
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary-soft rounded-lg">
+                <Target className="size-5 text-primary" />
+              </div>
+              Ближайшие роли
             </div>
-            Ближайшие роли
-          </CardTitle>
-          <CardDescription>
-            Роли, которые лучше всего соответствуют вашему профилю. Сходство - похожесть навыков на требования вакансий; полного соответствия не гарантирует.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-6">
+          }
+          description="Роли, которые лучше всего соответствуют вашему профилю. Сходство - похожесть навыков на требования вакансий; полного соответствия не гарантирует."
+        />
+        <CardBody>
           <div className="space-y-4">
             {data.closest_roles.map((role, index) => (
               <motion.div
@@ -364,52 +324,54 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="border-2 border-slate-100 dark:border-slate-800 rounded-xl p-4"
+                className="border border-border rounded-lg p-4"
               >
                 <div className="flex items-start justify-between gap-4 mb-3">
-                  <h4 className="font-bold text-slate-900 dark:text-white flex-1">{stripRoleTag(role.role)}</h4>
+                  <h4 className="font-bold text-foreground flex-1">{stripRoleTag(role.role)}</h4>
                   <div className="flex gap-2 flex-shrink-0">
                     {role.cluster_level && (
-                      <Badge className="bg-violet-100 text-violet-800 dark:bg-violet-950/20 dark:text-violet-300 border border-violet-300 dark:border-violet-700">
+                      <Badge className="text-xs bg-chart-5/10 text-chart-5">
                         {role.cluster_level}
                       </Badge>
                     )}
-                    <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
+                    <Badge tone="primary" className="text-xs">
                       {role.semantic_similarity.toFixed(1)}% сходство
                     </Badge>
-                    <Badge className="bg-green-100 text-green-800 dark:bg-green-950/20 dark:text-green-300 border border-green-300 dark:border-green-700">
+                    <Badge tone="success" className="text-xs">
                       {formatCovered(role.skills_covered)}
                     </Badge>
                   </div>
                 </div>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-sm text-muted-foreground">
                   {role.coverage_explanation}
                 </p>
               </motion.div>
             ))}
           </div>
-        </CardContent>
+        </CardBody>
       </Card>
 
       {/* Recommendations */}
-      <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
-          <CardTitle className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-600 rounded-lg">
-              <BookOpen className="size-5 text-white" />
+      <Card>
+        <CardHeader
+          title={
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-success-soft rounded-lg">
+                <BookOpen className="size-5 text-success" />
+              </div>
+              Рекомендации по навыкам
             </div>
-            Рекомендации по навыкам
-          </CardTitle>
-          <CardDescription>
-            Топ-10 навыков для изучения, отсортированные по важности
-          </CardDescription>
-          {data.llm_enhanced && (
-            <p className="text-xs font-medium text-amber-700 dark:text-amber-300" title="Часть рекомендаций дополнена языковой моделью">
-              Дополнено LLM
-            </p>
-          )}
-        </CardHeader>
-        <CardContent className="pt-6">
+          }
+          description="Топ-10 навыков для изучения, отсортированные по важности"
+          actions={
+            data.llm_enhanced ? (
+              <span className="text-xs font-medium text-warning" title="Часть рекомендаций дополнена языковой моделью">
+                Дополнено LLM
+              </span>
+            ) : undefined
+          }
+        />
+        <CardBody>
           <div className="space-y-4">
             {data.recommendations.slice(0, showAllRecs ? 10 : 3).map((rec, index) => (
               <motion.div
@@ -417,35 +379,34 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="border-2 border-slate-100 dark:border-slate-800 rounded-xl p-5 hover:border-slate-200 dark:hover:border-slate-700 transition-colors"
+                className="border border-border rounded-lg p-5 hover:border-border-strong transition-colors"
               >
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0">
-                    <div className="size-10 bg-slate-700 dark:bg-slate-600 rounded-full flex items-center justify-center text-white font-bold">
+                    <div className="size-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold print:bg-transparent print:text-primary">
                       {rec.rank}
                     </div>
                   </div>
                   <div className="flex-1 space-y-3">
                     <div className="flex items-start justify-between gap-4">
-                      <h4 className="font-bold text-lg text-slate-900 dark:text-white capitalize">
+                      <h4 className="font-bold text-lg text-foreground capitalize">
                         {rec.skill}
                       </h4>
                       <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-                        <Badge className={`${getPriorityColor(rec.priority)} border`}>
-                          <span className="flex items-center gap-1">
-                            {getPriorityIcon(rec.priority)}
-                            {ruPriority(rec.priority)}
-                          </span>
+                        <Badge tone={priorityTone(rec.priority)} className="text-xs">
+                          {getPriorityIcon(rec.priority)}
+                          {ruPriority(rec.priority)}
                         </Badge>
                         {rec.is_soft_skill && (
-                          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950/20 dark:text-purple-300 border border-purple-300 dark:border-purple-700">
+                          <Badge className="text-xs bg-chart-5/10 text-chart-5">
                             Софт-скилл
                           </Badge>
                         )}
                         {rec.llm_reason && (
                           <Badge
                             title="Есть обоснование языковой модели - см. ниже"
-                            className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-700"
+                            tone="warning"
+                            className="text-xs"
                           >
                             LLM
                           </Badge>
@@ -453,12 +414,12 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1" title={`База ${(rec.importance_base ?? rec.importance_score).toFixed(3)} + бонусы ${(rec.importance_bonus ?? 0).toFixed(3)} (тренд, домен, роль). Композитный балл, а не доля вакансий`}>
                         <TrendingUp className="size-4" />
                         {(rec.importance_score * 100).toFixed(1)} балл
                         {(rec.importance_bonus ?? 0) > 0.001 && (
-                          <span className="text-xs text-slate-400">
+                          <span className="text-xs text-subtle-foreground">
                             (база {((rec.importance_base ?? 0) * 100).toFixed(0)} + бонус {((rec.importance_bonus ?? 0) * 100).toFixed(0)})
                           </span>
                         )}
@@ -469,36 +430,36 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                       </span>
                     </div>
 
-                    <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
-                      <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                    <div className="bg-primary-soft rounded-lg p-3 border border-primary/20">
+                      <p className="text-xs font-semibold text-primary mb-1">
                         💡 Почему важно:
                       </p>
-                      <p className="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-line">
+                      <p className="text-sm text-foreground whitespace-pre-line">
                         {rec.why_important}
                       </p>
                     </div>
 
-                    {rec.how_to_learn && (<div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-3 border border-green-200 dark:border-green-800">
-                      <p className="text-xs font-semibold text-green-900 dark:text-green-100 mb-1">
+                    {rec.how_to_learn && (<div className="bg-success-soft rounded-lg p-3 border border-success/25">
+                      <p className="text-xs font-semibold text-success mb-1">
                         📚 Как изучать:
                       </p>
-                      <p className="text-sm text-green-800 dark:text-green-200">{rec.how_to_learn}</p>
+                      <p className="text-sm text-foreground">{rec.how_to_learn}</p>
                     </div>)}
 
-                    {rec.expected_outcome && (<div className="bg-purple-50 dark:bg-purple-950/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
-                      <p className="text-xs font-semibold text-purple-900 dark:text-purple-100 mb-1 flex items-center gap-1">
+                    {rec.expected_outcome && (<div className="bg-chart-5/10 rounded-lg p-3 border border-chart-5/25">
+                      <p className="text-xs font-semibold text-chart-5 mb-1 flex items-center gap-1">
                         <ArrowUp className="size-3" />
                         Ожидаемый результат:
                       </p>
-                      <p className="text-sm text-purple-800 dark:text-purple-200">{rec.expected_outcome}</p>
+                      <p className="text-sm text-foreground">{rec.expected_outcome}</p>
                     </div>)}
 
                     {rec.llm_reason && (
-                      <details className="bg-amber-50 dark:bg-amber-950/20 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
-                        <summary className="text-xs font-semibold text-amber-900 dark:text-amber-100 cursor-pointer hover:text-amber-700 dark:hover:text-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded transition-colors duration-200">
+                      <details className="bg-warning-soft rounded-lg p-3 border border-warning/25">
+                        <summary className="text-xs font-semibold text-warning cursor-pointer hover:text-warning/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning rounded transition-colors duration-200">
                           Обоснование LLM
                         </summary>
-                        <p className="text-sm text-amber-800 dark:text-amber-200 mt-1 whitespace-pre-line">
+                        <p className="text-sm text-foreground mt-1 whitespace-pre-line">
                           {rec.llm_reason}
                         </p>
                       </details>
@@ -509,24 +470,24 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
             ))}
             <ShowMore total={Math.min(10, data.recommendations.length)} shown={3} expanded={showAllRecs} onToggle={() => setShowAllRecs((v) => !v)} />
           </div>
-        </CardContent>
+        </CardBody>
       </Card>
 
       {/* Domain Coverage */}
       {data.domain_coverage && Object.keys(data.domain_coverage).length > 0 && (
-        <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
-            <CardTitle className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-600 rounded-lg">
-                <Layers className="size-5 text-white" />
+        <Card>
+          <CardHeader
+            title={
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-chart-5/10 rounded-lg">
+                  <Layers className="size-5 text-chart-5" />
+                </div>
+                Покрытие доменов
               </div>
-              Покрытие доменов
-            </CardTitle>
-            <CardDescription>
-              Какие домены навыков покрыты вашим профилем
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-3">
+            }
+            description="Какие домены навыков покрыты вашим профилем"
+          />
+          <CardBody className="space-y-3">
             {Object.entries(data.domain_coverage).map(([name, entry]) => (
               <motion.div
                 key={name}
@@ -536,31 +497,31 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                 <DomainCard name={name} entry={entry} />
               </motion.div>
             ))}
-          </CardContent>
+          </CardBody>
         </Card>
       )}
 
       {/* Gaps */}
       {data.gaps && Object.keys(data.gaps).length > 0 && (
-        <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
-            <CardTitle className="flex items-center gap-3">
-              <div className="p-2 bg-rose-600 rounded-lg">
-                <AlertCircle className="size-5 text-white" />
+        <Card>
+          <CardHeader
+            title={
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-destructive/10 rounded-lg">
+                  <AlertCircle className="size-5 text-destructive" />
+                </div>
+                Пробелы
               </div>
-              Пробелы
-            </CardTitle>
-            <CardDescription>
-              Навыки, по которым у вас наибольшие пробелы
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-2">
+            }
+            description="Навыки, по которым у вас наибольшие пробелы"
+          />
+          <CardBody className="space-y-2">
             <div className="flex gap-2 mb-3">
               {[["all", "Все"], ["missing", "Нет"], ["weak", "Слабые"], ["strong", "Сильные"]].map(([v, label]) => (
                 <button
                   key={v}
                   onClick={() => setGapFilter(v)}
-                  className={`px-3 py-1 text-xs rounded-full border font-medium cursor-pointer ${gapFilter === v ? "bg-blue-600 text-white border-blue-600" : "bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600 hover:border-blue-400"}`}
+                  className={`px-3 py-1 text-xs rounded-full border font-medium cursor-pointer ${gapFilter === v ? "bg-primary text-primary-foreground border-primary print:bg-transparent print:text-primary print:border-primary" : "bg-card text-muted-foreground border-border hover:border-primary/60"}`}
                 >
                   {label}
                 </button>
@@ -587,7 +548,7 @@ export function RecommendationsReport({ data }: RecommendationsReportProps) {
                 </>
               );
             })()}
-          </CardContent>
+          </CardBody>
         </Card>
       )}
     </motion.div>
