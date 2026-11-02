@@ -1,91 +1,32 @@
 """Публикации хаба ЮФУ (hub.sfedu.ru) — прокси-эндпоинты.
 
 Источник данных — публичный API хаба ``/api/publications/``. Список открыт,
-карточка ``/api/assets/{id}/`` требует ``HUB_API_TOKEN``; без токена запись
-ищется перебором последних страниц.
+карточка ``/api/assets/{id}/`` использует ``HUB_API_TOKEN``; без токена (или
+если хаб его отклонил) запись ищется перебором страниц с начала списка.
 """
 
 from __future__ import annotations
 
-import structlog
-from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException, Path, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src.api_pkg.routers.auth import get_current_user
 from src.infrastructure.hub_publications import (
     HubAuthRequiredError,
     HubNotFoundError,
-    HubPublicationsClient,
     HubUnavailableError,
     get_client,
 )
-
-logger = structlog.get_logger("api")
+from src.models.api_responses import (
+    PublicationListResponse,
+    PublicationOut,
+    PublicationSearchResponse,
+    PublicationTypesResponse,
+)
 
 router = APIRouter(tags=["publications"])
 limiter = Limiter(key_func=get_remote_address)
-
-
-class PublicationFile(BaseModel):
-    url: str
-    filename: str | None = None
-    size: int | None = None
-    content_type: str | None = None
-
-
-class PublicationOut(BaseModel):
-    id: int
-    title: str | None = None
-    authors: list[str] = Field(default_factory=list)
-    type_id: int | None = None
-    type_name: str | None = None
-    signature: str | None = None
-    doi: str | None = None
-    isbn: str | None = None
-    track_id: str | None = None
-    created_at: str | None = None
-    year: int | None = None
-    academic_subject: list[str] = Field(default_factory=list)
-    education_program: list[str] = Field(default_factory=list)
-    files: list[PublicationFile] = Field(default_factory=list)
-    url: str | None = None
-    creator_username: str | None = None
-
-
-class PublicationListResponse(BaseModel):
-    items: list[PublicationOut]
-    total: int
-    page: int
-    page_size: int
-    num_pages: int
-    source: str = "hub.sfedu.ru"
-
-
-class PublicationSearchResponse(BaseModel):
-    query: str
-    matches: list[PublicationOut]
-    total: int
-    scanned_pages: int
-    truncated: bool
-    source: str = "hub.sfedu.ru"
-
-
-class PublicationType(BaseModel):
-    id: int
-    name: str | None = None
-    count: int
-
-
-class PublicationTypesResponse(BaseModel):
-    types: list[PublicationType]
-    scanned_pages: int
-    sample_size: int
-    source: str = "hub.sfedu.ru"
-
-
-def _client() -> HubPublicationsClient:
-    return get_client()
 
 
 @router.get("/publications", response_model=PublicationListResponse)
@@ -96,10 +37,10 @@ async def list_publications(
     page_size: int = Query(20, ge=1, le=100, description="Размер страницы"),
     type_id: int | None = Query(None, ge=1, description="Фильтр по типу публикации"),
     creator_id: int | None = Query(None, ge=1, description="Фильтр по id автора хаба"),
-):
+) -> PublicationListResponse:
     """Свежие публикации хаба ЮФУ."""
     try:
-        return await _client().list_publications(
+        return await get_client().list_publications(
             page=page,
             page_size=page_size,
             type_id=type_id,
@@ -114,19 +55,19 @@ async def list_publications(
 
 
 @router.get("/publications/search", response_model=PublicationSearchResponse)
-@limiter.limit("20/minute")
+@limiter.limit("10/minute")
 async def search_publications(
     request: Request,
     q: str = Query(..., min_length=2, max_length=200, description="Подстрока в названии/авторах/подписи"),
-    max_pages: int = Query(10, ge=1, le=50, description="Сколько последних страниц просматривать"),
-    limit: int = Query(20, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-    type_id: int | None = Query(None, ge=1),
-    creator_id: int | None = Query(None, ge=1),
-):
-    """Поиск по публикациям хаба (скан последних страниц, API хаба не умеет search)."""
+    max_pages: int = Query(10, ge=1, le=10, description="Сколько последних страниц просматривать"),
+    limit: int = Query(20, ge=1, le=200, description="Размер выдачи"),
+    offset: int = Query(0, ge=0, description="Смещение в выдаче"),
+    type_id: int | None = Query(None, ge=1, description="Фильтр по типу публикации"),
+    creator_id: int | None = Query(None, ge=1, description="Фильтр по id автора хаба"),
+) -> PublicationSearchResponse:
+    """Поиск по публикациям хаба: серверного search у хаба нет, сканируем последние страницы."""
     try:
-        result = await _client().search_publications(
+        result = await get_client().search_publications(
             q,
             max_pages=max_pages,
             type_id=type_id,
@@ -143,6 +84,7 @@ async def search_publications(
         "total": len(matches),
         "scanned_pages": result["scanned_pages"],
         "truncated": result["truncated"],
+        "total_scanned": result["total_scanned"],
     }
 
 
@@ -150,11 +92,11 @@ async def search_publications(
 @limiter.limit("30/minute")
 async def list_publication_types(
     request: Request,
-    sample_pages: int = Query(3, ge=1, le=20, description="Сколько последних страниц просматривать"),
-):
+    sample_pages: int = Query(3, ge=1, le=10, description="Сколько последних страниц просматривать"),
+) -> PublicationTypesResponse:
     """Типы публикаций, встреченные на последних страницах хаба."""
     try:
-        return await _client().list_types(sample_pages=sample_pages)
+        return await get_client().list_types(sample_pages=sample_pages)
     except HubUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from None
     except HubAuthRequiredError as exc:
@@ -165,12 +107,21 @@ async def list_publication_types(
 @limiter.limit("60/minute")
 async def get_publication(
     request: Request,
-    publication_id: int,
-    max_scan_pages: int = Query(10, ge=1, le=50, description="Сколько страниц перебрать без токена"),
-):
-    """Карточка публикации хаба по id."""
+    publication_id: int = Path(..., ge=1, description="id публикации в хабе"),
+    max_scan_pages: int = Query(10, ge=1, le=10, description="Сколько страниц перебрать без токена"),
+) -> PublicationOut:
+    """Карточка публикации хаба по id.
+
+    Токен хаба используется только для авторизованных пользователей: он общий
+    для организации, а анонимный скан ограничен ``max_scan_pages``.
+    """
+    user = await get_current_user(request)
     try:
-        return await _client().get_publication(publication_id, max_scan_pages=max_scan_pages)
+        return await get_client().get_publication(
+            publication_id,
+            max_scan_pages=max_scan_pages,
+            use_token=user is not None,
+        )
     except HubNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from None
     except HubUnavailableError as exc:

@@ -6,14 +6,18 @@
 ``Results-Count``, ``Page-Size``, ``Current-Page``, ``Num-Pages``.
 
 Карточка ``/api/assets/{id}/`` требует токен (``Authorization: Token ...``),
-поэтому при его отсутствии запись ищется перебором последних страниц списка.
+поэтому без токена (или если хаб его отклонил) запись ищется перебором
+страниц с начала списка — там самые свежие публикации.
+Серверного поиска нет: ``search`` сканирует последние страницы и матчит локально.
 """
 
 from __future__ import annotations
 
-import math
+import asyncio
 import re
+import threading
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 import structlog
@@ -28,7 +32,11 @@ _BROWSER_UA = (
 )
 _DEFAULT_PAGE_SIZE = 20
 _MAX_PAGE_SIZE = 100
+_MAX_SCAN_PAGES = 10
+_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+_SCAN_CONCURRENCY = 5
 _YEAR_RE = re.compile(r"(19|20)\d{2}")
+_ALLOWED_FILE_HOSTS = {"hub.sfedu.ru", "hub.lib.sfedu.ru"}
 
 
 class HubPublicationsError(RuntimeError):
@@ -44,7 +52,7 @@ class HubNotFoundError(HubPublicationsError):
 
 
 class HubAuthRequiredError(HubPublicationsError):
-    """Для запроса нужен токен хаба."""
+    """Для запроса нужен токен хаба или хаб отклонил его."""
 
 
 def _first_text(value: Any) -> str | None:
@@ -66,12 +74,28 @@ def _text_list(value: Any) -> list[str]:
 
 
 def _absolute_url(base: str, url: Any) -> str | None:
+    """Абсолютный URL только для доверенных хостов хаба, иначе только относительный путь."""
     if not url:
         return None
-    text = str(url)
+    text = str(url).strip()
     if text.startswith(("http://", "https://")):
+        host = urlsplit(text).hostname or ""
+        if host not in _ALLOWED_FILE_HOSTS:
+            return None
         return text
+    if not text.startswith("/"):
+        return None
     return f"{base.rstrip('/')}/{text.lstrip('/')}"
+
+
+def _payload_of(raw: dict[str, Any]) -> dict[str, Any]:
+    payload = raw.get("payload")
+    return payload if isinstance(payload, dict) else {}
+
+
+def _dict_of(raw: dict[str, Any], key: str) -> dict[str, Any]:
+    value = raw.get(key)
+    return value if isinstance(value, dict) else {}
 
 
 def _author_names(raw: dict[str, Any], payload: dict[str, Any]) -> list[str]:
@@ -84,9 +108,7 @@ def _author_names(raw: dict[str, Any], payload: dict[str, Any]) -> list[str]:
         ).strip()
         if full:
             names.append(full)
-    if names:
-        return names
-    return _text_list(payload.get("author"))
+    return names or _text_list(payload.get("author"))
 
 
 def _year(raw: dict[str, Any], payload: dict[str, Any]) -> int | None:
@@ -123,23 +145,30 @@ def _files(base: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
+def _publication_id(raw: dict[str, Any]) -> int:
+    value = raw.get("id")
+    try:
+        return int(value) if value is not None else 0
+    except (TypeError, ValueError):
+        return 0
+
+
 def normalize_publication(raw: dict[str, Any], base: str | None = None) -> dict[str, Any]:
     """Приводит запись хаба к плоской схеме нашего API."""
     base = base or config.HUB_API_BASE
-    payload = raw.get("payload") if isinstance(raw.get("payload"), dict) else {}
-    publication_type = raw.get("type") if isinstance(raw.get("type"), dict) else {}
-    creator = raw.get("creator") if isinstance(raw.get("creator"), dict) else {}
-    authors = _author_names(raw, payload)
+    payload = _payload_of(raw)
+    publication_type = _dict_of(raw, "type")
+    creator = _dict_of(raw, "creator")
     return {
-        "id": int(raw.get("id") or 0),
+        "id": _publication_id(raw),
         "title": _first_text(payload.get("title")) or _first_text(raw.get("signature_string")),
-        "authors": authors,
+        "authors": _author_names(raw, payload),
         "type_id": publication_type.get("id"),
         "type_name": publication_type.get("type_name"),
         "signature": raw.get("signature_string"),
-        "doi": raw.get("doi"),
-        "isbn": raw.get("isbn"),
-        "track_id": raw.get("track_id"),
+        "doi": _first_text(raw.get("doi")),
+        "isbn": _first_text(raw.get("isbn")),
+        "track_id": _first_text(raw.get("track_id")),
         "created_at": raw.get("creation_datetime"),
         "year": _year(raw, payload),
         "academic_subject": _text_list(payload.get("academic_subject")),
@@ -150,8 +179,36 @@ def normalize_publication(raw: dict[str, Any], base: str | None = None) -> dict[
     }
 
 
+def _matches(raw: dict[str, Any], needle: str) -> bool:
+    payload = _payload_of(raw)
+    haystack = " ".join(
+        [
+            _first_text(payload.get("title")) or "",
+            " ".join(_text_list(payload.get("author"))),
+            " ".join(_text_list(payload.get("academic_subject"))),
+            str(raw.get("signature_string") or ""),
+        ]
+    )
+    return needle in haystack.casefold()
+
+
+def _int_header(resp: httpx.Response, name: str, default: int) -> int:
+    value = resp.headers.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def _exhausted(meta: dict[str, Any], page: int) -> bool:
+    num_pages = meta["num_pages"]
+    return bool(num_pages) and page >= num_pages
+
+
 class HubPublicationsClient:
-    """Тонкая обёртка над hub.sfedu.ru/api/publications."""
+    """Тонкая обёртка над hub.sfedu.ru/api/publications с общим пулом соединений."""
 
     def __init__(
         self,
@@ -165,38 +222,93 @@ class HubPublicationsClient:
             token = config.HUB_API_TOKEN.get_secret_value()
         self.token = token or None
         self.timeout = timeout or config.HUB_API_TIMEOUT_S
-        self.transport = transport
+        self._transport = transport
+        self._client: httpx.AsyncClient | None = None
+        self._closed = False
 
     def _headers(self, auth: bool = False) -> dict[str, str]:
         headers = {"User-Agent": _BROWSER_UA, "Accept": "application/json"}
-        if auth:
-            if not self.token:
-                raise HubAuthRequiredError("Для карточки публикации нужен HUB_API_TOKEN")
+        if auth and self.token:
             token = self.token
             if not token.lower().startswith("token "):
                 token = f"Token {token}"
             headers["Authorization"] = token
         return headers
 
-    async def _get(self, path: str, params: dict[str, Any], auth: bool = False) -> httpx.Response:
-        try:
-            async with httpx.AsyncClient(
+    def _http(self) -> httpx.AsyncClient:
+        if self._client is None or self._closed:
+            self._client = httpx.AsyncClient(
                 timeout=self.timeout,
-                transport=self.transport,
-                headers=self._headers(auth),
-            ) as client:
-                return await client.get(f"{self.base_url}{path}", params=params)
+                transport=self._transport,
+                headers={"User-Agent": _BROWSER_UA, "Accept": "application/json"},
+                limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            )
+            self._closed = False
+        return self._client
+
+    async def aclose(self) -> None:
+        if self._client is not None and not self._closed:
+            await self._client.aclose()
+            self._closed = True
+
+    async def _get(self, path: str, params: dict[str, Any], auth: bool = False) -> httpx.Response:
+        headers = self._headers(auth)
+        url = f"{self.base_url}{path}"
+        try:
+            async with self._http().stream("GET", url, params=params, headers=headers) as response:
+                declared = response.headers.get("Content-Length", "")
+                if declared.isdigit() and int(declared) > _MAX_RESPONSE_BYTES:
+                    logger.warning("hub_publications_too_large", path=path, declared=int(declared))
+                    raise HubUnavailableError("hub.sfedu.ru вернул слишком большой ответ")
+                chunks: list[bytes] = []
+                total = 0
+                async for chunk in response.aiter_bytes():
+                    total += len(chunk)
+                    if total > _MAX_RESPONSE_BYTES:
+                        logger.warning("hub_publications_too_large", path=path, bytes=total)
+                        raise HubUnavailableError("hub.sfedu.ru вернул слишком большой ответ")
+                    chunks.append(chunk)
+                return httpx.Response(
+                    response.status_code,
+                    headers=response.headers,
+                    content=b"".join(chunks),
+                    request=response.request,
+                )
         except httpx.HTTPError as exc:
-            logger.warning("hub_publications_unreachable", path=path, error=str(exc))
+            logger.warning("hub_publications_unreachable", path=path, error=type(exc).__name__)
             raise HubUnavailableError("hub.sfedu.ru недоступен") from None
 
-    async def list_publications(
+    @staticmethod
+    def _decode(resp: httpx.Response) -> list[dict[str, Any]]:
+        try:
+            data = resp.json()
+        except ValueError:
+            raise HubUnavailableError("hub.sfedu.ru вернул не-JSON") from None
+        if not isinstance(data, list):
+            raise HubUnavailableError("Неожиданный формат ответа hub.sfedu.ru")
+        return [item for item in data if isinstance(item, dict)]
+
+    def _check_status(
         self,
-        page: int = 1,
-        page_size: int = _DEFAULT_PAGE_SIZE,
+        resp: httpx.Response,
+        page: int | None = None,
+        not_found_msg: str | None = None,
+    ) -> None:
+        if resp.status_code == 404:
+            raise HubNotFoundError(not_found_msg or f"Страница {page} вне диапазона")
+        if resp.status_code in (401, 403):
+            raise HubAuthRequiredError("hub.sfedu.ru отклонил запрос")
+        if resp.status_code != 200:
+            logger.warning("hub_publications_error", status=resp.status_code, bytes=len(resp.content))
+            raise HubUnavailableError(f"hub.sfedu.ru ответил {resp.status_code}")
+
+    async def _fetch_raw(
+        self,
+        page: int,
+        page_size: int,
         type_id: int | None = None,
         creator_id: int | None = None,
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         params: dict[str, Any] = {
             "page": max(1, page),
             "page_size": max(1, min(page_size, _MAX_PAGE_SIZE)),
@@ -207,30 +319,71 @@ class HubPublicationsClient:
             params["creator"] = creator_id
 
         resp = await self._get("/api/publications/", params)
-        if resp.status_code == 404:
-            raise HubNotFoundError(f"Страница {page} вне диапазона")
-        if resp.status_code in (401, 403):
-            raise HubAuthRequiredError("hub.sfedu.ru отклонил запрос")
-        if resp.status_code != 200:
-            logger.warning(
-                "hub_publications_error",
-                status=resp.status_code,
-                body=resp.text[:300],
-            )
-            raise HubUnavailableError(f"hub.sfedu.ru ответил {resp.status_code}")
-        try:
-            raw_items = resp.json()
-        except ValueError:
-            raise HubUnavailableError("hub.sfedu.ru вернул не-JSON") from None
-        if not isinstance(raw_items, list):
-            raise HubUnavailableError("Неожиданный формат ответа hub.sfedu.ru")
-
-        return {
-            "items": [normalize_publication(item, self.base_url) for item in raw_items if isinstance(item, dict)],
-            "total": _int_header(resp, "Results-Count", len(raw_items)),
+        self._check_status(resp, page)
+        meta = {
+            "total": _int_header(resp, "Results-Count", 0),
             "page": _int_header(resp, "Current-Page", page),
-            "page_size": _int_header(resp, "Page-Size", page_size),
+            "page_size": _int_header(resp, "Page-Size", params["page_size"]),
             "num_pages": _int_header(resp, "Num-Pages", 0),
+        }
+        return meta, self._decode(resp)
+
+    async def _scan(
+        self,
+        pages: int,
+        type_id: int | None = None,
+        creator_id: int | None = None,
+    ) -> tuple[list[list[dict[str, Any]]], dict[str, Any] | None, int]:
+        """Читает страницы 1..N (первая — последовательно, чтобы узнать Num-Pages).
+
+        Возвращает (страницы, meta последней прочитанной, число прочитанных).
+        """
+        try:
+            first_meta, first_items = await self._fetch_raw(1, _MAX_PAGE_SIZE, type_id, creator_id)
+        except HubNotFoundError:
+            return [], None, 0
+
+        pages_data: list[list[dict[str, Any]]] = [first_items]
+        last_meta = first_meta
+        total_pages = first_meta["num_pages"]
+        target = pages if not total_pages else min(pages, total_pages)
+        if not first_items or _exhausted(first_meta, 1) or target <= 1:
+            return pages_data, last_meta, len(pages_data)
+
+        semaphore = asyncio.Semaphore(_SCAN_CONCURRENCY)
+
+        async def fetch(page: int) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+            async with semaphore:
+                try:
+                    return await self._fetch_raw(page, _MAX_PAGE_SIZE, type_id, creator_id)
+                except HubNotFoundError:
+                    return None
+
+        results = await asyncio.gather(*(fetch(page) for page in range(2, target + 1)))
+        for page_result in results:
+            if page_result is None:
+                break
+            meta, items = page_result
+            last_meta = meta
+            pages_data.append(items)
+            if not items or _exhausted(meta, meta["page"]):
+                break
+        return pages_data, last_meta, len(pages_data)
+
+    async def list_publications(
+        self,
+        page: int = 1,
+        page_size: int = _DEFAULT_PAGE_SIZE,
+        type_id: int | None = None,
+        creator_id: int | None = None,
+    ) -> dict[str, Any]:
+        meta, items = await self._fetch_raw(page, page_size, type_id, creator_id)
+        return {
+            "items": [normalize_publication(item, self.base_url) for item in items],
+            "total": meta["total"],
+            "page": meta["page"],
+            "page_size": meta["page_size"],
+            "num_pages": meta["num_pages"],
         }
 
     async def search_publications(
@@ -241,127 +394,103 @@ class HubPublicationsClient:
         creator_id: int | None = None,
     ) -> dict[str, Any]:
         needle = query.casefold().strip()
+        pages = max(1, min(max_pages, _MAX_SCAN_PAGES))
+        pages_data, last_meta, scanned = await self._scan(pages, type_id, creator_id)
+
         matches: list[dict[str, Any]] = []
-        scanned = 0
-        truncated = False
-        for page in range(1, max(1, max_pages) + 1):
-            try:
-                batch = await self.list_publications(
-                    page=page,
-                    page_size=_MAX_PAGE_SIZE,
-                    type_id=type_id,
-                    creator_id=creator_id,
-                )
-            except HubNotFoundError:
-                break
-            scanned += 1
-            items = batch["items"]
-            if not items:
-                if not batch["num_pages"] or page >= batch["num_pages"]:
-                    break
-                continue
-            for item in items:
-                haystack = " ".join(
-                    [
-                        item.get("title") or "",
-                        " ".join(item.get("authors") or []),
-                        item.get("signature") or "",
-                        " ".join(item.get("academic_subject") or []),
-                    ]
-                ).casefold()
-                if needle in haystack:
-                    matches.append(item)
-            num_pages = batch["num_pages"]
-            if num_pages and page >= num_pages:
-                break
-            if page == max_pages and num_pages > max_pages:
-                truncated = True
-        return {"matches": matches, "scanned_pages": scanned, "truncated": truncated}
+        for items in pages_data:
+            for raw in items:
+                if _matches(raw, needle):
+                    matches.append(normalize_publication(raw, self.base_url))
 
-    async def get_publication(self, publication_id: int, max_scan_pages: int = 10) -> dict[str, Any]:
-        if self.token:
+        num_pages = last_meta["num_pages"] if last_meta else 0
+        truncated = scanned >= pages and (num_pages == 0 or num_pages > scanned)
+        return {
+            "matches": matches,
+            "scanned_pages": scanned,
+            "truncated": truncated,
+            "total_scanned": sum(len(items) for items in pages_data),
+        }
+
+    async def get_publication(
+        self,
+        publication_id: int,
+        max_scan_pages: int = 10,
+        use_token: bool = True,
+    ) -> dict[str, Any]:
+        """Карточка по id. ``use_token=False`` — только сканирование списка.
+
+        Токен хаба — общий ресурс организации, поэтому анонимные запросы
+        в него не ходят.
+        """
+        if self.token and use_token:
             resp = await self._get(f"/api/assets/{publication_id}/", {}, auth=True)
-            if resp.status_code == 404:
-                raise HubNotFoundError(f"Публикация {publication_id} не найдена")
             if resp.status_code in (401, 403):
-                raise HubAuthRequiredError("Токен хаба отклонён")
-            if resp.status_code != 200:
-                raise HubUnavailableError(f"hub.sfedu.ru ответил {resp.status_code}")
-            raw = resp.json()
-            if isinstance(raw, dict):
-                return normalize_publication(raw, self.base_url)
+                logger.warning("hub_publications_token_rejected", status=resp.status_code)
+                self.token = None
+            else:
+                self._check_status(resp, not_found_msg=f"Публикация {publication_id} не найдена")
+                try:
+                    raw = resp.json()
+                except ValueError:
+                    raise HubUnavailableError("hub.sfedu.ru вернул не-JSON") from None
+                if isinstance(raw, dict) and _publication_id(raw) == publication_id:
+                    return normalize_publication(raw, self.base_url)
 
-        for page in range(1, max(1, max_scan_pages) + 1):
-            try:
-                batch = await self.list_publications(page=page, page_size=_MAX_PAGE_SIZE)
-            except HubNotFoundError:
-                break
-            for item in batch["items"]:
-                if item["id"] == publication_id:
-                    return item
-            if not batch["items"]:
-                if not batch["num_pages"] or page >= batch["num_pages"]:
-                    break
-                continue
-            if batch["num_pages"] and page >= batch["num_pages"]:
-                break
+        pages = max(1, min(max_scan_pages, _MAX_SCAN_PAGES))
+        pages_data, _, _ = await self._scan(pages)
+        for items in pages_data:
+            for raw in items:
+                if _publication_id(raw) == publication_id:
+                    return normalize_publication(raw, self.base_url)
         raise HubNotFoundError(f"Публикация {publication_id} не найдена")
 
     async def list_types(self, sample_pages: int = 3) -> dict[str, Any]:
+        pages = max(1, min(sample_pages, _MAX_SCAN_PAGES))
+        pages_data, _, scanned = await self._scan(pages)
+
         counts: dict[int, dict[str, Any]] = {}
-        scanned = 0
         sample_size = 0
-        for page in range(1, max(1, sample_pages) + 1):
-            try:
-                batch = await self.list_publications(page=page, page_size=_MAX_PAGE_SIZE)
-            except HubNotFoundError:
-                break
-            scanned += 1
-            sample_size += len(batch["items"])
-            for item in batch["items"]:
-                type_id = item.get("type_id")
+        for items in pages_data:
+            sample_size += len(items)
+            for raw in items:
+                publication_type = _dict_of(raw, "type")
+                type_id = publication_type.get("id")
                 if type_id is None:
                     continue
-                entry = counts.setdefault(int(type_id), {"id": int(type_id), "name": item.get("type_name"), "count": 0})
+                try:
+                    type_id_int = int(type_id)
+                except (TypeError, ValueError):
+                    continue
+                entry = counts.setdefault(
+                    type_id_int,
+                    {"id": type_id_int, "name": publication_type.get("type_name"), "count": 0},
+                )
                 entry["count"] += 1
                 if not entry["name"]:
-                    entry["name"] = item.get("type_name")
-            if not batch["items"]:
-                if not batch["num_pages"] or page >= batch["num_pages"]:
-                    break
-                continue
-            if batch["num_pages"] and page >= batch["num_pages"]:
-                break
+                    entry["name"] = publication_type.get("type_name")
         types = sorted(counts.values(), key=lambda entry: (-entry["count"], entry["id"]))
         return {"types": types, "scanned_pages": scanned, "sample_size": sample_size}
 
 
-def _int_header(resp: httpx.Response, name: str, default: int) -> int:
-    value = resp.headers.get(name)
-    if value is None:
-        return default
-    try:
-        return int(value)
-    except ValueError:
-        return default
-
-
-def pages_for(total: int, page_size: int) -> int:
-    if page_size <= 0:
-        return 0
-    return math.ceil(total / page_size)
-
-
 _client: HubPublicationsClient | None = None
+_client_lock = threading.Lock()
 
 
 def get_client() -> HubPublicationsClient:
     global _client
     if _client is None:
-        _client = HubPublicationsClient()
+        with _client_lock:
+            if _client is None:
+                _client = HubPublicationsClient()
     return _client
 
 
-def reset_client() -> None:
+async def close_client() -> None:
+    """Закрывает общий клиент (вызывается на shutdown приложения)."""
     global _client
-    _client = None
+    with _client_lock:
+        client = _client
+        _client = None
+    if client is not None:
+        await client.aclose()
