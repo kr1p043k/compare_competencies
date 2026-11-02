@@ -171,7 +171,15 @@ def _ensure_extracted_skills(vacancies: list[dict]) -> int:
     parser = VacancyParser()
     filled = 0
     for v in vacancies:
-        if v.get("extracted_skills") or (v.get("raw_data") or {}).get("extracted_skills"):
+        existing = v.get("extracted_skills") or (v.get("raw_data") or {}).get("extracted_skills")
+        if existing:
+            # Уже посчитано выше по конвейеру, но регистр бывает разный
+            # («SQL», «SQL »): приводим к канону, иначе дубли в аналитике.
+            canonical = list(dict.fromkeys(
+                t for t in (str(s).strip().lower() for s in existing) if t
+            ))
+            if canonical != list(existing):
+                v["extracted_skills"] = canonical
             continue
         if not (v.get("description") or v.get("key_skills")):
             continue  # нечего парсить: детали не догружены
@@ -179,7 +187,11 @@ def _ensure_extracted_skills(vacancies: list[dict]) -> int:
             vac = VacModel.from_api(v)
             match parser.skill_parser.parse_vacancy(vac):
                 case Ok(skills):
-                    texts = list(dict.fromkeys(s.text for s in skills if s.text))
+                    # Канонический вид (нижний регистр, trim, без дублей):
+                    # «SQL» и «sql» иначе считаются разными навыками.
+                    texts = list(dict.fromkeys(
+                        t for t in (s.text.strip().lower() for s in skills) if t
+                    ))
                 case _:
                     texts = []
         except Exception as exc:

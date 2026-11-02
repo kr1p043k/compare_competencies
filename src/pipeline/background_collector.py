@@ -523,7 +523,12 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
                     continue
                 match parser.skill_parser.parse_vacancy(vac_obj):
                     case Ok(extracted):
-                        texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                        # Канонический вид: без регистра и пробелов по краям.
+                        # Иначе «SQL» и «sql» живут как два разных навыка и
+                        # дробят аналитику (было 746 таких вариантов в БД).
+                        texts = list(dict.fromkeys(
+                            t for t in (s.text.strip().lower() for s in extracted) if t
+                        ))
                         # Write-back for the later INSERT (it reads extracted_skills;
                         # the UPDATE below only matches already-stored rows).
                         v["extracted_skills"] = texts

@@ -100,7 +100,11 @@ async def _populate(run_id: str, force_all: bool) -> None:
 
                     match parser.parse_vacancy(vac):
                         case Ok(skills):
-                            texts = [s.text for s in skills if s.text]
+                            # Канонический вид: без регистра/пробелов по краям,
+                            # иначе «SQL» и «sql» дробят аналитику как разные навыки.
+                            texts = list(dict.fromkeys(
+                                t for t in (s.text.strip().lower() for s in skills) if t
+                            ))
                         case _:
                             texts = []
 
