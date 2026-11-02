@@ -2,13 +2,22 @@ import { handleUnauthorized } from "./auth";
 
 const LOG_ENDPOINT = "/api/log";
 
+// Сервер лимитирует /api/log (20/мин) и обрезает message до 2000 символов.
+// Без дедупликации пачка медленных запросов (прогрев, тяжёлый эндпоинт) даёт
+// поток одинаковых логов и 429. Одинаковые сообщения шлём не чаще раза в 5 c.
+const lastSent: Record<string, number> = {};
+
 function sendLog(level: string, message: string, data?: Record<string, unknown>) {
+  const key = `${level}:${message}:${String(data?.url ?? "")}`;
+  const now = Date.now();
+  if (lastSent[key] && now - lastSent[key] < 5000) return;
+  lastSent[key] = now;
   const f = fetchOriginal ?? globalThis.fetch;
   try {
     f(LOG_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ level, message, data, timestamp: new Date().toISOString() }),
+      body: JSON.stringify({ level, message: message.slice(0, 2000), data, timestamp: new Date(now).toISOString() }),
       keepalive: true,
     });
   } catch {}
@@ -57,7 +66,9 @@ export function initApiLogger() {
         handleUnauthorized();
       }
       if (elapsed > 1000 || !res.ok) {
-        sendLog(elapsed > 1000 ? "warn" : "error", `API ${elapsed > 1000 ? "slow" : "error"}`, {
+        // "warning", не "warn": сервер валидирует level строгим Literal
+        // (debug/info/warning/error) и отвечал 422 на "warn".
+        sendLog(elapsed > 1000 ? "warning" : "error", `API ${elapsed > 1000 ? "slow" : "error"}`, {
           url, method: init?.method || "GET", elapsed_ms: Math.round(elapsed), status: res.status });
       }
       return res;
