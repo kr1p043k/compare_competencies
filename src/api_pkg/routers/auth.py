@@ -9,9 +9,8 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src import config
 from src.api_pkg.client_ip import client_ip
@@ -19,7 +18,19 @@ from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["auth"])
-limiter = Limiter(key_func=get_remote_address)
+
+
+def _login_rate_key(request: Request) -> str:
+    """Ключ лимита входа: реальный IP клиента.
+
+    `get_remote_address` берёт TCP-peer, а за nginx это один и тот же адрес на
+    всех — лимит становится общим и превращается в DoS. `client_ip` не доверяет
+    заголовку от недоверенных соединений, поэтому его нельзя обойти.
+    """
+    return f"login:{client_ip(request)}"
+
+
+limiter = Limiter(key_func=_login_rate_key)
 
 SECRET_KEY = config.get_secret_key()
 TOKEN_TTL = 86400 * config.TOKEN_TTL_DAYS
@@ -98,8 +109,10 @@ async def _register_failed_login(pool, email: str, ip: str) -> None:
 
 
 class LoginRequest(BaseModel):
-    email: str
-    password: str
+    email: str = Field(max_length=320)
+    # bcrypt читает только первые 72 байта, но cost-12 на длинной строке
+    # тратит CPU зря: без границы это бесплатный усилитель для DoS.
+    password: str = Field(min_length=1, max_length=256)
 
 
 def _make_token(user_id: str, email: str, role: str) -> str:

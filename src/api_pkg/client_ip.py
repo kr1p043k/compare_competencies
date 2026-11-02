@@ -56,10 +56,20 @@ def client_ip(request: Request) -> str:
         return peer
 
     hops = [h.strip() for h in raw.split(",") if h.strip()]
-    for hop in reversed(hops):
+    valid: list[str] = []
+    for hop in hops:
+        try:
+            ipaddress.ip_address(hop)
+        except ValueError:
+            # Мусор в заголовке не должен становиться ключом лимита: иначе
+            # клиент подставляет произвольные строки и обходит ограничение.
+            continue
+        valid.append(hop)
+
+    for hop in reversed(valid):
         if not _is_trusted(hop):
             return hop
-    return hops[0] if hops else peer
+    return valid[0] if valid else peer
 
 
 def client_ip_chain_depth(request: Request) -> int:

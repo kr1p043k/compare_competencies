@@ -59,9 +59,11 @@ class LogEntry(BaseModel):
 
     @model_validator(mode="after")
     def _cap_data(self):
-        if self.data is not None:
-            if len(self.data) > 20 or len(json.dumps(self.data, ensure_ascii=False, default=str)) > 10000:
-                raise ValueError("data too large")
+        if self.data is not None and (
+            len(self.data) > 20
+            or len(json.dumps(self.data, ensure_ascii=False, default=str)) > 10000
+        ):
+            raise ValueError("data too large")
         return self
 
 
@@ -137,7 +139,8 @@ async def ready_check():
         "evaluator": deps.evaluator is not None,
         "recommendation_engine": deps.recommendation_engine is not None
         and deps.recommendation_engine.is_fitted,
-        "clusterer": deps.clusterer.is_fitted if deps.clusterer else False,
+        # Кластер теперь ленивый (deps.get_clusterer): не грузим sklearn на /ready.
+        "clusterer": deps.get_clusterer().is_fitted,
         "trend_analyzer": deps.trend_analyzer is not None,
     }
     ready = all(components.values())

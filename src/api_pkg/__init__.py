@@ -21,7 +21,7 @@ from src.monitoring.metrics import get_metrics
 
 _disable_cmdstan().__enter__()
 
-from src.api_pkg import deps as deps  # noqa: F401
+from src.api_pkg import deps as deps  # noqa: F401,E402
 
 logger = structlog.get_logger("api")
 
@@ -218,9 +218,12 @@ def create_app() -> FastAPI:
             status_code=exc.status_code,
             detail=exc.detail,
         )
+        # headers пробрасываем: 429 от lockout несёт Retry-After, без этого
+        # клиент не знает, когда повторять, и долбит сервер в цикле.
         return JSONResponse(
             status_code=exc.status_code,
             content={"detail": exc.detail, "request_id": request_id},
+            headers=exc.headers or None,
         )
 
     from src.api_pkg.routers.health import router as health_router
