@@ -29,6 +29,7 @@ import { MarketView } from "./components/MarketView";
 import { ProfileView } from "./components/ProfileView";
 const ArticlesPage = lazy(() => import("./components/ArticlesPage").then(m => ({ default: m.ArticlesPage })));
 import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
+import { ArticlesPanel } from "./components/ArticlesPanel";
 import { PipelineProgress } from "./components/PipelineProgress";
 import { DataViewer } from "./components/DataViewer";
 import { RecommendationsReport } from "./components/RecommendationsReport";
@@ -1218,6 +1219,9 @@ export default function App() {
           </TabsContent>
           <TabsContent value="scientific-trends">
             <MemoScientificTrendsTab />
+            <div className="mt-6">
+              <ArticlesPanel />
+            </div>
           </TabsContent>
           <TabsContent value="help">
             <Suspense fallback={<TabSpinner />}>
