@@ -91,3 +91,9 @@ docs/TASKS-OPENCODE-*.md
 docs/*handoff*.md
 docs/*-audit.md
 docs/pentest-*.md
+
+# release gate baseline is machine state
+docs/AGENT-*.md
+docs/TASKS-*.md
+docs/AUDIT-*.md
+.release-baseline.json
