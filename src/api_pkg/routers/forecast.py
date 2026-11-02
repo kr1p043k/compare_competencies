@@ -65,6 +65,32 @@ def _top_cache_set(key: tuple, value: tuple) -> None:
     _TOP_CACHE[key] = (_time.monotonic(), value)
 
 
+# /forecast/all тоже считает сотни Prophet-predict'ов (десятки секунд GIL) на
+# каждый вызов - кэшируем результат, как топ. Мета (2 COUNT-скана) - короткий TTL.
+_ALL_CACHE: dict[tuple, tuple[float, tuple]] = {}
+_ALL_CACHE_TTL = 300.0
+_META_CACHE: dict[tuple, tuple[float, dict]] = {}
+_META_CACHE_TTL = 60.0
+
+
+def _cache_get(cache: dict, key: tuple, ttl: float):
+    import time as _time
+
+    entry = cache.get(key)
+    if entry and _time.monotonic() - entry[0] < ttl:
+        return entry[1]
+    return None
+
+
+def _cache_set(cache: dict, key: tuple, value, maxsize: int = 64) -> None:
+    import time as _time
+
+    if len(cache) >= maxsize:
+        oldest = min(cache, key=lambda k: cache[k][0])
+        cache.pop(oldest, None)
+    cache[key] = (_time.monotonic(), value)
+
+
 def _compute_top(engine, direction: str, months: int, want: int, sort: str):
     """Синхронный подсчёт топа (стартует в to_thread - НЕ в event loop).
 
@@ -116,26 +142,16 @@ async def _get_forecast_engine() -> Result[ProphetForecastEngine | SkillForecast
     return Ok(engine)
 
 
-def _get_forecast_data() -> dict[str, float]:
-    data: dict[str, float] = {}
-    freq_path = config.COMPETENCY_FREQ_PATH
-    if freq_path.exists():
-        raw = safe_read_json(freq_path)
-        if isinstance(raw, dict):
-            for k, v in raw.items():
-                if isinstance(v, (int, float)):
-                    data[k] = float(v)
-    weights_path = config.DATA_PROCESSED_DIR / "skill_weights.json"
-    if weights_path.exists():
-        raw = safe_read_json(weights_path)
-        if isinstance(raw, dict):
-            for k, v in raw.items():
-                if k not in data and isinstance(v, (int, float)):
-                    data[k] = float(v)
-    return data
-
-
 async def _get_vacancy_meta() -> dict:
+    cached = _cache_get(_META_CACHE, ("meta",), _META_CACHE_TTL)
+    if cached is not None:
+        return cached
+    meta = await _compute_vacancy_meta()
+    _cache_set(_META_CACHE, ("meta",), meta)
+    return meta
+
+
+async def _compute_vacancy_meta() -> dict:
     meta = {"vacancies_count": 0, "data_from": None, "data_to": date.today().isoformat(),
             "snapshots_count": 0}
     try:
@@ -284,21 +300,27 @@ async def get_all_forecasts(request: Request, months: int = Query(12, ge=1, le=2
     """Прогнозы по всем навыкам."""
     match await _get_forecast_engine():
         case Ok(engine):
-            outcome = await asyncio.to_thread(engine.forecast_all, months)
-            match outcome:
-                case Ok(forecasts):
-                    _record_forecast_accuracy(engine, forecasts)
-                    method = _detect_method(engine)
-                    items = [_serialize(r, method=method) for r in forecasts]
-                    return {"total": len(items), "months": months, "forecasts": items, **_engine_info(engine)}
-                case Err(e):
-                    logger.warning("forecast_compute_failed", error=str(e))
-                    raise HTTPException(
-                        status_code=500,
-                        detail=await user_error_detail(
-                            request, str(e), "Не удалось построить прогноз. Попробуйте позже."
-                        ),
-                    )
+            cache_key = ("all", months, id(engine))
+            cached = _cache_get(_ALL_CACHE, cache_key, _ALL_CACHE_TTL)
+            if cached is not None:
+                items = cached
+            else:
+                outcome = await asyncio.to_thread(engine.forecast_all, months)
+                match outcome:
+                    case Ok(forecasts):
+                        _record_forecast_accuracy(engine, forecasts)
+                        method = _detect_method(engine)
+                        items = [_serialize(r, method=method) for r in forecasts]
+                        _cache_set(_ALL_CACHE, cache_key, items)
+                    case Err(e):
+                        logger.warning("forecast_compute_failed", error=str(e))
+                        raise HTTPException(
+                            status_code=500,
+                            detail=await user_error_detail(
+                                request, str(e), "Не удалось построить прогноз. Попробуйте позже."
+                            ),
+                        )
+            return {"total": len(items), "months": months, "forecasts": items, **_engine_info(engine)}
         case Err(e):
             logger.warning("forecast_engine_unavailable", error=str(e))
             raise HTTPException(
