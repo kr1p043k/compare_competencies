@@ -88,3 +88,6 @@ MEMORY.md
 docs/AGENT-CONTRACT.md
 docs/AGENT-ZONES.md
 docs/TASKS-OPENCODE-*.md
+docs/*handoff*.md
+docs/*-audit.md
+docs/pentest-*.md
