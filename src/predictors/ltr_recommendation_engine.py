@@ -10,6 +10,7 @@ import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import shap
 import structlog
 import xgboost as xgb
 from sklearn.metrics import mean_absolute_error, ndcg_score, r2_score
@@ -878,8 +879,6 @@ class LTRRecommendationEngine(RankingPredictor["LTRRecommendationEngine", list[S
         # An ensemble artifact has no single self.model to explain.
         if shap_n and self.model is not None:
             try:
-                import shap  # ~2.4 c импорта: нужен только для объяснений
-
                 X_top = X.iloc[top_idx[:shap_n]]
                 explainer = shap.TreeExplainer(self.model)
                 shap_values = np.asarray(explainer.shap_values(X_top))
