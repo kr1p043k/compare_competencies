@@ -895,7 +895,7 @@ export function TeacherDashboard() {
                         <span
                           title={only ? `Только в наборе ${only}` : `В наборах ${years.join(" и ")}`}
                           className={
-                            "ml-1.5 align-middle text-[10px] font-medium rounded px-1.5 py-0.5 whitespace-nowrap " +
+                            "ml-1.5 align-middle text-xs font-medium rounded px-1.5 py-0.5 whitespace-nowrap " +
                             (only === 2024
                               ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                               : only === 2025
