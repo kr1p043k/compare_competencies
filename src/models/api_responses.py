@@ -323,3 +323,67 @@ class VacanciesByRegionResponse(BaseModel):
     count: int
     limit: int
     vacancies: list[dict[str, Any]]
+
+
+class PublicationFile(BaseModel):
+    """Файл публикации хаба ЮФУ."""
+    url: str
+    filename: str | None = None
+    size: int | None = None
+    content_type: str | None = None
+
+
+class PublicationOut(BaseModel):
+    """Публикация хаба ЮФУ в плоской схеме."""
+    id: int
+    title: str | None = None
+    authors: list[str] = Field(default_factory=list)
+    type_id: int | None = None
+    type_name: str | None = None
+    signature: str | None = None
+    doi: str | None = None
+    isbn: str | None = None
+    track_id: str | None = None
+    created_at: str | None = None
+    year: int | None = None
+    academic_subject: list[str] = Field(default_factory=list)
+    education_program: list[str] = Field(default_factory=list)
+    files: list[PublicationFile] = Field(default_factory=list)
+    url: str | None = None
+    creator_username: str | None = None
+
+
+class PublicationListResponse(BaseModel):
+    """Страница публикаций хаба."""
+    items: list[PublicationOut]
+    total: int
+    page: int
+    page_size: int
+    num_pages: int
+    source: str = "hub.sfedu.ru"
+
+
+class PublicationSearchResponse(BaseModel):
+    """Результат поиска по публикациям хаба."""
+    query: str
+    matches: list[PublicationOut]
+    total: int
+    scanned_pages: int
+    truncated: bool
+    total_scanned: int = 0
+    source: str = "hub.sfedu.ru"
+
+
+class PublicationType(BaseModel):
+    """Тип публикации хаба."""
+    id: int
+    name: str | None = None
+    count: int
+
+
+class PublicationTypesResponse(BaseModel):
+    """Типы публикаций, встреченные в выборке."""
+    types: list[PublicationType]
+    scanned_pages: int
+    sample_size: int
+    source: str = "hub.sfedu.ru"

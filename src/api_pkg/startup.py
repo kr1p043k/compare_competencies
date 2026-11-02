@@ -27,6 +27,22 @@ from src.utils import load_competency_mapping
 logger = structlog.get_logger("api")
 
 
+def _available_ram_bytes() -> int | None:
+    """Доступная память из /proc/meminfo (Linux). None — если узнать нельзя."""
+    try:
+        with open("/proc/meminfo", "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    parts = line.split()
+                    return int(parts[1]) * 1024
+    except Exception:
+        return None
+    return None
+
+
+_PROPHET_MIN_AVAILABLE_RAM = 1.5 * 1024**3
+
+
 _CUSTOM_PROFILE_RE = re.compile(r"^[a-z0-9_-]{2,40}$")
 
 
@@ -658,18 +674,27 @@ async def _warmup_background(basic_vacancies, raw_file):
         async with async_session_factory() as session:
             match await load_time_series(session):
                 case Ok(snapshots):
-                    prophet = ProphetForecastEngine()
-                    # fit_async фитит модели по одной, отдавая управление loop:
-                    # параллельный fit держал /health в таймауте на время работы.
-                    match await prophet.fit_async(snapshots, fallback_freqs=deps.skill_freq):
-                        case Ok(_):
-                            deps.prophet_engine = prophet
-                            logger.info("prophet_engine_ready",
-                                        prophet_skills=len(prophet._models),
-                                        snapshots=len(snapshots))
-                        case Err(e):
-                            deps.prophet_engine = None
-                            logger.warning("prophet_engine_fit_failed", error=str(e))
+                    avail_ram = _available_ram_bytes()
+                    if avail_ram is not None and avail_ram < _PROPHET_MIN_AVAILABLE_RAM:
+                        deps.prophet_engine = None
+                        logger.warning(
+                            "prophet_skipped_low_memory",
+                            available_ram_gb=round(avail_ram / 1024**3, 2),
+                            required_ram_gb=round(_PROPHET_MIN_AVAILABLE_RAM / 1024**3, 2),
+                        )
+                    else:
+                        prophet = ProphetForecastEngine()
+                        # fit_async фитит модели по одной, отдавая управление loop:
+                        # параллельный fit держал /health в таймауте на время работы.
+                        match await prophet.fit_async(snapshots, fallback_freqs=deps.skill_freq):
+                            case Ok(_):
+                                deps.prophet_engine = prophet
+                                logger.info("prophet_engine_ready",
+                                            prophet_skills=len(prophet._models),
+                                            snapshots=len(snapshots))
+                            case Err(e):
+                                deps.prophet_engine = None
+                                logger.warning("prophet_engine_fit_failed", error=str(e))
                 case Err(e):
                     deps.prophet_engine = None
                     logger.info("prophet_engine_unavailable_use_fallback", detail=str(e))

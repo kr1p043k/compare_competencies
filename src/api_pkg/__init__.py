@@ -57,6 +57,9 @@ def create_app() -> FastAPI:
         yield
         from src.database import get_engine
         from src.db import close_pool
+        from src.infrastructure.hub_publications import close_client as close_hub_client
+
+        await close_hub_client()
         await close_pool()
         await get_engine().dispose()
         logger.info("API shutting down...")
@@ -261,6 +264,8 @@ def create_app() -> FastAPI:
     _mount(auth_router)
     from src.api_pkg.routers.academic import router as academic_router
     _mount(academic_router)
+    from src.api_pkg.routers.publications import router as publications_router
+    _mount(publications_router)
     from src.api_pkg.routers.teacher import router as teacher_router
     _mount(teacher_router)
     from src.api_pkg.routers.rpd import router as rpd_router

@@ -229,6 +229,14 @@ class Settings(BaseSettings):
     ACADEMIC_EMAIL_DOMAIN: str = "sfedu.ru"
     ACADEMIC_SSO_ENABLED: bool = True
 
+    # ---------- hub.sfedu.ru: публикации (публичный API хаба ЮФУ) ----------
+    HUB_API_BASE: str = "https://hub.sfedu.ru"
+    # Токен нужен только для карточки /api/assets/{id}/; список публикаций открыт.
+    HUB_API_TOKEN: SecretStr | None = None
+    HUB_API_TIMEOUT_S: float = 30.0
+    # TTL кэша списка/типов публикаций; 0 — без кэша.
+    HUB_CACHE_TTL_S: float = 120.0
+
     # валидация путей относительно BASE_DIR
     @field_validator(
         "DATA_DIR",
@@ -463,3 +471,8 @@ PYDANTIC_VALIDATION_ENABLED = settings.PYDANTIC_VALIDATION_ENABLED
 ACADEMIC_API_BASE = settings.ACADEMIC_API_BASE
 ACADEMIC_EMAIL_DOMAIN = settings.ACADEMIC_EMAIL_DOMAIN
 ACADEMIC_SSO_ENABLED = settings.ACADEMIC_SSO_ENABLED
+
+HUB_API_BASE = settings.HUB_API_BASE
+HUB_API_TOKEN = settings.HUB_API_TOKEN
+HUB_API_TIMEOUT_S = settings.HUB_API_TIMEOUT_S
+HUB_CACHE_TTL_S = settings.HUB_CACHE_TTL_S

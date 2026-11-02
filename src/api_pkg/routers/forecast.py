@@ -20,6 +20,9 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["forecast"], dependencies=[Depends(require_authenticated())])
 limiter = Limiter(key_func=get_remote_address)
 
+_forecast_engine_lock = asyncio.Lock()
+_FORECAST_FIT_TIMEOUT_S = 180
+
 
 def _engine_info(engine) -> dict:
     """Чем посчитано: имя движка + состояние Prophet (диагностика 'почему trend').
@@ -131,15 +134,28 @@ async def _get_forecast_engine() -> Result[ProphetForecastEngine | SkillForecast
         return Ok(deps.prophet_engine)
     if deps.skill_engine is not None:
         return Ok(deps.skill_engine)
-    freqs = _get_forecast_data()
-    if not freqs:
-        return Err(DomainError("No frequency data available for forecast"))
-    engine = SkillForecastEngine()
-    result = await asyncio.to_thread(engine.fit, freqs)
-    if isinstance(result, Err):
-        return result
-    deps.skill_engine = engine
-    return Ok(engine)
+    async with _forecast_engine_lock:
+        # Повторная проверка под локом: движок могли собрать параллельный запрос
+        if deps.prophet_engine is not None and deps.prophet_engine.is_fitted:
+            return Ok(deps.prophet_engine)
+        if deps.skill_engine is not None:
+            return Ok(deps.skill_engine)
+        freqs = _get_forecast_data()
+        if not freqs:
+            return Err(DomainError("No frequency data available for forecast"))
+        engine = SkillForecastEngine()
+        try:
+            result = await asyncio.wait_for(asyncio.to_thread(engine.fit, freqs), timeout=_FORECAST_FIT_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            logger.warning("skill_forecast_fit_timeout")
+            return Err(DomainError("Forecast engine fit timed out"))
+        except Exception as e:
+            logger.warning("skill_forecast_fit_failed", error=str(e))
+            return Err(DomainError(f"Forecast engine fit failed: {e}"))
+        if isinstance(result, Err):
+            return result
+        deps.skill_engine = engine
+        return Ok(engine)
 
 
 async def _get_vacancy_meta() -> dict:
@@ -482,6 +498,21 @@ async def get_observed_drops(
             )
 
 
+def _run_top_forecast(engine, direction: str, n: int, months: int) -> Result[list, DomainError]:
+    """Синхронный расчёт топ-прогнозов (выполняется в потоке)."""
+    if isinstance(engine, ProphetForecastEngine):
+        if direction == "declining":
+            return engine.top_declining(n=n, months=months)
+        return engine.top_growing(n=n, months=months)
+    match engine.top_growing(n=n * 2, months=months):
+        case Ok(all_results):
+            if direction == "declining":
+                all_results = sorted(all_results, key=lambda x: x.predicted_growth)[:n]
+            return Ok(all_results[:n])
+        case Err(e):
+            return Err(e)
+
+
 @router.get("/forecast/popular")
 @limiter.limit("30/minute")
 async def get_popular_forecasts(
@@ -532,16 +563,22 @@ async def get_popular_forecasts(
             )
 
 
+def _run_popular_forecast(engine, n: int, months: int) -> Result[list, DomainError]:
+    """Синхронный расчёт популярных прогнозов (выполняется в потоке)."""
+    if isinstance(engine, ProphetForecastEngine):
+        return engine.top_popular(n=n, months=months)
+    all_results = sorted(engine.forecast_all(months).unwrap_or([]), key=lambda x: x.current_frequency, reverse=True)
+    return Ok(all_results[:n])
+
+
 @router.get("/forecast/{skill}")
 @limiter.limit("60/minute")
 async def get_skill_forecast(skill: str, request: Request, months: int = Query(12, ge=1, le=24)):
     """Прогноз по одному навыку."""
     match await _get_forecast_engine():
         case Ok(engine):
-            if hasattr(engine, "forecast"):
-                result = await asyncio.to_thread(engine.forecast, skill, months)
-            else:
-                result = await asyncio.to_thread(engine.predict, skill, months)
+            predict = engine.forecast if hasattr(engine, "forecast") else engine.predict
+            result = await asyncio.to_thread(predict, skill, months)
             match result:
                 case Ok(r):
                     _record_forecast_accuracy(engine, [r])
