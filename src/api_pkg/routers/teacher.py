@@ -984,7 +984,9 @@ async def admin_student_skills(request: Request, email: str = ""):
     """Навыки + компетенции студента из его self-профиля.
 
     Self file resolved via profiles helpers (no duplication).
-    404 when the user has no self file; never 500 for a missing file.
+    404 только если такого пользователя нет. Существующий студент без
+    self-профиля — норма (он ещё не заполнял профиль): отдаём 200 с
+    has_profile=false, иначе клик по строке в списке «Студенты» падал.
     """
     target = (email or "").strip().lower()
     if not target:
@@ -992,7 +994,24 @@ async def admin_student_skills(request: Request, email: str = ""):
     name, fpath = _self_profile_name(target)
     probe = Path(fpath)
     if not probe.exists():
-        raise HTTPException(status_code=404, detail=f"No self profile for '{target}'")
+        try:
+            row = await get_pool().fetchrow(
+                "SELECT full_name FROM users WHERE lower(email) = $1", target)
+        except Exception as exc:
+            logger.warning("admin_student_skills_db_failed", error=str(exc))
+            raise HTTPException(status_code=503, detail="User directory unavailable")
+        if row is None:
+            raise HTTPException(status_code=404, detail=f"No user for '{target}'")
+        return {
+            "email": target,
+            "full_name": row["full_name"] or "",
+            "target_level": "middle",
+            "skills": [],
+            "user_added": [],
+            "competencies": [],
+            "updated_at": None,
+            "has_profile": False,
+        }
     data = _load_self_profile(name, fpath)
     try:
         updated = datetime.fromtimestamp(probe.stat().st_mtime).isoformat()
@@ -1000,7 +1019,7 @@ async def admin_student_skills(request: Request, email: str = ""):
         updated = None
     try:
         row = await get_pool().fetchrow(
-            "SELECT full_name FROM users WHERE email = $1", target)
+            "SELECT full_name FROM users WHERE lower(email) = $1", target)
         full_name = (row["full_name"] if row else "") or ""
     except Exception as exc:
         logger.warning("admin_student_skills_db_failed", error=str(exc))
@@ -1013,6 +1032,7 @@ async def admin_student_skills(request: Request, email: str = ""):
         "user_added": data.get("user_added", []),
         "competencies": data.get("competencies", []),
         "updated_at": updated,
+        "has_profile": True,
     }
 
 

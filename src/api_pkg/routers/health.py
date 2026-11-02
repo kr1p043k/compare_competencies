@@ -67,6 +67,11 @@ class LogEntry(BaseModel):
 
 _LOG_FILE = Path(__file__).parent.parent.parent.parent / "frontend" / "logs" / "app.log"
 
+#: Клиентский лог раньше рос без ограничений (на проде уже 380+ КБ).
+#: Держим один бэкап и начинаем заново после порога — этого хватает, чтобы
+#: разобрать инцидент, но диск не забивается.
+_LOG_MAX_BYTES = 2 * 1024 * 1024
+
 
 def _write_log_sync(entry: LogEntry) -> None:
     _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -79,6 +84,14 @@ def _write_log_sync(entry: LogEntry) -> None:
         },
         ensure_ascii=False,
     )
+    try:
+        if _LOG_FILE.exists() and _LOG_FILE.stat().st_size > _LOG_MAX_BYTES:
+            backup = _LOG_FILE.with_suffix(".log.1")
+            backup.unlink(missing_ok=True)
+            _LOG_FILE.rename(backup)
+    except OSError:
+        # Ротация — не повод терять запись: пишем как есть.
+        pass
     with open(_LOG_FILE, "a", encoding="utf-8") as f:
         f.write(line + "\n")
 
