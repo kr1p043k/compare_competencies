@@ -241,6 +241,70 @@ async def get_competency_trends(
         # 4. resolve keys once against cur vocabulary
         cur_keys = set(normalized_cur.keys())
 
+        # 4a. Инвертированный индекс слов по снимкам: слово -> позиции ключей
+        # снимка (в порядке вставки), содержащих это слово. Условие
+        # _sw(canonical) <= _sw(ok) <=> все слова canonical есть в ok, поэтому
+        # первый подходящий ok ищется пересечением коротких списков вместо
+        # полного перебора ключей снимка для каждой пары (навык x снимок).
+        snap_ctx: list[tuple[str, dict[str, int], list[str], dict[str, list[int]]]] = []
+        for sdate, sf in parsed_snaps:
+            keys = list(sf.keys())
+            word_index: dict[str, list[int]] = {}
+            for idx, ok in enumerate(keys):
+                for w in _sw(ok):
+                    word_index.setdefault(w, []).append(idx)
+            snap_ctx.append((sdate, sf, keys, word_index))
+        dates = [sdate for sdate, _ in parsed_snaps]
+
+        # 4b. Канонический ключ навыка - один раз: функция чистая относительно
+        # cur_keys/inverted/mapping, константных на запрос. Раньше вызывалась на
+        # каждую пару (компетенция x навык), т.е. до 11238 раз вместо 840.
+        canonical_by_skill: dict[str, str | None] = {}
+        for data in comp_map.values():
+            for sk in data["skills"]:
+                if sk not in canonical_by_skill:
+                    canonical_by_skill[sk] = _resolve_canonical_key(
+                        sk, cur_keys, inverted, mapping
+                    )
+
+        # 4c. Вектор history (freq по каждому снимку) считается один раз на
+        # канонический ключ и переиспользуется всеми навыками и компетенциями -
+        # именно здесь был двойной цикл (навыки x снимки x ключи снимка).
+        _history_vectors: dict[str, list[int]] = {}
+
+        def _history_vector(canonical: str) -> list[int]:
+            cached_vec = _history_vectors.get(canonical)
+            if cached_vec is not None:
+                return cached_vec
+            cw = _sw(canonical)
+            cw_empty = not cw
+            long_enough = len(canonical) >= 3
+            vec: list[int] = []
+            for _sdate, sf, keys, word_index in snap_ctx:
+                if canonical in sf:
+                    vec.append(sf[canonical])
+                elif long_enough and cw_empty:
+                    # пустое множество слов - подмножество любого ok: первый ключ
+                    vec.append(sf[keys[0]] if keys else 0)
+                elif long_enough:
+                    candidates: set[int] | None = None
+                    for w in cw:
+                        positions = word_index.get(w)
+                        if not positions:
+                            candidates = None
+                            break
+                        if candidates is None:
+                            candidates = set(positions)
+                        else:
+                            candidates.intersection_update(positions)
+                            if not candidates:
+                                break
+                    vec.append(sf[keys[min(candidates)]] if candidates else 0)
+                else:
+                    vec.append(0)
+            _history_vectors[canonical] = vec
+            return vec
+
         # 5. compute trends per competency
         results = []
         for code, data in comp_map.items():
@@ -249,7 +313,7 @@ async def get_competency_trends(
             rising = 0
             falling = 0
             for sk in sorted(set(data["skills"])):
-                canonical = _resolve_canonical_key(sk, cur_keys, inverted, mapping)
+                canonical = canonical_by_skill[sk]
                 cv = normalized_cur.get(canonical, 0) or 0 if canonical else 0
                 pv = normalized_prev.get(canonical, 0) or 0 if canonical else 0
 
@@ -265,17 +329,13 @@ async def get_competency_trends(
                 else:
                     chg = 0.0
 
-                history = []
-                for sdate, sf in parsed_snaps:
-                    val = 0
-                    if canonical and canonical in sf:
-                        val = sf[canonical]
-                    elif canonical and len(canonical) >= 3:
-                        for ok, ov in sf.items():
-                            if ok != canonical and _sw(canonical) <= _sw(ok):
-                                val = ov
-                                break
-                    history.append({"date": sdate, "freq": val})
+                if canonical:
+                    vals = _history_vector(canonical)
+                    history = [
+                        {"date": dates[i], "freq": vals[i]} for i in range(len(dates))
+                    ]
+                else:
+                    history = [{"date": d, "freq": 0} for d in dates]
 
                 skill_list.append({
                     "name": sk,
