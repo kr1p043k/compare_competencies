@@ -79,3 +79,8 @@ MagicMock/
 
 # РІСЂРµРјРµРЅРЅС‹Рµ Р°СЂС‚РµС„Р°РєС‚С‹ РёРЅСЃС‚СЂСѓРјРµРЅС‚РѕРІ (Р»РѕРі uvicorn, headless-РїСЂРѕС„РёР»СЊ Chrome, СЃРєСЂРёРЅС€РѕС‚С‹)
 .tmp_*
+
+# Рабочие документы агентов: локально, в remote не нужны
+docs/AGENT-CONTRACT.md
+docs/AGENT-ZONES.md
+docs/TASKS-OPENCODE-*.md
