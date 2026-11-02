@@ -1,5 +1,6 @@
 """API package - фабрика FastAPI приложения."""
 
+import os
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -101,9 +102,14 @@ def create_app() -> FastAPI:
         config.ALLOWED_ORIGINS.split(",") if config.ALLOWED_ORIGINS != "*" else ["*"]
     )
     if allowed_origins == ["*"]:
-        # Не запрещаем старт (может быть осознанный кейс), но громко предупреждаем:
-        # открытый CORS - идея плохая, особенно если появятся cookie-сессии.
-        logger.warning("cors_allow_all_origins", hint="задайте ALLOWED_ORIGINS списком доменов")
+        # В проде '*' значит, что любой сайт читает API от имени пользователя:
+        # падаем на старте, а не отдаём данные кому попало.
+        _prod = os.getenv("APP_ENV", "").lower() in ("prod", "production")
+        if _prod:
+            raise RuntimeError(
+                "ALLOWED_ORIGINS='*' недопустим в продакшене: перечислите домены через запятую"
+            )
+        logger.warning("cors_allow_all_origins", hint="Задайте ALLOWED_ORIGINS списком доменов")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
