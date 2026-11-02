@@ -67,6 +67,14 @@ def _classify(change_pct: float) -> str:
     return "stable"
 
 
+def _month_key(date_str: str) -> tuple[int, int]:
+    """'2026-11-01' -> (2026, 11): ключ месячного бакета для истории."""
+    try:
+        return int(date_str[:4]), int(date_str[5:7])
+    except (ValueError, IndexError):
+        return 0, 0
+
+
 @lru_cache(maxsize=1)
 def _get_mappings():
     mapping = load_competency_mapping()
@@ -241,24 +249,9 @@ async def get_competency_trends(
         # 4. resolve keys once against cur vocabulary
         cur_keys = set(normalized_cur.keys())
 
-        # 4a. Инвертированный индекс слов по снимкам: слово -> позиции ключей
-        # снимка (в порядке вставки), содержащих это слово. Условие
-        # _sw(canonical) <= _sw(ok) <=> все слова canonical есть в ok, поэтому
-        # первый подходящий ok ищется пересечением коротких списков вместо
-        # полного перебора ключей снимка для каждой пары (навык x снимок).
-        snap_ctx: list[tuple[str, dict[str, int], list[str], dict[str, list[int]]]] = []
-        for sdate, sf in parsed_snaps:
-            keys = list(sf.keys())
-            word_index: dict[str, list[int]] = {}
-            for idx, ok in enumerate(keys):
-                for w in _sw(ok):
-                    word_index.setdefault(w, []).append(idx)
-            snap_ctx.append((sdate, sf, keys, word_index))
-        dates = [sdate for sdate, _ in parsed_snaps]
-
-        # 4b. Канонический ключ навыка - один раз: функция чистая относительно
-        # cur_keys/inverted/mapping, константных на запрос. Раньше вызывалась на
-        # каждую пару (компетенция x навык), т.е. до 11238 раз вместо 840.
+        # 4b. Канонический ключ навыка резолвится один раз на запрос: функция
+        # чистая относительно cur_keys/inverted/mapping, а вызывалась бы на
+        # каждую пару (компетенция x навык).
         canonical_by_skill: dict[str, str | None] = {}
         for data in comp_map.values():
             for sk in data["skills"]:
@@ -267,41 +260,66 @@ async def get_competency_trends(
                         sk, cur_keys, inverted, mapping
                     )
 
-        # 4c. Вектор history (freq по каждому снимку) считается один раз на
-        # канонический ключ и переиспользуется всеми навыками и компетенциями -
-        # именно здесь был двойной цикл (навыки x снимки x ключи снимка).
+        # 4c. Вектор history считается один раз на канонический ключ.
+        #
+        # Раньше это был сырой ряд из ВСЕХ снимков (241 точка) для каждого навыка
+        # каждой компетенции: ~11k навыков x 241 = 2.19 млн объектов, ответ 66 МБ,
+        # 12-15 с на сериализацию. Для спарклайна столько не нужно, поэтому:
+        #  * сворачиваем снимки в месячные бакеты (до 12 точек);
+        #  * считаем только для навыков, которые есть на текущем рынке (cv > 0) -
+        #    у отсутствующих история нулевая и график не рисуется;
+        #  * значения нормализуем по объёму снимка (как в прогнозе): объём сбора
+        #    между снимками различается в разы, сырые counts давали ложные скачки.
+        all_dates = [sdate for sdate, _ in parsed_snaps]
+        month_order = sorted({_month_key(d) for d in all_dates})[-12:]
+        month_index = {m: i for i, m in enumerate(month_order)}
+        ref_total = sum(parsed_snaps[0][1].values()) if parsed_snaps else 0
         _history_vectors: dict[str, list[int]] = {}
+
+        # ключ снимка -> доля от объёма снимка
+        snap_shares: list[tuple[str, dict[str, float]]] = []
+        for sdate, sf in parsed_snaps:
+            total = sum(sf.values())
+            if total <= 0:
+                continue
+            snap_shares.append(
+                (sdate, {k: v / total for k, v in sf.items()})
+            )
+
+        # месячные суммы долей + счётчик снимков в месяце
+        month_sums: list[dict[str, float]] = [{} for _ in month_order]
+        month_counts = [0] * len(month_order)
+        for sdate, shares in snap_shares:
+            idx = month_index.get(_month_key(sdate))
+            if idx is None:
+                continue
+            month_counts[idx] += 1
+            bucket = month_sums[idx]
+            for k, share in shares.items():
+                bucket[k] = bucket.get(k, 0.0) + share
+
+        month_labels = [f"{m[0]}-{m[1]:02d}" for m in month_order]
 
         def _history_vector(canonical: str) -> list[int]:
             cached_vec = _history_vectors.get(canonical)
             if cached_vec is not None:
                 return cached_vec
             cw = _sw(canonical)
-            cw_empty = not cw
             long_enough = len(canonical) >= 3
             vec: list[int] = []
-            for _sdate, sf, keys, word_index in snap_ctx:
-                if canonical in sf:
-                    vec.append(sf[canonical])
-                elif long_enough and cw_empty:
-                    # пустое множество слов - подмножество любого ok: первый ключ
-                    vec.append(sf[keys[0]] if keys else 0)
-                elif long_enough:
-                    candidates: set[int] | None = None
-                    for w in cw:
-                        positions = word_index.get(w)
-                        if not positions:
-                            candidates = None
-                            break
-                        if candidates is None:
-                            candidates = set(positions)
-                        else:
-                            candidates.intersection_update(positions)
-                            if not candidates:
-                                break
-                    vec.append(sf[keys[min(candidates)]] if candidates else 0)
-                else:
+            for idx in range(len(month_sums)):
+                if not month_counts[idx]:
                     vec.append(0)
+                    continue
+                bucket = month_sums[idx]
+                val = bucket.get(canonical)
+                if val is None and long_enough and cw:
+                    for ok, ov in bucket.items():
+                        if _sw(ok) >= cw:
+                            val = ov
+                            break
+                share = (val or 0.0) / month_counts[idx]
+                vec.append(int(round(share * ref_total)))
             _history_vectors[canonical] = vec
             return vec
 
@@ -329,13 +347,16 @@ async def get_competency_trends(
                 else:
                     chg = 0.0
 
-                if canonical:
+                # История только для навыков, реально присутствующих на рынке:
+                # у нулевых её не рисуют, а весит она больше всего.
+                if canonical and cv > 0:
                     vals = _history_vector(canonical)
                     history = [
-                        {"date": dates[i], "freq": vals[i]} for i in range(len(dates))
+                        {"date": month_labels[i], "freq": vals[i]}
+                        for i in range(len(month_labels))
                     ]
                 else:
-                    history = [{"date": d, "freq": 0} for d in dates]
+                    history = []
 
                 skill_list.append({
                     "name": sk,
