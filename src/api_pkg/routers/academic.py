@@ -17,7 +17,7 @@ import httpx
 import structlog
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -45,7 +45,9 @@ _ACADEMIC_HEADERS = {
 
 
 class SsoRequest(BaseModel):
-    token: str
+    # JWT не бывает длиннее нескольких килобайт: ограничение снимает
+    # бесплатный CPU-усилитель на разборе и логировании гигантской строки.
+    token: str = Field(min_length=1, max_length=4096)
 
 
 class CompetenciesRequest(BaseModel):
