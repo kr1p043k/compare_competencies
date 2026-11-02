@@ -260,8 +260,18 @@ export default function App() {
   const pipelineTaskRef = useRef<string | null>(null);
   const pipelineLoadingRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gapCancelRef = useRef(false);
   const profileRef = useRef(profile);
   useEffect(() => { profileRef.current = profile; }, [profile]);
+
+  // Размонтирование: гасим таймер статуса и останавливаем поллинг gap-анализа
+  // (иначе цикл живёт в фоне и делает setState в никуда).
+  useEffect(() => () => {
+    gapCancelRef.current = true;
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+  }, []);
 
   const { isAuth, login, logout, role, name, username } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
@@ -553,7 +563,13 @@ export default function App() {
 
   function showStatus(type: "success" | "error" | "info", message: string) {
     setStatus({ type, message });
-    setTimeout(() => setStatus({ type: null, message: "" }), 5000);
+    // Один таймер на все статусы: иначе прошлый setTimeout гасит новый статус
+    // через остаток своих 5 с.
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    statusTimerRef.current = setTimeout(() => {
+      setStatus({ type: null, message: "" });
+      statusTimerRef.current = null;
+    }, 5000);
   }
 
   async function apiCall(endpoint: string, method = "GET", body: any = null) {
@@ -596,8 +612,10 @@ export default function App() {
       if (!m) throw new Error("Не получен ID задачи");
       const taskId = m[1];
       let statusMisses = 0;
+      gapCancelRef.current = false;
       for (;;) {
         await new Promise((res) => setTimeout(res, 3000));
+        if (gapCancelRef.current) return;
         let s: any = null;
         try {
           s = await request<any>(`/api/pipeline/task/${taskId}`).catch(() => null);
@@ -639,7 +657,7 @@ export default function App() {
       setGapMsg("");
       setToast(`Ошибка gap-анализа: ${e?.message || e}`);
     } finally {
-      setGapRunning(false);
+      if (!gapCancelRef.current) setGapRunning(false);
     }
   }
 
