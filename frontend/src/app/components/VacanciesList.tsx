@@ -5,7 +5,7 @@ import { VacancyDetailPanel } from "./VacancyDetailPanel";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { PageHeader } from "./PageHeader";
+import { PageHeader } from "../../design";
 import {
   Select,
   SelectContent,
@@ -20,7 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "./ui/card";
-import { Search, X, Filter, Briefcase, Loader2, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, LayoutGrid, List, Database, Rocket, Globe, MapPin, ChevronDown, Download } from "lucide-react";
+import { Search, X, Filter, Loader2, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, LayoutGrid, List, Database, Rocket, Globe, MapPin, ChevronDown, Download } from "lucide-react";
 import { reportError } from "./../../lib/errors";
 import { download, request, saveBlob } from "../../lib/api";
 import { EmptyState } from "./EmptyState";
@@ -319,9 +319,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
   return (
     <div className="space-y-6">
       {/* Header */}
-      <PageHeader icon={Briefcase} title="Вакансии с hh.ru" />
+      <PageHeader eyebrow="Рынок труда" title="Вакансии с hh.ru" />
       {vacancyInfo && (
-      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400 dark:text-slate-500">
+      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
       {vacancyInfo.date_range && (
       <span>Записи с {fmtDateRU(vacancyInfo.date_range.from)}</span>
       )}
@@ -339,8 +339,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           animate={{ opacity: 1, y: 0 }}
           className="space-y-4"
         >
-          <Card className="border-0 shadow-sm bg-slate-50 dark:bg-slate-900">
-            <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50">
+          <Card className="border-0 shadow-sm bg-muted dark:bg-card">
+            <CardHeader className="border-b border-border/50 dark:border-border/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-sky-600 rounded-lg">
@@ -359,7 +359,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <CardContent className="p-6 space-y-5">
               {/* Profession */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                   Профессия
                 </label>
                 <Input
@@ -369,13 +369,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   disabled={!cityMode}
                   className="h-10"
                 />
-                <p className="text-xs text-slate-400">{!cityMode ? "Весь рынок - поиск по всем IT-профессиям" : "Оставьте пустым для поиска по всем профессиям"}</p>
+                <p className="text-xs text-muted-foreground">{!cityMode ? "Весь рынок - поиск по всем IT-профессиям" : "Оставьте пустым для поиска по всем профессиям"}</p>
               </div>
 
               {/* Search params */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                     Страниц
                   </label>
                   <Input
@@ -386,10 +386,10 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     onChange={(e) => setPipelineMaxPagesLocal(Math.max(1, Math.min(100, Number(e.target.value) || 20)))}
                     className="h-10"
                   />
-                  <p className="text-xs text-slate-400">1-100 (по 100 вакансий на страницу)</p>
+                  <p className="text-xs text-muted-foreground">1-100 (по 100 вакансий на страницу)</p>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                     Период (дней)
                   </label>
                   <Input
@@ -400,7 +400,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     onChange={(e) => setPipelinePeriodLocal(Math.max(1, Math.min(365, Number(e.target.value) || 30)))}
                     className="h-10"
                   />
-                  <p className="text-xs text-slate-400">1-365, по умолч. 30</p>
+                  <p className="text-xs text-muted-foreground">1-365, по умолч. 30</p>
                 </div>
               </div>
 
@@ -409,7 +409,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   variant={!cityMode ? "default" : "outline"}
                   onClick={() => { setCityMode(false); setSelectedCities([]); setPipelineRegion("0"); setPipelineProfession(""); }}
-                  className={`flex-1 h-10 gap-2 ${!cityMode ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
+                  className={`flex-1 h-10 gap-2 ${!cityMode ? "bg-card text-white hover:bg-muted dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <Globe className="size-4" />
                   Весь рынок
@@ -417,7 +417,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   variant={cityMode ? "default" : "outline"}
                   onClick={() => { setCityMode(true); if (selectedCities.length === 0) setSelectedCities([...HH_REGIONS]); }}
-                  className={`flex-1 h-10 gap-2 ${cityMode ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
+                  className={`flex-1 h-10 gap-2 ${cityMode ? "bg-card text-white hover:bg-muted dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <MapPin className="size-4" />
                   Выбрать города
@@ -428,7 +428,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               {cityMode && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                       Города ({selectedCities.length} из {HH_REGIONS.length})
                     </label>
                     <div className="flex gap-1">
@@ -450,11 +450,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                       </Button>
                     </div>
                   </div>
-                  <div className="max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg p-2 grid grid-cols-2 sm:grid-cols-3 gap-1">
+                  <div className="max-h-48 overflow-y-auto border border-border dark:border-border rounded-lg p-2 grid grid-cols-2 sm:grid-cols-3 gap-1">
                     {HH_REGIONS.map((city) => (
                       <label
                         key={city}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 select-none"
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm cursor-pointer hover:bg-muted dark:hover:bg-muted select-none"
                       >
                         <input
                           type="checkbox"
@@ -466,7 +466,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                                 : [...prev, city]
                             );
                           }}
-                          className="rounded border-slate-300 dark:border-slate-600"
+                          className="rounded border-border-strong dark:border-border-strong"
                         />
                         <span className="truncate">{city}</span>
                       </label>
@@ -490,7 +490,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
-                      className="border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 space-y-3"
+                      className="border border-primary/30 dark:border-blue-800 bg-primary-soft dark:bg-blue-950/20 rounded-lg p-4 space-y-3"
                     >
                       <div className="flex items-center gap-2 text-sm font-medium text-blue-800 dark:text-blue-200">
                         <Globe className="size-4" />
@@ -499,15 +499,15 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                       <p className="text-xs text-blue-700 dark:text-blue-300">
                         Будут собраны вакансии {vacancyInfo?.count ? `(в базе: ${vacancyInfo.count} шт.${vacancyInfo.with_skills ? `, с навыками: ${vacancyInfo.with_skills} шт.` : ""})` : ""} по всем IT-направлениям: Data Scientist, ML Engineer, Python/Java/Fullstack/Frontend/Backend Developer, DevOps, QA, Security, SRE, Mobile Dev, Analyst, Architect, Team Lead, UX/UI Designer, Game Dev и другим
                       </p>
-                      <div className="text-xs text-blue-600 dark:text-blue-400">
+                      <div className="text-xs text-primary dark:text-primary">
                         <span className="font-medium">Города ({HH_REGIONS.length}):</span>
                         <input
                           value={cityQuery}
                           onChange={(e) => setCityQuery(e.target.value)}
                           placeholder="Найти город..."
-                          className="mt-2 w-full h-8 px-3 text-xs rounded-lg border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100 outline-none"
+                          className="mt-2 w-full h-8 px-3 text-xs rounded-lg border border-primary/30 dark:border-blue-800 bg-white dark:bg-background text-foreground outline-none"
                         />
-                        <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-blue-200/60 dark:border-blue-800/60 divide-y divide-blue-100 dark:divide-blue-900/40">
+                        <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-primary/30/60 dark:border-blue-800/60 divide-y divide-blue-100 dark:divide-blue-900/40">
                           {(() => {
                             const q = cityQuery.trim().toLowerCase();
                             const filtered = HH_REGIONS.filter((c) => !q || c.toLowerCase().includes(q));
@@ -529,11 +529,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                                   <div key={letter}>
                                     <button
                                       onClick={() => setOpenLetters((p) => ({ ...p, [letter]: !(p[letter] ?? (q.length > 0 || sel > 0)) }))}
-                                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-blue-800 dark:text-blue-200 hover:bg-white/60 dark:hover:bg-slate-800/60 cursor-pointer"
+                                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-blue-800 dark:text-blue-200 hover:bg-white/60 dark:hover:bg-muted/60 cursor-pointer"
                                     >
                                       <ChevronDown className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
                                       {letter}
-                                      <span className="ml-auto font-normal text-blue-500">
+                                      <span className="ml-auto font-normal text-primary">
                                         {sel > 0 ? `${sel}/${cities.length}` : cities.length}
                                       </span>
                                     </button>
@@ -548,8 +548,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                                               title={on ? "Убрать из выборки" : "Добавить к выборке"}
                                               className={`px-2 py-0.5 text-xs rounded-full border transition-colors cursor-pointer ${
                                                 on
-                                                  ? "bg-blue-600 text-white border-blue-600"
-                                                  : "bg-white/70 dark:bg-slate-800/70 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:border-blue-500"
+                                                  ? "bg-primary text-white border-blue-600"
+                                                  : "bg-white/70 dark:bg-muted/70 text-blue-700 dark:text-blue-300 border-primary/30 dark:border-blue-800 hover:border-primary"
                                               }`}
                                             >
                                               {c}
@@ -564,7 +564,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                           })()}
                         </div>
                         {selectedCities.length > 0 && (
-                          <p className="mt-1 text-xs text-blue-500">Выбрано для сбора: {selectedCities.length}</p>
+                          <p className="mt-1 text-xs text-primary">Выбрано для сбора: {selectedCities.length}</p>
                         )}
                       </div>
                     </motion.div>
@@ -582,7 +582,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     runPipeline(regionIds);
                   }}
                   disabled={pipelineLoading}
-                  className="flex-1 h-11 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 gap-2"
+                  className="flex-1 h-11 bg-card hover:bg-muted dark:bg-muted dark:hover:bg-slate-200 gap-2"
                 >
                   {pipelineLoading ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -608,7 +608,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.07 }}
         >
-          <Card className="border-0 shadow-sm bg-slate-50 dark:bg-slate-900">
+          <Card className="border-0 shadow-sm bg-muted dark:bg-card">
             <CardContent className="p-4">
               <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
                 <div className="flex items-center gap-3 flex-1">
@@ -616,10 +616,10 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     <Rocket className="size-5 text-white" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    <p className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                       Сбор вакансий
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       Загрузить актуальные вакансии с hh.ru для всех профилей
                     </p>
                   </div>
@@ -627,7 +627,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 <Button
                   onClick={() => setShowPipelineSetup(true)}
                   disabled={pipelineLoading}
-                  className="h-9 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 px-6 whitespace-nowrap"
+                  className="h-9 bg-card hover:bg-muted dark:bg-muted dark:hover:bg-slate-200 px-6 whitespace-nowrap"
                   size="sm"
                 >
                   {pipelineLoading ? (
@@ -649,8 +649,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
-        <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <CardHeader className="border-b border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900">
+        <Card className="border border-border dark:border-border bg-white dark:bg-card">
+          <CardHeader className="border-b border-border/50 dark:border-border/50 bg-muted dark:bg-card">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-700 rounded-lg">
@@ -671,7 +671,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   <Filter className="size-4" />
                   Фильтры
                   {activeFilterCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary text-white text-xs font-semibold">
                       {activeFilterCount}
                     </span>
                   )}
@@ -680,7 +680,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   variant={viewMode === "grid" ? "default" : "outline"}
                   size="icon"
                   onClick={() => setViewMode("grid")}
-                  className={`size-9 ${viewMode === "grid" ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
+                  className={`size-9 ${viewMode === "grid" ? "bg-card text-white hover:bg-muted dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <LayoutGrid className="size-4" />
                 </Button>
@@ -688,7 +688,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   variant={viewMode === "list" ? "default" : "outline"}
                   size="icon"
                   onClick={() => setViewMode("list")}
-                  className={`size-9 ${viewMode === "list" ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
+                  className={`size-9 ${viewMode === "list" ? "bg-card text-white hover:bg-muted dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200" : ""}`}
                 >
                   <List className="size-4" />
                 </Button>
@@ -706,7 +706,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 bg-slate-950/50"
+              className="fixed inset-0 z-40 bg-background/50"
               onClick={() => setFilterOpen(false)}
             />
             <motion.aside
@@ -714,16 +714,16 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "tween", duration: 0.22, ease: "easeOut" }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-lg bg-white dark:bg-slate-950 border-l border-gray-200 dark:border-slate-700 shadow-sm flex flex-col"
+              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:max-w-lg bg-white dark:bg-background border-l border-border dark:border-border shadow-sm flex flex-col"
             >
-              <div className="flex items-center justify-between gap-3 p-5 border-b border-gray-200 dark:border-slate-700">
+              <div className="flex items-center justify-between gap-3 p-5 border-b border-border dark:border-border">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-700 rounded-lg">
                     <Filter className="size-5 text-white" />
                   </div>
                   <div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-slate-100">Фильтры и поиск</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                    <div className="text-lg font-semibold text-foreground">Фильтры и поиск</div>
+                    <div className="text-xs text-muted-foreground">
                       {activeFilterCount > 0 ? `Активно: ${activeFilterCount}` : "Показаны все вакансии"}
                     </div>
                   </div>
@@ -736,12 +736,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
             <div className="space-y-6">
               {/* Search */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                   Поиск по названию
                 </label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                     <Input
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
@@ -765,12 +765,12 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 </div>
               </div>
 
-              <div className="border-t border-slate-200 dark:border-slate-800" />
+              <div className="border-t border-border dark:border-border" />
 
               {/* Experience + city */}
               <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                   Опыт
                 </label>
                 <Select value={experienceFilter} onValueChange={(v) => { setExperienceFilter(v); }}>
@@ -788,7 +788,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
 
               {/* City filter */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                   Город
                 </label>
                 <Select value={cityFilter} onValueChange={(v) => { setCityFilter(v); }}>
@@ -807,11 +807,11 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               </div>
               </div>
 
-              <div className="border-t border-slate-200 dark:border-slate-800" />
+              <div className="border-t border-border dark:border-border" />
 
               {/* Period presets */}
               <div className="space-y-3">
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                <label className="text-sm font-semibold text-foreground dark:text-muted-foreground">
                   Период
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -826,7 +826,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                         className={`h-9 px-4 rounded-full border text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none ${
                           isActive
                             ? "bg-blue-700 border-blue-700 text-white"
-                            : "border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-blue-500 hover:text-blue-700 dark:hover:text-blue-400"
+                            : "border-border-strong dark:border-border-strong text-foreground dark:text-muted-foreground hover:border-primary hover:text-blue-700 dark:hover:text-primary"
                         } ${dimmed ? "opacity-40" : ""}`}
                       >
                         {p.label}
@@ -844,7 +844,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     className="h-10 rounded-lg dark:[color-scheme:dark]"
                     aria-label="Дата от"
                   />
-                  <span className="text-sm text-slate-400">-</span>
+                  <span className="text-sm text-muted-foreground">-</span>
                   <Input
                     type="date"
                     value={dateTo}
@@ -856,7 +856,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   />
                 </div>
                 {vacancyInfo?.date_range && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-muted-foreground">
                     Записи с {fmtDateRU(vacancyInfo.date_range.from)}
                   </p>
                 )}
@@ -866,7 +866,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
 
             {/* Active filters */}
             {(applied.experience !== "all" || applied.city !== "all" || applied.search || applied.months !== null || applied.date_from || applied.date_to) && (
-              <div className="flex flex-wrap items-center gap-2 px-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex flex-wrap items-center gap-2 px-6 pt-4 border-t border-border dark:border-border">
                 {applied.experience !== "all" && (
                   <Badge
                     variant="secondary"
@@ -917,7 +917,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                 )}
               </div>
             )}
-              <div className="flex items-center gap-3 p-5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+              <div className="flex items-center gap-3 p-5 border-t border-border dark:border-border bg-white dark:bg-background">
                 <Button
                   onClick={() => { applyFilters(); setFilterOpen(false); }}
                   disabled={loading}
@@ -934,7 +934,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   onClick={clearFilters}
                   disabled={loading || activeFilterCount === 0}
                   variant="outline"
-                  className="h-10 rounded-lg text-slate-600 dark:text-slate-300 gap-2 whitespace-nowrap"
+                  className="h-10 rounded-lg text-muted-foreground gap-2 whitespace-nowrap"
                 >
                   <X className="size-4" />
                   Сбросить
@@ -953,9 +953,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
             >
-              <Loader2 className="size-16 text-blue-600 mx-auto" />
+              <Loader2 className="size-16 text-primary mx-auto" />
             </motion.div>
-            <p className="text-slate-600 dark:text-slate-400">Загрузка вакансий...</p>
+            <p className="text-muted-foreground">Загрузка вакансий...</p>
           </div>
         </div>
       ) : error ? (
@@ -963,9 +963,9 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <Card className="border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20">
+          <Card className="border-2 border-destructive/30 dark:border-red-800 bg-destructive/10 bg-destructive/10/20">
             <CardContent className="pt-6 text-center">
-              <AlertCircle className="size-12 text-red-600 dark:text-red-400 mx-auto mb-3" />
+              <AlertCircle className="size-12 text-destructive dark:text-destructive mx-auto mb-3" />
               <h3 className="text-lg font-semibold text-red-900 dark:text-red-100 mb-2">
                 Ошибка загрузки
               </h3>
@@ -982,7 +982,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   </p>
                 </div>
               ) : !vacancyInfo?.file_modified ? (
-                <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-left max-w-lg mx-auto">
+                <div className="mt-4 p-4 bg-warning-soft bg-warning-soft/30 border border-amber-200 dark:border-amber-800 rounded-lg text-left max-w-lg mx-auto">
                   <p className="text-sm text-amber-800 dark:text-amber-200">
                     <Database className="size-4 inline mr-1" />
                     <strong>Вакансии не собраны.</strong> Нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
@@ -992,13 +992,13 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                   </p>
                 </div>
               ) : (
-                <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg text-left max-w-lg mx-auto">
+                <div className="mt-4 p-4 bg-destructive/10 bg-destructive/10/30 border border-destructive/30 dark:border-red-800 rounded-lg text-left max-w-lg mx-auto">
                   <p className="text-sm text-red-800 dark:text-red-200">
                     <AlertCircle className="size-4 inline mr-1" />
                     <strong>Не удалось загрузить данные из файла.</strong> Файл существует, но возникла ошибка при обработке.
                   </p>
                   {vacancyInfo?.load_error && (
-                    <p className="text-xs text-red-600 mt-1 font-mono">{vacancyInfo.load_error}</p>
+                    <p className="text-xs text-destructive mt-1 font-mono">{vacancyInfo.load_error}</p>
                   )}
                   <p className="text-xs text-red-700 dark:text-red-300 mt-2">
                     Попробуйте перезапустить сервер или запустить повторный сбор.
@@ -1021,14 +1021,14 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <Card className="border-2 border-slate-200 dark:border-slate-700">
+          <Card className="border-2 border-border dark:border-border">
             <CardContent className="pt-6 text-center py-20">
               <EmptyState
                 icon={Database}
                 title="Вакансии не найдены"
                 description="По вашему запросу ничего не найдено. Измените фильтры или запустите сбор заново."
               />
-              <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-left max-w-lg mx-auto">
+              <div className="p-4 bg-primary-soft dark:bg-blue-950/30 border border-primary/30 dark:border-blue-800 rounded-lg text-left max-w-lg mx-auto">
                 <p className="text-sm text-blue-800 dark:text-blue-200">
                   <Database className="size-4 inline mr-1" />
                   <strong>Если вакансии ещё не собраны</strong> - нажмите кнопку <strong>«Собрать вакансии»</strong> выше на этой странице.
@@ -1046,8 +1046,8 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
         <>
           {/* Count + Export */}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Найдено <span className="font-semibold text-slate-700 dark:text-slate-300">{total}</span> вакансий
+            <p className="text-sm text-muted-foreground">
+              Найдено <span className="font-semibold text-foreground dark:text-muted-foreground">{total}</span> вакансий
               {vacancies.length < total && (
                 <span> (показано {vacancies.length})</span>
               )}
@@ -1142,7 +1142,7 @@ export function VacanciesList({ pipelineStep, pipelineLoading, restartFlag, onSt
                     disabled={loading}
                     className={`size-10 ${
                       currentPage === pageNum
-                        ? "bg-slate-900 dark:bg-slate-100"
+                        ? "bg-card dark:bg-muted"
                         : ""
                     }`}
                   >
