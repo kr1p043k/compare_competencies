@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from src.api_pkg.routers.academic import _get_sso_token
 from src.api_pkg.routers.auth import require_any_role
 from src.infrastructure.course_trends import CourseTrendsClient, CourseTrendsError
+from src.infrastructure.course_trends_normalize import extract_articles
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["academic-trends"])
@@ -95,3 +96,46 @@ async def recommendations(pid: str, request: Request) -> Any:
 async def program_bundle(pid: str, request: Request) -> Any:
     """Всё по программе одним ответом (summary + тренды + покрытие + рекомендации)."""
     return await _fetch(request, f"/programs/{pid}")
+
+
+@router.get("/academic/programs/{pid}/articles",
+            dependencies=[Depends(require_any_role(*_ROLES))])
+async def program_articles(
+    pid: str,
+    request: Request,
+    limit: int = 500,
+    offset: int = 0,
+    query: str | None = None,
+) -> dict[str, Any]:
+    """Статьи программы в каноническом виде.
+
+    Сервис ЮФУ не публикует схемы ответов, поэтому сырой JSON проходит через
+    `extract_articles`: он находит публикации по смыслу полей, а не по
+    фиксированной модели. Наружу отдаётся один стабильный формат, чтобы фронт
+    не зависел от переименований на стороне сервиса.
+
+    `query` фильтрует по заголовку, аннотации и авторам (регистр не важен).
+    """
+    raw = await _fetch(request, f"/programs/{pid}/course-trends")
+    articles = extract_articles(raw)
+
+    if query:
+        needle = query.strip().lower()
+        articles = [
+            a for a in articles
+            if needle in a["title"].lower()
+            or needle in (a["abstract"] or "").lower()
+            or any(needle in author.lower() for author in a["authors"])
+        ]
+
+    articles.sort(key=lambda a: (a["year"] or 0, a["citations"] or 0), reverse=True)
+    limit = max(1, min(limit, 2000))
+    offset = max(0, offset)
+    return {
+        "pid": pid,
+        "total": len(articles),
+        "limit": limit,
+        "offset": offset,
+        "items": articles[offset:offset + limit],
+        "source": "academic-api-dev (Course Trends)",
+    }
