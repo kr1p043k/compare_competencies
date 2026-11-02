@@ -38,10 +38,15 @@ MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций -
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
-CODE_VERSION = 47  # coverage denominator: discipline scope (mapping/derived)
+CODE_VERSION = 48  # KRM cleanup: abbreviation twins merged, legacy DL-* dropped
 # 46 -> 47: market_top_coverage теперь считается по релевантным дисциплине
 # навыкам (mapping -> derived -> relevance), добавлены market_top_total/
 # market_top_reliable/market_top_source. Старые сводки несопоставимы.
+# 47 -> 48: KRM почищен. Слиты близнецы-аббревиатуры (систем ИИ /
+# систем искусственного интеллекта, ПО / программного обеспечения, AI_ML /
+# AI/ML), из-за чего 55 дисциплин вместо 57; у дисциплины «Алгоритмы,
+# технологии...» удалены несуществующие коды DL-3/3.1/3.2/3.3 вместе с 145
+# общими навыками, которые завышали покрытие. Сводки версии 47 несопоставимы.
 
 # Scope v34 (user decision 12.09.2026): these disciplines are NOT part of the
 # IT-coverage picture. Data stays in DB (nothing deleted); they are only
