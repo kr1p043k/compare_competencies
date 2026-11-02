@@ -8,21 +8,27 @@
 
 import asyncio
 import base64
+import hashlib
 import json
 import time
 from typing import Any
 
 import httpx
 import structlog
+from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.client_ip import client_ip
 from src.api_pkg.routers.auth import _hash_token, _make_token, get_current_user, require_any_role
 from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["academic"])
+limiter = Limiter(key_func=get_remote_address)
 
 ACADEMIC_TIMEOUT = 60.0
 # analyze-gap - тяжёлый LLM-запрос (анализ разрыва всей КРМ), может идти минуты.
@@ -96,10 +102,44 @@ def _jwt_exp(token: str) -> int | None:
 
 
 def _request_token(request: Request) -> str:
+    """Токен только из заголовка или cookie.
+
+    Раньше принимался ?token= - он попадает в логи, Referer и историю браузера.
+    Hub передаёт JWT во фрагменте (#token=...), который до сервера не доходит,
+    поэтому query-вариант не нужен.
+    """
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         return auth[7:]
-    return request.cookies.get("token", "") or request.query_params.get("token", "")
+    return request.cookies.get("token", "")
+
+
+# ---------- hub-JWT: шифрование в покое ----------
+# sessions.sso_token - это JWT хаба ЮФУ, живущий час. В открытом виде он
+# бесполезен только до первого чтения БД: любой, кто видит таблицу, получает
+# рабочий токен. Шифруем Fernet-ключом, выведенным из SECRET_KEY (HKDF-подобно:
+# sha256(secret + соль)). Свои сессионные токены мы храним хешем, тут хеш не
+# годится - hub-JWT нужно предъявлять в academic-api.
+
+_FERNET_SALT = b"compare-online/sso-token/v1"
+
+
+def _fernet() -> Fernet:
+    secret = config.get_secret_key()
+    key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode() + _FERNET_SALT).digest())
+    return Fernet(key)
+
+
+def _encrypt_sso(token: str) -> str:
+    return _fernet().encrypt(token.encode()).decode()
+
+
+def _decrypt_sso(stored: str) -> str | None:
+    """Расшифровать hub-JWT. None - если шифр не наш (legacy plaintext)."""
+    try:
+        return _fernet().decrypt(stored.encode()).decode()
+    except (InvalidToken, ValueError):
+        return None
 
 
 async def _get_sso_token(request: Request) -> tuple[str, str]:
@@ -122,7 +162,7 @@ async def _get_sso_token(request: Request) -> tuple[str, str]:
             status_code=403,
             detail="Сессия не привязана к хабу ЮФУ. Войдите через hub.sfedu.ru",
         )
-    sso_token = row["sso_token"]
+    sso_token = _decrypt_sso(row["sso_token"]) or row["sso_token"]
     exp = _jwt_exp(sso_token)
     if exp is not None and exp <= time.time():
         await pool.execute(
@@ -216,8 +256,13 @@ async def _academic_post(
 
 
 @router.post("/auth/sso")
+@limiter.limit("10/minute")
 async def sso_login(body: SsoRequest, request: Request):
-    """SSO-вход через академический провайдер."""
+    """SSO-вход через академический провайдер.
+
+    Лимит 10/мин: эндпоинт ходит во внешний academic-api и создаёт сессию,
+    без лимита его можно долбить перебором hub-JWT.
+    """
     if not config.ACADEMIC_SSO_ENABLED:
         raise HTTPException(status_code=503, detail="Вход через хаб ЮФУ отключён")
 
@@ -258,13 +303,12 @@ async def sso_login(body: SsoRequest, request: Request):
 
     token = _make_token(str(row["id"]), row["email"], row["role"])
     token_hash = _hash_token(token)
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    ip = client_ip(request)
     ua = request.headers.get("User-Agent", "")
     await pool.execute(
         """INSERT INTO sessions (user_id, token_hash, ip_address, user_agent, sso_token)
            VALUES ($1, $2, $3, $4, $5)""",
-        row["id"], token_hash, ip, ua, body.token,
+        row["id"], token_hash, ip, ua, _encrypt_sso(body.token),
     )
 
     logger.info("sso_user_logged_in", username=username, role=row["role"])
