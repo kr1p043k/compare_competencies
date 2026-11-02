@@ -65,10 +65,14 @@ class _RpdCancelled(Exception):
 # run_id -> запущенный процесс (для kill при отмене) и флаг отмены.
 _rpd_procs: dict[str, object] = {}
 _rpd_cancel: dict[str, threading.Event] = {}
+# _run_cli_sync исполняется в рабочем потоке (asyncio.to_thread), а cancel/финиш -
+# в event loop: без блокировки возможна гонка dict (RuntimeError / потеря отмены).
+_rpd_lock = threading.Lock()
 
 
 def _cancel_requested(run_id: str | None) -> bool:
-    ev = _rpd_cancel.get(run_id or "")
+    with _rpd_lock:
+        ev = _rpd_cancel.get(run_id or "")
     return ev.is_set() if ev is not None else False
 
 
@@ -100,7 +104,8 @@ def _run_cli_sync(args: list[str], timeout: int, run_id: str | None = None) -> t
         env=_cli_env(),
     )
     if run_id:
-        _rpd_procs[run_id] = proc
+        with _rpd_lock:
+            _rpd_procs[run_id] = proc
     try:
         try:
             out_b, err_b = proc.communicate(timeout=timeout)
@@ -110,7 +115,8 @@ def _run_cli_sync(args: list[str], timeout: int, run_id: str | None = None) -> t
             return -1, "TIMEOUT"
     finally:
         if run_id:
-            _rpd_procs.pop(run_id, None)
+            with _rpd_lock:
+                _rpd_procs.pop(run_id, None)
     out = (out_b or b"").decode("utf-8", errors="ignore")
     err = (err_b or b"").decode("utf-8", errors="ignore")
     return proc.returncode or 0, (out + "\n" + err)[-3000:]
@@ -135,7 +141,8 @@ async def _run_cli(args: list[str], timeout: int = 1800, run_id: str | None = No
             raise _RpdCancelled()
         return code, out
     if run_id:
-        _rpd_procs[run_id] = proc
+        with _rpd_lock:
+            _rpd_procs[run_id] = proc
     try:
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
@@ -145,7 +152,8 @@ async def _run_cli(args: list[str], timeout: int = 1800, run_id: str | None = No
             return -1, "TIMEOUT"
     finally:
         if run_id:
-            _rpd_procs.pop(run_id, None)
+            with _rpd_lock:
+                _rpd_procs.pop(run_id, None)
     if _cancel_requested(run_id):
         raise _RpdCancelled()
     out = (stdout or b"").decode("utf-8", errors="ignore")
@@ -211,8 +219,9 @@ async def _finish_cancelled(run_id: str) -> None:
     except Exception:
         pass
     finally:
-        _rpd_cancel.pop(run_id, None)
-        _rpd_procs.pop(run_id, None)
+        with _rpd_lock:
+            _rpd_cancel.pop(run_id, None)
+            _rpd_procs.pop(run_id, None)
 
 
 # ---------- Upload pipeline ----------
@@ -255,7 +264,8 @@ async def _upload_pipeline(
 ) -> None:
     from src.pipeline.db_writer import complete_pipeline_run
 
-    _rpd_cancel[run_id] = threading.Event()
+    with _rpd_lock:
+        _rpd_cancel[run_id] = threading.Event()
     try:
         await _update_run(run_id, {"stage": "parse", "status": "running", "progress": 10})
         merged = await asyncio.to_thread(_parse_pdfs_to_krm, dir_code, direction_name, profile)
@@ -293,8 +303,9 @@ async def _upload_pipeline(
             await complete_pipeline_run(run_id, status="failed", error=str(exc),
                                         stats={"stage": "error", "status": "failed"})
     finally:
-        _rpd_cancel.pop(run_id, None)
-        _rpd_procs.pop(run_id, None)
+        with _rpd_lock:
+            _rpd_cancel.pop(run_id, None)
+            _rpd_procs.pop(run_id, None)
 
 
 @router.post("/teacher/rpd/upload")
@@ -317,15 +328,32 @@ async def rpd_upload(
     target_dir.mkdir(parents=True, exist_ok=True)
     target_path = target_dir / safe_name
 
-    content = await file.read()
-    if not content:
+    # Стримим файл чанками: не держим PDF целиком в памяти (лимит 64 МБ).
+    max_bytes = 64 * 1024 * 1024
+    chunk_size = 1024 * 1024
+    first_chunk = await file.read(chunk_size)
+    if not first_chunk:
         raise HTTPException(status_code=400, detail="Empty file")
     # Проверяем содержимое, а не только расширение: переименованный в .pdf
-    # произвольный файл иначе попадал на диск и в парсер.
-    if not content.lstrip()[:5].startswith(b"%PDF"):
+    # произвольный файл иначе попадал на диск и в парсер. Магия - по первому чанку.
+    if not first_chunk.lstrip()[:5].startswith(b"%PDF"):
         raise HTTPException(status_code=400, detail="File is not a valid PDF")
-    target_path.write_bytes(content)
-    logger.info("rpd_pdf_saved", dir_code=dir_code, file=safe_name, bytes=len(content))
+
+    total = 0
+    too_large = False
+    with target_path.open("wb") as fh:
+        chunk = first_chunk
+        while chunk:
+            total += len(chunk)
+            if total > max_bytes:
+                too_large = True
+                break
+            fh.write(chunk)
+            chunk = await file.read(chunk_size)
+    if too_large:
+        target_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=413, detail="Файл слишком большой: превышен лимит 64 МБ")
+    logger.info("rpd_pdf_saved", dir_code=dir_code, file=safe_name, bytes=total)
 
     from src.pipeline.db_writer import create_pipeline_run
     run_id = await create_pipeline_run("rpd-import")
@@ -342,7 +370,8 @@ async def rpd_upload(
 async def _collect_pipeline(run_id: str, dir_code: str, public_url: str | None = None) -> None:
     from src.pipeline.db_writer import complete_pipeline_run
 
-    _rpd_cancel[run_id] = threading.Event()
+    with _rpd_lock:
+        _rpd_cancel[run_id] = threading.Event()
     ycode = _yandex_code(dir_code)
     try:
         await _update_run(run_id, {"stage": "collect", "status": "running", "progress": 5,
@@ -386,8 +415,9 @@ async def _collect_pipeline(run_id: str, dir_code: str, public_url: str | None =
             await complete_pipeline_run(run_id, status="failed", error=str(exc),
                                         stats={"stage": "error", "status": "failed"})
     finally:
-        _rpd_cancel.pop(run_id, None)
-        _rpd_procs.pop(run_id, None)
+        with _rpd_lock:
+            _rpd_cancel.pop(run_id, None)
+            _rpd_procs.pop(run_id, None)
 
 
 @router.post("/teacher/rpd/collect")
@@ -421,8 +451,9 @@ async def rpd_cancel(request: Request, run_id: str):
     """Остановить сбор/загрузку РПД: флаг отмены + kill процесса."""
     from src.pipeline.db_writer import complete_pipeline_run
 
-    ev = _rpd_cancel.get(run_id)
-    proc = _rpd_procs.get(run_id)
+    with _rpd_lock:
+        ev = _rpd_cancel.get(run_id)
+        proc = _rpd_procs.get(run_id)
     if ev is None and proc is None:
         # Задача уже завершилась или неизвестна - смотрим БД.
         from src.database import async_session_factory
