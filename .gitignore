@@ -83,3 +83,8 @@ MagicMock/
 # session notes stay local, never in the repo
 NOTES.md
 MEMORY.md
+
+# –абочие документы агентов: локально, в remote не нужны
+docs/AGENT-CONTRACT.md
+docs/AGENT-ZONES.md
+docs/TASKS-OPENCODE-*.md
