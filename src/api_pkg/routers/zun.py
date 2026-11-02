@@ -42,7 +42,8 @@ from slowapi.util import get_remote_address
 
 from src import config
 from src.api_pkg.request_logger import audit_action
-from src.api_pkg.routers.auth import require_any_role
+from src.api_pkg.routers.auth import get_current_user, require_any_role
+from src.api_pkg.routers.krm_teacher import _ensure_dir_access
 from src.db import get_pool
 from src.utils import clip01
 
@@ -959,6 +960,10 @@ class ScopePut(BaseModel):
 async def zun_put_scope(request: Request, body: ScopePut):
     """Set UI scope overrides (checkboxes). Takes effect on next teacher-analysis."""
     _validate_dir_code(body.dir_code)
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    await _ensure_dir_access(user, body.dir_code)
     changes = (body.changes or [])[:100]
     if not changes:
         raise HTTPException(status_code=400, detail="changes must not be empty")
@@ -1007,7 +1012,7 @@ async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
 
     pool = get_pool()
     comp = await pool.fetchrow(
-        """SELECT c.id FROM competencies c
+        """SELECT c.id, d.code AS dir_code FROM competencies c
            JOIN disciplines disc ON disc.id = c.discipline_id
            JOIN directions d ON d.id = disc.direction_id
            WHERE c.id = $1
@@ -1016,6 +1021,10 @@ async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
     )
     if not comp:
         raise HTTPException(status_code=404, detail="Competency not found")
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    await _ensure_dir_access(user, str(comp["dir_code"]))
 
     dup = await pool.fetchrow(
         """SELECT 1 FROM ksa_entries
@@ -1069,9 +1078,19 @@ async def zun_add_competency(request: Request, discipline_id: str, body: Compete
         raise HTTPException(status_code=400, detail="description too long (max 2000)")
 
     pool = get_pool()
-    disc = await pool.fetchrow("SELECT id FROM disciplines WHERE id = $1", discipline_id)
+    disc = await pool.fetchrow(
+        """SELECT disc.id, d.code AS dir_code
+             FROM disciplines disc
+             JOIN directions d ON d.id = disc.direction_id
+            WHERE disc.id = $1""",
+        discipline_id,
+    )
     if not disc:
         raise HTTPException(status_code=404, detail="Discipline not found")
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    await _ensure_dir_access(user, str(disc["dir_code"]))
     dup = await pool.fetchrow(
         "SELECT 1 FROM competencies WHERE discipline_id = $1 AND code = $2",
         discipline_id, code)
@@ -1119,9 +1138,20 @@ async def zun_link_skill(request: Request, competency_id: str, body: SkillLinkIn
         raise HTTPException(status_code=400, detail="skill_name too long (max 200)")
 
     pool = get_pool()
-    comp = await pool.fetchrow("SELECT id FROM competencies WHERE id = $1", competency_id)
+    comp = await pool.fetchrow(
+        """SELECT c.id, d.code AS dir_code
+             FROM competencies c
+             JOIN disciplines disc ON disc.id = c.discipline_id
+             JOIN directions d ON d.id = disc.direction_id
+            WHERE c.id = $1""",
+        competency_id,
+    )
     if not comp:
         raise HTTPException(status_code=404, detail="Competency not found")
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    await _ensure_dir_access(user, str(comp["dir_code"]))
 
     skill = await pool.fetchrow(
         """SELECT id, source FROM skills WHERE LOWER(name) = LOWER($1)
@@ -1171,6 +1201,22 @@ async def zun_patch_entry(request: Request, ksa_id: str, body: ZUNPatch):
     if len(text) > 2000:
         raise HTTPException(status_code=400, detail="text too long (max 2000)")
     pool = get_pool()
+    # Ownership check first: an UPDATE would already have written the row.
+    owner = await pool.fetchrow(
+        """SELECT d.code AS dir_code
+             FROM ksa_entries k
+             JOIN competencies c ON c.id = k.competency_id
+             JOIN disciplines disc ON disc.id = c.discipline_id
+             JOIN directions d ON d.id = disc.direction_id
+            WHERE k.id = $1""",
+        ksa_id,
+    )
+    if not owner:
+        raise HTTPException(status_code=404, detail="KSA entry not found")
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    await _ensure_dir_access(user, str(owner["dir_code"]))
     row = await pool.fetchrow(
         """UPDATE ksa_entries SET original_text = $1, cleaned_text = $1, updated_at = NOW()
            WHERE id = $2 RETURNING id, ksa_type, competency_id""",
@@ -1190,6 +1236,21 @@ async def zun_delete_entry(request: Request, ksa_id: str):
     """Удалить KSA-запись."""
     _validate_uuid(ksa_id, "ksa_id")
     pool = get_pool()
+    owner = await pool.fetchrow(
+        """SELECT d.code AS dir_code
+             FROM ksa_entries k
+             JOIN competencies c ON c.id = k.competency_id
+             JOIN disciplines disc ON disc.id = c.discipline_id
+             JOIN directions d ON d.id = disc.direction_id
+            WHERE k.id = $1""",
+        ksa_id,
+    )
+    if not owner:
+        raise HTTPException(status_code=404, detail="KSA entry not found")
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    await _ensure_dir_access(user, str(owner["dir_code"]))
     row = await pool.fetchrow("DELETE FROM ksa_entries WHERE id = $1 RETURNING competency_id", ksa_id)
     if not row:
         raise HTTPException(status_code=404, detail="KSA entry not found")
@@ -1348,6 +1409,10 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
 async def zun_import(request: Request, dir_code: str, dry_run: bool = False):
     """Импорт KRM направления."""
     _validate_dir_code(dir_code)
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    await _ensure_dir_access(user, dir_code)
     pool = get_pool()
     result = await _import_direction(pool, dir_code, dry_run=dry_run)
     if not dry_run and isinstance(result, dict) and result.get("inserted"):
