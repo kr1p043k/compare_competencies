@@ -177,6 +177,11 @@ export function StudentsTab() {
                 {detail.updated_at ? ` · обновлён: ${new Date(detail.updated_at).toLocaleString("ru-RU")}` : ""}
               </div>
             </div>
+            {detail.has_profile === false && (
+              <p className="text-sm rounded-md bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 px-3 py-2">
+                Студент ещё не заполнял профиль: навыков и компетенций нет.
+              </p>
+            )}
             <div>
               <div className={`text-sm font-semibold mb-2 ${heading}`}>
                 Навыки ({detail.skills.length})

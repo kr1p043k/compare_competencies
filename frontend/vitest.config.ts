@@ -16,5 +16,13 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     css: false,
     restoreMocks: true,
+    // Пулы worker-потоков на этой машине падают с
+    // "Zone Allocation failed - process out of memory" даже на одном файле.
+    // Один форк стабилен и для 9 тестов, и для всего набора.
+    pool: "forks",
+    poolOptions: {
+      forks: { singleFork: true },
+    },
+    maxWorkers: 1,
   },
 });

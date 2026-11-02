@@ -1,3 +1,5 @@
+/* Глобальные штрихи дизайна: нейтральный скроллбар, фокус, типографика. */
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
@@ -9,42 +11,47 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #cbd5e1;
   border-radius: 10px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #5568d3 0%, #5d3a82 100%);
+  background: #94a3b8;
   background-clip: padding-box;
 }
 
-/* Dark mode scrollbar */
 .dark ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #4f5bd5 0%, #962fbf 100%);
+  background: #334155;
   background-clip: padding-box;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #6875f5 0%, #a855f7 100%);
+  background: #475569;
   background-clip: padding-box;
 }
 
 /* Selection */
 ::selection {
-  background: rgba(99, 102, 241, 0.3);
+  background: rgb(37 99 235 / 0.22);
   color: inherit;
 }
 
 .dark ::selection {
-  background: rgba(139, 92, 246, 0.3);
+  background: rgb(96 165 250 / 0.3);
 }
 
-/* Smooth animations */
+/* Сглаживание шрифта */
 * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Цифры в таблицах и метриках не «прыгают» при обновлении */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
 /* Loading animation for images */
@@ -60,30 +67,30 @@
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.1) 0%,
-    rgba(255, 255, 255, 0.2) 50%,
-    rgba(255, 255, 255, 0.1) 100%
+    rgba(148, 163, 184, 0.12) 0%,
+    rgba(148, 163, 184, 0.24) 50%,
+    rgba(148, 163, 184, 0.12) 100%
   );
   background-size: 1000px 100%;
-  animation: shimmer 2s infinite;
+  animation: shimmer 1.8s infinite;
 }
 
 /* Glass morphism effect */
 .glass {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
 }
 
 .dark .glass {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(30, 41, 59, 0.9);
 }
 
 /* Gradient text */
 .gradient-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(120deg, #2563eb 0%, #0ea5e9 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -114,7 +121,7 @@
   background: linear-gradient(
     120deg,
     transparent,
-    rgba(255, 255, 255, 0.3),
+    rgba(255, 255, 255, 0.35),
     transparent
   );
   transform: translateX(-100%) translateY(-100%) rotate(30deg);
@@ -141,10 +148,10 @@
 /* Pulse glow */
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 20px rgba(37, 99, 235, 0.35);
   }
   50% {
-    box-shadow: 0 0 30px rgba(99, 102, 241, 0.6);
+    box-shadow: 0 0 30px rgba(37, 99, 235, 0.55);
   }
 }
 
@@ -152,8 +159,25 @@
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
-/* a11y: visible keyboard focus (inline-style controls) */
-:focus-visible { outline: 2px solid #7c3aed; outline-offset: 2px; }
+/* a11y: видимый фокус с клавиатуры */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Уважаем системную настройку «меньше движения» */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 /* Print / PDF via browser: печатаем только отчёт, скрываем навигацию и кнопки */
 @media print {

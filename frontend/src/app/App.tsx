@@ -742,7 +742,7 @@ export default function App() {
   const isStudent = effectiveRole === "student";
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
       {toast && (
         <div className="fixed top-4 right-4 z-[60] max-w-sm rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950 px-4 py-3 text-sm text-red-800 dark:text-red-200 shadow-sm flex items-start gap-2">
           <span className="flex-1">{toast}</span>
@@ -757,18 +757,18 @@ export default function App() {
         </div>
       )}
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-        <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <header className="sticky top-0 z-40 border-b border-border bg-surface/90 backdrop-blur-xl">
+        <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-blue-600 rounded-xl">
+              <div className="flex items-center justify-center size-11 rounded-xl bg-primary shadow-md shadow-primary/25">
                 <TrendingUp className="size-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+                <h1 className="text-xl font-semibold tracking-tight text-foreground">
                   Карта компетенций
                 </h1>
-                <p className="text-sm text-gray-600 dark:text-slate-400">
+                <p className="text-xs text-muted-foreground">
                   Сопоставление учебных программ с требованиями рынка труда
                 </p>
               </div>
@@ -778,7 +778,7 @@ export default function App() {
               <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
                 {roleIcon}
                 <span>{name || roleLabel}</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 dark:text-slate-200">{roleLabel}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-primary-soft text-primary-soft-foreground font-medium">{roleLabel}</span>
               </div>
               <Button
                 variant="ghost"
@@ -835,7 +835,7 @@ export default function App() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Status */}
         <AnimatePresence>
           {status.type && (
@@ -862,7 +862,7 @@ export default function App() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="inline-flex h-12 items-center justify-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-slate-900">
+          <TabsList className="inline-flex h-11 items-center justify-center gap-1 rounded-xl border border-border bg-muted/70 p-1 shadow-xs">
             <NavGroup
               title="Работа"
               activeTab={activeTab}
@@ -1287,7 +1287,7 @@ export default function App() {
           </Suspense>
         </Tabs>
 
-        <div className="mt-12">
+        <div className="mt-auto pt-12">
           <Footer />
         </div>
       </main>

@@ -296,29 +296,94 @@ function ForecastRow({ item, rank, expanded, onToggle, months }: { item: Forecas
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-slate-400 mb-2">
             {item.data_points !== undefined && (
-              <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800">точек истории: {item.data_points}</span>
-            )}
-            {item.mape != null && item.mape > 0 && (
-              <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800">hold-out MAPE: {item.mape.toFixed(2)}</span>
+              <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800">месяцев истории: {item.data_points}</span>
             )}
             {insufficient && (
               <span className="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300">недостаточно данных для прогноза</span>
             )}
-            {((confPct < 30) || (confPct < 50) || ((item.data_points ?? 99) < 4)) && !insufficient && (
-              <span className="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300">{confPct < 30 ? "низкая достоверность" : "низкая достоверность (мало данных)"}</span>
+            {!insufficient && (confPct < 50 || (item.data_points ?? 99) < MIN_POINTS_FOR_CONFIDENCE) && (
+              <LowConfidenceBadge item={item} confPct={confPct} />
             )}
           </div>
-          {item.uncertainty_upper && item.uncertainty_lower && (
-            <div className="text-xs text-gray-400 dark:text-slate-500 text-center mb-2">
-              Доверительный интервал 80%: [{item.uncertainty_lower.toFixed(2)} - {item.uncertainty_upper.toFixed(2)}]
-            </div>
-          )}
           {item.forecast_steps && item.forecast_steps.length > 1 && (
             <div className="mt-2"><MiniChart data={item.forecast_steps} /></div>
           )}
         </div>
       )}
     </div>
+  );
+}
+
+const MIN_POINTS_FOR_CONFIDENCE = 4;
+
+/** Человеческие причины низкой достоверности — без MAPE и интервалов. */
+function confidenceReasons(item: ForecastItem, confPct: number): string[] {
+  const reasons: string[] = [];
+  const points = item.data_points ?? 0;
+
+  if (points > 0 && points < MIN_POINTS_FOR_CONFIDENCE) {
+    reasons.push(`мало наблюдений: ${points} из ${MIN_POINTS_FOR_CONFIDENCE} месяцев истории`);
+  }
+  if (item.method === "trend") {
+    reasons.push("прогноз построен по упрощённому тренду, а не по полной модели");
+  }
+  if (item.method === "linear") {
+    reasons.push("прогноз построен по прямой линии без учёта сезонности");
+  }
+  if (item.mape != null && item.mape > 0.3) {
+    reasons.push("на проверочном периоде модель заметно ошибалась");
+  }
+  if (confPct < 30) {
+    reasons.push("большой разброс: будущее значение может отличаться в разы");
+  }
+  if (reasons.length === 0) {
+    reasons.push("истории пока мало, оценка уточнится после следующего сбора данных");
+  }
+  return reasons;
+}
+
+function LowConfidenceBadge({ item, confPct }: { item: ForecastItem; confPct: number }) {
+  const [open, setOpen] = useState(false);
+  const reasons = confidenceReasons(item, confPct);
+  const label = confPct < 50 ? "низкая достоверность" : "мало данных";
+  const tipId = `conf-tip-${item.skill.replace(/\s+/g, "-")}`;
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-describedby={open ? tipId : undefined}
+        aria-expanded={open}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onClick={() => setOpen((v) => !v)}
+        className="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 underline decoration-dotted underline-offset-2 cursor-help"
+      >
+        {label}
+      </button>
+      {open && (
+        <span
+          id={tipId}
+          role="tooltip"
+          className="basis-full mt-1 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-[11px] leading-relaxed text-gray-700 dark:text-slate-300"
+        >
+          <span className="block font-semibold text-gray-900 dark:text-slate-100 mb-1">
+            Почему прогноз неточный
+          </span>
+          {reasons.map((r) => (
+            <span key={r} className="flex gap-1.5">
+              <span aria-hidden="true">•</span>
+              <span>{r}</span>
+            </span>
+          ))}
+          <span className="block mt-1.5 text-gray-500 dark:text-slate-400">
+            Направление (растёт или падает) надёжнее, чем конкретное число.
+          </span>
+        </span>
+      )}
+    </>
   );
 }
 
