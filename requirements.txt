@@ -1,15 +1,15 @@
-requests==2.32.4
+requests==2.33.0
 httpx==0.28.1
 pandas==2.3.1
 numpy==2.2.6
 pydantic==2.13.4
-pydantic-settings==2.14.1
+pydantic-settings==2.14.2
 matplotlib==3.10.3
 seaborn==0.13.2
 openpyxl>=3.1.0
 aiohttp==3.12.14
 scikit-learn==1.8.0
-sentence-transformers==5.3.0
+sentence-transformers==5.6.0
 torch>=2.5.0
 rapidfuzz>=3.12.0
 rank-bm25>=0.2.2
@@ -18,7 +18,7 @@ pymorphy3>=2.0.0
 xgboost==3.0.3
 shap==0.51.0
 joblib>=1.4.0
-urllib3>=2.1.0,<2.7.0
+urllib3>=2.1.0,<2.9.0
 chardet>=5.0.0,<6
 charset_normalizer>=3.0.0,<4
 hdbscan>=0.8.39

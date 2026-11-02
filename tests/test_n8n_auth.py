@@ -17,7 +17,6 @@ class TestN8NAuthMiddleware:
 
     @pytest.mark.asyncio
     async def test_middleware_dispatch_no_auth_configured(self):
-        from fastapi import HTTPException
         from starlette.requests import Request
         from starlette.responses import JSONResponse
 
@@ -32,13 +31,13 @@ class TestN8NAuthMiddleware:
         middleware = N8NAuthMiddleware(MagicMock())
         with patch("src.config") as mock_config:
             mock_config.N8N_API_KEY = None
-            with pytest.raises(HTTPException) as exc_info:
-                await middleware.dispatch(mock_request, call_next)
-            assert exc_info.value.status_code == 500
+            # Не выбрасываем HTTPException (из BaseHTTPMiddleware это был сырой
+            # 500) - возвращаем JSONResponse 503.
+            resp = await middleware.dispatch(mock_request, call_next)
+            assert resp.status_code == 503
 
     @pytest.mark.asyncio
     async def test_middleware_dispatch_invalid_key(self):
-        from fastapi import HTTPException
         from starlette.requests import Request
         from starlette.responses import JSONResponse
 
@@ -56,9 +55,8 @@ class TestN8NAuthMiddleware:
         middleware = N8NAuthMiddleware(MagicMock())
         with patch("src.config") as mock_config:
             mock_config.N8N_API_KEY = mock_secret
-            with pytest.raises(HTTPException) as exc_info:
-                await middleware.dispatch(mock_request, call_next)
-            assert exc_info.value.status_code == 401
+            resp = await middleware.dispatch(mock_request, call_next)
+            assert resp.status_code == 401
 
     @pytest.mark.asyncio
     async def test_middleware_dispatch_success(self):
