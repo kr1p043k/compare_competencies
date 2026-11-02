@@ -100,7 +100,8 @@ def test_patch_logs_student_history(actor, iso):
     sa._action_buffer.clear()
 
 
-def test_history_chain_buffer_fallback():
+@pytest.mark.asyncio
+async def test_history_chain_buffer_fallback():
     """Без БД история читается из буфера (не теряется молча)."""
     import src.api_pkg.student_actions as sa
 
@@ -108,7 +109,7 @@ def test_history_chain_buffer_fallback():
     try:
         sa.log_action(username="stud@t.local", action_type="analysis",
                       profession="DS", profile="base")
-        got = sa.get_actions(username="stud@t.local", limit=10)
+        got = await sa.get_actions(username="stud@t.local", limit=10)
         assert any(e.get("action_type") == "analysis" for e in got)
     finally:
         sa._action_buffer.clear()

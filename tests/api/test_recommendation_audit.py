@@ -186,10 +186,13 @@ def test_categorize_and_whitelist_audit(iso, actor):
 
 
 def test_audit_readable_via_admin_logs(iso, actor):
+    # Мутацию делает teacher, а читает аудит admin: записи содержат email
+    # пользователей, пути и коды ответов, поэтому /admin/logs — только admin.
     actor.return_value = dict(TEACHER)
     c = _client()
     assert c.post("/api/teacher/krm/recommendations",
                   json={"discipline_id": "Math", "suggestion": "visible via logs"}).status_code == 200
+    actor.return_value = dict(ADMIN)
     r = c.get("/api/admin/logs?action=krm.recommendation.add&limit=100")
     assert r.status_code == 200, r.text
     logs = r.json()["logs"]
@@ -199,7 +202,7 @@ def test_audit_readable_via_admin_logs(iso, actor):
     assert logs[0]["detail"] and "visible via logs" in logs[0]["detail"]
     # unfiltered view carries the entry too
     all_logs = c.get("/api/admin/logs?limit=100").json()["logs"]
-    assert any(l.get("detail", "") == logs[0]["detail"] for l in all_logs)
+    assert any(entry.get("detail", "") == logs[0]["detail"] for entry in all_logs)
 
 
 def test_audit_action_anonymous_fallback(actor):

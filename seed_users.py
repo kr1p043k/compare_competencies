@@ -20,7 +20,9 @@ async def main():
             if row:
                 print(f"  SKIP {email} - already exists")
                 continue
-            pw_hash = await conn.fetchval("SELECT crypt($1, gen_salt('bf'))", info["password"])
+            pw_hash = await conn.fetchval(
+                "SELECT crypt($1, gen_salt('bf', 12))", info["password"]
+            )
             await conn.execute(
                 "INSERT INTO users (email, password_hash, full_name, role, is_active) VALUES ($1, $2, $3, $4, true)",
                 email, pw_hash, info.get("name", email.split("@")[0]), info["role"],

@@ -14,6 +14,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
+from src.api_pkg.client_ip import client_ip
 from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
@@ -22,6 +23,78 @@ limiter = Limiter(key_func=get_remote_address)
 
 SECRET_KEY = config.get_secret_key()
 TOKEN_TTL = 86400 * config.TOKEN_TTL_DAYS
+
+#: Сколько неудачных попыток подряд допускается до блокировки аккаунта.
+_LOCKOUT_THRESHOLD = 5
+#: Потолок блокировки: дальше время не растёт, чтобы не запереть человека навсегда.
+_LOCKOUT_MAX_MINUTES = 15
+#: Счётчик неудач сбрасывается, если последняя была больше часа назад.
+_FAILURE_WINDOW = "1 hour"
+#: Целевая стоимость bcrypt. Исторические хеши в БД — cost 6 (подбираются
+#: на GPU тысячами в секунду), при успешном входе молча перехешируем.
+_TARGET_BCRYPT_COST = 12
+
+
+def _humanize_seconds(seconds: int) -> str:
+    if seconds < 60:
+        return f"{seconds} сек"
+    minutes = (seconds + 59) // 60
+    return f"{minutes} мин" if minutes < 60 else f"{minutes // 60} ч"
+
+
+def _lockout_minutes(failed_count: int) -> int:
+    """Экспоненциальная задержка: 1, 2, 4, 8, ... минут (с потолком)."""
+    over = max(0, failed_count - _LOCKOUT_THRESHOLD)
+    return min(2 ** over, _LOCKOUT_MAX_MINUTES)
+
+
+async def _register_failed_login(pool, email: str, ip: str) -> None:
+    """Увеличивает счётчик неудач и при необходимости блокирует аккаунт."""
+    try:
+        count = await pool.fetchval(
+            f"""UPDATE users
+                   SET failed_login_count = CASE
+                         WHEN last_failed_login_at IS NULL
+                           OR last_failed_login_at < NOW() - INTERVAL '{_FAILURE_WINDOW}'
+                         THEN 1
+                         ELSE failed_login_count + 1
+                       END,
+                       last_failed_login_at = NOW()
+                 WHERE lower(email) = $1
+             RETURNING failed_login_count""",
+            email,
+        )
+    except Exception as exc:  # noqa: BLE001 — сбой учёта не должен ломать ответ
+        logger.error("login_failure_counter_error", email=email, error=str(exc))
+        return
+
+    if count is None:
+        return
+
+    logger.warning("login_failed", email=email, ip=ip, failed_count=count)
+
+    if count < _LOCKOUT_THRESHOLD:
+        return
+
+    minutes = _lockout_minutes(count)
+    try:
+        await pool.execute(
+            f"""UPDATE users
+                   SET locked_until = NOW() + INTERVAL '{minutes} minutes'
+                 WHERE lower(email) = $1""",
+            email,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("login_lockout_error", email=email, error=str(exc))
+        return
+
+    logger.warning(
+        "login_account_locked_by_bruteforce",
+        email=email,
+        ip=ip,
+        failed_count=count,
+        minutes=minutes,
+    )
 
 
 class LoginRequest(BaseModel):
@@ -178,34 +251,94 @@ async def user_error_detail(request: Request | None, technical: str, user_msg: s
 @router.post("/auth/login")
 @limiter.limit("10/minute")
 async def login(body: LoginRequest, request: Request):
-    """Вход по email/паролю, выдача токена."""
+    """Вход по email/паролю, выдача токена.
+
+    Защита от перебора: лимит по IP (slowapi) + блокировка по аккаунту.
+    После `_LOCKOUT_THRESHOLD` неудач подряд аккаунт блокируется на
+    экспоненциально растущее время (до `_LOCKOUT_MAX_MINUTES`).
+    Блокировка по аккаунту не зависит от IP, поэтому не обходится
+    подменой заголовков или ботнетом.
+    """
     pool = get_pool()
     if pool is None:
         logger.error("login_no_pool")
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    ip = client_ip(request)
+    ua = request.headers.get("User-Agent", "")
+    email = body.email.strip().lower()
+
     try:
-        row = await pool.fetchrow(
-            "SELECT id, email, role, full_name, password_hash = crypt($2, password_hash) AS pw_match FROM users WHERE email = $1 AND is_active = true",  # noqa: E501 - SQL string must not be split
-            body.email, body.password,
+        lock = await pool.fetchrow(
+            """SELECT locked_until,
+                      GREATEST(0, CEIL(EXTRACT(EPOCH FROM (locked_until - NOW()))))::int AS retry_in
+                 FROM users WHERE lower(email) = $1""",
+            email,
         )
+        if lock and lock["locked_until"] is not None and lock["retry_in"] and lock["retry_in"] > 0:
+            logger.warning("login_account_locked", email=email, ip=ip, retry_in=lock["retry_in"])
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Слишком много неудачных попыток входа. "
+                    f"Повторите через {_humanize_seconds(lock['retry_in'])}."
+                ),
+                headers={"Retry-After": str(lock["retry_in"])},
+            )
+
+        row = await pool.fetchrow(
+            """SELECT id, email, role, full_name,
+                      password_hash = crypt($2, password_hash) AS pw_match,
+                      COALESCE(split_part(password_hash, '$', 3)::int, 0) AS pw_cost
+                 FROM users
+                WHERE lower(email) = $1 AND is_active = true""",  # noqa: E501 — SQL string must not be split
+            email, body.password,
+        )
+
+        # Выравниваем время ответа. Для несуществующего email и для аккаунтов
+        # со старым слабым хешем (cost 6) считаем ещё и bcrypt целевой
+        # стоимости — иначе 401 для них приходит в ~9 раз быстрее и выдаёт,
+        # какие адреса зарегистрированы (перечисление пользователей).
+        if row is None or row["pw_cost"] < _TARGET_BCRYPT_COST:
+            await pool.execute(
+                f"SELECT crypt($1, gen_salt('bf', {_TARGET_BCRYPT_COST}))", body.password
+            )
+
         if row is None or not row["pw_match"]:
+            await _register_failed_login(pool, email, ip)
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         token = _make_token(str(row["id"]), row["email"], row["role"])
 
         token_hash = _hash_token(token)
-        forwarded = request.headers.get("X-Forwarded-For", "")
-        # Право-крайний хоп: левые значения контролирует клиент (подделка IP),
-        # их дописывает только доверенный прокси.
-        ip = forwarded.split(",")[-1].strip() if forwarded else (request.client.host if request.client else "unknown")
-        ua = request.headers.get("User-Agent", "")
         await pool.execute(
             """INSERT INTO sessions (user_id, token_hash, ip_address, user_agent)
                VALUES ($1, $2, $3, $4)""",
             row["id"], token_hash, ip, ua,
         )
 
-        logger.info("user_logged_in", email=body.email, role=row["role"])
+        # Успешный вход снимает блокировку и счётчик неудач.
+        # Заодно обновляем слабый хеш (cost 6 -> 12), пока пароль есть в памяти.
+        if row["pw_cost"] < _TARGET_BCRYPT_COST:
+            await pool.execute(
+                f"""UPDATE users
+                       SET password_hash = crypt($1, gen_salt('bf', {_TARGET_BCRYPT_COST})),
+                           failed_login_count = 0,
+                           locked_until = NULL,
+                           last_failed_login_at = NULL
+                     WHERE id = $2""",
+                body.password, row["id"],
+            )
+            logger.info("user_password_rehashed", email=row["email"], old_cost=row["pw_cost"])
+        else:
+            await pool.execute(
+                """UPDATE users
+                      SET failed_login_count = 0, locked_until = NULL, last_failed_login_at = NULL
+                    WHERE id = $1""",
+                row["id"],
+            )
+
+        logger.info("user_logged_in", email=row["email"], role=row["role"], ip=ip)
         return {
             "token": token,
             "role": row["role"],
@@ -216,7 +349,9 @@ async def login(body: LoginRequest, request: Request):
         raise
     except Exception as exc:
         logger.error("login_db_error", error=str(exc))
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+        raise HTTPException(
+            status_code=503, detail="Service temporarily unavailable"
+        ) from exc
 
 
 @router.post("/auth/logout")

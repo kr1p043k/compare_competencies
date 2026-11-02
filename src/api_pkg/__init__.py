@@ -16,6 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from src import config
+from src.api_pkg.client_ip import client_ip
 from src.monitoring.metrics import get_metrics
 
 _disable_cmdstan().__enter__()
@@ -30,16 +31,18 @@ class _BodyTooLargeError(Exception):
 
 
 def _rate_limit_key(request: Request) -> str:
-    """Rate limit by user email (from JWT) if authenticated, else by IP."""
+    """Rate limit by user email (from JWT) if authenticated, else by real IP.
+
+    IP берётся через `client_ip`, который не доверяет `X-Forwarded-For` от
+    недоверенных соединений: иначе лимит обходится подменой заголовка
+    (15 запросов с разными XFF давали 15 попыток входа).
+    """
     user = getattr(request.state, "user", None)
     if user and isinstance(user, dict):
         email = user.get("u")
         if email:
             return f"user:{email}"
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    # Право-крайний хоп (как и в auth.login): левые элементы контролирует клиент.
-    client_ip = forwarded.split(",")[-1].strip() if forwarded else (request.client.host if request.client else "unknown")
-    return f"ip:{client_ip}"
+    return f"ip:{client_ip(request)}"
 
 
 limiter = Limiter(key_func=_rate_limit_key)
@@ -237,10 +240,13 @@ def create_app() -> FastAPI:
     _mount(trends_router)
     from src.api_pkg.routers.taxonomy import router as taxonomy_router
     _mount(taxonomy_router)
-    from src.api_pkg.routers.vacancies import router as vacancies_router
-    _mount(vacancies_router)
+    # Статические пути монтируем ДО динамических: иначе /vacancies/{vacancy_id}
+    # из vacancies_router перехватывает /vacancies/by-skill и отдаёт 400
+    # «Invalid vacancy ID format».
     from src.api_pkg.routers.vacancies_by_skill import router as vacancies_skill_router
     _mount(vacancies_skill_router)
+    from src.api_pkg.routers.vacancies import router as vacancies_router
+    _mount(vacancies_router)
     from src.api_pkg.routers.results import router as results_router
     _mount(results_router)
     from src.api_pkg.routers.pipeline import router as pipeline_router
