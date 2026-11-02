@@ -49,7 +49,12 @@ async def _fetch(request: Request, path: str) -> Any:
             raise HTTPException(status_code=404, detail="Программа не найдена в сервисе ЮФУ") from None
         logger.warning("academic_trends_failed", path=path, error=str(exc),
                        status=exc.status_code)
-        raise HTTPException(status_code=502, detail=str(exc)) from None
+        # Наружу - только безопасный текст: str(exc) содержит тело ответа
+        # сервиса и внутренние детали, которые пользователю не нужны.
+        raise HTTPException(
+            status_code=502,
+            detail="Сервис ЮФУ вернул ошибку. Попробуйте позже.",
+        ) from None
 
 
 @router.get("/academic/programs", dependencies=[Depends(require_any_role(*_ROLES))])
