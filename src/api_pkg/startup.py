@@ -235,11 +235,34 @@ async def _run_bootstrap_safely() -> None:
         _notify_warmup_failure("bootstrap", e)
 
 
+async def _purge_expired_sessions() -> None:
+    """Удалить давно истёкшие сессии (иначе таблица растёт бесконечно).
+
+    Токен живёт TOKEN_TTL_DAYS; строки сессий после истечения не нужны, но
+    накапливались (158 «активных» на момент проверки). Держим запас 30 дней -
+    на случай разбора инцидентов по недавним входам.
+    """
+    from src.db import get_pool
+
+    pool = get_pool()
+    if pool is None:
+        return
+    try:
+        keep_days = int(config.TOKEN_TTL_DAYS) + 30
+        deleted = await pool.execute(
+            f"DELETE FROM sessions WHERE logged_in_at < NOW() - INTERVAL '{keep_days} days'"
+        )
+        logger.info("sessions_purged", keep_days=keep_days, result=str(deleted))
+    except Exception as e:
+        logger.warning("sessions_purge_failed", error=str(e))
+
+
 async def _bootstrap():
     from src.api_pkg.routers.pipeline import _load_tasks as _load_pipeline_tasks
     await asyncio.to_thread(_load_pipeline_tasks)
 
     await _finalize_stale_pipeline_runs()
+    await _purge_expired_sessions()
 
     asyncio.ensure_future(_resolve_pipeline_errors_if_ready())
 
