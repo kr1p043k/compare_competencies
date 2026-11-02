@@ -13,6 +13,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 
+# Single source of truth for competency categories: used by the CheckConstraint
+# below AND by scripts/seed_all_directions.py. Keep them in sync for free by
+# importing this tuple, never by copying the literal.
+COMPETENCY_CATEGORIES: tuple[str, ...] = ("УК", "ОПК", "ПК", "ППК", "ИП", "ВПК")
+
 
 def _uuid() -> str:
     return str(uuid.uuid4())
@@ -223,7 +228,7 @@ class Competency(Base):
 
     __table_args__ = (
         CheckConstraint("code ~ '^(УК|ОПК|ПК|ППК|ИП|ВПК)[- ]\\d+(\\.\\d+)*'", name="ck_comp_code_format"),
-        CheckConstraint(category.in_(["УК", "ОПК", "ПК", "ППК", "ИП", "ВПК"]), name="ck_comp_category"),
+        CheckConstraint(category.in_(COMPETENCY_CATEGORIES), name="ck_comp_category"),
         CheckConstraint(development_level.in_(["КС-1", "КС-2", "КС-3"]), name="ck_comp_dev_level"),
     )
 

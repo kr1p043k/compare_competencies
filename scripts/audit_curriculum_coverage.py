@@ -23,6 +23,10 @@ import psycopg
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCE = ROOT / "data" / "reference"
 DEFAULT_DSN = "postgresql://postgres:Admin_123!@localhost:5432/compare_competencies"
+# Optional JSON export of the discipline_scope table (owner may dump it here).
+# The authoritative store is the discipline_scope table itself; this file is a
+# read-only convenience. Format: {discipline_name: {"included": bool}}.
+SCOPE_FILE = REFERENCE / "discipline_scope.json"
 
 # Дисциплины, которых нет в перечне по смыслу: практики, физкультура, ИЯ и т.п.
 # Их отсутствие в БД — не дефект данных, а осознанное сужение анализа.
@@ -129,6 +133,44 @@ def load_db_disciplines(dsn: str, direction: str) -> list[str]:
     return [r[0] for r in rows]
 
 
+def load_scope_exclusions(dsn: str, direction: str) -> set[str]:
+    """Discipline names deliberately excluded from analysis (included=false).
+
+    Authoritative source is the ``discipline_scope`` table written by the
+    teacher UI (see src/teacher_scope.py). An optional JSON export at
+    ``data/reference/discipline_scope.json`` is merged when present. Any
+    failure (missing file, unreachable DB, bad JSON) degrades to an empty
+    set, so the audit keeps its previous behaviour instead of crashing.
+    """
+    flags: dict[str, bool] = {}
+
+    try:
+        data = json.loads(SCOPE_FILE.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        data = None
+    if isinstance(data, dict):
+        for name, value in data.items():
+            if isinstance(value, dict) and "included" in value:
+                flags[str(name)] = bool(value["included"])
+            elif isinstance(value, bool):
+                flags[str(name)] = value
+
+    try:
+        with psycopg.connect(dsn, connect_timeout=10) as conn:
+            rows = conn.execute(
+                "SELECT discipline_name, included FROM discipline_scope "
+                "WHERE direction_code = %s",
+                (direction,),
+            ).fetchall()
+        for name, included in rows:
+            flags[str(name)] = bool(included)
+    except Exception as exc:  # локальная БД может быть недоступна
+        print(f"scope-исключения недоступны ({exc}); считаю всё лишнее дефектом",
+              file=sys.stderr)
+
+    return {name for name, included in flags.items() if not included}
+
+
 def load_krm_disciplines(direction: str) -> list[str]:
     path = REFERENCE / f"krm_disciplines_{direction}.json"
     if not path.exists():
@@ -201,6 +243,7 @@ def main() -> int:
     official = official_doc["disciplines"]
     db_names = load_db_disciplines(args.dsn, args.direction)
     krm_names = load_krm_disciplines(args.direction)
+    scope_excluded = load_scope_exclusions(args.dsn, args.direction)
 
     print(f"{official_doc['direction_code']} {official_doc['direction_name']} "
           f"(набор {official_doc.get('year')})")
@@ -220,10 +263,18 @@ def main() -> int:
               f"(из них профильных: {len(gap)})")
         for m in gap:
             print(f"      · {m}")
-        if extra:
-            print(f"    есть в {label}, нет в официальном перечне: {len(extra)}")
-            for e in extra:
+        # "Лишние" в перечне дисциплины, уже исключённые из анализа
+        # (included=false) — это не дефект: они сохранены в БД намеренно.
+        excluded = [e for e in extra if e in scope_excluded]
+        extra_defects = [e for e in extra if e not in scope_excluded]
+        if extra_defects:
+            print(f"    есть в {label}, нет в официальном перечне: {len(extra_defects)}")
+            for e in extra_defects:
                 print(f"      ? {e}")
+        if excluded:
+            print(f"    исключены из анализа (included=false): {len(excluded)}")
+            for e in excluded:
+                print(f"      – {e}")
         overlap = len(pairs) / max(len(official), 1)
         if overlap < 0.5:
             print(f"    !! пересечение {overlap:.0%}: похоже, перечень и {label} — "
@@ -233,7 +284,8 @@ def main() -> int:
             "matched": len(pairs),
             "missing_total": len(missing),
             "missing_analytical": gap,
-            "extra": extra,
+            "extra": extra_defects,
+            "scope_excluded": excluded,
             "pairs": pairs,
         }
 

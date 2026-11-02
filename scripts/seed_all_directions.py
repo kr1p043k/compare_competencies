@@ -24,6 +24,7 @@ from sqlalchemy import select, text
 from src.database import Base, async_session_factory, get_engine
 from src.loaders.rpd_loader import normalize_disc_name
 from src.models.krm_models import (
+    COMPETENCY_CATEGORIES,
     Competency,
     CompetencySkill,
     Direction,
@@ -48,10 +49,12 @@ RPD_SKILLS_PATH = REFERENCE_DIR / "rpd_skills.json"
 _COMP_CODE_RE = re.compile(r"^(УК|ОПК|ПК|ППК|ИП|ВПК|DL|UK|OPK|PK)[\s-](\d+(?:\.\d+)*)$")
 _FALLBACK_CODE_RE = re.compile(r"^([A-Za-zА-Яа-яЁё]+)[\s-]*(\d+(?:\.\d+)*)$")
 
-# Категории, разрешённые ограничением competencies_category_check. Коды вне
-# списка (напр. legacy DL-3 из прошлого набора) пропускаем: иначе сид падает на
-# CheckViolation и не заводит оставшиеся дисциплины.
-_ALLOWED_CATEGORIES = {"УК", "ОПК", "ПК", "ППК", "ИП", "ВПК"}
+# Категории, разрешённые ограничением ck_comp_category. Источник истины —
+# COMPETENCY_CATEGORIES в src/models/krm_models.py (тот же кортеж, что и в
+# CheckConstraint), чтобы копия не устаревала молча. Коды вне списка (напр.
+# legacy DL-3 из прошлого набора) пропускаем: иначе сид падает на CheckViolation
+# и не заводит оставшиеся дисциплины.
+_ALLOWED_CATEGORIES = set(COMPETENCY_CATEGORIES)
 
 
 def _parse_comp_code(code: str) -> tuple[str, str]:
