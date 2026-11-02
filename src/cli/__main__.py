@@ -89,8 +89,12 @@ def main() -> None:
     p = sub.add_parser("teacher-analysis", help="Запустить преподавательский анализ (gap + embedding + SHAP)")
     p.add_argument("--direction", default="09.03.02", help="Код направления (09.03.02)")
     p.add_argument("--discipline", help="Фильтр по дисциплине (необязательно)")
+    p.add_argument("--year", type=int, default=2025,
+                   help="Год набора: 2025 (по умолчанию, layout без изменений) или 2024 "
+                        "(KRM *_2024.json, результат data/result/teacher/<код>/2024/)")
     p.add_argument("--force", action="store_true", help="Принудительно пересчитать (игнор skip data_unchanged)")
-    p.set_defaults(func=lambda a: teacher_analysis.main(direction=a.direction, discipline=a.discipline, force=a.force))
+    p.set_defaults(func=lambda a: teacher_analysis.main(
+        direction=a.direction, discipline=a.discipline, force=a.force, year=a.year))
 
     p = sub.add_parser("populate-parsed-skills", help="Заполнить parsed_skills в БД перепарсингом вакансий")
     p.add_argument("--force-all", action="store_true",

@@ -35,6 +35,37 @@ OUTPUT = Path(__file__).resolve().parent.parent.parent / "data" / "result" / "te
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "models"
 
+# Год набора по умолчанию. 2025 использует исторический файл без суффикса
+# (krm_disciplines_<код>.json), поэтому дефолтное поведение не меняется.
+DEFAULT_YEAR = 2025
+
+
+def resolve_krm_path(dir_code: str, year: int = DEFAULT_YEAR) -> Path:
+    """Путь к KRM направления для года набора.
+
+    - 2025 (и по умолчанию) -> krm_disciplines_<код>.json (имя не менялось);
+    - иной год            -> krm_disciplines_<код>_<год>.json;
+      если файла года нет - фолбэк на дефолтный файл + предупреждение в лог.
+    """
+    default = config.REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
+    if year and year != DEFAULT_YEAR:
+        year_path = config.REFERENCE_DIR / f"krm_disciplines_{dir_code}_{year}.json"
+        if year_path.exists():
+            return year_path
+        logger.warning("krm_year_file_missing_fallback_default",
+                       direction=dir_code, year=year, fallback=str(default))
+        return default
+    return default
+
+
+def teacher_output_dir(dir_code: str, year: int = DEFAULT_YEAR) -> Path:
+    """Каталог результата: 2025 -> teacher/<код>/ (как сейчас),
+    другой год -> teacher/<код>/<год>/ (файлы внутри те же)."""
+    base = OUTPUT / dir_code
+    if year and year != DEFAULT_YEAR:
+        return base / str(year)
+    return base
+
 # Версия логики анализа. Поднимай при изменении подсчётов/рекомендаций -
 # skip "data_unchanged" сверяет её с code_version в _summary.json и тогда
 # пересчитывает даже без изменения входных данных.
@@ -407,9 +438,10 @@ async def run_teacher_analysis(
     discipline_filter: str | None = None,
     user_id: str | None = None,
     force: bool = False,
+    year: int = DEFAULT_YEAR,
 ) -> Result[dict, AnalysisRunnerError]:
     """Полный teacher analysis направления: покрытие, гэпы, рекомендации, графики."""
-    logger.info("analysis_started", direction=direction_code, discipline=discipline_filter)
+    logger.info("analysis_started", direction=direction_code, discipline=discipline_filter, year=year)
 
     # - DB connection -
     await create_pool()
@@ -603,11 +635,11 @@ async def run_teacher_analysis(
 
     # - load raw KSA descriptions from JSON (source of truth for requirements) -
     raw_ksa: dict[str, dict[str, dict[str, list[str]]]] = {}  # {disc: {comp: {type: [texts]}}}
+    krm_json_path = (
+        resolve_krm_path(direction_code, year) if direction_code
+        else config.KRM_DISCIPLINES_PATH
+    )
     try:
-        if direction_code:
-            krm_json_path = config.REFERENCE_DIR / f"krm_disciplines_{direction_code}.json"
-        else:
-            krm_json_path = config.KRM_DISCIPLINES_PATH
         if krm_json_path.exists():
             krm_data = json.loads(krm_json_path.read_text(encoding="utf-8"))
             krm_direction = krm_data.get(direction_code) if direction_code else None
@@ -617,6 +649,18 @@ async def run_teacher_analysis(
             logger.info("raw_ksa_loaded", disciplines=len(raw_ksa))
     except Exception as exc:
         logger.warning("raw_ksa_load_failed", error=str(exc))
+
+    # Состав дисциплин для года, отличного от текущего, задаёт KRM этого года.
+    # В БД лежит набор текущего набора, поэтому без фильтра отчёт за 2024
+    # содержал бы дисциплины, которых в плане 2024 нет (проверено: 26 лишних),
+    # а настоящие дисциплины 2024 отсутствовали бы.
+    if year and year != DEFAULT_YEAR and raw_ksa:
+        in_year = set(raw_ksa)
+        dropped = [n for n in disciplines if n not in in_year]
+        for name in dropped:
+            del disciplines[name]
+        logger.info("disciplines_filtered_by_year", year=year,
+                    kept=len(disciplines), dropped=len(dropped))
 
     # - merge raw KSA into disciplines (separate from skills) -
     for dname, disc_data in disciplines.items():
@@ -727,7 +771,7 @@ async def run_teacher_analysis(
         await _fail_pipeline_run(run_id, f"disciplines: all excluded by scope for {dir_code}")
         await close_pool()
         return Err(AnalysisRunnerError(stage="disciplines", message="All disciplines excluded by scope"))
-    out_dir = OUTPUT / dir_code
+    out_dir = teacher_output_dir(dir_code, year)
     os.makedirs(out_dir, exist_ok=True)
 
     # Skip только если входные данные не менялись:
@@ -766,7 +810,7 @@ async def run_teacher_analysis(
             )
             krm_unchanged = not krm_max or summary_mtime > krm_max.timestamp()
 
-            krm_file_path = config.REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
+            krm_file_path = krm_json_path
             file_unchanged = not krm_file_path.exists() or summary_mtime > krm_file_path.stat().st_mtime
 
             # Ручное уточнение охвата (discipline_market_scope.json) меняет числа,
@@ -1146,6 +1190,7 @@ async def run_teacher_analysis(
 
     dir_summary = {
         "direction": dir_code,
+        "year": year,
         "direction_name": direction["name"],
         "profile": direction["profile"],
         "code_version": CODE_VERSION,
@@ -1225,6 +1270,7 @@ async def run_teacher_analysis(
             logger.warning("partial_pipeline_run_close_failed", error=str(exc))
         return Ok({
             "direction": dir_code,
+            "year": year,
             "direction_name": direction["name"],
             "profile": direction["profile"],
             "code_version": CODE_VERSION,

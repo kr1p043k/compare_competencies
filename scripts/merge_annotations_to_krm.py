@@ -26,6 +26,16 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 REFERENCE_DIR = Path(__file__).resolve().parent.parent / "data" / "reference"
 ANN_ALL_PATH = REFERENCE_DIR / "sfu_annotations_all.json"
 
+# Год набора: None - файл года по умолчанию (krm_disciplines_<код>.json,
+# ничего не меняется); 2024 - отдельный файл krm_disciplines_<код>_2024.json.
+# Нужен, чтобы годовые KRM не смешивались и 2025-й оставался нетронутым.
+YEAR: int | None = None
+
+
+def _krm_path(dir_code: str) -> Path:
+    suffix = f"_{YEAR}" if YEAR else ""
+    return REFERENCE_DIR / f"krm_disciplines_{dir_code}{suffix}.json"
+
 DIR_CODES = [
     "01.03.01",
     "01.03.02",
@@ -222,7 +232,7 @@ def add_missing(dir_code: str, anns: list[dict],
     Существующий enrich только обогащает записи; дисциплины, не заведённые в
     БД/KRM, не появлялись никогда, хотя файл лежит на диске.
     """
-    krm_path = REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
+    krm_path = _krm_path(dir_code)
     if not krm_path.exists():
         return []
     data = json.loads(krm_path.read_text(encoding="utf-8"))
@@ -305,14 +315,49 @@ def _scaffold_krm(dir_code: str, anns: dict) -> bool:
     if not discs:
         return False
     data = {dir_code: {"direction_name": dir_code, "profile": "", "disciplines": discs}}
-    krm_path = REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
+    krm_path = _krm_path(dir_code)
     krm_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"{dir_code}: скаффолд KRM из аннотаций ({len(discs)} дисциплин)")
     return True
 
 
+def seed_official(dir_code: str, official: Path) -> int:
+    """Завести костяк KRM из официального перечня года.
+
+    Нужен для новой годовой ветки (2024): у направления ещё нет KRM, а
+    enrich_direction обогащает только существующие записи. Имена берём из
+    официального перечня, содержание подтянет enrich из аннотаций.
+    Существующий файл года не трогаем: если он есть, добавляем лишь
+    отсутствующие имена.
+    """
+    try:
+        doc = json.loads(official.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        print(f"{dir_code}: официальный перечень недоступен ({exc})")
+        return 0
+    names = [d for d in (doc.get("disciplines") or []) if isinstance(d, str) and d.strip()]
+    if not names:
+        return 0
+    krm_path = _krm_path(dir_code)
+    if krm_path.exists():
+        data = json.loads(krm_path.read_text(encoding="utf-8"))
+    else:
+        data = {dir_code: {"direction_name": doc.get("direction_name", dir_code),
+                           "profile": "", "disciplines": {}}}
+    sub = next(iter(data.values()))
+    disc = sub.setdefault("disciplines", {})
+    added = 0
+    for name in names:
+        if name not in disc:
+            disc[name] = {"competencies": [], "skills": {}, "ksa": {}}
+            added += 1
+    krm_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"{dir_code}: костяк из перечня {official.name}: +{added} дисциплин")
+    return added
+
+
 def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
-    krm_path = REFERENCE_DIR / f"krm_disciplines_{dir_code}.json"
+    krm_path = _krm_path(dir_code)
     if not krm_path.exists():
         # Каркаса нет (новое направление) - строим из аннотаций:
         # дисциплины + коды + темы как knowledge.
@@ -417,19 +462,53 @@ def enrich_direction(dir_code: str, anns: dict) -> tuple[int, int, int]:
     return matched, has_comp, has_content
 
 
+def prune_empty(dir_code: str) -> int:
+    """Удалить записи без компетенций из KRM года.
+
+    Аннотации старого формата (до введения кодов) не содержат компетенций:
+    запись получается пустой и в анализе разрыва не участвует, но занимает
+    место в списке дисциплин и в UI. Такие записи убираем; данные в них
+    отсутствуют по определению.
+    """
+    krm_path = _krm_path(dir_code)
+    if not krm_path.exists():
+        return 0
+    data = json.loads(krm_path.read_text(encoding="utf-8"))
+    sub = next(iter(data.values()))
+    discs = sub.get("disciplines", {})
+    empty = [n for n, b in discs.items() if not (b.get("competencies") or [])]
+    if not empty:
+        print(f"{dir_code}: пустых записей нет")
+        return 0
+    for name in empty:
+        del discs[name]
+    krm_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"{dir_code}: удалено пустых записей {len(empty)}; осталось {len(discs)}")
+    return len(empty)
+
+
 def main() -> None:
-    global REFERENCE_DIR
+    global REFERENCE_DIR, YEAR
     parser = argparse.ArgumentParser()
     parser.add_argument("--dir", default=str(REFERENCE_DIR))
     parser.add_argument("--only", default=None, help="dir_code; все если не указан")
+    parser.add_argument("--year", type=int, default=None,
+                        help="год набора; задан - KRM пишется в krm_disciplines_<код>_<год>.json "
+                             "(по умолчанию файл года не суффиксируется)")
+    parser.add_argument("--seed-official", default=None,
+                        help="official_curriculum_<код>_<год>.json; завести имена дисциплин костяком KRM")
     parser.add_argument("--official", default=None,
                         help="official_curriculum_<код>_<год>.json; добавлять только дисциплины оттуда")
     parser.add_argument("--add-missing", action="store_true",
                         help="добавить дисциплины, которых нет в KRM, из аннотаций")
     parser.add_argument("--ann", default=None,
                         help="файл аннотаций; список (один год) или словарь по кодам")
+    parser.add_argument("--prune-empty", action="store_true",
+                        help="удалить дисциплины без компетенций (старый формат аннотаций): "
+                             "запись без кодов не участвует в анализе и только засоряет KRM")
     args = parser.parse_args()
     REFERENCE_DIR = Path(args.dir)
+    YEAR = args.year
 
     ann_path = Path(args.ann) if args.ann else ANN_ALL_PATH
     anns_all = json.loads(ann_path.read_text(encoding="utf-8"))
@@ -439,6 +518,8 @@ def main() -> None:
         anns_all = {args.only: anns_all}
     codes = ([args.only] if args.only else DIR_CODES)
     for code in codes:
+        if args.seed_official:
+            seed_official(code, Path(args.seed_official))
         if args.add_missing:
             official = _official_names(Path(args.official)) if args.official else None
             added = add_missing(code, anns_all.get(code, []), official)
@@ -446,6 +527,8 @@ def main() -> None:
                 print(f"{code}: + добавлена {name}")
             print(f"{code}: добавлено {len(added)}")
         enrich_direction(code, anns_all.get(code, []))
+        if args.prune_empty:
+            prune_empty(code)
 
 
 if __name__ == "__main__":

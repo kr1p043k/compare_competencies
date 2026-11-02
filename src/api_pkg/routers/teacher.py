@@ -909,18 +909,22 @@ async def competency_tree(dir_code: str = "09.03.02"):
 
 
 @router.get("/teacher/analysis", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
-async def get_analysis(dir_code: str = "09.03.02"):
-    """Сводка teacher analysis направления."""
+async def get_analysis(dir_code: str = "09.03.02", year: int = 2025):
+    """Сводка teacher analysis направления (year=2024 - отдельная ветка каталога)."""
     import re
     if not re.match(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$", dir_code):
         raise HTTPException(status_code=400, detail="Invalid direction code format")
     base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher"
-    resolved = (base / dir_code / "_summary.json").resolve()
+    sub = str(year) if year and year != 2025 else ""
+    resolved = (base / dir_code / sub / "_summary.json").resolve()
     if base.resolve() not in resolved.parents:
         raise HTTPException(status_code=400, detail="Invalid path")
     if not resolved.exists():
         raise HTTPException(404, f"Analysis not found for {dir_code}")
-    return json.loads(resolved.read_text(encoding="utf-8"))
+    data = json.loads(resolved.read_text(encoding="utf-8"))
+    if isinstance(data, dict):
+        data.setdefault("year", year)
+    return data
 
 
 
@@ -1088,13 +1092,16 @@ async def teacher_students(request: Request):
     "/teacher/analysis/{discipline_name:path}",
     dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
 )
-async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02"):
-    """Teacher analysis дисциплины."""
+async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.02",
+                                  year: int = 2025):
+    """Teacher analysis дисциплины (year=2024 - отдельная ветка каталога)."""
     import re
     from pathlib import Path
     if not re.match(r"^\d{2}\.\d{2}\.\d{2}(?:_\w+)?$", dir_code):
         raise HTTPException(status_code=400, detail="Invalid direction code format")
     base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher" / dir_code
+    if year and year != 2025:
+        base = base / str(year)
     safe = re.sub(r'[\\/*?:"<>|]', "_", discipline_name).strip()[:80]
     files = [f for f in base.rglob(f"{safe}.json") if f.name != "_summary.json"]
     if not files:
