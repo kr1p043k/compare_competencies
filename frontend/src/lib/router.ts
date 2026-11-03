@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 /** Все вкладки приложения. Неизвестное значение в адресе откатывается к fallback. */
 export const KNOWN_TABS = [
   "vacancies", "data", "visualization", "predictions", "articles",
-  "scientific-trends", "teacher", "students", "monitoring", "logs",
+  "scientific-trends", "publications", "teacher", "students", "monitoring", "logs",
   "admin", "student", "taxonomy", "profile", "help",
 ] as const;
 
