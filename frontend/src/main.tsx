@@ -4,6 +4,7 @@ import App from "./app/App.tsx";
 import { AuthProvider, setSession } from "./lib/auth.tsx";
 import "./styles/index.css";
 import { reportError } from "./lib/errors";
+import ErrorBoundary from "./design/ErrorBoundary";
 
 // React загружен (версию смотреть в package.json)
 
@@ -58,9 +59,11 @@ async function bootstrap() {
 
   createRoot(root).render(
     <React.StrictMode>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <ErrorBoundary scope="root">
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ErrorBoundary>
     </React.StrictMode>
   );
 }
