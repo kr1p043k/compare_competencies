@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "./components/ui/select";
 import { Tabs, TabsContent, TabsList } from "./components/ui/tabs";
+import ErrorBoundary from "../design/ErrorBoundary";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -932,362 +933,394 @@ export default function App() {
           {/* Vacancies Tab */}
           <Suspense fallback={<div className="p-6 text-sm text-gray-500">Загрузка раздела…</div>}>
           <TabsContent value="vacancies">
-            <VacanciesList
-              pipelineStep={pipelineStep}
-              pipelineLoading={pipelineLoading}
-              restartFlag={restartFlag}
-              onStartPipeline={effectiveRole === "student" ? undefined : (regionIds, profession, maxPages, periodDays) => startPipeline(regionIds, profession, maxPages, periodDays)}
-              pipelineMaxPages={pipelineMaxPages}
-              pipelinePeriod={pipelinePeriod}
-              canRunPipeline={effectiveRole !== "student"}
-            />
+            <ErrorBoundary scope="vacancies">
+              <VacanciesList
+                pipelineStep={pipelineStep}
+                pipelineLoading={pipelineLoading}
+                restartFlag={restartFlag}
+                onStartPipeline={effectiveRole === "student" ? undefined : (regionIds, profession, maxPages, periodDays) => startPipeline(regionIds, profession, maxPages, periodDays)}
+                pipelineMaxPages={pipelineMaxPages}
+                pipelinePeriod={pipelinePeriod}
+                canRunPipeline={effectiveRole !== "student"}
+              />
+            </ErrorBoundary>
           </TabsContent>
 
           {/* Data Tab */}
           <TabsContent value="data">
-            <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
-              <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 bg-emerald-600 rounded-lg">
-                    <Database className="size-5 text-white" />
+            <ErrorBoundary scope="data">
+              <Card className="border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                <CardHeader className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-10 h-10 bg-emerald-600 rounded-lg">
+                      <Database className="size-5 text-white" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
+                        Результаты
+                      </CardTitle>
+                      <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
+                        Просмотр профилей, рекомендаций и статистики
+                      </CardDescription>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-xl font-semibold text-gray-900 dark:text-slate-100">
-                      Результаты
-                    </CardTitle>
-                    <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
-                      Просмотр профилей, рекомендаций и статистики
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-6 space-y-6">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
-                    Профиль компетенций
-                  </Label>
-                  <Select value={profile} onValueChange={handleProfileChange}>
-                    <SelectTrigger className="h-11 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {profilesList.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          <div className="flex items-center gap-2">
-                            <Award className={`size-4 ${p === profile ? "text-emerald-600" : "text-gray-400 dark:text-slate-500"}`} />
-                            <span>{profileLabel(p)}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                  <Button
-                    onClick={loadRecommendations}
-                    disabled={loading}
-                    className="h-11 bg-blue-700 hover:bg-blue-800 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
-                  >
-                    <Search className="mr-2 size-4" />
-                    Показать сохранённые
-                  </Button>
-                  <Button
-                    onClick={loadProfileDetail}
-                    disabled={loading || isStudent}
-                    title={isStudent ? "Только для преподавателя" : undefined}
-                    className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
-                  >
-                    <FileText className="mr-2 size-4" />
-                    Профиль
-                  </Button>
-                  <Button
-                    onClick={loadRecommendations}
-                    disabled={loading || isStudent}
-                    title={isStudent ? "Только для преподавателя" : undefined}
-                    className="h-11 bg-blue-600 hover:bg-blue-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
-                  >
-                    <Sparkles className="mr-2 size-4" />
-                    Рекомендации
-                  </Button>
-                  <Button
-                    onClick={loadMarket}
-                    disabled={loading || isStudent}
-                    title={isStudent ? "Только для преподавателя" : undefined}
-                    variant="outline"
-                    className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  >
-                    <BarChart3 className="mr-2 size-4" />
-                    Рынок
-                  </Button>
-                  <Button
-                    onClick={loadSummary}
-                    disabled={loading || isStudent}
-                    title={isStudent ? "Только для преподавателя" : undefined}
-                    variant="outline"
-                    className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  >
-                    <FileText className="mr-2 size-4" />
-                    Сводка
-                  </Button>
-                  <Button
-                    onClick={runGapAnalysis}
-                    disabled={loading || gapRunning || isStudent}
-                    title={isStudent ? "Только для преподавателя" : undefined}
-                    className="h-11 bg-amber-600 hover:bg-amber-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
-                  >
-                    <Zap className="mr-2 size-4" />
-                    Запустить gap-анализ
-                  </Button>
-                </div>
-                {gapRunning && (
-                  <p className="text-sm text-amber-700 dark:text-amber-300">{gapMsg || "Выполняется..."}</p>
-                )}
-                {!isStudent && (
-                <div className="space-y-2 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-                  <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
-                    Целевая профессия для сравнения
-                  </Label>
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <Select value={targetProfession} onValueChange={setTargetProfession}>
-                      <SelectTrigger className="h-11 flex-1 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600">
-                        <SelectValue placeholder="Выберите профессию..." />
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                      Профиль компетенций
+                    </Label>
+                    <Select value={profile} onValueChange={handleProfileChange}>
+                      <SelectTrigger className="h-11 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600">
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {professionsList.map((p) => (
+                        {profilesList.map((p) => (
                           <SelectItem key={p} value={p}>
-                            {p}
+                            <div className="flex items-center gap-2">
+                              <Award className={`size-4 ${p === profile ? "text-emerald-600" : "text-gray-400 dark:text-slate-500"}`} />
+                              <span>{profileLabel(p)}</span>
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                     <Button
-                      onClick={compareWithProfession}
-                      disabled={loading || !targetProfession}
-                      className="h-11 bg-violet-600 hover:bg-violet-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:outline-none sm:w-auto w-full"
+                      onClick={loadRecommendations}
+                      disabled={loading}
+                      className="h-11 bg-blue-700 hover:bg-blue-800 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
                     >
-                      <Briefcase className="mr-2 size-4" />
-                      Сравнить с профессией
+                      <Search className="mr-2 size-4" />
+                      Показать сохранённые
+                    </Button>
+                    <Button
+                      onClick={loadProfileDetail}
+                      disabled={loading || isStudent}
+                      title={isStudent ? "Только для преподавателя" : undefined}
+                      className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                    >
+                      <FileText className="mr-2 size-4" />
+                      Профиль
+                    </Button>
+                    <Button
+                      onClick={loadRecommendations}
+                      disabled={loading || isStudent}
+                      title={isStudent ? "Только для преподавателя" : undefined}
+                      className="h-11 bg-blue-600 hover:bg-blue-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+                    >
+                      <Sparkles className="mr-2 size-4" />
+                      Рекомендации
+                    </Button>
+                    <Button
+                      onClick={loadMarket}
+                      disabled={loading || isStudent}
+                      title={isStudent ? "Только для преподавателя" : undefined}
+                      variant="outline"
+                      className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    >
+                      <BarChart3 className="mr-2 size-4" />
+                      Рынок
+                    </Button>
+                    <Button
+                      onClick={loadSummary}
+                      disabled={loading || isStudent}
+                      title={isStudent ? "Только для преподавателя" : undefined}
+                      variant="outline"
+                      className="h-11 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    >
+                      <FileText className="mr-2 size-4" />
+                      Сводка
+                    </Button>
+                    <Button
+                      onClick={runGapAnalysis}
+                      disabled={loading || gapRunning || isStudent}
+                      title={isStudent ? "Только для преподавателя" : undefined}
+                      className="h-11 bg-amber-600 hover:bg-amber-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
+                    >
+                      <Zap className="mr-2 size-4" />
+                      Запустить gap-анализ
                     </Button>
                   </div>
-                </div>
-                )}
-                <p className="text-xs text-gray-500 dark:text-slate-400">
-                  Последняя подгрузка результатов [{profile}]: {(() => {
-                    const iso = resultLoadedAt[profile];
-                    if (!iso) return "ещё не подгружались";
-                    const d = new Date(iso);
-                    return isNaN(d.getTime()) ? iso : d.toLocaleString("ru-RU");
+                  {gapRunning && (
+                    <p className="text-sm text-amber-700 dark:text-amber-300">{gapMsg || "Выполняется..."}</p>
+                  )}
+                  {!isStudent && (
+                  <div className="space-y-2 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                    <Label className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                      Целевая профессия для сравнения
+                    </Label>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <Select value={targetProfession} onValueChange={setTargetProfession}>
+                        <SelectTrigger className="h-11 flex-1 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600">
+                          <SelectValue placeholder="Выберите профессию..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {professionsList.map((p) => (
+                            <SelectItem key={p} value={p}>
+                              {p}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        onClick={compareWithProfession}
+                        disabled={loading || !targetProfession}
+                        className="h-11 bg-violet-600 hover:bg-violet-700 text-white transition-colors focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:outline-none sm:w-auto w-full"
+                      >
+                        <Briefcase className="mr-2 size-4" />
+                        Сравнить с профессией
+                      </Button>
+                    </div>
+                  </div>
+                  )}
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    Последняя подгрузка результатов [{profile}]: {(() => {
+                      const iso = resultLoadedAt[profile];
+                      if (!iso) return "ещё не подгружались";
+                      const d = new Date(iso);
+                      return isNaN(d.getTime()) ? iso : d.toLocaleString("ru-RU");
+                    })()}
+                  </p>
+                  {(() => {
+                    const g = (lastResult as any)?.generated_at;
+                    if (typeof g !== "string") return null;
+                    const age = Date.now() - new Date(g).getTime();
+                    if (isNaN(age) || age < 7 * 864e5) return null;
+                    const days = Math.floor(age / 864e5);
+                    return <span className="ml-2 px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200">данные устарели ({days} дн.)</span>;
                   })()}
-                </p>
-                {(() => {
-                  const g = (lastResult as any)?.generated_at;
-                  if (typeof g !== "string") return null;
-                  const age = Date.now() - new Date(g).getTime();
-                  if (isNaN(age) || age < 7 * 864e5) return null;
-                  const days = Math.floor(age / 864e5);
-                  return <span className="ml-2 px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200">данные устарели ({days} дн.)</span>;
-                })()}
 
-                <div className="flex flex-wrap items-center gap-2 no-print">
-                  <Button
-                    onClick={handleDownloadPdf}
-                    disabled={isStudent}
-                    title={isStudent ? "Только для преподавателя" : undefined}
-                    variant="outline"
-                    size="sm"
-                    className="border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50 gap-1.5"
-                  >
-                    <Download className="size-3.5" />
-                    Отчёт (PDF)
-                  </Button>
-                  <Button
-                    onClick={handlePrintReport}
-                    variant="outline"
-                    size="sm"
-                    title="Печать текущей вкладки в PDF через браузер"
-                    className="border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-900/50 gap-1.5"
-                  >
-                    <Download className="size-3.5" />
-                    Печать / PDF (браузер)
-                  </Button>
-                </div>
+                  <div className="flex flex-wrap items-center gap-2 no-print">
+                    <Button
+                      onClick={handleDownloadPdf}
+                      disabled={isStudent}
+                      title={isStudent ? "Только для преподавателя" : undefined}
+                      variant="outline"
+                      size="sm"
+                      className="border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50 gap-1.5"
+                    >
+                      <Download className="size-3.5" />
+                      Отчёт (PDF)
+                    </Button>
+                    <Button
+                      onClick={handlePrintReport}
+                      variant="outline"
+                      size="sm"
+                      title="Печать текущей вкладки в PDF через браузер"
+                      className="border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-900/50 gap-1.5"
+                    >
+                      <Download className="size-3.5" />
+                      Печать / PDF (браузер)
+                    </Button>
+                  </div>
 
-                {lastResult && (() => {
-                  const d = lastResult as Record<string, unknown>;
-                  if (d.recommendations || d.closest_roles) {
-                    return (
-                      <>
-                        {(d as any).focus_mode && (d as any).target_profession && (
-                          <Card className="border-2 border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/20 mb-4">
-                            <CardContent className="pt-5">
-                              <div className="flex items-center gap-3 mb-3">
-                                <div className="p-2 bg-violet-600 rounded-lg">
-                                  <Briefcase className="size-5 text-white" />
-                                </div>
-                                <div>
-                                  <div className="font-bold text-gray-900 dark:text-slate-100">
-                                    Фокус: {(d as any).target_profession} · профиль {String((d as any).profile || "")}
+                  {lastResult && (() => {
+                    const d = lastResult as Record<string, unknown>;
+                    if (d.recommendations || d.closest_roles) {
+                      return (
+                        <>
+                          {(d as any).focus_mode && (d as any).target_profession && (
+                            <Card className="border-2 border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/20 mb-4">
+                              <CardContent className="pt-5">
+                                <div className="flex items-center gap-3 mb-3">
+                                  <div className="p-2 bg-violet-600 rounded-lg">
+                                    <Briefcase className="size-5 text-white" />
                                   </div>
-                                  <div className="text-xs text-gray-500 dark:text-slate-400">
-                                    {((d as any).target_domains || []).join(", ")}
+                                  <div>
+                                    <div className="font-bold text-gray-900 dark:text-slate-100">
+                                      Фокус: {(d as any).target_profession} · профиль {String((d as any).profile || "")}
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-slate-400">
+                                      {((d as any).target_domains || []).join(", ")}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                                <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                                  <div className="text-2xl font-bold text-violet-700 dark:text-violet-300">{Number((d as any).profession_coverage || 0).toFixed(1)}%</div>
-                                  <div className="text-xs text-gray-500 dark:text-slate-400">покрытие профессии</div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                                  <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
+                                    <div className="text-2xl font-bold text-violet-700 dark:text-violet-300">{Number((d as any).profession_coverage || 0).toFixed(1)}%</div>
+                                    <div className="text-xs text-gray-500 dark:text-slate-400">покрытие профессии</div>
+                                  </div>
+                                  <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
+                                    <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{Number((d as any).coverage_strict ?? (d as any).skill_coverage ?? 0).toFixed(1)}%</div>
+                                    <div className="text-xs text-gray-500 dark:text-slate-400">навыки: {(d as any).skill_strict_has ?? "-"} из {(d as any).skill_strict_total ?? "-"}</div>
+                                  </div>
+                                  <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
+                                    <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{Number((d as any).readiness_score || 0).toFixed(1)}%</div>
+                                    <div className="text-xs text-gray-500 dark:text-slate-400">готовность</div>
+                                  </div>
+                                  <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
+                                    <div className="text-2xl font-bold text-slate-700 dark:text-slate-200">{Number((d as any).domain_coverage_score || 0).toFixed(1)}%</div>
+                                    <div className="text-xs text-gray-500 dark:text-slate-400">покрытие доменов</div>
+                                  </div>
                                 </div>
-                                <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                                  <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{Number((d as any).coverage_strict ?? (d as any).skill_coverage ?? 0).toFixed(1)}%</div>
-                                  <div className="text-xs text-gray-500 dark:text-slate-400">навыки: {(d as any).skill_strict_has ?? "-"} из {(d as any).skill_strict_total ?? "-"}</div>
-                                </div>
-                                <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{Number((d as any).readiness_score || 0).toFixed(1)}%</div>
-                                  <div className="text-xs text-gray-500 dark:text-slate-400">готовность</div>
-                                </div>
-                                <div className="rounded-lg bg-white/70 dark:bg-slate-950/40 p-3">
-                                  <div className="text-2xl font-bold text-slate-700 dark:text-slate-200">{Number((d as any).domain_coverage_score || 0).toFixed(1)}%</div>
-                                  <div className="text-xs text-gray-500 dark:text-slate-400">покрытие доменов</div>
-                                </div>
-                              </div>
-                              {(d as any).krm_note && (
-                                <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">{String((d as any).krm_note)}</p>
-                              )}
-                            </CardContent>
-                          </Card>
-                        )}
-                        <RecommendationsReport data={lastResult as any} />
-                      </>
-                    );
-                  }
-                  if (d.evaluations && Array.isArray(d.profiles)) {
-                    return <SummaryReport data={lastResult as any} />;
-                  }
-                  if (Array.isArray((d as any).skills) && typeof (d as any).total === "number") {
-                    return <MarketView data={lastResult as any} />;
-                  }
-                  if (Array.isArray((d as any).skills) && typeof (d as any).profile_name === "string") {
-                    return <ProfileView data={lastResult as any} />;
-                  }
-                  const msg = d.message as string | undefined;
-                  if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {
-                    return (
-                      <Card className="border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
-                        <CardContent className="pt-6 text-center py-12">
-                          <AlertCircle className="size-12 text-amber-400 mx-auto mb-4" />
-                          <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-2">{msg}</h3>
-                          <p className="text-sm text-amber-600 mb-4">Запустите gap-анализ для расчёта покрытия</p>
-                           <Button
-                             onClick={runGapAnalysis}
-                             disabled={gapRunning || isStudent}
-                             title={isStudent ? "Только для преподавателя" : undefined}
-                             className="bg-amber-600 hover:bg-amber-700"
-                           >
-                            <Zap className="size-4 mr-2" />
-                            Запустить gap-анализ
-                          </Button>
-                          {gapRunning && (
-                            <p className="text-sm text-amber-700 dark:text-amber-300 mt-3">{gapMsg || "Выполняется..."}</p>
+                                {(d as any).krm_note && (
+                                  <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">{String((d as any).krm_note)}</p>
+                                )}
+                              </CardContent>
+                            </Card>
                           )}
-                        </CardContent>
-                      </Card>
-                    );
-                  }
-                  return <DataViewer data={lastResult} />;
-                })()}
-              </CardContent>
-            </Card>
+                          <RecommendationsReport data={lastResult as any} />
+                        </>
+                      );
+                    }
+                    if (d.evaluations && Array.isArray(d.profiles)) {
+                      return <SummaryReport data={lastResult as any} />;
+                    }
+                    if (Array.isArray((d as any).skills) && typeof (d as any).total === "number") {
+                      return <MarketView data={lastResult as any} />;
+                    }
+                    if (Array.isArray((d as any).skills) && typeof (d as any).profile_name === "string") {
+                      return <ProfileView data={lastResult as any} />;
+                    }
+                    const msg = d.message as string | undefined;
+                    if (msg && (msg.includes("не найдены") || msg.includes("not found"))) {
+                      return (
+                        <Card className="border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
+                          <CardContent className="pt-6 text-center py-12">
+                            <AlertCircle className="size-12 text-amber-400 mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-2">{msg}</h3>
+                            <p className="text-sm text-amber-600 mb-4">Запустите gap-анализ для расчёта покрытия</p>
+                             <Button
+                               onClick={runGapAnalysis}
+                               disabled={gapRunning || isStudent}
+                               title={isStudent ? "Только для преподавателя" : undefined}
+                               className="bg-amber-600 hover:bg-amber-700"
+                             >
+                              <Zap className="size-4 mr-2" />
+                              Запустить gap-анализ
+                            </Button>
+                            {gapRunning && (
+                              <p className="text-sm text-amber-700 dark:text-amber-300 mt-3">{gapMsg || "Выполняется..."}</p>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    }
+                    return <DataViewer data={lastResult} />;
+                  })()}
+                </CardContent>
+              </Card>
+            </ErrorBoundary>
           </TabsContent>
 
           {/* Visualization Tab */}
           {effectiveRole === "admin" && (
             <TabsContent value="visualization">
-              <Suspense fallback={<TabSpinner />}>
-                <GapAnalysisVisualizer profile={profile} onProfileChange={handleProfileChange} />
-              </Suspense>
+              <ErrorBoundary scope="visualization">
+                <Suspense fallback={<TabSpinner />}>
+                  <GapAnalysisVisualizer profile={profile} onProfileChange={handleProfileChange} />
+                </Suspense>
+              </ErrorBoundary>
             </TabsContent>
           )}
 
           <TabsContent value="predictions">
-            <MemoPredictionsTab />
+            <ErrorBoundary scope="predictions">
+              <MemoPredictionsTab />
+            </ErrorBoundary>
           </TabsContent>
           <TabsContent value="articles">
-            <Suspense fallback={<TabSpinner />}>
-              <ArticlesPage onStartGapAnalysis={() => { runGapAnalysis(); setActiveTab("data"); }} />
-            </Suspense>
+            <ErrorBoundary scope="articles">
+              <Suspense fallback={<TabSpinner />}>
+                <ArticlesPage onStartGapAnalysis={() => { runGapAnalysis(); setActiveTab("data"); }} />
+              </Suspense>
+            </ErrorBoundary>
           </TabsContent>
           <TabsContent value="scientific-trends">
-            <MemoScientificTrendsTab />
+            <ErrorBoundary scope="scientific-trends">
+              <MemoScientificTrendsTab />
+            </ErrorBoundary>
           </TabsContent>
           <TabsContent value="publications">
-            <PublicationsTab />
+            <ErrorBoundary scope="publications">
+              <PublicationsTab />
+            </ErrorBoundary>
           </TabsContent>
           <TabsContent value="help">
-            <Suspense fallback={<TabSpinner />}>
-              <FaqPage />
-            </Suspense>
+            <ErrorBoundary scope="help">
+              <Suspense fallback={<TabSpinner />}>
+                <FaqPage />
+              </Suspense>
+            </ErrorBoundary>
           </TabsContent>
           {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="taxonomy">
-              <Suspense fallback={<TabSpinner />}>
-                <TaxonomyBrowser showSuggest />
-              </Suspense>
+              <ErrorBoundary scope="taxonomy">
+                <Suspense fallback={<TabSpinner />}>
+                  <TaxonomyBrowser showSuggest />
+                </Suspense>
+              </ErrorBoundary>
             </TabsContent>
           )}
           {effectiveRole === "admin" && (
             <TabsContent value="monitoring">
-              <Suspense fallback={<TabSpinner />}>
-                <MonitoringTab />
-              </Suspense>
+              <ErrorBoundary scope="monitoring">
+                <Suspense fallback={<TabSpinner />}>
+                  <MonitoringTab />
+                </Suspense>
+              </ErrorBoundary>
             </TabsContent>
           )}
           {effectiveRole === "admin" && (
             <TabsContent value="logs">
-              <Suspense fallback={<TabSpinner />}>
-                <LogsTab />
-              </Suspense>
+              <ErrorBoundary scope="logs">
+                <Suspense fallback={<TabSpinner />}>
+                  <LogsTab />
+                </Suspense>
+              </ErrorBoundary>
             </TabsContent>
           )}
           {effectiveRole === "admin" && (
             <TabsContent value="admin">
-              <Suspense fallback={<TabSpinner />}>
-                <AdminDashboard />
-              </Suspense>
+              <ErrorBoundary scope="admin">
+                <Suspense fallback={<TabSpinner />}>
+                  <AdminDashboard />
+                </Suspense>
+              </ErrorBoundary>
             </TabsContent>
           )}
           {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="teacher">
-              <Suspense fallback={<TabSpinner />}>
-                <TeacherDashboard />
-              </Suspense>
+              <ErrorBoundary scope="teacher">
+                <Suspense fallback={<TabSpinner />}>
+                  <TeacherDashboard />
+                </Suspense>
+              </ErrorBoundary>
             </TabsContent>
           )}
           {(effectiveRole === "teacher" || effectiveRole === "rop" || effectiveRole === "admin") && (
             <TabsContent value="students">
-              <Suspense fallback={<TabSpinner />}>
-                <StudentsTab />
-              </Suspense>
+              <ErrorBoundary scope="students">
+                <Suspense fallback={<TabSpinner />}>
+                  <StudentsTab />
+                </Suspense>
+              </ErrorBoundary>
             </TabsContent>
           )}
           {(effectiveRole === "student" || effectiveRole === "admin") && (
             <TabsContent value="student">
-              <Suspense fallback={<TabSpinner />}>
-                <StudentDashboard onNavigate={setActiveTab} />
-              </Suspense>
+              <ErrorBoundary scope="student">
+                <Suspense fallback={<TabSpinner />}>
+                  <StudentDashboard onNavigate={setActiveTab} />
+                </Suspense>
+              </ErrorBoundary>
             </TabsContent>
           )}
           <TabsContent value="profile">
-            <Suspense fallback={<TabSpinner />}>
-              {effectiveRole === "admin" ? (
-                <AdminProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
-              ) : effectiveRole === "teacher" || effectiveRole === "rop" ? (
-                <TeacherProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
-              ) : (
-                <StudentProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
-              )}
-            </Suspense>
+            <ErrorBoundary scope="profile">
+              <Suspense fallback={<TabSpinner />}>
+                {effectiveRole === "admin" ? (
+                  <AdminProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
+                ) : effectiveRole === "teacher" || effectiveRole === "rop" ? (
+                  <TeacherProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
+                ) : (
+                  <StudentProfilePage displayName={name ?? undefined} email={username ?? undefined} onNavigate={setActiveTab} />
+                )}
+              </Suspense>
+            </ErrorBoundary>
           </TabsContent>
           </Suspense>
         </Tabs>
