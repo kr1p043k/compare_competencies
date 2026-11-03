@@ -1,0 +1,14 @@
+[Unit]
+Description=Auto-deploy compare_competencies from origin/main
+Documentation=https://github.com/kr1p043k/compare_competencies
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=admin_server
+Group=admin_server
+WorkingDirectory=/home/admin_server/compare_competencies
+ExecStart=/home/admin_server/bin/cc-autodeploy.sh
+TimeoutStartSec=45min
+Nice=10

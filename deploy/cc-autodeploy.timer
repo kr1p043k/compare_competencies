@@ -1,0 +1,11 @@
+[Unit]
+Description=Check origin/main every 5 minutes for compare_competencies
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=cc-autodeploy.service
+
+[Install]
+WantedBy=timers.target

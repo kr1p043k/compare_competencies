@@ -1,31 +1,35 @@
-name: Deploy
+name: Deploy (manual)
 
-# Деплой идёт по SSH на публичный адрес сервера. Раньше здесь был шаг
-# tailscale/github-action с секретом TAILSCALE_AUTH_KEY: ключ истёк/удалён,
-# шаг падал, и main перестал доезжать до прода (сервер отставал на 204 коммита).
-# Tailscale для деплоя не нужен: sshd сервера слушает публичный интерфейс.
+# ОСНОВНОЙ деплой идёт не отсюда.
+#
+# Сервер стоит за провайдерским NAT: на интерфейсе 10.131.65.30, «публичный»
+# 95.174.102.182 — общий egress хостера, входящий SSH есть только через
+# Tailscale. GitHub-hosted раннер до сервера не достучится (проверено:
+# dial tcp 95.174.102.182:22 — i/o timeout), а Tailscale-ключ для CI истёк.
+#
+# Поэтому деплой запускает сам сервер: systemd-таймер cc-autodeploy.timer раз в
+# 5 минут сравнивает выкаченный коммит с origin/main и вызывает
+# scripts/deploy.sh (см. deploy/README.md, журнал: logs/autodeploy.log).
+#
+# Этот workflow остаётся ручным запасным вариантом: он сработает, если у сервера
+# появится доступный извне SSH (тогда задайте секрет SSH_HOST_PUBLIC или
+# верните шаг tailscale/github-action с новым TAILSCALE_AUTH_KEY).
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
-# Два пуша подряд не должны собирать образы одновременно.
 concurrency:
   group: deploy-main
   cancel-in-progress: false
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1
         with:
-          # Публичный адрес сервера. Секрет SSH_HOST_PUBLIC позволяет
-          # переопределить его без правки workflow (например, при смене IP).
-          host: ${{ secrets.SSH_HOST_PUBLIC || '95.174.102.182' }}
+          host: ${{ secrets.SSH_HOST_PUBLIC }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           command_timeout: 45m
@@ -36,7 +40,6 @@ jobs:
             if [ -f "$DIR/scripts/deploy.sh" ]; then
               cp "$DIR/scripts/deploy.sh" /tmp/cc-deploy.sh
             else
-              # Первый деплой после добавления скрипта: берём его из origin/main.
               cd "$DIR"
               git fetch origin main --quiet
               git show origin/main:scripts/deploy.sh > /tmp/cc-deploy.sh
