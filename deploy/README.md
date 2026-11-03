@@ -65,6 +65,18 @@ docker tag compare_competencies-frontend:latest.previous compare_competencies-fr
 docker compose up -d backend frontend --force-recreate
 ```
 
+## Если менялся docker-compose.yml
+
+Скрипт пересоздаёт только `backend` и `frontend`. Изменения в других сервисах
+(`prometheus`, `grafana`, `postgres` и т.д.) нужно применить вручную:
+
+```bash
+docker compose up -d prometheus      # или тот сервис, который менялся
+```
+
+Не запускайте `docker compose up -d` без имени сервиса: в compose описаны
+`n8n` и `n8n-postgres`, контейнеров которых сейчас нет, — команда их создаст.
+
 ## Ограничения
 
 - Деплой стартует не мгновенно после пуша, а в пределах ~5 минут.
