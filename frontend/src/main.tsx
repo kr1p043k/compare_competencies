@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from "react-dom/client";
 import App from "./app/App.tsx";
 import { AuthProvider, setSession } from "./lib/auth.tsx";
+import { extractHubToken } from "./lib/hubToken";
 import "./styles/index.css";
 import { reportError } from "./lib/errors";
 import ErrorBoundary from "./design/ErrorBoundary";
@@ -9,19 +10,19 @@ import ErrorBoundary from "./design/ErrorBoundary";
 // React загружен (версию смотреть в package.json)
 
 /**
- * Вход с хаба ЮФУ: hub.sfedu.ru открывает наш сайт с ?token=<JWT>.
- * Забираем токен из URL, сразу чистим адрес (чтобы не светился в истории/логах),
- * обмениваем его на наш токен через /api/auth/sso и сохраняем сессию.
+ * Вход с хаба ЮФУ: hub.sfedu.ru открывает наш сайт с JWT — в query
+ * (`?token=...`) или во фрагменте (`#token=...`). Забираем токен из адреса,
+ * сразу чистим его (чтобы не светился в истории/логах), обмениваем на наш
+ * токен через /api/auth/sso и сохраняем сессию.
  */
 async function performHubSso(): Promise<void> {
-  const params = new URLSearchParams(window.location.search);
-  const hubToken = params.get("token");
+  const { token: hubToken, search, hash } = extractHubToken(
+    window.location.search,
+    window.location.hash,
+  );
   if (!hubToken) return;
 
-  params.delete("token");
-  const query = params.toString();
-  const cleanUrl = window.location.pathname + (query ? `?${query}` : "") + window.location.hash;
-  window.history.replaceState({}, document.title, cleanUrl);
+  window.history.replaceState({}, document.title, window.location.pathname + search + hash);
 
   try {
     const res = await fetch("/api/auth/sso", {
@@ -45,6 +46,9 @@ async function performHubSso(): Promise<void> {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Не удалось подтвердить токен хаба";
     console.error("[SSO] Ошибка авторизации:", msg);
+    // Показываем причину на экране входа: раньше ошибка уходила только в
+    // консоль, и неудачный вход через хаб выглядел как «ничего не произошло».
+    try { sessionStorage.setItem("ssoError", msg); } catch (err) { reportError("main.tsx:ssoError", err); }
     window.dispatchEvent(new CustomEvent("sso-error", { detail: msg }));
   }
 }
