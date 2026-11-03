@@ -181,7 +181,9 @@ class TestPipelineWsAuth:
         monkeypatch.setattr(auth, "resolve_session", _revoked)
         client = TestClient(create_app(), raise_server_exceptions=False)
         with pytest.raises(WebSocketDisconnect) as exc_info:
-            with client.websocket_connect("/api/pipeline/ws?token=signed-but-revoked"):
+            with client.websocket_connect(
+                "/api/pipeline/ws", headers={"Authorization": "Bearer signed-but-revoked"}
+            ):
                 pass
         assert exc_info.value.code == 4001
 
@@ -195,5 +197,80 @@ class TestPipelineWsAuth:
 
         monkeypatch.setattr(auth, "resolve_session", _ok)
         client = TestClient(create_app(), raise_server_exceptions=False)
-        with client.websocket_connect("/api/pipeline/ws?token=valid") as ws:
+        with client.websocket_connect(
+            "/api/pipeline/ws", headers={"Authorization": "Bearer valid"}
+        ) as ws:
             ws.close()
+
+    def test_ws_query_token_not_accepted(self, monkeypatch):
+        """?token= больше не аутентифицирует сокет: адрес утекает в логи."""
+        from src.api_pkg import create_app
+        import src.api_pkg.routers.auth as auth
+
+        async def _ok(_token):
+            return {"uid": "u-3", "u": "admin@example.com", "r": "admin", "t": None}
+
+        monkeypatch.setattr(auth, "resolve_session", _ok)
+        client = TestClient(create_app(), raise_server_exceptions=False)
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect("/api/pipeline/ws?token=valid"):
+                pass
+        assert exc_info.value.code == 4001
+
+
+class TestDisciplineScopeIdor:
+    """Scope дисциплины общий (файл), но менять его можно только в своих направлениях."""
+
+    @staticmethod
+    def _client(monkeypatch, tmp_path, dir_code: str | None, role="teacher", allow=("09.03.02",)):
+        from src.api_pkg import create_app
+        import src.api_pkg.routers.auth as auth
+        import src.api_pkg.routers.teacher as teacher
+        import src.analyzers.discipline_scope as scope_mod
+
+        # Не писать в реальный data/reference/discipline_market_scope.json:
+        # без подмены тест менял файл репозитория.
+        monkeypatch.setattr(scope_mod, "OVERRIDES_PATH", tmp_path / "scope.json")
+
+        async def _user(_request):
+            return {"uid": "u-1", "u": f"{role}@example.com", "r": role, "t": None}
+
+        class Pool:
+            async def fetchval(self, *_a, **_kw):
+                return dir_code
+
+        monkeypatch.setattr(auth, "get_current_user", _user)
+        monkeypatch.setattr(teacher, "get_pool", lambda: Pool())
+
+        from src.api_pkg.routers import krm_teacher
+
+        async def _dirs(_user):
+            return list(allow)
+
+        monkeypatch.setattr(krm_teacher, "_user_directions", _dirs)
+        return TestClient(create_app(), raise_server_exceptions=False)
+
+    def test_foreign_discipline_scope_is_403(self, monkeypatch, tmp_path):
+        client = self._client(monkeypatch, tmp_path, dir_code="01.03.01")
+        r = client.put(
+            "/api/teacher/discipline-scope/Чужая%20дисциплина",
+            json={"skills": ["python"], "keywords": []},
+        )
+        assert r.status_code == 403, r.text
+
+    def test_own_discipline_scope_allowed(self, monkeypatch, tmp_path):
+        client = self._client(monkeypatch, tmp_path, dir_code="09.03.02")
+        r = client.put(
+            "/api/teacher/discipline-scope/Своя%20дисциплина",
+            json={"skills": ["python"], "keywords": []},
+        )
+        assert r.status_code == 200, r.text
+
+    def test_unknown_discipline_is_not_locked(self, monkeypatch, tmp_path):
+        """Дисциплины нет в БД (кастомная) - ограничивать нечем, не 403."""
+        client = self._client(monkeypatch, tmp_path, dir_code=None)
+        r = client.put(
+            "/api/teacher/discipline-scope/Кастомная",
+            json={"skills": ["python"], "keywords": []},
+        )
+        assert r.status_code == 200, r.text

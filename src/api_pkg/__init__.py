@@ -72,13 +72,30 @@ def create_app() -> FastAPI:
 
     app.state.limiter = limiter
     app.add_middleware(SlowAPIMiddleware)
-    app.add_exception_handler(
-        RateLimitExceeded,
-        lambda request, exc: JSONResponse(
+
+    def _ratelimit_exceeded_handler(request, exc: RateLimitExceeded):
+        """429 с Retry-After: без заголовка клиент не знает, когда повторять.
+
+        Период берём из самого лимита (10/minute -> 60 c); если разобрать не
+        удалось, консервативно отдаём 60.
+        """
+        retry_after = 60
+        try:
+            retry_after = int(exc.limit.limit.get_expiry())
+        except Exception:
+            logger.debug("ratelimit_expiry_unavailable", exc_info=True)
+        logger.warning(
+            "ratelimit_exceeded",
+            path=getattr(getattr(request, "url", None), "path", None),
+            retry_after=retry_after,
+        )
+        return JSONResponse(
             status_code=429,
             content={"detail": "Too many requests. Please try again later."},
-        ),
-    )
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    app.add_exception_handler(RateLimitExceeded, _ratelimit_exceeded_handler)
 
     allowed_origins = (
         config.ALLOWED_ORIGINS.split(",") if config.ALLOWED_ORIGINS != "*" else ["*"]

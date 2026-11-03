@@ -95,6 +95,119 @@ async def _direction_ids(pool, dir_code: str) -> list[str]:
     return [str(r["id"]) for r in rows]
 
 
+# ---------- доступ к направлению (защита от IDOR) ----------
+
+async def _current_user(request: Request) -> dict[str, Any]:
+    """Текущий пользователь или 401 (как krm_teacher._current_user)."""
+    from src.api_pkg.routers.auth import get_current_user
+
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return user
+
+
+async def _user_dir_codes(user: dict[str, Any]) -> list[str]:
+    """Направления, доступные пользователю.
+
+    Админ - все; преподаватель без привязок - все (legacy-совместимость, как
+    krm_teacher._user_directions); иначе - только привязанные в user_directions.
+    """
+    from src.api_pkg.routers.krm_teacher import _user_directions
+
+    return await _user_directions(user)
+
+
+async def _ensure_dir_access(user: dict[str, Any], dir_code: str) -> None:
+    """403, если у пользователя нет доступа к направлению."""
+    if not dir_code:
+        raise HTTPException(status_code=400, detail="Direction code is required")
+    _validate_dir_code(dir_code)
+    allow = await _user_dir_codes(user)
+    if dir_code not in allow:
+        logger.warning(
+            "zun_access_denied", uid=user.get("uid"), role=user.get("r"), dir_code=dir_code
+        )
+        raise HTTPException(
+            status_code=403, detail=f"Доступ к направлению '{dir_code}' запрещён"
+        )
+
+
+async def _require_dir_access(request: Request, dir_code: str) -> None:
+    """Единая точка проверки доступа для write-эндпоинтов.
+
+    Все guard'ы ниже сходятся сюда: тесты логики могут подменить одну функцию,
+    а не пять. Продовая реализация: пользователь из сессии -> сверка с
+    разрешёнными направлениями.
+    """
+    _validate_dir_code(dir_code)
+    user = await _current_user(request)
+    await _ensure_dir_access(user, dir_code)
+
+
+async def _dir_code_for_competency(pool, competency_id: str) -> str | None:
+    fetchrow = getattr(pool, "fetchrow", None)
+    if fetchrow is None:
+        return None
+    row = await fetchrow(
+        """SELECT d.code FROM competencies c
+           JOIN disciplines disc ON disc.id = c.discipline_id
+           JOIN directions d ON d.id = disc.direction_id
+           WHERE c.id = $1 LIMIT 1""",
+        competency_id,
+    )
+    return row["code"] if row else None
+
+
+async def _dir_code_for_discipline(pool, discipline_id: str) -> str | None:
+    fetchrow = getattr(pool, "fetchrow", None)
+    if fetchrow is None:
+        return None
+    row = await fetchrow(
+        """SELECT d.code FROM disciplines disc
+           JOIN directions d ON d.id = disc.direction_id
+           WHERE disc.id = $1 LIMIT 1""",
+        discipline_id,
+    )
+    return row["code"] if row else None
+
+
+async def _ensure_competency_access(request: Request, pool, competency_id: str) -> None:
+    """403, если компетенция принадлежит недоступному направлению.
+
+    Существование проверяет сам эндпоинт (404); здесь только доступ. Если
+    направление не определяется (сирота), ограничивать нечего.
+    """
+    dir_code = await _dir_code_for_competency(pool, competency_id)
+    if dir_code:
+        await _require_dir_access(request, dir_code)
+
+
+async def _ensure_discipline_access(request: Request, pool, discipline_id: str) -> None:
+    """403, если дисциплина принадлежит недоступному направлению."""
+    dir_code = await _dir_code_for_discipline(pool, discipline_id)
+    if dir_code:
+        await _require_dir_access(request, dir_code)
+
+
+async def _ensure_ksa_access(request: Request, pool, ksa_id: str) -> None:
+    """Проверить доступ до изменения/удаления KSA-записи.
+
+    Направление берём ДО UPDATE/DELETE: иначе запись уже изменена, а отказ
+    прилетел бы после (и 404 не отличить от «не найдено»).
+    """
+    dir_code = await pool.fetchval(
+        """SELECT d.code FROM ksa_entries k
+           JOIN competencies c ON c.id = k.competency_id
+           JOIN disciplines disc ON disc.id = c.discipline_id
+           JOIN directions d ON d.id = disc.direction_id
+           WHERE k.id = $1 LIMIT 1""",
+        ksa_id,
+    )
+    if dir_code:
+        await _require_dir_access(request, dir_code)
+
+
 async def _latest_coverage_subq(pool, dir_ids: list[str]) -> dict[str, dict]:
     """{discipline_id: {total_skills, matched_skills, coverage_ratio, analysis_date}} latest date."""
     if not dir_ids:
@@ -959,6 +1072,7 @@ class ScopePut(BaseModel):
 async def zun_put_scope(request: Request, body: ScopePut):
     """Set UI scope overrides (checkboxes). Takes effect on next teacher-analysis."""
     _validate_dir_code(body.dir_code)
+    await _require_dir_access(request, body.dir_code)
     changes = (body.changes or [])[:100]
     if not changes:
         raise HTTPException(status_code=400, detail="changes must not be empty")
@@ -1016,6 +1130,8 @@ async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
     )
     if not comp:
         raise HTTPException(status_code=404, detail="Competency not found")
+    # IDOR-guard: править ЗУН можно только в своих направлениях.
+    await _ensure_competency_access(request, pool, competency_id)
 
     dup = await pool.fetchrow(
         """SELECT 1 FROM ksa_entries
@@ -1072,6 +1188,7 @@ async def zun_add_competency(request: Request, discipline_id: str, body: Compete
     disc = await pool.fetchrow("SELECT id FROM disciplines WHERE id = $1", discipline_id)
     if not disc:
         raise HTTPException(status_code=404, detail="Discipline not found")
+    await _ensure_discipline_access(request, pool, discipline_id)
     dup = await pool.fetchrow(
         "SELECT 1 FROM competencies WHERE discipline_id = $1 AND code = $2",
         discipline_id, code)
@@ -1122,6 +1239,7 @@ async def zun_link_skill(request: Request, competency_id: str, body: SkillLinkIn
     comp = await pool.fetchrow("SELECT id FROM competencies WHERE id = $1", competency_id)
     if not comp:
         raise HTTPException(status_code=404, detail="Competency not found")
+    await _ensure_competency_access(request, pool, competency_id)
 
     skill = await pool.fetchrow(
         """SELECT id, source FROM skills WHERE LOWER(name) = LOWER($1)
@@ -1171,6 +1289,7 @@ async def zun_patch_entry(request: Request, ksa_id: str, body: ZUNPatch):
     if len(text) > 2000:
         raise HTTPException(status_code=400, detail="text too long (max 2000)")
     pool = get_pool()
+    await _ensure_ksa_access(request, pool, ksa_id)
     row = await pool.fetchrow(
         """UPDATE ksa_entries SET original_text = $1, cleaned_text = $1, updated_at = NOW()
            WHERE id = $2 RETURNING id, ksa_type, competency_id""",
@@ -1190,6 +1309,7 @@ async def zun_delete_entry(request: Request, ksa_id: str):
     """Удалить KSA-запись."""
     _validate_uuid(ksa_id, "ksa_id")
     pool = get_pool()
+    await _ensure_ksa_access(request, pool, ksa_id)
     row = await pool.fetchrow("DELETE FROM ksa_entries WHERE id = $1 RETURNING competency_id", ksa_id)
     if not row:
         raise HTTPException(status_code=404, detail="KSA entry not found")
@@ -1348,6 +1468,7 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
 async def zun_import(request: Request, dir_code: str, dry_run: bool = False):
     """Импорт KRM направления."""
     _validate_dir_code(dir_code)
+    await _require_dir_access(request, dir_code)
     pool = get_pool()
     result = await _import_direction(pool, dir_code, dry_run=dry_run)
     if not dry_run and isinstance(result, dict) and result.get("inserted"):

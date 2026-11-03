@@ -3,6 +3,33 @@ from fastapi.testclient import TestClient
 
 from src.api_pkg import create_app
 
+import pytest as _pytest
+import src.api_pkg.routers.zun as _zun_mod
+
+
+@_pytest.fixture(autouse=True)
+def _allow_all_dirs(monkeypatch):
+    """IDOR-guard проверяется в tests/api/test_zun_idor.py.
+
+    Здесь - логика эндпоинтов, поэтому доступ к направлению считаем
+    разрешённым. Через fixture, а не module-level: иначе подмена протекает в
+    соседние тестовые файлы.
+    """
+    async def _allow(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(_zun_mod, "_require_dir_access", _allow)
+    monkeypatch.setattr(_zun_mod, "_ensure_competency_access", _allow)
+    monkeypatch.setattr(_zun_mod, "_ensure_discipline_access", _allow)
+    monkeypatch.setattr(_zun_mod, "_ensure_ksa_access", _allow)
+
+
+
+# IDOR-guard проверяется отдельно (tests/api/test_zun_idor.py); здесь - логика
+# эндпоинтов, поэтому доступ к направлению считаем разрешённым.
+async def _allow_all(_request, _dir_code):
+    return None
+
 
 class FakePool:
     def __init__(self):

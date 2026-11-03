@@ -904,17 +904,16 @@ _ws_clients: set[WebSocket] = set()
 
 
 @router.websocket("/pipeline/ws")
-async def pipeline_ws(websocket: WebSocket, token: str = ""):
-    # Авторизация ДО accept. Токен можно передать cookie/заголовком (как в
-    # HTTP); query оставлен для совместимости. Проверяем не только подпись, но и
-    # активную сессию в БД (resolve_session): иначе logout/деактивация не
-    # действуют на открытом сокете до истечения токена.
+async def pipeline_ws(websocket: WebSocket):
+    # Авторизация ДО accept: cookie или Authorization. Query-токен убран -
+    # адрес сокета попадает в логи прокси и историю. Проверяем не только
+    # подпись, но и активную сессию в БД (resolve_session): иначе logout и
+    # деактивация не действуют на открытом сокете до истечения токена.
     try:
         from src.api_pkg.routers.auth import resolve_session
 
         eff_token = (
-            token
-            or websocket.cookies.get("token", "")
+            websocket.cookies.get("token", "")
             or websocket.headers.get("Authorization", "").removeprefix("Bearer ").strip()
         )
         if not eff_token:
