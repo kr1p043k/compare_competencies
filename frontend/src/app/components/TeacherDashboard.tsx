@@ -117,6 +117,9 @@ export function TeacherDashboard() {
   const [scopeSaving, setScopeSaving] = useState<string | null>(null);
   // Фильтр по году набора: дисциплина может быть только в одном плане.
   const [yearFilter, setYearFilter] = useState<0 | 2024 | 2025>(0);
+  // Набор, по которому загружается анализ. Это НЕ фильтр списка: у наборов
+  // разные планы и разные KRM, поэтому анализ запрашивается заново.
+  const [intakeYear, setIntakeYear] = useState<2024 | 2025>(2025);
   const [metaStale, setMetaStale] = useState(false);
   const [scopeMsg, setScopeMsg] = useState("");
 
@@ -293,14 +296,14 @@ export function TeacherDashboard() {
     api(`/teacher/krm/stats?dir_code=${selectedDir}`)
       .then((s) => { if (!cancelled) setStats(s); })
       .catch((err) => { if (!cancelled) reportError("app/components/TeacherDashboard.tsx", err); });
-    api(`/teacher/analysis?dir_code=${selectedDir}`)
+    api(`/teacher/analysis?dir_code=${selectedDir}&year=${intakeYear}`)
       .then((a) => { if (!cancelled) setAnalysis(a); })
       .catch(() => { if (!cancelled) setAnalysis(null); });
     api(`/teacher/analysis/meta?dir_code=${selectedDir}`)
       .then((m: any) => { if (!cancelled) setMetaStale(!!m?.stale); })
       .catch(() => { if (!cancelled) setMetaStale(false); });
     return () => { cancelled = true; };
-  }, [selectedDir]);
+  }, [selectedDir, intakeYear]);
 
   useEffect(() => {
     if (collectCooldown <= 0) return;
@@ -847,6 +850,25 @@ export function TeacherDashboard() {
     outline: "none",
   }}
           />
+          <div className="flex gap-1.5 mt-2 items-center flex-wrap">
+            <span className="text-xs text-gray-500 dark:text-slate-400">Набор:</span>
+            {([2025, 2024] as const).map((y) => (
+              <button
+                key={y}
+                onClick={() => setIntakeYear(y)}
+                aria-pressed={intakeYear === y}
+                title={`Анализ по учебному плану набора ${y}`}
+                className={
+                  "text-xs px-2 py-0.5 rounded border cursor-pointer " +
+                  (intakeYear === y
+                    ? "border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
+                    : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300")
+                }
+              >
+                {y}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex-1 overflow-auto">
           <div className="px-4 py-1.5 text-xs text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-slate-700">

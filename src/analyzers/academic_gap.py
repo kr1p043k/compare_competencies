@@ -587,6 +587,7 @@ class AcademicGapAnalyzer:
                 "recommended_competencies": [],
                 "rationale": "Тема не задана.",
                 "topic_filter_stats": {},
+                "trends_source": "market_skills",
             }
         topic_skills = self.topic_to_skills(topic)
         if not topic_skills:
@@ -599,11 +600,16 @@ class AcademicGapAnalyzer:
             topic_lower=topic.strip().lower(),
         )
 
+        # Раньше здесь собирались названия рыночных навыков и подавались как
+        # "найдённые тренды"/статьи: пользователь видел "kubernetes" с
+        # подписью "Близость к теме: 0.83" вместо публикации. Теперь текст
+        # честно называет источник, а trends_source позволяет UI подписать
+        # блок правильно. Настоящие статьи приходят из Course Trends API.
         found_trends: list[str] = []
         for m in market_stats.get("top_market", [])[:10]:
             found_trends.append(
-                '{title: "%s", summary: "Близость к теме: %.2f", keywords: ["%s"]}'
-                % (m["skill"], m["similarity"], m["skill"])
+                '{title: "%s", summary: "Рыночный навык, близость к теме: %.2f", '
+                'keywords: ["%s"]}' % (m["skill"], m["similarity"], m["skill"])
             )
 
         ranked = [r for r in results if r["status"] != "no_data"]
@@ -647,4 +653,7 @@ class AcademicGapAnalyzer:
             "recommended_competencies": recommended,
             "rationale": rationale,
             "topic_filter_stats": getattr(self, "_last_topic_filter_stats", {}),
+            # Локальный расчёт не знает о публикациях: found_trends здесь -
+            # рыночные навыки. UI обязан подписать блок именно так.
+            "trends_source": "market_skills",
         }

@@ -31,6 +31,7 @@ import { ProfileView } from "./components/ProfileView";
 const ArticlesPage = lazy(() => import("./components/ArticlesPage").then(m => ({ default: m.ArticlesPage })));
 import { ScientificTrendsTab } from "./components/ScientificTrendsTab";
 import { PublicationsTab } from "./components/PublicationsTab";
+import { ArticlesPanel } from "./components/ArticlesPanel";
 import { PipelineProgress } from "./components/PipelineProgress";
 import { DataViewer } from "./components/DataViewer";
 import { RecommendationsReport } from "./components/RecommendationsReport";
@@ -1232,6 +1233,9 @@ export default function App() {
           <TabsContent value="scientific-trends">
             <ErrorBoundary scope="scientific-trends">
               <MemoScientificTrendsTab />
+              <div className="mt-6">
+                <ArticlesPanel />
+              </div>
             </ErrorBoundary>
           </TabsContent>
           <TabsContent value="publications">

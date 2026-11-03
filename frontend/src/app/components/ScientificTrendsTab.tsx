@@ -31,6 +31,7 @@ interface TrendCompetency {
 interface TrendResponse {
   topic: string;
   found_trends: string[];
+  trends_source?: "market_skills" | string;
   recommended_competencies: TrendCompetency[];
   rationale: string;
 }
@@ -326,7 +327,7 @@ export function ScientificTrendsTab() {
               if (trendsList.length === 0) return null;
               return (
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Найденные научные тренды</h4>
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">{trend.trends_source === "market_skills" ? "Связанные рыночные навыки (не публикации)" : "Обнаруженные тренды"}</h4>
                   <div className="space-y-3">
                     {trendsList.map((t) => (
                       <div key={t.title} className="rounded-lg border border-gray-200 dark:border-slate-700 p-4">
