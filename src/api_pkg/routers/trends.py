@@ -98,6 +98,17 @@ _CT_CACHE: dict[tuple, tuple[float, dict]] = {}
 _CT_CACHE_TTL = 600.0
 
 
+def _clear_trend_caches() -> None:
+    """Сбросить кэш трендов и token-множеств после изменения снимков."""
+    _CT_CACHE.clear()
+    _sw.cache_clear()
+
+
+from src.cache_bus import register as _register_cache  # noqa: E402
+
+_register_cache("trends", _clear_trend_caches)
+
+
 def _resolve_canonical_key(
     skill_name: str,
     vocab_keys: set[str],
