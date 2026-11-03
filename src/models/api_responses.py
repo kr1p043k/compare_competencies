@@ -348,8 +348,16 @@ class PublicationOut(BaseModel):
     year: int | None = None
     academic_subject: list[str] = Field(default_factory=list)
     education_program: list[str] = Field(default_factory=list)
+    abstract: str | None = None
+    keywords: list[str] = Field(default_factory=list)
+    journal: str | None = None
+    publisher: str | None = None
+    language: str | None = None
+    publishing_year: int | None = None
+    pages: str | None = None
     files: list[PublicationFile] = Field(default_factory=list)
     url: str | None = None
+    web_url: str | None = None
     creator_username: str | None = None
 
 
@@ -382,8 +390,11 @@ class PublicationType(BaseModel):
 
 
 class PublicationTypesResponse(BaseModel):
-    """Типы публикаций, встреченные в выборке."""
+    """Точные счётчики публикаций по типам."""
     types: list[PublicationType]
     scanned_pages: int
     sample_size: int
+    total: int = 0
+    exact: bool = True
+    failed_probes: int = 0
     source: str = "hub.sfedu.ru"
