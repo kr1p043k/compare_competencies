@@ -316,7 +316,23 @@ def create_app() -> FastAPI:
 
     from src.api_pkg.routers.auth import require_any_role
 
-    @app.get("/metrics", dependencies=[Depends(require_any_role("admin"))])
+    async def _metrics_access(request: Request) -> None:
+        """Доступ к /metrics: сервисный токен Prometheus либо роль admin.
+
+        Prometheus не умеет логиниться, поэтому при заданном METRICS_TOKEN он
+        присылает его в Authorization. Остальные клиенты проходят обычную
+        проверку роли, как и раньше.
+        """
+        expected = config.METRICS_TOKEN
+        if expected is not None:
+            import secrets as _secrets
+
+            supplied = request.headers.get("authorization", "")
+            if _secrets.compare_digest(supplied, f"Bearer {expected.get_secret_value()}"):
+                return
+        await require_any_role("admin")(request)
+
+    @app.get("/metrics", dependencies=[Depends(_metrics_access)])
     async def metrics():
         data, content_type = get_metrics()
         from fastapi.responses import Response
