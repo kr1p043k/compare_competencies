@@ -482,6 +482,26 @@ async def put_discipline_scope(request: Request, discipline: str, body: Discipli
     автоматический маппинг по навыкам дисциплины.
     """
     from src.analyzers.discipline_scope import load_overrides, save_overrides
+    from src.api_pkg.routers.auth import get_current_user
+    from src.api_pkg.routers.krm_teacher import _ensure_dir_access
+
+    # IDOR-guard: переопределения хранятся по имени дисциплины глобально, поэтому
+    # без проверки преподаватель одного направления менял scope чужого.
+    user = await get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    pool = get_pool()
+    if pool is not None:
+        dir_code = await pool.fetchval(
+            """SELECT d.code FROM disciplines disc
+               JOIN directions d ON d.id = disc.direction_id
+               WHERE disc.name = $1 LIMIT 1""",
+            discipline,
+        )
+        # Если дисциплина не найдена в БД - это может быть кастомная запись;
+        # доступ ограничивать нечем, оставляем как было (только admin/teacher).
+        if dir_code:
+            await _ensure_dir_access(user, dir_code)
 
     overrides = load_overrides()
     skills = [s.strip().lower() for s in body.skills if s and s.strip()]
