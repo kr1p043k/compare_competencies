@@ -1,37 +1,44 @@
 name: Deploy
+
+# Деплой идёт по SSH на публичный адрес сервера. Раньше здесь был шаг
+# tailscale/github-action с секретом TAILSCALE_AUTH_KEY: ключ истёк/удалён,
+# шаг падал, и main перестал доезжать до прода (сервер отставал на 204 коммита).
+# Tailscale для деплоя не нужен: sshd сервера слушает публичный интерфейс.
 on:
   push:
     branches: [main]
-  workflow_dispatch:  # ручной перезапуск (например, после починки TAILSCALE_AUTH_KEY)
+  workflow_dispatch:
+
+# Два пуша подряд не должны собирать образы одновременно.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v2
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
-          hostname: gh-deploy
-
-      - name: Deploy
+      - name: Deploy over SSH
         uses: appleboy/ssh-action@v1
-        timeout-minutes: 45
         with:
-          host: ${{ secrets.SSH_HOST }}
+          # Публичный адрес сервера. Секрет SSH_HOST_PUBLIC позволяет
+          # переопределить его без правки workflow (например, при смене IP).
+          host: ${{ secrets.SSH_HOST_PUBLIC || '95.174.102.182' }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          command_timeout: 2700s
+          command_timeout: 45m
+          script_stop: true
           script: |
-            cd /home/admin_server/compare_competencies || git clone https://github.com/kr1p043k/compare_competencies.git
-            git fetch origin main
-            git reset --hard origin/main
-            docker compose build backend
-            docker compose up -d backend --force-recreate
-            docker compose exec -T backend alembic upgrade heads || true
-            docker compose build frontend --no-cache
-            docker compose up -d frontend --force-recreate
-            docker compose up -d grafana --force-recreate
-            docker image prune -f
+            set -e
+            DIR=/home/admin_server/compare_competencies
+            if [ -f "$DIR/scripts/deploy.sh" ]; then
+              cp "$DIR/scripts/deploy.sh" /tmp/cc-deploy.sh
+            else
+              # Первый деплой после добавления скрипта: берём его из origin/main.
+              cd "$DIR"
+              git fetch origin main --quiet
+              git show origin/main:scripts/deploy.sh > /tmp/cc-deploy.sh
+            fi
+            bash /tmp/cc-deploy.sh
