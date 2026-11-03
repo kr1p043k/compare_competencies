@@ -123,14 +123,21 @@ def sync(direction: str, year: int, dsn: str, apply: bool) -> int:
                                 " RETURNING id::text",
                                 (name,),
                             ).fetchone()[0]
+                        # match_type ограничен CHECK-ом таблицы:
+                        # exact|fuzzy|stem|substring|semantic|explicit.
+                        # Связь из KRM утверждена явно (не выведена матчером),
+                        # поэтому 'explicit'. Раньше здесь стоял 'krm_sync' -
+                        # он не проходил CHECK, и скрипт падал целиком.
                         cur.execute(
                             "INSERT INTO competency_skills"
                             " (competency_id, skill_id, ksa_type, source_text, match_type)"
-                            " VALUES (%s, %s, 'flat', %s, 'krm_sync')"
+                            " VALUES (%s, %s, 'flat', %s, 'explicit')"
                             " ON CONFLICT DO NOTHING",
                             (comp_id, skill_id, name),
                         )
-                        inserted += 1
+                        # rowcount, а не ++: ON CONFLICT DO NOTHING может пропустить
+                        # дубликат, и счётчик врал бы в плюс.
+                        inserted += max(cur.rowcount, 0)
         conn.commit()
         print(f"удалено связей {removed}, вставлено {inserted}")
     return 0
