@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -9,7 +9,7 @@ import { Skeleton } from "../../design";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, ExternalLink, FileText, Info, Loader2, RotateCcw, Search } from "lucide-react";
-import { matchesQuery, shortenAbstract, type Publication } from "./publicationsFilter";
+import { matchesQuery, resolveHubLink, shortenAbstract, type Publication } from "./publicationsFilter";
 
 interface ListResponse {
   items: Publication[]; total: number; page: number; page_size: number; num_pages: number;
@@ -61,7 +61,7 @@ function PublicationCard({ pub, onOpen }: { pub: Publication; onOpen: (id: numbe
   const subjects = pub.academic_subject.slice(0, 3);
   const more = pub.academic_subject.length - subjects.length;
   const year = pub.year ?? pub.publishing_year;
-  const hubLink = pub.web_url ?? pub.url;
+  const hubLink = resolveHubLink(pub);
   const abstract = shortenAbstract(pub.abstract);
   return (
     <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
@@ -152,7 +152,7 @@ function DetailBody({ detail }: { detail: Publication }) {
     ["Дисциплины", detail.academic_subject],
     ["Образовательные программы", detail.education_program],
   ];
-  const hubLink = detail.web_url ?? detail.url;
+  const hubLink = resolveHubLink(detail);
   return (
     <div className="space-y-4">
       {detail.type_name ? <Badge className={TYPE_BADGE}>{detail.type_name}</Badge> : null}
@@ -322,12 +322,21 @@ export function PublicationsTab() {
     return () => ctrl.abort();
   }, [typeId, pageSize, reload]);
 
+  const loadMoreCtrl = useRef<AbortController | null>(null);
+  // Смена типа или размера страницы отменяет догрузку: иначе запоздавший
+  // ответ приклеит записи старого фильтра к новому списку.
+  useEffect(() => () => loadMoreCtrl.current?.abort(), [typeId, pageSize]);
+
   const loadMore = useCallback(() => {
     if (loadingMore || numPages === 0 || nextPage > numPages) return;
+    loadMoreCtrl.current?.abort();
+    const ctrl = new AbortController();
+    loadMoreCtrl.current = ctrl;
     setLoadingMore(true);
     const endpoint = `/publications?page=${nextPage}&page_size=${pageSize}${typeId ? `&type_id=${typeId}` : ""}`;
-    api(endpoint)
+    api(endpoint, { signal: ctrl.signal })
       .then((d: ListResponse) => {
+        if (ctrl.signal.aborted) return;
         setLoaded((prev) => {
           const seen = new Set(prev.map((p) => p.id));
           return [...prev, ...d.items.filter((p) => !seen.has(p.id))];
@@ -336,8 +345,13 @@ export function PublicationsTab() {
         setTotal(d.total);
         setNumPages(d.num_pages);
       })
-      .catch((e: unknown) => setError(errorText(e)))
-      .finally(() => setLoadingMore(false));
+      .catch((e: unknown) => {
+        if (isAbort(e)) return;
+        setError(errorText(e));
+      })
+      .finally(() => {
+        if (loadMoreCtrl.current === ctrl) setLoadingMore(false);
+      });
   }, [loadingMore, numPages, nextPage, pageSize, typeId]);
 
   const filtered = useMemo(
@@ -466,7 +480,7 @@ export function PublicationsTab() {
                   <Button variant="outline" size="sm" onClick={loadMore} disabled={!canLoadMore}
                     className="border-gray-300 dark:border-slate-600">
                     {loadingMore ? <Loader2 className="size-4 animate-spin" /> : null}
-                    Загрузить ещё {canLoadMore ? `(${Math.min(pageSize, total - loaded.length)} шт.)` : ""}
+                    Загрузить ещё {canLoadMore ? `(${Math.max(1, Math.min(pageSize, total - loaded.length))} шт.)` : ""}
                   </Button>
                 </div>
               </>

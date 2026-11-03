@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import copy
 import html
 import re
 import threading
@@ -453,6 +454,9 @@ class HubPublicationsClient:
         self._check_status(resp, page)
         meta = {
             "total": _int_header(resp, "Results-Count", 0),
+            # Отличаем «0 записей» от «хаб не прислал заголовок»: для точных
+            # счётчиков типов это разница между нулём и неизвестным.
+            "total_known": "Results-Count" in resp.headers,
             "page": _int_header(resp, "Current-Page", page),
             "page_size": _int_header(resp, "Page-Size", params["page_size"]),
             "num_pages": _int_header(resp, "Num-Pages", 0),
@@ -574,12 +578,18 @@ class HubPublicationsClient:
                     return normalize_publication(raw, self.base_url)
 
         pages = max(1, min(max_scan_pages, _MAX_SCAN_PAGES))
-        pages_data, _, _ = await self._scan(pages)
+        pages_data, last_meta, scanned = await self._scan(pages)
         for items in pages_data:
             for raw in items:
                 if _publication_id(raw) == publication_id:
                     return normalize_publication(raw, self.base_url)
-        self._missing_put(publication_id)
+        # Кэшируем «не найдено» только если просмотрели весь доступный диапазон:
+        # при обрезанном скане запись может лежать глубже, и 300 секунд лжи
+        # дороже, чем повторная проверка.
+        num_pages = last_meta["num_pages"] if last_meta else 0
+        truncated = scanned >= pages and (num_pages == 0 or num_pages > scanned)
+        if not truncated:
+            self._missing_put(publication_id)
         raise HubNotFoundError(f"Публикация {publication_id} не найдена")
 
     async def _asset_type_names(self) -> dict[int, str]:
@@ -606,8 +616,12 @@ class HubPublicationsClient:
                 continue
         return names
 
-    async def _count_for_type(self, type_id: int) -> tuple[int, str | None]:
-        """Точное число записей типа: ``page_size=1`` + заголовок ``Results-Count``."""
+    async def _count_for_type(self, type_id: int) -> tuple[int | None, str | None]:
+        """Точное число записей типа: ``page_size=1`` + заголовок ``Results-Count``.
+
+        ``None`` вместо числа, если хаб не прислал заголовок: молчаливый ноль
+        выкинул бы тип из выдачи, а ``exact`` остался бы ``True``.
+        """
         try:
             meta, items = await self._fetch_raw(1, 1, type_id, None)
         except HubNotFoundError:
@@ -617,6 +631,8 @@ class HubPublicationsClient:
             publication_type = _dict_of(items[0], "type")
             if _publication_id({"id": publication_type.get("id")}) == type_id:
                 name = publication_type.get("type_name")
+        if not meta.get("total_known", False):
+            return None, name
         return meta["total"], name
 
     async def list_types(self, sample_pages: int = 3, refresh: bool = False) -> dict[str, Any]:
@@ -630,30 +646,30 @@ class HubPublicationsClient:
         """
         now = time.monotonic()
         if not refresh and self._types_cache is not None and self._types_cache[0] > now:
-            return dict(self._types_cache[1])
+            return copy.deepcopy(self._types_cache[1])
 
         async with self._types_lock:
             now = time.monotonic()
             if not refresh and self._types_cache is not None and self._types_cache[0] > now:
-                return dict(self._types_cache[1])
+                return copy.deepcopy(self._types_cache[1])
 
             names = await self._asset_type_names()
             type_ids = sorted(set(_TYPE_SEED_IDS) | set(names))
             semaphore = asyncio.Semaphore(_TYPE_PROBE_CONCURRENCY)
 
-            async def probe(type_id: int) -> tuple[int, int, str | None]:
+            async def probe(type_id: int) -> tuple[int, int | None, str | None]:
                 async with semaphore:
                     try:
                         count, name = await self._count_for_type(type_id)
                     except HubUnavailableError:
-                        return type_id, -1, None
+                        return type_id, None, None
                     return type_id, count, name
 
             results = await asyncio.gather(*(probe(type_id) for type_id in type_ids))
             types: list[dict[str, Any]] = []
             failed = 0
             for type_id, count, name in results:
-                if count < 0:
+                if count is None:
                     failed += 1
                     continue
                 if count == 0:
@@ -663,15 +679,13 @@ class HubPublicationsClient:
             total = sum(entry["count"] for entry in types)
             payload: dict[str, Any] = {
                 "types": types,
-                "scanned_pages": 0,
-                "sample_size": total,
                 "total": total,
                 "exact": failed == 0,
                 "failed_probes": failed,
             }
             if failed == 0:
                 self._types_cache = (time.monotonic() + _TYPE_COUNT_TTL_S, payload)
-            return dict(payload)
+            return copy.deepcopy(payload)
 
 
 _client: HubPublicationsClient | None = None

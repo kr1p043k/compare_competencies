@@ -504,11 +504,44 @@ async def test_missing_publication_is_negatively_cached():
     )
     with pytest.raises(HubNotFoundError):
         await client.get_publication(999, max_scan_pages=2)
+    assert client._missing_get(999) is True
     first_round = len(scans)
 
     with pytest.raises(HubNotFoundError):
         await client.get_publication(999, max_scan_pages=2)
     assert len(scans) == first_round, "повторный 404 не должен сканировать хаб заново"
+
+
+async def test_truncated_scan_does_not_poison_negative_cache():
+    """Если скан обрезан лимитом, «не найдено» кэшировать нельзя."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _page([RAW_ITEM], page=1, num_pages=50, page_size=100)
+
+    client = HubPublicationsClient(
+        base_url=BASE,
+        token="",
+        transport=httpx.MockTransport(handler),
+        cache_ttl=60,
+    )
+    with pytest.raises(HubNotFoundError):
+        await client.get_publication(999, max_scan_pages=2)
+
+    assert client._missing_get(999) is False
+
+
+async def test_list_types_marks_inexact_when_results_count_header_missing():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/asset_types/":
+            return httpx.Response(200, json=[])
+        return httpx.Response(200, json=[])
+
+    client = HubPublicationsClient(base_url=BASE, transport=httpx.MockTransport(handler))
+    result = await client.list_types()
+
+    assert result["exact"] is False
+    assert result["failed_probes"] > 0
+    assert result["types"] == []
 
 
 async def test_http_client_is_reused_between_requests():

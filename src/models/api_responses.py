@@ -392,8 +392,6 @@ class PublicationType(BaseModel):
 class PublicationTypesResponse(BaseModel):
     """Точные счётчики публикаций по типам."""
     types: list[PublicationType]
-    scanned_pages: int
-    sample_size: int
     total: int = 0
     exact: bool = True
     failed_probes: int = 0

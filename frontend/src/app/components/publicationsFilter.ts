@@ -67,3 +67,8 @@ export function shortenAbstract(text: string | null, limit = 240): string | null
   const lastSpace = cut.lastIndexOf(" ");
   return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}...`;
 }
+
+/** Ссылка на карточку в хабе: web_url открывает UI, url ведёт на API и просит токен. */
+export function resolveHubLink(pub: Publication): string | null {
+  return pub.web_url ?? pub.url;
+}
