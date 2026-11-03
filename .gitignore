@@ -84,3 +84,7 @@ MagicMock/
 docs/AGENT-CONTRACT.md
 docs/AGENT-ZONES.md
 docs/TASKS-OPENCODE-*.md
+
+# Личные заметки сессий: только локально
+NOTES.md
+MEMORY.md
