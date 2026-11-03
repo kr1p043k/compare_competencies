@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -9,25 +9,16 @@ import { Skeleton } from "../../design";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, ExternalLink, FileText, Info, Loader2, RotateCcw, Search } from "lucide-react";
-
-interface Publication {
-  id: number; title: string | null; authors: string[];
-  type_id: number | null; type_name: string | null; signature: string | null;
-  doi: string | null; isbn: string | null; track_id: string | null;
-  created_at: string | null; year: number | null;
-  academic_subject: string[]; education_program: string[];
-  files: { url: string; filename: string | null; size: number | null; content_type: string | null }[];
-  url: string | null; creator_username: string | null;
-}
+import { matchesQuery, shortenAbstract, type Publication } from "./publicationsFilter";
 
 interface ListResponse {
   items: Publication[]; total: number; page: number; page_size: number; num_pages: number;
 }
-interface SearchResponse {
-  query: string; matches: Publication[]; total: number;
-  scanned_pages: number; truncated: boolean; total_scanned: number;
+interface TypesResponse {
+  types: { id: number; name: string | null; count: number }[];
+  exact?: boolean;
+  total?: number;
 }
-interface TypesResponse { types: { id: number; name: string | null; count: number }[] }
 
 const TYPE_BADGE = "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300";
 const OUTLINE_BADGE = "text-gray-600 dark:text-slate-300 border-gray-300 dark:border-slate-600";
@@ -69,16 +60,20 @@ const doiHref = (doi: string): string => (/^https?:\/\//i.test(doi) ? doi : `htt
 function PublicationCard({ pub, onOpen }: { pub: Publication; onOpen: (id: number) => void }) {
   const subjects = pub.academic_subject.slice(0, 3);
   const more = pub.academic_subject.length - subjects.length;
+  const year = pub.year ?? pub.publishing_year;
+  const hubLink = pub.web_url ?? pub.url;
+  const abstract = shortenAbstract(pub.abstract);
   return (
     <Card className="border border-gray-200 dark:border-slate-700 shadow-sm">
       <CardContent className="p-4 sm:p-5 space-y-2.5">
         <div className="flex flex-wrap items-center gap-2">
           {pub.type_name ? <Badge className={TYPE_BADGE}>{pub.type_name}</Badge> : null}
-          {pub.year ? <span className="text-sm text-gray-500 dark:text-slate-400">{pub.year}</span> : null}
+          {year ? <span className="text-sm text-gray-500 dark:text-slate-400">{year}</span> : null}
+          {pub.journal ? <span className="text-xs text-gray-500 dark:text-slate-400 truncate max-w-[18rem]" title={pub.journal}>{pub.journal}</span> : null}
           <span className="ml-auto flex items-center gap-3 text-xs">
             {pub.doi ? <a href={doiHref(pub.doi)} target="_blank" rel="noreferrer" className={EXTERNAL_LINK}>DOI</a> : null}
-            {pub.url ? (
-              <a href={pub.url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 ${EXTERNAL_LINK}`}>
+            {hubLink ? (
+              <a href={hubLink} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 ${EXTERNAL_LINK}`}>
                 Открыть в хабе<ExternalLink className="size-3.5" />
               </a>
             ) : null}
@@ -89,7 +84,15 @@ function PublicationCard({ pub, onOpen }: { pub: Publication; onOpen: (id: numbe
           {pub.title ?? "Публикация без названия"}
         </button>
         {pub.authors.length > 0 ? <p className="text-sm text-gray-600 dark:text-slate-400">{pub.authors.join(", ")}</p> : null}
-        {pub.academic_subject.length > 0 ? (
+        {abstract ? <p className="text-sm text-gray-500 dark:text-slate-400">{abstract}</p> : null}
+        {pub.keywords.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {pub.keywords.slice(0, 5).map((k) => (
+              <Badge key={k} variant="outline" className="text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">{k}</Badge>
+            ))}
+          </div>
+        ) : null}
+        {subjects.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
             {subjects.map((s) => <Badge key={s} variant="outline" className={OUTLINE_BADGE}>{s}</Badge>)}
             {more > 0 ? (
@@ -133,13 +136,23 @@ function PaginationBar({ page, totalPages, pageSize, onPage, onPageSize }: {
 
 function DetailBody({ detail }: { detail: Publication }) {
   const rows: [string, string | null][] = [
-    ["Год", detail.year ? String(detail.year) : null], ["Дата добавления", formatDate(detail.created_at)],
-    ["Тип", detail.type_name], ["Подпись", detail.signature],
-    ["ISBN", detail.isbn], ["Автор в хабе", detail.creator_username],
+    ["Год", detail.year ? String(detail.year) : (detail.publishing_year ? String(detail.publishing_year) : null)],
+    ["Дата добавления", formatDate(detail.created_at)],
+    ["Тип", detail.type_name],
+    ["Журнал / издание", detail.journal],
+    ["Издатель", detail.publisher],
+    ["Страницы", detail.pages],
+    ["Язык", detail.language],
+    ["ISBN", detail.isbn],
+    ["Автор в хабе", detail.creator_username],
+    ["Подпись", detail.signature],
   ];
   const tagSections: [string, string[]][] = [
-    ["Дисциплины", detail.academic_subject], ["Образовательные программы", detail.education_program],
+    ["Ключевые слова", detail.keywords],
+    ["Дисциплины", detail.academic_subject],
+    ["Образовательные программы", detail.education_program],
   ];
+  const hubLink = detail.web_url ?? detail.url;
   return (
     <div className="space-y-4">
       {detail.type_name ? <Badge className={TYPE_BADGE}>{detail.type_name}</Badge> : null}
@@ -157,6 +170,12 @@ function DetailBody({ detail }: { detail: Publication }) {
           </div>
         ) : null}
       </dl>
+      {detail.abstract ? (
+        <div>
+          <h3 className="text-sm font-medium text-gray-900 dark:text-slate-100">Аннотация</h3>
+          <p className="mt-1.5 text-sm text-gray-700 dark:text-slate-300 whitespace-pre-line">{detail.abstract}</p>
+        </div>
+      ) : null}
       {tagSections.map(([label, list]) => list.length > 0 ? (
         <div key={label}>
           <h3 className="text-sm font-medium text-gray-900 dark:text-slate-100">{label}</h3>
@@ -187,9 +206,9 @@ function DetailBody({ detail }: { detail: Publication }) {
           </ul>
         )}
       </div>
-      {detail.url ? (
+      {hubLink ? (
         <Button asChild variant="outline" size="sm" className="border-gray-300 dark:border-slate-600">
-          <a href={detail.url} target="_blank" rel="noreferrer"><ExternalLink className="size-3.5" />Открыть в хабе</a>
+          <a href={hubLink} target="_blank" rel="noreferrer"><ExternalLink className="size-3.5" />Открыть в хабе</a>
         </Button>
       ) : null}
     </div>
@@ -248,99 +267,94 @@ export function PublicationsTab() {
   const [applied, setApplied] = useState("");
   const [typeId, setTypeId] = useState("");
   const [types, setTypes] = useState<TypesResponse["types"]>([]);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [items, setItems] = useState<Publication[]>([]);
+  const [typesExact, setTypesExact] = useState(true);
+  const [loaded, setLoaded] = useState<Publication[]>([]);
   const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
+  const [numPages, setNumPages] = useState(0);
+  const [nextPage, setNextPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
-  const [searchMeta, setSearchMeta] = useState<{ pages: number; scanned: number; truncated: boolean } | null>(null);
-  const [searchAll, setSearchAll] = useState<Publication[] | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
 
-  const isSearch = applied !== "";
-  const SEARCH_LIMIT = 200;
-
-  const applySearch = useCallback((q: string) => {
-    const t = q.trim();
-    if (t.length === 1) return; // сервер требует минимум 2 символа
-    setApplied(t); setPage(1); setReload((n) => n + 1);
-  }, []);
-
-  // Живой поиск: применяем запрос через 400 мс после ввода.
+  // Живой поиск по уже загруженным записям: сеть не трогаем.
   useEffect(() => {
-    if (query.trim() === applied) return;
-    const t = setTimeout(() => applySearch(query), 400);
+    const t = setTimeout(() => setApplied(query.trim().toLowerCase()), 300);
     return () => clearTimeout(t);
-  }, [query, applied, applySearch]);
+  }, [query]);
 
-  // Типы публикаций — один раз при монтировании.
+  // Типы публикаций: счётчики точные, поэтому запрашиваем один раз.
   useEffect(() => {
     const ctrl = new AbortController();
     api("/publications/types", { signal: ctrl.signal })
-      .then((d: TypesResponse) => setTypes(d.types ?? []))
+      .then((d: TypesResponse) => {
+        setTypes(d.types ?? []);
+        setTypesExact(d.exact !== false);
+      })
       .catch(() => { /* фильтр по типу не критичен */ });
     return () => ctrl.abort();
   }, []);
 
-  // Каталог: страница за страницей с сервера.
+  // Первая страница каталога: смена типа или сброс начинают накопление заново.
   useEffect(() => {
-    if (isSearch) return;
     const ctrl = new AbortController();
     setLoading(true);
     setError("");
-    const endpoint = `/publications?page=${page}&page_size=${pageSize}${typeId ? `&type_id=${typeId}` : ""}`;
+    setLoaded([]);
+    setPage(1);
+    const endpoint = `/publications?page=1&page_size=${pageSize}${typeId ? `&type_id=${typeId}` : ""}`;
     api(endpoint, { signal: ctrl.signal })
       .then((d: ListResponse) => {
-        setItems(d.items);
+        setLoaded(d.items);
         setTotal(d.total);
-        setTotalPages(Math.max(1, d.num_pages));
-        setSearchMeta(null);
-        if (d.items.length === 0 && page > d.num_pages && d.num_pages > 0) setPage(d.num_pages);
+        setNumPages(d.num_pages);
+        setNextPage(2);
         setLoading(false);
       })
       .catch((e: unknown) => {
         if (isAbort(e)) return;
-        setError(errorText(e)); setLoading(false);
-      });
-    return () => ctrl.abort();
-  }, [isSearch, page, pageSize, typeId, reload]);
-
-  // Поиск: один скан на запрос, листаем результат локально (иначе каждое
-  // перелистывание = новый дорогой скан + риск 429).
-  useEffect(() => {
-    if (!isSearch) { setSearchAll(null); return; }
-    const ctrl = new AbortController();
-    setLoading(true);
-    setError("");
-    const endpoint = `/publications/search?q=${encodeURIComponent(applied)}&limit=${SEARCH_LIMIT}`
-      + `${typeId ? `&type_id=${typeId}` : ""}`;
-    api(endpoint, { signal: ctrl.signal })
-      .then((d: SearchResponse) => {
-        setSearchAll(d.matches);
-        setTotal(d.total);
-        setTotalPages(Math.max(1, Math.ceil(d.total / pageSize)));
-        setSearchMeta({ pages: d.scanned_pages, scanned: d.total_scanned, truncated: d.truncated });
+        setError(errorText(e));
         setLoading(false);
-      })
-      .catch((e: unknown) => {
-        if (isAbort(e)) return;
-        setError(errorText(e)); setLoading(false); setSearchAll(null);
       });
     return () => ctrl.abort();
-  }, [isSearch, applied, typeId, reload]);
+  }, [typeId, pageSize, reload]);
 
-  const visibleItems = isSearch && searchAll
-    ? searchAll.slice((page - 1) * pageSize, page * pageSize)
-    : items;
-  const visiblePages = isSearch && searchAll
-    ? Math.max(1, Math.ceil(searchAll.length / pageSize))
-    : totalPages;
+  const loadMore = useCallback(() => {
+    if (loadingMore || numPages === 0 || nextPage > numPages) return;
+    setLoadingMore(true);
+    const endpoint = `/publications?page=${nextPage}&page_size=${pageSize}${typeId ? `&type_id=${typeId}` : ""}`;
+    api(endpoint)
+      .then((d: ListResponse) => {
+        setLoaded((prev) => {
+          const seen = new Set(prev.map((p) => p.id));
+          return [...prev, ...d.items.filter((p) => !seen.has(p.id))];
+        });
+        setNextPage((n) => n + 1);
+        setTotal(d.total);
+        setNumPages(d.num_pages);
+      })
+      .catch((e: unknown) => setError(errorText(e)))
+      .finally(() => setLoadingMore(false));
+  }, [loadingMore, numPages, nextPage, pageSize, typeId]);
+
+  const filtered = useMemo(
+    () => (applied ? loaded.filter((p) => matchesQuery(p, applied)) : loaded),
+    [loaded, applied],
+  );
+  const totalFilteredPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalFilteredPages);
+  const visibleItems = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const canLoadMore = numPages > 0 && nextPage <= numPages && !loadingMore;
 
   const resetAll = () => {
-    setQuery(""); setTypeId(""); setPage(1); setApplied(""); setReload((n) => n + 1);
+    setQuery("");
+    setApplied("");
+    setTypeId("");
+    setPage(1);
+    setReload((n) => n + 1);
   };
 
   return (
@@ -353,7 +367,7 @@ export function PublicationsTab() {
           <div className="flex-1 min-w-0">
             <CardTitle className="text-lg font-semibold text-gray-900 dark:text-slate-100">Публикации ЮФУ</CardTitle>
             <CardDescription className="text-sm text-gray-600 dark:text-slate-400">
-              Научные публикации Южного федерального университета из репозитория hub.sfedu.ru
+              Репозиторий hub.sfedu.ru: статьи, учебники, диссертации, патенты и студенческие работы
             </CardDescription>
           </div>
         </div>
@@ -363,27 +377,24 @@ export function PublicationsTab() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400 pointer-events-none" />
             <Input value={query} onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") applySearch(query); }}
-              placeholder="Поиск по названию, авторам, дисциплине (от 2 символов)" aria-label="Поиск публикаций"
+              placeholder="Фильтр по названию, авторам, журналу, аннотации" aria-label="Фильтр публикаций"
               className="pl-9 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600" />
           </div>
-          <Select value={typeId || "all"} disabled={isSearch}
-            onValueChange={(v) => { setTypeId(v === "all" ? "" : v); setPage(1); setReload((n) => n + 1); }}>
-            <SelectTrigger className="sm:w-56 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600"
-              aria-label="Фильтр по типу публикации"
-              title={isSearch ? "Фильтр типа действует только в режиме каталога" : undefined}>
+          <Select value={typeId || "all"}
+            onValueChange={(v) => setTypeId(v === "all" ? "" : v)}>
+            <SelectTrigger className="sm:w-64 bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-600"
+              aria-label="Фильтр по типу публикации">
               <SelectValue placeholder="Все типы" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Все типы</SelectItem>
               {types.map((t) => (
-                <SelectItem key={t.id} value={String(t.id)}>{t.name ?? `Тип ${t.id}`} ({t.count})</SelectItem>
+                <SelectItem key={t.id} value={String(t.id)}>
+                  {t.name ?? `Тип ${t.id}`} ({t.count.toLocaleString("ru-RU")})
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => applySearch(query)} disabled={loading || query.trim().length === 1} className="bg-blue-600 hover:bg-blue-700 text-white">
-            {loading && isSearch ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}Найти
-          </Button>
           <Button variant="outline" onClick={resetAll}
             className="border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800">
             <RotateCcw className="size-4" />Сбросить
@@ -392,16 +403,15 @@ export function PublicationsTab() {
 
         <Alert className="border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
           <Info className="size-4" />
-          <AlertTitle>Ограничение поиска</AlertTitle>
+          <AlertTitle>Как работает поиск</AlertTitle>
           <AlertDescription className="text-blue-700 dark:text-blue-300">
             <p>
-              Поиск идёт по последним{searchMeta ? ` ${searchMeta.pages}` : ""} страницам каталога хаба
-              (серверного поиска у hub.sfedu.ru нет): это порядка
-              {searchMeta ? ` ${searchMeta.scanned}` : " 1000"} свежих записей из 133 902, поэтому выдача неполная.
+              У hub.sfedu.ru нет серверного поиска, поэтому фильтр работает по уже загруженным
+              записям: <strong>{(applied ? filtered.length : loaded.length).toLocaleString("ru-RU")}</strong>
+              {" "}из {total.toLocaleString("ru-RU")}
+              {applied ? ` (совпадений среди ${loaded.length.toLocaleString("ru-RU")} загруженных)` : " загруженных"}.
+              Чтобы расширить охват, нажмите «Загрузить ещё».
             </p>
-            {searchMeta?.truncated ? (
-              <p>Просмотрено страниц: {searchMeta.pages} (записей: {searchMeta.scanned}); более старые страницы каталога не сканировались.</p>
-            ) : null}
           </AlertDescription>
         </Alert>
 
@@ -418,19 +428,49 @@ export function PublicationsTab() {
               <Button variant="outline" size="sm" onClick={() => setReload((n) => n + 1)} className="mt-2">Повторить</Button>
             </AlertDescription>
           </Alert>
-        ) : visibleItems.length === 0 ? (
+        ) : loaded.length === 0 ? (
           <div className="py-12 text-center">
-            <p className="text-sm text-gray-500 dark:text-slate-400">Ничего не найдено</p>
-            {isSearch ? <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">Попробуйте изменить запрос или сбросить фильтры</p> : null}
+            <p className="text-sm text-gray-500 dark:text-slate-400">Публикаций нет</p>
+            <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">Попробуйте выбрать другой тип</p>
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-xs text-gray-500 dark:text-slate-400">{isSearch ? `Найдено: ${total}` : `Всего публикаций: ${total}`}</p>
-            <ul role="list" className="space-y-3">
-              {visibleItems.map((p) => <li key={p.id}><PublicationCard pub={p} onOpen={setDetailId} /></li>)}
-            </ul>
-            <PaginationBar page={page} totalPages={visiblePages} pageSize={pageSize} onPage={setPage}
-              onPageSize={(n) => { setPageSize(n); setPage(1); }} />
+            <p className="text-xs text-gray-500 dark:text-slate-400" aria-live="polite">
+              {applied
+                ? `Совпадений: ${filtered.length.toLocaleString("ru-RU")} среди ${loaded.length.toLocaleString("ru-RU")} загруженных`
+                : `Загружено ${loaded.length.toLocaleString("ru-RU")} из ${total.toLocaleString("ru-RU")}`}
+              {typesExact ? "" : " · счётчики типов приблизительные"}
+            </p>
+            {visibleItems.length === 0 ? (
+              <Alert>
+                <Info className="size-4" />
+                <AlertTitle>Среди загруженных записей совпадений нет</AlertTitle>
+                <AlertDescription>
+                  <p>
+                    Просмотрено {loaded.length.toLocaleString("ru-RU")} из {total.toLocaleString("ru-RU")} записей.
+                    Публикация может быть в незагруженной части каталога.
+                  </p>
+                  <Button variant="outline" size="sm" onClick={loadMore} disabled={!canLoadMore} className="mt-2">
+                    {loadingMore ? <Loader2 className="size-4 animate-spin" /> : null}Загрузить ещё
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                <ul role="list" className="space-y-3">
+                  {visibleItems.map((p) => <li key={p.id}><PublicationCard pub={p} onOpen={setDetailId} /></li>)}
+                </ul>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <PaginationBar page={safePage} totalPages={totalFilteredPages} pageSize={pageSize}
+                    onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }} />
+                  <Button variant="outline" size="sm" onClick={loadMore} disabled={!canLoadMore}
+                    className="border-gray-300 dark:border-slate-600">
+                    {loadingMore ? <Loader2 className="size-4 animate-spin" /> : null}
+                    Загрузить ещё {canLoadMore ? `(${Math.min(pageSize, total - loaded.length)} шт.)` : ""}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </CardContent>
