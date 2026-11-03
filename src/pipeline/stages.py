@@ -149,10 +149,18 @@ class SkillExtractionStage(PipelineStage):
             match extractor.extract(vacancies, parser, raw_file):
                 case Ok((skill_freq, hybrid_weights_raw, trend_analyzer)):
                     for i, v in enumerate(vacancies):
+                        # Канонический вид (нижний регистр, trim, без дублей):
+                        # иначе «SQL» и «sql» уходят в JSON разными навыками и
+                        # дробят аналитику (в БД было 746 таких вариантов).
+                        def _canon(skills) -> list[str]:
+                            return list(dict.fromkeys(
+                                t for t in (s.text.strip().lower() for s in skills) if t
+                            ))
+
                         if isinstance(v, Vacancy):
                             match parser.skill_parser.parse_vacancy(v):
                                 case Ok(extracted):
-                                    texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                                    texts = _canon(extracted)
                                 case Err(_):
                                     texts = []
                             v.raw_data["extracted_skills"] = texts
@@ -163,7 +171,7 @@ class SkillExtractionStage(PipelineStage):
                             vac_obj = Vacancy.from_api(v)
                             match parser.skill_parser.parse_vacancy(vac_obj):
                                 case Ok(extracted):
-                                    texts = list(dict.fromkeys(s.text for s in extracted if s.text))
+                                    texts = _canon(extracted)
                                 case Err(_):
                                     texts = []
                             v["extracted_skills"] = texts

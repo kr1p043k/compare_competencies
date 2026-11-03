@@ -12,10 +12,24 @@ import asyncpg
 import structlog
 
 from src import Ok, config
+from src.cache_bus import invalidate as _invalidate
 from src.db import DATABASE_URL, DB_POOL_MAX, DB_POOL_MIN, get_pool
 from src.utils import extract_date_from_filename
 
 logger = structlog.get_logger(__name__)
+
+
+def _invalidate_caches(*names: str) -> None:
+    """Сбросить кэши, зависящие от записанных данных.
+
+    Импорт ленивый: шина живёт в src/cache_bus, а подписчики - в api_pkg.
+    Ошибка сброса не должна отменять уже сделанную запись в БД.
+    """
+    for name in names:
+        try:
+            _invalidate(name)
+        except Exception as exc:  # pragma: no cover - защитный путь
+            logger.warning("cache_invalidate_failed", cache=name, error=str(exc))
 
 # Per-event-loop pool cache.
 # WeakKeyDictionary auto-removes entries when temporary loops (created by
@@ -151,6 +165,9 @@ async def save_trend_snapshot(
            VALUES ($1,$2,$3::jsonb,$4)""",
         run_id, snapshot_date, json.dumps(skill_freq, ensure_ascii=False, default=str), source,
     )
+    # Данные изменились - кэши прогнозов и трендов устарели. Без этого
+    # пользователь до 5-10 минут видел прежние цифры (TTL без инвалидации).
+    _invalidate_caches("trends", "forecast")
 
 
 def _ensure_extracted_skills(vacancies: list[dict]) -> int:
@@ -270,6 +287,8 @@ async def save_vacancies_batch(vacancies: list[dict], run_id: str | None = None)
         rows,
     )
     logger.info("vacancies_saved", count=len(rows))
+    # Новые вакансии меняют частоты и метаданные прогноза.
+    _invalidate_caches("forecast")
     return len(rows)
 
 

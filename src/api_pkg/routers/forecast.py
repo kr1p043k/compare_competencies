@@ -94,6 +94,18 @@ def _cache_set(cache: dict, key: tuple, value, maxsize: int = 64) -> None:
     cache[key] = (_time.monotonic(), value)
 
 
+def _clear_forecast_caches() -> None:
+    """Сбросить все кэши прогноза (вызывается при изменении данных)."""
+    _TOP_CACHE.clear()
+    _ALL_CACHE.clear()
+    _META_CACHE.clear()
+
+
+# После записи нового снимка/пересчёта пайплайна кэш обязан сброситься, иначе
+# до 5 минут отдаются старые прогнозы. Шина без импортов - см. src/cache_bus.py.
+from src.cache_bus import register as _register_cache  # noqa: E402
+
+_register_cache("forecast", _clear_forecast_caches)
 def _compute_top(engine, direction: str, months: int, want: int, sort: str):
     """Синхронный подсчёт топа (стартует в to_thread - НЕ в event loop).
 
