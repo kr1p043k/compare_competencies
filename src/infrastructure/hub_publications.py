@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import html
 import re
 import threading
 import time
@@ -39,6 +40,15 @@ _MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 _SCAN_CONCURRENCY = 5
 _YEAR_RE = re.compile(r"(19|20)\d{2}")
 _ALLOWED_FILE_HOSTS = {"hub.sfedu.ru", "hub.lib.sfedu.ru"}
+
+# id типов публикаций, реально встречающихся в хабе (проверено обходом 1..70,
+# 2026-11-03; сумма счётчиков совпала с Results-Count = 133 902).
+# Нужны как стартовый набор для точных счётчиков: у хаба нет эндпоинта,
+# который перечисляет только используемые типы.
+_TYPE_SEED_IDS: tuple[int, ...] = (34, 35, 36, 37, 38, 39, 45, 46, 48, 49, 50, 51, 56, 59)
+_TYPE_COUNT_TTL_S = 24 * 60 * 60
+_TYPE_PROBE_CONCURRENCY = 8
+_NEGATIVE_CACHE_TTL_S = 300.0
 
 
 class HubPublicationsError(RuntimeError):
@@ -155,14 +165,44 @@ def _publication_id(raw: dict[str, Any]) -> int:
         return 0
 
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+
+
+def clean_text(value: Any) -> str | None:
+    """Снимает HTML-сущности и теги: хаб отдаёт ``&quot;`` и разметку в abstract."""
+    text = _first_text(value)
+    if not text:
+        return None
+    text = html.unescape(_HTML_TAG_RE.sub(" ", text))
+    return _WS_RE.sub(" ", text).strip() or None
+
+
+def _int_or_none(value: Any) -> int | None:
+    text = _first_text(value)
+    if not text:
+        return None
+    try:
+        return int(float(text))
+    except (TypeError, ValueError):
+        return None
+
+
+def web_url(publication_id: int, base: str | None = None) -> str:
+    """Человеческая страница записи в хабе (требует входа в hub.sfedu.ru)."""
+    base = (base or config.HUB_API_BASE).rstrip("/")
+    return f"{base}/dashboard/asset/{publication_id}/"
+
+
 def normalize_publication(raw: dict[str, Any], base: str | None = None) -> dict[str, Any]:
     """Приводит запись хаба к плоской схеме нашего API."""
     base = base or config.HUB_API_BASE
     payload = _payload_of(raw)
     publication_type = _dict_of(raw, "type")
     creator = _dict_of(raw, "creator")
+    publication_id = _publication_id(raw)
     return {
-        "id": _publication_id(raw),
+        "id": publication_id,
         "title": _first_text(payload.get("title")) or _first_text(raw.get("signature_string")),
         "authors": _author_names(raw, payload),
         "type_id": publication_type.get("id"),
@@ -175,8 +215,16 @@ def normalize_publication(raw: dict[str, Any], base: str | None = None) -> dict[
         "year": _year(raw, payload),
         "academic_subject": _text_list(payload.get("academic_subject")),
         "education_program": _text_list(payload.get("education_program")),
+        "abstract": clean_text(payload.get("abstract")),
+        "keywords": _text_list(payload.get("keyword")),
+        "journal": _first_text(payload.get("periodical_title")),
+        "publisher": _first_text(payload.get("publisher")),
+        "language": _first_text(payload.get("language")),
+        "publishing_year": _int_or_none(payload.get("publishing_year")),
+        "pages": _first_text(payload.get("page_range")),
         "files": _files(base, payload),
         "url": _absolute_url(base, raw.get("url")),
+        "web_url": web_url(publication_id, base) if publication_id else None,
         "creator_username": creator.get("username"),
     }
 
@@ -188,6 +236,9 @@ def _matches(raw: dict[str, Any], needle: str) -> bool:
             _first_text(payload.get("title")) or "",
             " ".join(_text_list(payload.get("author"))),
             " ".join(_text_list(payload.get("academic_subject"))),
+            " ".join(_text_list(payload.get("keyword"))),
+            _first_text(payload.get("periodical_title")) or "",
+            _first_text(payload.get("abstract")) or "",
             str(raw.get("signature_string") or ""),
         ]
     )
@@ -237,6 +288,9 @@ class HubPublicationsClient:
         self._loop: Any = None
         self._closed = False
         self._cache: dict[tuple[Any, ...], tuple[float, dict[str, Any], list[dict[str, Any]]]] = {}
+        self._types_cache: tuple[float, dict[str, Any]] | None = None
+        self._types_lock = asyncio.Lock()
+        self._missing: dict[int, float] = {}
 
     def _cache_get(self, key: tuple[Any, ...]) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
         if self.cache_ttl <= 0:
@@ -260,6 +314,27 @@ class HubPublicationsClient:
 
     def clear_cache(self) -> None:
         self._cache.clear()
+        self._types_cache = None
+        self._missing.clear()
+
+    def _missing_get(self, publication_id: int) -> bool:
+        """Негативный кэш: id, который хаб только что не нашёл, не сканируем снова."""
+        if self.cache_ttl <= 0:
+            return False
+        expires_at = self._missing.get(publication_id)
+        if expires_at is None:
+            return False
+        if expires_at <= time.monotonic():
+            self._missing.pop(publication_id, None)
+            return False
+        return True
+
+    def _missing_put(self, publication_id: int) -> None:
+        if self.cache_ttl <= 0:
+            return
+        if len(self._missing) >= self._MAX_CACHE_ENTRIES:
+            self._missing.clear()
+        self._missing[publication_id] = time.monotonic() + _NEGATIVE_CACHE_TTL_S
 
     def _headers(self, auth: bool = False) -> dict[str, str]:
         headers = {"User-Agent": _BROWSER_UA, "Accept": "application/json"}
@@ -481,6 +556,9 @@ class HubPublicationsClient:
         Токен хаба — общий ресурс организации, поэтому анонимные запросы
         в него не ходят.
         """
+        if self._missing_get(publication_id):
+            raise HubNotFoundError(f"Публикация {publication_id} не найдена")
+
         if self.token and use_token:
             resp = await self._get(f"/api/assets/{publication_id}/", {}, auth=True)
             if resp.status_code in (401, 403):
@@ -501,34 +579,99 @@ class HubPublicationsClient:
             for raw in items:
                 if _publication_id(raw) == publication_id:
                     return normalize_publication(raw, self.base_url)
+        self._missing_put(publication_id)
         raise HubNotFoundError(f"Публикация {publication_id} не найдена")
 
-    async def list_types(self, sample_pages: int = 3) -> dict[str, Any]:
-        pages = max(1, min(sample_pages, _MAX_SCAN_PAGES))
-        pages_data, _, scanned = await self._scan(pages)
+    async def _asset_type_names(self) -> dict[int, str]:
+        """Справочник типов, который отдаёт сам хаб (частичный, без «Научная статья»)."""
+        try:
+            resp = await self._get("/api/asset_types/", {})
+        except HubUnavailableError:
+            return {}
+        if resp.status_code != 200:
+            return {}
+        try:
+            data = resp.json()
+        except ValueError:
+            return {}
+        if not isinstance(data, list):
+            return {}
+        names: dict[int, str] = {}
+        for item in data:
+            if not isinstance(item, dict) or item.get("id") is None:
+                continue
+            try:
+                names[int(item["id"])] = str(item.get("type_name") or "")
+            except (TypeError, ValueError):
+                continue
+        return names
 
-        counts: dict[int, dict[str, Any]] = {}
-        sample_size = 0
-        for items in pages_data:
-            sample_size += len(items)
-            for raw in items:
-                publication_type = _dict_of(raw, "type")
-                type_id = publication_type.get("id")
-                if type_id is None:
+    async def _count_for_type(self, type_id: int) -> tuple[int, str | None]:
+        """Точное число записей типа: ``page_size=1`` + заголовок ``Results-Count``."""
+        try:
+            meta, items = await self._fetch_raw(1, 1, type_id, None)
+        except HubNotFoundError:
+            return 0, None
+        name: str | None = None
+        if items:
+            publication_type = _dict_of(items[0], "type")
+            if _publication_id({"id": publication_type.get("id")}) == type_id:
+                name = publication_type.get("type_name")
+        return meta["total"], name
+
+    async def list_types(self, sample_pages: int = 3, refresh: bool = False) -> dict[str, Any]:
+        """Точные счётчики по типам публикаций.
+
+        Списку типов хаба доверять нельзя: ``/api/asset_types/`` перечисляет
+        типы файлов (20 записей, «Научной статьи» там нет), а параметр ``type=``
+        принимает только один id. Поэтому опрашиваем известные id по одному с
+        ``page_size=1`` и берём ``Results-Count``: 14 параллельных запросов
+        дают точные числа вместо выборки по последним страницам.
+        """
+        now = time.monotonic()
+        if not refresh and self._types_cache is not None and self._types_cache[0] > now:
+            return dict(self._types_cache[1])
+
+        async with self._types_lock:
+            now = time.monotonic()
+            if not refresh and self._types_cache is not None and self._types_cache[0] > now:
+                return dict(self._types_cache[1])
+
+            names = await self._asset_type_names()
+            type_ids = sorted(set(_TYPE_SEED_IDS) | set(names))
+            semaphore = asyncio.Semaphore(_TYPE_PROBE_CONCURRENCY)
+
+            async def probe(type_id: int) -> tuple[int, int, str | None]:
+                async with semaphore:
+                    try:
+                        count, name = await self._count_for_type(type_id)
+                    except HubUnavailableError:
+                        return type_id, -1, None
+                    return type_id, count, name
+
+            results = await asyncio.gather(*(probe(type_id) for type_id in type_ids))
+            types: list[dict[str, Any]] = []
+            failed = 0
+            for type_id, count, name in results:
+                if count < 0:
+                    failed += 1
                     continue
-                try:
-                    type_id_int = int(type_id)
-                except (TypeError, ValueError):
+                if count == 0:
                     continue
-                entry = counts.setdefault(
-                    type_id_int,
-                    {"id": type_id_int, "name": publication_type.get("type_name"), "count": 0},
-                )
-                entry["count"] += 1
-                if not entry["name"]:
-                    entry["name"] = publication_type.get("type_name")
-        types = sorted(counts.values(), key=lambda entry: (-entry["count"], entry["id"]))
-        return {"types": types, "scanned_pages": scanned, "sample_size": sample_size}
+                types.append({"id": type_id, "name": name or names.get(type_id), "count": count})
+            types.sort(key=lambda entry: (-entry["count"], entry["id"]))
+            total = sum(entry["count"] for entry in types)
+            payload: dict[str, Any] = {
+                "types": types,
+                "scanned_pages": 0,
+                "sample_size": total,
+                "total": total,
+                "exact": failed == 0,
+                "failed_probes": failed,
+            }
+            if failed == 0:
+                self._types_cache = (time.monotonic() + _TYPE_COUNT_TTL_S, payload)
+            return dict(payload)
 
 
 _client: HubPublicationsClient | None = None

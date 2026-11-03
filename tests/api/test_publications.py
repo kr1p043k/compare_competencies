@@ -17,6 +17,8 @@ from src.infrastructure.hub_publications import (
     HubNotFoundError,
     HubPublicationsClient,
     HubUnavailableError,
+    _int_or_none,
+    clean_text,
     normalize_publication,
 )
 
@@ -52,6 +54,13 @@ RAW_ITEM = {
         "academic_subject": ["Математика"],
         "education_program": ["01.03.01 Математика"],
         "educational_year": ["2025 - 2026"],
+        "abstract": ["&quot;Графы&quot; &amp; <b>алгоритмы</b> в обучении"],
+        "keyword": ["графы", "алгоритмы"],
+        "periodical_title": ["Вестник ЮФУ"],
+        "publisher": ["Издательство ЮФУ"],
+        "language": ["ru"],
+        "publishing_year": ["2025"],
+        "page_range": ["12-25"],
     },
 }
 
@@ -80,7 +89,13 @@ def _item(item_id: int, title: str) -> dict:
         **RAW_ITEM,
         "id": item_id,
         "signature_string": f"{title} // Егоров Александр",
-        "payload": {**RAW_ITEM["payload"], "title": [title]},
+        "payload": {
+            **RAW_ITEM["payload"],
+            "title": [title],
+            "abstract": None,
+            "keyword": [],
+            "periodical_title": None,
+        },
     }
 
 
@@ -103,6 +118,33 @@ def test_normalize_publication_flattens_payload():
     assert [f["filename"] for f in item["files"]] == ["paper.pdf", "review.pdf"]
     assert item["files"][0]["url"] == f"{BASE}/storage/1/101/file/"
     assert item["url"] == f"{BASE}/api/assets/101/"
+    assert item["web_url"] == f"{BASE}/dashboard/asset/101/"
+
+
+def test_normalize_publication_exposes_rich_fields():
+    item = normalize_publication(RAW_ITEM, BASE)
+    assert item["abstract"] == '"Графы" & алгоритмы в обучении'
+    assert item["keywords"] == ["графы", "алгоритмы"]
+    assert item["journal"] == "Вестник ЮФУ"
+    assert item["publisher"] == "Издательство ЮФУ"
+    assert item["language"] == "ru"
+    assert item["publishing_year"] == 2025
+    assert item["pages"] == "12-25"
+
+
+def test_clean_text_strips_tags_and_entities():
+    assert clean_text('&quot;a&quot; &amp; <i>b</i>') == '"a" & b'
+    assert clean_text("<p>  много   пробелов </p>") == "много пробелов"
+    assert clean_text("") is None
+    assert clean_text(None) is None
+    assert clean_text(["&lt;x&gt;"]) == "<x>"
+
+
+def test_int_or_none_parses_publishing_year():
+    assert _int_or_none(["2024"]) == 2024
+    assert _int_or_none(["2024.0"]) == 2024
+    assert _int_or_none("n/a") is None
+    assert _int_or_none(None) is None
 
 
 def test_normalize_publication_tolerates_empty_fields():
@@ -113,6 +155,9 @@ def test_normalize_publication_tolerates_empty_fields():
     assert item["files"] == []
     assert item["year"] is None
     assert item["url"] is None
+    assert item["web_url"] is None
+    assert item["abstract"] is None
+    assert item["keywords"] == []
 
 
 def test_normalize_publication_falls_back_to_creation_year():
@@ -378,25 +423,92 @@ async def test_get_publication_missing_id_raises_not_found():
         await client.get_publication(999, max_scan_pages=2)
 
 
-async def test_list_types_counts_sample_and_skips_bad_type_ids():
+async def test_list_types_returns_exact_counts_from_headers():
+    """Точный счётчик берётся из Results-Count при page_size=1, не из выборки."""
+    per_type = {34: 61807, 39: 21591, 51: 38972}
+    names = {34: "Выпускная квалификационная работа", 39: "Научная статья", 51: "Студенческая работа"}
+
     def handler(request: httpx.Request) -> httpx.Response:
-        items = [
-            {**RAW_ITEM, "id": 1, "type": {"id": 49, "type_name": "Препринт"}},
-            {**RAW_ITEM, "id": 2, "type": {"id": 49, "type_name": "Препринт"}},
-            {**RAW_ITEM, "id": 3, "type": {"id": 51, "type_name": "Студенческая работа"}},
-            {**RAW_ITEM, "id": 4, "type": {"id": "abc", "type_name": "Сломанный"}},
-            {**RAW_ITEM, "id": 5, "type": None},
-        ]
-        return _page(items, page=1, num_pages=1, page_size=100)
+        if request.url.path == "/api/asset_types/":
+            return httpx.Response(200, json=[{"id": 34, "type_name": names[34], "sysname": "degree_work"}])
+        type_id = int(request.url.params.get("type", 0))
+        if type_id not in per_type:
+            return httpx.Response(200, json=[], headers={"Results-Count": "0", "Num-Pages": "0"})
+        item = {**RAW_ITEM, "type": {"id": type_id, "type_name": names[type_id]}}
+        return httpx.Response(
+            200,
+            json=[item],
+            headers={"Results-Count": str(per_type[type_id]), "Num-Pages": "1", "Page-Size": "1"},
+        )
 
     client = HubPublicationsClient(base_url=BASE, transport=httpx.MockTransport(handler))
-    result = await client.list_types(sample_pages=2)
+    result = await client.list_types()
 
-    assert (result["scanned_pages"], result["sample_size"]) == (1, 5)
-    assert result["types"] == [
-        {"id": 49, "name": "Препринт", "count": 2},
-        {"id": 51, "name": "Студенческая работа", "count": 1},
-    ]
+    assert result["exact"] is True
+    assert result["failed_probes"] == 0
+    assert result["total"] == sum(per_type.values())
+    assert result["types"][0] == {
+        "id": 34,
+        "name": "Выпускная квалификационная работа",
+        "count": 61807,
+    }
+    assert [entry["count"] for entry in result["types"]] == [61807, 38972, 21591]
+
+
+async def test_list_types_marks_inexact_when_probe_fails():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/asset_types/":
+            return httpx.Response(200, json=[])
+        if request.url.params.get("type") == "39":
+            return httpx.Response(503, text="boom")
+        return httpx.Response(200, json=[], headers={"Results-Count": "0"})
+
+    client = HubPublicationsClient(base_url=BASE, transport=httpx.MockTransport(handler))
+    result = await client.list_types()
+
+    assert result["exact"] is False
+    assert result["failed_probes"] >= 1
+
+
+async def test_list_types_is_cached(monkeypatch):
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/api/asset_types/":
+            return httpx.Response(200, json=[])
+        return httpx.Response(200, json=[], headers={"Results-Count": "0"})
+
+    client = HubPublicationsClient(base_url=BASE, transport=httpx.MockTransport(handler))
+    await client.list_types()
+    first_round = len(calls)
+    await client.list_types()
+    assert len(calls) == first_round
+
+    await client.list_types(refresh=True)
+    assert len(calls) > first_round
+
+
+async def test_missing_publication_is_negatively_cached():
+    scans: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        scans.append(request.url.path)
+        return _page([RAW_ITEM], page=1, num_pages=1, page_size=100)
+
+    client = HubPublicationsClient(
+        base_url=BASE,
+        token="",
+        transport=httpx.MockTransport(handler),
+        cache_ttl=60,
+    )
+    with pytest.raises(HubNotFoundError):
+        await client.get_publication(999, max_scan_pages=2)
+    first_round = len(scans)
+
+    with pytest.raises(HubNotFoundError):
+        await client.get_publication(999, max_scan_pages=2)
+    assert len(scans) == first_round, "повторный 404 не должен сканировать хаб заново"
 
 
 async def test_http_client_is_reused_between_requests():
@@ -495,8 +607,15 @@ class _FakeClient:
         matches = [normalize_publication(_item(i, f"Граф {i}"), BASE) for i in (101, 102, 103)]
         return {"matches": matches, "scanned_pages": 1, "truncated": False, "total_scanned": 3}
 
-    async def list_types(self, sample_pages=3):
-        return {"types": [{"id": 49, "name": "Препринт", "count": 1}], "scanned_pages": 1, "sample_size": 1}
+    async def list_types(self, sample_pages=3, refresh=False):
+        return {
+            "types": [{"id": 49, "name": "Препринт", "count": 28}],
+            "scanned_pages": 0,
+            "sample_size": 28,
+            "total": 28,
+            "exact": True,
+            "failed_probes": 0,
+        }
 
     async def get_publication(self, publication_id, **kwargs):
         return normalize_publication(RAW_ITEM, BASE)
@@ -512,7 +631,7 @@ class _BrokenClient(_FakeClient):
     async def search_publications(self, q, **kwargs):
         raise self._exc
 
-    async def list_types(self, sample_pages=3):
+    async def list_types(self, sample_pages=3, refresh=False):
         raise self._exc
 
     async def get_publication(self, publication_id, **kwargs):

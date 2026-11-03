@@ -111,11 +111,22 @@ async def search_publications(
 @limiter.limit("30/minute")
 async def list_publication_types(
     request: Request,
-    sample_pages: int = Query(3, ge=1, le=10, description="Сколько последних страниц просматривать"),
+    sample_pages: int = Query(
+        3,
+        ge=1,
+        le=10,
+        deprecated=True,
+        description="Не используется: счётчики теперь точные, параметр оставлен для совместимости",
+    ),
+    refresh: bool = Query(False, description="Пересчитать счётчики, минуя суточный кэш"),
 ) -> PublicationTypesResponse:
-    """Типы публикаций, встреченные на последних страницах хаба."""
+    """Точные счётчики публикаций по типам.
+
+    Считаются запросами ``page_size=1`` по известным id типов и кэшируются на
+    сутки, поэтому сумма ``count`` равна общему числу записей хаба.
+    """
     try:
-        return await get_client().list_types(sample_pages=sample_pages)
+        return await get_client().list_types(sample_pages=sample_pages, refresh=refresh)
     except HubUnavailableError as exc:
         raise HTTPException(
             status_code=503,
