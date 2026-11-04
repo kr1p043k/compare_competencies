@@ -353,8 +353,13 @@ async def krm_scope_summary(request: Request, dir_code: str = "09.03.02",
         if summary_path.exists():
             payload = json.loads(summary_path.read_text(encoding="utf-8"))
             entries = payload.get("disciplines") or []
+            # Считаем только те, что действительно в учёте и имеют данные:
+            # иначе «в анализе» превышает «в учёте» (сводка может содержать
+            # записи, исключённые позже) и цепочка не сходится.
+            scope_set = set(in_scope)
             analyzed = sum(
-                1 for e in entries if e.get("coverage_level") != "no_data"
+                1 for e in entries
+                if e.get("coverage_level") != "no_data" and e.get("name") in scope_set
             )
     except Exception:
         analyzed = None
