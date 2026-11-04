@@ -1,7 +1,20 @@
-"""KRM студента: направления + merged-вид без дублей."""
+"""KRM студента: направления + merged-вид без дублей.
+
+Две части:
+  * интеграционные тесты на реальных данных (create_app + REFERENCE_DIR);
+  * изолированные тесты на свежем FastAPI с include_router и подменёнными
+    auth / _list_all_dirs / _load_krm_direction / профилями (БД и сеть не трогаем).
+"""
+import contextlib
+
+import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+import src.api_pkg.routers.auth as auth_mod
+import src.api_pkg.routers.krm_student as krm_student_mod
 from src.api_pkg import create_app, deps
+from src.models.student import StudentProfile
 
 
 def _override_auth(app, path: str, method: str = "GET"):
@@ -75,3 +88,150 @@ def test_unknown_profile_404():
         assert r.status_code == 404
     finally:
         app.dependency_overrides.clear()
+
+
+# ===========================================================================
+# Изолированные тесты: свежий app, include_router, подменённые зависимости.
+# ===========================================================================
+
+KRM_DATA = {
+    "direction_name": "Информатика и вычислительная техника",
+    "disciplines": {
+        "Базы данных": {
+            "competencies": ["ПК-1"],
+            "skills": {"ПК-1": ["Python", "SQL"]},
+        },
+    },
+}
+
+
+@pytest.fixture(autouse=True)
+def reset_limiter():
+    with contextlib.suppress(Exception):
+        krm_student_mod.limiter._storage.reset()
+    yield
+
+
+def _profiles(*skills: str) -> dict[str, StudentProfile]:
+    return {"base": StudentProfile(profile_name="base", skills=list(skills))}
+
+
+def _mock_client(
+    monkeypatch,
+    *,
+    role: str = "student",
+    user: bool = True,
+    profiles: dict | None = None,
+    dirs: list | None = None,
+    krm: dict | None = None,
+) -> TestClient:
+    async def _fake_user(_request):
+        if not user:
+            return None
+        return {"uid": "u-1", "u": "s@example.com", "r": role}
+
+    monkeypatch.setattr(auth_mod, "get_current_user", _fake_user)
+    if dirs is not None:
+        monkeypatch.setattr(krm_student_mod, "_list_all_dirs", lambda: dirs)
+    if krm is not None:
+        monkeypatch.setattr(krm_student_mod, "_load_krm_direction", lambda _d: krm)
+
+    app = FastAPI()
+    app.state.limiter = krm_student_mod.limiter
+    app.include_router(krm_student_mod.router)
+    if profiles is not None:
+        app.dependency_overrides[deps.get_student_profiles] = lambda: profiles
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_mock_directions_shape(monkeypatch):
+    client = _mock_client(monkeypatch, dirs=[{"dir_code": "09.03.02", "name": "ИВТ"}])
+    r = client.get("/krm/directions")
+    assert r.status_code == 200, r.text
+    assert r.json() == {"directions": [{"dir_code": "09.03.02", "name": "ИВТ"}]}
+
+
+def test_mock_directions_unauthorized(monkeypatch):
+    client = _mock_client(monkeypatch, user=False, dirs=[])
+    r = client.get("/krm/directions")
+    assert r.status_code == 401, r.text
+
+
+def test_mock_directions_forbidden_role(monkeypatch):
+    client = _mock_client(monkeypatch, role="accountant", dirs=[])
+    r = client.get("/krm/directions")
+    assert r.status_code == 403, r.text
+
+
+def test_competencies_merges_sources(monkeypatch):
+    client = _mock_client(
+        monkeypatch,
+        profiles=_profiles("Python", "Docker"),
+        krm=KRM_DATA,
+    )
+    r = client.get(
+        "/krm/student/competencies",
+        params={"direction": "09.03.02", "profile": "base"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["direction_name"] == "Информатика и вычислительная техника"
+    by_skill = {m["skill"].lower(): m for m in body["merged"]}
+    assert by_skill["python"]["source"] == "both"
+    assert by_skill["sql"]["source"] == "krm"
+    assert by_skill["docker"]["source"] == "student"
+    counts = body["counts"]
+    assert counts == {
+        "krm": 2,
+        "student": 2,
+        "overlap": 1,
+        "merged": 3,
+        "student_only": 1,
+    }
+
+
+def test_competencies_unknown_profile_mocked_404(monkeypatch):
+    client = _mock_client(monkeypatch, profiles=_profiles("Python"), krm=KRM_DATA)
+    r = client.get(
+        "/krm/student/competencies",
+        params={"direction": "09.03.02", "profile": "ghost"},
+    )
+    assert r.status_code == 404, r.text
+    assert "не найден" in r.json()["detail"]
+
+
+def test_competencies_invalid_direction_400(monkeypatch):
+    client = _mock_client(monkeypatch, profiles=_profiles("Python"), krm=KRM_DATA)
+    r = client.get(
+        "/krm/student/competencies",
+        params={"direction": "not-a-code", "profile": "base"},
+    )
+    assert r.status_code == 400, r.text
+
+
+def test_competencies_missing_query_422(monkeypatch):
+    client = _mock_client(monkeypatch, profiles=_profiles("Python"), krm=KRM_DATA)
+    r = client.get("/krm/student/competencies")
+    assert r.status_code == 422, r.text
+
+
+def test_competencies_krm_unavailable_503(monkeypatch):
+    from fastapi import HTTPException
+
+    def _boom(_d):
+        raise HTTPException(status_code=503, detail="KRM data unavailable")
+
+    client = _mock_client(monkeypatch, profiles=_profiles("Python"))
+    monkeypatch.setattr(krm_student_mod, "_load_krm_direction", _boom)
+    r = client.get(
+        "/krm/student/competencies",
+        params={"direction": "09.03.02", "profile": "base"},
+    )
+    assert r.status_code == 503, r.text
+
+
+def test_mock_directions_rate_limited_after_60(monkeypatch):
+    client = _mock_client(monkeypatch, dirs=[])
+    for _ in range(60):
+        assert client.get("/krm/directions").status_code == 200
+    assert client.get("/krm/directions").status_code == 429
