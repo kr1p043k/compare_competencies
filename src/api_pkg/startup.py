@@ -273,12 +273,32 @@ async def _purge_expired_sessions() -> None:
         logger.warning("sessions_purge_failed", error=str(e))
 
 
+async def _periodic_housekeeping(interval_s: int = 1800) -> None:
+    """Фоновая уборка, пока сервер жив.
+
+    `_finalize_stale_pipeline_runs` и `_purge_expired_sessions` вызывались
+    только при старте. Если сервер работает сутками, зависший прогон висел в
+    статусе 'started' до следующего рестарта, а сессии копились. Здесь повторяем
+    их раз в 30 минут; любая ошибка не должна убивать цикл.
+    """
+    while True:
+        try:
+            await asyncio.sleep(interval_s)
+            await _finalize_stale_pipeline_runs()
+            await _purge_expired_sessions()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # pragma: no cover - защитный путь
+            logger.warning("periodic_housekeeping_failed", error=str(exc))
+
+
 async def _bootstrap():
     from src.api_pkg.routers.pipeline import _load_tasks as _load_pipeline_tasks
     await asyncio.to_thread(_load_pipeline_tasks)
 
     await _finalize_stale_pipeline_runs()
     await _purge_expired_sessions()
+    asyncio.ensure_future(_periodic_housekeeping())
 
     asyncio.ensure_future(_resolve_pipeline_errors_if_ready())
 
