@@ -228,14 +228,63 @@ def domain_analyzer():
     return DomainAnalyzer()
 
 
+def _iter_api_routes(routes):
+    """Плоский список APIRoute из app.routes.
+
+    FastAPI < 0.162 разворачивал include_router в плоский список. В 0.162+
+    маршруты вложены: app.routes содержит `_IncludedRouter`, а настоящие
+    APIRoute лежат в `original_router.routes`. Поддерживаем обе формы, иначе
+    open_all_gates не находит гейты и все endpoint-тесты получают 401.
+    """
+    for route in routes:
+        inner = getattr(route, "original_router", None)
+        if inner is not None:
+            yield from _iter_api_routes(getattr(inner, "routes", []) or [])
+            continue
+        if getattr(route, "dependant", None) is not None:
+            yield route
+
+
+def _iter_routers(routes):
+    """Все APIRouter, вложенные в app.routes (FastAPI 0.162+).
+
+    До 0.162 include_router разворачивал маршруты в плоский список. Теперь в
+    app.routes лежат `_IncludedRouter`, а исходный APIRouter - в
+    `original_router`. Читаем его напрямую: так видны и router-level
+    dependencies, которые иначе не попадают в route.dependant.
+    """
+    for route in routes:
+        inner = getattr(route, "original_router", None)
+        if inner is not None:
+            yield inner
+            yield from _iter_routers(getattr(inner, "routes", []) or [])
+
+
+def _is_gate(fn) -> bool:
+    return getattr(fn, "__qualname__", "").startswith(
+        ("require_any_role", "require_authenticated")
+    )
+
+
 def open_all_gates(app, role="admin"):
     """Stub every require_any_role / require_authenticated gate on the app
     (deterministic auth for endpoint-logic tests; auth itself is covered by
     dedicated security tests)."""
-    for route in app.routes:
+    fake = {"u": "test", "r": role}
+
+    # 1) гейты, привязанные к конкретным маршрутам
+    for route in _iter_api_routes(app.routes):
         dep = getattr(route, "dependant", None)
         for sub in (getattr(dep, "dependencies", None) or []):
             fn = sub.call
-            if getattr(fn, "__qualname__", "").startswith(("require_any_role", "require_authenticated")):
-                app.dependency_overrides[fn] = lambda: {"u": "test", "r": role}
+            if _is_gate(fn):
+                app.dependency_overrides[fn] = lambda: fake
+
+    # 2) router-level dependencies: APIRouter(dependencies=[Depends(gate)])
+    for router in _iter_routers(app.routes):
+        for dep in (getattr(router, "dependencies", None) or []):
+            fn = getattr(dep, "dependency", None)
+            if fn is not None and _is_gate(fn):
+                app.dependency_overrides[fn] = lambda: fake
+
     return app
