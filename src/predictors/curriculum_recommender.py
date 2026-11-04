@@ -572,12 +572,32 @@ class CurriculumRecommender:
             ))
         if top_emerging:
             for e in top_emerging[:10]:
+                skill = str(e.get("skill") or "").strip()
+                freq = e.get("frequency", 0)
+                if not skill:
+                    continue
+                # Без адресата рекомендация бесполезна: «добавьте e-commerce» не
+                # говорит, в какую дисциплину. Сначала ищем дисциплины, у которых
+                # навык числится в разрывах, иначе берём самые слабые по покрытию.
+                targets = [
+                    c for c in all_coverages
+                    if skill.lower() in {s.lower() for s in (c.gaps_list or [])}
+                ]
+                basis = "навык в разрывах"
+                if not targets:
+                    targets = sorted(all_coverages, key=lambda c: c.coverage_ratio)[:3]
+                    basis = "самое низкое покрытие"
+                names = ", ".join(f"«{c.discipline_name}»" for c in targets[:3])
+                more = (f" и ещё {len(targets) - 3}" if len(targets) > 3 else "")
+                lo = min(c.coverage_ratio for c in targets[:3])
+                hi = max(c.coverage_ratio for c in targets[:3])
                 recs.append(Recommendation(
                     type="add_new_content",
                     priority="high",
+                    skill_name=skill,
                     message=(
-                        f"Рассмотрите внедрение навыка «{e['skill']}» "
-                        f"(частота на рынке: {e['frequency']})."
+                        f"Навык «{skill}» (частота на рынке: {freq}) — кандидат на добавление. "
+                        f"Куда: {names}{more} ({basis}; покрытие дисциплин {lo:.0%}–{hi:.0%})."
                     ),
                 ))
 

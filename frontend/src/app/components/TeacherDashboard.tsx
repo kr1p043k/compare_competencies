@@ -55,7 +55,7 @@ type DirectionAnalysis = {
   top_emerging_across_all: { skill: string; frequency: number }[];
   recommendations: { type: string; priority: string; message: string }[];
   trends: { rising: any[]; declining: any[] };
-  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; market_top_coverage?: number; market_top_total?: number; market_top_reliable?: boolean; market_top_source?: string; years?: number[] }[];
+  disciplines: { name: string; coverage_ratio: number; weighted_coverage?: number; coverage_level: string; gaps: number; emerging: number; emerging_growth?: number; emerging_growth_skills?: { skill: string; change_pct: number | null }[]; market_top_coverage?: number; market_top_total?: number; market_top_reliable?: boolean; market_top_source?: string; years?: number[] }[];
   generated_at: string;
 };
 
@@ -1261,7 +1261,19 @@ export function TeacherDashboard() {
                             <span className={`text-xs ${covTextClass(r.a.weighted_coverage)}`} title="Взвешенное покрытие (качество)">Кач.:{(r.a.weighted_coverage * 100).toFixed(0)}%</span>
                           )}
                           <span className="text-red-600" title="Пробелов">{r.a.gaps} пр.</span>
-                          <span className="text-blue-600" title="Новые навыки рынка">{r.a.emerging} нов.</span>
+                          <span
+                            className="text-blue-600"
+                            title={
+                              r.a.emerging_growth_skills?.length
+                                ? "Растущие навыки рынка, которых нет в дисциплине: "
+                                  + r.a.emerging_growth_skills
+                                      .map((g) => g.skill + (g.change_pct != null ? ` +${g.change_pct.toFixed(0)}%` : ""))
+                                      .join(", ")
+                                : "Растущие навыки рынка, которых нет в дисциплине"
+                            }
+                          >
+                            {r.a.emerging_growth ?? r.a.emerging} раст.
+                          </span>
                         </div>
                       ) : (
                         <span className="text-xs text-gray-400">вне учёта</span>
