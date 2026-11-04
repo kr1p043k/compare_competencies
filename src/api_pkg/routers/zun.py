@@ -988,6 +988,9 @@ async def zun_analyze_results(
 ):
     """Результаты ZUN-анализа."""
     _validate_dir_code(dir_code)
+    # Результаты читаются с диска по направлению: без проверки доступа
+    # преподаватель видел бы прогоны чужого направления.
+    await _require_dir_access(request, dir_code)
     base = (RESULT_TEACHER / dir_code).resolve()
     if RESULT_TEACHER.resolve() not in base.parents:
         raise HTTPException(status_code=400, detail="Invalid path")

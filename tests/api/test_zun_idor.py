@@ -212,6 +212,14 @@ def test_analyze_admin_bypasses(monkeypatch):
     assert r.status_code == 200, r.text
 
 
+def test_analyze_results_foreign_direction_403(monkeypatch, tmp_path):
+    """Результаты анализа чужого направления не читаются с диска."""
+    monkeypatch.setattr(zun_mod, "RESULT_TEACHER", tmp_path)
+    client = _make_client(monkeypatch, FakePool(), dirs=(OWN,))
+    r = client.get("/api/teacher/zun/analyze/results", params={"dir_code": FOREIGN})
+    assert r.status_code == 403, r.text
+
+
 # ------------------------------------------------------------ auth / identity
 
 def test_patch_entry_unknown_ksa_is_not_403(monkeypatch):
