@@ -782,3 +782,18 @@ async def test_scan_is_bounded_by_max_pages():
 
     assert result["scanned_pages"] == 10
     assert calls == 10
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("/publications", "public, max-age=60"),
+        ("/publications/search?q=граф", "no-store"),
+        ("/publications/types", "public, max-age=3600"),
+        ("/publications/101", "no-store"),
+    ],
+)
+def test_router_cache_control_headers(api, path, expected):
+    resp = api(_FakeClient()).get(path)
+    assert resp.status_code == 200
+    assert resp.headers["Cache-Control"] == expected
