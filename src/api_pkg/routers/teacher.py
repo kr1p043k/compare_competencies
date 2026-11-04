@@ -341,6 +341,8 @@ async def krm_scope_summary(request: Request, dir_code: str = "09.03.02",
             in_scope.append(r["name"])
 
     # Анализ дополнительно отсекает то, что не попало в KRM текущего года.
+    # `analyzed` считаем без записей no_data: иначе цепочка
+    # 55 - 19 - 2 = 34 не сходится с «в анализе 36» и выглядит как ошибка.
     analyzed = None
     try:
         from pathlib import Path
@@ -349,7 +351,11 @@ async def krm_scope_summary(request: Request, dir_code: str = "09.03.02",
             base = base / str(year)
         summary_path = base / "_summary.json"
         if summary_path.exists():
-            analyzed = json.loads(summary_path.read_text(encoding="utf-8")).get("total_disciplines")
+            payload = json.loads(summary_path.read_text(encoding="utf-8"))
+            entries = payload.get("disciplines") or []
+            analyzed = sum(
+                1 for e in entries if e.get("coverage_level") != "no_data"
+            )
     except Exception:
         analyzed = None
 

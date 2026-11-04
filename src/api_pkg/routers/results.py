@@ -87,6 +87,9 @@ async def get_results_summary(
                         data["evaluations"] = (
                             {self_key: evals[self_key]} if self_key in evals else {}
                         )
+                    # Список профилей тоже не должен раскрывать архетипы:
+                    # иначе UI нарисует выбор base/dc/top_dc.
+                    data["profiles"] = [self_key] if self_key else []
                 return data
             except Exception as e:
                 logger.warning("results_summary_read_failed", path=str(summary_path), error=str(e))
@@ -99,7 +102,7 @@ async def get_results_summary(
 
     return {
         "message": "Результаты анализа не найдены. Запустите gap-анализ.",
-        "profiles": list(profiles.keys()),
+        "profiles": ([self_key] if self_key else []) if role == "student" else list(profiles.keys()),
     }
 
 
