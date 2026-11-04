@@ -575,6 +575,8 @@ class PipelineRun(Base):
     completed_at: Mapped[datetime | None]
     error_message: Mapped[str | None] = mapped_column(Text)
     stats: Mapped[dict | None] = mapped_column(sa.JSON())
+    direction_code: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    owner_id: Mapped[str | None] = mapped_column(UUID, nullable=True)
 
     __table_args__ = (
         CheckConstraint(

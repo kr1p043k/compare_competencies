@@ -7,6 +7,7 @@ Endpoints:
     GET  /teacher/rpd/status/{run_id}
 """
 import asyncio
+import contextlib
 import json
 import os
 import re
@@ -23,7 +24,6 @@ from slowapi.util import get_remote_address
 
 from src import config
 from src.api_pkg.routers.auth import require_any_role
-import contextlib
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["rpd"], dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
@@ -58,7 +58,7 @@ UPLOAD_RPD_DIR = PROJECT_ROOT / "uploads" / "rpd_pdfs"
 REFERENCE_DIR = config.REFERENCE_DIR
 
 
-class _RpdCancelled(Exception):
+class _RpdCancelledError(Exception):
     """Pipeline остановлен пользователем через cancel endpoint."""
 
 
@@ -138,7 +138,7 @@ async def _run_cli(args: list[str], timeout: int = 1800, run_id: str | None = No
         logger.warning("rpd_cli_thread_fallback", reason="selector_loop")
         code, out = await asyncio.to_thread(_run_cli_sync, args, timeout, run_id)
         if _cancel_requested(run_id):
-            raise _RpdCancelled()
+            raise _RpdCancelledError() from None
         return code, out
     if run_id:
         with _rpd_lock:
@@ -155,7 +155,7 @@ async def _run_cli(args: list[str], timeout: int = 1800, run_id: str | None = No
             with _rpd_lock:
                 _rpd_procs.pop(run_id, None)
     if _cancel_requested(run_id):
-        raise _RpdCancelled()
+        raise _RpdCancelledError()
     out = (stdout or b"").decode("utf-8", errors="ignore")
     err = (stderr or b"").decode("utf-8", errors="ignore")
     return proc.returncode or 0, (out + "\n" + err)[-3000:]
@@ -176,11 +176,11 @@ def _noise_res():
 
 def short_cli_error(out: str, limit: int = 10) -> str:
     """Last traceback tail (or last meaningful lines) without known noise (v43)."""
-    lines = [l.rstrip() for l in (out or "").splitlines() if l.strip()]
-    lines = [l for l in lines if not any(rx.search(l) for rx in _noise_res())]
+    lines = [line.rstrip() for line in (out or "").splitlines() if line.strip()]
+    lines = [line for line in lines if not any(rx.search(line) for rx in _noise_res())]
     if not lines:
         return "no output"
-    tb = [i for i, l in enumerate(lines) if l.startswith("Traceback ")]
+    tb = [i for i, line in enumerate(lines) if line.startswith("Traceback ")]
     if tb:
         return "\n".join(lines[tb[-1]:][: limit * 3])
     return "\n".join(lines[-limit:])
@@ -195,6 +195,46 @@ async def _update_run(run_id: str, stats: dict) -> None:
         json.dumps(stats, ensure_ascii=False, default=str),
         run_id,
     )
+
+
+async def _set_run_owner(request: Request, run_id: str, dir_code: str) -> None:
+    """Записать направление и владельца запуска (для проверки доступа).
+
+    `state == stats` перезаписывается на каждом этапе и не сохраняет dir_code,
+    поэтому направление и владелец хранятся в выделенных колонках
+    pipeline_runs.direction_code / pipeline_runs.owner_id.
+    """
+    from src.api_pkg.routers.auth import get_current_user
+    from src.pipeline.db_writer import _pool
+
+    user = await get_current_user(request)
+    owner_id = user.get("uid") if user is not None else None
+    pool = await _pool()
+    await pool.execute(
+        "UPDATE pipeline_runs SET direction_code=$1, owner_id=$2 WHERE id=$3",
+        dir_code, owner_id, run_id,
+    )
+
+
+async def _require_run_access(request: Request, dir_code: str | None, owner_id: str | None = None) -> None:
+    """403, если вызывающему недоступен запуск (admin - всегда).
+
+    Запуск с направлением проверяется тем же guard'ом, что у ZUN (без
+    дублирования). Запуск без направления, но с владельцем доступен только
+    владельцу. Запуск без направления и владельца (legacy) - только админу:
+    fail closed.
+    """
+    if dir_code:
+        from src.api_pkg.routers.zun import _require_dir_access
+        await _require_dir_access(request, dir_code)
+        return
+    from src.api_pkg.routers.auth import get_current_user
+    user = await get_current_user(request)
+    if user is not None and user.get("r") == "admin":
+        return
+    if owner_id is not None and user is not None and user.get("uid") == str(owner_id):
+        return
+    raise HTTPException(status_code=403, detail="Нет доступа к этому запуску")
 
 
 async def _seed_direction(dir_code: str, run_id: str | None = None) -> tuple[int, str]:
@@ -270,7 +310,7 @@ async def _upload_pipeline(
         await _update_run(run_id, {"stage": "parse", "status": "running", "progress": 10})
         merged = await asyncio.to_thread(_parse_pdfs_to_krm, dir_code, direction_name, profile)
         if _cancel_requested(run_id):
-            raise _RpdCancelled()
+            raise _RpdCancelledError()
         stats = {
             "stage": "seed",
             "status": "running",
@@ -292,7 +332,7 @@ async def _upload_pipeline(
             run_id, status="completed",
             stats={"stage": "done", "status": "completed", "progress": 100, "file": fname, "dir_code": dir_code},
         )
-    except _RpdCancelled:
+    except _RpdCancelledError:
         logger.info("rpd_upload_pipeline_cancelled", run_id=run_id, dir_code=dir_code)
         await _finish_cancelled(run_id)
         return
@@ -320,6 +360,8 @@ async def rpd_upload(
 ):
     """Загрузка PDF РПД дисциплины."""
     _validate_dir_code(dir_code)
+    from src.api_pkg.routers.zun import _require_dir_access
+    await _require_dir_access(request, dir_code)
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only .pdf files are supported")
 
@@ -357,6 +399,7 @@ async def rpd_upload(
 
     from src.pipeline.db_writer import create_pipeline_run
     run_id = await create_pipeline_run("rpd-import")
+    await _set_run_owner(request, run_id, dir_code)
     await _update_run(run_id, {"stage": "saved", "status": "running", "file": safe_name, "dir_code": dir_code})
     background_tasks.add_task(
         _upload_pipeline, run_id, dir_code, safe_name, direction_name or None, profile or None
@@ -404,7 +447,7 @@ async def _collect_pipeline(run_id: str, dir_code: str, public_url: str | None =
             run_id, status="completed",
             stats={"stage": "done", "status": "completed", "progress": 100, "dir_code": dir_code},
         )
-    except _RpdCancelled:
+    except _RpdCancelledError:
         logger.info("rpd_collect_pipeline_cancelled", run_id=run_id, dir_code=dir_code)
         await _finish_cancelled(run_id)
         return
@@ -431,6 +474,8 @@ async def rpd_collect(request: Request, background_tasks: BackgroundTasks,
     позволяет собирать аннотации для направлений вне предустановленного списка YANDEX_COVERED.
     """
     _validate_dir_code(dir_code)
+    from src.api_pkg.routers.zun import _require_dir_access
+    await _require_dir_access(request, dir_code)
     if not public_url and dir_code not in YANDEX_COVERED:
         raise HTTPException(
             status_code=400,
@@ -439,6 +484,7 @@ async def rpd_collect(request: Request, background_tasks: BackgroundTasks,
 
     from src.pipeline.db_writer import create_pipeline_run
     run_id = await create_pipeline_run("rpd-import")
+    await _set_run_owner(request, run_id, dir_code)
     await _update_run(run_id, {"stage": "collect", "status": "running", "dir_code": dir_code,
                                "source": "yandex", "url": public_url})
     background_tasks.add_task(_collect_pipeline, run_id, dir_code, public_url or None)
@@ -449,25 +495,27 @@ async def rpd_collect(request: Request, background_tasks: BackgroundTasks,
 @router.post("/teacher/rpd/cancel/{run_id}")
 async def rpd_cancel(request: Request, run_id: str):
     """Остановить сбор/загрузку РПД: флаг отмены + kill процесса."""
+    from src.database import async_session_factory
+    from src.models.krm_models import PipelineRun
     from src.pipeline.db_writer import complete_pipeline_run
+
+    # Проверка доступа до любого действия (иначе чужой run_id можно отменить).
+    async with async_session_factory() as session:
+        run = await session.get(PipelineRun, run_id)
+        if not run:
+            raise HTTPException(status_code=404, detail="Run not found")
+        await _require_run_access(request, run.direction_code, run.owner_id)
 
     with _rpd_lock:
         ev = _rpd_cancel.get(run_id)
         proc = _rpd_procs.get(run_id)
     if ev is None and proc is None:
         # Задача уже завершилась или неизвестна - смотрим БД.
-        from src.database import async_session_factory
-        from src.models.krm_models import PipelineRun
-
-        async with async_session_factory() as session:
-            run = await session.get(PipelineRun, run_id)
-            if not run:
-                raise HTTPException(status_code=404, detail="Run not found")
-            if run.status in ("completed", "failed", "cancelled"):
-                return {"status": run.status, "message": "Задача уже завершена"}
-            await complete_pipeline_run(run_id, status="cancelled", error="Отменено пользователем",
-                                        stats={"stage": "cancelled", "status": "cancelled"})
-            return {"status": "cancelled", "message": "Задача остановлена"}
+        if run.status in ("completed", "failed", "cancelled"):
+            return {"status": run.status, "message": "Задача уже завершена"}
+        await complete_pipeline_run(run_id, status="cancelled", error="Отменено пользователем",
+                                    stats={"stage": "cancelled", "status": "cancelled"})
+        return {"status": "cancelled", "message": "Задача остановлена"}
     if ev is not None:
         ev.set()
     if proc is not None:
@@ -500,6 +548,7 @@ async def rpd_status(run_id: str, request: Request):
         run = await session.get(PipelineRun, run_id)
         if not run:
             raise HTTPException(status_code=404, detail="Run not found")
+        await _require_run_access(request, run.direction_code, run.owner_id)
         return {
             "id": str(run.id),
             "action": run.action,
