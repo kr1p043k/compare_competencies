@@ -53,21 +53,8 @@ def actor():
         yield m
 
 
-async def _admin_user(_request):
-    return {"uid": "u-test", "u": "admin@t.local", "r": "admin"}
-
-
-async def _all_dirs(_user):
-    return ["09.03.02"]
-
-
 def _client():
-    app = create_app()
-    import src.api_pkg.routers.krm_teacher as kt
-    import src.api_pkg.routers.zun as z
-    z.get_current_user = _admin_user
-    kt._user_directions = _all_dirs
-    return TestClient(app)
+    return TestClient(create_app())
 
 
 def _entry(method="AUDIT", detail="krm.x | t | by a@b.c (admin)"):
@@ -160,14 +147,12 @@ def test_zun_entry_add_delete_audit(actor):
     kid = "11111111-1111-1111-1111-111111111111"
     cid = "22222222-2222-2222-2222-222222222222"
     c = _client()
-    pool = _mock_pool(fetchrow=[{"id": cid, "dir_code": "09.03.02"}, None],
-                      fetchval=[1, kid])
+    pool = _mock_pool(fetchrow=[{"id": cid}, None], fetchval=[1, kid])
     with patch.object(z, "get_pool", return_value=pool):
         r = c.post(f"/api/teacher/zun/competencies/{cid}/entries",
                    json={"ksa_type": "skills", "text": "линейная алгебра"})
     assert r.status_code == 201, r.text
-    pool2 = _mock_pool(fetchrow=[{"dir_code": "09.03.02"},
-                                  {"competency_id": cid}])
+    pool2 = _mock_pool(fetchrow=[{"competency_id": cid}])
     with patch.object(z, "get_pool", return_value=pool2):
         r = c.delete(f"/api/teacher/zun/entries/{kid}")
     assert r.status_code == 200, r.text
