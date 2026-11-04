@@ -209,10 +209,20 @@ def test_competencies_invalid_direction_400(monkeypatch):
     assert r.status_code == 400, r.text
 
 
-def test_competencies_missing_query_422(monkeypatch):
+def test_competencies_without_query_returns_defaults(monkeypatch):
+    """Без direction/profile эндпоинт отдаёт доступное направление и свой профиль.
+
+    Раньше здесь был 422: студент открывает страницу первым и не знает ни кода
+    направления, ни служебного имени профиля. Теперь сервер подставляет то, к
+    чему у пользователя есть доступ.
+    """
     client = _mock_client(monkeypatch, profiles=_profiles("Python"), krm=KRM_DATA)
     r = client.get("/krm/student/competencies")
-    assert r.status_code == 422, r.text
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["direction"]
+    assert body["profile"]
+    assert "disciplines" in body
 
 
 def test_competencies_krm_unavailable_503(monkeypatch):
