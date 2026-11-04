@@ -219,3 +219,42 @@ def test_unauthorized_when_no_session(monkeypatch):
         json={"ksa_type": "skills", "text": "docker"},
     )
     assert r.status_code == 401, r.text
+
+
+# ------------------------------------------------------- анализ направления
+
+def test_analyze_foreign_direction_403(monkeypatch):
+    """Запуск ZUN-анализа чужого направления запрещён."""
+    client = _make_client(monkeypatch, FakePool(FOREIGN))
+    r = client.post(f"/api/teacher/zun/analyze?dir_code={FOREIGN}")
+    assert r.status_code == 403, r.text
+
+
+def test_analyze_own_direction_starts(monkeypatch):
+    """Своё направление - запуск разрешён.
+
+    Реальный CLI-прогон не нужен и опасен в тесте (идёт минуты): подменяем
+    создание подпроцесса заглушкой.
+    """
+    class _Proc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"", b""
+
+    async def _fake_exec(*_a, **_kw):
+        return _Proc()
+
+    monkeypatch.setattr(zun_mod.asyncio, "create_subprocess_exec", _fake_exec)
+    client = _make_client(monkeypatch, FakePool(OWN))
+    r = client.post(f"/api/teacher/zun/analyze?dir_code={OWN}")
+    assert r.status_code == 200, r.text
+    assert r.json().get("status") == "started"
+
+
+def test_analyze_results_foreign_direction_403(monkeypatch, tmp_path):
+    """Результаты анализа чужого направления не читаются."""
+    monkeypatch.setattr(zun_mod, "RESULT_TEACHER", tmp_path)
+    client = _make_client(monkeypatch, FakePool(FOREIGN))
+    r = client.get(f"/api/teacher/zun/analyze/results?dir_code={FOREIGN}")
+    assert r.status_code == 403, r.text

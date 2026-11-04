@@ -988,6 +988,7 @@ async def zun_analyze_results(
 ):
     """Результаты ZUN-анализа."""
     _validate_dir_code(dir_code)
+    await _require_dir_access(request, dir_code)
     base = (RESULT_TEACHER / dir_code).resolve()
     if RESULT_TEACHER.resolve() not in base.parents:
         raise HTTPException(status_code=400, detail="Invalid path")
@@ -1325,8 +1326,13 @@ async def zun_delete_entry(request: Request, ksa_id: str):
 @router.post("/teacher/zun/analyze")
 @limiter.limit("2/minute")
 async def zun_analyze(request: Request, background_tasks: BackgroundTasks, dir_code: str = "09.03.02"):
-    """Запустить ZUN-анализ."""
+    """Запустить ZUN-анализ.
+
+    Анализ читает КРМ направления и запускает тяжёлый CLI-прогон, поэтому
+    направление нужно проверять так же, как в write-эндпоинтах.
+    """
     _validate_dir_code(dir_code)
+    await _require_dir_access(request, dir_code)
 
     async def _run():
         try:
