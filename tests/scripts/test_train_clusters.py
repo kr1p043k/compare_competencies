@@ -241,7 +241,7 @@ class TestTrainClusters:
         captured = capsys.readouterr()
         assert "Среднее навыков" in captured.out
 
-    def test_train_clusters_prints_average_skills(
+    def test_train_clusters_prints_average_skills_per_vacancy(
         self, sample_vacancies_full, tmp_path, monkeypatch, capsys
     ):
         """Строка 144: вывод среднего количества навыков на вакансию."""
