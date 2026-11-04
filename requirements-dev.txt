@@ -2,7 +2,6 @@
 pytest>=8.0.0
 pytest-benchmark>=5.0.0
 pytest-cov>=6.0.0
-aioresponses>=0.7.6
 jupyter>=1.1.0
 ipykernel>=6.29.0
 ipywidgets>=8.1.0
