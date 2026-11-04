@@ -120,6 +120,12 @@ export function TeacherDashboard() {
   // Набор, по которому загружается анализ. Это НЕ фильтр списка: у наборов
   // разные планы и разные KRM, поэтому анализ запрашивается заново.
   const [intakeYear, setIntakeYear] = useState<2024 | 2025>(2025);
+  // Арифметика «в наборе -> в учёте -> в анализе»: без неё три разных числа
+  // дисциплин выглядят как ошибка, а не как разные выборки.
+  const [scopeChain, setScopeChain] = useState<{
+    total: number; in_scope: number; excluded_manual: number;
+    excluded_no_data: number; analyzed: number | null;
+  } | null>(null);
   const [metaStale, setMetaStale] = useState(false);
   const [scopeMsg, setScopeMsg] = useState("");
 
@@ -290,9 +296,12 @@ export function TeacherDashboard() {
     // При быстром переключении направлений медленный ответ старого запроса
     // затирал данные нового. Флаг отмены отбрасывает устаревшие ответы.
     let cancelled = false;
-    api(`/teacher/krm/disciplines?dir_code=${selectedDir}`)
+    api(`/teacher/krm/disciplines?dir_code=${selectedDir}&year=${intakeYear}`)
       .then((d) => { if (!cancelled) setDisciplines(d as Discipline[]); })
       .catch(() => { if (!cancelled) setDisciplines([]); });
+    api(`/teacher/krm/scope-summary?dir_code=${selectedDir}&year=${intakeYear}`)
+      .then((s: any) => { if (!cancelled) setScopeChain(s); })
+      .catch(() => { if (!cancelled) setScopeChain(null); });
     api(`/teacher/krm/stats?dir_code=${selectedDir}`)
       .then((s) => { if (!cancelled) setStats(s); })
       .catch((err) => { if (!cancelled) reportError("app/components/TeacherDashboard.tsx", err); });
@@ -509,7 +518,7 @@ export function TeacherDashboard() {
 
   async function loadDiscipline(name: string) {
     try {
-      const data = await api(`/teacher/krm/disciplines/${encodeURIComponent(name)}?dir_code=${selectedDir}`);
+      const data = await api(`/teacher/krm/disciplines/${encodeURIComponent(name)}?dir_code=${selectedDir}&year=${intakeYear}`);
       setSelected(data as DisciplineDetail);
       setShowAnalysis(false);
     } catch (err) { reportError("app/components/TeacherDashboard.tsx:500", err); }
@@ -872,7 +881,15 @@ export function TeacherDashboard() {
         </div>
         <div className="flex-1 overflow-auto">
           <div className="px-4 py-1.5 text-xs text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-slate-700">
-            В учёте: {disciplines.filter((x) => x.in_scope ?? true).length} из {disciplines.length}
+{scopeChain ? (
+              <>В наборе {scopeChain.total} · в учёте {scopeChain.in_scope} · в анализе {scopeChain.analyzed ?? "—"}
+                <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-0.5">
+                  исключено методикой: {scopeChain.excluded_manual}, без данных: {scopeChain.excluded_no_data}
+                </div>
+              </>
+            ) : (
+              <>В учёте {disciplines.filter((x) => x.in_scope ?? true).length} из {disciplines.length}</>
+            )}
             {scopeMsg && (<div className="text-amber-800 mt-0.5">{scopeMsg}</div>)}
             <div className="flex gap-1.5 mt-1 items-center flex-wrap">
               <button onClick={() => saveScopeBulk(true)} disabled={scopeSaving !== null}
