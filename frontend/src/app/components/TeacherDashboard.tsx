@@ -1255,6 +1255,12 @@ export function TeacherDashboard() {
                         )}
                       </span>
                       {r.a ? (
+                        r.a.coverage_level === "no_data" ? (
+                          <span className="text-xs text-gray-500 dark:text-slate-400"
+                                title="По дисциплине нет навыков для анализа: 0% покрытия при нулевых разрывах - это отсутствие данных, а не результат">
+                            нет данных
+                          </span>
+                        ) : (
                         <div className="flex gap-3">
                           <span className={`font-semibold ${covTextClass(r.a.coverage_ratio)}`}>{(r.a.coverage_ratio * 100).toFixed(1)}%</span>
                           {r.a.weighted_coverage != null && (
@@ -1275,6 +1281,7 @@ export function TeacherDashboard() {
                             {r.a.emerging_growth ?? r.a.emerging} раст.
                           </span>
                         </div>
+                        )
                       ) : (
                         <span className="text-xs text-gray-400">вне учёта</span>
                       )}

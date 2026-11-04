@@ -1109,22 +1109,27 @@ async def run_teacher_analysis(
             message="No disciplines were successfully analyzed",
         ))
 
+    # Дисциплины без навыков (total_skills == 0) не участвуют в средних:
+    # это не «0% покрытия», а отсутствие данных, и иначе одна такая запись
+    # обнуляет честную среднюю по направлению.
+    _with_data = [(dn, r) for dn, r in discipline_reports if r.discipline.total_skills > 0]
+    _base = _with_data or discipline_reports
     avg_market_top = round(
-        sum(r.discipline.market_top_coverage for _, r in discipline_reports) / len(discipline_reports), 4
-    ) if discipline_reports else 0
+        sum(r.discipline.market_top_coverage for _, r in _base) / len(_base), 4
+    ) if _base else 0
     avg_market_weight = round(
-        sum(r.discipline.market_weight_coverage for _, r in discipline_reports) / len(discipline_reports), 4
-    ) if discipline_reports else 0
+        sum(r.discipline.market_weight_coverage for _, r in _base) / len(_base), 4
+    ) if _base else 0
     avg_cov = round(
-        sum(r.discipline.coverage_ratio for _, r in discipline_reports) / len(discipline_reports), 4
-    ) if discipline_reports else 0
+        sum(r.discipline.coverage_ratio for _, r in _base) / len(_base), 4
+    ) if _base else 0
     # C4 fix: quality-weighted average (accounts for match confidence, not just binary count)
     avg_quality = round(
-        sum(r.discipline.weighted_coverage for _, r in discipline_reports) / len(discipline_reports), 4
-    ) if discipline_reports else 0
+        sum(r.discipline.weighted_coverage for _, r in _base) / len(_base), 4
+    ) if _base else 0
     # v25: honest average over strong (exact+fuzzy) matches only
     avg_strong = round(
-        sum(r.discipline.strong_coverage for _, r in discipline_reports) / len(discipline_reports), 4
+        sum(r.discipline.strong_coverage for _, r in _base) / len(_base), 4
     ) if discipline_reports else 0
 
     # Direction-level emerging: skills not found in ANY discipline (giants capped, v42).

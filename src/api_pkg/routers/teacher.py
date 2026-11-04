@@ -320,7 +320,10 @@ async def krm_scope_summary(request: Request, dir_code: str = "09.03.02",
                (SELECT count(*) FROM competencies c WHERE c.discipline_id = disc.id) AS comps,
                (SELECT count(*) FROM ksa_entries k
                   JOIN competencies c2 ON c2.id = k.competency_id
-                 WHERE c2.discipline_id = disc.id) AS ksa
+                 WHERE c2.discipline_id = disc.id) AS ksa,
+               (SELECT count(*) FROM competency_skills cs
+                  JOIN competencies c3 ON c3.id = cs.competency_id
+                 WHERE c3.discipline_id = disc.id) AS links
           FROM disciplines disc
           JOIN directions d ON d.id = disc.direction_id
          WHERE d.code = $1 AND disc.year = $2
@@ -330,7 +333,9 @@ async def krm_scope_summary(request: Request, dir_code: str = "09.03.02",
     for r in rows:
         if not effective_in_scope(r["name"], over):
             manual_out.append(r["name"])
-        elif not r["comps"] or not r["ksa"]:
+        elif not r["comps"] or not r["ksa"] or not r["links"]:
+            # links == 0 значит навыков для анализа нет: 0% покрытия при
+            # нулевых разрывах - это отсутствие данных, а не результат.
             no_data.append(r["name"])
         else:
             in_scope.append(r["name"])
