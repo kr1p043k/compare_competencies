@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from src.api_pkg.request_logger import audit_action
 from src.api_pkg.routers.auth import require_any_role, user_error_detail
 from src.models.api_responses import (
     CacheRefreshResponse,
@@ -231,12 +232,31 @@ def _load_tasks():
 
 
 
-def _make_task_status(task_id, status, message, started_at, completed_at=None, output=None, step=0, sub_progress=None):
+def _make_task_status(
+    task_id, status, message, started_at, completed_at=None, output=None,
+    step=0, sub_progress=None, owner_uid=None,
+):
     return PipelineTaskStatus(
         task_id=task_id, status=status, message=message,
         started_at=started_at, completed_at=completed_at or time.time(),
         output=output, step=step, sub_progress=sub_progress,
+        owner_uid=owner_uid,
     )
+
+
+async def _current_uid(request: Request) -> str | None:
+    """UID текущего пользователя (None, если эндпоинт открыт/сессия не найдена)."""
+    from src.api_pkg.routers.auth import get_current_user
+
+    user = await get_current_user(request)
+    return user.get("uid") if user else None
+
+
+async def _current_role(request: Request) -> str | None:
+    from src.api_pkg.routers.auth import get_current_user
+
+    user = await get_current_user(request)
+    return user.get("r") if user else None
 
 
 def _pct_to_step(pct: int) -> int:
@@ -348,7 +368,7 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
     cancel_event = _cancel_events[task_id]
 
     started_at = time.time()
-    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск...", started_at, step=0)
+    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск...", started_at, step=0, owner_uid=await _current_uid(request))
     await _asave_tasks()
 
     loop = asyncio.get_running_loop()
@@ -533,7 +553,7 @@ async def pipeline_rebuild(request: Request, background_tasks: BackgroundTasks):
             output=f"Task ID: {task_id}. Check /api/pipeline/task/{task_id} for status",
         )
     started_at = time.time()
-    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0)
+    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0, owner_uid=await _current_uid(request))
     background_tasks.add_task(run_pipeline_task, PipelineAction.REBUILD, task_id)
     return PipelineResponse(
         status="started", message="Full rebuild started in background",
@@ -673,7 +693,10 @@ async def run_pipeline_action_sync(
             )
         started_at = time.time()
         logger.info("pipeline_scheduled", request_id=req_id, task_id=task_id)
-        pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск пересборки...", started_at, step=0)
+        pipeline_tasks[task_id] = _make_task_status(
+            task_id, "running", "Запуск пересборки...", started_at, step=0,
+            owner_uid=await _current_uid(request),
+        )
         background_tasks.add_task(run_pipeline_task, action, task_id)
         return PipelineResponse(
             status="started",
@@ -719,7 +742,10 @@ async def run_pipeline_action_sync(
             )
         started_at = time.time()
         logger.info("pipeline_scheduled", request_id=req_id, task_id=task_id)
-        pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск GAP-анализа...", started_at, step=0)
+        pipeline_tasks[task_id] = _make_task_status(
+            task_id, "running", "Запуск GAP-анализа...", started_at, step=0,
+            owner_uid=await _current_uid(request),
+        )
         background_tasks.add_task(
             run_pipeline_task,
             action, task_id,
@@ -748,7 +774,10 @@ async def run_pipeline_action_sync(
             )
         started_at = time.time()
         logger.info("pipeline_scheduled", request_id=req_id, task_id=task_id)
-        pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск сбора...", started_at, step=0)
+        pipeline_tasks[task_id] = _make_task_status(
+            task_id, "running", "Запуск сбора...", started_at, step=0,
+            owner_uid=await _current_uid(request),
+        )
         background_tasks.add_task(
             run_pipeline_task,
             action, task_id,
@@ -790,10 +819,23 @@ async def get_active_pipeline_task(request: Request):
 )
 @limiter.limit("60/minute")
 async def get_pipeline_task_status(request: Request, task_id: str):
-    """Статус задачи по ID."""
+    """Статус задачи по ID.
+
+    Прогресс (status/message/step) видят все авторизованные - по нему рисуется
+    общий индикатор. Но output и logs содержат детали чужого сбора (работодатели,
+    регионы, запросы), поэтому их отдаём только владельцу задачи и админу.
+    """
     if task_id not in pipeline_tasks:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    return pipeline_tasks[task_id]
+    task = pipeline_tasks[task_id]
+
+    role = await _current_role(request)
+    uid = await _current_uid(request)
+    is_owner = task.owner_uid is not None and task.owner_uid == uid
+    if role == "admin" or is_owner:
+        return task
+
+    return task.model_copy(update={"output": None, "logs": []})
 
 
 @router.get(
@@ -803,10 +845,23 @@ async def get_pipeline_task_status(request: Request, task_id: str):
 )
 @limiter.limit("30/minute")
 async def list_pipeline_tasks(request: Request, limit: int = Query(10, ge=1, le=50)):
-    """Список задач пайплайна."""
+    """Список задач пайплайна.
+
+    Как и в статусе одной задачи: метаданные видны всем, output/logs - только
+    владельцу задачи и админу.
+    """
+    role = await _current_role(request)
+    uid = await _current_uid(request)
     tasks = list(pipeline_tasks.values())
     tasks.reverse()
-    return {"tasks": tasks[:limit], "total": len(tasks)}
+    selected = tasks[:limit]
+    if role != "admin":
+        selected = [
+            t if (t.owner_uid is not None and t.owner_uid == uid)
+            else t.model_copy(update={"output": None, "logs": []})
+            for t in selected
+        ]
+    return {"tasks": selected, "total": len(tasks)}
 
 
 @router.get(
@@ -857,10 +912,33 @@ async def get_pipeline_status(request: Request):
 @router.post("/pipeline/cancel/{task_id}", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("10/minute")
 async def cancel_pipeline_task(task_id: str, request: Request):
-    """Отменить задачу."""
+    """Отменить задачу.
+
+    Задачи - глобальный ресурс процесса, поэтому отменять чужой прогон нельзя:
+    иначе любой teacher останавливал сбор/пересборку, запущенную другим
+    пользователем. Владелец задачи - тот, кто её создал; админ может всё.
+    """
     if task_id not in pipeline_tasks:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     t = pipeline_tasks[task_id]
+
+    role = await _current_role(request)
+    uid = await _current_uid(request)
+    is_admin = role == "admin"
+    # Владелец None: запись из pipeline_tasks.json до появления поля, либо
+    # задача запущена системой. Такие задачи не отдаём учителям - иначе любой
+    # мог остановить чужой прогон, зная task_id.
+    if not is_admin and (t.owner_uid is None or t.owner_uid != uid):
+        logger.warning(
+            "pipeline_cancel_forbidden",
+            task_id=task_id, uid=uid, owner=t.owner_uid,
+        )
+        await audit_action(
+            request, "pipeline.cancel.denied",
+            f"task={task_id} owner={t.owner_uid}",
+        )
+        raise HTTPException(status_code=403, detail="Нельзя отменить чужую задачу")
+
     if t.status != "running":
         raise HTTPException(status_code=400, detail=f"Task {task_id} is not running (status: {t.status})")
     t.status = "cancelled"
@@ -877,6 +955,13 @@ async def cancel_pipeline_task(task_id: str, request: Request):
     running = _running_futures.get(task_id)
     if running and not running.done():
         running.cancel()
+
+    # Отмена - прерывание чужой работы: фиксируем, кто и что остановил.
+    await audit_action(
+        request, "pipeline.cancel",
+        f"task={task_id} owner={t.owner_uid} status_before=cancelled",
+    )
+    logger.info("pipeline_cancelled", task_id=task_id, uid=uid, owner=t.owner_uid)
 
     return {"status": "cancelled", "message": "Pipeline остановлен"}
 

@@ -216,6 +216,9 @@ class PipelineTaskStatus(BaseModel):
     step: int = 0
     sub_progress: int | None = None
     logs: list[str] = []
+    # Кто запустил задачу: без этого любой teacher мог отменить чужой прогон
+    # (задачи - глобальный ресурс). None у старых записей из pipeline_tasks.json.
+    owner_uid: str | None = None
 
 
 class GapProgressResponse(BaseModel):
