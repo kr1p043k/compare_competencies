@@ -134,7 +134,8 @@ def _map_codes_to_skills(codes: list[str]) -> list[str]:
                         .read_text(encoding="utf-8"))
         if not isinstance(mp, dict):
             mp = {}
-    except Exception:
+    except Exception as exc:
+        logger.warning("competency_mapping_load_failed", error=str(exc), exc_info=True)
         mp = {}
     mapped: set[str] = set()
     for code in codes:
@@ -179,7 +180,8 @@ async def custom_profile_options(request: Request):
                             .read_text(encoding="utf-8"))
             if not isinstance(mp, dict):
                 mp = {}
-        except Exception:
+        except Exception as exc:
+            logger.warning("custom_options_mapping_load_failed", error=str(exc), exc_info=True)
             mp = {}
         titles: dict[str, str] = {}
         new_skills: dict[str, list[str]] = {}
@@ -189,7 +191,9 @@ async def custom_profile_options(request: Request):
                 for c in (prof.competencies or []):
                     if c and str(c).strip():
                         codes_set.add(str(c).strip())
-            except Exception:
+            except Exception as exc:
+                logger.warning("custom_options_profile_competencies_failed",
+                               profile=_pname, error=str(exc), exc_info=True)
                 continue
         try:
             sdir = Path(config.DATA_DIR) / "students"
@@ -197,7 +201,9 @@ async def custom_profile_options(request: Request):
                 for fpath in sorted(sdir.glob("*_competency.json")):
                     try:
                         data = json.loads(fpath.read_text(encoding="utf-8"))
-                    except Exception:
+                    except Exception as exc:
+                        logger.warning("custom_options_student_file_failed",
+                                       file=str(fpath), error=str(exc), exc_info=True)
                         continue
                     if not isinstance(data, dict):
                         continue
@@ -218,10 +224,11 @@ async def custom_profile_options(request: Request):
                             ns = [str(s).strip() for s in (nc.get("skills") or []) if s and str(s).strip()][:100]
                             if ns and code not in new_skills:
                                 new_skills[code] = ns
-                        except Exception:
-                            pass
-        except Exception:
-            pass
+                        except Exception as exc:
+                            logger.warning("custom_options_new_skills_failed",
+                                           code=code, error=str(exc), exc_info=True)
+        except Exception as exc:
+            logger.warning("custom_options_students_dir_failed", error=str(exc), exc_info=True)
         competencies = []
         for code in sorted(codes_set):
             if isinstance(mp, dict) and code in mp and isinstance(mp[code], list):
@@ -248,7 +255,8 @@ async def custom_profile_options(request: Request):
                 if isinstance(wf, dict) and wf:
                     tech_suggest = [str(k) for k, _ in
                                     sorted(wf.items(), key=lambda x: x[1], reverse=True)[:30]]
-            except Exception:
+            except Exception as exc:
+                logger.warning("custom_options_skill_weights_failed", error=str(exc), exc_info=True)
                 tech_suggest = []
             if not tech_suggest:
                 try:
@@ -257,7 +265,8 @@ async def custom_profile_options(request: Request):
                     tech_suggest = [str(s.get("name", "")).strip()
                                     for s in (snap.get("skills") or [])[:30]
                                     if str(s.get("name", "")).strip()]
-                except Exception:
+                except Exception as exc:
+                    logger.warning("custom_options_market_snapshot_failed", error=str(exc), exc_info=True)
                     tech_suggest = []
         return {"competencies": competencies, "technologies_suggest": tech_suggest}
     except HTTPException:
@@ -311,7 +320,9 @@ async def create_custom_profile(request: Request, body: CustomProfileIn):
             try:
                 base_codes = [str(c).strip() for c in (deps.student_profiles[base_name].competencies or [])
                               if c and str(c).strip()][:200]
-            except Exception:
+            except Exception as exc:
+                logger.warning("custom_profile_base_codes_failed", profile=base_name,
+                               error=str(exc), exc_info=True)
                 base_codes = []
         picked: list[str] = []
         if body.competency_codes:
@@ -640,8 +651,9 @@ async def get_recommendations(
                             profile_summary=profile,
                             base_recs=payload,
                         )
-                    except Exception:
-                        logger.warning("llm_student_enhance_failed", profile=profile)
+                    except Exception as exc:
+                        logger.warning("llm_student_enhance_failed", profile=profile,
+                                       error=str(exc), exc_info=True)
                 return payload
             case Err(err):
                 logger.warning("profile_recommendations_failed", profile=profile, error=str(err))
@@ -715,8 +727,8 @@ def _load_self_profile(name: str, fpath: str) -> dict:
             data = json.load(f)
         if isinstance(data, dict):
             return data
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("self_profile_load_failed", file=fpath, error=str(exc), exc_info=True)
     return {"skills": [], "target_level": "middle", "user_added": [], "competencies": []}
 
 
@@ -848,8 +860,8 @@ async def patch_self_profile(request: Request, body: SelfProfilePatch):
         from src.api_pkg.student_actions import log_action
         log_action(username=email, action_type="profile_edit", profile=name,
                    result_ref=f"added={len(added)} removed={len(removed)} refused={len(refused)}")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("self_profile_log_action_failed", profile=name, error=str(exc), exc_info=True)
     logger.info("self_profile_patched", profile=name,
                 added=len(added), removed=len(removed), refused=len(refused))
     return {"profile": name, "target_level": data.get("target_level"),

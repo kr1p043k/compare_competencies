@@ -4,6 +4,7 @@
 # может резолвить модели-тела вроде DisciplineScopeIn: /openapi.json падал с
 # PydanticUserError (ForwardRef), а с ним и /docs. С обычными аннотациями типы -
 # реальные объекты, и обёртка их несёт как есть.
+import asyncio
 import contextlib
 import json
 import re
@@ -257,8 +258,13 @@ async def krm_directions(request: Request):
 @router.get("/teacher/krm/disciplines",
             dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
 @limiter.limit("30/minute")
-async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
-    """Дисциплины направления."""
+async def krm_disciplines(request: Request, dir_code: str = "09.03.02", year: int = 2025):
+    """Список дисциплин выбранного набора.
+
+    Фильтр по `year` обязателен: в БД лежат наборы 2024 и 2025, и без него
+    список содержит две записи с одинаковым именем, которые пользователь
+    воспринимает как ошибочный дубль.
+    """
     from src.teacher_scope import effective_in_scope, load_scope_overrides, scope_source
     pool = get_pool()
     over = await load_scope_overrides(pool, dir_code)
@@ -273,13 +279,14 @@ async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
         JOIN disciplines disc ON disc.direction_id = d.id
         LEFT JOIN competencies c ON c.discipline_id = disc.id
         LEFT JOIN ksa_entries k ON k.competency_id = c.id
-        WHERE d.code = $1
+        WHERE d.code = $1 AND disc.year = $2
         GROUP BY disc.id, disc.name
         ORDER BY disc.name
-    """, dir_code)
+    """, dir_code, year)
     return [
         {
             "name": r["name"],
+            "year": year,
             "competencies_count": r["competencies_count"],
             "skills_count": r["skills_count"],
             "knowledge_count": r["knowledge_count"],
@@ -293,13 +300,79 @@ async def krm_disciplines(request: Request, dir_code: str = "09.03.02"):
     ]
 
 
+@router.get("/teacher/krm/scope-summary",
+            dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("30/minute")
+async def krm_scope_summary(request: Request, dir_code: str = "09.03.02",
+                            year: int = 2025):
+    """Арифметика дисциплин: в наборе -> в учёте -> в анализе.
+
+    Три разных числа в интерфейсе (90/63/36) выглядели как ошибка, потому что
+    нигде не было сказано, куда делись остальные. Здесь возвращается вся
+    цепочка с причинами, чтобы экран мог показать её одной строкой.
+    """
+    from src.teacher_scope import effective_in_scope, load_scope_overrides, scope_source
+
+    pool = get_pool()
+    over = await load_scope_overrides(pool, dir_code)
+    rows = await pool.fetch("""
+        SELECT disc.name,
+               (SELECT count(*) FROM competencies c WHERE c.discipline_id = disc.id) AS comps,
+               (SELECT count(*) FROM ksa_entries k
+                  JOIN competencies c2 ON c2.id = k.competency_id
+                 WHERE c2.discipline_id = disc.id) AS ksa
+          FROM disciplines disc
+          JOIN directions d ON d.id = disc.direction_id
+         WHERE d.code = $1 AND disc.year = $2
+    """, dir_code, year)
+
+    in_scope, manual_out, no_data = [], [], []
+    for r in rows:
+        if not effective_in_scope(r["name"], over):
+            manual_out.append(r["name"])
+        elif not r["comps"] or not r["ksa"]:
+            no_data.append(r["name"])
+        else:
+            in_scope.append(r["name"])
+
+    # Анализ дополнительно отсекает то, что не попало в KRM текущего года.
+    analyzed = None
+    try:
+        from pathlib import Path
+        base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "result" / "teacher" / dir_code
+        if year and year != 2025:
+            base = base / str(year)
+        summary_path = base / "_summary.json"
+        if summary_path.exists():
+            analyzed = json.loads(summary_path.read_text(encoding="utf-8")).get("total_disciplines")
+    except Exception:
+        analyzed = None
+
+    return {
+        "dir_code": dir_code,
+        "year": year,
+        "total": len(rows),
+        "in_scope": len(in_scope),
+        "excluded_manual": len(manual_out),
+        "excluded_no_data": len(no_data),
+        "analyzed": analyzed,
+        "excluded_manual_names": manual_out[:20],
+        "excluded_no_data_names": no_data[:20],
+    }
+
+
 @router.get(
     "/teacher/krm/disciplines/{discipline_name:path}",
     dependencies=[Depends(require_any_role("admin", "teacher", "rop"))],
 )
 @limiter.limit("30/minute")
-async def krm_discipline_detail(request: Request, discipline_name: str, dir_code: str = "09.03.02"):
-    """Детали дисциплины (компетенции, KSA)."""
+async def krm_discipline_detail(request: Request, discipline_name: str, dir_code: str = "09.03.02",
+                                year: int = 2025):
+    """Детали дисциплины выбранного набора (компетенции, KSA).
+
+    `year` фильтрует выборку: одноимённые дисциплины есть и в 2024, и в 2025,
+    и без фильтра LIMIT 1 мог вернуть запись другого набора.
+    """
     pool = get_pool()
 
     disc = await pool.fetchrow("""
@@ -307,9 +380,10 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
         FROM disciplines disc
         JOIN directions d ON d.id = disc.direction_id
         WHERE d.code = $1
+          AND disc.year = $3
           AND REPLACE(disc.name, ' ', '') ILIKE REPLACE($2, ' ', '')
         LIMIT 1
-    """, dir_code, discipline_name)
+    """, dir_code, discipline_name, year)
     if not disc:
         raise HTTPException(404, f"Discipline '{discipline_name}' not found")
 
@@ -332,6 +406,7 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
     return {
         "name": disc["name"],
         "dir_code": dir_code,
+        "year": year,
         "competencies": [
             {
                 "id": str(c["id"]),
@@ -693,13 +768,11 @@ async def krm_coverage_history(request: Request, discipline: str | None = None, 
 @limiter.limit("30/minute")
 async def krm_market_skills(request: Request, limit: int = 50):
     """Top market-demanded skills (from it_skills.json)."""
-    import json
     from pathlib import Path
     path = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "it_skills.json"
     if not path.exists():
         return []
-    with open(path, encoding="utf-8") as f:
-        skills = json.load(f)
+    skills = await asyncio.to_thread(_load_json, path)
     return [{"skill": s, "frequency": 1} for s in list(skills)[:limit]]
 
 @router.get("/teacher/krm/search-runs", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])

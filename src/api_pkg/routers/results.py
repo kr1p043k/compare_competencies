@@ -1,7 +1,10 @@
 """Results summary, recommendations files, images."""
 
+import asyncio
 import json
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -19,6 +22,11 @@ logger = structlog.get_logger("api")
 
 router = APIRouter(tags=["results"])
 limiter = Limiter(key_func=get_remote_address)
+
+
+def _read_json(path: Path) -> Any:
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
 @router.get(
@@ -45,8 +53,7 @@ async def get_results_summary(
     ):
         if summary_path.exists():
             try:
-                with open(summary_path, encoding="utf-8") as f:
-                    return json.load(f)
+                return await asyncio.to_thread(_read_json, summary_path)
             except Exception as e:
                 logger.warning("results_summary_read_failed", path=str(summary_path), error=str(e))
                 raise HTTPException(
@@ -82,8 +89,7 @@ async def get_recommendations_result(
     )
     if result_path.exists():
         try:
-            with open(result_path, encoding="utf-8") as f:
-                payload = json.load(f)
+            payload = await asyncio.to_thread(_read_json, result_path)
             try:
                 mtime = result_path.stat().st_mtime
                 payload["generated_at"] = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
@@ -112,8 +118,6 @@ async def get_report_pdf(
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
     """PDF-отчёт профиля: метрики, роли, рекомендации + PNG-графики."""
-    import asyncio
-
     from fastapi.responses import Response
 
     from src.reports.pdf_report import build_profile_pdf
@@ -126,8 +130,7 @@ async def get_report_pdf(
     if not result_path.exists():
         raise HTTPException(status_code=404, detail="Рекомендации не найдены. Запустите gap-анализ.")
     try:
-        with open(result_path, encoding="utf-8") as f:
-            payload = json.load(f)
+        payload = await asyncio.to_thread(_read_json, result_path)
         pdf_bytes = await asyncio.to_thread(
             build_profile_pdf, profile, payload, config.REPORTS_DIR)
     except Exception as e:

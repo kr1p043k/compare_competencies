@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import structlog
 
@@ -25,6 +26,12 @@ from src.predictors.recommendation_engine import RecommendationEngine
 from src.utils import load_competency_mapping
 
 logger = structlog.get_logger("api")
+
+
+def _read_json(path: Path) -> Any:
+    """Синхронное чтение JSON (запуск через asyncio.to_thread)."""
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def _available_ram_bytes() -> int | None:
@@ -364,13 +371,12 @@ async def _warmup_background(basic_vacancies, raw_file):
     try:
         deps.competency_mapping = deps.competency_mapping or load_competency_mapping()
 
-        def load_student_codes(name):
+        async def load_student_codes(name):
             path = config.DATA_DIR / "students" / f"{name}_competency.json"
             if not path.exists():
                 path = config.DATA_DIR / "students" / f"{name}.json"
             try:
-                with open(path, encoding="utf-8") as f:
-                    data = json.load(f)
+                data = await asyncio.to_thread(_read_json, path)
                 return data.get("компетенции") or data.get("навыки") or data.get("codes") or []
             except Exception:
                 return []
@@ -392,11 +398,11 @@ async def _warmup_background(basic_vacancies, raw_file):
             "base": ExperienceLevel.JUNIOR, "dc": ExperienceLevel.MIDDLE, "top_dc": ExperienceLevel.SENIOR
         }
         for pname, target in profile_levels.items():
-            codes = load_student_codes(pname)
+            codes = await load_student_codes(pname)
             if pname == "top_dc":
-                top_codes = load_student_codes("top_dc")
-                dc_codes = load_student_codes("dc")
-                base_codes = load_student_codes("base")
+                top_codes = await load_student_codes("top_dc")
+                dc_codes = await load_student_codes("dc")
+                base_codes = await load_student_codes("base")
                 top_skills = map_codes(top_codes)
                 dc_skills = map_codes(dc_codes)
                 base_skills = map_codes(base_codes)

@@ -5,12 +5,13 @@ import json
 import re
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from src import config
 from src.api_pkg.routers.auth import require_authenticated
+from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["trends"], dependencies=[Depends(require_authenticated())])
@@ -18,7 +19,8 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/trends/professions")
-async def list_professions():
+@limiter.limit("60/minute")
+async def list_professions(request: Request):
     """List available professions that have snapshots."""
     history = config.HISTORY_DIR
     files = list(history.glob("freq_profession_*.json"))
@@ -41,7 +43,9 @@ async def list_professions():
 
 
 @router.get("/trends/by-profession")
+@limiter.limit("60/minute")
 async def get_profession_trends(
+    request: Request,
     profession: str = Query(..., description="Profession name from taxonomy"),
     limit: int = Query(50, ge=1, le=500),
 ):
@@ -75,27 +79,22 @@ async def get_profession_trends(
 async def _live_profession_query(profession: str, limit: int = 50) -> dict:
     """Live SQL query when no snapshot exists."""
     try:
-        import asyncpg
-        db_url = config.settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-        conn = await asyncpg.connect(db_url)
-        try:
-            rows = await conn.fetch(
-                """SELECT LOWER(TRIM(value)) AS skill, COUNT(DISTINCT v.id) AS cnt
-                   FROM vacancies v,
-                        jsonb_array_elements_text(
-                            COALESCE(v.parsed_skills, v.key_skills, '[]'::jsonb)
-                        ) AS value
-                   WHERE v.parsed_skills IS NOT NULL
-                     AND LOWER(v.name) LIKE '%' || $1 || '%'
-                   GROUP BY skill
-                   ORDER BY cnt DESC
-                   LIMIT $2""",
-                profession.lower(), limit,
-            )
-            skills = [{"skill": r["skill"], "frequency": r["cnt"]} for r in rows if r["cnt"] > 0]
-            return {"profession": profession, "source": "live", "skills": skills}
-        finally:
-            await conn.close()
+        pool = get_pool()
+        rows = await pool.fetch(
+            """SELECT LOWER(TRIM(value)) AS skill, COUNT(DISTINCT v.id) AS cnt
+               FROM vacancies v,
+                    jsonb_array_elements_text(
+                        COALESCE(v.parsed_skills, v.key_skills, '[]'::jsonb)
+                    ) AS value
+               WHERE v.parsed_skills IS NOT NULL
+                 AND LOWER(v.name) LIKE '%' || $1 || '%'
+               GROUP BY skill
+               ORDER BY cnt DESC
+               LIMIT $2""",
+            profession.lower(), limit,
+        )
+        skills = [{"skill": r["skill"], "frequency": r["cnt"]} for r in rows if r["cnt"] > 0]
+        return {"profession": profession, "source": "live", "skills": skills}
     except Exception as e:
         logger.error("live_profession_query_failed", profession=profession, error=str(e))
-        raise HTTPException(status_code=503, detail="Trend data unavailable")
+        raise HTTPException(status_code=503, detail="Trend data unavailable") from None

@@ -66,6 +66,7 @@ frontend/logs/
 # Runtime-данные наблюдаемости
 grafana/data/
 prometheus/data/
+prometheus/metrics_token
 
 # Секреты и локальная конфигурация
 .env

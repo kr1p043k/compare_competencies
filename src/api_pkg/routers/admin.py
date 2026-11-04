@@ -58,6 +58,26 @@ def _save_whitelist(skills: list[str]):
     deps.current_skills_set = set(skills)
 
 
+def _write_json(path: str | Path, data: Any) -> None:
+    """Синхронная запись JSON (запуск через asyncio.to_thread)."""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def _read_log_chunk(path: str | Path, pos: int) -> tuple[str, int]:
+    """Читает новые строки лога от позиции pos (в потоке, не на event loop)."""
+    with open(path, encoding="utf-8", errors="replace") as f:
+        f.seek(pos)
+        chunk = f.read()
+        return chunk, f.tell()
+
+
+def _read_log_tail_lines(path: str | Path, n: int) -> list[str]:
+    """Последние n строк лога (в потоке, не на event loop)."""
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return f.read().splitlines()[-n:]
+
+
 # ---------- Whitelist ----------
 
 
@@ -753,8 +773,7 @@ async def admin_skills_categorize(request: Request, body: CategorizeSkillsReques
         lst.append(skill)
         added += 1
     if added:
-        with open(TAXONOMY_PATH, "w", encoding="utf-8") as f:
-            json.dump(taxonomy, f, ensure_ascii=False, indent=2)
+        await asyncio.to_thread(_write_json, TAXONOMY_PATH, taxonomy)
         await audit_action(
             request, "skills.categorize",
             f"added={added} invalid={len(invalid)} "
@@ -798,16 +817,19 @@ async def admin_skills_approve(suggestion_id: str, request: Request):
         lst = cats[category].setdefault("skills", [])
         if skill not in {s.strip().lower() for s in lst}:
             lst.append(skill)
-        with open(TAXONOMY_PATH, "w", encoding="utf-8") as f:
-            json.dump(taxonomy, f, ensure_ascii=False, indent=2)
+        await asyncio.to_thread(_write_json, TAXONOMY_PATH, taxonomy)
 
     import json as _json
 
-    current = _json.loads(IT_SKILLS_PATH.read_text(encoding="utf-8"))
+    current = _json.loads(await asyncio.to_thread(IT_SKILLS_PATH.read_text, encoding="utf-8"))
     if skill not in {str(s).lower() for s in current}:
         current.append(skill)
         current = sorted(set(current), key=lambda x: str(x).lower())
-        IT_SKILLS_PATH.write_text(_json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
+        await asyncio.to_thread(
+            IT_SKILLS_PATH.write_text,
+            _json.dumps(current, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     decider, _role = await actor_from_request(request)
     entry = decide(suggestion_id, True, decided_by=decider)
@@ -910,10 +932,7 @@ async def _tail_backend_log(websocket: WebSocket, stop: asyncio.Event) -> None:
             if size < pos:
                 rotated = True
                 pos = 0
-            with open(LOG_FILE, encoding="utf-8", errors="replace") as f:
-                f.seek(pos)
-                chunk = f.read()
-                pos = f.tell()
+            chunk, pos = await asyncio.to_thread(_read_log_chunk, LOG_FILE, pos)
             if chunk:
                 lines = chunk.splitlines()
                 if rotated:
@@ -960,9 +979,7 @@ async def admin_logs_ws(websocket: WebSocket, token: str = ""):
         from src.config import LOG_FILE
 
         if LOG_FILE.exists():
-            with open(LOG_FILE, encoding="utf-8", errors="replace") as f:
-                all_lines = f.read().splitlines()
-            tail = all_lines[-_TAIL_INITIAL_LINES:]
+            tail = await asyncio.to_thread(_read_log_tail_lines, LOG_FILE, _TAIL_INITIAL_LINES)
             await websocket.send_json({"type": "init", "lines": tail})
         else:
             await websocket.send_json({"type": "init", "lines": []})

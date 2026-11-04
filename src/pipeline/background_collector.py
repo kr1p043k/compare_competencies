@@ -7,6 +7,7 @@ task is active, and waits for API warmup before the first cycle.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 from datetime import UTC, datetime
@@ -14,12 +15,12 @@ from pathlib import Path
 
 import structlog
 
-logger = structlog.get_logger(__name__)
-
 from src import config
 from src.circuit_breaker import CircuitBreaker
+from src.db import get_pool
 from src.utils import atomic_write_json
-import contextlib
+
+logger = structlog.get_logger(__name__)
 
 SCHEDULER_DIRNAME = "settings"
 SCHEDULER_FILENAME = "scheduler.json"
@@ -332,23 +333,17 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
     Returns (status, new_count): status is 'collected' | 'collected-empty' |
     "skipped" | "failed". Only "collected" chains the daily gap.
     """
-    import asyncpg
-
     from src import Err, Ok, config
     from src.parsing.api.hh_api import HeadHunterAPI
     from src.parsing.utils import IT_PROFESSIONAL_ROLES
 
-    db_url = config.settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
     try:
-        conn = await asyncpg.connect(db_url)
-        try:
-            last_run = await conn.fetchval(
-                "SELECT MAX(started_at) FROM pipeline_runs WHERE action IN ('full-cycle','data-collection') AND status='completed'"  # noqa: E501 - SQL string must not be split
-            )
-            before = await conn.fetchval("SELECT COUNT(*) FROM vacancies") or 0
-            after = before
-        finally:
-            await conn.close()
+        pool = get_pool()
+        last_run = await pool.fetchval(
+            "SELECT MAX(started_at) FROM pipeline_runs WHERE action IN ('full-cycle','data-collection') AND status='completed'"  # noqa: E501 - SQL string must not be split
+        )
+        before = await pool.fetchval("SELECT COUNT(*) FROM vacancies") or 0
+        after = before
     except Exception:
         logger.warning("collect_db_unavailable")
         return "failed", 0
@@ -509,8 +504,8 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
         _it_raw = await asyncio.to_thread(_it_path.read_text, encoding="utf-8")
         _it_kw = {s.strip().lower() for s in json.loads(_it_raw) if s.strip()}
         parser = VacancyParser()
-        conn = await asyncpg.connect(db_url)
-        try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
             for v in all_vacancies:
                 vid = v.get("id")
                 if not vid:
@@ -554,8 +549,6 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
                     case Err(e):
                         logger.warning("collect_parse_skill_failed", id=vid, error=str(e))
                         skip_count += 1
-        finally:
-            await conn.close()
         # Remove vacancies that had zero IT relevance
         if empty_ids:
             logger.info("collect_removing_non_it_vacancies", count=len(empty_ids))
@@ -588,11 +581,8 @@ async def _try_collect(force_period_days: int | None = None, force: bool = False
     await save_vacancies_batch(all_vacancies)
 
     try:
-        conn = await asyncpg.connect(db_url)
-        try:
-            after = await conn.fetchval("SELECT COUNT(*) FROM vacancies") or 0
-        finally:
-            await conn.close()
+        pool = get_pool()
+        after = await pool.fetchval("SELECT COUNT(*) FROM vacancies") or 0
         logger.info("collect_done", before=before, after=after, new=after - before, collected=len(all_vacancies))
     except Exception:
         pass

@@ -178,6 +178,48 @@ def test_import_foreign_direction_403(monkeypatch):
     assert r.status_code == 403, r.text
 
 
+class _FakeProc:
+    """Заглушка фонового подпроцесса анализа, чтобы тест не запускал src.cli."""
+    returncode = 0
+
+    async def communicate(self):
+        return b"", b""
+
+
+def _patch_analyze_subprocess(monkeypatch):
+    async def _fake_subprocess(*_args, **_kwargs):
+        return _FakeProc()
+
+    monkeypatch.setattr(zun_mod.asyncio, "create_subprocess_exec", _fake_subprocess)
+
+
+def test_analyze_foreign_direction_403(monkeypatch):
+    """Teacher не может запустить анализ чужого направления."""
+    _patch_analyze_subprocess(monkeypatch)
+    client = _make_client(monkeypatch, FakePool(), dirs=(OWN,))
+    r = client.post("/api/teacher/zun/analyze", params={"dir_code": FOREIGN})
+    assert r.status_code == 403, r.text
+    assert "запрещён" in r.json()["detail"]
+
+
+def test_analyze_admin_bypasses(monkeypatch):
+    """Админ запускает анализ любого направления (не 403)."""
+    _patch_analyze_subprocess(monkeypatch)
+    client = _make_client(
+        monkeypatch, FakePool(), role="admin", dirs=(OWN, FOREIGN)
+    )
+    r = client.post("/api/teacher/zun/analyze", params={"dir_code": FOREIGN})
+    assert r.status_code == 200, r.text
+
+
+def test_analyze_results_foreign_direction_403(monkeypatch, tmp_path):
+    """Результаты анализа чужого направления не читаются с диска."""
+    monkeypatch.setattr(zun_mod, "RESULT_TEACHER", tmp_path)
+    client = _make_client(monkeypatch, FakePool(), dirs=(OWN,))
+    r = client.get("/api/teacher/zun/analyze/results", params={"dir_code": FOREIGN})
+    assert r.status_code == 403, r.text
+
+
 # ------------------------------------------------------------ auth / identity
 
 def test_patch_entry_unknown_ksa_is_not_403(monkeypatch):
@@ -244,6 +286,12 @@ def test_analyze_own_direction_starts(monkeypatch):
 
     async def _fake_exec(*_a, **_kw):
         return _Proc()
+
+    # /analyze ограничен 2/мин; несколько тестов в файле исчерпывают лимит.
+    # Счётчик slowapi живёт на процесс, поэтому сбрасываем перед вызовом.
+    import contextlib as _ctx
+    with _ctx.suppress(Exception):
+        zun_mod.limiter.reset()
 
     monkeypatch.setattr(zun_mod.asyncio, "create_subprocess_exec", _fake_exec)
     client = _make_client(monkeypatch, FakePool(OWN))
