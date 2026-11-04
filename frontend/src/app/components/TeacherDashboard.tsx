@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { api } from "../api";
 import { useTheme } from "../../lib/theme";
 import { AnalysisPanel } from "./AnalysisPanel";
+import { MetricsGlossary } from "./MetricsGlossary";
 import { TaxonomyBrowser } from "./TaxonomyBrowser";
 import CompetencyTrendsPanel from "./CompetencyTrendsPanel";
 import { reportError } from "./../../lib/errors";
@@ -843,6 +844,30 @@ export function TeacherDashboard() {
               </div>
               <div className="text-gray-500 dark:text-slate-400 mt-0.5">
                 {analysis.total_disciplines} {plural(analysis.total_disciplines, "дисциплина", "дисциплины", "дисциплин")}, {analysis.total_gaps_across_all} {plural(analysis.total_gaps_across_all, "пробел", "пробела", "пробелов")}
+              </div>
+              {/* Источник рынка и достоверность: процент без них читается как
+                  точный, хотя derived/relevance - это вычисленный знаменатель. */}
+              {(() => {
+                const src: Record<string, number> = {};
+                let unreliable = 0;
+                for (const d of analysis.disciplines ?? []) {
+                  const s = d.market_top_source || "n/a";
+                  src[s] = (src[s] || 0) + 1;
+                  if (d.market_top_reliable === false) unreliable += 1;
+                }
+                const parts = Object.entries(src)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([k, n]) => `${k}: ${n}`);
+                if (!parts.length) return null;
+                return (
+                  <div className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">
+                    источник рынка — {parts.join(", ")}
+                    {unreliable > 0 && ` · недостоверно (мало навыков): ${unreliable}`}
+                  </div>
+                );
+              })()}
+              <div className="mt-2">
+                <MetricsGlossary compact />
               </div>
             </div>
           )}
