@@ -808,7 +808,8 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
                                        region: str | None = None,
                                        months: int | None = Query(None, ge=1, le=24),
                                        date_from: str | None = None,
-                                       date_to: str | None = None):
+                                       date_to: str | None = None,
+                                       max_rows: int = Query(50000, ge=1, le=200000)):
     """Export vacancies to Excel with list filters (v45). No filters = full dump."""
     import json
 
@@ -823,11 +824,21 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
     where, params = build_vacancy_where(search=search, experience=experience,
                                         region=region, months=months,
                                         date_from=date_from, date_to=date_to)
+    # Потолок выборки: без фильтров это ~57k строк, и все они поднимаются в
+    # память. Берём max_rows+1, чтобы отличить «ровно max_rows» от «больше»,
+    # и просим сузить фильтры вместо тихого усечения данных.
     recs = await pool.fetch(
         """SELECT hh_id, name, employer_name, area_name, salary_from, salary_to,
                   experience, alternate_url, parsed_skills, key_skills
-           FROM vacancies v WHERE %s ORDER BY v.published_at DESC NULLS LAST""" % where,
-        *params)
+           FROM vacancies v WHERE %s ORDER BY v.published_at DESC NULLS LAST
+           LIMIT $%d""" % (where, len(params) + 1),
+        *params, max_rows + 1)
+    if len(recs) > max_rows:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Слишком много вакансий (> {max_rows}). Сузьте фильтры "
+                   f"или увеличьте max_rows.",
+        )
     vacancies = [dict(r) for r in recs]
 
     rows = []
@@ -851,7 +862,11 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
         raise HTTPException(status_code=404, detail="No vacancies match filters")
     df = pd.DataFrame(rows)
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    excel_path = config.REPORTS_DIR / "vacancies_export.xlsx"
+    # Уникальное имя: два одновременных экспорта писали в один и тот же файл
+    # vacancies_export.xlsx и могли отдать друг другу чужой результат.
+    import uuid as _uuid
+
+    excel_path = config.REPORTS_DIR / f"vacancies_export_{_uuid.uuid4().hex[:12]}.xlsx"
     df.to_excel(excel_path, index=False, engine="openpyxl")
     if not excel_path.exists():
         raise HTTPException(status_code=500, detail="Excel export failed")
