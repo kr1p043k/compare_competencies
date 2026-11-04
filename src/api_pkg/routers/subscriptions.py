@@ -1,6 +1,6 @@
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -14,10 +14,20 @@ limiter = Limiter(key_func=get_remote_address)
 # ─── Pydantic models ───────────────────────────────────────────────────────
 
 class SubscriptionCreate(BaseModel):
-    topic: str
-    source: str = "openalex+arxiv"
-    telegram_chat_id: str | None = None
-    email: str | None = None
+    # topic уходит во внешние API (OpenAlex/arXiv) и в БД, поэтому ограничиваем
+    # длину и не даём сохранить пустую строку из одних пробелов.
+    topic: str = Field(min_length=1, max_length=200)
+    source: str = Field(default="openalex+arxiv", max_length=100)
+    telegram_chat_id: str | None = Field(default=None, max_length=64)
+    email: str | None = Field(default=None, max_length=254)
+
+    @field_validator("topic")
+    @classmethod
+    def _topic_not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("topic must not be blank")
+        return v
 
 
 class SubscriptionUpdate(BaseModel):
@@ -118,7 +128,12 @@ async def delete_subscription(sub_id: str, request: Request, user: dict = Depend
 @router.get("/notifications")
 @limiter.limit("30/minute")
 async def list_notifications(
-    request: Request, limit: int = 50, unread_only: bool = False, user: dict = Depends(require_auth)
+    request: Request,
+    # Границы обязательны: без них limit уходит прямо в .limit(), и клиент
+    # получает либо ошибку драйвера на отрицательном, либо мега-выборку.
+    limit: int = Query(50, ge=1, le=200),
+    unread_only: bool = False,
+    user: dict = Depends(require_auth),
 ):
     """Уведомления пользователя."""
     uid = user["uid"]

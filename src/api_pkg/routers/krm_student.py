@@ -95,7 +95,18 @@ async def krm_student_competencies(
     for nt in student_norms:
         if nt in krm_items or any(nt in k or k in nt for k in krm_items if len(nt) > 3 and len(k) > 3):
             krm_covered.add(nt)
-    student_only = sorted({s for s in (student.skills or []) if _norm(s) not in krm_covered})
+    # Пустые/пробельные навыки пропускаем (как в student_norms выше), иначе они
+    # попадают в merged как source="student" при counts.student=0.
+    # Дедуп - по нормализованной форме: «Python» и «python» один навык, а не два.
+    seen_only: set[str] = set()
+    student_only: list[str] = []
+    for raw in (student.skills or []):
+        norm = _norm(raw)
+        if not norm or norm in krm_covered or norm in seen_only:
+            continue
+        seen_only.add(norm)
+        student_only.append(raw)
+    student_only.sort()
 
     merged = (
         [{"skill": v["text"], "source": "both" if v["student_has"] else "krm",
