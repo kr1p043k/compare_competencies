@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     SECRET_KEY: SecretStr | None = None
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
     TOKEN_TTL_DAYS: int = 7
+    # Токен для скрейпинга /metrics (Prometheus). Если задан, эндпоинт
+    # принимает Authorization: Bearer <токен> в обход ролевой проверки:
+    # у Prometheus нет пользовательской сессии, и без этого таргет падал 401.
+    METRICS_TOKEN: SecretStr | None = None
 
     MAX_REQUEST_SIZE: int = 20 * 1024 * 1024  # 20 MB
 
@@ -362,6 +366,7 @@ PARSED_SKILLS_CACHE_PATH = settings.PARSED_SKILLS_CACHE_PATH
 ALLOWED_ORIGINS = settings.ALLOWED_ORIGINS
 MAX_REQUEST_SIZE = settings.MAX_REQUEST_SIZE
 TOKEN_TTL_DAYS = settings.TOKEN_TTL_DAYS
+METRICS_TOKEN = settings.METRICS_TOKEN
 
 KRM_DISCIPLINES_PATH = settings.KRM_DISCIPLINES_PATH
 TEACHER_RECOMMENDATIONS_PATH = settings.TEACHER_RECOMMENDATIONS_PATH

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { ArrowRight, GraduationCap, ShieldCheck, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, GraduationCap, LogIn, ShieldCheck, Sparkles, TrendingUp } from "lucide-react";
 
 import { ApiError, request } from "../../lib/api";
+import { HUB_LOGIN_URL } from "../../lib/hubToken";
 import { Button, Field, inputClass } from "../../design/primitives";
 
 const FEATURES = [
@@ -43,6 +44,17 @@ export function LoginPage({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  // Причина неудачного входа через хаб приходит из main.tsx через
+  // sessionStorage: без этого ошибка видна только в консоли.
+  const [ssoError] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem("ssoError");
+      if (stored) sessionStorage.removeItem("ssoError");
+      return stored ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,10 +141,39 @@ export function LoginPage({
 
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Вход в систему</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Используйте рабочую почту и пароль, выданный администратором.
+            Рабочая почта и пароль или учётная запись ЮФУ.
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-7 space-y-4" noValidate>
+          <a
+            href={HUB_LOGIN_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-7 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted active:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            <LogIn className="size-4" />
+            Войти через hub.sfedu.ru
+          </a>
+          <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+            Нужен для публикаций и статей по программам: хаб передаёт токен доступа,
+            после входа вы вернётесь сюда автоматически.
+          </p>
+
+          <div className="mt-6 flex items-center gap-3 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            или локальный вход
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          {ssoError && (
+            <div
+              role="alert"
+              className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+            >
+              Вход через хаб не удался: {ssoError}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="mt-4 space-y-4" noValidate>
             <Field label="Почта" htmlFor="username">
               <input
                 id="username"

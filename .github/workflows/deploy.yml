@@ -1,37 +1,47 @@
-name: Deploy
+name: Deploy (manual)
+
+# ОСНОВНОЙ деплой идёт не отсюда.
+#
+# Сервер стоит за провайдерским NAT: на интерфейсе 10.131.65.30, «публичный»
+# 95.174.102.182 — общий egress хостера, входящий SSH есть только через
+# Tailscale. GitHub-hosted раннер до сервера не достучится (проверено:
+# dial tcp 95.174.102.182:22 — i/o timeout), а Tailscale-ключ для CI истёк.
+#
+# Поэтому деплой запускает сам сервер: systemd-таймер cc-autodeploy.timer раз в
+# 5 минут сравнивает выкаченный коммит с origin/main и вызывает
+# scripts/deploy.sh (см. deploy/README.md, журнал: logs/autodeploy.log).
+#
+# Этот workflow остаётся ручным запасным вариантом: он сработает, если у сервера
+# появится доступный извне SSH (тогда задайте секрет SSH_HOST_PUBLIC или
+# верните шаг tailscale/github-action с новым TAILSCALE_AUTH_KEY).
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:  # ручной перезапуск (например, после починки TAILSCALE_AUTH_KEY)
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v2
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
-          hostname: gh-deploy
-
-      - name: Deploy
+      - name: Deploy over SSH
         uses: appleboy/ssh-action@v1
-        timeout-minutes: 45
         with:
-          host: ${{ secrets.SSH_HOST }}
+          host: ${{ secrets.SSH_HOST_PUBLIC }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          command_timeout: 2700s
+          command_timeout: 45m
+          script_stop: true
           script: |
-            cd /home/admin_server/compare_competencies || git clone https://github.com/kr1p043k/compare_competencies.git
-            git fetch origin main
-            git reset --hard origin/main
-            docker compose build backend
-            docker compose up -d backend --force-recreate
-            docker compose exec -T backend alembic upgrade heads || true
-            docker compose build frontend --no-cache
-            docker compose up -d frontend --force-recreate
-            docker compose up -d grafana --force-recreate
-            docker image prune -f
+            set -e
+            DIR=/home/admin_server/compare_competencies
+            if [ -f "$DIR/scripts/deploy.sh" ]; then
+              cp "$DIR/scripts/deploy.sh" /tmp/cc-deploy.sh
+            else
+              cd "$DIR"
+              git fetch origin main --quiet
+              git show origin/main:scripts/deploy.sh > /tmp/cc-deploy.sh
+            fi
+            bash /tmp/cc-deploy.sh
