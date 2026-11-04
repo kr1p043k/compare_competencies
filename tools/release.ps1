@@ -284,15 +284,31 @@ function Test-Alembic {
 }
 
 # ------------------------------------------------------------- 6. dep audit
+# Известный принятый долг: эти пакеты не блокируют релиз, пока не появится
+# безопасный путь обновления. Любая НОВАЯ уязвимость - блокер.
+$script:AllowedVulnPackages = @(
+    "starlette"   # 6 CVE; фикс в 1.3.1 требует миграции FastAPI (см. MEMORY E50)
+)
+
 function Get-DepAudit {
-    Write-Step "dependency audit (informational)"
+    Write-Step "dependency audit"
     $r = Invoke-Native -FilePath "python" -ArgList @("-m", "pip_audit", "-r", "requirements.txt", "--progress-spinner", "off") -TimeoutSec 600
-    if ($r.Code -eq 0) { Write-Ok "no known vulnerabilities"; return }
-    $pkgs = @(($r.StdOut + "`n" + $r.StdErr) -split "`n" |
-        Where-Object { $_ -match '^\S+\s+\S+\s+PYSEC' } |
-        ForEach-Object { ($_ -split '\s+')[0] } | Sort-Object -Unique)
-    if ($pkgs.Count -eq 0) { Write-Warn "pip-audit unavailable (skipped)" }
-    else { Write-Warn ("known vulnerable packages (not blocking): {0}" -f ($pkgs -join ", ")) }
+    if ($r.Code -eq 0) { Write-Ok "no known vulnerabilities"; return $true }
+
+    $rows = @(($r.StdOut + "`n" + $r.StdErr) -split "`n" |
+        Where-Object { $_ -match '^\S+\s+\S+\s+PYSEC' })
+    $pkgs = @($rows | ForEach-Object { ($_ -split '\s+')[0] } | Sort-Object -Unique)
+    if ($pkgs.Count -eq 0) { Write-Warn "pip-audit unavailable (skipped)"; return $true }
+
+    $unexpected = @($pkgs | Where-Object { $script:AllowedVulnPackages -notcontains $_ })
+    if ($unexpected.Count -eq 0) {
+        Write-Ok ("only known accepted debt: {0}" -f ($pkgs -join ", "))
+        return $true
+    }
+    Write-Bad ("new vulnerable packages ({0}): {1}" -f $unexpected.Count, ($unexpected -join ", "))
+    $rows | Where-Object { $unexpected -contains ($_ -split '\s+')[0] } |
+        Select-Object -First 10 | ForEach-Object { Write-Dim $_ }
+    return $false
 }
 
 # ------------------------------------------------------------------- actions
@@ -303,7 +319,8 @@ function Invoke-Precheck {
     [void](Test-Backend)
     [void](Test-Frontend)
     [void](Test-Alembic)
-    Get-DepAudit
+    # Блокирующая проверка: новые уязвимые пакеты останавливают релиз.
+    [void](Get-DepAudit)
 
     Write-Host "`n########## RESULT ##########" -ForegroundColor Magenta
     if ($script:Notes.Count) {
