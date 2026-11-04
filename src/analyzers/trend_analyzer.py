@@ -9,7 +9,6 @@ from src.result import Err, Ok, Result
 logger = structlog.get_logger(__name__)
 
 
-from src.utils import skill_words
 
 
 class SnapshotTrendAnalyzer:
@@ -74,17 +73,10 @@ class SnapshotTrendAnalyzer:
             previous = self._normalize_freq(prev_rec.get("skill_freq", {}))
             latest = self._normalize_freq(cur_rec.get("skill_freq", {}))
 
-        # token-subset alias for renamed skills
-        for ck in list(latest.keys()):
-            if ck in previous or len(ck) < 3:
-                continue
-            ck_words = skill_words(ck)
-            if not ck_words:
-                continue
-            for ok in list(previous.keys()):
-                if ok != ck and ck_words <= skill_words(ok):
-                    previous[ck] = previous[ok]
-                    break
+        # Общий token-subset alias здесь НЕДОПУСТИМ. Он подставляет истории
+        # специфичного навыка частоту базового: {api} <= {api, gateway}, поэтому
+        # previous['api'] получал значение 'api gateway' (3 вместо 799), и рост
+        # считался относительно ложной базы. Алиасы - только явной картой.
 
         prev_shares, _ = self._shares(previous)
         cur_shares, _ = self._shares(latest)
@@ -132,17 +124,10 @@ class SnapshotTrendAnalyzer:
             previous = self._normalize_freq(prev_rec.get("skill_freq", {}))
             latest = self._normalize_freq(cur_rec.get("skill_freq", {}))
 
-        # token-subset alias for renamed skills
-        for ck in list(latest.keys()):
-            if ck in previous or len(ck) < 3:
-                continue
-            ck_words = skill_words(ck)
-            if not ck_words:
-                continue
-            for ok in list(previous.keys()):
-                if ok != ck and ck_words <= skill_words(ok):
-                    previous[ck] = previous[ok]
-                    break
+        # Общий token-subset alias здесь НЕДОПУСТИМ. Он подставляет истории
+        # специфичного навыка частоту базового: {api} <= {api, gateway}, поэтому
+        # previous['api'] получал значение 'api gateway' (3 вместо 799), и рост
+        # считался относительно ложной базы. Алиасы - только явной картой.
 
         prev_shares, _ = self._shares(previous)
         cur_shares, _ = self._shares(latest)

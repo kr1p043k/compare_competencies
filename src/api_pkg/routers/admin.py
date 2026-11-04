@@ -320,16 +320,32 @@ async def export_excel(request: Request):
 
     df = pd.DataFrame(rows)
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    excel_path = config.REPORTS_DIR / "vacancies_export.xlsx"
-    df.to_excel(excel_path, index=False, engine="openpyxl")
+    # Уникальный временный файл: при двух одновременных выгрузках общий путь
+    # vacancies_export.xlsx перезаписывался, и первый запрос отдавал чужой файл.
+    import os
+    import tempfile
+
+    fd, name = tempfile.mkstemp(
+        prefix="vacancies_export_", suffix=".xlsx", dir=str(config.REPORTS_DIR)
+    )
+    os.close(fd)
+    excel_path = Path(name)
+    try:
+        df.to_excel(excel_path, index=False, engine="openpyxl")
+    except Exception:
+        excel_path.unlink(missing_ok=True)
+        raise
 
     if not excel_path.exists():
         raise HTTPException(status_code=500, detail="Excel export failed")
+
+    from starlette.background import BackgroundTask
 
     return FileResponse(
         str(excel_path),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename="vacancies_export.xlsx",
+        background=BackgroundTask(excel_path.unlink, missing_ok=True),
     )
 
 
