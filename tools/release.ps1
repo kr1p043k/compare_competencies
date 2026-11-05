@@ -310,9 +310,36 @@ function Get-DepAudit {
 }
 
 # ------------------------------------------------------------------- actions
+# ------------------------------------------------------------- 0. honesty
+function Test-Honesty {
+    Write-Step "honesty gate (дифф против $Target)"
+    $guard = Join-Path (Split-Path -Parent $root) "tools\honesty-guard.py"
+    if (-not (Test-Path $guard)) {
+        Write-Warn "honesty-guard.py не найден, проверка пропущена"
+        return $true
+    }
+    $base = (Invoke-Git @("merge-base", "origin/$Target", "HEAD")).Out.Trim()
+    if ([string]::IsNullOrWhiteSpace($base)) {
+        Write-Warn "merge-base с origin/$Target не найден, проверка пропущена"
+        return $true
+    }
+    $r = Invoke-Native -FilePath "python" -ArgList @($guard, "--range", "$base..HEAD") -TimeoutSec 300
+    $text = $r.StdOut + "`n" + $r.StdErr
+    if ($r.Code -eq 0) {
+        $warns = @($text -split "`n" | Where-Object { $_ -match '\[WARN ' })
+        Write-Ok ("подгонки не найдено" + $(if ($warns.Count) { " ($($warns.Count) предупр.)" } else { "" }))
+        return $true
+    }
+    Write-Bad "найдена подгонка под результат - релиз заблокирован"
+    $text -split "`n" | Where-Object { $_ -match '\[(BLOCK|WARN )\]|^\s{10}' } |
+        Select-Object -First 20 | ForEach-Object { Write-Dim $_ }
+    return $false
+}
+
 function Invoke-Precheck {
     Write-Host "`n########## RELEASE PRECHECK ##########" -ForegroundColor Magenta
     [void](Test-WorktreeClean)
+    [void](Test-Honesty)
     [void](Test-Ruff)
     [void](Test-Backend)
     [void](Test-Frontend)
