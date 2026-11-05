@@ -26,6 +26,7 @@ def main() -> None:
         map_ksa_to_skills,
         populate_parsed_skills,
         rebuild,
+        retention,
         seed_db,
         snapshot_professions,
         taxonomy_audit,
@@ -137,6 +138,8 @@ def main() -> None:
         map_ksa_to_skills.run_mapping(
             json_map_path=Path(a.json_map) if a.json_map else None,
             dir_code=a.dir_code)))
+
+    retention.build_parser(sub)
 
     args = parser.parse_args()
     args.func(args)

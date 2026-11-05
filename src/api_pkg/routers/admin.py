@@ -469,19 +469,40 @@ async def admin_set_user_directions(request: Request, user_id: str, body: UserDi
 
 
 @router.get("/admin/monitoring")
-async def admin_monitoring(request: Request):
-    """JSON-мониторинг (метрики)."""
+async def admin_monitoring(
+    request: Request,
+    names: str = Query("", description="Фильтр по именам метрик через запятую"),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+):
+    """JSON-мониторинг (метрики) с фильтром и пагинацией.
+
+    Без параметров отдавал ВСЕ семейства метрик (~435 строк и растёт с каждым
+    новым эндпоинтом), что тяжело и для панели, и для клиента. Теперь: фильтр
+    по именам, limit/offset и общее число семейств в ответе.
+    """
     from prometheus_client.parser import text_string_to_metric_families
 
     from src.monitoring.metrics import get_metrics
+
     raw, _ = get_metrics()
-    families = {}
+    wanted = {n.strip() for n in names.split(",") if n.strip()}
+
+    families: dict[str, dict] = {}
     for f in text_string_to_metric_families(raw.decode()):
-        samples = []
-        for s in f.samples:
-            samples.append({"name": s.name, "labels": s.labels, "value": s.value})
-        families[f.name] = {"name": f.name, "type": f.type, "samples": samples}
-    return families
+        if wanted and f.name not in wanted:
+            continue
+        families[f.name] = {
+            "name": f.name,
+            "type": f.type,
+            "samples": [
+                {"name": s.name, "labels": s.labels, "value": s.value} for s in f.samples
+            ],
+        }
+
+    total = len(families)
+    page = dict(sorted(families.items())[offset: offset + limit])
+    return {"total": total, "limit": limit, "offset": offset, "families": page}
 
 
 def _p95_from_buckets(buckets: list[tuple[float, float]]) -> float | None:
