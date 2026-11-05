@@ -134,7 +134,7 @@ async def get_professions(request: Request):
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(request, str(e), "Не удалось загрузить список профессий. Попробуйте позже."),
-        )
+        ) from None
 
 
 @router.get(
@@ -178,7 +178,7 @@ async def get_profession_detail(request: Request, profession_name: str):
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(request, str(e), "Не удалось загрузить профессию. Попробуйте позже."),
-        )
+        ) from None
 
 
 @router.get(
@@ -222,4 +222,4 @@ async def get_profession_krm_coverage(
         raise HTTPException(
             status_code=500,
             detail=await user_error_detail(request, str(e), "Не удалось загрузить KRM-покрытие. Попробуйте позже."),
-        )
+        ) from None

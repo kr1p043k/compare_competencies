@@ -376,15 +376,23 @@ async def export_full_report(request: Request):
 
 @router.get("/admin/users", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
-async def admin_users(request: Request):
-    """Список пользователей."""
+async def admin_users(
+    request: Request,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """Список пользователей с пагинацией (LIMIT/OFFSET)."""
     from sqlalchemy import select, text
 
     from src.database import async_session_factory
     from src.models.krm_models import UserDirection
 
     async with async_session_factory() as session:
-        result = await session.execute(text("SELECT * FROM users ORDER BY created_at"))
+        total = int((await session.execute(text("SELECT COUNT(*) FROM users"))).scalar_one())
+        result = await session.execute(
+            text("SELECT * FROM users ORDER BY created_at LIMIT :limit OFFSET :offset"),
+            {"limit": limit, "offset": offset},
+        )
         users = result.fetchall()
         ud_result = await session.execute(select(UserDirection.user_id, UserDirection.dir_code))
         dir_map: dict[str, list[str]] = {}
@@ -404,7 +412,10 @@ async def admin_users(request: Request):
                 "directions": sorted(dir_map.get(str(u.id), [])),
             }
             for u in users
-        ]
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     }
 
 

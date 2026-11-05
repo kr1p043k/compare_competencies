@@ -23,10 +23,10 @@ class LLMClient:
     ):
         try:
             from openai import OpenAI
-        except ImportError:
+        except ImportError as exc:
             raise ImportError(
                 "openai package is required for LLMClient. Install with: pip install openai>=1.68.0"
-            )
+            ) from exc
         self.base_url = base_url or config.OLLAMA_URL
         self.model = model or config.OLLAMA_MODEL
         self._client = OpenAI(

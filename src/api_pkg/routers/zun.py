@@ -42,6 +42,14 @@ from slowapi.util import get_remote_address
 
 from src import config
 from src.api_pkg.request_logger import audit_action
+from src.api_pkg.routers.zun_schemas import (
+    CompetencyIn,
+    ScopeChange,
+    ScopePut,
+    SkillLinkIn,
+    ZUNIn,
+    ZUNPatch,
+)
 from src.api_pkg.routers.auth import require_any_role
 from src.db import get_pool
 from src.utils import clip01
@@ -60,13 +68,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 RESULT_TEACHER = PROJECT_ROOT / "data" / "result" / "teacher"
 
 
-class ZUNIn(BaseModel):
-    ksa_type: str
-    text: str
-
-
-class ZUNPatch(BaseModel):
-    text: str
 
 
 # ---------- helpers ----------
@@ -1060,14 +1061,6 @@ async def zun_get_scope(request: Request, dir_code: str = "09.03.02"):
     }
 
 
-class ScopeChange(BaseModel):
-    discipline_name: str
-    included: bool
-
-
-class ScopePut(BaseModel):
-    dir_code: str = "09.03.02"
-    changes: list[ScopeChange] = []
 
 
 @router.put("/teacher/zun/scope")
@@ -1163,10 +1156,6 @@ async def zun_add_entry(request: Request, competency_id: str, body: ZUNIn):
 _COMP_CODE_RE = re.compile("^(УК|ОПК|ПК|ППК|ИП|ВПК)[- ]([0-9]+(?:\\.[0-9]+)*)$")
 
 
-class CompetencyIn(BaseModel):
-    code: str
-    name: str = ""
-    description: str = ""
 
 
 @router.post("/teacher/zun/disciplines/{discipline_id}/competencies", status_code=201)
@@ -1212,9 +1201,6 @@ async def zun_add_competency(request: Request, discipline_id: str, body: Compete
     return {"competency_id": str(comp_id), "code": code, "category": category}
 
 
-class SkillLinkIn(BaseModel):
-    skill_name: str
-    ksa_type: str = "skills"
 
 
 _CS_KSA_TYPES = ("knowledge", "abilities", "skills", "flat")
