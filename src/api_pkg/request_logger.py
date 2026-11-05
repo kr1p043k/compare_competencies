@@ -7,6 +7,7 @@ import hmac
 import json
 import re
 import time
+import uuid
 from collections import deque
 from datetime import UTC, datetime
 from typing import Any
@@ -87,6 +88,10 @@ class LogEntry:
 
 
 _log_buffer: deque[LogEntry] = deque(maxlen=MAX_LOGS)
+
+#: Таблица audit_logs не создана (миграция не применена): не пытаемся писать
+#: снова и снова, иначе каждый аудируемый запрос тратит соединение на INSERT.
+_audit_table_missing = False
 
 
 def _to_request_log(e: LogEntry, with_detail: bool = True) -> RequestLog:
@@ -274,6 +279,90 @@ async def actor_from_request(request: Request) -> tuple[str, str]:
     return "anonymous", "?"
 
 
+async def _persist_audit_log(request: Request, action: str, target: str, email: str, role: str) -> None:
+    """Best-effort дублирование аудита в durable-таблицу audit_logs.
+
+    Буфер request_logs чистится retention-ом, поэтому событие дополнительно
+    пишется в audit_logs. Пул может быть не инициализирован, таблица может
+    отсутствовать до применения миграции - как и auth._totp_state, молча
+    продолжаем, не ломая основной поток (AUDIT-строка уже в буфере).
+    """
+    global _audit_table_missing
+
+    if _audit_table_missing:
+        # Миграция не применена: не долбим БД упавшим INSERT на каждый запрос.
+        return
+    try:
+        from src.db import get_pool
+
+        pool = get_pool()
+        if pool is None:
+            return
+    except Exception as exc:
+        logger.warning("audit_db_write_failed", action=action, reason="no_pool", error=str(exc))
+        return
+
+    try:
+        # import внутри функции: избегаем циклического импорта (auth импортирует audit_action).
+        from src.api_pkg.routers.auth import client_ip
+        ip: str | None = client_ip(request)
+    except Exception:
+        ip = request.client.host if request.client else None
+
+    target_type, target_id = _split_target(target)
+    request_id: str | None = getattr(request.state, "request_id", None)
+    try:
+        await pool.execute(
+            """INSERT INTO audit_logs
+                   (id, actor_id, actor_email, actor_role, action, target_type, target_id,
+                    target, ip, request_id, created_at)
+               VALUES ($1, (SELECT id FROM users WHERE email = $2), $2, $3, $4, $5, $6, $7, $8, $9, $10)""",
+            uuid.uuid4(), email, role, action, target_type, target_id,
+            target or None, ip, request_id, datetime.now(UTC),
+        )
+    except Exception as exc:
+        if _is_missing_audit_table(exc):
+            _audit_table_missing = True
+            logger.error("audit_db_table_missing", action=action)
+            return
+        # Security-события не должны теряться тихо: ERROR, а не WARNING.
+        logger.error("audit_db_write_failed", action=action, error=str(exc))
+
+
+def _split_target(target: str) -> tuple[str | None, str | None]:
+    """Вытащить target_type/target_id из строки target ("uid=<uuid> ...", "email=<x> ...").
+
+    /admin/audit фильтрует по этим колонкам, поэтому они должны заполняться,
+    иначе разбор инцидента по объекту возвращает пусто.
+    """
+    if not target:
+        return None, None
+    m = re.search(r"\buid=([0-9a-fA-F-]{36})\b", target)
+    if m:
+        return "user", m.group(1)
+    m = re.search(r"\bemail=([^\s]+)", target)
+    if m:
+        return "user", m.group(1)
+    m = re.search(r"\bid=([^\s]+)", target)
+    if m:
+        return None, m.group(1)
+    return None, None
+
+
+def _is_missing_audit_table(exc: BaseException) -> bool:
+    seen: set[int] = set()
+    node: BaseException | None = exc
+    while node is not None and id(node) not in seen:
+        seen.add(id(node))
+        if type(node).__name__ == "UndefinedTableError":
+            return True
+        if getattr(node, "pgcode", None) == "42P01" or getattr(node, "sqlstate", None) == "42P01":
+            return True
+        nxt = getattr(node, "orig", None)
+        node = nxt if nxt is not None else getattr(node, "__cause__", None)
+    return False
+
+
 async def audit_action(request: Request, action: str, target: str = "") -> dict[str, Any]:
     """Append an AUDIT entry: who (email/role) did what (action) to which target.
 
@@ -296,6 +385,9 @@ async def audit_action(request: Request, action: str, target: str = "") -> dict[
         )
         _log_buffer.append(entry)
         logger.info("audit", action=action, target=target[:200], actor=email, role=role)
+        # Durable-запись после буфера: /admin/logs и тесты читают буфер, а
+        # audit_logs переживает retention. Сбой записи не влияет на ответ.
+        await _persist_audit_log(request, action, target, email, role)
         return {"actor_email": email, "actor_role": role, "action": action, "target": target, "detail": detail}
     except Exception as exc:
         logger.warning("audit_failed", action=action, error=str(exc))

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowRight, GraduationCap, LogIn, ShieldCheck, Sparkles, TrendingUp } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, GraduationCap, LogIn, ShieldCheck, Sparkles, TrendingUp } from "lucide-react";
 
 import { ApiError, request } from "../../lib/api";
 import { HUB_LOGIN_URL } from "../../lib/hubToken";
@@ -23,7 +23,39 @@ const FEATURES = [
   },
 ];
 
-function errorMessage(err: unknown): string {
+/**
+ * Ответ /api/auth/login: либо готовая сессия, либо требование пройти
+ * двухфакторное подтверждение (challenge). Проверяем форму ответа явно:
+ * тип guard-ом, наличие токена - рантайм guard-ом ниже.
+ */
+type LoginResponse =
+  | { token: string; role: string; name: string; username?: string }
+  | { status: "totp_required"; challenge_id: string; expires_in?: number };
+
+/** Успешный ответ 2FA-шагов (verify/recovery) - только токен, без challenge. */
+type TokenBundle = Extract<LoginResponse, { token: string }>;
+
+function isChallengeResponse(
+  r: LoginResponse,
+): r is Extract<LoginResponse, { status: "totp_required" }> {
+  return (r as { status?: unknown }).status === "totp_required";
+}
+
+/**
+ * Рантайм-проверка токена: onLogin нельзя вызывать с пустым token,
+ * даже если сервер прислал что-то неожиданное.
+ */
+function hasValidToken(r: { token?: unknown; role?: unknown; name?: unknown }): r is TokenBundle {
+  return (
+    typeof r.token === "string" &&
+    r.token.length > 0 &&
+    typeof r.role === "string" &&
+    r.role.length > 0 &&
+    typeof r.name === "string"
+  );
+}
+
+function loginErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 429) {
       // Сервер сам объясняет, когда разблокируется аккаунт.
@@ -35,6 +67,20 @@ function errorMessage(err: unknown): string {
   }
   return "Нет связи с сервером. Проверьте подключение.";
 }
+
+/** Для шага 2FA: 401 здесь значит «неверный код», отдаём текст сервера. */
+function codeErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 429) return err.message || "Слишком много попыток. Попробуйте позже.";
+    if (err.status >= 500) return "Сервер временно недоступен. Попробуйте позже.";
+    if (err.status === 401) return err.message || "Неверный код";
+    return err.message || "Не удалось подтвердить вход";
+  }
+  return "Нет связи с сервером. Проверьте подключение.";
+}
+
+const linkClass =
+  "rounded text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 export function LoginPage({
   onLogin,
@@ -57,22 +103,100 @@ export function LoginPage({
   });
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // --- Шаг 2FA: сервер вернул challenge_id вместо токена ---
+  const [challenge, setChallenge] = useState<{ id: string; expiresIn?: number } | null>(null);
+  const [useRecovery, setUseRecovery] = useState(false);
+  const [code, setCode] = useState("");
+  const codeRef = useRef<HTMLInputElement>(null);
+
+  // Шаг 2FA открывается (или переключается режим) - фокус в поле кода,
+  // чтобы вводить можно было сразу, без лишнего клика.
+  useEffect(() => {
+    if (challenge) codeRef.current?.focus();
+  }, [challenge, useRecovery]);
+
+  const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const data = await request<{ token: string; role: string; name: string }>(
-        "/api/auth/login",
-        { method: "POST", body: { email: username, password }, anonymous: true },
-      );
+      const data = await request<LoginResponse>("/api/auth/login", {
+        method: "POST",
+        body: { email: username, password },
+        anonymous: true,
+      });
+      if (isChallengeResponse(data)) {
+        setChallenge({
+          id: data.challenge_id,
+          expiresIn: typeof data.expires_in === "number" ? data.expires_in : undefined,
+        });
+        setCode("");
+        setUseRecovery(false);
+        return;
+      }
+      if (!hasValidToken(data)) {
+        setError("Неожиданный ответ сервера. Попробуйте ещё раз.");
+        return;
+      }
       onLogin(data.token, data.role, data.name);
     } catch (err) {
-      setError(errorMessage(err));
+      setError(loginErrorMessage(err));
     } finally {
       setLoading(false);
     }
   };
+
+  const handleCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!challenge) return;
+    setError("");
+    if (useRecovery) {
+      if (!/^[0-9a-f]{8}$/i.test(code)) {
+        setError("Резервный код - 8 символов: цифры и латинские буквы a-f.");
+        codeRef.current?.focus();
+        return;
+      }
+    } else if (!/^\d{6}$/.test(code)) {
+      setError("Код - 6 цифр из приложения-аутентификатора.");
+      codeRef.current?.focus();
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await request<TokenBundle>(
+        useRecovery ? "/api/auth/2fa/recovery" : "/api/auth/2fa/verify",
+        {
+          method: "POST",
+          body: { challenge_id: challenge.id, code },
+          anonymous: true,
+        },
+      );
+      // Явный guard: onLogin вызывается только с непустым токеном.
+      if (!hasValidToken(data)) {
+        setError("Неожиданный ответ сервера. Попробуйте ещё раз.");
+        return;
+      }
+      onLogin(data.token, data.role, data.name);
+    } catch (err) {
+      setError(codeErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const backToCredentials = () => {
+    setChallenge(null);
+    setUseRecovery(false);
+    setCode("");
+    setError("");
+  };
+
+  const minutesLeft = (() => {
+    if (challenge?.expiresIn && challenge.expiresIn > 0) {
+      return Math.max(1, Math.round(challenge.expiresIn / 60));
+    }
+    return 5;
+  })();
 
   return (
     <div className="min-h-screen grid lg:grid-cols-[1.1fr_1fr] bg-background">
@@ -101,7 +225,7 @@ export function LoginPage({
             Соединяем учебные программы с реальными требованиями рынка
           </h2>
           <p className="mt-3 max-w-md text-sm text-white/80">
-            Аналитика компетенций, gap-анализ и прогнозы — в одном рабочем месте
+            Аналитика компетенций, gap-анализ и прогнозы - в одном рабочем месте
             для преподавателей, руководителей программ и студентов.
           </p>
 
@@ -144,80 +268,187 @@ export function LoginPage({
             Рабочая почта и пароль или учётная запись ЮФУ.
           </p>
 
-          <a
-            href={HUB_LOGIN_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-7 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted active:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            <LogIn className="size-4" />
-            Войти через hub.sfedu.ru
-          </a>
-          <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-            Нужен для публикаций и статей по программам: хаб передаёт токен доступа,
-            после входа вы вернётесь сюда автоматически.
-          </p>
+          {challenge ? (
+            <section className="mt-7" aria-label="Двухфакторное подтверждение входа">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                Подтверждение входа
+              </h2>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                {useRecovery
+                  ? "Введите резервный код - 8 символов."
+                  : "Введите 6-значный код из приложения-аутентификатора."}
+              </p>
 
-          <div className="mt-6 flex items-center gap-3 text-[11px] uppercase tracking-wide text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            или локальный вход
-            <span className="h-px flex-1 bg-border" />
-          </div>
+              <form onSubmit={handleCodeSubmit} className="mt-4 space-y-4" noValidate>
+                {useRecovery ? (
+                  <Field
+                    label="Резервный код"
+                    htmlFor="recovery-code"
+                    hint="Каждый резервный код работает один раз."
+                  >
+                    <input
+                      ref={codeRef}
+                      id="recovery-code"
+                      type="text"
+                      className={inputClass}
+                      value={code}
+                      onChange={(e) =>
+                        setCode(e.target.value.replace(/[^0-9a-fA-F]/g, "").slice(0, 8))
+                      }
+                      inputMode="text"
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      maxLength={8}
+                      placeholder="XXXXXXXX"
+                      required
+                    />
+                  </Field>
+                ) : (
+                  <Field
+                    label="Код из приложения"
+                    htmlFor="totp-code"
+                    hint="Обновляется каждые 30 секунд."
+                  >
+                    <input
+                      ref={codeRef}
+                      id="totp-code"
+                      type="text"
+                      className={inputClass}
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      placeholder="000000"
+                      required
+                    />
+                  </Field>
+                )}
 
-          {ssoError && (
-            <div
-              role="alert"
-              className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-            >
-              Вход через хаб не удался: {ssoError}
-            </div>
-          )}
+                {error && (
+                  <div
+                    role="alert"
+                    className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                  >
+                    {error}
+                  </div>
+                )}
 
-          <form onSubmit={handleSubmit} className="mt-4 space-y-4" noValidate>
-            <Field label="Почта" htmlFor="username">
-              <input
-                id="username"
-                type="email"
-                autoComplete="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="name@university.ru"
-                required
-                className={inputClass}
-              />
-            </Field>
+                <Button type="submit" loading={loading} className="w-full" iconRight={<ArrowRight className="size-4" />}>
+                  {loading ? "Проверяем…" : "Подтвердить"}
+                </Button>
+              </form>
 
-            <Field label="Пароль" htmlFor="password">
-              <input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className={inputClass}
-              />
-            </Field>
-
-            {error && (
-              <div
-                role="alert"
-                className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-              >
-                {error}
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <button type="button" className={linkClass} onClick={backToCredentials}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <ArrowLeft className="size-4" />
+                    Назад
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={linkClass}
+                  onClick={() => {
+                    setUseRecovery((v) => !v);
+                    setCode("");
+                    setError("");
+                  }}
+                >
+                  {useRecovery ? "Войти по коду из приложения" : "Использовать резервный код"}
+                </button>
               </div>
-            )}
 
-            <Button type="submit" loading={loading} className="w-full" iconRight={<ArrowRight className="size-4" />}>
-              {loading ? "Вход…" : "Войти"}
-            </Button>
-          </form>
+              <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+                Запрос на вход действует {minutesLeft}{" "}
+                {minutesLeft === 1 ? "минуту" : minutesLeft < 5 ? "минуты" : "минут"}. Если время
+                истекло, вернитесь и войдите заново.
+              </p>
+            </section>
+          ) : (
+            <>
+              <a
+                href={HUB_LOGIN_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-7 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted active:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <LogIn className="size-4" />
+                Войти через hub.sfedu.ru
+              </a>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                Нужен для публикаций и статей по программам: хаб передаёт токен доступа,
+                после входа вы вернётесь сюда автоматически.
+              </p>
 
-          <p className="mt-6 text-[11px] leading-relaxed text-muted-foreground">
-            Забыли пароль? Обратитесь к администратору системы — самостоятельный сброс
-            пока не предусмотрен.
-          </p>
+              <div className="mt-6 flex items-center gap-3 text-[11px] uppercase tracking-wide text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                или локальный вход
+                <span className="h-px flex-1 bg-border" />
+              </div>
+
+              {ssoError && (
+                <div
+                  role="alert"
+                  className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                >
+                  Вход через хаб не удался: {ssoError}
+                </div>
+              )}
+
+              <form onSubmit={handleCredentialsSubmit} className="mt-4 space-y-4" noValidate>
+                <Field label="Почта" htmlFor="username">
+                  <input
+                    id="username"
+                    type="email"
+                    autoComplete="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="name@university.ru"
+                    required
+                    className={inputClass}
+                  />
+                </Field>
+
+                <Field label="Пароль" htmlFor="password">
+                  <input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className={inputClass}
+                  />
+                </Field>
+
+                {error && (
+                  <div
+                    role="alert"
+                    className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                  >
+                    {error}
+                  </div>
+                )}
+
+                <Button type="submit" loading={loading} className="w-full" iconRight={<ArrowRight className="size-4" />}>
+                  {loading ? "Вход…" : "Войти"}
+                </Button>
+              </form>
+
+              <p className="mt-6 text-[11px] leading-relaxed text-muted-foreground">
+                Забыли пароль? Обратитесь к администратору системы - самостоятельный сброс
+                пока не предусмотрен.
+              </p>
+            </>
+          )}
         </div>
       </main>
     </div>

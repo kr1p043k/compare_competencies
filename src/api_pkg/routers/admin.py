@@ -1,29 +1,40 @@
 """Admin: whitelist management, student profiles, pipeline, Excel export."""
 
 import asyncio
+import contextlib
 import io
 import json
 import shutil
 import zipfile
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, WebSocket
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy import text
 
 from src import config
 from src.api_pkg import deps
 from src.api_pkg.request_logger import actor_from_request, audit_action, get_logs_by_user
-from src.api_pkg.routers.auth import require_any_role
+from src.api_pkg.routers.auth import (
+    _hash_token,
+    _request_token,
+    get_current_user,
+    require_any_role,
+)
+from src.db import get_pool
 from src.parsing.utils import load_it_skills
-import contextlib
+from src.security_settings import load_security_settings, save_security_settings
 
 logger = structlog.get_logger("api")
+
+#: Таблица admin_totp подтверждённо существует (кэш True, см. _admin_totp_present).
+_ADMIN_TOTP_PRESENT = False
 
 router = APIRouter(tags=["admin"], dependencies=[Depends(require_any_role("admin", "teacher"))])
 limiter = Limiter(key_func=get_remote_address)
@@ -81,7 +92,7 @@ def _read_log_tail_lines(path: str | Path, n: int) -> list[str]:
 # ---------- Whitelist ----------
 
 
-@router.get("/admin/whitelist")
+@router.get("/admin/whitelist", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def get_whitelist(request: Request):
     """Текущий whitelist навыков."""
@@ -145,7 +156,7 @@ async def whitelist_remove(request: Request, body: WhitelistRemoveRequest):
     }
 
 
-@router.post("/admin/whitelist/backup", response_model=WhitelistBackupResponse, dependencies=[Depends(require_any_role("admin"))])
+@router.post("/admin/whitelist/backup", response_model=WhitelistBackupResponse, dependencies=[Depends(require_any_role("admin"))])  # noqa: E501
 @limiter.limit("5/minute")
 async def whitelist_backup(request: Request):
     """Бэкап whitelist в файл."""
@@ -155,6 +166,7 @@ async def whitelist_backup(request: Request):
     backup_path = backup_dir / f"it_skills_backup_{ts}.json"
     shutil.copy2(IT_SKILLS_PATH, backup_path)
     skills = _load_whitelist()
+    await audit_action(request, "admin.skills.whitelist.backup")
     return WhitelistBackupResponse(
         status="ok",
         message=f"Backup saved to {backup_path.name}",
@@ -166,7 +178,7 @@ async def whitelist_backup(request: Request):
 # ---------- Student profiles ----------
 
 
-@router.get("/admin/students")
+@router.get("/admin/students", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def list_students(request: Request):
     """Список студентов."""
@@ -341,6 +353,7 @@ async def export_excel(request: Request):
 
     from starlette.background import BackgroundTask
 
+    await audit_action(request, "admin.export.excel")
     return FileResponse(
         str(excel_path),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -367,6 +380,7 @@ async def export_full_report(request: Request):
                 zf.write(str(fpath), arcname)
     zip_buffer.seek(0)
 
+    await audit_action(request, "admin.export.full-report")
     return StreamingResponse(
         iter([zip_buffer.getvalue()]),
         media_type="application/zip",
@@ -376,16 +390,67 @@ async def export_full_report(request: Request):
 
 @router.get("/admin/users", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
-async def admin_users(request: Request):
-    """Список пользователей."""
+async def admin_users(
+    request: Request,
+    q: str | None = Query(None, max_length=100),
+    role: str | None = None,
+    is_active: bool | None = None,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+):
+    """Список пользователей (фильтры q/role/is_active, пагинация)."""
     from sqlalchemy import select, text
 
     from src.database import async_session_factory
     from src.models.krm_models import UserDirection
 
+    if role is not None and role not in ("admin", "teacher", "rop", "student"):
+        raise HTTPException(
+            status_code=400, detail="Invalid role. Valid: admin, teacher, rop, student"
+        )
+
+    where_parts: list[str] = []
+    params: dict[str, Any] = {}
+    if q:
+        params["q"] = f"%{_escape_like(q.strip())}%"
+        where_parts.append(
+            "(lower(u.email) LIKE :q ESCAPE '\\' OR lower(u.full_name) LIKE :q ESCAPE '\\')"
+        )
+    if role is not None:
+        params["role"] = role
+        where_parts.append("u.role = :role")
+    if is_active is not None:
+        params["is_active"] = is_active
+        where_parts.append("u.is_active = :is_active")
+    where_clause = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
+
     async with async_session_factory() as session:
-        result = await session.execute(text("SELECT * FROM users ORDER BY created_at"))
-        users = result.fetchall()
+        totp_expr = (
+            "COALESCE((SELECT true FROM admin_totp t "
+            "WHERE t.user_id = u.id AND t.confirmed LIMIT 1), false)"
+            if await _admin_totp_present(session)
+            else "false"
+        )
+        result = await session.execute(
+            text(
+                f"""
+                SELECT u.id, u.email, u.full_name, u.role, u.is_active,
+                       {totp_expr} AS totp_enabled,
+                       (SELECT COUNT(*) FROM sessions s
+                         WHERE s.user_id = u.id AND s.logged_out_at IS NULL) AS open_sessions,
+                       (SELECT MAX(s.last_activity) FROM sessions s
+                         WHERE s.user_id = u.id) AS last_activity
+                  FROM users u{where_clause}
+                 ORDER BY u.created_at
+                 LIMIT :limit OFFSET :offset
+                """
+            ),
+            {**params, "limit": limit, "offset": offset},
+        )
+        rows = result.fetchall()
+        total = (
+            await session.execute(text(f"SELECT COUNT(*) FROM users u{where_clause}"), params)
+        ).scalar_one()
         ud_result = await session.execute(select(UserDirection.user_id, UserDirection.dir_code))
         dir_map: dict[str, list[str]] = {}
         for uid, code in ud_result.all():
@@ -394,21 +459,27 @@ async def admin_users(request: Request):
     log_counts = get_logs_by_user()
     return {
         "users": [
-            {
-                "id": str(u.id),
-                "username": u.email,
-                "role": u.role,
-                "name": u.full_name,
-                "total_requests": log_counts.get(u.email, 0),
-                "is_active": u.is_active,
-                "directions": sorted(dir_map.get(str(u.id), [])),
-            }
-            for u in users
-        ]
+            _user_payload(
+                user_id=str(u.id),
+                email=u.email,
+                full_name=u.full_name,
+                role=u.role,
+                is_active=u.is_active,
+                directions=dir_map.get(str(u.id), []),
+                log_counts=log_counts,
+                totp_enabled=bool(u.totp_enabled),
+                open_sessions=int(u.open_sessions or 0),
+                last_activity=u.last_activity,
+            )
+            for u in rows
+        ],
+        "total": int(total),
+        "limit": limit,
+        "offset": offset,
     }
 
 
-@router.get("/admin/directions")
+@router.get("/admin/directions", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def admin_directions(request: Request):
     """Список всех направлений (dir_code) из KRM-файлов для привязки РОП."""
@@ -420,6 +491,25 @@ class UserDirectionsBody(BaseModel):
     directions: list[str] = []
 
 
+class UserUpdateRequest(BaseModel):
+    role: str | None = None
+    is_active: bool | None = None
+    full_name: str | None = Field(default=None, max_length=200)
+    caller_password: str | None = Field(default=None, max_length=72)
+
+
+class PasswordResetRequest(BaseModel):
+    # bcrypt обрезает пароль на 72 байтах: длиннее принимать бессмысленно.
+    new_password: str = Field(min_length=10, max_length=72)
+    caller_password: str | None = Field(default=None, max_length=72)
+
+
+class AdminStepUpRequest(BaseModel):
+    """Подтверждение опасной операции над другим администратором."""
+
+    caller_password: str = Field(min_length=1, max_length=72)
+
+
 def _validate_uuid(value: str, label: str = "id") -> str:
     """Проверяет, что value - валидный UUID; иначе 400."""
     try:
@@ -428,6 +518,89 @@ def _validate_uuid(value: str, label: str = "id") -> str:
         return str(UUID(value))
     except Exception:
         raise HTTPException(status_code=400, detail=f"Invalid {label}: not a valid UUID") from None
+
+
+async def _admin_totp_present(session) -> bool:
+    """Есть ли таблица admin_totp. Старая БД могла не применить миграцию.
+
+    True кэшируется навсегда (таблица не исчезает), False перепроверяется:
+    после /auth/2fa/setup таблица создаётся на лету и панель должна это увидеть
+    без рестарта API.
+    """
+    global _ADMIN_TOTP_PRESENT
+    if _ADMIN_TOTP_PRESENT:
+        return True
+    try:
+        present = bool(
+            (
+                await session.execute(text("SELECT to_regclass('public.admin_totp') IS NOT NULL"))
+            ).scalar_one()
+        )
+    except Exception:
+        return False
+    if present:
+        _ADMIN_TOTP_PRESENT = True
+    return present
+
+
+def _escape_like(value: str) -> str:
+    """Экранирование спецсимволов LIKE: \\, %, _ (ESCAPE '\\')."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+async def _assert_caller_password(session, caller: dict[str, Any] | None, password: str | None) -> None:
+    """Step-up для операций над другим администратором: подтвердить свой пароль.
+
+    Одна украденная сессия администратора не должна позволять сбросить пароль
+    или снять 2FA у второго администратора и тем самым забрать его аккаунт.
+    """
+    if caller is None or not caller.get("uid"):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not password:
+        raise HTTPException(
+            status_code=403,
+            detail="Для операции с другим администратором подтвердите свой пароль",
+        )
+    from sqlalchemy import text
+
+    ok = (
+        await session.execute(
+            text(
+                "SELECT EXISTS(SELECT 1 FROM users "
+                "WHERE id = :uid AND is_active = true AND crypt(:pw, password_hash) = password_hash)"
+            ),
+            {"uid": caller["uid"], "pw": password},
+        )
+    ).scalar_one()
+    if not ok:
+        raise HTTPException(status_code=403, detail="Неверный пароль администратора")
+
+
+def _user_payload(
+    user_id: str,
+    email: str,
+    full_name: str,
+    role: str,
+    is_active: bool,
+    directions: list[str],
+    log_counts: dict[str, int],
+    totp_enabled: bool = False,
+    open_sessions: int = 0,
+    last_activity: Any = None,
+) -> dict[str, Any]:
+    """Единый вид пользователя для списка/деталей/обновления (backward-compatible)."""
+    return {
+        "id": str(user_id),
+        "username": email,
+        "role": role,
+        "name": full_name,
+        "total_requests": log_counts.get(email, 0),
+        "is_active": is_active,
+        "directions": sorted(directions),
+        "totp_enabled": bool(totp_enabled),
+        "open_sessions": open_sessions,
+        "last_activity": last_activity.isoformat() if last_activity is not None else None,
+    }
 
 
 @router.get("/admin/users/{user_id}/directions", dependencies=[Depends(require_any_role("admin"))])
@@ -465,10 +638,358 @@ async def admin_set_user_directions(request: Request, user_id: str, body: UserDi
         for code in body.directions:
             session.add(UserDirection(user_id=user_id, dir_code=code))
         await session.commit()
+    await audit_action(
+        request, "admin.user.directions",
+        f"uid={user_id} dirs={','.join(sorted(body.directions))}",
+    )
     return {"status": "ok", "user_id": user_id, "directions": sorted(body.directions)}
 
 
-@router.get("/admin/monitoring")
+@router.get("/admin/users/{user_id}", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def admin_user_detail(request: Request, user_id: str):
+    """Профиль пользователя: поля, направления, сессии, статус 2FA."""
+    from sqlalchemy import select, text
+
+    from src.database import async_session_factory
+    from src.models.krm_models import Session, User, UserDirection
+
+    user_id = _validate_uuid(user_id, "user_id")
+    async with async_session_factory() as session:
+        user = await session.get(User, user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        dirs_result = await session.execute(
+            select(UserDirection.dir_code).where(UserDirection.user_id == user_id)
+        )
+        directions = sorted(row[0] for row in dirs_result)
+        sess_result = await session.execute(
+            select(Session)
+            .where(Session.user_id == user_id)
+            .order_by(Session.logged_in_at.desc())
+        )
+        sessions = sess_result.scalars().all()
+        totp_row = None
+        if await _admin_totp_present(session):
+            totp = await session.execute(
+                text("SELECT confirmed FROM admin_totp WHERE user_id = :uid"), {"uid": user_id}
+            )
+            totp_row = totp.first()
+
+    log_counts = get_logs_by_user()
+    open_sessions = sum(1 for s in sessions if s.logged_out_at is None)
+    last_activity = max(
+        (s.last_activity for s in sessions if s.last_activity is not None), default=None
+    )
+    totp_enabled = bool(totp_row and totp_row[0])
+    return {
+        "user": _user_payload(
+            user_id=str(user.id),
+            email=user.email,
+            full_name=user.full_name,
+            role=user.role,
+            is_active=user.is_active,
+            directions=directions,
+            log_counts=log_counts,
+            totp_enabled=totp_enabled,
+            open_sessions=open_sessions,
+            last_activity=last_activity,
+        ),
+        "directions": directions,
+        "sessions": [
+            {
+                "id": str(s.id),
+                "ip_address": s.ip_address,
+                "user_agent": s.user_agent,
+                "logged_in_at": s.logged_in_at.isoformat() if s.logged_in_at else None,
+                "last_activity": s.last_activity.isoformat() if s.last_activity else None,
+                "is_open": s.logged_out_at is None,
+            }
+            for s in sessions
+        ],
+        "totp_enabled": totp_enabled,
+    }
+
+
+@router.patch("/admin/users/{user_id}", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def admin_user_update(request: Request, user_id: str, body: UserUpdateRequest):
+    """Обновить роль/active/имя с защитой от потери последнего админа."""
+    from sqlalchemy import text
+
+    from src.database import async_session_factory
+    from src.models.krm_models import User
+
+    user_id = _validate_uuid(user_id, "user_id")
+    if body.role is not None and body.role not in ("admin", "teacher", "rop", "student"):
+        raise HTTPException(status_code=400, detail="Invalid role")
+
+    caller = await get_current_user(request)
+    async with async_session_factory() as session:
+        user = await session.get(User, user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Охрана 1: нельзя снять себе роль админа или деактивировать себя.
+        if (
+            caller is not None
+            and str(user.id) == caller.get("uid")
+            and ((body.role is not None and body.role != "admin") or body.is_active is False)
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Нельзя изменить собственную роль или деактивировать себя",
+            )
+
+        target_is_admin = user.role == "admin"
+        will_demote = target_is_admin and body.role is not None and body.role != "admin"
+        will_deactivate = target_is_admin and bool(user.is_active) and body.is_active is False
+
+        # Охрана 2: нельзя оставить систему без активного администратора.
+        # Проверка и запись идут в одной транзакции под advisory-lock: иначе два
+        # параллельных понижения двух последних админов оба увидят «останется
+        # один» и система останется без администратора.
+        if will_demote or will_deactivate:
+            await session.execute(text("SELECT pg_advisory_xact_lock(hashtext('admin_guard'))"))
+            active_admins = (
+                await session.execute(
+                    text(
+                        "SELECT COUNT(*) FROM users "
+                        "WHERE role = 'admin' AND is_active = true AND id <> :uid"
+                    ),
+                    {"uid": user_id},
+                )
+            ).scalar_one()
+            if int(active_admins) == 0:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Нельзя оставить систему без активного администратора",
+                )
+            # Демонтаж другого администратора - действие с последствиями для чужого
+            # аккаунта: без подтверждения пароля это способ тихо понизить коллегу.
+            if caller is not None and str(user.id) != caller.get("uid"):
+                await _assert_caller_password(session, caller, body.caller_password)
+
+        changes: list[str] = []
+        if body.role is not None and body.role != user.role:
+            user.role = body.role
+            changes.append(f"role={body.role}")
+        if body.is_active is not None and bool(body.is_active) != bool(user.is_active):
+            user.is_active = body.is_active
+            changes.append(f"is_active={body.is_active}")
+        if body.full_name is not None and body.full_name != user.full_name:
+            user.full_name = body.full_name
+            changes.append(f"full_name={body.full_name!r}")
+
+        user.updated_at = datetime.now(UTC)
+        await session.commit()
+
+        totp_row = None
+        if await _admin_totp_present(session):
+            totp = await session.execute(
+                text("SELECT confirmed FROM admin_totp WHERE user_id = :uid"), {"uid": user_id}
+            )
+            totp_row = totp.first()
+        counts = (
+            await session.execute(
+                text(
+                    "SELECT COUNT(*) FILTER (WHERE logged_out_at IS NULL) AS open_sessions, "
+                    "MAX(last_activity) AS last_activity FROM sessions WHERE user_id = :uid"
+                ),
+                {"uid": user_id},
+            )
+        ).first()
+        # Row из text() индексируется позиционно, не по имени колонки.
+        open_sessions_value = int(counts[0] or 0) if counts else 0
+        last_activity_value = counts[1] if counts else None
+        dirs_result = await session.execute(
+            text("SELECT dir_code FROM user_directions WHERE user_id = :uid ORDER BY dir_code"),
+            {"uid": user_id},
+        )
+        directions = [row[0] for row in dirs_result]
+
+    target = f"uid={user_id}" + ((" " + " ".join(changes)) if changes else "")
+    await audit_action(request, "admin.user.update", target)
+    return {
+        "user": _user_payload(
+            user_id=str(user.id),
+            email=user.email,
+            full_name=user.full_name,
+            role=user.role,
+            is_active=user.is_active,
+            directions=directions,
+            log_counts=get_logs_by_user(),
+            totp_enabled=bool(totp_row and totp_row[0]),
+            open_sessions=open_sessions_value,
+            last_activity=last_activity_value,
+        )
+    }
+
+
+@router.post("/admin/users/{user_id}/password", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("10/minute")
+async def admin_user_password(request: Request, user_id: str, body: PasswordResetRequest):
+    """Сбросить пароль; все открытые сессии, кроме текущей, отзываются."""
+    from sqlalchemy import text
+
+    from src.database import async_session_factory
+    from src.models.krm_models import User
+
+    user_id = _validate_uuid(user_id, "user_id")
+    caller = await get_current_user(request)
+    async with async_session_factory() as session:
+        user = await session.get(User, user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        if user.role == "admin" and caller is not None and str(user.id) != caller.get("uid"):
+            await _assert_caller_password(session, caller, body.caller_password)
+        result = await session.execute(
+            text("SELECT crypt(:pw, gen_salt('bf', 12)) AS pw_hash"),
+            {"pw": body.new_password},
+        )
+        pw_hash = result.scalar_one()
+        user.password_hash = pw_hash
+        user.updated_at = datetime.now(UTC)
+        mine = _hash_token(_request_token(request))
+        res = await session.execute(
+            text(
+                "UPDATE sessions SET logged_out_at = NOW() "
+                "WHERE user_id = :uid AND logged_out_at IS NULL AND token_hash <> :mine"
+            ),
+            {"uid": user_id, "mine": mine},
+        )
+        revoked = res.rowcount or 0
+        await session.commit()
+
+    await audit_action(request, "admin.user.password_reset", f"uid={user_id}")
+    return {"status": "ok", "revoked_sessions": revoked}
+
+
+@router.post("/admin/users/{user_id}/sessions/revoke", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def admin_user_sessions_revoke(request: Request, user_id: str):
+    """Отозвать все открытые сессии пользователя, кроме сессии вызывающего."""
+    from sqlalchemy import text
+
+    from src.database import async_session_factory
+    from src.models.krm_models import User
+
+    user_id = _validate_uuid(user_id, "user_id")
+    async with async_session_factory() as session:
+        user = await session.get(User, user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        mine = _hash_token(_request_token(request))
+        res = await session.execute(
+            text(
+                "UPDATE sessions SET logged_out_at = NOW() "
+                "WHERE user_id = :uid AND logged_out_at IS NULL AND token_hash <> :mine"
+            ),
+            {"uid": user_id, "mine": mine},
+        )
+        revoked = res.rowcount or 0
+        await session.commit()
+
+    await audit_action(request, "admin.user.sessions_revoke", f"uid={user_id}")
+    return {"status": "ok", "revoked": revoked}
+
+
+@router.post("/admin/users/{user_id}/2fa/reset", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("10/minute")
+async def admin_user_2fa_reset(request: Request, user_id: str, body: AdminStepUpRequest | None = None):
+    """Сбросить 2FA пользователя (удалить admin_totp)."""
+    from sqlalchemy import text
+
+    from src.database import async_session_factory
+    from src.models.krm_models import User
+
+    user_id = _validate_uuid(user_id, "user_id")
+    caller = await get_current_user(request)
+    async with async_session_factory() as session:
+        user = await session.get(User, user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        if user.role == "admin" and caller is not None and str(user.id) != caller.get("uid"):
+            await _assert_caller_password(session, caller, body.caller_password if body else None)
+        if not await _admin_totp_present(session):
+            raise HTTPException(status_code=400, detail="2FA не настроена")
+        res = await session.execute(
+            text("DELETE FROM admin_totp WHERE user_id = :uid"), {"uid": user_id}
+        )
+        if (res.rowcount or 0) == 0:
+            raise HTTPException(status_code=400, detail="2FA не настроена")
+        await session.commit()
+
+    await audit_action(request, "admin.user.2fa_reset", f"uid={user_id}")
+    return {"status": "ok"}
+
+
+@router.get("/admin/sessions", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("30/minute")
+async def admin_sessions(
+    request: Request,
+    user: str = Query("", description="Email пользователя"),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+):
+    """Все сессии с привязкой к пользователям (новые первыми)."""
+    from sqlalchemy import text
+
+    from src.database import async_session_factory
+
+    where_clause = ""
+    params: dict[str, Any] = {}
+    if user.strip():
+        params["user"] = user.strip().lower()
+        where_clause = " WHERE lower(u.email) = :user"
+
+    async with async_session_factory() as session:
+        rows = (
+            await session.execute(
+                text(
+                    f"""
+                    SELECT s.id, u.email, u.role, s.ip_address, s.user_agent,
+                           s.logged_in_at, s.last_activity,
+                           (s.logged_out_at IS NULL) AS is_open
+                      FROM sessions s JOIN users u ON u.id = s.user_id
+                    {where_clause}
+                     ORDER BY s.logged_in_at DESC
+                     LIMIT :limit OFFSET :offset
+                    """
+                ),
+                {**params, "limit": limit, "offset": offset},
+            )
+        ).fetchall()
+        total = (
+            await session.execute(
+                text(
+                    f"SELECT COUNT(*) FROM sessions s JOIN users u ON u.id = s.user_id{where_clause}"
+                ),
+                params,
+            )
+        ).scalar_one()
+
+    return {
+        "sessions": [
+            {
+                "id": str(r.id),
+                "email": r.email,
+                "role": r.role,
+                "ip_address": r.ip_address,
+                "user_agent": r.user_agent,
+                "logged_in_at": r.logged_in_at.isoformat() if r.logged_in_at else None,
+                "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+                "is_open": bool(r.is_open),
+            }
+            for r in rows
+        ],
+        "total": int(total),
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/admin/monitoring", dependencies=[Depends(require_any_role("admin"))])
 async def admin_monitoring(
     request: Request,
     names: str = Query("", description="Фильтр по именам метрик через запятую"),
@@ -519,7 +1040,7 @@ def _p95_from_buckets(buckets: list[tuple[float, float]]) -> float | None:
     return buckets[-2][0] if len(buckets) > 1 else None
 
 
-@router.get("/admin/monitoring/summary")
+@router.get("/admin/monitoring/summary", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def admin_monitoring_summary(request: Request):
     """Сводка для панели здоровья: латентность, ошибки, сессии, прогоны, свежесть."""
@@ -600,7 +1121,7 @@ async def admin_logs(
     return {"logs": entries, "total": len(entries)}
 
 
-@router.get("/admin/student-actions")
+@router.get("/admin/student-actions", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("30/minute")
 async def admin_student_actions(
     request: Request,
@@ -634,7 +1155,7 @@ async def admin_logs_file(
     # Последняя строка может быть неполной (пишется на лету) - берём хвост целиком
     wanted = raw_lines[-max(lines, 1):]
     if level in ("error", "warning", "info", "debug"):
-        wanted = [l for l in wanted if f"level={level}" in l or l.startswith(f"{level.upper()} ")]
+        wanted = [line for line in wanted if f"level={level}" in line or line.startswith(f"{level.upper()} ")]
         wanted = wanted[-max(lines, 1):]
     return {"file": str(LOG_FILE), "lines": wanted, "total": len(wanted)}
 
@@ -651,6 +1172,7 @@ class SeedDBRequest(BaseModel):
 async def admin_seed_db(request: Request, body: SeedDBRequest, background_tasks: BackgroundTasks):
     """Seed database from JSON files (skills, disciplines, competencies)."""
     background_tasks.add_task(_run_seed, drop=body.drop)
+    await audit_action(request, "admin.db.seed", f"drop={body.drop}")
     return {"status": "started", "message": "Seeding database in background"}
 
 
@@ -676,6 +1198,7 @@ async def admin_create_user(request: Request, body: CreateUserRequest):
     """Create a new user with bcrypt-hashed password (optionally bind directions)."""
     from src.cli.create_user import main as create_user_main
     await create_user_main(body.email, body.password, body.role, body.name, body.directions)
+    await audit_action(request, "admin.user.create", f"email={body.email} role={body.role}")
     return {"status": "ok", "email": body.email, "role": body.role, "directions": body.directions}
 
 
@@ -688,6 +1211,7 @@ class EmbeddingsRequest(BaseModel):
 async def admin_generate_embeddings(request: Request, body: EmbeddingsRequest, background_tasks: BackgroundTasks):
     """Generate sentence-transformers embeddings for all skills."""
     background_tasks.add_task(_run_embeddings, force=body.force)
+    await audit_action(request, "admin.embeddings.generate", f"force={body.force}")
     return {"status": "started", "message": "Generating embeddings in background"}
 
 
@@ -729,6 +1253,7 @@ async def admin_import_students(request: Request, body: list[StudentImportItem])
 
     await import_main(str(tmp_path))
     tmp_path.unlink(missing_ok=True)
+    await audit_action(request, "admin.students.import", f"count={len(body)}")
     return {"status": "ok", "imported": len(body)}
 
 
@@ -750,7 +1275,7 @@ class CategorizeSkillsRequest(BaseModel):
     assignments: list[dict[str, str]]  # [{"skill": "...", "category": "..."}]
 
 
-@router.get("/admin/skills/uncategorized")
+@router.get("/admin/skills/uncategorized", dependencies=[Depends(require_any_role("admin"))])
 @limiter.limit("20/minute")
 async def admin_skills_uncategorized(request: Request):
     """Некатегоризованные навыки it_skills + предложенная категория (эмбеддинг)."""
@@ -899,6 +1424,7 @@ async def admin_skills_reject(request: Request, suggestion_id: str):
 async def admin_export_db(request: Request, background_tasks: BackgroundTasks):
     """Export all DB tables to JSON files in data/export/."""
     background_tasks.add_task(_run_export)
+    await audit_action(request, "admin.db.export")
     return {"status": "started", "message": "Exporting database in background"}
 
 
@@ -916,6 +1442,7 @@ async def admin_backup_db(request: Request):
     """Create a PostgreSQL dump in data/backups/."""
     from src.cli.backup_db import main as backup_main
     backup_main()
+    await audit_action(request, "admin.db.backup")
     return {"status": "ok", "message": "Backup created"}
 
 
@@ -1077,6 +1604,7 @@ async def scheduler_settings_update(request: Request, body: SchedulerSettingsPat
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
     save_scheduler_settings(patch)
     logger.info("scheduler_settings_updated", patch=patch)
+    await audit_action(request, "admin.scheduler.settings", str(patch))
     return _status()
 
 
@@ -1088,6 +1616,7 @@ async def scheduler_collect_now(request: Request):
     if is_scheduler_busy():
         raise HTTPException(status_code=409, detail="Планировщик уже выполняет задачу")
     asyncio.create_task(_run_collect_once(force=True))
+    await audit_action(request, "admin.scheduler.collect")
     return {"status": "started", "job": "collect"}
 
 
@@ -1099,4 +1628,62 @@ async def scheduler_gap_now(request: Request):
     if is_scheduler_busy():
         raise HTTPException(status_code=409, detail="Планировщик уже выполняет задачу")
     asyncio.create_task(_run_scheduled_gap())
+    await audit_action(request, "admin.scheduler.gap")
     return {"status": "started", "job": "gap"}
+
+# ---------- Security: глобальный рубильник 2FA ----------
+
+
+class SecuritySettingsPatch(BaseModel):
+    """Частичный патч настроек безопасности (сейчас только флаг 2FA)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    two_factor_enabled: bool | None = None
+
+
+async def _admin_totp_counts() -> tuple[int, int]:
+    """(настроили TOTP, подтвердили TOTP). Нет таблицы -> (0, 0), без падения."""
+    try:
+        pool = await get_pool()
+        if pool is None:
+            return 0, 0
+        row = await pool.fetchrow(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE t.user_id IS NOT NULL) AS enrolled,
+                COUNT(*) FILTER (WHERE t.confirmed) AS active
+            FROM users u
+            LEFT JOIN admin_totp t ON t.user_id = u.id
+            WHERE u.role = 'admin'
+            """
+        )
+    except Exception:  # таблица ещё не создана или БД недоступна
+        logger.warning("admin_totp_counts_unavailable", exc_info=True)
+        return 0, 0
+    if row is None:
+        return 0, 0
+    return int(row["enrolled"] or 0), int(row["active"] or 0)
+
+
+@router.get("/admin/security/settings", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("60/minute")
+async def admin_security_settings(request: Request):
+    """Глобальный флаг 2FA + сколько админов уже настроили себе TOTP."""
+    settings = load_security_settings()
+    enrolled, active = await _admin_totp_counts()
+    return {**settings, "enrolled_admins": enrolled, "active_admins": active}
+
+
+@router.put("/admin/security/settings", dependencies=[Depends(require_any_role("admin"))])
+@limiter.limit("10/minute")
+async def admin_security_settings_update(request: Request, body: SecuritySettingsPatch):
+    """Включить/выключить 2FA. Применяется сразу, без рестарта API."""
+    patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not patch:
+        raise HTTPException(status_code=400, detail="Нет изменений")
+    saved = save_security_settings(patch)
+    logger.info("security_settings_updated", patch=patch)
+    await audit_action(request, "admin.security.settings", str(patch))
+    return saved
+

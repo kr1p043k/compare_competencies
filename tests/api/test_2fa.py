@@ -71,6 +71,7 @@ async def env() -> AsyncIterator[dict[str, Any]]:
     import src.db as dbmod
 
     old = dbmod.pool
+    real_two_factor_enabled = auth_mod.two_factor_enabled
     try:
         pool = await asyncpg.create_pool(TEST_DB_URL, min_size=1, max_size=2, command_timeout=30)
     except Exception:  # pragma: no cover
@@ -80,6 +81,9 @@ async def env() -> AsyncIterator[dict[str, Any]]:
         auth_mod.limiter._storage.reset()
     await auth_mod._ensure_totp_table(pool)
     await _make_admin(pool)
+    # 2FA теперь за глобальным рубильником (по умолчанию выключен): эти тесты
+    # проверяют поведение включённой 2FA, поэтому флаг включаем точечно.
+    auth_mod.two_factor_enabled = lambda: True
 
     app = create_app()
     try:
@@ -88,6 +92,7 @@ async def env() -> AsyncIterator[dict[str, Any]]:
     finally:
         await _drop_user(pool)
         dbmod.pool = old
+        auth_mod.two_factor_enabled = real_two_factor_enabled
         await pool.close()
 
 
