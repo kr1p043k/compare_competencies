@@ -451,13 +451,22 @@ async def krm_discipline_detail(request: Request, discipline_name: str, dir_code
                 "skills": c["skills"] or [],
                 "ksa": {
                     "knowledge": [
-                        {"id": str(i), "text": t} for i, t in zip(c["knowledge_ids"] or [], c["knowledge"] or [], strict=False)
+                        {"id": str(i), "text": t}
+                        for i, t in zip(
+                            c["knowledge_ids"] or [], c["knowledge"] or [], strict=False
+                        )
                     ],
                     "abilities": [
-                        {"id": str(i), "text": t} for i, t in zip(c["abilities_ids"] or [], c["abilities"] or [], strict=False)
+                        {"id": str(i), "text": t}
+                        for i, t in zip(
+                            c["abilities_ids"] or [], c["abilities"] or [], strict=False
+                        )
                     ],
                     "skills": [
-                        {"id": str(i), "text": t} for i, t in zip(c["prof_skills_ids"] or [], c["prof_skills"] or [], strict=False)
+                        {"id": str(i), "text": t}
+                        for i, t in zip(
+                            c["prof_skills_ids"] or [], c["prof_skills"] or [], strict=False
+                        )
                     ],
                 },
             }
@@ -646,7 +655,7 @@ async def suggest_skill(request: Request):
         entry = suggest_add(skill, hint, me.get("u", ""))
     except ValueError as e:
         logger.warning("skill_suggest_rejected", error=str(e))
-        raise HTTPException(status_code=400, detail="Некорректные данные навыка.")
+        raise HTTPException(status_code=400, detail="Некорректные данные навыка.") from e
     await audit_action(
         request, "skills.suggest",
         f"skill={entry.get('skill')} hint={hint[:64]} id={entry.get('id')}",
@@ -941,10 +950,10 @@ async def export_vacancies_excel(request: Request, search: str | None = None,
     # память. Берём max_rows+1, чтобы отличить «ровно max_rows» от «больше»,
     # и просим сузить фильтры вместо тихого усечения данных.
     recs = await pool.fetch(
-        """SELECT hh_id, name, employer_name, area_name, salary_from, salary_to,
+        f"""SELECT hh_id, name, employer_name, area_name, salary_from, salary_to,
                   experience, alternate_url, parsed_skills, key_skills
-           FROM vacancies v WHERE %s ORDER BY v.published_at DESC NULLS LAST
-           LIMIT $%d""" % (where, len(params) + 1),
+           FROM vacancies v WHERE {where} ORDER BY v.published_at DESC NULLS LAST
+           LIMIT ${len(params) + 1}""",
         *params, max_rows + 1)
     if len(recs) > max_rows:
         raise HTTPException(
@@ -1155,7 +1164,9 @@ async def admin_student_skills(request: Request, email: str = ""):
                 "SELECT full_name FROM users WHERE lower(email) = $1", target)
         except Exception as exc:
             logger.warning("admin_student_skills_db_failed", error=str(exc))
-            raise HTTPException(status_code=503, detail="User directory unavailable")
+            raise HTTPException(
+                status_code=503, detail="User directory unavailable"
+            ) from exc
         if row is None:
             raise HTTPException(status_code=404, detail=f"No user for '{target}'")
         return {
@@ -1179,7 +1190,9 @@ async def admin_student_skills(request: Request, email: str = ""):
         full_name = (row["full_name"] if row else "") or ""
     except Exception as exc:
         logger.warning("admin_student_skills_db_failed", error=str(exc))
-        raise HTTPException(status_code=503, detail="User directory unavailable")
+        raise HTTPException(
+            status_code=503, detail="User directory unavailable"
+        ) from exc
     return {
         "email": target,
         "full_name": full_name,
@@ -1202,7 +1215,9 @@ async def teacher_students(request: Request):
             "WHERE role = 'student' AND is_active = true ORDER BY email")
     except Exception as exc:
         logger.warning("teacher_students_db_failed", error=str(exc))
-        raise HTTPException(status_code=503, detail="User directory unavailable")
+        raise HTTPException(
+            status_code=503, detail="User directory unavailable"
+        ) from exc
     items: list[dict] = []
     for r in rows:
         email = str(r["email"] or "")
@@ -1258,8 +1273,10 @@ async def get_analysis_discipline(discipline_name: str, dir_code: str = "09.03.0
     files = [f for f in base.rglob(f"{safe}.json") if f.name != "_summary.json"]
     if not files:
         for f in base.rglob("*.json"):
-            if f.name == "_summary.json": continue
-            if discipline_name.lower() in f.stem.lower(): files.append(f)
+            if f.name == "_summary.json":
+                continue
+            if discipline_name.lower() in f.stem.lower():
+                files.append(f)
     if not files:
         raise HTTPException(404, f"'{discipline_name}' not found")
     data = json.loads(files[0].read_text(encoding="utf-8"))
