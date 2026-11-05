@@ -1414,8 +1414,29 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
     )
     comp_map = {(str(r["discipline_id"]), r["code"]): str(r["id"]) for r in comp_rows}
 
+    # Один батч-запрос на всё существующее состояние направления вместо
+    # одного round-trip на каждую запись в цикле.
+    existing_rows = await pool.fetch(
+        """SELECT competency_id, ksa_type::text AS ksa_type, original_text, sort_order
+           FROM ksa_entries WHERE competency_id = ANY($1::uuid[])""",
+        list(comp_map.values()),
+    )
+    existing_types: set[tuple[str, str]] = set()
+    existing_texts: set[tuple[str, str, str]] = set()
+    sort_seed: dict[str, int] = {}
+    for r in existing_rows:
+        cid = str(r["competency_id"])
+        kt = r["ksa_type"]
+        existing_types.add((cid, kt))
+        existing_texts.add((cid, kt, r["original_text"]))
+        if r["sort_order"] is not None and r["sort_order"] > sort_seed.get(cid, 0):
+            sort_seed[cid] = r["sort_order"]
+
     inserted = skipped_dup = skipped_gap = 0
     disciplines_processed = 0
+    next_sort = {cid: sort_seed.get(cid, 0) + 1 for cid in comp_map.values()}
+    to_insert: list[tuple[str, str, str, int]] = []
+
     for disc_name, disc_data in sorted(disciplines_raw.items()):
         disc_id = disc_map.get(disc_name)
         if not disc_id:
@@ -1426,41 +1447,36 @@ async def _import_direction(pool, dir_code: str, dry_run: bool) -> dict:
             comp_id = comp_map.get((disc_id, comp_code))
             if not comp_id:
                 continue
-            for kt in ("knowledge", "abilities", "skills"):
+            for kt in KSA_TYPES:
                 texts = sections.get(kt, []) or []
                 # gap-fill: if category already has entries for this competency in DB - skip
-                existing_type = await pool.fetchval(
-                    "SELECT EXISTS (SELECT 1 FROM ksa_entries WHERE competency_id=$1 AND ksa_type=$2::ksa_type)",
-                    comp_id, kt,
-                )
-                if existing_type and not dry_run:
+                if (comp_id, kt) in existing_types and not dry_run:
                     skipped_gap += len(texts)
                     continue
                 for raw in texts:
                     text = (raw or "").strip()
                     if not text:
                         continue
-                    dup = await pool.fetchval(
-                        """SELECT EXISTS (SELECT 1 FROM ksa_entries
-                                         WHERE competency_id=$1 AND ksa_type=$2::ksa_type AND original_text=$3)""",
-                        comp_id, kt, text,
-                    )
-                    if dup:
+                    if (comp_id, kt, text) in existing_texts:
                         skipped_dup += 1
                         continue
                     if dry_run:
                         inserted += 1
                         continue
-                    sort = await pool.fetchval(
-                        "SELECT COALESCE(MAX(sort_order),0)+1 FROM ksa_entries WHERE competency_id=$1",
-                        comp_id,
-                    )
-                    await pool.execute(
-                        """INSERT INTO ksa_entries (competency_id, ksa_type, original_text, cleaned_text, sort_order, parse_version_id)
-                           VALUES ($1, $2::ksa_type, $3, $3, $4, NULL)""",  # noqa: E501
-                        comp_id, kt, text, sort,
-                    )
+                    existing_texts.add((comp_id, kt, text))
+                    sort = next_sort[comp_id]
+                    next_sort[comp_id] = sort + 1
+                    to_insert.append((comp_id, kt, text, sort))
                     inserted += 1
+
+    # Одна вставка многими строками и один коммит на весь импорт.
+    if to_insert:
+        async with pool.acquire() as conn, conn.transaction():
+            await conn.executemany(
+                """INSERT INTO ksa_entries (competency_id, ksa_type, original_text, cleaned_text, sort_order, parse_version_id)
+                   VALUES ($1, $2::ksa_type, $3, $3, $4, NULL)""",  # noqa: E501
+                to_insert,
+            )
 
     return {
         "dir_code": dir_code,

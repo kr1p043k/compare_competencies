@@ -1200,41 +1200,51 @@ async def teacher_students(request: Request):
     except Exception as exc:
         logger.warning("teacher_students_db_failed", error=str(exc))
         raise HTTPException(status_code=503, detail="User directory unavailable")
-    items: list[dict] = []
-    for r in rows:
-        email = str(r["email"] or "")
+    # Список студентов читаем один раз; по каждому студенту данных из БД нет -
+    # профили лежат на диске, поэтому читаем их параллельно в потоках с
+    # ограниченным семафором, а не последовательно в цикле.
+    semaphore = asyncio.Semaphore(8)
+
+    def _resolve_student(email: str, full_name: str) -> dict[str, object]:
         try:
             name, fpath = _self_profile_name(email)
             probe = Path(fpath)
             if probe.exists():
                 data = _load_self_profile(name, fpath)
-                items.append({
+                return {
                     "email": email,
-                    "full_name": (r["full_name"] or ""),
+                    "full_name": full_name,
                     "target_level": data.get("target_level", "middle"),
                     "skills_count": len(data.get("skills", [])),
                     "competencies_count": len(data.get("competencies", [])),
                     "has_profile": True,
-                })
-            else:
-                items.append({
-                    "email": email,
-                    "full_name": (r["full_name"] or ""),
-                    "target_level": None,
-                    "skills_count": 0,
-                    "competencies_count": 0,
-                    "has_profile": False,
-                })
-        except Exception:
-            items.append({
+                }
+            return {
                 "email": email,
-                "full_name": (r["full_name"] or ""),
+                "full_name": full_name,
                 "target_level": None,
                 "skills_count": 0,
                 "competencies_count": 0,
                 "has_profile": False,
-            })
-    return {"students": items, "total": len(items)}
+            }
+        except Exception:
+            return {
+                "email": email,
+                "full_name": full_name,
+                "target_level": None,
+                "skills_count": 0,
+                "competencies_count": 0,
+                "has_profile": False,
+            }
+
+    async def _load_student(email: str, full_name: str) -> dict[str, object]:
+        async with semaphore:
+            return await asyncio.to_thread(_resolve_student, email, full_name)
+
+    items = await asyncio.gather(
+        *(_load_student(str(r["email"] or ""), r["full_name"] or "") for r in rows)
+    )
+    return {"students": list(items), "total": len(items)}
 
 
 @router.get(
