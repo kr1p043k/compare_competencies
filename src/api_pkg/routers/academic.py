@@ -23,15 +23,7 @@ from slowapi.util import get_remote_address
 
 from src import config
 from src.api_pkg.client_ip import client_ip
-from src.api_pkg.routers.auth import (
-    _TOTP_CHALLENGE_TTL,
-    _hash_token,
-    _issue_challenge,
-    _make_token,
-    _totp_state,
-    get_current_user,
-    require_any_role,
-)
+from src.api_pkg.routers.auth import _hash_token, _make_token, get_current_user, require_any_role
 from src.db import get_pool
 
 logger = structlog.get_logger(__name__)
@@ -50,6 +42,11 @@ _ACADEMIC_HEADERS = {
         "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
     )
 }
+
+
+# /auth/sso принимает hub-JWT в теле; cap защищает _jwt_username (base64-декод)
+# и внешний verify-token от патологически длинных токенов. JWT хаба ~1-2 КБ.
+_MAX_SSO_TOKEN_LEN = 4096
 
 
 class SsoRequest(BaseModel):
@@ -311,11 +308,11 @@ async def sso_login(body: SsoRequest, request: Request):
             detail="Учётная запись ЮФУ не найдена в системе. Обратитесь к администратору.",
         )
 
-    # 2FA: SSO не должен обходить TOTP. Для админа с подтверждённым TOTP
-    # ведём себя как /auth/login: токен не выдаём, а возвращаем одноразовый
-    # challenge - код проверит /auth/2fa/verify. Если TOTP не настроен (или
-    # не подтверждён), выдаём токен как раньше.
+    # 2FA обязательна и для SSO: иначе владелец hub-JWT админа получал бы
+    # полный токен, не зная TOTP (второй фактор обходился стороной).
     if row["role"] == "admin":
+        from src.api_pkg.routers.auth import _issue_challenge, _totp_state
+
         state = await _totp_state(pool, row["id"])
         if state and state.get("confirmed"):
             challenge = _issue_challenge(str(row["id"]))
@@ -323,7 +320,7 @@ async def sso_login(body: SsoRequest, request: Request):
             return {
                 "status": "totp_required",
                 "challenge_id": challenge,
-                "expires_in": _TOTP_CHALLENGE_TTL,
+                "expires_in": 300,
             }
 
     token = _make_token(str(row["id"]), row["email"], row["role"])
@@ -346,10 +343,11 @@ async def sso_login(body: SsoRequest, request: Request):
 
 
 @router.get("/academic/krm-competencies")
+@limiter.limit("60/minute")
 async def academic_krm_competencies(
     request: Request,
     dir_code: str | None = None,
-    user: dict[str, Any] = Depends(_require_user),  # noqa: B008 — FastAPI DI in signature
+    user: dict[str, Any] = Depends(_require_user),
 ):
     """Все коды компетенций ОП из БД (для current_competencies в analyze-gap).
 
@@ -376,10 +374,11 @@ async def academic_krm_competencies(
 
 
 @router.post("/academic/get-competencies")
+@limiter.limit("10/minute")
 async def academic_get_competencies(
     body: CompetenciesRequest,
     request: Request,
-    user: dict[str, Any] = Depends(_require_user),  # noqa: B008 — FastAPI DI in signature
+    user: dict[str, Any] = Depends(_require_user),
 ):
     """Компетенции направления из БД.
 
@@ -413,10 +412,11 @@ async def academic_get_competencies(
 
 
 @router.post("/academic/analyze-gap", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("10/minute")
 async def academic_analyze_gap(
     body: GapRequest,
     request: Request,
-    user: dict[str, Any] = Depends(_require_user),  # noqa: B008 — FastAPI DI in signature
+    user: dict[str, Any] = Depends(_require_user),
 ):
     """Анализ разрыва по теме (AcademicGapAnalyzer)."""
     sso_token, token_hash = await _get_sso_token(request)
@@ -435,10 +435,11 @@ async def academic_analyze_gap(
 
 
 @router.post("/academic/analyze-gap-local", dependencies=[Depends(require_any_role("admin", "teacher", "rop"))])
+@limiter.limit("10/minute")
 async def academic_analyze_gap_local(
     body: CompetenciesRequest,
     request: Request,
-    user: dict[str, Any] = Depends(_require_user),  # noqa: B008 — FastAPI DI in signature
+    user: dict[str, Any] = Depends(_require_user),
 ):
     """Собственный анализ разрыва (без сервиса ЮФУ).
 

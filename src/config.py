@@ -77,6 +77,18 @@ class Settings(BaseSettings):
 
     # ---------- безопасность ----------
     SECRET_KEY: SecretStr | None = None
+
+    # Глобальный рубильник двухфакторной аутентификации. По умолчанию ВЫКЛ:
+    # пока включён, новые пользователи не могут подключить второй фактор, но
+    # те, кто уже подключил, продолжают его проходить (флаг не обходит защиту).
+    TWO_FACTOR_ENABLED: bool = False
+    # Канал второго фактора. Сейчас реализован только TOTP (приложение-
+    # аутентификатор). "email"/"sms" - задел: значения принимаются, но
+    # отправка кода не реализована, /auth/2fa/status вернёт available=false
+    # и причину, чтобы UI не показывал нерабочий переключатель.
+    TWO_FACTOR_METHOD: str = "totp"
+    # Необязательный адрес поддержки: показывается в тексте ошибок 2FA.
+    SUPPORT_EMAIL: str = ""
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
     TOKEN_TTL_DAYS: int = 7
     # Токен для скрейпинга /metrics (Prometheus). Если задан, эндпоинт
@@ -480,6 +492,9 @@ PYDANTIC_VALIDATION_ENABLED = settings.PYDANTIC_VALIDATION_ENABLED
 ACADEMIC_API_BASE = settings.ACADEMIC_API_BASE
 ACADEMIC_TRENDS_API_BASE = settings.ACADEMIC_TRENDS_API_BASE
 ACADEMIC_EMAIL_DOMAIN = settings.ACADEMIC_EMAIL_DOMAIN
+TWO_FACTOR_ENABLED = settings.TWO_FACTOR_ENABLED
+TWO_FACTOR_METHOD = settings.TWO_FACTOR_METHOD
+SUPPORT_EMAIL = settings.SUPPORT_EMAIL
 ACADEMIC_SSO_ENABLED = settings.ACADEMIC_SSO_ENABLED
 
 HUB_API_BASE = settings.HUB_API_BASE
