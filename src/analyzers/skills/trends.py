@@ -4,6 +4,7 @@
 """
 
 import argparse
+import contextlib
 import json
 import logging
 import sys
@@ -19,7 +20,6 @@ from src import Err, Ok, Result, config
 from src.errors import DomainError
 from src.models.enums import TrendType
 from src.utils import extract_date_from_filename, validate_safe_path
-import contextlib
 
 logger = structlog.get_logger(__name__)
 

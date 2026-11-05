@@ -120,7 +120,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
         return False
 
     labels_list = list(clusterer.labels_) if hasattr(clusterer, "labels_") else []
-    unique_labels = sorted(set(l for l in labels_list if l >= 0))
+    unique_labels = sorted(set(label for label in labels_list if label >= 0))
     logger.info("clustering_completed", clusters=len(unique_labels))
 
     _CLUSTER_STOP = frozenset({
@@ -145,7 +145,7 @@ def train_clusters(level: str = "all", save_report: bool = True, interpret: bool
     cluster_skill_freqs: list[Counter] = []
     cluster_sizes: list[int] = []
     for cl_id in unique_labels:
-        indices = [i for i, l in enumerate(labels_list) if l == cl_id]
+        indices = [i for i, label in enumerate(labels_list) if label == cl_id]
         cluster_sizes.append(len(indices))
         cluster_vacs = [prepared[i] for i in indices]
         cf: Counter = Counter()

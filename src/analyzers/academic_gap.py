@@ -197,7 +197,9 @@ class AcademicGapAnalyzer:
         if self._comparator is None:
             from src.analyzers.comparison.embedding_comparator import EmbeddingComparator
 
-            self._comparator = EmbeddingComparator(similarity_threshold=0.6)  # prodval 2026-10-10: 0.6 один в один с валидацией; SIM_THRESHOLD ниже - только для topic-гейта
+            # prodval 2026-10-10: 0.6 один в один с валидацией;
+            # SIM_THRESHOLD ниже - только для topic-гейта
+            self._comparator = EmbeddingComparator(similarity_threshold=0.6)
         return self._comparator
 
     # ── шаг 1: тема → навыки ──────────────────────────────────────────────
@@ -208,10 +210,7 @@ class AcademicGapAnalyzer:
 
         parser = SkillParser()
         extracted = parser._extract_from_text(topic, SkillSource.DESCRIPTION)
-        if extracted.is_err():
-            extracted = []
-        else:
-            extracted = extracted.unwrap()
+        extracted = [] if extracted.is_err() else extracted.unwrap()
         skills = [s.text.strip() for s in extracted if s.text and s.text.strip()]
         # сама тема как единый фрагмент
         # C5 fix: raw topic removed (was: if topic and topic.strip():)
@@ -608,8 +607,8 @@ class AcademicGapAnalyzer:
         found_trends: list[str] = []
         for m in market_stats.get("top_market", [])[:10]:
             found_trends.append(
-                '{title: "%s", summary: "Рыночный навык, близость к теме: %.2f", '
-                'keywords: ["%s"]}' % (m["skill"], m["similarity"], m["skill"])
+                '{{title: "{}", summary: "Рыночный навык, близость к теме: {:.2f}", '
+                'keywords: ["{}"]}}'.format(m["skill"], m["similarity"], m["skill"])
             )
 
         ranked = [r for r in results if r["status"] != "no_data"]
@@ -626,8 +625,7 @@ class AcademicGapAnalyzer:
             comp_trends: list[str] = []
             for s in near[:3]:
                 comp_trends.append(
-                    '{title: "%s", summary: "Навык компетенции", keywords: ["%s"]}'
-                    % (s, s)
+                    f'{{title: "{s}", summary: "Навык компетенции", keywords: ["{s}"]}}'
                 )
             recommended.append({
                 "code": r["code"],

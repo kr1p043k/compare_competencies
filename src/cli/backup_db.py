@@ -21,7 +21,8 @@ def main(restore: str | None = None) -> None:
         backups = sorted(BACKUP_DIR.glob("*.sql"), reverse=True)
         src = Path(restore) if restore != "latest" else (backups[0] if backups else None)
         if not src or not src.exists():
-            print("No backup to restore"); sys.exit(1)
+            print("No backup to restore")
+            sys.exit(1)
         subprocess.run(["pg_restore", "--clean", "--if-exists", "--no-owner",
             f"--dbname=postgresql://{DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}", str(src)], check=True)
         print(f"Restored: {src}")
