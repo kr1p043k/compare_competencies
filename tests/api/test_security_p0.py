@@ -41,9 +41,8 @@ def test_export_rejects_bad_date_with_400_not_500(monkeypatch):
     имя локальным для ВСЕЙ функции, и более ранний raise падал с
     UnboundLocalError (500). Ловилось только живым smoke-прогоном всех GET.
     """
-    from tests.conftest import open_all_gates
-
     import src.api_pkg.routers.teacher as teacher
+    from tests.conftest import open_all_gates
 
     class _Pool:
         async def fetch(self, *_a, **_kw):
