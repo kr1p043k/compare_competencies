@@ -86,27 +86,13 @@ python -c "import yaml,io; yaml.safe_load(io.open('monitoring/alerts.yml',encodi
 (`postgres-exporter:9187`), `node-exporter` (`node-exporter:9100`), `cadvisor`
 (`cadvisor:8080`).
 
-## ВАЖНО: несоответствие авторизации /metrics (дефект)
+## Авторизация /metrics (контракт)
 
 Backend закрывает `/metrics` заголовком `X-Metrics-Token` (константное сравнение
 через `hmac.compare_digest`) либо ролью `admin` - см.
-`src/api_pkg/__init__.py:359-369`. Прометею логин недоступен, поэтому он должен
-слать именно `X-Metrics-Token`.
-
-Но `prometheus/prometheus.yml` сейчас шлёт другой заголовок:
-
-```yaml
-authorization:
-  type: Bearer
-  credentials_file: /etc/prometheus/metrics_token
-```
-
-`authorization` всегда пишет в заголовок `Authorization: Bearer <token>`, а
-backend читает `X-Metrics-Token`. Скрейп job=backend получает 403, таргет
-падает (`up{job="backend"} == 0`), а `CcBackendDown` будет гореть ложно.
-
-Починка (Prometheus поддерживает кастомные заголовки с чтением из файла -
-`http_headers.<name>.files`). Заменить блок `authorization` в job `backend` на:
+`src/api_pkg/__init__.py:359-369`. Прометею логин недоступен, поэтому он шлёт
+именно `X-Metrics-Token`: в `prometheus/prometheus.yml` (job `backend`) это
+кастомный заголовок с чтением секрета из файла:
 
 ```yaml
     http_headers:
@@ -115,12 +101,35 @@ backend читает `X-Metrics-Token`. Скрейп job=backend получае�
           - /etc/prometheus/metrics_token
 ```
 
-`prometheus/metrics_token` уже смонтирован в контейнер read-only
-(`docker-compose.yml`), так что содержимое файла остаётся секретом и не попадает
-в git. После правки: `docker compose up -d prometheus` и
-`curl -X POST http://localhost:9090/-/reload`, затем убедиться, что
-`up{job="backend"} == 1` и в `http://localhost:9090/targets` у job=backend нет
-`403 Forbidden`.
+**Имя заголовка - часть контракта.** `http_headers` пишет ровно тот заголовок,
+который назван ключом, а backend сверяет с `config.METRICS_TOKEN` в константное
+время. Если переименовать ключ в `prometheus.yml` или заголовок в backend,
+Prometheus снова начнёт получать 401/403, `up{job="backend"} == 0` и
+`CcBackendDown` горит ложно. Регресс стережёт контрактный тест
+`tests/test_metrics_auth_contract.py`.
+
+### Создание файла токена
+
+Файл репозитория `prometheus/metrics_token` монтируется в контейнер как
+`/etc/prometheus/metrics_token` (read-only, см. `docker-compose.yml`), поэтому
+секрет не попадает в git:
+
+```bash
+openssl rand -hex 32 > prometheus/metrics_token     # 1) файл читает Prometheus
+# 2) ТО ЖЕ значение в .env -> METRICS_TOKEN=<сюда>
+docker compose up -d backend prometheus --force-recreate
+```
+
+### Ротация токена
+
+```bash
+openssl rand -hex 32 > prometheus/metrics_token
+# обновить METRICS_TOKEN= в .env ТЕМ ЖЕ значением, что в файле
+docker compose up -d backend prometheus --force-recreate
+TOKEN=$(grep -E '^METRICS_TOKEN=' .env | cut -d= -f2-)
+curl -s -o /dev/null -w '%{http_code}\n' -H "X-Metrics-Token: $TOKEN" http://localhost:8000/metrics
+# ожидаем 200; затем перечитать правила и убедиться, что up{job="backend"} == 1
+```
 
 Проверка вручную (значение токена - в `.env`, `METRICS_TOKEN`):
 

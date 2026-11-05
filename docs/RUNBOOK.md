@@ -253,4 +253,6 @@ docker compose up -d backend prometheus --force-recreate
 ```
 
 Проверить: `curl -s -o /dev/null -w '%{http_code}\n' -H "X-Metrics-Token: $TOKEN" http://localhost:8000/metrics`
-должен вернуть `200`. Про известный дефект со `Bearer` см. `monitoring/README.md`.
+должен вернуть `200`. Имя заголовка `X-Metrics-Token` - часть контракта
+`/metrics`: Prometheus шлёт его через `http_headers` в `prometheus/prometheus.yml`,
+а не через `Authorization: Bearer` (см. `monitoring/README.md`).
