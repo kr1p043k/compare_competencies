@@ -1,0 +1,202 @@
+# Prometheus alerting rules for compare_competencies.
+#
+# Метрики, которые РЕАЛЬНО публикуются сервисом и экспортёрами:
+#   backend (/metrics): api_requests_total{method,path,status},
+#     api_request_duration_seconds_bucket, pipeline_stage_duration_seconds_bucket,
+#     pipeline_errors_total{stage}, pipeline_runs_total{status,trigger},
+#     llm_requests_total{model,status}, llm_request_duration_seconds_bucket,
+#     llm_token_usage_total.
+#   postgres-exporter: pg_stat_database_*, pg_settings_*, pg_up.
+#   node-exporter: node_filesystem_*.
+#   cadvisor: container_*.
+#
+# ВАЖНО про /metrics: сейчас prometheus.yml шлёт `Authorization: Bearer` из
+# credentials_file, а backend ждёт заголовок `X-Metrics-Token`
+# (src/api_pkg/__init__.py:359-369). Из-за этого скрейп job=backend может
+# отдавать 403 и up{job="backend"}==0 - см. monitoring/README.md (это надо
+# починить в prometheus.yml).
+#
+# Проверка правил: см. monitoring/README.md (promtool check rules).
+
+groups:
+  - name: cc-backend
+    rules:
+      - alert: CcBackendDown
+        expr: up{job="backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backend compare_competencies недоступен (up{job=backend} == 0)"
+          description: >-
+            Prometheus не смог собрать /metrics с job=backend более 2 минут.
+            Проверьте контейнер compare-competencies-api, /health и (если 403)
+            дефект авторизации /metrics. Раздел RUNBOOK: 5xx и недоступность API.
+          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+
+      - alert: CcApi5xxRateHigh
+        expr: >-
+          (
+            sum(rate(api_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(api_requests_total[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Доля 5xx в /api/* выше 1% за 5 минут"
+          description: >-
+            Более 1% запросов к /api/* отдают 5xx. Учитываются только пути /api/*
+            (middleware RequestLogMiddleware); /health и /ready сюда не входят.
+            Раздел RUNBOOK: шторм 5xx и недоступность API.
+          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+
+      - alert: CcApiP95LatencyHigh
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum(rate(api_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 задержки /api/* выше 2.5 c в течение 10 минут"
+          description: >-
+            p95 длительности запроса /api/* держится выше 2.5 секунд. Проверьте
+            БД, LLM и тяжёлые ручки. Раздел RUNBOOK: шторм 5xx.
+          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+
+  - name: cc-database
+    rules:
+      - alert: CcDbConnectionsSaturated
+        expr: >-
+          (
+            pg_stat_database_numbackends{datname="compare_competencies"}
+            /
+            pg_settings_max_connections
+          ) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Соединения к compare_competencies заполнены более 85%"
+          description: >-
+            Число backend-соединений БД превышает 85% от max_connections.
+            Проверьте долгие запросы и утечки соединений. Требует postgres-exporter.
+            Раздел RUNBOOK: шторм 5xx.
+          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+
+  - name: cc-node
+    rules:
+      - alert: CcDiskSpaceLow
+        expr: >-
+          (
+            node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}
+            /
+            node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}
+          ) < 0.15
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Свободного места на / меньше 15%"
+          description: >-
+            Свободное место на корневом разделе упало ниже 15%. Требует
+            node-exporter. Раздел RUNBOOK: диск заполнен.
+          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+
+      - alert: CcDiskWillFillSoon
+        expr: >-
+          predict_linear(
+            node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}[6h],
+            24 * 3600
+          ) < 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "По тренду диск / заполнится в течение 24 часов"
+          description: >-
+            Линейный прогноз по 6 часам показывает исчерпание места на / в течение
+            суток. Требует node-exporter. Раздел RUNBOOK: диск заполнен.
+          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+
+  - name: cc-llm
+    rules:
+      - alert: CcLlmErrorRateHigh
+        expr: >-
+          (
+            sum(rate(llm_requests_total{status="error"}[10m]))
+            /
+            sum(rate(llm_requests_total[10m]))
+          ) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Доля ошибок LLM выше 20% за 10 минут"
+          description: >-
+            Более 20% запросов к LLM завершаются со status="error". Известные
+            значения метки status: ok, error. Раздел RUNBOOK: шторм 5xx.
+          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+
+  - name: cc-pipeline
+    rules:
+      - alert: CcPipelineErrors
+        expr: increase(pipeline_errors_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Зафиксированы ошибки этапов пайплайна за последние 15 минут"
+          description: >-
+            Счётчик pipeline_errors_total{stage} вырос. Посмотрите stage и
+            сопутствующие логи. Раздел RUNBOOK: шторм 5xx.
+          runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+
+  # ===========================================================================
+  # ОТКЛЮЧЕНО: метрик ниже в системе ЕЩЁ НЕТ. Правила оставлены закомментированными
+  # как ТЗ на доработку. Не раскомментировать, пока метрика не публикуется, иначе
+  # алерт будет вечно "No data"/"Inactive".
+  #
+  # 1) /ready-проба. Endpoint /ready существует (src/api_pkg/routers/health.py:146),
+  #    но blackbox_exporter НЕ настроен, поэтому метрики probe_success НЕТ.
+  #    Чтобы включить: добавить blackbox_exporter + job в prometheus.yml, затем
+  #    раскомментировать:
+  #
+  # - alert: CcReadyProbeFailing
+  #   expr: probe_success{job="blackbox-ready"} == 0
+  #   for: 5m
+  #   labels:
+  #     severity: critical
+  #   annotations:
+  #     summary: "Проба /ready падает (probe_success == 0)"
+  #     runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+  #
+  # 2) Свежесть retention. Нет метрики времени последнего успешного запуска
+  #    (retention_last_success_timestamp_seconds не публикуется). Нужен runbook/CLI,
+  #    который её выставляет, затем:
+  #
+  # - alert: CcRetentionStale
+  #   expr: time() - retention_last_success_timestamp_seconds > 3 * 24 * 3600
+  #   for: 1h
+  #   labels:
+  #     severity: warning
+  #   annotations:
+  #     summary: "Чистка retention не запускалась более 3 суток"
+  #     runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+  #
+  # 3) Пул соединений БД. Gauge занятости пула (db_pool_* ) в /metrics НЕ
+  #    публикуется. Нужно добавить Gauge в src/monitoring/metrics.py, затем:
+  #
+  # - alert: CcDbPoolSaturated
+  #   expr: db_pool_in_use / db_pool_max_size > 0.9
+  #   for: 5m
+  #   labels:
+  #     severity: warning
+  #   annotations:
+  #     summary: "Пул соединений БД заполнен более 90%"
+  #     runbook_url: "https://github.com/kr1p043k/compare_competencies/blob/main/docs/RUNBOOK.md"
+  # ===========================================================================
