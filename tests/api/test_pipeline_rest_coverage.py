@@ -4,7 +4,6 @@ Focuses on idempotency, not-found branches, active/list endpoints, cancel,
 and WebSocket auth. No subprocess / real DB / network.
 """
 
-import asyncio
 import json
 import time
 from unittest.mock import MagicMock
@@ -232,9 +231,8 @@ def test_gap_progress_with_file_returns_data(monkeypatch, tmp_path):
 def test_pipeline_ws_rejects_without_token(monkeypatch):
     monkeypatch.setattr("src.api_pkg.startup.run_startup", _fake_startup)
     client = TestClient(create_app(), raise_server_exceptions=False)
-    with pytest.raises(WebSocketDisconnect) as exc_ctx:
-        with client.websocket_connect("/api/pipeline/ws"):
-            pass
+    with pytest.raises(WebSocketDisconnect) as exc_ctx, client.websocket_connect("/api/pipeline/ws"):
+        pass
     assert exc_ctx.value.code == 4001
 
 
