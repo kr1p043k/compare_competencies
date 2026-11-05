@@ -29,6 +29,25 @@ def _read_json(path: Path) -> Any:
         return json.load(f)
 
 
+async def _require_student_profile(request: Request, profile: str) -> None:
+    """Студент читает только рекомендации/отчёт своего профиля; чужой - 403.
+
+    Ключ своего профиля строится так же, как в get_results_summary
+    (self_<username>); admin/teacher/rop не ограничиваются.
+    """
+    from src.api_pkg.routers.auth import get_current_user
+
+    user = await get_current_user(request) or {}
+    if (user.get("r") or user.get("role")) != "student":
+        return
+    username = str(user.get("u") or user.get("username") or "")
+    safe = "".join(ch if ch.isalnum() else "_" for ch in username.lower())
+    for candidate in (f"self_{safe}", f"self_{safe.replace('.', '_')}"):
+        if candidate == profile:
+            return
+    raise HTTPException(status_code=403, detail="Доступ к чужому профилю запрещён")
+
+
 @router.get(
     "/results/summary",
     dependencies=[Depends(require_any_role("admin", "teacher", "rop", "student"))],
@@ -118,6 +137,7 @@ async def get_recommendations_result(
     profiles: dict[str, StudentProfile] = Depends(deps.get_student_profiles),
 ):
     """Сохранённые рекомендации профиля."""
+    await _require_student_profile(request, profile)
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
 
@@ -159,6 +179,7 @@ async def get_report_pdf(
 
     from src.reports.pdf_report import build_profile_pdf
 
+    await _require_student_profile(request, profile)
     if profile not in profiles:
         raise HTTPException(status_code=404, detail="Профиль не найден")
     result_path = (
