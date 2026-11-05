@@ -311,7 +311,7 @@ async def krm_scope_summary(request: Request, dir_code: str = "09.03.02",
     нигде не было сказано, куда делись остальные. Здесь возвращается вся
     цепочка с причинами, чтобы экран мог показать её одной строкой.
     """
-    from src.teacher_scope import effective_in_scope, load_scope_overrides, scope_source
+    from src.teacher_scope import effective_in_scope, load_scope_overrides
 
     pool = get_pool()
     over = await load_scope_overrides(pool, dir_code)

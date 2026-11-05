@@ -368,7 +368,14 @@ async def run_pipeline_task(action: PipelineAction, task_id: str, **kwargs):
     cancel_event = _cancel_events[task_id]
 
     started_at = time.time()
-    pipeline_tasks[task_id] = _make_task_status(task_id, "running", "Запуск...", started_at, step=0, owner_uid=await _current_uid(request))
+    # Владельца уже проставил эндпоинт при создании задачи. Здесь мы лишь
+    # переводим её в "running", поэтому owner_uid берём из существующей записи:
+    # у этой функции нет request (она запускается в фоне), и обращение к нему
+    # было NameError.
+    existing_owner = getattr(pipeline_tasks.get(task_id), "owner_uid", None)
+    pipeline_tasks[task_id] = _make_task_status(
+        task_id, "running", "Запуск...", started_at, step=0, owner_uid=existing_owner
+    )
     await _asave_tasks()
 
     loop = asyncio.get_running_loop()
