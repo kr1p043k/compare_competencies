@@ -1,13 +1,9 @@
 # tests/pipeline/test_pipeline.py
 import json
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-sys.modules['shap'] = MagicMock()
-sys.modules['cv2'] = MagicMock()
 
 from src import Ok
 from src.errors import RecommendationError

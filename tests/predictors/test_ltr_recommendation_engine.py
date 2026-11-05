@@ -1,11 +1,7 @@
 # tests/predictors/test_ltr_recommendation_engine.py
 import json
-import sys
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
-
-sys.modules['shap'] = MagicMock()
-sys.modules['cv2'] = MagicMock()
 
 import joblib
 import numpy as np

@@ -1,7 +1,9 @@
 # tests/conftest.py
 import contextlib
 import logging
+import random
 import sys
+import types
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -24,27 +26,70 @@ from src.models.vacancy import Area, Employer, KeySkill, Vacancy
 from src.parsing.skills.skill_validator import SkillValidator
 
 
-@pytest.fixture(autouse=True)
-def mock_sleep():
-    """Автоматически подменяет time.sleep на заглушку во всех тестах, кроме помеченных @pytest.mark.no_sleep_mock"""
-    with patch("time.sleep", return_value=None) as mock:
-        yield mock
+def _ensure_optional_module(name: str, attrs: dict | None = None) -> types.ModuleType:
+    """Stub optional third-party modules so test modules can import src code safely.
+
+    Keeping the stubs in conftest means the whole suite sees a single real
+    module-type placeholder instead of per-test-file MagicMock mutations that
+    leak state and make results order-dependent.
+    """
+    if name not in sys.modules:
+        stub = types.ModuleType(name)
+        for attr, value in (attrs or {}).items():
+            setattr(stub, attr, value)
+        sys.modules[name] = stub
+    return sys.modules[name]
+
+
+_ensure_optional_module("cv2")
+_ensure_optional_module("shap", {"TreeExplainer": MagicMock()})
+
+
+RANDOM_SEED = 12345
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _seed_random_session():
+    """Anchor the global PRNGs once per session; per-test fixture resets them."""
+    random.seed(RANDOM_SEED)
+    np.random.seed(RANDOM_SEED)
+    yield RANDOM_SEED
+
 
 @pytest.fixture(autouse=True)
-def mock_sleeps():
+def _seed_random_per_test(_seed_random_session):
+    """Re-seed global PRNGs before every test prevents order-dependent failures."""
+    random.seed(_seed_random_session)
+    np.random.seed(_seed_random_session)
+    yield
+
+
+@pytest.fixture(autouse=True)
+def mock_sleep():
+    """
+    Автоматически подменяет time.sleep/asyncio.sleep на заглушку во всех тестах.
+
+    Trade-off: an opt-in marker would be cleaner, but hundreds of tests rely on
+    the current blanket mock, so changing the contract would require editing too
+    many call sites. We keep the autouse behaviour but register it once instead
+    of the previous duplicate fixtures (time.sleep was patched twice).
+    """
     with patch("time.sleep", return_value=None), \
          patch("asyncio.sleep", new_callable=AsyncMock):
         yield
+
+
 def pytest_configure(config):
-    """Глобальный мок SentenceTransformer для всех тестов."""
+    """Глобальный мок SentenceTransformer для всех тестов (stub is a real module type)."""
     mock_model = MagicMock()
-    _VEC = np.linspace(0, 1, 384)
-    mock_model.encode.side_effect = lambda texts, **kw: np.tile(_VEC, (len(texts), 1))
+    vec_base = np.linspace(0, 1, 384)
+    mock_model.encode.side_effect = lambda texts, **kw: np.tile(vec_base, (len(texts), 1))
     mock_model.eval.return_value = mock_model
     mock_model.get_sentence_embedding_dimension.return_value = 384
 
-    mock_st = MagicMock()
+    mock_st = types.ModuleType("sentence_transformers")
     mock_st.SentenceTransformer = MagicMock(return_value=mock_model)
+    mock_st.CrossEncoder = MagicMock()
     mock_st.__version__ = "2.7.0"
     sys.modules["sentence_transformers"] = mock_st
 

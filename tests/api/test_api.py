@@ -4,15 +4,10 @@
 Паттерн: моки подсовываются через app.dependency_overrides[deps.get_*],
 а не через глобалы src.api_pkg (роутеры читают зависимости через deps).
 """
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-
-# Предотвращаем импорт shap и cv2
-sys.modules["shap"] = MagicMock()
-sys.modules["cv2"] = MagicMock()
 
 # NOTE: sentence_transformers is mocked session-wide by tests/conftest.py
 # (configured mock with working encode). Do NOT overwrite sys.modules here:

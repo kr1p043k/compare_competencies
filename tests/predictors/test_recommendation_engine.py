@@ -3,12 +3,8 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-sys.modules['shap'] = MagicMock()
-sys.modules['cv2'] = MagicMock()
-
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import SecretStr

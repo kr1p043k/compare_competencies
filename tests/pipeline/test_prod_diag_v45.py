@@ -1,13 +1,9 @@
 """v45 prod-diagnosis tests: error surfacing, cache fallback, profiles-first order."""
 import json
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-sys.modules.setdefault("shap", MagicMock())
-sys.modules.setdefault("cv2", MagicMock())
 
 from src import Ok
 from src.api_pkg.routers.pipeline import _format_task_error
